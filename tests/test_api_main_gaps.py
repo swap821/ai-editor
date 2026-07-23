@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent
+from aios.domain.memory.human_representation import HumanStateHypothesis
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.api.routes.system import (  # moved in the monolith split (tranche 2)
     _classify_intent,
@@ -42,6 +43,7 @@ from aios.api.main import (
     _recall_memory,
     _recall_skills,
     _record_episode,
+    _record_human_state,
     _to_chat_messages,
     _verify_target_key,
     _verify_target_keys,
@@ -1532,6 +1534,39 @@ def test_record_episode_uses_injected_authority(monkeypatch) -> None:
     _record_episode("session-injected", "assistant", "hello authority", authority=Authority())
 
     assert calls == [("session-injected", "assistant", "hello authority")]
+
+
+def test_record_human_state_uses_injected_store() -> None:
+    calls: list[tuple[str, str, HumanStateHypothesis]] = []
+
+    class FakeStore:
+        def save(
+            self, session_id: str, turn_id: str, hypothesis: HumanStateHypothesis
+        ) -> None:
+            calls.append((session_id, turn_id, hypothesis))
+
+    hypothesis = HumanStateHypothesis(
+        state="frustrated", confidence=0.6, visible_reason="test"
+    )
+    _record_human_state("session-1", "turn-1", hypothesis, store=FakeStore())
+
+    assert calls == [("session-1", "turn-1", hypothesis)]
+
+
+def test_record_human_state_is_best_effort_and_never_raises() -> None:
+    """A broken store must never break the chat turn whose classification
+    already happened and was already streamed to the UI -- matching
+    _record_episode's own established best-effort convention exactly."""
+
+    class BoomStore:
+        def save(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("store is down")
+
+    hypothesis = HumanStateHypothesis(
+        state="neutral", confidence=0.2, visible_reason="test"
+    )
+
+    _record_human_state("session-1", "turn-1", hypothesis, store=BoomStore())  # must not raise
 
 
 def test_recall_lessons_none_reflector_returns_empty() -> None:

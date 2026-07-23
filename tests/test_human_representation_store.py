@@ -11,10 +11,12 @@ from pathlib import Path
 import pytest
 
 from aios.domain.memory.human_representation import (
+    HumanStateHypothesis,
     OperatorPreferenceV1,
     ProjectPassportV1,
 )
 from aios.infrastructure.memory.human_representation_store import (
+    HumanStateHypothesisStore,
     OperatorPreferenceStore,
     ProjectPassportStore,
     RecordTamperedError,
@@ -256,3 +258,76 @@ def test_passport_tamper_is_detected_at_read_time(tmp_path: Path) -> None:
 
     with pytest.raises(RecordTamperedError):
         store.get_current("proj-1")
+
+
+# --- HumanStateHypothesisStore (organ 30) ------------------------------------
+
+
+def _hypothesis(**overrides: object) -> HumanStateHypothesis:
+    payload = {
+        "state": "frustrated",
+        "confidence": 0.6,
+        "visible_reason": "message contains repeated-complaint markers",
+    }
+    payload.update(overrides)
+    return HumanStateHypothesis(**payload)
+
+
+def test_save_and_get_history_round_trips_a_hypothesis(tmp_path: Path) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+
+    store.save("session-1", "turn-1", _hypothesis())
+
+    history = store.get_history("session-1")
+    assert len(history) == 1
+    turn_id, hypothesis = history[0]
+    assert turn_id == "turn-1"
+    assert hypothesis.state == "frustrated"
+    assert hypothesis.confidence == 0.6
+    assert hypothesis.user_correctable is True
+    assert hypothesis.grants_authority is False
+
+
+def test_history_is_append_only_and_ordered_oldest_first(tmp_path: Path) -> None:
+    db_path = tmp_path / "mem.db"
+    store = HumanStateHypothesisStore(db_path)
+    store.save("session-1", "turn-1", _hypothesis(state="neutral", confidence=0.3))
+    store.save("session-1", "turn-2", _hypothesis(state="rushed", confidence=0.6))
+
+    restarted = HumanStateHypothesisStore(db_path)
+    history = restarted.get_history("session-1")
+
+    assert [(t, h.state) for t, h in history] == [
+        ("turn-1", "neutral"),
+        ("turn-2", "rushed"),
+    ]
+
+
+def test_different_sessions_do_not_leak_into_each_others_history(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-a", "turn-1", _hypothesis())
+    store.save("session-b", "turn-1", _hypothesis(state="decisive", confidence=0.55))
+
+    assert [h.state for _, h in store.get_history("session-a")] == ["frustrated"]
+    assert [h.state for _, h in store.get_history("session-b")] == ["decisive"]
+
+
+def test_history_empty_for_unknown_session(tmp_path: Path) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    assert store.get_history("no-such-session") == ()
+
+
+def test_hypothesis_tamper_is_detected_at_read_time(tmp_path: Path) -> None:
+    db_path = tmp_path / "mem.db"
+    store = HumanStateHypothesisStore(db_path)
+    store.save("session-1", "turn-1", _hypothesis())
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("UPDATE human_state_hypotheses SET state = 'neutral'")
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RecordTamperedError):
+        store.get_history("session-1")

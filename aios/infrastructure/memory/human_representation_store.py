@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from aios.domain.memory.human_representation import (
+    HumanStateHypothesis,
     OperatorPreferenceV1,
     ProjectPassportV1,
 )
@@ -323,7 +324,80 @@ def _passport_from_row(row: sqlite3.Row) -> ProjectPassportV1:
     return record
 
 
+class HumanStateHypothesisStore:
+    """Organ 30: append-only history of ``classify_human_state()`` outputs,
+    one row per live conversation turn.
+
+    ``HumanStateHypothesis`` carries no session/turn identity of its own
+    (a pure classification result) -- ``save()`` supplies it externally,
+    the same pattern ``MissionTransitionJournal`` uses for a domain-agnostic
+    event keyed onto a caller-supplied ``mission_id``.
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        self.db_path = Path(db_path).resolve()
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as conn:
+            apply_migrations(conn, scope="human_representation")
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def save(
+        self, session_id: str, turn_id: str, hypothesis: HumanStateHypothesis
+    ) -> None:
+        digest = _digest(hypothesis.model_dump(mode="json"))
+        with closing(self._connect()) as conn:
+            conn.execute(
+                """
+                INSERT INTO human_state_hypotheses (
+                    session_id, turn_id, state, confidence, visible_reason,
+                    recorded_at, record_digest
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    turn_id,
+                    hypothesis.state,
+                    hypothesis.confidence,
+                    hypothesis.visible_reason,
+                    _utc_now(),
+                    digest,
+                ),
+            )
+            conn.commit()
+
+    def get_history(
+        self, session_id: str
+    ) -> tuple[tuple[str, HumanStateHypothesis], ...]:
+        """(turn_id, hypothesis) pairs for one session, oldest first."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM human_state_hypotheses WHERE session_id = ? "
+                "ORDER BY id ASC",
+                (session_id,),
+            ).fetchall()
+        results: list[tuple[str, HumanStateHypothesis]] = []
+        for row in rows:
+            hypothesis = HumanStateHypothesis(
+                state=row["state"],
+                confidence=row["confidence"],
+                visible_reason=row["visible_reason"],
+            )
+            recomputed = _digest(hypothesis.model_dump(mode="json"))
+            if recomputed != row["record_digest"]:
+                raise RecordTamperedError(
+                    "stored human-state hypothesis digest mismatch for turn "
+                    f"{row['turn_id']!r}: the row was altered outside this store"
+                )
+            results.append((str(row["turn_id"]), hypothesis))
+        return tuple(results)
+
+
 __all__ = [
+    "HumanStateHypothesisStore",
     "OperatorPreferenceSaveResult",
     "OperatorPreferenceStore",
     "ProjectPassportStore",

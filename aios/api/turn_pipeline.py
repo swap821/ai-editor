@@ -25,6 +25,7 @@ from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.api.deps import (
     get_bedrock_client,
     get_gemini_client,
+    get_human_state_hypothesis_store,
     get_memory_authority,
     get_ollama_client,
 )
@@ -41,7 +42,7 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
 from aios.memory.retrieval import hybrid_search
-from aios.domain.memory import MemoryRecallContext
+from aios.domain.memory import HumanStateHypothesis, MemoryRecallContext
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -456,6 +457,23 @@ def _record_episode(
         )
     except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
         logger.warning("Failed to record episodic memory", exc_info=exc)
+
+
+def _record_human_state(
+    session_id: str,
+    turn_id: str,
+    hypothesis: HumanStateHypothesis,
+    *,
+    store: Any | None = None,
+) -> None:
+    """Persist organ 30's per-turn human-state hypothesis. Best-effort;
+    never fatal -- a store failure must never break the chat turn whose
+    classification already happened and was already streamed to the UI."""
+    try:
+        target = store or get_human_state_hypothesis_store()
+        target.save(session_id, turn_id, hypothesis)
+    except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
+        logger.warning("Failed to record human state hypothesis", exc_info=exc)
 
 
 def _recall_lessons(

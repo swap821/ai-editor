@@ -100,6 +100,7 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_rollback_engine,
     get_self_apply_engine,
     get_edit_snapshot,
+    get_human_state_hypothesis_store,
     _session_id_from_request,
     _RATE_LIMITER,
     _SESSION_MANAGER,
@@ -1030,6 +1031,7 @@ from aios.api.turn_pipeline import (
     _recall_self_model,
     _recall_skills,
     _record_episode,
+    _record_human_state,
     _verify_target_key,
     _verify_target_keys,
     _workflow_step,
@@ -1258,6 +1260,7 @@ def chat(
     facts: SemanticFacts = Depends(get_semantic_facts),
     compactor: MemoryCompactor = Depends(get_compactor),
     memory_authority=Depends(get_memory_authority),
+    human_state_store=Depends(get_human_state_hypothesis_store),
 ) -> StreamingResponse:
     """Stream a lean Hinglish conversational reply (the GAGOS voice mind).
 
@@ -1269,13 +1272,19 @@ def chat(
     clients fall back to word-by-word chunks so every route keeps one wire shape.
     Frames, in order:
 
-      * ``route``       — the provider/model that served + a privacy indicator.
-      * ``text_chunk``  — the reply, as a sequence of ``{"text": ...}`` frames.
-      * ``done``        — terminal frame (``{}``), or ``error`` on transport failure.
+      * ``turn.started`` — the turn has begun.
+      * ``human_state``  — organ 30's advisory, non-authoritative guess at the
+        operator's state (``HumanStateHypothesis.as_dict()``); always visible
+        and user-correctable, never gates or grants anything.
+      * ``route``        — the provider/model that served + a privacy indicator.
+      * ``text_chunk``   — the reply, as a sequence of ``{"text": ...}`` frames.
+      * ``done``         — terminal frame (``{}``), or ``error`` on transport failure.
 
-    The user + assistant turns are persisted to L2 episodic memory and the
-    completed turn is embedded into L3 (self-reinforcing recall), exactly like
-    ``/api/generate``. Best-effort persistence never breaks the chat.
+    The user + assistant turns are persisted to L2 episodic memory, the
+    human-state hypothesis is persisted to its own append-only history
+    (best-effort), and the completed turn is embedded into L3
+    (self-reinforcing recall), exactly like ``/api/generate``. Best-effort
+    persistence never breaks the chat.
     """
     session_id = _session_id_from_request(request, req.session_id)
     authority_adapters = getattr(memory_authority, "adapters", {})
@@ -1332,6 +1341,9 @@ def chat(
                 "sse_writer": _sse_writer,
                 "stream_chat_chunks": _stream_chat_chunks,
                 "record_episode": _record_episode,
+                "record_human_state": lambda sid, tid, hyp: _record_human_state(
+                    sid, tid, hyp, store=human_state_store
+                ),
                 "index_turn": _index_turn,
                 "operator_facts_block": _operator_facts_block,
                 "recall_memory": _recall_memory,

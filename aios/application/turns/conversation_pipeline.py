@@ -12,6 +12,7 @@ from __future__ import annotations
 import time
 from typing import Any, Iterator
 
+from aios.application.memory.human_representation import classify_human_state
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
@@ -64,6 +65,10 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
         record_telemetry(telemetry.OUTCOME_ABORTED)
         yield sse("error", {"text": "No transcript provided."})
         return
+
+    human_state = classify_human_state(user_text)
+    yield sse("human_state", human_state.as_dict())
+    extra["record_human_state"](context.session_id, context.turn_id, human_state)
 
     prompt_sections = [
         PromptSection(

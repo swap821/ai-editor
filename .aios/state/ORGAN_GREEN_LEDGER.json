@@ -582,15 +582,22 @@
     "authority_owner": "HumanStateInterpreterAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
-      "aios/application/memory/human_representation.py"
+      "aios/application/memory/human_representation.py",
+      "aios/application/turns/conversation_pipeline.py",
+      "aios/infrastructure/memory/human_representation_store.py",
+      "aios/api/main.py"
     ],
     "focused_tests": [
-      "tests/test_human_representation.py"
+      "tests/test_human_representation.py",
+      "tests/test_human_representation_store.py"
     ],
-    "integration_tests": [],
+    "integration_tests": [
+      "tests/test_conversation_pipeline.py",
+      "tests/test_api_main_gaps.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "HumanStateHypothesis now exists (typed, grants_authority and user_correctable pinned literals) with classify_human_state(), a small deterministic regex classifier in the same style as aios.core.alignment.infer_communication_mode -- this organ had no prior art at all before Slice 28. Still missing: it is not wired into any live turn/conversation path yet, has no persistence, and the classifier itself is a first-pass heuristic that has not been measured against real operator messages."
+      "Tier 3 update: classify_human_state() is now genuinely wired into the real, live /api/v1/chat turn path -- aios/application/turns/conversation_pipeline.py's stream_conversation() (the actual hot path, confirmed by reading it directly, not assumed) classifies every non-empty user turn, emits a new advisory 'human_state' SSE frame (always visible, user_correctable=True, grants_authority=False, before the route/text_chunk frames) and best-effort-persists it via a new HumanStateHypothesisStore (organ 30's own genuinely new append-only, digest-verified table -- migration 0010, scope human_representation). The persistence call site follows record_episode's own established convention exactly: no defensive try/except at the call site itself, the injected callable (_record_human_state) owns being best-effort, proven with a dedicated test that a broken store never raises. Still missing, honestly: the deterministic regex classifier itself has not been measured against real production operator traffic -- only synthetic labeled examples (tests/test_human_representation.py's parametrized cases) exist today, and no real usage history has accumulated yet in this sandbox to validate against; this is a genuine, not-fabricatable gap that closes naturally as real chat traffic accumulates in the new store."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

@@ -78,7 +78,10 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
-from aios.infrastructure.memory.human_representation_store import ProjectPassportStore
+from aios.infrastructure.memory.human_representation_store import (
+    HumanStateHypothesisStore,
+    ProjectPassportStore,
+)
 from aios.security.audit_logger import log_action
 from aios.security.gateway import RateLimiter, Zone
 
@@ -104,6 +107,8 @@ _emergency_stop: Optional[EmergencyStopController] = None
 _emergency_stop_lock = threading.Lock()
 _project_passport_store: Optional[ProjectPassportStore] = None
 _project_passport_store_lock = threading.Lock()
+_human_state_hypothesis_store: Optional[HumanStateHypothesisStore] = None
+_human_state_hypothesis_store_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -569,6 +574,21 @@ def get_project_passport_store() -> ProjectPassportStore:
                 config.PROJECT_PASSPORT_DB_PATH
             )
     return _project_passport_store
+
+
+def get_human_state_hypothesis_store() -> HumanStateHypothesisStore:
+    """Provide the durable, append-only HumanStateHypothesis history
+    singleton (organ 30) -- turns classify_human_state()'s previously
+    discarded output into a real, queryable per-session record."""
+    global _human_state_hypothesis_store
+    if _human_state_hypothesis_store is not None:
+        return _human_state_hypothesis_store
+    with _human_state_hypothesis_store_lock:
+        if _human_state_hypothesis_store is None:
+            _human_state_hypothesis_store = HumanStateHypothesisStore(
+                config.HUMAN_STATE_HYPOTHESIS_DB_PATH
+            )
+    return _human_state_hypothesis_store
 
 
 def get_authenticated_principal(
