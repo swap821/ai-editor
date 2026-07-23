@@ -293,14 +293,18 @@ def test_cli_backup_create_if_stale_skips_when_fresh_creates_when_stale(
     assert skipped_payload["reason"] == "most recent backup is still fresh"
     assert len(list(backup_dir.glob("gagos-*.tar.gz"))) == 1
 
-    # Force staleness via an explicit tiny threshold -- must decide to
-    # create again (the decision itself, not the collidable same-second
-    # filename, is what this proves).
+    # Force staleness via a negative threshold -- must decide to create
+    # again (the decision itself, not the collidable same-second filename,
+    # is what this proves). A threshold of exactly 0 is a real boundary bug
+    # magnet: on a fast CI runner, back-to-back calls can land within the
+    # filesystem's mtime resolution, making age_seconds compute as 0.0,
+    # which incorrectly satisfies "age_seconds <= threshold" and skips.
+    # age_seconds can never be negative, so -1 is unambiguous.
     stale_args = types.SimpleNamespace(
         backup_command="create",
         output=None,
         if_stale=True,
-        stale_after_seconds=0,
+        stale_after_seconds=-1,
         json=True,
     )
     assert cli._cmd_backup(stale_args) == 0
