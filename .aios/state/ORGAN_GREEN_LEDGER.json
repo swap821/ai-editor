@@ -667,17 +667,22 @@
     "authority_owner": "ProviderHealthBudgetAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
-      "aios/application/models/health.py"
+      "aios/application/models/health.py",
+      "aios/core/failover.py",
+      "aios/core/router_wiring.py",
+      "aios/api/deps.py"
     ],
     "focused_tests": [
-      "tests/test_model_passport_and_health.py"
+      "tests/test_model_passport_and_health.py",
+      "tests/test_failover.py"
     ],
     "integration_tests": [
-      "tests/test_runtime_gaps.py"
+      "tests/test_runtime_gaps.py",
+      "tests/test_route_wiring.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "ProviderHealthSnapshot + ProviderHealthTracker now exist: a real, deterministic closed/open/half-open circuit breaker driven entirely by caller-reported call outcomes (in-memory per-process, matching aios.runtime.budget_guard.BudgetGuard's own established convention, not a new durability promise). Unknown budget/cost is represented as None, never fabricated as zero. Still missing: nothing wires real provider calls (deps.py client factories, router_wiring) through this tracker yet, so it tracks nothing in production; no durable persistence across restarts; and BudgetGuard itself is unchanged -- the two are not yet unified into one budget+health view."
+      "ProviderHealthSnapshot + ProviderHealthTracker now exist: a real, deterministic closed/open/half-open circuit breaker driven entirely by caller-reported call outcomes (in-memory per-process, matching aios.runtime.budget_guard.BudgetGuard's own established convention, not a new durability promise). Unknown budget/cost is represented as None, never fabricated as zero. Tier-2 update: a real provider call site is now wired. FailoverChatClient (aios/core/failover.py) -- the sole production wrapper the 'auto' route's cascade is returned through (aios/core/router_wiring.py::_select_chat_client, confirmed by grep: one construction site) -- takes an optional ProviderHealthTracker and reports record_success()/record_failure() around every real chat(), stream_chat(), and stream_chat_with_tools() attempt. A new process-wide singleton (aios/api/deps.py::get_provider_health(), matching _CAPABILITIES/_SESSION_MANAGER's own convention) is threaded in via a lazy import mirroring _router_policy()'s established pattern -- a lookup failure yields None rather than breaking routing. Deliberately NOT wired this pass: is_call_allowed() is not consulted before attempting a candidate -- this pass is purely observational (records outcomes) and does not change failover ordering/control-flow on this privacy-hardened (H9) hot path, which deserves its own reviewed pass. Still missing: no durable persistence across restarts; BudgetGuard itself is unchanged, the two remain unmerged; and explicit (non-'auto') model picks bypass FailoverChatClient entirely via _select_chat_client's single-candidate direct-return path, so only 'auto'-routed traffic is observed, not e.g. an explicit gemini.<model> pick."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

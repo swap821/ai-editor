@@ -40,6 +40,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Iterator, Optional
 
+from aios.application.models.health import ProviderHealthTracker
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter
 from aios.core.stream_protocol import StreamFinished
@@ -76,7 +77,11 @@ class FailoverChatClient:
     """Try a ranked list of ``(client, model, provider)`` candidates, in order."""
 
     def __init__(
-        self, candidates: list[Candidate], *, on_failover: Optional[FailoverHook] = None
+        self,
+        candidates: list[Candidate],
+        *,
+        on_failover: Optional[FailoverHook] = None,
+        provider_health: Optional[ProviderHealthTracker] = None,
     ) -> None:
         if not candidates:
             raise ValueError("FailoverChatClient requires at least one candidate")
@@ -85,6 +90,20 @@ class FailoverChatClient:
         self._idx = 0  # index of the current primary candidate
         #: Privacy filter — applied once before any cloud transmission this turn.
         self._privacy_filter = PrivacyFilter()
+        #: Organ 34: records real outcomes so the circuit-breaker tracker
+        #: actually observes production traffic. Optional and purely
+        #: observational here -- this pass does not yet gate candidate
+        #: selection on `is_call_allowed()`, which would change failover
+        #: ordering and deserves its own reviewed pass.
+        self._provider_health = provider_health
+
+    def _record_success(self, provider: str) -> None:
+        if self._provider_health is not None:
+            self._provider_health.record_success(provider)
+
+    def _record_failure(self, provider: str) -> None:
+        if self._provider_health is not None:
+            self._provider_health.record_failure(provider)
 
     @property
     def active_provider(self) -> str:
@@ -186,6 +205,7 @@ class FailoverChatClient:
                 result = client.chat(use_messages, tools=tools, model=m)
                 # Success — stick with this candidate.
                 self._idx = i
+                self._record_success(provider)
                 # Fire failover hook if we changed providers.
                 if self._on_failover and i != started:
                     success_provider = self._candidates[i][2]
@@ -204,6 +224,7 @@ class FailoverChatClient:
                 return result
             except LLMError as exc:
                 errors.append((provider, m, exc))
+                self._record_failure(provider)
                 self._idx = min(i + 1, len(self._candidates) - 1)  # forward-only
 
         # --- 2. All candidates from started onward failed. ---
@@ -297,6 +318,7 @@ class FailoverChatClient:
                     except StopIteration:
                         first = None
                     self._idx = i
+                    self._record_success(provider)
                     if self._on_failover and i != started:
                         success_provider = self._candidates[i][2]
                         success_model = self._candidates[i][1]
@@ -320,6 +342,7 @@ class FailoverChatClient:
 
                 result = client.chat(use_messages, tools=None, model=m)
                 self._idx = i
+                self._record_success(provider)
                 if self._on_failover and i != started:
                     success_provider = self._candidates[i][2]
                     success_model = self._candidates[i][1]
@@ -340,6 +363,7 @@ class FailoverChatClient:
                 return
             except LLMError as exc:
                 errors.append((provider, m, exc))
+                self._record_failure(provider)
                 self._idx = min(i + 1, len(self._candidates) - 1)
 
         detail = (
@@ -425,6 +449,7 @@ class FailoverChatClient:
                     except StopIteration:
                         first = None
                     self._idx = i
+                    self._record_success(provider)
                     if self._on_failover and i != started:
                         success_provider = self._candidates[i][2]
                         success_model = self._candidates[i][1]
@@ -449,6 +474,7 @@ class FailoverChatClient:
                 # Fallback: use blocking chat() and synthesize a StreamFinished
                 result = client.chat(use_messages, tools=tools, model=m)
                 self._idx = i
+                self._record_success(provider)
                 if self._on_failover and i != started:
                     success_provider = self._candidates[i][2]
                     success_model = self._candidates[i][1]
@@ -471,6 +497,7 @@ class FailoverChatClient:
                 return
             except LLMError as exc:
                 errors.append((provider, m, exc))
+                self._record_failure(provider)
                 self._idx = min(i + 1, len(self._candidates) - 1)
 
         detail = (

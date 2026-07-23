@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 import pytest
 
+from aios.application.models.health import ProviderHealthTracker
 from aios.core.failover import FailoverChatClient, _is_cloud_provider, _is_local_provider
 from aios.core.llm import LLMError
 from aios.core.stream_protocol import StreamFinished
@@ -103,6 +104,99 @@ def test_failover_stream_chat():
     chunks = list(fc.stream_chat([{"role": "user", "content": "hi"}]))
     assert chunks == ["chunk 1", "chunk 2"]
     assert fc.active_model == "m2"
+
+
+# --- Organ 34: the failover client reports real outcomes to a tracker -------
+def test_failover_chat_records_success_to_provider_health():
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "ok"}
+    tracker = ProviderHealthTracker()
+
+    fc = FailoverChatClient([(client1, "m1", "ollama")], provider_health=tracker)
+    fc.chat([{"role": "user", "content": "hi"}])
+
+    snapshot = tracker.snapshot("ollama")
+    assert snapshot.reachable is True
+    assert snapshot.circuit_state == "closed"
+
+
+def test_failover_chat_records_failure_to_provider_health_on_fallback():
+    client1 = MagicMock()
+    client1.chat.side_effect = LLMError("outage")
+    client2 = MagicMock()
+    client2.chat.return_value = {"content": "ok"}
+    tracker = ProviderHealthTracker()
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+    fc.chat([{"role": "user", "content": "hi"}])
+
+    failed = tracker.snapshot("bedrock")
+    assert failed.recent_failure_count == 1
+    succeeded = tracker.snapshot("ollama")
+    assert succeeded.reachable is True
+
+
+def test_failover_chat_without_a_tracker_behaves_exactly_as_before():
+    """`provider_health` is optional -- omitting it must not change behavior
+    or raise, matching every pre-existing FailoverChatClient caller."""
+    client1 = MagicMock()
+    client1.chat.return_value = {"content": "ok"}
+
+    fc = FailoverChatClient([(client1, "m1", "ollama")])
+    result = fc.chat([{"role": "user", "content": "hi"}])
+    assert result == {"content": "ok"}
+
+
+def test_failover_stream_chat_records_outcomes_to_provider_health():
+    client1 = MagicMock()
+    client1.stream_chat.side_effect = LLMError("outage")
+    client2 = MagicMock()
+    client2.stream_chat.return_value = iter(["chunk"])
+    tracker = ProviderHealthTracker()
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+    list(fc.stream_chat([{"role": "user", "content": "hi"}]))
+
+    assert tracker.snapshot("bedrock").recent_failure_count == 1
+    assert tracker.snapshot("ollama").reachable is True
+
+
+def test_failover_stream_chat_with_tools_records_outcomes_to_provider_health():
+    client1 = MagicMock()
+    client1.stream_chat_with_tools.return_value = iter(
+        ["text", StreamFinished(tool_calls=[], content="text")]
+    )
+    tracker = ProviderHealthTracker()
+
+    fc = FailoverChatClient([(client1, "m1", "ollama")], provider_health=tracker)
+    list(fc.stream_chat_with_tools([{"role": "user", "content": "hi"}]))
+
+    assert tracker.snapshot("ollama").reachable is True
+
+
+def test_failover_stream_chat_with_tools_records_a_failure():
+    client1 = MagicMock()
+    client1.stream_chat_with_tools.side_effect = LLMError("outage")
+    client2 = MagicMock()
+    client2.stream_chat_with_tools.return_value = iter(
+        ["text", StreamFinished(tool_calls=[], content="text")]
+    )
+    tracker = ProviderHealthTracker()
+
+    fc = FailoverChatClient(
+        [(client1, "m1", "bedrock"), (client2, "m2", "ollama")],
+        provider_health=tracker,
+    )
+    list(fc.stream_chat_with_tools([{"role": "user", "content": "hi"}]))
+
+    assert tracker.snapshot("bedrock").recent_failure_count == 1
+    assert tracker.snapshot("ollama").reachable is True
 
 
 def test_failover_stream_chat_with_tools():

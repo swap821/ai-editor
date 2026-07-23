@@ -60,6 +60,22 @@ def _router_policy() -> router.Policy:
     return get_policy_kernel().router_policy()
 
 
+def _provider_health_tracker() -> Any:
+    """The process-wide provider-health circuit-breaker singleton (organ 34).
+
+    Lazily imported for the same reason as ``_router_policy`` above. Never
+    raises: a construction failure here must not break routing, so a lookup
+    error yields ``None`` (the failover client stays fully functional, just
+    unobserved for this one call).
+    """
+    try:
+        from aios.api.deps import get_provider_health
+
+        return get_provider_health()
+    except Exception:  # noqa: BLE001 - observability must never break routing
+        return None
+
+
 def _build_providers(
     ollama: Any,
     bedrock: Optional[Any],
@@ -357,7 +373,12 @@ def _select_chat_client(
             if len(cascade) == 1:
                 return cascade[0][0], cascade[0][1]
             if cascade:
-                return FailoverChatClient(cascade), cascade[0][1]
+                return (
+                    FailoverChatClient(
+                        cascade, provider_health=_provider_health_tracker()
+                    ),
+                    cascade[0][1],
+                )
         return ollama, config.LLM_MODEL
     if model_id and model_id.startswith("ollama."):
         local_model = _resolve_local_model(model_id)

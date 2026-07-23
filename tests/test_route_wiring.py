@@ -14,9 +14,10 @@ from dataclasses import replace
 import pytest
 
 from aios import config
-from aios.api.deps import get_policy_kernel
+from aios.api.deps import get_policy_kernel, get_provider_health
 from aios.api.main import _build_providers, _provider_name, _select_chat_client
 from aios.core.catalog import clear_catalog_cache
+from aios.core.llm import LLMError
 from aios.runtime import profiles
 
 
@@ -218,6 +219,58 @@ def test_auto_returns_failover_cascade_with_fallbacks(monkeypatch) -> None:
     assert provs[0] == "gemini"                          # primary first
     assert "bedrock" in provs and "ollama" in provs      # both fallbacks present
     assert len(provs) == 3
+
+
+# --- Organ 34: real provider outcomes reach the health tracker ---------------
+class FakeCloud:
+    """Minimal cloud-shaped client: `.chat()` succeeds or raises LLMError."""
+
+    def __init__(self, *, fails: bool = False) -> None:
+        self._fails = fails
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        if self._fails:
+            raise LLMError("provider outage")
+        return {"content": "ok"}
+
+
+def test_auto_failover_client_reports_real_outcomes_to_provider_health(monkeypatch) -> None:
+    """The `auto` route's FailoverChatClient is wired to the same process-wide
+    ProviderHealthTracker `get_provider_health()` returns -- a real call
+    through it must be observable there, closing organ 34's own named gap
+    ('nothing wires real provider calls through this tracker yet')."""
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
+    ollama = FakeOllama(["qwen2.5-coder:7b"])
+    gemini = FakeCloud(fails=False)
+    client, _ = _select_chat_client(
+        "auto", ollama, bedrock=object(), gemini=gemini, task="reasoning",
+    )
+    assert client.active_provider == "gemini"  # confirms a real FailoverChatClient cascade
+
+    client.chat([{"role": "user", "content": "hi"}])
+
+    snapshot = get_provider_health().snapshot("gemini")
+    assert snapshot.reachable is True
+    assert snapshot.circuit_state == "closed"
+
+
+def test_auto_failover_client_records_a_real_failure_then_falls_over(monkeypatch) -> None:
+    _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning",))
+    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)
+    ollama = FakeOllama(["qwen2.5-coder:7b"])
+    gemini = FakeCloud(fails=True)
+    client, _ = _select_chat_client(
+        "auto", ollama, bedrock=object(), gemini=gemini, task="reasoning",
+    )
+    assert client.active_provider == "gemini"
+    before = get_provider_health().snapshot("gemini").recent_failure_count
+
+    result = client.chat([{"role": "user", "content": "hi"}])
+    assert result == {"content": ""}  # fell over to the local ollama candidate
+
+    after = get_provider_health().snapshot("gemini").recent_failure_count
+    assert after == before + 1
 
 
 # --- Breadth: auto spans the provider's model catalog ------------------------

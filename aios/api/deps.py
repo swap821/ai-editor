@@ -41,6 +41,7 @@ from aios.application.governance import (
     EmergencyStopHooks,
 )
 from aios.application.identity.service import IdentityService
+from aios.application.models.health import ProviderHealthTracker
 from aios.application.memory.adapters import (
     AdvisoryPheromoneAdapter,
     EpisodicMemoryAdapter,
@@ -513,6 +514,17 @@ _SESSION_MANAGER = SessionManager(
 def get_session_manager() -> SessionManager:
     """Provide the server-side session manager singleton."""
     return _SESSION_MANAGER
+
+
+#: Organ 34: real, in-memory per-process circuit-breaker state over reported
+#: provider outcomes -- matches BudgetGuard's own established convention for
+#: this kind of runtime accounting, not a new durability promise.
+_PROVIDER_HEALTH = ProviderHealthTracker()
+
+
+def get_provider_health() -> ProviderHealthTracker:
+    """Provide the process-wide provider-health circuit-breaker singleton."""
+    return _PROVIDER_HEALTH
 
 
 def get_identity_service() -> IdentityService:
