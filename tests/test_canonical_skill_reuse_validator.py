@@ -105,6 +105,9 @@ def _build_real_service(tmp_path: Path, *, autonomy_enabled: bool = True) -> Lea
     ):
         mock_config.MISSION_STATE_DB = tmp_path / "missions.db"
         mock_config.OPERATIONAL_STATE_DB_PATH = tmp_path / "operational.db"
+        mock_config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH = (
+            tmp_path / "local_workforce_provenance.db"
+        )
         service = get_learning_service()
 
         if service.local_workforce_service is not None:
