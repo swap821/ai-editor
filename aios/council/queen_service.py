@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from aios import config
+from aios.operations.tracing import bind_trace_context, new_trace_context
 from aios.runtime.contracts import MissionContract, QueenVerdict
 
 
@@ -76,8 +77,14 @@ class QueenService(ABC):
 
         while True:
             contract, future = await self._inbox.get()
+            # Organ 52: this loop outlives any single HTTP request (started
+            # once via asyncio.create_task()), so nothing propagates a trace
+            # context into it for free -- bind one derived from the queued
+            # item's own mission_id at the point it's actually dequeued.
+            trace_context = new_trace_context().with_ids(mission_id=contract.mission_id)
             try:
-                verdict = await self._handle(contract)
+                with bind_trace_context(trace_context):
+                    verdict = await self._handle(contract)
             except Exception as exc:  # noqa: BLE001 - a queen crash must not kill the service
                 self._errors += 1
                 verdict = QueenVerdict(

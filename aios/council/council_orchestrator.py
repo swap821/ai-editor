@@ -65,6 +65,9 @@ from aios.application.workspaces import StagedWorkspaceManager
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from aios.infrastructure.missions.transition_journal_store import (
+    MissionTransitionJournal,
+)
 from aios.runtime.contracts import (
     KingReport,
     MissionContract,
@@ -153,10 +156,12 @@ class CouncilOrchestrator:
         promotion_runtime: WorkspacePromotionRuntime | None = None,
         memory_authority: Any | None = None,
         emergency_stop: Any | None = None,
+        mission_journal: MissionTransitionJournal | None = None,
     ) -> None:
         self.runtime_root = Path(runtime_root).resolve()
         self.bus = bus
         self.emergency_stop = emergency_stop
+        self.mission_journal = mission_journal
         self.spawner = spawner or WorkerSpawner(
             runtime_root=self.runtime_root, bus=self.bus
         )
@@ -390,6 +395,7 @@ class CouncilOrchestrator:
             domain_contract,
             runtime_contract_digest=payload_digest(contract.model_dump(mode="json")),
         )
+        self._journal_append(contract.mission_id, "MISSION_CREATED")
         self.mission_service.start_deliberation(contract.mission_id)
         if has_blocking_verdict(verdicts):
             self.mission_service.block(
@@ -468,11 +474,19 @@ class CouncilOrchestrator:
                 "runtime contract digest does not match authoritative mission"
             )
         self.mission_service.start_execution(contract.mission_id)
+        # Organ 42: WorkerFoundry.run() stages the workspace and dispatches
+        # the worker in one opaque awaited call -- WORKSPACE_CREATED and
+        # EXECUTION_SUBMITTED are recorded back-to-back immediately before it
+        # rather than fabricating a false gap between two sub-steps this
+        # orchestrator cannot independently observe.
+        self._journal_append(contract.mission_id, "WORKSPACE_CREATED")
+        self._journal_append(contract.mission_id, "EXECUTION_SUBMITTED")
         worker_run = await self.foundry.run(
             contract,
             strategy=contract.metadata.get("worker_strategy"),
             context={"claim": False},
         )
+        self._journal_append(contract.mission_id, "EXECUTION_COMPLETED")
         self._persist_event(
             contract.mission_id,
             "worker_spawned",
@@ -510,6 +524,7 @@ class CouncilOrchestrator:
                 reason=f"Council blocked after worker; highest risk {highest_risk([v.risk for v in verdicts])}",
                 retain_workspace=True,
             )
+            self._journal_append(contract.mission_id, "FAILED")
         elif self.promotion_authority is not None:
             self.mission_service.start_verification(contract.mission_id)
             try:
@@ -528,6 +543,7 @@ class CouncilOrchestrator:
                     reason=f"Promotion pipeline failed closed: {type(exc).__name__}",
                     retain_workspace=True,
                 )
+                self._journal_append(contract.mission_id, "FAILED")
                 promotion_result = PromotionResult(
                     mission_id=contract.mission_id,
                     action_id=f"promotion:{contract.mission_id}",
@@ -540,6 +556,7 @@ class CouncilOrchestrator:
                         contract.mission_id,
                         evidence_digest=promotion_bundle_digest,
                     )
+                    self._journal_append(contract.mission_id, "COMPLETED")
                 else:
                     self.mission_service.fail(
                         contract.mission_id,
@@ -737,6 +754,7 @@ class CouncilOrchestrator:
                         observation=observation,
                     )
                 )
+        self._journal_append(contract.mission_id, "VERIFIED")
         record = self.mission_service.repository.get(contract.mission_id)
         request = PromotionRequest(
             mission_id=contract.mission_id,
@@ -761,10 +779,24 @@ class CouncilOrchestrator:
             freshness_seconds=300,
         )
         self._assert_operational()
+
+        def _create_checkpoint_and_journal(req: PromotionRequest) -> str:
+            checkpoint_id = self.promotion_runtime.create_checkpoint(req)
+            # Organ 42: journaled exactly when the real checkpoint step
+            # completes inside promote(), not inferred afterwards -- so the
+            # journal's CHECKPOINT_CREATED -> PROMOTION_STARTED order matches
+            # promote()'s own real internal sequence (checkpoint, then apply).
+            self._journal_append(req.mission_id, "CHECKPOINT_CREATED")
+            return checkpoint_id
+
+        def _apply_and_journal(req: PromotionRequest) -> None:
+            self._journal_append(req.mission_id, "PROMOTION_STARTED")
+            self.promotion_runtime.apply_staged_diff(req)
+
         result = self.promotion_authority.promote(
             request,
-            create_checkpoint=self.promotion_runtime.create_checkpoint,
-            apply_staged_diff=self.promotion_runtime.apply_staged_diff,
+            create_checkpoint=_create_checkpoint_and_journal,
+            apply_staged_diff=_apply_and_journal,
             smoke_test=self.promotion_runtime.post_promotion_smoke,
             restore_checkpoint=self.promotion_runtime.restore_checkpoint,
             emit_observation=lambda req, promotion: self._persist_event(
@@ -773,6 +805,19 @@ class CouncilOrchestrator:
                 payload=promotion.model_dump(mode="json"),
             ),
         )
+        if result.status is PromotionStatus.PROMOTED:
+            self._journal_append(contract.mission_id, "PROMOTED")
+            if result.post_promotion_receipt is not None:
+                self._journal_append(contract.mission_id, "POST_PROMOTION_VERIFIED")
+        elif result.status is PromotionStatus.FAILED:
+            self._journal_append(contract.mission_id, "FAILED")
+        elif result.status is PromotionStatus.ROLLED_BACK:
+            self._journal_append(contract.mission_id, "ROLLED_BACK")
+        # PromotionStatus.REJECTED: preconditions (or the capability check)
+        # refused before -- or immediately after -- the checkpoint step,
+        # deliberately left at whichever journal state was last reached
+        # rather than inventing a "REJECTED" transition the journal's own
+        # vocabulary has no member for.
         return result, bundle.digest()
 
     def _apply_pheromone_context(self, contract: MissionContract) -> MissionContract:
@@ -979,6 +1024,24 @@ class CouncilOrchestrator:
             )
         except Exception as exc:  # noqa: BLE001 - persistence is additive, not authority
             _LOGGER.warning("council_state_event_failed", exc_info=exc)
+
+    def _journal_append(self, mission_id: str, transition: str) -> None:
+        """Best-effort MissionTransitionJournal append (organ 42): a wiring
+        bug or ordering mistake here must never fail a real mission -- the
+        journal is additive resumption evidence, not an authority over
+        whether execution may proceed. Mirrors _persist_event()'s own
+        best-effort convention exactly."""
+        if self.mission_journal is None:
+            return
+        try:
+            self.mission_journal.append(mission_id, transition)
+        except Exception as exc:  # noqa: BLE001 - journal is additive, not authority
+            _LOGGER.warning(
+                "mission_transition_journal_append_failed",
+                mission_id=mission_id,
+                transition=transition,
+                exc_info=exc,
+            )
 
     def _persist_council_memory(
         self,

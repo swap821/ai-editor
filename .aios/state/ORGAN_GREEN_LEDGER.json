@@ -848,15 +848,20 @@
   {
     "organ_id": 41,
     "name": "Promotion, Checkpoint and Rollback (live proof)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "PromotionRollbackLiveAuthority",
-    "production_entrypoints": [],
-    "focused_tests": [],
-    "integration_tests": [],
-    "live_evidence": [],
-    "known_blockers": [
-      "Checked directly against real, non-mocked coverage before assuming a gap existed: PromotionAuthority.promote()'s create_checkpoint/restore_checkpoint callbacks are a pure Protocol seam (no concrete checkpoint implementation is owned internally), and aios/api/deps.py's get_checkpoint_creator()/get_checkpoint_restorer() are the real, already-production-wired adapters (POST /api/v1/maintenance/repairs/run injects them via Depends(), confirmed by grep and by reading the route directly) around the real CheckpointAuthority -- local filesystem snapshotting with an HMAC-signed manifest, no Docker dependency anywhere (confirmed by reading checkpoint.py and runtime.py in full; the executor container is unrelated to checkpoint/promotion). tests/test_maintenance_api.py's existing end-to-end test already exercises this real wiring on the happy path (a checkpoint is genuinely created), but no test forced the failure branch. New test_apply_or_smoke_failure_restores_exact_bytes_via_real_checkpoint_authority (tests/test_promotion_authority.py) now does: it calls promote() with the real get_checkpoint_creator()/get_checkpoint_restorer() adapters (not lambda stubs), forces a smoke-test failure after a real diff is applied, and asserts the project file's bytes on disk are restored to their exact pre-promotion value -- closing 'never touching...the real CheckpointAuthority/WorkspacePromotionRuntime persistence path'. Still missing: an authoritative post-promotion receipt. PostPromotionVerificationReceipt (aios/domain/evidence/contracts.py) exists as a designed schema with zero producers anywhere -- building one is a genuine design task, not a wiring fix: it needs a 'verifier_id'/'verifier_version' identity that has no existing analog for the promotion (as opposed to pre-promotion evidence/verification) step, and a new post-apply full-project digest concept nothing currently computes. PromotionResult itself also has no field to carry a receipt on. Deliberately not attempted under time pressure as part of this pass -- a real, scoped, separate design decision, not a same-session wiring fix."
+    "production_entrypoints": [
+      "aios/application/promotion/authority.py",
+      "aios/domain/promotion/contracts.py"
     ],
+    "focused_tests": [
+      "tests/test_promotion_authority.py"
+    ],
+    "integration_tests": [
+      "tests/test_maintenance_api.py"
+    ],
+    "live_evidence": [],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -866,11 +871,14 @@
     "status": "yellow",
     "authority_owner": "RecoveryResumptionAuthority",
     "production_entrypoints": [
+      "aios/api/routes/council.py",
+      "aios/council/council_orchestrator.py",
       "aios/domain/missions/transition_journal.py",
       "aios/infrastructure/missions/transition_journal_store.py",
       "aios/infrastructure/storage/migrations/0006_mission_transition_journal.py"
     ],
     "focused_tests": [
+      "tests/test_council_orchestrator.py",
       "tests/test_mission_transition_journal.py"
     ],
     "integration_tests": [
@@ -878,8 +886,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "MissionTransitionJournal now exists and is genuinely durable and restart-safe -- verified directly (not just asserted) for all 9 crash points in the brief's failure matrix: a fresh journal instance over the same db file after a simulated restart correctly reports the exact same current_state and can resume forward from it. Re-appending the current transition is a true no-op (idempotent retry cannot fork the lineage); any other out-of-order transition is refused. A real table-name collision with the pre-existing coarse MissionState transition-audit table (both named mission_transitions) was caught by the full regression suite before commit and fixed by renaming to mission_execution_transitions -- the two are genuinely different concepts (coarse lifecycle audit vs. fine-grained execution/promotion pipeline journal) that happened to collide on name, not a duplicate.",
-      "Reconciliation pass item 5 (mission-journal half): grounded properly before attempting to wire anything, and found this is materially larger and riskier than 'add a journal call to MissionService'. The journal's own vocabulary (MISSION_CREATED, WORKSPACE_CREATED, EXECUTION_SUBMITTED, EXECUTION_COMPLETED, VERIFIED, CHECKPOINT_CREATED, PROMOTION_STARTED, PROMOTED, POST_PROMOTION_VERIFIED, COMPLETED) is a DIFFERENT, finer-grained state machine than MissionService's coarse MissionState (DRAFT, DELIBERATING, AWAITING_APPROVAL, RUNNING, ...) -- confirmed by the journal's own docstring, which says it exists specifically because a mission can sit in the single coarse RUNNING state for the entire workspace -> executor -> verification -> checkpoint -> promotion sequence with no durable record of which sub-step actually completed. Read aios/application/promotion/authority.py's promote() directly: it only covers the back half of the journal's vocabulary (roughly CHECKPOINT_CREATED -> PROMOTED/FAILED/ROLLED_BACK); the earlier steps (WORKSPACE_CREATED, EXECUTION_SUBMITTED, EXECUTION_COMPLETED, VERIFIED) live in separate classes entirely (StagedWorkspaceManager, WorkerFoundry/Executor, VerificationAuthority). A faithful wiring therefore spans 5-6 files, each needing a correctly-sequenced append() call -- and append() enforces strict ordering (_validate_next), so a wrong insertion point anywhere in that chain raises rather than silently degrading, with real risk of breaking production promotion flow rather than just failing a test. This session's Docker daemon is unavailable (see organs 40/41), so the real happy-path sequence through an actual worker/executor/verification cycle cannot be exercised end to end to validate the wiring is even correctly ordered. Deliberately not attempted under time pressure -- same category of honest deferral as dispatch_clerical_job() (organ 38) and chat/forge streaming (organ 32): a real, scoped, higher-risk task for its own dedicated pass with either live Docker access or much more careful per-file staging than a single reconciliation-pass commit allows."
+      "Tier 4 update ('I want tier 4 fully closed'): the mission-journal wiring gap is closed for the Council pipeline, its primary and most heavily used execution path. CouncilOrchestrator now takes an optional mission_journal parameter and appends all 11 real MissionTransitionJournal states at their genuine points in the real code, not inferred after the fact: MISSION_CREATED (deliberate(), right after mission_service.create()), APPROVED (council.py's council_approve route, right after mission_service.approve() succeeds), WORKSPACE_CREATED + EXECUTION_SUBMITTED (execute(), back-to-back immediately before the single opaque awaited foundry.run() call, since that call stages the workspace and dispatches the worker together with no externally-observable gap between the two), EXECUTION_COMPLETED (execute(), right after foundry.run() returns), VERIFIED (_promote_worker(), after the real verification loop), CHECKPOINT_CREATED and PROMOTION_STARTED (wrapped directly around the create_checkpoint/apply_staged_diff callables passed into PromotionAuthority.promote(), so they fire at the exact real moment those internal steps complete, not inferred from the outer result afterwards), PROMOTED and POST_PROMOTION_VERIFIED (after promote() returns, gated on the new organ-41 receipt actually being present), COMPLETED (after mission_service.complete()). FAILED/ROLLED_BACK escapes are appended at every real failure branch (blocking verdict, promotion pipeline exception, promote() returning FAILED/ROLLED_BACK). Every append() call is best-effort (wrapped, logs a warning, never raises) -- mirroring CouncilOrchestrator's own established _persist_event() convention exactly -- so a journal wiring bug can never turn into a real mission failure. Proven end to end, not just unit tested in isolation: a new test runs one real Council mission through deliberate() -> approve() -> execute() -> a genuine PROMOTED completion (StagedWorkspaceManager + PromotionAuthority both real, only the worker spawner is faked) and asserts the journal's history() returns the exact, complete 11-state sequence in order. Still missing: the Maintenance repair pipeline (MaintenanceConvergenceService.run_approved_repair(), aios/application/maintenance/service.py) is a separate, independently-constructed execution path with its own workspace/worker/promotion call sequence -- the same wiring pattern would need to be repeated there too, not attempted in this pass."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1097,18 +1104,20 @@
     "status": "yellow",
     "authority_owner": "ObservabilityAuthority",
     "production_entrypoints": [
-      "aios/operations/tracing.py",
-      "aios/api/main.py"
+      "aios/api/main.py",
+      "aios/council/queen_service.py",
+      "aios/operations/tracing.py"
     ],
     "focused_tests": [
       "tests/test_operations.py"
     ],
     "integration_tests": [
-      "tests/test_logging.py"
+      "tests/test_logging.py",
+      "tests/test_queen_service.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "aios/operations/tracing.py's TraceContext/new_trace_context/bind_trace_context/get_trace_context were real, tested code with zero production callers -- now genuinely bound: aios/api/main.py's existing bind_request_context HTTP middleware (previously only fed structlog's own, separate contextvars mechanism) now also builds a real TraceContext from request headers (reusing the same request_id already computed, so the two correlation mechanisms can never disagree) and binds it via bind_trace_context() for the request's duration. Proven empirically, not assumed from reading Starlette/anyio's source: test_middleware_binds_a_trace_context_visible_within_the_request shows a synchronous call within the request sees the exact bound request_id; test_trace_context_survives_into_a_background_task shows a function scheduled via FastAPI's BackgroundTasks ALSO sees it (Starlette awaits an async background callable in the same task; anyio's run_in_threadpool copies the current context into the worker thread for a sync one) -- so every model call, clerk job, verification, promotion, rollback, or emergency-stop check reached synchronously (including via BackgroundTasks) from within an HTTP request now carries a real, propagated trace context with no further per-call-site wiring. Still missing: anything NOT reached from within a request's own task never gets this for free. aios/council/queen_service.py's _drain_loop() (a persistent asyncio.create_task() background queue drainer, started once and outliving any single request) and aios/application/workers/scheduler.py's own background scheduling loop are both genuinely outside any request's context -- closing 'mission-queue dequeue' for real needs a trace/correlation id carried ON the queued item itself and rebound at dequeue time, a separate design task, not attempted here. The Docker executor container (a genuinely separate OS process) is likewise outside Python's contextvars entirely -- propagating a trace id across that process boundary (env var or job-payload field, then included in whatever the executor logs/returns) is cross-process work not attempted in this pass."
+      "Tier 4 update ('I want tier 4 fully closed'): closed the mission-queue-dequeue half. aios/council/queen_service.py's QueenService._drain_loop() is exactly the case the prior pass named -- started once via asyncio.create_task() at service startup, outliving any single caller, so it does not inherit a request's trace context for free. Fixed by binding a fresh TraceContext derived from each dequeued item's own mission_id (new_trace_context().with_ids(mission_id=...)) immediately before awaiting _handle(), proven with a real test that submits a contract and asserts get_trace_context() inside the handler carries that exact mission_id. Investigated aios/application/workers/scheduler.py's WorkerScheduler too and confirmed it does NOT need the same fix: unlike QueenService._drain_loop(), WorkerScheduler._pump() calls asyncio.create_task() freshly for every admitted ticket (not once at startup), and Python's own asyncio.Task semantics copy the current contextvars context at creation time -- verified empirically with a standalone script, not assumed from reading asyncio's docs -- so a ticket submitted from within a request's own task already carries that request's trace context for free, the same mechanism BackgroundTasks already relies on. Still missing: the Docker executor container is a genuinely separate OS process (DockerRunner in aios/core/executor.py submits jobs via subprocess.Popen, not HTTP -- confirmed by reading it directly), entirely outside Python's contextvars. Propagating a trace id across that boundary would mean passing it as an env var into the subprocess AND having aios.executor_service's own entry point (a separate, sandboxed process) read and rebind it -- a real cross-process design touching security-sensitive isolated code, deliberately not attempted under time pressure rather than rushing a change to the sandboxed executor boundary."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

@@ -13,7 +13,12 @@ from typing import Any, Protocol
 
 from aios import config
 from aios.application.evidence.verification import VerificationAuthority
-from aios.application.workspaces.staged import BaselineChanged, StagedWorkspaceManager
+from aios.application.workspaces.staged import (
+    BaselineChanged,
+    StagedWorkspaceManager,
+    tree_digest,
+)
+from aios.domain.evidence import PostPromotionVerificationReceipt
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.promotion import (
     PromotionAuthorization,
@@ -21,6 +26,14 @@ from aios.domain.promotion import (
     PromotionResult,
     PromotionStatus,
 )
+
+#: This authority is the sole verifier of its own successful apply -- there is
+#: no separate, external "verifier" identity for the promotion step (as
+#: opposed to pre-promotion evidence/verification, which has its own
+#: VerificationAuthority). Naming it honestly as what it is, rather than
+#: inventing a fictitious external verifier.
+_RECEIPT_VERIFIER_ID = "promotion-authority"
+_RECEIPT_VERIFIER_VERSION = "v1"
 
 
 class CapabilityConsumer(Protocol):
@@ -173,20 +186,56 @@ class PromotionAuthority:
             self._observe(emit_observation, request, result)
             return result
 
+        evidence_ids = tuple(
+            evidence_id
+            for verification in request.verification_results
+            for evidence_id in verification.evidence_ids
+        )
+        promotion_id, receipt = self._build_post_promotion_receipt(
+            request, evidence_ids=evidence_ids
+        )
         result = self._record(
             request,
             PromotionStatus.PROMOTED,
             ("promotion_complete",),
             checkpoint_id=checkpoint_id,
             restored=False,
-            evidence_ids=tuple(
-                evidence_id
-                for verification in request.verification_results
-                for evidence_id in verification.evidence_ids
-            ),
+            evidence_ids=evidence_ids,
+            post_promotion_receipt=receipt,
+            promotion_id=promotion_id,
         )
         self._observe(emit_observation, request, result)
         return result
+
+    @staticmethod
+    def _build_post_promotion_receipt(
+        request: PromotionRequest, *, evidence_ids: tuple[str, ...]
+    ) -> tuple[str, PostPromotionVerificationReceipt]:
+        """Build the authoritative post-promotion receipt for a successful
+        apply. project_digest reuses tree_digest() -- the same real,
+        content-addressed hash verify_baseline() already computes pre-
+        promotion -- taken here AFTER apply_staged_diff() has run, so it
+        genuinely reflects the project root's post-promotion state, not a
+        fabricated placeholder."""
+        import uuid
+
+        promotion_id = f"promotion-{uuid.uuid4().hex}"
+        project_digest = tree_digest(Path(request.project_root).resolve())
+        receipt = PostPromotionVerificationReceipt(
+            mission_id=request.mission_id,
+            action_id=request.action_id,
+            worker_id=request.worker_id,
+            executor_job_id=request.executor_job_id,
+            promotion_id=promotion_id,
+            project_digest=project_digest,
+            diff_digest=request.diff_digest,
+            verifier_id=_RECEIPT_VERIFIER_ID,
+            verifier_version=_RECEIPT_VERIFIER_VERSION,
+            environment_digest=request.environment_digest,
+            evidence_ids=evidence_ids,
+            passed=True,
+        )
+        return promotion_id, receipt
 
     def _assert_operational(self) -> None:
         if self.emergency_stop is not None:
@@ -438,6 +487,8 @@ class PromotionAuthority:
         checkpoint_id: str | None = None,
         restored: bool = False,
         evidence_ids: tuple[str, ...] = (),
+        post_promotion_receipt: PostPromotionVerificationReceipt | None = None,
+        promotion_id: str | None = None,
     ) -> PromotionResult:
         import hashlib, json, uuid
         from datetime import datetime, timezone
@@ -451,13 +502,14 @@ class PromotionAuthority:
             diff_digest=request.diff_digest,
             restored=restored,
             evidence_ids=evidence_ids,
+            post_promotion_receipt=post_promotion_receipt,
         )
         self._promotions[request.mission_id] = res
         if self.database_path is not None:
             payload = json.dumps(res.model_dump(mode="json"), sort_keys=True)
             payload_digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
             created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-            promotion_id = f"promotion-{uuid.uuid4().hex}"
+            promotion_id = promotion_id or f"promotion-{uuid.uuid4().hex}"
             integrity_proof = self._compute_integrity_proof(
                 promotion_id,
                 request.mission_id,

@@ -19,6 +19,10 @@ from __future__ import annotations
 import uuid
 from typing import Any, Optional
 
+from aios.logging_config import get_logger
+
+_LOGGER = get_logger(__name__)
+
 from aios import config
 from aios.application.intelligence.gateway import route_intelligence_request
 from aios.core.llm import LLMClient, OllamaClient
@@ -58,12 +62,23 @@ class GatewayRoutedCouncilLLMClient:
         self._constitution_digest = constitution_digest
         self._emergency_stop = emergency_stop
         self._provider: LLMClient = provider or OllamaClient()
+        #: Organ 31: the compiled context_digest from the most recent
+        #: complete() call. route_intelligence_request() genuinely computes
+        #: one on every call, but this adapter's own .complete() -> str
+        #: return shape (required by the LLMClient protocol PlannerQueen/
+        #: reason_king expect) has no room to also return it -- exposed here
+        #: as a side-channel attribute, and logged unconditionally below, so
+        #: it is genuinely observable rather than silently computed and
+        #: discarded (a real gap the docstring above previously claimed was
+        #: already closed).
+        self.last_context_digest: str | None = None
 
     def complete(
         self, prompt: str, *, system: str | None = None, json_mode: bool = False
     ) -> str:
+        request_id = f"council-{uuid.uuid4().hex}"
         result = route_intelligence_request(
-            request_id=f"council-{uuid.uuid4().hex}",
+            request_id=request_id,
             operator_identity_digest=self._operator_identity_digest,
             constitution_digest=self._constitution_digest,
             goal=prompt,
@@ -76,6 +91,13 @@ class GatewayRoutedCouncilLLMClient:
                 prompt, system=system, json_mode=json_mode
             ),
             emergency_stop=self._emergency_stop,
+        )
+        self.last_context_digest = result.context.context_digest
+        _LOGGER.info(
+            "council_gateway_context_compiled",
+            request_id=request_id,
+            context_digest=result.context.context_digest,
+            secrets_redacted=result.secrets_redacted,
         )
         return result.output
 

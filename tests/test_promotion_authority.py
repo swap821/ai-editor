@@ -300,6 +300,96 @@ def test_apply_or_smoke_failure_restores_exact_bytes_via_real_checkpoint_authori
     assert (project / "app.txt").read_bytes() == original_bytes
 
 
+def test_successful_promotion_produces_an_authoritative_post_promotion_receipt(
+    staged,
+) -> None:
+    """Organ 41: the receipt is real, not fabricated -- project_digest must
+    match the actual post-apply project tree (via the same tree_digest()
+    verify_baseline() itself uses), and promotion_id must match between the
+    receipt and the durable record it's stored alongside."""
+    from aios.application.workspaces.staged import tree_digest
+
+    manager, project, lease = staged
+    verification = VerificationAuthority()
+    request = _request(manager, project, lease, verification=verification)
+
+    result = PromotionAuthority(manager, verification).promote(
+        request,
+        create_checkpoint=lambda _: "checkpoint-receipt",
+        apply_staged_diff=lambda _: manager.apply(lease),
+        smoke_test=lambda _: (
+            (project / "app.txt").read_text(encoding="utf-8") == "after\n"
+        ),
+        restore_checkpoint=lambda *_: True,
+    )
+
+    assert result.status is PromotionStatus.PROMOTED
+    receipt = result.post_promotion_receipt
+    assert receipt is not None
+    assert receipt.passed is True
+    assert receipt.mission_id == "mission-1"
+    assert receipt.action_id == "action-1"
+    assert receipt.diff_digest == request.diff_digest
+    assert receipt.verifier_id == "promotion-authority"
+    # The real, post-apply project tree digest -- not a placeholder.
+    assert receipt.project_digest == tree_digest(project.resolve())
+
+
+def test_receipt_survives_the_real_durable_store_round_trip(staged, tmp_path) -> None:
+    """The receipt is a nested Pydantic model on PromotionResult -- prove it
+    actually survives the real JSON serialize/persist/deserialize round trip
+    through the durable SQLite store, not just in-memory."""
+    manager, project, lease = staged
+    verification = VerificationAuthority()
+    request = _request(manager, project, lease, verification=verification)
+    authority = PromotionAuthority(
+        manager, verification, database_path=tmp_path / "promotions.db"
+    )
+
+    result = authority.promote(
+        request,
+        create_checkpoint=lambda _: "checkpoint-durable",
+        apply_staged_diff=lambda _: manager.apply(lease),
+        smoke_test=lambda _: (
+            (project / "app.txt").read_text(encoding="utf-8") == "after\n"
+        ),
+        restore_checkpoint=lambda *_: True,
+    )
+    assert result.post_promotion_receipt is not None
+
+    # Force a read from the durable record, not the in-memory cache, by
+    # constructing a fresh authority instance over the same db file.
+    fresh_authority = PromotionAuthority(
+        manager, verification, database_path=tmp_path / "promotions.db"
+    )
+    reloaded = fresh_authority.get_authoritative_terminal_promotion("mission-1")
+    assert reloaded is not None
+    assert reloaded.post_promotion_receipt is not None
+    assert reloaded.post_promotion_receipt.project_digest == (
+        result.post_promotion_receipt.project_digest
+    )
+    assert reloaded.post_promotion_receipt.promotion_id == (
+        result.post_promotion_receipt.promotion_id
+    )
+
+
+def test_rejected_or_rolled_back_promotion_carries_no_receipt(staged) -> None:
+    manager, project, lease = staged
+    verification = VerificationAuthority()
+    request = _request(manager, project, lease, verification=verification)
+
+    result = PromotionAuthority(manager, verification).promote(
+        request,
+        create_checkpoint=lambda _: "checkpoint-fail",
+        apply_staged_diff=lambda _: (_ for _ in ()).throw(RuntimeError("boom")),
+        smoke_test=lambda _: True,
+        restore_checkpoint=lambda *_: True,
+    )
+
+    assert result.status is PromotionStatus.ROLLED_BACK
+    assert result.post_promotion_receipt is None
+
+
 def test_forged_lease_cannot_reach_promotion_callback(staged) -> None:
     manager, project, lease = staged
     verification = VerificationAuthority()

@@ -115,6 +115,9 @@ GOVERNANCE_AMENDMENT_DB_PATH: Final[Path] = DATA_DIR / "aios_governance_amendmen
 PROJECT_PASSPORT_DB_PATH: Final[Path] = DATA_DIR / "aios_project_passports.db"
 DELIBERATION_DB_PATH: Final[Path] = DATA_DIR / "aios_deliberations.db"
 API_TOKEN_ROTATION_DB_PATH: Final[Path] = DATA_DIR / "aios_api_token_rotation.db"
+MISSION_TRANSITION_JOURNAL_DB_PATH: Final[Path] = (
+    DATA_DIR / "aios_mission_transition_journal.db"
+)
 BACKUP_DIR: Final[Path] = DATA_DIR / "backups"
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
 ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
@@ -589,6 +592,7 @@ __all__ = [
     "PROJECT_PASSPORT_DB_PATH",
     "DELIBERATION_DB_PATH",
     "API_TOKEN_ROTATION_DB_PATH",
+    "MISSION_TRANSITION_JOURNAL_DB_PATH",
     "BACKUP_DIR",
     "FAISS_INDEX_PATH",
     "ROLLBACK_DIR",

@@ -12,7 +12,11 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aios.domain.evidence import EvidenceBundle, VerificationResult
+from aios.domain.evidence import (
+    EvidenceBundle,
+    PostPromotionVerificationReceipt,
+    VerificationResult,
+)
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.workspaces import StagedWorkspace
 
@@ -86,6 +90,7 @@ class PromotionResult(BaseModel):
     diff_digest: str | None = None
     restored: bool = False
     evidence_ids: tuple[str, ...] = ()
+    post_promotion_receipt: PostPromotionVerificationReceipt | None = None
 
 
 __all__ = [

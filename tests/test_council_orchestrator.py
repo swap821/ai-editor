@@ -172,6 +172,155 @@ def test_production_council_promotes_only_after_staged_verification(
     assert run.ledger.evidence["promotion"]["status"] == "promoted"
 
 
+def test_production_council_promotion_wires_the_full_mission_transition_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Organ 42: a real Council mission run through deliberate() -> approve()
+    -> execute() -> promote() must leave a genuine, durable, correctly-
+    ordered MissionTransitionJournal record behind -- not just a claim that
+    wiring exists somewhere. Mirrors
+    test_production_council_promotes_only_after_staged_verification's exact
+    production-profile setup, with a mission_journal added."""
+    monkeypatch.setenv("AIOS_PROFILE", "production")
+    monkeypatch.setattr(config, "EXECUTOR_WORKSPACE_ROOT", tmp_path / "staged")
+    monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "projects")
+    project = _workspace(tmp_path / "projects")
+    runtime_root = tmp_path / "runtime"
+    mission_id = "mission-journal-wiring"
+
+    from aios.application.workers.foundry import WorkerFoundry
+    from aios.application.workspaces import StagedWorkspaceManager
+    from aios.infrastructure.missions.transition_journal_store import (
+        MissionTransitionJournal,
+    )
+    from aios.runtime.backends import WorkerHandle
+    from aios.runtime.contracts import RunLedger, WorkerResult
+    from aios.runtime.king_report import build_king_report
+    from aios.runtime.spawner import WorkerRun, WorkerSpawner
+
+    class FakeSpawner:
+        async def run(self, contract, *, claim=True):  # noqa: ANN001
+            target = Path(contract.workspace_root) / "frontend/src/pages/Login.jsx"
+            target.write_text(
+                target.read_text(encoding="utf-8") + "// journal heartbeat\n",
+                encoding="utf-8",
+            )
+            handle = WorkerHandle(
+                worker_id="worker-journal-wiring",
+                mission_id=contract.mission_id,
+                backend="fake_executor",
+                status="dead",
+            )
+            observed_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+            result = WorkerResult(
+                mission_id=contract.mission_id,
+                worker_id=handle.worker_id,
+                status="completed",
+                summary="staged worker completed",
+                files_touched=["frontend/src/pages/Login.jsx"],
+                evidence={
+                    "verification": [
+                        {
+                            "command": "python -m pytest tests -q",
+                            "returncode": 0,
+                            "stdout": "1 passed",
+                            "stderr": "",
+                        }
+                    ]
+                },
+                risk_after="GREEN",
+                started_at=observed_at,
+                ended_at=observed_at,
+            )
+            ledger = RunLedger(
+                mission_id=contract.mission_id,
+                mission=contract.goal,
+                risk_before=contract.risk_level,
+                risk_after=result.risk_after,
+                contract=contract,
+                workers_created=[handle.worker_id],
+                files_allowed=list(contract.allowed_files),
+                files_touched=list(result.files_touched),
+                verification={
+                    "commands": result.evidence["verification"],
+                    "strength": "STRONG",
+                },
+                status=result.status,
+                created_at=result.started_at,
+                completed_at=result.ended_at,
+                evidence=result.evidence,
+            )
+            return WorkerRun(
+                contract=contract,
+                handle=handle,
+                result=result,
+                ledger=ledger,
+                report=build_king_report(ledger=ledger, result=result),
+                ledger_path=runtime_root / "fake-ledger.json",
+                report_path=runtime_root / "fake-report.json",
+            )
+
+    manager = StagedWorkspaceManager(
+        tmp_path / "staged",
+        enrolled_roots=(config.COUNCIL_WORKSPACE_ROOT,),
+    )
+    journal = MissionTransitionJournal(tmp_path / "journal.db")
+    orchestrator = CouncilOrchestrator(
+        runtime_root=runtime_root,
+        spawner=WorkerSpawner(runtime_root=runtime_root),
+        workspace_manager=manager,
+        foundry=WorkerFoundry(
+            spawner=FakeSpawner(),
+            workspace_manager=manager,
+        ),
+        mission_journal=journal,
+    )
+    deliberation = orchestrator.deliberate(
+        _request(
+            project,
+            mission_id=mission_id,
+            allowed_files=["frontend/src/pages/Login.jsx"],
+            verification_commands=["python -m pytest tests -q"],
+        )
+    )
+    record = orchestrator.mission_service.repository.get(mission_id)
+    orchestrator.mission_service.approve(
+        mission_id,
+        operator_id="human-sovereign-test",
+        capability_digest="sha256:journal-wiring-approval",
+        contract_digest=record.contract_digest,
+        authentication_event_id="auth-journal-wiring",
+        session_id="session-journal-wiring",
+    )
+    # Organ 42: APPROVED is journaled at the HTTP layer (council.py's
+    # council_approve route), not by CouncilOrchestrator itself -- this test
+    # exercises MissionService.approve() directly, so append it the same way
+    # the real route does, to prove the rest of the sequence still validates
+    # against a real APPROVED transition.
+    journal.append(mission_id, "APPROVED")
+
+    run = asyncio.run(
+        orchestrator.execute(deliberation.contract, deliberation.verdicts)
+    )
+    assert run.report.status == "completed"
+
+    history = [entry.transition for entry in journal.history(mission_id)]
+    assert history == [
+        "MISSION_CREATED",
+        "APPROVED",
+        "WORKSPACE_CREATED",
+        "EXECUTION_SUBMITTED",
+        "EXECUTION_COMPLETED",
+        "VERIFIED",
+        "CHECKPOINT_CREATED",
+        "PROMOTION_STARTED",
+        "PROMOTED",
+        "POST_PROMOTION_VERIFIED",
+        "COMPLETED",
+    ]
+    assert journal.is_terminal(mission_id) is True
+
+
 def _workspace(tmp_path: Path, *, failing_test: bool = False) -> Path:
     workspace = tmp_path / "workspace"
     target = workspace / "frontend" / "src" / "pages" / "Login.jsx"

@@ -127,6 +127,41 @@ def test_complete_routes_through_the_gateway_not_the_provider_directly(
     assert provider.calls == [("Mission goal:\nbuild a thing", "be terse", False)]
 
 
+def test_complete_exposes_and_logs_the_compiled_context_digest(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Organ 31: route_intelligence_request() genuinely compiles a context
+    and computes its digest on every call, but complete()'s own .complete()
+    -> str return shape (required by the LLMClient protocol PlannerQueen/
+    reason_king expect) previously discarded it entirely -- the docstring's
+    "genuine audit-able context_digest" claim was not actually true. Now it
+    is: exposed as a real attribute and logged unconditionally."""
+    from aios.council import gateway_reasoning as gateway_reasoning_module
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        gateway_reasoning_module._LOGGER,
+        "info",
+        lambda event, **kw: calls.append({"event": event, **kw}),
+    )
+
+    provider = _FakeProvider()
+    client = GatewayRoutedCouncilLLMClient(
+        operator_identity_digest=credential_digest("op-council"),
+        constitution_digest="c" * 64,
+        provider=provider,
+    )
+    assert client.last_context_digest is None
+
+    client.complete("Mission goal:\nbuild a thing", system="be terse")
+
+    assert client.last_context_digest is not None
+    assert len(client.last_context_digest) == 64  # sha256 hex digest
+    assert len(calls) == 1
+    assert calls[0]["event"] == "council_gateway_context_compiled"
+    assert calls[0]["context_digest"] == client.last_context_digest
+
+
 def test_complete_is_blocked_while_emergency_stop_is_engaged(tmp_path: Path) -> None:
     provider = _FakeProvider()
     client = GatewayRoutedCouncilLLMClient(

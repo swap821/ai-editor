@@ -50,6 +50,9 @@ from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
 from aios.council.gateway_reasoning import build_council_llm_client, build_dissent_llm_client
 from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
+from aios.infrastructure.missions.transition_journal_store import (
+    MissionTransitionJournal,
+)
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.queens.planner import PlannerQueen
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
@@ -446,6 +449,24 @@ def _write_failed_council_report(
         )
 
 
+def _journal_append_best_effort(mission_id: str, transition: str) -> None:
+    """Organ 42: MISSION_CREATED/APPROVED happen at the HTTP layer, before any
+    CouncilOrchestrator exists to own the append -- best-effort exactly like
+    CouncilOrchestrator._journal_append(), so a journal issue never turns a
+    real mission-origination or approval response into a 500."""
+    try:
+        MissionTransitionJournal(config.MISSION_TRANSITION_JOURNAL_DB_PATH).append(
+            mission_id, transition
+        )
+    except Exception as exc:  # noqa: BLE001 - journal is additive, not authority
+        logger.warning(
+            "mission_transition_journal_append_failed",
+            mission_id=mission_id,
+            transition=transition,
+            exc_info=exc,
+        )
+
+
 def _run_council_deliberation(
     runtime_root: Path, request: CouncilMissionRequest, bus: CortexBus | None = None
 ) -> None:
@@ -466,6 +487,9 @@ def _run_council_deliberation(
             emergency_stop=emergency_stop,
             planner=planner,
             king_complete=council_llm.complete if council_llm is not None else None,
+            mission_journal=MissionTransitionJournal(
+                config.MISSION_TRANSITION_JOURNAL_DB_PATH
+            ),
         ).deliberate(request)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning(
@@ -510,6 +534,9 @@ def _run_council_execution(
             dissent_provider=dissent[1] if dissent is not None else "",
             dissent_exact_model_id=dissent[2] if dissent is not None else "",
             deliberation_store=DeliberationStore(config.DELIBERATION_DB_PATH),
+            mission_journal=MissionTransitionJournal(
+                config.MISSION_TRANSITION_JOURNAL_DB_PATH
+            ),
         )
         asyncio.run(
             orchestrator.execute(ledger.contract, list(ledger.council_verdicts))
@@ -966,6 +993,7 @@ def council_approve(
             )
         except MissionTransitionError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _journal_append_best_effort(safe_id, "APPROVED")
 
         result = _write_council_decision(
             runtime_root=runtime_root,

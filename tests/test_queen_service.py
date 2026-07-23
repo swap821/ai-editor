@@ -89,6 +89,37 @@ def test_submit_returns_verdict_successfully() -> None:
     asyncio.run(_run())
 
 
+def test_drain_loop_binds_a_trace_context_derived_from_the_queued_mission_id() -> None:
+    """Organ 52: _drain_loop() is started once via asyncio.create_task() and
+    outlives any single caller, so nothing propagates a trace context into it
+    for free -- it must bind one per dequeued item, derived from that item's
+    own mission_id, real proof via get_trace_context() inside _handle()."""
+    from aios.operations.tracing import get_trace_context
+
+    seen: dict[str, object] = {}
+
+    class TracingQueenService(QueenService):
+        def __init__(self) -> None:
+            super().__init__("tracing", 16)
+
+        async def _handle(self, contract: MissionContract) -> QueenVerdict:
+            seen["trace"] = get_trace_context()
+            return QueenVerdict(
+                queen=self.name, verdict="allow", risk="GREEN", reason="traced"
+            )
+
+    async def _run():
+        service = TracingQueenService()
+        await service.start()
+        try:
+            await service.submit(_contract(mission_id="mission-trace-me"))
+        finally:
+            await service.stop()
+
+    asyncio.run(_run())
+    assert seen["trace"].mission_id == "mission-trace-me"
+
+
 def test_backpressure_returns_defer_when_queue_full() -> None:
     async def _run():
         service = DummyQueenService(queue_depth=1)
