@@ -225,6 +225,54 @@ jobs:
             -e AIOS_EXECUTOR_INTEGRATION=1 aios \
             python -m pytest -q -o addopts= tests/test_executor_integration.py
 
+      # Organ 40's one remaining named gap: failure/timeout are proven above,
+      # but restart resilience specifically was not. The control-plane
+      # container intentionally never receives the Docker socket (asserted by
+      # test_executor_integration.py itself), so it cannot restart a sibling
+      # container from inside a test -- this can only be proven from the
+      # runner, which is exactly what this CI job (and no local sandbox
+      # without Docker) can do. `docker compose restart` intentionally
+      # doesn't recreate the container or its published port; `up -d --wait`
+      # re-applies the same startup healthcheck gate the first "Start"
+      # step already used, so this step doesn't return until the executor is
+      # genuinely healthy again, not just "restarted".
+      - name: "Restart private Executor Service (organ 40: restart resilience)"
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+          AIOS_PROFILE: production
+        run: |
+          export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          docker compose restart executor
+          docker compose up -d --wait executor
+          docker compose ps
+
+      - name: Prove private Executor Service isolation survives a restart
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+          AIOS_PROFILE: production
+        run: |
+          export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          docker compose run --rm --no-deps --use-aliases --build \
+            -e AIOS_EXECUTOR_INTEGRATION=1 aios \
+            python -m pytest -q -o addopts= tests/test_executor_integration.py
+
+      - name: Report private Executor Service state after restart
+        if: ${{ always() }}
+        env:
+          AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
+          AIOS_EXECUTOR_TOKEN: "ci-executor-token-012345678901234567"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=80 executor
+
       - name: Run strict GAGOS v1 runtime proof matrix
         env:
           AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
