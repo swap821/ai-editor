@@ -169,6 +169,19 @@ const GOVERNANCE = {
   },
 };
 
+const EXECUTOR = {
+  executor: {
+    configured: { value: false, status: 'measured', source: 'executor_service_health' },
+    reachable: { value: null, status: 'unavailable', source: 'executor_service_health' },
+    runtime: { value: null, status: 'unavailable', source: 'executor_service_health' },
+    reason: {
+      value: 'private executor service is not configured',
+      status: 'measured',
+      source: 'executor_service_health',
+    },
+  },
+};
+
 const PHEROMONES = {
   pheromones: [
     {
@@ -222,6 +235,8 @@ function mockFetch() {
           ? V10_STATUS
           : u.includes('/mirror/governance')
             ? GOVERNANCE
+          : u.includes('/mirror/executor')
+            ? EXECUTOR
           : u.includes('/resource/status')
           ? RESOURCE
           : u.includes('/hibernation/status')
@@ -295,6 +310,11 @@ describe('CouncilDashboard sovereignty views', () => {
     // The reason is genuinely unavailable (no stop ever engaged) -- must
     // render the honest fallback, never a blank or fabricated value.
     expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Isolated Executor/)).toBeInTheDocument();
+    expect(screen.getByText('not configured')).toBeInTheDocument();
+    expect(
+      screen.getByText('private executor service is not configured'),
+    ).toBeInTheDocument();
     expect(await screen.findByText(/Sovereign Superorganism v7/)).toBeInTheDocument();
     expect(screen.getByText(/AI Editor - local-first AI OS/)).toBeInTheDocument();
     expect(screen.getAllByText(/conservation/).length).toBeGreaterThan(0);

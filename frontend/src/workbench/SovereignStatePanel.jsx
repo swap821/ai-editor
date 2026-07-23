@@ -114,6 +114,7 @@ export default function SovereignStatePanel() {
   });
   const [v10, setV10] = useState(null);
   const [governance, setGovernance] = useState(null);
+  const [executor, setExecutor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -138,6 +139,7 @@ export default function SovereignStatePanel() {
       getJson('/api/v1/self-analysis/proposals', signal),
       getJson('/api/v1/v10/status', signal),
       getJson('/api/v1/mirror/governance', signal),
+      getJson('/api/v1/mirror/executor', signal),
     ]);
     // An aborted load is a CANCELLED load (unmount / StrictMode cleanup), not
     // a failure: bail before any setState, or the abandoned first pass would
@@ -158,6 +160,7 @@ export default function SovereignStatePanel() {
       selfAnalysisR,
       v10R,
       governanceR,
+      executorR,
     ] = results;
     if (autonomyR.status === 'fulfilled') setAutonomy(autonomyR.value);
     if (factsR.status === 'fulfilled') setFacts(asArray(factsR.value));
@@ -173,6 +176,7 @@ export default function SovereignStatePanel() {
     });
     setV10(v10R.status === 'fulfilled' ? v10R.value : null);
     setGovernance(governanceR.status === 'fulfilled' ? governanceR.value : null);
+    setExecutor(executorR.status === 'fulfilled' ? executorR.value?.executor : null);
     if (results.every((r) => r.status === 'rejected')) setError('Sovereign state link offline');
     setLoading(false);
   }, []);
@@ -309,6 +313,41 @@ export default function SovereignStatePanel() {
               <span>
                 <b>Stop reason</b>
                 {envelopeText(governance?.emergencyStop?.reason)}
+              </span>
+            </div>
+          </section>
+
+          <section className="council-dashboard__section" aria-label="Isolated executor, measured">
+            <h3>
+              <ShieldCheck size={14} aria-hidden="true" /> Isolated Executor
+              <span
+                className={`council-dashboard__badge is-${
+                  executor?.reachable?.value ? 'ok' : executor?.configured?.value ? 'danger' : 'warn'
+                }`}
+              >
+                {executor?.reachable?.value
+                  ? 'reachable'
+                  : executor?.configured?.value
+                    ? 'unreachable'
+                    : 'not configured'}
+              </span>
+            </h3>
+            <div className="council-dashboard__grid">
+              <span>
+                <b>Configured</b>
+                {envelopeText(executor?.configured, (v) => (v ? 'yes' : 'no'))}
+              </span>
+              <span>
+                <b>Reachable</b>
+                {envelopeText(executor?.reachable, (v) => (v ? 'yes' : 'no'))}
+              </span>
+              <span>
+                <b>Runtime</b>
+                {envelopeText(executor?.runtime)}
+              </span>
+              <span>
+                <b>Reason</b>
+                {envelopeText(executor?.reason)}
               </span>
             </div>
           </section>

@@ -1,9 +1,9 @@
 {
   "schema_version": "1",
-  "created_at": "2026-07-23T01:47:54+00:00",
+  "created_at": "2026-07-23T02:44:43.442866+00:00",
   "source_commit_sha": "1cce4c66bf493c17a90081029fbe40acc3b9de92",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-  "ledger_sha256": "ac8d946ce7a0bfc9e69a3042b685ac1c191cfceaa7ca6b68180c870194d5d731",
+  "ledger_sha256": "02365b84379fd731056afbabb3df9e592aae94246cb1c889247309912b9ede75",
   "organ_summary": {
     "total": 54,
     "green": 27,
@@ -14,5 +14,5 @@
     "docs/architecture/GAGOS_54_ORGANS.md": "774de0909655b2fcbea319ad4fc4ff6f08ae66d060086fe0516d86e5cd457b7b",
     "release/slice32/granite-qualification-live.json": "d9af4ebe01a98ca895573a70e6b7702e3d2b8216facedbdedf60cf7afcbfa60a"
   },
-  "note": "This manifest hash-pins the organ ledger at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never a stale baseline sha, and must never be labelled fixture. Regenerated after the Tier-1 closure pass completed -- organs 27, 29, 35, 43, 54 green, organ 28's durable-store half closed (narrowed blocker remains), organ 37 strengthened but honestly still yellow (27/27 split, up from the 22/32 Slice-25 baseline). Tier-2 update: organs 47/48 narrowed (2 of 4 projections now live-routed and frontend-consumed); counts unchanged (27/27), both stay yellow honestly."
+  "note": "This manifest hash-pins the organ ledger at the stated commit. Any evidence claiming to satisfy a live gate must be stamped with the exact commit under evaluation, never a stale baseline sha, and must never be labelled fixture. Regenerated after the Tier-1 closure pass completed -- organs 27, 29, 35, 43, 54 green, organ 28's durable-store half closed (narrowed blocker remains), organ 37 strengthened but honestly still yellow (27/27 split, up from the 22/32 Slice-25 baseline). Tier-2 update: organs 47/48 narrowed (2 of 4 projections now live-routed and frontend-consumed); counts unchanged (27/27), both stay yellow honestly. Tier-2 update 2: organ 40's frontend-truthfulness gap closed (GET /api/v1/mirror/executor + SovereignStatePanel.jsx's new 'Isolated Executor' section, live-verified in the browser); stays yellow for the genuinely Docker-dependent restart-resilience test alone; counts unchanged (27/27)."
 }

@@ -1,13 +1,19 @@
 import asyncio
 import json
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from aios.api.deps import get_emergency_stop, get_identity_service
+from aios.api.deps import (
+    get_emergency_stop,
+    get_identity_service,
+    get_private_executor_service,
+)
 from aios.api.main import app, get_cortex_bus
+from aios.application.executor.service import StructuredExecutorClient
 from aios.application.governance.emergency_stop import (
     EmergencyStopController,
     EmergencyStopHooks,
@@ -393,5 +399,92 @@ def test_governance_projection_reflects_a_real_engaged_emergency_stop(
             data = response.json()
             assert data["emergencyStop"]["engaged"]["value"] is True
             assert data["emergencyStop"]["reason"]["value"] == "test engagement"
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/mirror/executor -- organ 40: the frontend-facing surface for the
+# isolated private executor service. Unauthenticated by design, matching
+# /snapshot and /governance's own convention.
+# --------------------------------------------------------------------------- #
+
+
+class _HealthResponse:
+    """Same fake transport shape used in tests/test_executor_client.py."""
+
+    def __init__(self, payload: object, *, status: int = 200) -> None:
+        self.status = status
+        self._body = json.dumps(payload).encode("utf-8")
+
+    def read(self, limit: int = -1) -> bytes:
+        return self._body if limit < 0 else self._body[:limit]
+
+    def __enter__(self) -> "_HealthResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
+def test_executor_status_is_honestly_unconfigured_with_no_base_url_or_token() -> None:
+    client = StructuredExecutorClient(base_url="", token="")
+    app.dependency_overrides[get_private_executor_service] = lambda: types.SimpleNamespace(
+        client=client
+    )
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/executor")
+            assert response.status_code == 200
+            data = response.json()["executor"]
+            assert data["configured"]["value"] is False
+            assert data["reachable"]["status"] == "unavailable"
+            assert data["reason"]["value"] == "private executor service is not configured"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_executor_status_reflects_a_real_reachable_service() -> None:
+    transport = lambda request, timeout: _HealthResponse(
+        {"status": "ok", "service": "executor", "runtime": "docker", "token_configured": True}
+    )
+    client = StructuredExecutorClient(
+        base_url="http://executor:8081", token="private-token", transport=transport
+    )
+    app.dependency_overrides[get_private_executor_service] = lambda: types.SimpleNamespace(
+        client=client
+    )
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/executor")
+            assert response.status_code == 200
+            data = response.json()["executor"]
+            assert data["configured"]["value"] is True
+            assert data["reachable"]["value"] is True
+            assert data["runtime"]["value"] == "docker"
+            assert data["reason"]["status"] == "unavailable"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_executor_status_reports_an_honest_reason_when_configured_but_unreachable() -> None:
+    def transport(request, timeout):
+        raise TimeoutError()
+
+    client = StructuredExecutorClient(
+        base_url="http://executor:8081", token="private-token", transport=transport
+    )
+    app.dependency_overrides[get_private_executor_service] = lambda: types.SimpleNamespace(
+        client=client
+    )
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            response = test_client.get("/api/v1/mirror/executor")
+            assert response.status_code == 200
+            data = response.json()["executor"]
+            assert data["configured"]["value"] is True
+            assert data["reachable"]["value"] is False
+            assert data["runtime"]["status"] == "unavailable"
+            assert "timed out" in data["reason"]["value"]
     finally:
         app.dependency_overrides.clear()

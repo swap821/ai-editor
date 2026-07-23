@@ -103,6 +103,21 @@ class ApprovalProjection(BaseModel):
     constitution_version: MetricEnvelope
 
 
+class ExecutorStatusProjection(BaseModel):
+    """Organ 40: whether the isolated private executor service is configured
+    and reachable. `configured` reflects the control plane's own settings
+    (never a network call); `reachable`/`runtime` come from a real
+    authenticated `/health` call to the service and stay `unavailable` when
+    unconfigured or unreachable -- never guessed as healthy."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    configured: MetricEnvelope
+    reachable: MetricEnvelope
+    runtime: MetricEnvelope
+    reason: MetricEnvelope
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -111,6 +126,7 @@ __all__ = [
     "ApprovalProjection",
     "ConstitutionProjection",
     "EmergencyStopProjection",
+    "ExecutorStatusProjection",
     "MetricEnvelope",
     "MetricStatus",
     "ProviderHealthProjection",

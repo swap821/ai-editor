@@ -800,11 +800,16 @@
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
-      "aios/application/governance/runtime_proof.py"
+      "aios/application/governance/runtime_proof.py",
+      "aios/application/read_models/executor_projections.py",
+      "aios/api/routes/mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
       "tests/test_executor_service.py",
-      "tests/test_executor_client.py"
+      "tests/test_executor_client.py",
+      "tests/test_mirror.py",
+      "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "integration_tests": [
       "tests/test_executor_integration.py"
@@ -817,7 +822,7 @@
       }
     ],
     "known_blockers": [
-      "The specific blocker recorded at Slice 35/40 -- 'Docker unavailability independently blocks the executor runtime probe' -- is now resolved: real CI evidence exists (see live_evidence above), reviewed at the source-code level to confirm it is genuinely live, not mocked. Still yellow, for two real remaining gaps found by checking the plan's own 10-point bar directly rather than assuming CI-green implies full green: (1) no frontend surface shows executor status truthfully -- grepped the entire frontend workbench/superbrain source tree for 'executor' and found zero matches; (2) failure and timeout are tested (test_missing_private_executor_is_refused, test_private_executor_timeout_is_refused) but there is no test specifically covering executor *restart* resilience. Both are real, scoped, single-commit-sized follow-on work, not something to half-build here. This evidence was produced by CI, not by anything run interactively in this session -- this local sandbox still has no Docker daemon."
+      "The specific blocker recorded at Slice 35/40 -- 'Docker unavailability independently blocks the executor runtime probe' -- is resolved (see live_evidence). The frontend-truthfulness gap is now also resolved: GET /api/v1/mirror/executor (aios/api/routes/mirror.py) projects a real authenticated ExecutorService.client.health() call through a new typed ExecutorStatusProjection (aios/domain/read_models/contracts.py, aios/application/read_models/executor_projections.py) -- configured is read from the client's own settings (no network call, so an unconfigured dev/demo environment fails instantly rather than blocking); reachable/runtime come from a real call and stay honestly unavailable when unconfigured or unreachable, never guessed. SovereignStatePanel.jsx renders it in a new 'Isolated Executor' section, live-verified in the browser against a real running backend showing the honest 'not configured' state (no AIOS_EXECUTOR_TOKEN in this dev environment). Still yellow for the one real remaining gap: failure and timeout are tested (test_missing_private_executor_is_refused, test_private_executor_timeout_is_refused) but there is no test specifically covering executor *restart* resilience -- genuinely Docker-dependent, deferred to Tier 4 per the closure plan alongside organ 41/42's own Docker gaps. This local sandbox still has no Docker daemon."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

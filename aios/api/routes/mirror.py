@@ -22,6 +22,7 @@ from aios.application.read_models.governance_projections import (
     project_constitution,
     project_emergency_stop,
 )
+from aios.application.read_models.executor_projections import project_executor_status
 from aios.application.governance.emergency_stop import EmergencyStopController
 from aios.application.identity.service import IdentityService
 from aios.application.memory.authority import MemoryAuthority
@@ -30,6 +31,7 @@ from aios.api.deps import (
     get_emergency_stop,
     get_identity_service,
     get_memory_authority,
+    get_private_executor_service,
     get_skill_memory,
 )
 from aios.domain.governance.constitution import build_constitution_snapshot
@@ -236,6 +238,24 @@ def get_governance_projection(
             "emergencyStop": stop_projection.model_dump(mode="json"),
         }
     )
+
+
+@router.get("/executor")
+def get_executor_status_projection(
+    executor_service: Any = Depends(get_private_executor_service),
+) -> JSONResponse:
+    """Organ 40: the truthful private-executor status surface.
+
+    Unauthenticated by design, matching /snapshot and /governance -- this
+    reflects reachability, it never gates on who's watching. Reuses the exact
+    same production ExecutorService the real job-execution path uses; a
+    configured-but-unreachable service can take up to
+    config.EXECUTOR_HTTP_TIMEOUT_S to respond, matching that path's own
+    existing bound rather than inventing a second, narrower timeout.
+    """
+    client = getattr(executor_service, "client", None)
+    status = project_executor_status(client)
+    return JSONResponse(content={"executor": status.model_dump(mode="json")})
 
 
 @router.get("/stream")
