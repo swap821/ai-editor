@@ -103,6 +103,17 @@ class ActionType(str, Enum):
     MAINTENANCE_SCAN = "maintenance_scan"
     MAINTENANCE_REPAIR_CREATE = "maintenance_repair_create"
     MAINTENANCE_REPAIR_RUN = "maintenance_repair_run"
+    CONSTITUTIONAL_AMENDMENT_PROPOSE = "constitutional_amendment_propose"
+    CONSTITUTIONAL_AMENDMENT_CRITIQUE = "constitutional_amendment_critique"
+    CONSTITUTIONAL_AMENDMENT_SIMULATE = "constitutional_amendment_simulate"
+    #: Must stay literally equal to `aios.domain.governance.amendments.
+    #: CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION` -- `ratify_amendment()` checks
+    #: a consumed capability's `action_type` against that domain constant
+    #: directly, never this enum, so the two values must never drift apart.
+    CONSTITUTIONAL_AMENDMENT_RATIFY = "constitutional_amendment_ratify"
+    CONSTITUTIONAL_AMENDMENT_REJECT = "constitutional_amendment_reject"
+    CONSTITUTIONAL_AMENDMENT_ACTIVATE = "constitutional_amendment_activate"
+    CONSTITUTIONAL_AMENDMENT_ROLLBACK = "constitutional_amendment_rollback"
     UNKNOWN = "unknown"
 
 

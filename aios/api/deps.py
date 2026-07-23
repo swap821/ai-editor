@@ -78,6 +78,7 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
+from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 from aios.infrastructure.memory.human_representation_store import (
     HumanStateHypothesisStore,
     ProjectPassportStore,
@@ -109,6 +110,8 @@ _project_passport_store: Optional[ProjectPassportStore] = None
 _project_passport_store_lock = threading.Lock()
 _human_state_hypothesis_store: Optional[HumanStateHypothesisStore] = None
 _human_state_hypothesis_store_lock = threading.Lock()
+_governance_amendment_store: Optional[GovernanceAmendmentStore] = None
+_governance_amendment_store_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -589,6 +592,21 @@ def get_human_state_hypothesis_store() -> HumanStateHypothesisStore:
                 config.HUMAN_STATE_HYPOTHESIS_DB_PATH
             )
     return _human_state_hypothesis_store
+
+
+def get_governance_amendment_store() -> GovernanceAmendmentStore:
+    """Provide the durable, append-only ConstitutionalAmendmentProposalV1
+    history singleton (Slice 37 / reconciliation item 6 / organ 45) -- the
+    real backing store for the HTTP amendment routes."""
+    global _governance_amendment_store
+    if _governance_amendment_store is not None:
+        return _governance_amendment_store
+    with _governance_amendment_store_lock:
+        if _governance_amendment_store is None:
+            _governance_amendment_store = GovernanceAmendmentStore(
+                config.GOVERNANCE_AMENDMENT_DB_PATH
+            )
+    return _governance_amendment_store
 
 
 def get_authenticated_principal(

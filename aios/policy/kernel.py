@@ -156,6 +156,60 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         capability_required="emergency_stop.clear",
     ),
     # ------------------------------------------------------------------ #
+    # Constitutional Amendments (organ 45)
+    # ------------------------------------------------------------------ #
+    "/api/v1/governance/amendments/propose": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="constitutional_amendment_propose",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_PROPOSE,
+    ),
+    "/api/v1/governance/amendments/{proposal_id}/critique": RouteAuthority(
+        "YELLOW",
+        20,
+        "server-session",
+        audit_event="constitutional_amendment_critique",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_CRITIQUE,
+    ),
+    "/api/v1/governance/amendments/{proposal_id}/simulate": RouteAuthority(
+        "YELLOW",
+        20,
+        "server-session",
+        audit_event="constitutional_amendment_simulate",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_SIMULATE,
+    ),
+    "/api/v1/governance/amendments/{proposal_id}/ratify": RouteAuthority(
+        "YELLOW",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="constitutional_amendment_ratify",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_RATIFY,
+        capability_required="constitutional_amendment.ratify",
+    ),
+    "/api/v1/governance/amendments/{proposal_id}/reject": RouteAuthority(
+        "YELLOW",
+        10,
+        "server-session",
+        audit_event="constitutional_amendment_reject",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_REJECT,
+    ),
+    "/api/v1/governance/amendments/{proposal_id}/activate": RouteAuthority(
+        "YELLOW",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="constitutional_amendment_activate",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_ACTIVATE,
+        capability_required="constitutional_amendment.activate",
+    ),
+    # No /rollback route entry: rollback_amendment() needs a durable history
+    # of ConstitutionSnapshotV1 objects to find "the exact predecessor" of a
+    # given activation, and no such store exists yet (see governance.py's
+    # own comment on this organ's routes). An entry with no real endpoint
+    # behind it would be misleading, not forward-looking documentation.
+    # ------------------------------------------------------------------ #
     # Council
     # ------------------------------------------------------------------ #
     "/api/v1/council/missions": RouteAuthority(

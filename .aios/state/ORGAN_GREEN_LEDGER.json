@@ -946,18 +946,22 @@
       "aios/domain/governance/amendments.py",
       "aios/application/governance/amendment_authority.py",
       "aios/infrastructure/governance/sqlite_store.py",
-      "aios/infrastructure/storage/migrations/0007_governance_amendment_history.py"
+      "aios/infrastructure/storage/migrations/0007_governance_amendment_history.py",
+      "aios/api/routes/governance.py",
+      "aios/domain/actions/envelope.py",
+      "aios/policy/kernel.py"
     ],
     "focused_tests": [
       "tests/test_constitutional_amendment.py"
     ],
     "integration_tests": [
-      "tests/test_constitution_snapshot.py"
+      "tests/test_constitution_snapshot.py",
+      "tests/test_governance_amendment_store.py",
+      "tests/test_governance_amendment_api.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Confirmed genuinely missing (grep for ConstitutionalAmendment/amendment_authority found nothing but this slice's own additions) before building. ConstitutionalAmendmentProposalV1 + propose_amendment()/critique_amendment()/simulate_amendment()/ratify_amendment()/activate_amendment()/rollback_amendment()/reject_amendment() now exist. ratify_amendment() can only be satisfied by a real, already-consumed capability bound to the exact operator and to CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION -- models/workers have no path to produce one. Foundation-law-touching proposals are refused even with a valid capability. activate_amendment() reuses Slice 26's build_constitution_snapshot() chaining machinery directly and is now gated by emergency_stop -- closing a boundary Slice 27 flagged before this organ existed. Verified directly: existing MissionContract instances keep their original constitution_digest after activation (frozen contract, never mutated), and rollback refuses a snapshot that isn't the exact predecessor.",
-      "Reconciliation pass item 6: durable persistence now exists. GovernanceAmendmentStore (aios/infrastructure/governance/sqlite_store.py, migration 0007, scope=\"governance\") records every propose/critique/simulate/ratify/activate/reject/rollback transition as its own append-only, digest-verified revision row rather than upserting current state in place -- matching the correction-lineage convention already established for operator preferences (Slice 28). Verified end to end in tests/test_governance_amendment_store.py by driving the real propose_amendment/critique_amendment/ratify_amendment functions and confirming the full transition history survives a save/read round trip, not just the final status; also verified a tampered row (edited outside the store) is detected at read time via digest mismatch, the same pattern as LocalWorkforceProvenanceStore (Slice 33). Still missing (unchanged scope -- amendments.py's own docstring already names this as deliberate follow-up, not assumed by Slice 37): no aios/api/routes/ HTTP surface, and CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION is still not registered in the real ActionType/PolicyKernel capability-issuance routing table, so no real capability can actually be issued for it in production yet. Deliberately not attempted here: wiring that route touches the same PolicyKernel routing table every other action type depends on, and a wrong entry risks breaking existing action routing -- a correctly scoped, separate task, not a reconciliation-pass addition."
+      "Tier 3 update: the HTTP surface now exists for 6 of the 7 amendment transitions. New ActionType members (CONSTITUTIONAL_AMENDMENT_PROPOSE/CRITIQUE/SIMULATE/RATIFY/REJECT/ACTIVATE) plus real RouteAuthority entries in aios/policy/kernel.py's routing table for POST /api/v1/governance/amendments/propose (+ {proposal_id}/critique, /simulate, /reject, /ratify, /activate) and GET .../{proposal_id} + .../{proposal_id}/history. Ratify and activate are YELLOW-tier with confirm_required=True, reusing the same generic two-phase capability issue/consume mechanism every other YELLOW route in this codebase already uses (organ 45 does not invent new capability-issuance semantics) -- proven by grounding PolicyBroker._submit_exact() and ActionGuardResult directly, then confirmed end to end with 10 real HTTP tests including a genuine foundation-law refusal and a real ratify -> activate chain producing a real next constitution digest. Client-supplied proposed_by/proposer_type are never trusted -- both are derived from the real authenticated principal, matching every other write route in this file. Still missing: no /rollback route. rollback_amendment() needs a durable history of ConstitutionSnapshotV1 objects to find 'the exact predecessor' of a given activation, and no such store exists -- build_constitution_snapshot()'s own docstring already documents that gap ('does not persist a chain across process restarts'), tied directly to organ 25's own already-recorded 'durable cross-restart persistence of the constitution... remains genuinely unbuilt' blocker. A routing-table entry with no real endpoint behind it would have been misleading, so none was added; building a snapshot-history store is a real, separate task."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

@@ -235,3 +235,18 @@ def test_old_mission_stays_on_old_constitution_after_activation() -> None:
     # contract -- and its digest -- never changed.
     assert v2.snapshot_digest != v1.snapshot_digest
     assert mission.constitution_digest == v1.snapshot_digest
+
+
+def test_action_type_ratify_stays_literally_equal_to_the_domain_constant() -> None:
+    """Organ 45: aios.api.routes.governance's ratify route binds a real
+    capability to ActionType.CONSTITUTIONAL_AMENDMENT_RATIFY, but
+    ratify_amendment() itself checks the consumed proof's action_type
+    against this module's own CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION string
+    -- the two must never drift apart or every real ratification would
+    start failing with a confusing 'wrong action_type' error."""
+    from aios.domain.actions.envelope import ActionType
+
+    assert (
+        ActionType.CONSTITUTIONAL_AMENDMENT_RATIFY.value
+        == CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
+    )
