@@ -33,7 +33,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterator, Optional, Any, Sequence, cast
+from typing import Callable, Iterator, Literal, Optional, Any, Sequence, cast
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -1365,6 +1365,67 @@ def chat(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+class HumanStateCorrectionRequest(BaseModel):
+    """Body for ``/api/v1/chat/human-state/correct`` -- organ 30's real
+    ground-truth correction. Never authoritative: ``grants_authority`` on
+    the original hypothesis was already pinned ``False`` and this changes
+    nothing about the turn that already happened."""
+
+    turn_id: str = Field(..., min_length=1, max_length=200, alias="turnId")
+    corrected_state: Literal[
+        "frustrated", "rushed", "decisive", "uncertain", "exploratory", "neutral"
+    ] = Field(..., alias="correctedState")
+    session_id: str = Field("voice-session", alias="sessionId")
+
+
+@app.post(
+    "/api/v1/chat/human-state/correct",
+    dependencies=[Depends(enforce_action_boundary)],
+)
+def correct_human_state(
+    req: HumanStateCorrectionRequest,
+    request: Request,
+    human_state_store=Depends(get_human_state_hypothesis_store),
+) -> dict[str, Any]:
+    """Organ 30: let the operator correct a ``human_state`` guess.
+
+    The frame's own ``user_correctable=True`` has existed since the
+    classifier shipped, but nothing ever gave a human a real place to
+    exercise it -- this is that place. Records real ground truth against
+    the exact turn being corrected; never re-classifies, never changes the
+    reply already given, never gates anything.
+    """
+    session_id = _session_id_from_request(request, req.session_id)
+    corrected = human_state_store.record_correction(
+        session_id, req.turn_id, req.corrected_state
+    )
+    if not corrected:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no human-state hypothesis recorded for turn {req.turn_id!r}",
+        )
+    return {
+        "turnId": req.turn_id,
+        "correctedState": req.corrected_state,
+        "recorded": True,
+    }
+
+
+@app.get(
+    "/api/v1/chat/human-state/accuracy",
+    dependencies=[Depends(enforce_action_boundary)],
+)
+def human_state_accuracy(
+    human_state_store=Depends(get_human_state_hypothesis_store),
+) -> dict[str, Any]:
+    """Organ 30: the classifier's real measured accuracy against every
+    correction recorded so far -- the honest answer to "not measured
+    against real production traffic", computed from whatever real
+    corrections exist rather than synthetic examples. An empty report
+    (``total_corrected: 0``) is itself an honest signal, not an error."""
+    return human_state_store.accuracy_report().as_dict()
 
 
 @app.post("/api/terminal", dependencies=[Depends(enforce_action_boundary)])

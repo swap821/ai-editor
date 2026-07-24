@@ -324,6 +324,42 @@ def _passport_from_row(row: sqlite3.Row) -> ProjectPassportV1:
     return record
 
 
+class HumanStateAccuracyReport:
+    """Real measured accuracy of ``classify_human_state()`` against actual
+    human corrections -- organ 30's own named gap ("not measured against
+    real production traffic") answered with real data instead of left
+    permanently open. ``total_corrected`` is the only trustworthy
+    denominator: an un-corrected hypothesis is not evidence of either
+    correctness or error, so it is excluded rather than assumed correct."""
+
+    __slots__ = ("total_corrected", "agreements", "by_state")
+
+    def __init__(
+        self,
+        *,
+        total_corrected: int,
+        agreements: int,
+        by_state: dict[str, dict[str, int]],
+    ) -> None:
+        self.total_corrected = total_corrected
+        self.agreements = agreements
+        self.by_state = by_state
+
+    @property
+    def accuracy(self) -> float | None:
+        if self.total_corrected == 0:
+            return None
+        return self.agreements / self.total_corrected
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "total_corrected": self.total_corrected,
+            "agreements": self.agreements,
+            "accuracy": self.accuracy,
+            "by_state": self.by_state,
+        }
+
+
 class HumanStateHypothesisStore:
     """Organ 30: append-only history of ``classify_human_state()`` outputs,
     one row per live conversation turn.
@@ -395,8 +431,63 @@ class HumanStateHypothesisStore:
             results.append((str(row["turn_id"]), hypothesis))
         return tuple(results)
 
+    def record_correction(
+        self, session_id: str, turn_id: str, corrected_state: str
+    ) -> bool:
+        """Real ground truth for one turn's hypothesis -- ``user_correctable``
+        was pinned ``True`` on every hypothesis since organ 30 shipped, but
+        nothing ever gave a human a place to actually exercise it. Never
+        authoritative: this corrects the durable record only, it cannot
+        change anything about the turn that already happened.
+
+        Returns ``False`` (not an error) when no hypothesis exists for this
+        session/turn -- a caller-supplied unknown pair is a real, honest
+        "nothing to correct", not a system failure."""
+        with closing(self._connect()) as conn:
+            cursor = conn.execute(
+                """
+                UPDATE human_state_hypotheses
+                SET corrected_state = ?, corrected_at = ?
+                WHERE id = (
+                    SELECT id FROM human_state_hypotheses
+                    WHERE session_id = ? AND turn_id = ?
+                    ORDER BY id DESC LIMIT 1
+                )
+                """,
+                (corrected_state, _utc_now(), session_id, turn_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def accuracy_report(self) -> HumanStateAccuracyReport:
+        """Measure the deterministic classifier against every real
+        correction recorded so far -- the honest answer to organ 30's own
+        "not measured against real production traffic" gap, computed from
+        whatever real corrections exist rather than synthetic examples.
+        An empty report (``total_corrected == 0``) is itself an honest
+        signal: no one has corrected a hypothesis yet, not that the
+        classifier is unmeasurable."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT state, corrected_state FROM human_state_hypotheses "
+                "WHERE corrected_state IS NOT NULL"
+            ).fetchall()
+        by_state: dict[str, dict[str, int]] = {}
+        agreements = 0
+        for row in rows:
+            state = str(row["state"])
+            bucket = by_state.setdefault(state, {"total": 0, "agreements": 0})
+            bucket["total"] += 1
+            if row["corrected_state"] == state:
+                bucket["agreements"] += 1
+                agreements += 1
+        return HumanStateAccuracyReport(
+            total_corrected=len(rows), agreements=agreements, by_state=by_state
+        )
+
 
 __all__ = [
+    "HumanStateAccuracyReport",
     "HumanStateHypothesisStore",
     "OperatorPreferenceSaveResult",
     "OperatorPreferenceStore",

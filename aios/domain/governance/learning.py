@@ -33,10 +33,10 @@ GovernanceEventClass = Literal[
 ]
 
 #: The 9 adversarial simulations every lesson-originated amendment proposal
-#: must pass before it becomes ratification-eligible. The checks themselves
-#: (real adversarial testing) are not implemented by this slice -- see
-#: `aios.application.governance.constitutional_learning` for the honest
-#: scope note; this is the fixed catalog nothing may silently skip.
+#: must pass before it becomes ratification-eligible. Run for real by
+#: `aios.application.governance.adversarial_simulations.
+#: run_adversarial_simulations`; this is the fixed catalog nothing may
+#: silently skip.
 ADVERSARIAL_SIMULATION_CHECKS: tuple[str, ...] = (
     "authority_escalation",
     "approval_bypass",

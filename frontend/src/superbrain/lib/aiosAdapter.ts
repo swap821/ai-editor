@@ -340,13 +340,37 @@ export async function sendDirective(
  *  handlers and the conversation organs refresh — no new scene wiring. `onChunk`
  *  reports the reply as it streams; resolves with the full reply or throws on a
  *  transport/backend error (callers surface it honestly, never a fake reply). */
+
+/** Organ 30: the six states `classify_human_state()` can guess. Advisory only
+ *  — never gates or authorizes anything (the backend pins `grants_authority:
+ *  false` on every hypothesis). */
+export type HumanState =
+  | 'frustrated'
+  | 'rushed'
+  | 'decisive'
+  | 'uncertain'
+  | 'exploratory'
+  | 'neutral';
+
+export interface HumanStateHypothesis {
+  turnId: string;
+  state: HumanState;
+  confidence: number;
+  visibleReason: string;
+}
+
 export async function sendVoiceTurn(
   transcript: string,
-  opts: { onChunk?: (reply: string) => void; signal?: AbortSignal; modelId?: string } = {},
+  opts: {
+    onChunk?: (reply: string) => void;
+    onHumanState?: (hypothesis: HumanStateHypothesis) => void;
+    signal?: AbortSignal;
+    modelId?: string;
+  } = {},
 ): Promise<string> {
   const text = transcript.trim();
   if (!text) return '';
-  
+
   let reply = '';
   const { signal, modelId } = opts;
   try {
@@ -366,13 +390,25 @@ export async function sendVoiceTurn(
       if (frame.event === 'text_chunk') {
         reply += String(data.text ?? '');
         opts.onChunk?.(reply);
+      } else if (frame.event === 'human_state') {
+        const state = data.state;
+        const turnId = data.turn_id;
+        if (typeof state === 'string' && typeof turnId === 'string') {
+          opts.onHumanState?.({
+            turnId,
+            state: state as HumanState,
+            confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+            visibleReason:
+              typeof data.visible_reason === 'string' ? data.visible_reason : '',
+          });
+        }
       } else if (frame.event === 'route' && typeof data.model === 'string' && data.model) {
         // (route event handled by aiosMirror)
       } else if (frame.event === 'error') {
         throw new Error(String(data.text ?? 'The voice mind could not answer.'));
       }
     }
-    
+
     return reply;
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
@@ -380,6 +416,61 @@ export async function sendVoiceTurn(
     }
     
     throw err;
+  }
+}
+
+/** Organ 30: record a real correction for one turn's `human_state` guess.
+ *  The frame has carried `user_correctable: true` since it shipped; this is
+ *  the first real place to exercise it. Never authoritative — corrects only
+ *  the durable ground-truth record, never re-classifies or changes the
+ *  reply already given. Resolves `false` (not a throw) on any transport or
+ *  server failure — a failed correction is a soft, retryable UI concern,
+ *  never worth breaking the conversation over. */
+export async function correctHumanState(
+  turnId: string,
+  correctedState: HumanState,
+): Promise<boolean> {
+  try {
+    const sessionFields = await sessionBodyFields();
+    const response = await fetch(`${AIOS_BASE}/api/v1/chat/human-state/correct`, {
+      method: 'POST',
+      credentials: FETCH_CREDENTIALS,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ turnId, correctedState, ...sessionFields }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export interface HumanStateAccuracyReport {
+  totalCorrected: number;
+  agreements: number;
+  accuracy: number | null;
+  byState: Record<string, { total: number; agreements: number }>;
+}
+
+/** Organ 30: the classifier's real measured accuracy against every
+ *  correction recorded so far. Resolves `null` (not a throw) on any
+ *  transport failure — this is a diagnostic read, never worth breaking a
+ *  caller over. */
+export async function getHumanStateAccuracy(): Promise<HumanStateAccuracyReport | null> {
+  try {
+    const response = await fetch(`${AIOS_BASE}/api/v1/chat/human-state/accuracy`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as Record<string, unknown>;
+    return {
+      totalCorrected: Number(data.total_corrected ?? 0),
+      agreements: Number(data.agreements ?? 0),
+      accuracy: typeof data.accuracy === 'number' ? data.accuracy : null,
+      byState: (data.by_state as HumanStateAccuracyReport['byState']) ?? {},
+    };
+  } catch {
+    return null;
   }
 }
 

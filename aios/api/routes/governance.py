@@ -17,6 +17,9 @@ from aios.api.deps import (
     require_privileged_operator,
 )
 from aios.application.governance import EmergencyStopController, EmergencyStopError
+from aios.application.governance.adversarial_simulations import (
+    run_adversarial_simulations,
+)
 from aios.application.governance.amendment_authority import (
     AmendmentError,
     activate_amendment,
@@ -36,7 +39,10 @@ from aios.application.governance.constitutional_learning import (
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance import EmergencyStopRequest
 from aios.domain.governance.constitution import build_constitution_snapshot
-from aios.domain.governance.learning import GovernanceEventClass, SimulationCheckResult
+from aios.domain.governance.learning import (
+    ADVERSARIAL_SIMULATION_CHECKS,
+    GovernanceEventClass,
+)
 from aios.domain.identity.models import Principal
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConstitutionSnapshotStore,
@@ -425,11 +431,11 @@ def rollback_amendment_route(
 #
 # A GovernanceLessonV1 can produce a real Slice 37 amendment *proposal*,
 # never further -- ratification/activation still flow through the routes
-# above, unchanged. `require_all_simulations_pass` is exposed as a pure,
-# stateless check: this organ does not run the 9 named adversarial
-# simulations itself (constitutional_learning.py's own documented scope),
-# so the route only ever validates results a caller already produced,
-# refusing on any missing or failed check exactly like the domain function.
+# above, unchanged. `check-simulations` looks the proposal up by id and
+# runs all 9 named adversarial simulations against it for real
+# (`run_adversarial_simulations`) -- a caller can no longer assert a
+# passing result it never earned; `require_all_simulations_pass` still
+# refuses on any missing or failed check exactly like before.
 # --------------------------------------------------------------------------- #
 
 
@@ -458,7 +464,7 @@ class DraftAmendmentFromLessonRequest(BaseModel):
 class CheckSimulationsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    results: tuple[SimulationCheckResult, ...] = ()
+    proposal_id: str = Field(min_length=1, max_length=200)
 
 
 @router.post("/api/v1/governance/lessons/propose")
@@ -534,12 +540,28 @@ def draft_amendment_from_lesson_route(
 def check_lesson_simulations_route(
     body: CheckSimulationsRequest,
     principal: Principal = Depends(require_privileged_operator),
+    store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
 ) -> dict[str, Any]:
+    proposal = _get_current_proposal_or_404(store, body.proposal_id)
+    results = run_adversarial_simulations(proposal)
+    results_payload = [r.model_dump(mode="json") for r in results]
     try:
-        require_all_simulations_pass(body.results)
-    except ConstitutionalLearningError as exc:
-        return {"ready": False, "reason": str(exc)}
-    return {"ready": True, "reason": ""}
+        require_all_simulations_pass(results)
+    except ConstitutionalLearningError:
+        # Recompute the reason from the typed results already in hand,
+        # rather than relaying the exception's own message text into an
+        # HTTP response (CodeQL: py/stack-trace-exposure) -- this mirrors
+        # require_all_simulations_pass's own logic exactly, just without
+        # turning an exception into response body content.
+        seen = {r.check_name for r in results}
+        missing = [name for name in ADVERSARIAL_SIMULATION_CHECKS if name not in seen]
+        if missing:
+            reason = f"missing required adversarial simulations: {missing}"
+        else:
+            failed = [r.check_name for r in results if not r.passed]
+            reason = f"failed adversarial simulations: {failed}"
+        return {"ready": False, "reason": reason, "results": results_payload}
+    return {"ready": True, "reason": "", "results": results_payload}
 
 
 __all__ = ["router"]

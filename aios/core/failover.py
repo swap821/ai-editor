@@ -63,6 +63,16 @@ Candidate = tuple[Any, str, str]
 FailoverHook = Callable[[str, str, str, str, Exception], None]
 
 
+def known_provider_classes() -> tuple[frozenset[str], frozenset[str]]:
+    """Return ``(cloud_provider_names, local_provider_names)`` this failover
+    layer recognizes -- the same sets `_is_cloud_provider`/`_is_local_provider`
+    check against, exposed for callers outside this module (e.g. organ 46's
+    provider-lock-in simulation) that need to confirm a local fallback and
+    more than one cloud option are still configured, without depending on
+    this module's private constants directly."""
+    return _CLOUD_PROVIDERS, _LOCAL_PROVIDERS
+
+
 def _is_cloud_provider(name: str) -> bool:
     """Return ``True`` if *name* identifies a cloud provider."""
     lower = name.strip().lower()

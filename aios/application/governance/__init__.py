@@ -1,5 +1,6 @@
 """Application-level governance controls."""
 
+from .adversarial_simulations import run_adversarial_simulations
 from .amendment_authority import (
     AmendmentError,
     activate_amendment,
@@ -51,6 +52,7 @@ __all__ = [
     "reject_amendment",
     "require_all_simulations_pass",
     "rollback_amendment",
+    "run_adversarial_simulations",
     "simulate_amendment",
     "validate_ledger",
 ]
