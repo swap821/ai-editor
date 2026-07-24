@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from aios.api.deps import get_project_passport_store
 from aios.api.main import app
-from aios.api.routes import projects
 from aios.infrastructure.memory.human_representation_store import ProjectPassportStore
 from aios.memory.project_passport import harvest_project_passport
 
@@ -56,7 +55,9 @@ def test_project_passport_is_proposal_evidence_only(tmp_path: Path) -> None:
     assert "npm test" in passport.test_commands
 
 
-def test_project_passport_does_not_expose_secret_files_or_values(tmp_path: Path) -> None:
+def test_project_passport_does_not_expose_secret_files_or_values(
+    tmp_path: Path,
+) -> None:
     _write(tmp_path / "README.md", "# Secret Demo\n")
     _write(tmp_path / ".env", "API_KEY=super-secret-value\n")
     _write(tmp_path / ".env.example", "PUBLIC_TOKEN=\n")
@@ -99,12 +100,21 @@ def test_project_passport_api_returns_real_backend_scan_without_memory_activatio
     assert status_body["lastScan"]["root"] == str(tmp_path.resolve())
     assert status_body["lastScan"]["purpose"].startswith("API Passport")
 
-def test_project_passport_status_does_not_scan_or_activate_memory(monkeypatch) -> None:
-    monkeypatch.setattr(projects, "_LAST_PROJECT_PASSPORT_SCAN", None)
 
-    response = TestClient(app, client=("127.0.0.1", 12345)).get(
-        "/api/v1/projects/passport/status"
-    )
+def test_project_passport_status_does_not_scan_or_activate_memory(
+    tmp_path: Path,
+) -> None:
+    """A fresh store (nothing ever scanned against it) reports lastScan as
+    None honestly -- the durable active-project pointer (organ 28) only
+    ever gets set by a real scan, never fabricated."""
+    store = ProjectPassportStore(tmp_path / "passports.db")
+    app.dependency_overrides[get_project_passport_store] = lambda: store
+    try:
+        response = TestClient(app, client=("127.0.0.1", 12345)).get(
+            "/api/v1/projects/passport/status"
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     body = response.json()
@@ -113,6 +123,7 @@ def test_project_passport_status_does_not_scan_or_activate_memory(monkeypatch) -
     assert body["activation"] == "proposal/evidence"
     assert body["trustedMemoryActivated"] is False
     assert body["lastScan"] is None
+    assert body["durable"] is None
 
 
 def test_project_passport_scan_persists_a_real_typed_passport_durably(

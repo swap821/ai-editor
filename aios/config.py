@@ -121,6 +121,8 @@ MISSION_TRANSITION_JOURNAL_DB_PATH: Final[Path] = (
 HUMAN_STATE_HYPOTHESIS_DB_PATH: Final[Path] = (
     DATA_DIR / "aios_human_state_hypotheses.db"
 )
+CORRECTION_RECORD_DB_PATH: Final[Path] = DATA_DIR / "aios_correction_records.db"
+OPERATOR_PREFERENCE_DB_PATH: Final[Path] = DATA_DIR / "aios_operator_preferences.db"
 REPRESENTATIVE_CONTEXT_DB_PATH: Final[Path] = (
     DATA_DIR / "aios_representative_contexts.db"
 )
@@ -601,6 +603,8 @@ __all__ = [
     "API_TOKEN_ROTATION_DB_PATH",
     "MISSION_TRANSITION_JOURNAL_DB_PATH",
     "HUMAN_STATE_HYPOTHESIS_DB_PATH",
+    "CORRECTION_RECORD_DB_PATH",
+    "OPERATOR_PREFERENCE_DB_PATH",
     "REPRESENTATIVE_CONTEXT_DB_PATH",
     "CONSTITUTION_SNAPSHOT_DB_PATH",
     "BACKUP_DIR",

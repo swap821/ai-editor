@@ -510,29 +510,37 @@
   {
     "organ_id": 27,
     "name": "Operator Taste Model",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "OperatorTasteModelAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
-      "aios/infrastructure/memory/human_representation_store.py"
+      "aios/application/memory/human_representation.py",
+      "aios/infrastructure/memory/human_representation_store.py",
+      "aios/api/deps.py",
+      "aios/api/routes/preferences.py",
+      "aios/policy/kernel.py",
+      "aios/domain/actions/envelope.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
-      "tests/test_human_representation_store.py"
+      "tests/test_human_representation_store.py",
+      "tests/test_operator_preferences_api.py"
     ],
     "integration_tests": [
       "tests/test_personalization.py",
-      "tests/test_human_representation_store.py"
+      "tests/test_operator_preferences_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "PR1 (organ 27 closure): OperatorPreferenceStore previously had zero production callers -- get_operator_preference_store() (aios/api/deps.py) now wires it through the SAME canonical SemanticFacts instance every other real personalization write already uses, and a real route (aios/api/routes/preferences.py: POST/GET /api/v1/preferences, GET /api/v1/preferences/active, POST /api/v1/preferences/{id}/withdraw) is the first production caller. Capture is restricted to explicit preferences structurally (source_type is always \"explicit_user\"; no request field can set anything else). Real, tested support added for expiry (is_operator_preference_expired), withdrawal (OperatorPreferenceStore.withdraw() -- a status=\"withdrawn\" sidecar transition; it does not retract the underlying SemanticFacts row, so a genuinely different value for the same domain+key+scope after withdrawal still resolves through the existing POST /api/v1/memory/facts/reconcile), and restart recovery. Two real, previously-latent bugs were found and fixed while building this: (1) the contradiction-check subject omitted scope (operator.<domain>.<key>), so two preferences correctly isolated by list_for_scope would have spuriously collided the instant they disagreed -- scope is now part of that subject; (2) save() digested the REQUESTED confidence even when SemanticFacts.add_fact()'s idempotent path left the actual stored confidence unchanged, producing a permanent false RecordTamperedError on the next read after a re-save with a different confidence -- save() now re-reads the actual stored fact before digesting. Stays yellow for the same reason organ 31's and organ 32's own ledger rows already document: no production conversational call site exists yet to thread list_active_for_scope() into Organ 31's active_preferences parameter -- the only real caller of that parameter (aios/council/gateway_reasoning.py) deliberately doesn't need it, and chat's real personalization path (_operator_facts_block) is a separate, lower-level mechanism. Not fabricated as closed; see organ 31/32's blockers for the (already-tracked) root cause."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 28,
     "name": "Project Understanding Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProjectUnderstandingAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -549,29 +557,38 @@
       "tests/test_project_passport.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "PR1 (organ 28 closure): the \"last scanned project\" pointer previously lived only in process-local module globals (_LAST_PROJECT_PASSPORT_SCAN / _LAST_PROJECT_PASSPORT_ID in aios/api/routes/projects.py) -- silently forgotten on every restart even though the scan history itself was already durable. A new singleton-row table (migration 0016, active_project_pointer) plus ProjectPassportStore.set_active()/get_active() now persist it; project_passport_status() reads the durable pointer instead of the removed globals. Added a real, computed diff_project_passports() (scalar-field, set-field, and commands changes) between the previous durable revision and the one just scanned -- never a fabricated \"nothing changed\" when there was no previous revision -- exposed on every scan as passportDiff. Stays yellow for the same reason organ 31/32's own ledger rows already document: no production conversational call site threads the active passport into Organ 31's project_passport parameter -- Council (the only real caller) doesn't need it, and no chat-facing consumer exists yet. Not fabricated as closed."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 29,
     "name": "Correction and Interpretation-Lineage Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "CorrectionLineageAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
-      "aios/application/memory/human_representation.py"
+      "aios/application/memory/human_representation.py",
+      "aios/infrastructure/memory/human_representation_store.py",
+      "aios/api/deps.py",
+      "aios/api/routes/memory.py"
     ],
     "focused_tests": [
-      "tests/test_human_representation.py"
+      "tests/test_human_representation.py",
+      "tests/test_human_representation_store.py"
     ],
     "integration_tests": [
       "tests/test_human_representation.py",
       "tests/test_alignment.py",
-      "tests/test_memory.py"
+      "tests/test_memory.py",
+      "tests/test_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "PR1 (organ 29 closure): build_correction_record_v1()/CorrectionRecordV1 previously had zero production callers -- the real POST /api/v1/conversation/correction route (aios/api/routes/memory.py) now builds a typed, digest-verified CorrectionRecordV1 via record_correction_and_build_v1() on every real correction and durably records it through a new CorrectionRecordStore (append-only, digest-verified), returned to the caller as correctionRecord/correctionRecords. operator_id is captured best-effort via get_optional_principal() -- honestly recorded None rather than a fabricated identity when the session has no authenticated Human Sovereign principal bound to it. grants_authority stays pinned False at the type level (a correction changes the recorded interpretation, never what is authorized) -- proven by test. Stays yellow for the same reason organ 31/32's own ledger rows already document: no production conversational call site threads the newest valid correction into Organ 31's latest_correction parameter -- Council (the only real caller) doesn't need it, and no chat-facing consumer exists yet. Not fabricated as closed."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -600,7 +617,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Tier 4 follow-on (operator-directed 'I want 30 and 46 production grade ready'): a human-state hypothesis can now genuinely be corrected, and that correction is measurable, not just a UI toast. Migration 0013 adds corrected_state/corrected_at to human_state_hypotheses; HumanStateHypothesisStore.record_correction() persists a correction against a turn's latest hypothesis without mutating the original digest, and accuracy_report() aggregates agreement/disagreement per state. New routes POST /api/v1/chat/human-state/correct and GET .../accuracy, wired through the policy kernel with a new human_state_correct action type. The chat thread (GagosChrome.jsx) shows a quiet hint under a user's message that opens a picker to correct the guess, wired through aiosAdapter.correctHumanState()/getHumanStateAccuracy() and useWorkMaterialization. Caught via live browser verification, not just unit tests: the first hook implementation read turnId from inside a setMessages() updater and used it on the next line -- React does not guarantee that updater runs synchronously first, so corrections silently no-op'd while the UI still showed 'noted'. Fixed by reading turnId from current state before updating; a regression test in GagosChrome.voice.test.tsx fails against the buggy version and passes against the fix. Stays yellow: the deterministic classifier itself still has not been measured against real production operator traffic -- the new corrections table is exactly the mechanism that will let that happen as real traffic accumulates, but no such traffic exists yet in this sandbox; a genuine, not-fabricatable gap, not a wiring gap."
+      "PR1 (organ 30 closure, fixing the exact bug named for this pass): migration 0013 stored a correction by MUTATING corrected_state/corrected_at columns directly on the original hypothesis row, while the row's own record_digest kept authenticating only the ORIGINAL hypothesis fields -- corrections were silently overwriteable (a second correction just overwrote the first, with no history) and sat outside the tamper check entirely (the digest never covered corrected_state/corrected_at, so tampering them left the digest valid). Migration 0014 replaces this with a genuinely append-only, digest-verified human_state_corrections table (one row per correction event, never mutated), joined to its hypothesis by row id (hypothesis_id) rather than content digest -- a content-digest join was tried first and rejected: two hypotheses with identical content on different turns produce the SAME digest, which silently collapsed two distinct corrections into one accuracy-report bucket (caught by a new regression test before it shipped). Each correction row is bound to the authenticated operator via get_optional_principal() -- recording None honestly when no principal is bound, never a fabricated identity -- and accuracy_report() now aggregates only the newest valid correction per hypothesis. A live tamper-detection regression test directly mutates the new table and confirms RecordTamperedError is raised, closing exactly the gap the operator named. Stays yellow: the deterministic classifier itself still has not been measured against real production operator traffic -- the corrections table (now genuinely tamper-evident) is exactly the mechanism that will let that happen as real traffic accumulates, but no such traffic exists yet in this sandbox; a genuine, not-fabricatable gap, not a wiring gap."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
