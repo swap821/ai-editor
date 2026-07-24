@@ -259,7 +259,9 @@ def _probe_rollback_lifecycle() -> bool:
     """Exercise the real `rollback_amendment` against a synthetic, in-memory
     two-snapshot history: an activated proposal must be revertible to its
     exact predecessor snapshot."""
-    first = build_constitution_snapshot(ratified_by_operator_id="organ-46-probe-operator")
+    first = build_constitution_snapshot(
+        ratified_by_operator_id="organ-46-probe-operator"
+    )
     second = build_constitution_snapshot(
         ratified_by_operator_id="organ-46-probe-operator", previous_snapshot=first
     )
@@ -281,7 +283,10 @@ def _probe_rollback_lifecycle() -> bool:
         )
     except AmendmentError:
         return False
-    return updated.status == "rolled_back" and reverted.snapshot_digest == first.snapshot_digest
+    return (
+        updated.status == "rolled_back"
+        and reverted.snapshot_digest == first.snapshot_digest
+    )
 
 
 def _probe_privacy_boundary() -> bool:
@@ -342,7 +347,9 @@ def _probe_provider_diversity() -> bool:
 def _check_authority_escalation(
     proposal: ConstitutionalAmendmentProposalV1,
 ) -> SimulationCheckResult:
-    text = " ".join((proposal.proposed_diff, proposal.motivation, proposal.migration_plan))
+    text = " ".join(
+        (proposal.proposed_diff, proposal.motivation, proposal.migration_plan)
+    )
     try:
         assert_never_reduces_human_authority(text)
     except ConstitutionalLearningError:
@@ -383,7 +390,8 @@ def _check_privacy_widening(
     hit = _marker_hit(_proposal_text(proposal), _PRIVACY_WIDENING_MARKERS)
     if hit is not None:
         return _failed(
-            "privacy_widening", f"proposal text contains privacy-widening marker {hit!r}"
+            "privacy_widening",
+            f"proposal text contains privacy-widening marker {hit!r}",
         )
     if not _probe_privacy_boundary():
         return _failed(
@@ -402,7 +410,8 @@ def _check_capability_replay(
     hit = _marker_hit(_proposal_text(proposal), _CAPABILITY_REPLAY_MARKERS)
     if hit is not None:
         return _failed(
-            "capability_replay", f"proposal text contains replay-enabling marker {hit!r}"
+            "capability_replay",
+            f"proposal text contains replay-enabling marker {hit!r}",
         )
     probe = _probe_capability_lifecycle()
     if not probe["replay_rejected"]:
@@ -486,7 +495,8 @@ def _check_provider_lock_in(
     hit = _marker_hit(_proposal_text(proposal), _PROVIDER_LOCK_IN_MARKERS)
     if hit is not None:
         return _failed(
-            "provider_lock_in", f"proposal text contains provider-lock-in marker {hit!r}"
+            "provider_lock_in",
+            f"proposal text contains provider-lock-in marker {hit!r}",
         )
     if not _probe_provider_diversity():
         return _failed(
