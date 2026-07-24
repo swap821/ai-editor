@@ -39,7 +39,10 @@ from aios.application.governance.constitutional_learning import (
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance import EmergencyStopRequest
 from aios.domain.governance.constitution import build_constitution_snapshot
-from aios.domain.governance.learning import GovernanceEventClass
+from aios.domain.governance.learning import (
+    ADVERSARIAL_SIMULATION_CHECKS,
+    GovernanceEventClass,
+)
 from aios.domain.identity.models import Principal
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConstitutionSnapshotStore,
@@ -544,8 +547,20 @@ def check_lesson_simulations_route(
     results_payload = [r.model_dump(mode="json") for r in results]
     try:
         require_all_simulations_pass(results)
-    except ConstitutionalLearningError as exc:
-        return {"ready": False, "reason": str(exc), "results": results_payload}
+    except ConstitutionalLearningError:
+        # Recompute the reason from the typed results already in hand,
+        # rather than relaying the exception's own message text into an
+        # HTTP response (CodeQL: py/stack-trace-exposure) -- this mirrors
+        # require_all_simulations_pass's own logic exactly, just without
+        # turning an exception into response body content.
+        seen = {r.check_name for r in results}
+        missing = [name for name in ADVERSARIAL_SIMULATION_CHECKS if name not in seen]
+        if missing:
+            reason = f"missing required adversarial simulations: {missing}"
+        else:
+            failed = [r.check_name for r in results if not r.passed]
+            reason = f"failed adversarial simulations: {failed}"
+        return {"ready": False, "reason": reason, "results": results_payload}
     return {"ready": True, "reason": "", "results": results_payload}
 
 

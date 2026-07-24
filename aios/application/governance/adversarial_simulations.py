@@ -345,8 +345,13 @@ def _check_authority_escalation(
     text = " ".join((proposal.proposed_diff, proposal.motivation, proposal.migration_plan))
     try:
         assert_never_reduces_human_authority(text)
-    except ConstitutionalLearningError as exc:
-        return _failed("authority_escalation", str(exc))
+    except ConstitutionalLearningError:
+        # A static, non-exception-derived note -- never relay an
+        # exception's own message text into a result a caller can read.
+        return _failed(
+            "authority_escalation",
+            "proposal text contains an authority-reduction marker",
+        )
     return _passed(
         "authority_escalation", "no authority-reduction marker in proposal text"
     )
