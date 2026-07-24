@@ -83,7 +83,9 @@ from aios.infrastructure.governance.constitution_snapshot_store import (
 )
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 from aios.infrastructure.memory.human_representation_store import (
+    CorrectionRecordStore,
     HumanStateHypothesisStore,
+    OperatorPreferenceStore,
     ProjectPassportStore,
 )
 from aios.security.audit_logger import log_action
@@ -113,6 +115,10 @@ _project_passport_store: Optional[ProjectPassportStore] = None
 _project_passport_store_lock = threading.Lock()
 _human_state_hypothesis_store: Optional[HumanStateHypothesisStore] = None
 _human_state_hypothesis_store_lock = threading.Lock()
+_correction_record_store: Optional[CorrectionRecordStore] = None
+_correction_record_store_lock = threading.Lock()
+_operator_preference_store: Optional[OperatorPreferenceStore] = None
+_operator_preference_store_lock = threading.Lock()
 _governance_amendment_store: Optional[GovernanceAmendmentStore] = None
 _governance_amendment_store_lock = threading.Lock()
 _constitution_snapshot_store: Optional[ConstitutionSnapshotStore] = None
@@ -599,6 +605,43 @@ def get_human_state_hypothesis_store() -> HumanStateHypothesisStore:
     return _human_state_hypothesis_store
 
 
+def get_correction_record_store() -> CorrectionRecordStore:
+    """Provide the durable, append-only, operator-attributed
+    CorrectionRecordV1 history singleton (organ 29) -- previously this
+    typed layer had zero production callers anywhere; the real correction
+    route built only untyped dicts."""
+    global _correction_record_store
+    if _correction_record_store is not None:
+        return _correction_record_store
+    with _correction_record_store_lock:
+        if _correction_record_store is None:
+            _correction_record_store = CorrectionRecordStore(
+                config.CORRECTION_RECORD_DB_PATH
+            )
+    return _correction_record_store
+
+
+def get_operator_preference_store() -> OperatorPreferenceStore:
+    """Provide the durable, digest-verified explicit-preference store
+    (organ 27) -- previously ``OperatorPreferenceStore`` was constructed
+    only in tests; no production route could ever save or read a real
+    ``OperatorPreferenceV1``. Wired to the SAME canonical ``SemanticFacts``
+    instance every other real personalization write already goes through
+    (``get_semantic_facts()``, itself the "facts" adapter's own store
+    inside ``get_memory_authority()``), so a preference's contradiction
+    detection stays consistent with the rest of the system rather than a
+    second, disconnected fact store."""
+    global _operator_preference_store
+    if _operator_preference_store is not None:
+        return _operator_preference_store
+    with _operator_preference_store_lock:
+        if _operator_preference_store is None:
+            _operator_preference_store = OperatorPreferenceStore(
+                config.OPERATOR_PREFERENCE_DB_PATH, facts=get_semantic_facts()
+            )
+    return _operator_preference_store
+
+
 def get_governance_amendment_store() -> GovernanceAmendmentStore:
     """Provide the durable, append-only ConstitutionalAmendmentProposalV1
     history singleton (Slice 37 / reconciliation item 6 / organ 45) -- the
@@ -641,6 +684,28 @@ def get_authenticated_principal(
         raise HTTPException(
             status_code=401, detail="authenticated operator session required"
         )
+    client_address = request.client.host if request.client is not None else ""
+    return replace(
+        principal,
+        request_id=request.headers.get("x-request-id", ""),
+        client_address=client_address,
+    )
+
+
+def get_optional_principal(
+    request: Request,
+    identity: IdentityService = Depends(get_identity_service),
+) -> Principal | None:
+    """Best-effort operator identity for routes that must stay reachable
+    from an unauthenticated local session by design (organs 29/30's
+    correction endpoints), but should still record who made a correction
+    when a real authenticated principal happens to be resolvable. Never
+    raises -- the honest answer to "no session" is `None`, not a
+    fabricated identity or a hard failure on a route nothing else here
+    requires authentication for."""
+    principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
+    if principal is None:
+        return None
     client_address = request.client.host if request.client is not None else ""
     return replace(
         principal,

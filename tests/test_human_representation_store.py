@@ -11,17 +11,33 @@ from pathlib import Path
 import pytest
 
 from aios.domain.memory.human_representation import (
+    CorrectionRecordV1,
     HumanStateHypothesis,
     OperatorPreferenceV1,
     ProjectPassportV1,
 )
 from aios.infrastructure.memory.human_representation_store import (
+    CorrectionRecordStore,
     HumanStateHypothesisStore,
     OperatorPreferenceStore,
     ProjectPassportStore,
     RecordTamperedError,
 )
 from aios.memory.facts import SemanticFacts
+
+
+def _correction_record(**overrides: object) -> CorrectionRecordV1:
+    payload = {
+        "correction_id": "correction:session-1:1",
+        "session_id": "session-1",
+        "base_revision": 0,
+        "correction_revision": 1,
+        "corrected_fields": ("goal",),
+        "prior_interpretation_digest": "a" * 64,
+        "current_interpretation_digest": "b" * 64,
+    }
+    payload.update(overrides)
+    return CorrectionRecordV1(**payload)
 
 
 def _preference(**overrides: object) -> OperatorPreferenceV1:
@@ -87,9 +103,7 @@ def test_save_reuses_semantic_facts_contradiction_detection(tmp_path: Path) -> N
     store = _pref_store(tmp_path / "mem.db")
     store.save(_preference(preference_id="pref-1", value=True))
 
-    conflicting = store.save(
-        _preference(preference_id="pref-2", value=False)
-    )
+    conflicting = store.save(_preference(preference_id="pref-2", value=False))
 
     assert conflicting.saved is False
     assert conflicting.reason == "contradiction"
@@ -128,6 +142,27 @@ def test_resave_with_a_new_valid_from_does_not_false_positive_as_tampered(
     fetched = store.get("pref-1")
     assert fetched is not None
     assert fetched.valid_from == "2026-06-01T00:00:00+00:00"
+
+
+def test_resave_with_a_different_confidence_does_not_false_positive_as_tampered(
+    tmp_path: Path,
+) -> None:
+    """Regression: SemanticFacts.add_fact()'s idempotent "exact triple
+    already exists" path leaves the fact's STORED confidence untouched
+    unless `approved_by` is passed (which this store never does) -- so
+    re-saving "the same" preference (same value) with a genuinely different
+    requested confidence previously digested the requested-but-not-applied
+    confidence, permanently mismatching what `_reconstruct` reads back on
+    every later `get()`."""
+    store = _pref_store(tmp_path / "mem.db")
+    store.save(_preference(confidence=0.6))
+
+    second = store.save(_preference(confidence=0.9))
+
+    assert second.saved is True
+    fetched = store.get("pref-1")
+    assert fetched is not None
+    assert fetched.confidence == 0.6
 
 
 def test_list_for_scope_never_returns_a_different_scope(tmp_path: Path) -> None:
@@ -190,15 +225,157 @@ def test_store_shares_the_same_semantic_facts_table_as_direct_callers(
 ) -> None:
     """Confirms this is genuinely a thin adapter, not a parallel/competing
     persistence layer: a fact written through the store is visible to a
-    plain SemanticFacts caller on the same database, and vice versa."""
+    plain SemanticFacts caller on the same database, and vice versa. The
+    subject includes scope (organ 27's cross-scope contradiction fix,
+    below), so it is `operator.<scope>.<domain>.<key>`, not bare
+    `operator.<domain>.<key>`."""
     db_path = tmp_path / "mem.db"
     store = _pref_store(db_path)
-    store.save(_preference(domain="d", key="k", value="v"))
+    store.save(_preference(domain="d", key="k", value="v", scope="project:ai-editor"))
 
     direct_facts = SemanticFacts(db_path)
-    rows = direct_facts.facts_for("operator.d.k")
+    rows = direct_facts.facts_for("operator.project:ai-editor.d.k")
     assert len(rows) == 1
     assert rows[0]["object"] == '"v"'
+
+
+def test_same_domain_and_key_across_different_scopes_are_not_a_false_contradiction(
+    tmp_path: Path,
+) -> None:
+    """Organ 27: `list_for_scope` already isolates preferences by scope, but
+    the contradiction-check subject previously omitted scope entirely
+    (`operator.<domain>.<key>`) -- two different projects wanting different
+    values for the same domain+key would spuriously collide as a
+    "contradiction" the instant they disagreed, even though they were never
+    really in conflict. Scope is now part of that subject."""
+    store = _pref_store(tmp_path / "mem.db")
+
+    first = store.save(
+        _preference(
+            preference_id="pref-a",
+            domain="editor",
+            key="tab_width",
+            value=2,
+            scope="project:a",
+        )
+    )
+    second = store.save(
+        _preference(
+            preference_id="pref-b",
+            domain="editor",
+            key="tab_width",
+            value=4,
+            scope="project:b",
+        )
+    )
+
+    assert first.saved is True
+    assert second.saved is True
+    assert store.get("pref-a").value == 2
+    assert store.get("pref-b").value == 4
+
+
+# --- OperatorPreferenceStore: withdrawal, expiry, active feed, restart ------
+
+
+def test_withdraw_marks_status_withdrawn(tmp_path: Path) -> None:
+    store = _pref_store(tmp_path / "mem.db")
+    store.save(_preference(status="active"))
+
+    withdrawn = store.withdraw("pref-1")
+
+    assert withdrawn is True
+    fetched = store.get("pref-1")
+    assert fetched is not None
+    assert fetched.status == "withdrawn"
+
+
+def test_withdraw_returns_false_for_an_unknown_preference(tmp_path: Path) -> None:
+    store = _pref_store(tmp_path / "mem.db")
+    assert store.withdraw("no-such-id") is False
+
+
+def test_withdraw_does_not_fabricate_success_and_is_idempotent(tmp_path: Path) -> None:
+    store = _pref_store(tmp_path / "mem.db")
+    store.save(_preference(status="active"))
+
+    first = store.withdraw("pref-1")
+    second = store.withdraw("pref-1")
+
+    assert first is True
+    assert second is True
+    assert store.get("pref-1").status == "withdrawn"
+
+
+def test_list_active_for_scope_excludes_non_active_status(tmp_path: Path) -> None:
+    store = _pref_store(tmp_path / "mem.db")
+    store.save(
+        _preference(
+            preference_id="pref-active",
+            domain="a",
+            key="k1",
+            scope="project:ai-editor",
+            status="active",
+        )
+    )
+    store.save(
+        _preference(
+            preference_id="pref-proposed",
+            domain="b",
+            key="k2",
+            scope="project:ai-editor",
+            status="proposed",
+        )
+    )
+
+    active = store.list_active_for_scope("project:ai-editor")
+
+    assert {p.preference_id for p in active} == {"pref-active"}
+
+
+def test_list_active_for_scope_never_returns_a_different_scope(tmp_path: Path) -> None:
+    store = _pref_store(tmp_path / "mem.db")
+    store.save(
+        _preference(
+            preference_id="pref-a",
+            domain="a",
+            key="k",
+            scope="project:a",
+            status="active",
+        )
+    )
+    store.save(
+        _preference(
+            preference_id="pref-b",
+            domain="b",
+            key="k",
+            scope="project:b",
+            status="active",
+        )
+    )
+
+    assert {p.preference_id for p in store.list_active_for_scope("project:a")} == {
+        "pref-a"
+    }
+
+
+def test_operator_preference_store_survives_a_restart(tmp_path: Path) -> None:
+    """Organ 27's own restart-recovery requirement: a fresh store instance
+    over the SAME db path must see everything the first instance wrote,
+    exactly like every other durable store in this file."""
+    db_path = tmp_path / "mem.db"
+    first_store = _pref_store(db_path)
+    first_store.save(_preference(status="active"))
+
+    second_store = _pref_store(db_path)
+    restored = second_store.get("pref-1")
+
+    assert restored is not None
+    assert restored.value is True
+    assert restored.status == "active"
+    assert second_store.list_active_for_scope("project:ai-editor")[0].preference_id == (
+        "pref-1"
+    )
 
 
 # --- ProjectPassportStore ----------------------------------------------------
@@ -258,6 +435,41 @@ def test_passport_tamper_is_detected_at_read_time(tmp_path: Path) -> None:
 
     with pytest.raises(RecordTamperedError):
         store.get_current("proj-1")
+
+
+def test_active_project_pointer_survives_a_restart(tmp_path: Path) -> None:
+    """Organ 28's own named gap: previously "which project was last
+    scanned" lived only in a process-local module global in
+    routes/projects.py, forgotten on every restart even though the real
+    scan history was already durable."""
+    db_path = tmp_path / "mem.db"
+    first_process = ProjectPassportStore(db_path)
+    first_process.set_active("proj-1", {"root": "/repo", "purpose": "demo"})
+
+    restarted_process = ProjectPassportStore(db_path)
+    active = restarted_process.get_active()
+
+    assert active == ("proj-1", {"root": "/repo", "purpose": "demo"})
+
+
+def test_active_project_pointer_is_none_when_nothing_ever_scanned(
+    tmp_path: Path,
+) -> None:
+    store = ProjectPassportStore(tmp_path / "mem.db")
+    assert store.get_active() is None
+
+
+def test_active_project_pointer_is_a_true_singleton_not_a_history(
+    tmp_path: Path,
+) -> None:
+    """This system tracks one active project at a time, matching the
+    existing routes' own single-workspace design -- setting a new active
+    project replaces the pointer, it does not append to a history."""
+    store = ProjectPassportStore(tmp_path / "mem.db")
+    store.set_active("proj-1", {"root": "/repo-a"})
+    store.set_active("proj-2", {"root": "/repo-b"})
+
+    assert store.get_active() == ("proj-2", {"root": "/repo-b"})
 
 
 # --- HumanStateHypothesisStore (organ 30) ------------------------------------
@@ -420,3 +632,167 @@ def test_recorrecting_the_same_turn_replaces_the_prior_correction(
     report = store.accuracy_report()
     assert report.total_corrected == 1
     assert report.by_state == {"frustrated": {"total": 1, "agreements": 0}}
+
+
+def test_accuracy_report_does_not_collapse_two_hypotheses_with_identical_content(
+    tmp_path: Path,
+) -> None:
+    """Regression test: two turns classified identically (same state,
+    confidence, and visible_reason) share a content digest -- the join
+    that measures accuracy must key off the hypothesis's real row id, not
+    its digest, or these two distinct corrections silently fold into one."""
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated"))
+    store.save("session-1", "turn-2", _hypothesis(state="frustrated"))
+
+    store.record_correction("session-1", "turn-1", "frustrated")  # agree
+    store.record_correction("session-1", "turn-2", "rushed")  # disagree
+
+    report = store.accuracy_report()
+    assert report.total_corrected == 2
+    assert report.agreements == 1
+    assert report.by_state == {"frustrated": {"total": 2, "agreements": 1}}
+
+
+def test_correction_is_stored_append_only_with_operator_id_and_hypothesis_link(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated", confidence=0.6))
+
+    store.record_correction("session-1", "turn-1", "neutral", operator_id="operator-9")
+
+    corrections = store.get_corrections("session-1", "turn-1")
+    assert len(corrections) == 1
+    assert corrections[0]["correctedState"] == "neutral"
+    assert corrections[0]["operatorId"] == "operator-9"
+    assert len(corrections[0]["hypothesisDigest"]) == 64
+
+
+def test_correction_without_operator_id_records_none_not_a_fabricated_value(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis())
+
+    store.record_correction("session-1", "turn-1", "neutral")
+
+    corrections = store.get_corrections("session-1", "turn-1")
+    assert corrections[0]["operatorId"] is None
+
+
+def test_recorrecting_the_same_turn_keeps_both_corrections_in_history(
+    tmp_path: Path,
+) -> None:
+    """append-only means the prior correction is retained, even though
+    accuracy_report() (and the durable "current" ground truth) only counts
+    the newest one."""
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated"))
+
+    store.record_correction("session-1", "turn-1", "rushed")
+    store.record_correction("session-1", "turn-1", "neutral")
+
+    corrections = store.get_corrections("session-1", "turn-1")
+    assert [c["correctedState"] for c in corrections] == ["rushed", "neutral"]
+
+
+def test_get_corrections_empty_for_a_turn_with_no_correction(tmp_path: Path) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis())
+    assert store.get_corrections("session-1", "turn-1") == ()
+
+
+def test_correction_tamper_is_detected_at_read_time(tmp_path: Path) -> None:
+    """The bug this whole migration exists to fix: previously a correction
+    was two mutable columns on the original hypothesis row, entirely
+    outside that row's own tamper-detection digest -- altering
+    corrected_state directly in the database was undetectable. Now a
+    correction is its own digested, append-only row."""
+    db_path = tmp_path / "mem.db"
+    store = HumanStateHypothesisStore(db_path)
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated"))
+    store.record_correction("session-1", "turn-1", "neutral", operator_id="operator-9")
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("UPDATE human_state_corrections SET corrected_state = 'decisive'")
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RecordTamperedError):
+        store.get_corrections("session-1", "turn-1")
+
+
+# --- CorrectionRecordStore (organ 29) -----------------------------------
+
+
+def test_correction_record_save_and_get_lineage_round_trips(tmp_path: Path) -> None:
+    store = CorrectionRecordStore(tmp_path / "mem.db")
+    store.save(_correction_record(operator_id="operator-9"))
+
+    lineage = store.get_lineage("session-1")
+
+    assert len(lineage) == 1
+    assert lineage[0].correction_id == "correction:session-1:1"
+    assert lineage[0].operator_id == "operator-9"
+    assert lineage[0].grants_authority is False
+
+
+def test_correction_record_without_operator_id_stores_none(tmp_path: Path) -> None:
+    store = CorrectionRecordStore(tmp_path / "mem.db")
+    store.save(_correction_record())
+
+    lineage = store.get_lineage("session-1")
+
+    assert lineage[0].operator_id is None
+
+
+def test_correction_record_lineage_is_newest_first_and_append_only(
+    tmp_path: Path,
+) -> None:
+    store = CorrectionRecordStore(tmp_path / "mem.db")
+    store.save(
+        _correction_record(
+            correction_id="correction:session-1:1", correction_revision=1
+        )
+    )
+    store.save(
+        _correction_record(
+            correction_id="correction:session-1:2", correction_revision=2
+        )
+    )
+
+    lineage = store.get_lineage("session-1")
+
+    assert [r.correction_id for r in lineage] == [
+        "correction:session-1:2",
+        "correction:session-1:1",
+    ]
+
+
+def test_correction_record_lineage_is_scoped_to_its_own_session(tmp_path: Path) -> None:
+    store = CorrectionRecordStore(tmp_path / "mem.db")
+    store.save(_correction_record(correction_id="c:a:1", session_id="session-a"))
+    store.save(_correction_record(correction_id="c:b:1", session_id="session-b"))
+
+    assert [r.correction_id for r in store.get_lineage("session-a")] == ["c:a:1"]
+    assert [r.correction_id for r in store.get_lineage("session-b")] == ["c:b:1"]
+
+
+def test_correction_record_lineage_empty_for_unknown_session(tmp_path: Path) -> None:
+    store = CorrectionRecordStore(tmp_path / "mem.db")
+    assert store.get_lineage("no-such-session") == ()
+
+
+def test_correction_record_tamper_is_detected_at_read_time(tmp_path: Path) -> None:
+    db_path = tmp_path / "mem.db"
+    store = CorrectionRecordStore(db_path)
+    store.save(_correction_record(operator_id="operator-9"))
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("UPDATE correction_records SET operator_id = 'someone-else'")
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RecordTamperedError):
+        store.get_lineage("session-1")

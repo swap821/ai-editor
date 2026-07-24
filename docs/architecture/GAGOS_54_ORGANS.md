@@ -173,6 +173,47 @@ Docker executor's cross-process boundary remains the one genuinely
 unattempted piece, deliberately, since it touches security-sensitive
 sandboxed code. Counts: 40 green / 14 yellow.
 
+**PR1 (operator's 22-organ closure plan, "human authority data": organs
+27-30): organs 27, 28, and 29 move back from green to yellow.** Grounding
+each against its own named requirements (explicit-preference capture with
+scope/confidence/expiry/withdrawal/contradiction for 27; restart-durable
+active-project state and rescan diffs for 28; a real production caller and
+append-only lineage for 29) found genuine, previously-uncaught gaps, closed
+two of them for real, and left one honestly open across all three. Organ 27:
+`OperatorPreferenceStore` had zero production callers anywhere -- a real
+route (`POST/GET /api/v1/preferences`, `GET /api/v1/preferences/active`,
+`POST /api/v1/preferences/{id}/withdraw`) is now the first, restricted
+structurally to `source_type="explicit_user"`. Building it surfaced two real
+latent bugs, both fixed: the contradiction-check subject omitted scope, so
+two preferences correctly isolated by `list_for_scope` could spuriously
+collide as a false contradiction; and `save()` digested a requested
+confidence value that `SemanticFacts.add_fact()`'s idempotent path had
+silently left unapplied, producing a permanent false `RecordTamperedError`
+on the next read. Organ 28: the "last scanned project" pointer lived only in
+a process-local module global, forgotten on every restart -- now a durable
+singleton-row table, plus a real, computed `diff_project_passports()`
+between scan revisions. Organ 29: `CorrectionRecordV1` had zero production
+callers -- the real correction route now builds and durably persists one via
+a new `CorrectionRecordStore`, with best-effort operator attribution that
+records `None` honestly rather than fabricating an identity. All three stay
+yellow for the SAME reason: no production conversational call site yet
+threads their durable state into Organ 31's `active_preferences`/
+`project_passport`/`latest_correction` parameters -- the only real caller of
+those parameters (`aios/council/gateway_reasoning.py`) deliberately doesn't
+need them (see organs 31/32's own blockers), and chat's real personalization
+path is a separate, lower-level mechanism. Organ 30's own blocker text is
+also updated in this pass to record that the exact bug the operator named
+(corrections mutating the original hypothesis row while its digest kept
+authenticating only the pre-correction fields) is now fixed: migration 0014
+replaces the mutable columns with a genuinely append-only,
+digest-verified `human_state_corrections` table, joined by hypothesis row id
+rather than content digest (a content-digest join was tried and rejected --
+two hypotheses with identical content on different turns collapsed into one
+accuracy-report bucket, caught by a regression test before it shipped).
+Organ 30 stays yellow for its own separately-named, genuinely unclosed
+reason (no real production operator traffic exists yet in this sandbox to
+measure the classifier against). Counts: 37 green / 17 yellow.
+
 ## Green organs (22) — established prior to Slice 25
 
 | # | Organ | Authority owner | Entry point | Tests |
@@ -200,15 +241,12 @@ sandboxed code. Counts: 40 green / 14 yellow.
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` | `tests/test_council_orchestrator.py`, `tests/test_e2e_sovereign_flywheel.py` |
 | 22 | V1 Release Declaration (`gagos v1-check`) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` | `tests/test_v1_declaration.py`, `tests/test_launcher.py` |
 
-## Green organs closed since baseline (18)
+## Green organs closed since baseline (15)
 
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
 | 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `aios/runtime/intelligence_gateway.py`, `aios/application/learning/service.py`, `aios/application/maintenance/service.py`, `aios/operations/recovery.py`, `aios/application/capabilities/authority.py`, `aios/api/main.py`, `aios/api/routes/actions.py`, `aios/api/routes/council.py` | `tests/test_emergency_stop_boundaries.py`, `tests/test_governance.py`, `tests/test_maintenance_api.py`, `tests/test_council_origination.py`, `tests/test_routes_gaps.py` |
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `aios/domain/models/contracts.py`, `aios/application/models/health.py`, `aios/core/failover.py`, `aios/core/router_wiring.py`, `aios/api/deps.py` | `tests/test_model_passport_and_health.py`, `tests/test_failover.py`, `tests/test_route_wiring.py` |
-| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `aios/domain/memory/human_representation.py`, `aios/infrastructure/memory/human_representation_store.py` | `tests/test_human_representation.py`, `tests/test_human_representation_store.py`, `tests/test_personalization.py` |
-| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py`, `aios/infrastructure/memory/human_representation_store.py`, `aios/api/routes/projects.py` | `tests/test_human_representation.py`, `tests/test_human_representation_store.py`, `tests/test_project_passport.py` |
-| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py` | `tests/test_human_representation.py`, `tests/test_alignment.py`, `tests/test_memory.py` |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `aios/domain/local_workforce/contracts.py` | `tests/test_local_clerk_dispatcher.py`, `tests/domain/test_local_workforce_qualifier.py` |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `aios/domain/local_workforce/qualifier.py`, `aios/application/local_workforce/qualification_evidence.py`, `aios/domain/local_workforce/registry.py` | `tests/test_local_workforce_qualification_evidence.py`, `tests/domain/test_local_workforce_qualifier.py`, `tests/test_r15_runtime_proof.py` |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `aios/domain/learning/skill_contracts.py`, `aios/domain/learning/repository.py`, `aios/application/learning/skill_lifecycle.py`, `aios/application/learning/service.py` | `tests/test_skill_lifecycle.py`, `tests/domain/test_skill_library.py`, `tests/test_learning_application.py` |
@@ -289,13 +327,16 @@ nothing on a mission's execution path re-checks identity mid-flight, so
 degrading the identity store only blocks the resolution of a NEW `Principal`
 (and therefore new capability issuance), never an already-running mission.
 
-## Yellow organs (14) — the Slices 26-40 completion target
+## Yellow organs (17) — the Slices 26-40 completion target
 
 | # | Organ | Authority owner | Slice | Truthful blocker |
 |---|-------|------------------|-------|-------------------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | 25 / 40 | Ledger established at this baseline; the strict gate stays non-green until every organ below turns green and Slice 40's final release proof lands. |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | 26 | `ConstitutionSnapshotV1` now exists (typed, versioned, digested, foundation laws immutable by validator) in `aios/domain/governance/constitution.py`, and a real decision path (`CapabilityAuthority.consume()`, see organ 24) now rejects execution on a constitution-digest mismatch. Still missing: durable cross-restart persistence/ratification of the constitution itself (separate from the Slice 37 amendment-authority machinery), and `PolicyKernel` still reads the old `aios.policy.constitution.Constitution` facade rather than this snapshot -- a genuinely large, cross-cutting migration (every caste/routing/security check in the kernel depends on that facade's specific shape) intentionally out of scope for this pass. |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | 28 | **Tier 4 follow-on:** a human-state hypothesis can now genuinely be corrected, and the correction is measurable, not just a UI toast. Migration 0013 adds `corrected_state`/`corrected_at`; `HumanStateHypothesisStore.record_correction()` persists a correction without mutating the original digest, and `accuracy_report()` aggregates agreement per state. New routes `POST /api/v1/chat/human-state/correct` and `GET .../accuracy`. The chat thread shows a quiet hint under a user's message that opens a picker to correct the guess. Caught via live browser verification: the first hook implementation read `turnId` from inside a `setMessages()` updater on the next line -- React does not guarantee that runs synchronously first, so corrections silently no-op'd while the UI still showed "noted"; fixed, with a regression test that fails against the buggy version. Still missing: the classifier itself has not been measured against real production operator traffic -- the new corrections table is exactly the mechanism that will let that happen as real traffic accumulates, but none exists yet in this sandbox; a genuine, not-fabricatable gap. |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | PR1 | **Narrowed from green (see PR1 update note above):** `get_operator_preference_store()` (`aios/api/deps.py`) plus a real, explicit-only route (`aios/api/routes/preferences.py`) are the first production wiring `OperatorPreferenceStore` has ever had; expiry, withdrawal, restart recovery, and a scope-aware contradiction check (a real cross-scope false-contradiction bug, fixed) are all real and tested. Still missing: no production conversational call site threads `list_active_for_scope()` into Organ 31's `active_preferences` -- the only real caller of that parameter (Council) deliberately doesn't need it. |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | PR1 | **Narrowed from green (see PR1 update note above):** the active-project pointer is now a durable singleton row (migration 0016), not a process-local global forgotten on every restart, and `diff_project_passports()` gives every rescan a real, computed diff. Still missing: no production conversational call site threads the active passport into Organ 31's `project_passport` parameter. |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | PR1 | **Narrowed from green (see PR1 update note above):** the real `/api/v1/conversation/correction` route now builds and durably persists a typed `CorrectionRecordV1` via a new `CorrectionRecordStore` -- previously zero production callers existed. Still missing: no production conversational call site threads the newest valid correction into Organ 31's `latest_correction` parameter. |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | 28 / PR1 | **PR1 (fixes the exact bug named for this pass, see update note above):** migration 0013's mutable `corrected_state`/`corrected_at` columns let corrections overwrite each other while the row's own digest kept authenticating only the pre-correction fields -- outside the tamper check entirely. Migration 0014 replaces this with a genuinely append-only, digest-verified `human_state_corrections` table joined by hypothesis row id (not content digest, which was tried and rejected after it collapsed two same-content hypotheses into one accuracy bucket), each row bound to the authenticated operator (or an honest `None`) via `get_optional_principal()`. A live regression test tampers the new table directly and confirms `RecordTamperedError`. Still missing: the classifier itself has not been measured against real production operator traffic -- the new table is exactly the mechanism that will let that happen as real traffic accumulates, but none exists yet in this sandbox; a genuine, not-fabricatable gap. |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | 29 | **Reconciliation + this pass:** this row's own text (Tier 4: `gateway_reasoning.py` exposes a real `last_context_digest` instead of silently discarding it) was already true but had drifted out of sync with `.aios/state/ORGAN_GREEN_LEDGER.json`'s own row, which still read pre-Tier-4 text -- caught and corrected here. New: every `RepresentativeContextV1` that passes identity/constitution/emergency-stop validation is now durably recorded by a new, append-only `RepresentativeContextStore` (migration 0011), wired directly inside `route_intelligence_request()`/`stream_intelligence_request()` so every current and future gateway caller gets audit persistence for free, not just Council's. Still missing: the only real production caller today compiles a context with empty preferences/passport/correction (Council's own prompts are self-contained JSON, not general conversation) -- meaningfully exercising the compiler with real human-representation data needs a general-conversation call site, which is organ 32's own deliberately-deferred chat-wiring gap. |
 | 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | 41 | **Tier 4 update (operator-confirmed scope: streaming variant only) + this pass:** grounding found organ 32 is not just "add streaming" -- three separate, independent gateway-shaped systems exist (the Slice-30 `route_intelligence_request()`; the older `aios.runtime.intelligence_gateway.IntelligenceGateway`, confirmed load-bearing for real worker plan/repair reasoning; and `aios.application.models.hiring_service.IntelligenceHiringService`). New `stream_intelligence_request()` covers text-chunk model calls with the same upfront validation as the synchronous entrance. This pass wired organ 31's new `RepresentativeContextStore` into this module directly, so both entrances now durably record every context they compile. Still missing: chat (`/api/v1/chat`, the single most heavily used endpoint in the system) and the agentic forge (`/api/generate`) remain unwired -- chat has no authenticated operator/constitution digest today by design (anonymous local chat must keep working), and rewiring it without a live browser session to verify no UX regression was deliberately not attempted here, consistent with every prior pass's own risk read of this exact call site. The 2 other competing gateway implementations remain unreconciled. |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | 31 | `ModelPassportV1` now exists (typed, role-scoped admission) with `is_admitted_for_role()`/`can_drive_tools()`/`is_stale_for_version()`. Still missing: nothing runs a real qualification suite yet (every passport must be hand-constructed) and no durable store persists one across restarts. Reconciliation pass item 4: found this machine's actual running admission store (`LocalWorkforceRegistry`, `data/aios_memory.db` -- a separate, older, untyped store from `ModelPassportV1`) claiming an evidence-contradicted admission for `granite3.2:2b`; corrected (see organ 37). The two admission concepts remain unreconciled into one authority -- a real, separate gap this item did not close. |

@@ -12,6 +12,8 @@ from aios.application.memory.human_representation import (
     build_project_passport_v1,
     classify_human_state,
     correction_lineage_v1,
+    diff_project_passports,
+    is_operator_preference_expired,
     is_project_passport_stale,
     record_correction_and_build_v1,
 )
@@ -107,6 +109,37 @@ def test_explicit_correction_outranks_inferred_observation_by_source_type() -> N
     assert explicit.preference_id in inferred.contradicted_by
 
 
+def _preference(**overrides: object) -> OperatorPreferenceV1:
+    fields: dict[str, object] = {
+        "preference_id": "pref-1",
+        "domain": "testing",
+        "key": "prefers_pytest",
+        "value": True,
+        "scope": "project:ai-editor",
+        "confidence": 0.8,
+        "source_type": "explicit_user",
+    }
+    fields.update(overrides)
+    return OperatorPreferenceV1(**fields)
+
+
+def test_operator_preference_with_no_review_after_never_expires() -> None:
+    pref = _preference(review_after=None)
+    assert is_operator_preference_expired(pref) is False
+    assert (
+        is_operator_preference_expired(pref, now="2099-01-01T00:00:00+00:00") is False
+    )
+
+
+def test_operator_preference_expired_once_now_reaches_review_after() -> None:
+    pref = _preference(review_after="2026-06-01T00:00:00+00:00")
+    assert (
+        is_operator_preference_expired(pref, now="2026-05-01T00:00:00+00:00") is False
+    )
+    assert is_operator_preference_expired(pref, now="2026-06-01T00:00:00+00:00") is True
+    assert is_operator_preference_expired(pref, now="2026-07-01T00:00:00+00:00") is True
+
+
 # --- ProjectPassportV1 ------------------------------------------------------
 
 
@@ -138,7 +171,9 @@ def test_project_passport_with_matching_commit_is_not_stale(tmp_path: Path) -> N
     passport = build_project_passport_v1(
         tmp_path, project_id="proj-1", verified_at_commit="sha-current"
     )
-    assert is_project_passport_stale(passport, current_commit_sha="sha-current") is False
+    assert (
+        is_project_passport_stale(passport, current_commit_sha="sha-current") is False
+    )
 
 
 def test_project_passport_with_stale_commit_is_marked_stale(tmp_path: Path) -> None:
@@ -155,7 +190,9 @@ def test_project_passport_with_no_recorded_commit_is_conservatively_stale(
     (tmp_path / "README.md").write_text("# Test Project\n", encoding="utf-8")
     passport = build_project_passport_v1(tmp_path, project_id="proj-1")
     assert passport.verified_at_commit is None
-    assert is_project_passport_stale(passport, current_commit_sha="sha-anything") is True
+    assert (
+        is_project_passport_stale(passport, current_commit_sha="sha-anything") is True
+    )
 
 
 def test_project_passport_invariants_and_decisions_default_empty_but_are_now_acceptable(
@@ -189,6 +226,79 @@ def test_project_passport_commands_grouped_by_kind(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Test Project\n", encoding="utf-8")
     passport = build_project_passport_v1(tmp_path, project_id="proj-1")
     assert set(passport.commands) == {"install", "run", "build", "test"}
+
+
+# --- diff_project_passports (organ 28: real rescan diffs) -------------------
+
+
+def _passport(**overrides: object) -> ProjectPassportV1:
+    fields: dict[str, object] = {
+        "project_id": "proj-1",
+        "goal": "ship the feature",
+        "architecture_summary": "stack: Python",
+        "invariants": ("never write outside workspace",),
+        "important_paths": (),
+        "commands": {"install": ("pip install -e .",)},
+        "environments": (),
+        "current_phase": "build",
+        "known_risks": (),
+        "explicit_human_decisions": (),
+        "verified_at_commit": "sha-a",
+        "passport_digest": "a" * 64,
+    }
+    fields.update(overrides)
+    return ProjectPassportV1(**fields)
+
+
+def test_diff_project_passports_first_scan_is_never_fabricated_against_nothing() -> (
+    None
+):
+    diff = diff_project_passports(None, _passport())
+    assert diff == {
+        "is_first_scan": True,
+        "changed_fields": (),
+        "added": {},
+        "removed": {},
+    }
+
+
+def test_diff_project_passports_no_changes_between_identical_revisions() -> None:
+    previous = _passport()
+    current = _passport()
+    diff = diff_project_passports(previous, current)
+    assert diff["is_first_scan"] is False
+    assert diff["changed_fields"] == ()
+    assert diff["added"] == {}
+    assert diff["removed"] == {}
+
+
+def test_diff_project_passports_detects_a_scalar_field_change() -> None:
+    previous = _passport(goal="ship the feature")
+    current = _passport(goal="ship the OTHER feature")
+    diff = diff_project_passports(previous, current)
+    assert "goal" in diff["changed_fields"]
+
+
+def test_diff_project_passports_detects_set_field_additions_and_removals() -> None:
+    previous = _passport(
+        invariants=("never write outside workspace", "keep it local-only")
+    )
+    current = _passport(
+        invariants=("never write outside workspace", "log every mutation")
+    )
+    diff = diff_project_passports(previous, current)
+    assert "invariants" in diff["changed_fields"]
+    assert diff["added"]["invariants"] == ["log every mutation"]
+    assert diff["removed"]["invariants"] == ["keep it local-only"]
+
+
+def test_diff_project_passports_detects_a_commands_change() -> None:
+    previous = _passport(commands={"install": ("pip install -e .",)})
+    current = _passport(
+        commands={"install": ("pip install -e .",), "test": ("pytest",)}
+    )
+    diff = diff_project_passports(previous, current)
+    assert "commands" in diff["changed_fields"]
 
 
 # --- CorrectionRecordV1 -----------------------------------------------------

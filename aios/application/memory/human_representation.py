@@ -16,12 +16,14 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from aios.domain.memory.human_representation import (
     CorrectionRecordV1,
     HumanStateHypothesis,
+    OperatorPreferenceV1,
     ProjectPassportV1,
 )
 from aios.memory.conversation import ConversationStateStore
@@ -31,6 +33,24 @@ from aios.memory.project_passport import ProjectPassport, harvest_project_passpo
 def _canonical_digest(payload: Any) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def is_operator_preference_expired(
+    pref: OperatorPreferenceV1, *, now: str | None = None
+) -> bool:
+    """Organ 27's expiry support: a preference with no `review_after` never
+    expires (it was never bound to a review point). Otherwise it is expired
+    once `now` reaches or passes `review_after` -- both are the same
+    sortable UTC ISO-8601 shape `_utc_now()` produces everywhere else in
+    this module, so plain string comparison is correct without parsing."""
+    if pref.review_after is None:
+        return False
+    current = now if now is not None else _utc_now()
+    return current >= pref.review_after
 
 
 def _project_passport_digest_payload(
@@ -146,6 +166,57 @@ def is_project_passport_stale(
     return passport.verified_at_commit != current_commit_sha
 
 
+_SCALAR_PASSPORT_FIELDS: tuple[str, ...] = (
+    "goal",
+    "architecture_summary",
+    "current_phase",
+    "verified_at_commit",
+)
+_SET_PASSPORT_FIELDS: tuple[str, ...] = (
+    "invariants",
+    "important_paths",
+    "environments",
+    "known_risks",
+    "explicit_human_decisions",
+)
+
+
+def diff_project_passports(
+    previous: ProjectPassportV1 | None, current: ProjectPassportV1
+) -> dict[str, Any]:
+    """Organ 28's own named gap ("store rescan diffs"): a real, computed
+    diff between the previous durable revision and the one just scanned --
+    never a fabricated "nothing changed" when there was no previous
+    revision to compare against."""
+    if previous is None:
+        return {"is_first_scan": True, "changed_fields": (), "added": {}, "removed": {}}
+    changed_fields: list[str] = []
+    added: dict[str, list[str]] = {}
+    removed: dict[str, list[str]] = {}
+    for field in _SCALAR_PASSPORT_FIELDS:
+        if getattr(previous, field) != getattr(current, field):
+            changed_fields.append(field)
+    for field in _SET_PASSPORT_FIELDS:
+        previous_set = set(getattr(previous, field))
+        current_set = set(getattr(current, field))
+        added_items = sorted(current_set - previous_set)
+        removed_items = sorted(previous_set - current_set)
+        if added_items or removed_items:
+            changed_fields.append(field)
+        if added_items:
+            added[field] = added_items
+        if removed_items:
+            removed[field] = removed_items
+    if previous.commands != current.commands:
+        changed_fields.append("commands")
+    return {
+        "is_first_scan": False,
+        "changed_fields": tuple(changed_fields),
+        "added": added,
+        "removed": removed,
+    }
+
+
 def build_correction_record_v1(
     *,
     correction_id: str,
@@ -155,6 +226,7 @@ def build_correction_record_v1(
     corrected_fields: Sequence[str],
     before_frame: Mapping[str, Any],
     after_frame: Mapping[str, Any],
+    operator_id: str | None = None,
 ) -> CorrectionRecordV1:
     """Wrap the frame dicts `ConversationStateStore.record_correction` already
     persists into a typed, digested record. Does not re-persist anything --
@@ -167,6 +239,7 @@ def build_correction_record_v1(
         corrected_fields=tuple(corrected_fields),
         prior_interpretation_digest=_canonical_digest(dict(before_frame)),
         current_interpretation_digest=_canonical_digest(dict(after_frame)),
+        operator_id=operator_id,
     )
 
 
@@ -179,6 +252,7 @@ def record_correction_and_build_v1(
     corrections: Mapping[str, Any],
     corrected_fields: Sequence[str],
     expected_revision: int | None = None,
+    operator_id: str | None = None,
 ) -> tuple[int, dict[str, Any], CorrectionRecordV1]:
     """Record a correction and return the typed `CorrectionRecordV1` alongside it.
 
@@ -203,6 +277,7 @@ def record_correction_and_build_v1(
         corrected_fields=corrected_fields,
         before_frame=before_frame,
         after_frame=persisted_after,
+        operator_id=operator_id,
     )
     return revision, persisted_after, record
 
@@ -315,8 +390,10 @@ def classify_human_state(text: str) -> HumanStateHypothesis:
 __all__ = [
     "build_project_passport_v1",
     "is_project_passport_stale",
+    "diff_project_passports",
     "build_correction_record_v1",
     "record_correction_and_build_v1",
     "correction_lineage_v1",
     "classify_human_state",
+    "is_operator_preference_expired",
 ]

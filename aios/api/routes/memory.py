@@ -24,16 +24,20 @@ from aios.api.deps import (
     _session_id_from_request,
     get_alignment_evaluation_store,
     get_conversation_state_store,
+    get_correction_record_store,
     get_memory_authority,
     get_memory_consolidator,
+    get_optional_principal,
     get_semantic_facts,
     require_privileged_operator,
 )
+from aios.application.memory.human_representation import record_correction_and_build_v1
 from aios.core.alignment import (
     apply_user_corrections,
     frame_from_state,
     validate_user_corrections,
 )
+from aios.infrastructure.memory.human_representation_store import CorrectionRecordStore
 from aios.logging_config import get_logger
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.consolidation import MemoryConsolidator
@@ -219,6 +223,7 @@ def restore_conversation_session(
     request: Request,
     state: ConversationStateStore = Depends(get_conversation_state_store),
     authority=Depends(get_memory_authority),
+    correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
 ) -> dict[str, Any]:
     """Restore recent dialogue and the latest unverified alignment frame."""
     session_id = _require_cookie_session(request)
@@ -232,6 +237,9 @@ def restore_conversation_session(
         "alignment": state.get(session_id),
         "activeCorrection": state.active_correction(session_id),
         "correctionHistory": state.correction_history(session_id),
+        "correctionRecords": [
+            r.as_dict() for r in correction_records.get_lineage(session_id)
+        ],
         "messages": messages,
     }
 
@@ -242,8 +250,19 @@ def correct_conversation_alignment(
     request: Request,
     state: ConversationStateStore = Depends(get_conversation_state_store),
     evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
+    correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
-    """Apply user-authored interpretation overrides; never grant authority."""
+    """Apply user-authored interpretation overrides; never grant authority.
+
+    Organ 29: also builds and durably records a typed, digest-verified
+    ``CorrectionRecordV1`` via ``record_correction_and_build_v1`` --
+    previously this typed layer had zero production callers anywhere; this
+    route built only untyped dicts. The route's existing response shape is
+    unchanged; the durable, operator-attributed record is additive.
+    ``principal`` is best-effort (this route stays reachable from an
+    unauthenticated local session by design).
+    """
     session_id = _require_cookie_session(request)
     current_payload = state.get(session_id)
     if current_payload is None:
@@ -261,14 +280,18 @@ def correct_conversation_alignment(
         evaluation_payload = current_payload.get("evaluation")
         if isinstance(evaluation_payload, dict):
             corrected_payload["evaluation"] = evaluation_payload
-        revision, persisted = state.record_correction(
+        expected_revision = int(active["revision"]) if active is not None else None
+        revision, persisted, typed_record = record_correction_and_build_v1(
+            state,
             session_id,
             before_frame=current_payload,
             after_frame=corrected_payload,
             corrections=merged,
             corrected_fields=sorted(merged),
-            expected_revision=(int(active["revision"]) if active is not None else None),
+            expected_revision=expected_revision,
+            operator_id=principal.principal_id if principal is not None else None,
         )
+        correction_records.save(typed_record)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
@@ -294,6 +317,7 @@ def correct_conversation_alignment(
             "fields": sorted(merged),
         },
         "correctionHistory": state.correction_history(session_id),
+        "correctionRecord": typed_record.as_dict(),
     }
 
 
