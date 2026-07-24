@@ -80,6 +80,7 @@ class OrganRecord(BaseModel):
     known_blockers: tuple[str, ...] = Field(default_factory=tuple)
     last_verified_sha: str | None = None
     requires_live_evidence: bool = False
+    requires_frontend_error_states: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
