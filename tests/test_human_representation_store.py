@@ -331,3 +331,92 @@ def test_hypothesis_tamper_is_detected_at_read_time(tmp_path: Path) -> None:
 
     with pytest.raises(RecordTamperedError):
         store.get_history("session-1")
+
+
+def test_record_correction_returns_true_and_is_visible_via_accuracy_report(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated"))
+
+    corrected = store.record_correction("session-1", "turn-1", "neutral")
+
+    assert corrected is True
+    report = store.accuracy_report()
+    assert report.total_corrected == 1
+    assert report.agreements == 0
+    assert report.accuracy == 0.0
+    assert report.by_state == {"frustrated": {"total": 1, "agreements": 0}}
+
+
+def test_record_correction_unknown_turn_returns_false_not_an_error(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    assert store.record_correction("session-1", "no-such-turn", "neutral") is False
+
+
+def test_record_correction_does_not_change_the_stored_hypothesis_or_its_digest(
+    tmp_path: Path,
+) -> None:
+    """A correction records ground truth alongside the original hypothesis --
+    it must never rewrite history or trip tamper detection."""
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated", confidence=0.6))
+
+    store.record_correction("session-1", "turn-1", "neutral")
+
+    turn_id, hypothesis = store.get_history("session-1")[0]
+    assert turn_id == "turn-1"
+    assert hypothesis.state == "frustrated"  # unchanged -- the original guess
+    assert hypothesis.confidence == 0.6
+
+
+def test_accuracy_report_empty_when_nothing_corrected_yet(tmp_path: Path) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis())
+
+    report = store.accuracy_report()
+
+    assert report.total_corrected == 0
+    assert report.agreements == 0
+    assert report.accuracy is None
+    assert report.by_state == {}
+
+
+def test_accuracy_report_aggregates_agreements_and_disagreements_per_state(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated"))
+    store.save("session-1", "turn-2", _hypothesis(state="frustrated"))
+    store.save("session-1", "turn-3", _hypothesis(state="neutral", confidence=0.3))
+
+    store.record_correction("session-1", "turn-1", "frustrated")  # agree
+    store.record_correction("session-1", "turn-2", "rushed")  # disagree
+    store.record_correction("session-1", "turn-3", "neutral")  # agree
+    # turn-4 never saved/corrected -- must not appear anywhere in the report
+
+    report = store.accuracy_report()
+
+    assert report.total_corrected == 3
+    assert report.agreements == 2
+    assert report.accuracy == pytest.approx(2 / 3)
+    assert report.by_state == {
+        "frustrated": {"total": 2, "agreements": 1},
+        "neutral": {"total": 1, "agreements": 1},
+    }
+
+
+def test_recorrecting_the_same_turn_replaces_the_prior_correction(
+    tmp_path: Path,
+) -> None:
+    store = HumanStateHypothesisStore(tmp_path / "mem.db")
+    store.save("session-1", "turn-1", _hypothesis(state="frustrated"))
+
+    store.record_correction("session-1", "turn-1", "rushed")
+    store.record_correction("session-1", "turn-1", "neutral")
+
+    report = store.accuracy_report()
+    assert report.total_corrected == 1
+    assert report.by_state == {"frustrated": {"total": 1, "agreements": 0}}

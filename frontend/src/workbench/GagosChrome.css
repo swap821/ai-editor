@@ -284,6 +284,72 @@
 }
 .gagos-retry:hover { background: var(--phase-accent-dim); border-color: rgba(123, 245, 251, 0.5); }
 .gagos-retry:focus-visible { outline: 2px solid rgba(123, 245, 251, 0.6); outline-offset: 2px; }
+
+/* Organ 30 — the classifier's guess, always visible + always correctable.
+   Quiet by design: a whisper under the operator's own line, never a badge
+   or an interruption. Sits below the message text, on its own line. */
+.gagos-humanstate {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.gagos-humanstate--noted {
+  color: rgba(204, 192, 240, 0.4);
+  font-style: italic;
+}
+.gagos-humanstate__toggle {
+  font: inherit;
+  font-size: inherit;
+  color: rgba(204, 192, 240, 0.42);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.gagos-humanstate__toggle:hover,
+.gagos-humanstate__toggle:focus-visible {
+  color: rgba(204, 192, 240, 0.75);
+}
+.gagos-humanstate__toggle:focus-visible {
+  outline: 1px solid rgba(176, 110, 255, 0.5);
+  outline-offset: 2px;
+}
+.gagos-humanstate__edit {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.gagos-humanstate__picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+.gagos-humanstate__option {
+  font: inherit;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  color: rgba(204, 192, 240, 0.85);
+  background: rgba(176, 110, 255, 0.08);
+  border: 1px solid rgba(176, 110, 255, 0.28);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.gagos-humanstate__option:hover:not(:disabled) {
+  background: rgba(176, 110, 255, 0.18);
+  border-color: rgba(176, 110, 255, 0.5);
+}
+.gagos-humanstate__option:focus-visible {
+  outline: 2px solid rgba(176, 110, 255, 0.6);
+  outline-offset: 2px;
+}
+.gagos-humanstate__option:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 /* ── Bottom-left chat (history thread + input) ───────────────────────────
    Docked left so the conversation never overlaps the centered being / spine;
    history grows upward, newest message sits at the bottom by the input. */

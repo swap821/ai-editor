@@ -5,7 +5,7 @@ import { __resetActiveBrainForTests } from '../superbrain/lib/activeBrain';
 import { __resetTabStoreForTests } from '../superbrain/lib/tabStore';
 import { __resetVoiceSpeakForTests } from './voiceSpeak';
 
-const { sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, isWorkIntent } = vi.hoisted(() => ({
+const { sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState, isWorkIntent } = vi.hoisted(() => ({
   sendDirective: vi.fn().mockResolvedValue({ paused: false, answer: 'ok' }),
   sendVoiceTurn: vi.fn().mockResolvedValue('ok'),
   getLastEmittedCode: vi.fn(() => null),
@@ -18,6 +18,7 @@ const { sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOn
     firstAutonomy: true,
   }),
   transcribeAudio: vi.fn().mockResolvedValue({ text: 'hello world', language: 'en', confidence: 0.95 }),
+  correctHumanState: vi.fn().mockResolvedValue(true),
   isWorkIntent: vi.fn(() => true),
 }));
 
@@ -36,7 +37,7 @@ vi.mock('../superbrain/lib/aiosAdapter', async () => {
   const actual = await vi.importActual<typeof import('../superbrain/lib/aiosAdapter')>(
     '../superbrain/lib/aiosAdapter',
   );
-  return { ...actual, sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio };
+  return { ...actual, sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState };
 });
 
 describe('GagosChrome voice UX', () => {
@@ -47,6 +48,7 @@ describe('GagosChrome voice UX', () => {
     sendDirective.mockClear();
     sendVoiceTurn.mockClear().mockResolvedValue('ok');
     transcribeAudio.mockClear();
+    correctHumanState.mockClear().mockResolvedValue(true);
     isWorkIntent.mockReset().mockReturnValue(true);
     localStorage.clear();
     Object.defineProperty(window, 'matchMedia', {
@@ -255,5 +257,82 @@ describe('GagosChrome voice UX', () => {
     await waitFor(() => expect(sendVoiceTurn).toHaveBeenCalled());
     const [, opts] = sendVoiceTurn.mock.calls[0];
     expect(opts.modelId).toBeUndefined();
+  });
+
+  it('organ 30: renders the human-state hint and submits a real correction', async () => {
+    isWorkIntent.mockReturnValue(false);
+    sendVoiceTurn.mockImplementation(async (_text: string, opts: { onHumanState?: (h: unknown) => void }) => {
+      opts.onHumanState?.({
+        turnId: 'turn-test-1',
+        state: 'frustrated',
+        confidence: 0.6,
+        visibleReason: 'message contains repeated-complaint markers',
+      });
+      return 'ok';
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'ugh still broken' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    const toggle = await screen.findByRole('button', {
+      name: 'Sensed: frustrated. Correct this.',
+    });
+
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    const neutralOption = screen.getByRole('button', { name: 'neutral' });
+    await act(async () => {
+      fireEvent.click(neutralOption);
+    });
+
+    await waitFor(() =>
+      expect(correctHumanState).toHaveBeenCalledWith('turn-test-1', 'neutral'),
+    );
+    expect(screen.getByText('noted')).toBeTruthy();
+  });
+
+  it('organ 30: never submits a correction with a missing turnId (regression guard for a real closure-timing bug caught by live verification)', async () => {
+    isWorkIntent.mockReturnValue(false);
+    sendVoiceTurn.mockImplementation(async (_text: string, opts: { onHumanState?: (h: unknown) => void }) => {
+      opts.onHumanState?.({
+        turnId: 'turn-test-2',
+        state: 'rushed',
+        confidence: 0.6,
+        visibleReason: 'urgency markers',
+      });
+      return 'ok';
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'need this asap' } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    const toggle = await screen.findByRole('button', {
+      name: 'Sensed: in a hurry. Correct this.',
+    });
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    const decisiveOption = screen.getByRole('button', { name: 'decisive' });
+    await act(async () => {
+      fireEvent.click(decisiveOption);
+    });
+
+    await waitFor(() => expect(correctHumanState).toHaveBeenCalledTimes(1));
+    expect(correctHumanState).toHaveBeenCalledWith('turn-test-2', 'decisive');
   });
 });

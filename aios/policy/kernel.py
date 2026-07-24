@@ -740,6 +740,13 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     "/api/v1/chat": RouteAuthority(
         "GREEN", 120, "session", audit_event="chat", action_type=ActionType.CHAT
     ),
+    "/api/v1/chat/human-state/correct": RouteAuthority(
+        "GREEN",
+        60,
+        "session",
+        audit_event="human_state_correct",
+        action_type=ActionType.HUMAN_STATE_CORRECT,
+    ),
     "/api/generate": RouteAuthority(
         "GREEN", 120, "session", audit_event="generate", action_type=ActionType.GENERATE
     ),

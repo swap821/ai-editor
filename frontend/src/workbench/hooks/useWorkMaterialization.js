@@ -4,6 +4,7 @@ import {
   sendVoiceTurn,
   getLastEmittedCode,
   fetchOnboardingState,
+  correctHumanState,
   BACKEND_REDACTION_MARKER_RE,
 } from '../../superbrain/lib/aiosAdapter';
 import { publishCognition } from '../../superbrain/lib/cognitionBus';
@@ -134,6 +135,38 @@ export function useWorkMaterialization({
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)));
   }, []);
 
+  /* Organ 30: submit a real correction for one message's human-state guess.
+   * Optimistic locally (marks `corrected` immediately so the affordance
+   * closes without waiting on the network) but the durable ground truth is
+   * whatever the backend actually recorded -- a failed request leaves the
+   * message's `humanState.corrected` unset so the user can retry.
+   *
+   * `turnId` must be read from the current `messages` state directly, not
+   * from inside the `setMessages` updater -- a real bug caught by live
+   * verification: React does not guarantee an updater function runs
+   * synchronously before the next line executes, so a closure variable
+   * assigned inside it could still be `null` when checked immediately
+   * after, silently skipping the actual network call while the optimistic
+   * UI still showed "noted" (a correction that was never really recorded). */
+  const correctMessageHumanState = useCallback(async (messageId, correctedState) => {
+    const turnId = messages.find((m) => m.id === messageId)?.humanState?.turnId;
+    if (!turnId) return false;
+    setMessages((prev) => prev.map((m) => (
+      m.id === messageId && m.humanState
+        ? { ...m, humanState: { ...m.humanState, corrected: correctedState } }
+        : m
+    )));
+    const ok = await correctHumanState(turnId, correctedState);
+    if (!ok) {
+      setMessages((prev) => prev.map((m) => (
+        m.id === messageId && m.humanState
+          ? { ...m, humanState: { ...m.humanState, corrected: null } }
+          : m
+      )));
+    }
+    return ok;
+  }, [messages]);
+
   const stopTurn = useCallback(() => {
     if (!busyRef.current) return;
     if (abortRef.current) abortRef.current.abort();
@@ -159,7 +192,7 @@ export function useWorkMaterialization({
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
 
-    pushMessage('user', sanitizeToText(cleanText(text, 400)));
+    const userMsgId = pushMessage('user', sanitizeToText(cleanText(text, 400)));
     const gagosId = null;
 
     setConversationPhase('thinking');
@@ -293,6 +326,15 @@ export function useWorkMaterialization({
               publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.82, data: { phase: 'reply', reply: chunk } });
             }
           },
+          // Organ 30: advisory only -- never gates the turn, only attaches
+          // the guess to the user's own message so a correction affordance
+          // can render (and be dismissed) beside it.
+          onHumanState: (hypothesis) => {
+            if (turnTokenRef.current !== token) return;
+            setMessages((prev) => prev.map((m) => (
+              m.id === userMsgId ? { ...m, humanState: hypothesis } : m
+            )));
+          },
         });
         if (turnTokenRef.current !== token) return;
         if (!reply.trim()) {
@@ -337,6 +379,7 @@ export function useWorkMaterialization({
     setMessages,
     pushMessage,
     updateMessage,
+    correctMessageHumanState,
     busy,
     draft,
     setDraft,

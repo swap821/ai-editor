@@ -148,6 +148,62 @@ function SpeakerIcon({ muted }) {
   );
 }
 
+/** Organ 30: the deterministic classify_human_state() guess, always visible
+ *  and always correctable -- never gates or authorizes anything (the backend
+ *  pins grants_authority: false on every hypothesis). A quiet, closable hint
+ *  under the operator's own message, not a modal or an interruption. */
+const HUMAN_STATE_LABELS = {
+  frustrated: 'frustrated',
+  rushed: 'in a hurry',
+  decisive: 'decisive',
+  uncertain: 'unsure',
+  exploratory: 'exploring',
+  neutral: 'neutral',
+};
+
+function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
+  if (!humanState) return null;
+  if (humanState.corrected) {
+    return (
+      <span className="gagos-humanstate gagos-humanstate--noted" aria-live="polite">
+        noted
+      </span>
+    );
+  }
+  return (
+    <span className="gagos-humanstate">
+      <button
+        type="button"
+        className="gagos-humanstate__toggle"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={`Sensed: ${HUMAN_STATE_LABELS[humanState.state] || humanState.state}. Correct this.`}
+      >
+        sensed: {HUMAN_STATE_LABELS[humanState.state] || humanState.state}
+        <span className="gagos-humanstate__edit" aria-hidden="true">
+          {' '}
+          · not quite?
+        </span>
+      </button>
+      {open ? (
+        <span className="gagos-humanstate__picker" role="group" aria-label="Correct the sensed state">
+          {Object.keys(HUMAN_STATE_LABELS).map((state) => (
+            <button
+              key={state}
+              type="button"
+              className="gagos-humanstate__option"
+              disabled={state === humanState.state}
+              onClick={() => onCorrect(state)}
+            >
+              {HUMAN_STATE_LABELS[state]}
+            </button>
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export default function GagosChrome() {
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
@@ -159,6 +215,9 @@ export default function GagosChrome() {
   const [hintDismissed, setHintDismissed] = useState(true);
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
+  // Organ 30: which message's human-state correction picker is open (at most
+  // one at a time -- a second tap on another message's affordance replaces it).
+  const [openHumanStateMsgId, setOpenHumanStateMsgId] = useState(null);
 
   // Sovereign bond: measured identity state + the Bond ceremony panel.
   const [sovereign, setSovereign] = useState({ sessionActive: false, operatorId: null, measured: 'unknown' });
@@ -210,6 +269,7 @@ export default function GagosChrome() {
   const {
     messages,
     pushMessage,
+    correctMessageHumanState,
     busy,
     draft,
     setDraft,
@@ -575,6 +635,17 @@ export default function GagosChrome() {
                         </button>
                       ) : null}
                     </span>}
+                {m.role === 'user' && m.humanState ? (
+                  <HumanStateHint
+                    humanState={m.humanState}
+                    open={openHumanStateMsgId === m.id}
+                    onToggle={() => setOpenHumanStateMsgId((prev) => (prev === m.id ? null : m.id))}
+                    onCorrect={(state) => {
+                      setOpenHumanStateMsgId(null);
+                      void correctMessageHumanState(m.id, state);
+                    }}
+                  />
+                ) : null}
               </div>
             );
           })}

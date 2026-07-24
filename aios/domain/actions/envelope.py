@@ -30,6 +30,7 @@ class ActionType(str, Enum):
     PLAN = "plan"
     REFLECT = "reflect"
     CHAT = "chat"
+    HUMAN_STATE_CORRECT = "human_state_correct"
     GENERATE = "generate"
     TERMINAL = "terminal"
     MEMORY_SEARCH = "memory_search"
