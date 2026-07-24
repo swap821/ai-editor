@@ -102,6 +102,7 @@ class ActionType(str, Enum):
     SKILL_ACTIVATION = "skill_activation"
     MAINTENANCE_SCAN = "maintenance_scan"
     MAINTENANCE_REPAIR_CREATE = "maintenance_repair_create"
+    MAINTENANCE_REPAIR_APPROVE = "maintenance_repair_approve"
     MAINTENANCE_REPAIR_RUN = "maintenance_repair_run"
     CONSTITUTIONAL_AMENDMENT_PROPOSE = "constitutional_amendment_propose"
     CONSTITUTIONAL_AMENDMENT_CRITIQUE = "constitutional_amendment_critique"

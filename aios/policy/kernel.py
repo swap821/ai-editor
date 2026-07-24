@@ -323,6 +323,13 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="maintenance_repair_create",
         action_type=ActionType.MAINTENANCE_REPAIR_CREATE,
     ),
+    "/api/v1/maintenance/repairs/{mission_id}/approve": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="maintenance_repair_approve",
+        action_type=ActionType.MAINTENANCE_REPAIR_APPROVE,
+    ),
     "/api/v1/maintenance/repairs/run": RouteAuthority(
         "YELLOW",
         20,

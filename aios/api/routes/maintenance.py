@@ -22,15 +22,21 @@ from aios.api.deps import (
     get_maintenance_scan_repository,
     get_promotion_capability_consumer,
     get_promotion_smoke_verifier,
+    require_privileged_operator,
 )
 from aios.application.governance import EmergencyStopController, EmergencyStopError
 from aios.application.maintenance.service import (
     MaintenanceConvergenceError,
     MaintenanceConvergenceService,
 )
+from aios.domain.identity.models import Principal
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
+from aios.domain.missions.mission_repository import (
+    MissionNotFoundError,
+    MissionTransitionError,
+)
 from aios.domain.missions.mission_state import MissionState
 
 from aios.application.workspaces.staged import tree_digest
@@ -62,10 +68,29 @@ class CreateRepairMissionRequest(BaseModel):
     workspace_root: str | None = Field(default=None, max_length=4096)
 
 
+class ApproveRepairMissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contract_digest: str = Field(min_length=1, max_length=128)
+
+
 class RunApprovedRepairRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     mission_id: str = Field(min_length=1, max_length=128)
+
+
+def _get_mission_or_404(service: MaintenanceConvergenceService, mission_id: str) -> Any:
+    """`SqliteMissionRepository.get()` raises `MissionNotFoundError` rather
+    than returning `None` -- the three routes below previously checked `if
+    record is None`, a comparison that could never be true, leaving an
+    unknown mission_id an uncaught 500 instead of a 404."""
+    try:
+        return service.mission_service.repository.get(mission_id)
+    except MissionNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Mission {mission_id!r} not found"
+        ) from exc
 
 
 def _validate_target_bounded(target_id: str, allowed_root: Path) -> Path:
@@ -210,6 +235,74 @@ def create_repair_mission(
     }
 
 
+@router.post("/api/v1/maintenance/repairs/{mission_id}/approve")
+def approve_repair_mission(
+    mission_id: str,
+    payload: ApproveRepairMissionRequest,
+    request: Request,
+    service: MaintenanceConvergenceService = Depends(
+        get_maintenance_convergence_service
+    ),
+    principal: Principal = Depends(require_privileged_operator),
+    emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
+) -> dict[str, Any]:
+    """Move an already-created repair mission to APPROVED through a real
+    HTTP route -- organ 42's own named gap: the state machine already
+    defines DIRECT_REQUEST_APPROVAL (DRAFT -> AWAITING_APPROVAL) for exactly
+    this Council-free path, but no production caller ever used it, so
+    ``run_approved_repair()`` could never receive a mission that had
+    genuinely reached APPROVED outside a test bypassing HTTP entirely.
+
+    Requires a privileged Human Sovereign session (matching
+    ``council_approve``'s own reasoning: this is the gate where a human
+    authorizes the repair to run, not a system default). The consumed exact
+    capability and the caller-supplied ``contract_digest`` are threaded
+    through to ``MissionService.approve()`` exactly as ``council_approve``
+    already does -- no new authorization semantics invented here.
+    """
+    try:
+        emergency_stop.assert_operational()
+    except EmergencyStopError as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Emergency stop engaged: {exc}"
+        ) from exc
+
+    record = _get_mission_or_404(service, mission_id)
+    if payload.contract_digest != record.contract_digest:
+        raise HTTPException(
+            status_code=403,
+            detail="contract digest does not match authoritative mission",
+        )
+
+    guard = getattr(request.state, "action_guard", None)
+    capability_digest = getattr(guard, "capability_digest", None)
+    if not capability_digest:
+        raise HTTPException(
+            status_code=403,
+            detail="consumed exact capability is required for mission approval",
+        )
+
+    try:
+        if record.state is MissionState.DRAFT:
+            service.mission_service.request_approval_direct(mission_id)
+        approved = service.mission_service.approve(
+            mission_id,
+            operator_id=principal.principal_id,
+            capability_digest=capability_digest,
+            contract_digest=payload.contract_digest,
+            authentication_event_id=principal.authentication_event_id,
+            session_id=principal.session_id,
+        )
+    except MissionTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return {
+        "mission_id": approved.mission_id,
+        "state": approved.state.value,
+        "contract_digest": approved.contract_digest,
+    }
+
+
 @router.post("/api/v1/maintenance/repairs/run")
 async def run_approved_repair(
     payload: RunApprovedRepairRequest,
@@ -231,11 +324,7 @@ async def run_approved_repair(
             status_code=503, detail=f"Emergency stop engaged: {exc}"
         ) from exc
 
-    record = service.mission_service.repository.get(payload.mission_id)
-    if record is None:
-        raise HTTPException(
-            status_code=404, detail=f"Mission {payload.mission_id!r} not found"
-        )
+    record = _get_mission_or_404(service, payload.mission_id)
     if record.state is not MissionState.APPROVED:
         raise HTTPException(
             status_code=400,
@@ -302,9 +391,7 @@ def get_repair_status(
     ),
 ) -> dict[str, Any]:
     """Inspect repair mission lifecycle and rescan status."""
-    record = service.mission_service.repository.get(mission_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail=f"Mission {mission_id!r} not found")
+    record = _get_mission_or_404(service, mission_id)
 
     return {
         "mission_id": record.mission_id,

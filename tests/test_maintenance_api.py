@@ -364,40 +364,16 @@ def test_governed_maintenance_flow_end_to_end(maintenance_env) -> None:
     assert run_unapproved.status_code == 400
     assert "APPROVED" in run_unapproved.json()["detail"]
 
-    # 5. Approve mission through canonical MissionService with a valid capability token
-    from aios.api.deps import get_capability_authority
-    from aios.domain.capabilities.contracts import CapabilityBinding
-
-    cap_auth = get_capability_authority()
-    cap_token = cap_auth.issue(
-        CapabilityBinding(
-            operator_id="op-api-1",
-            device_id="dev-1",
-            authentication_event_id="auth-api-1",
-            session_id="session-api-1",
-            action_type="maintenance_repair",
-            route="/api/v1/maintenance/repairs/run",
-            http_method="POST",
-            payload_digest="cap-api-1",
-            resource_digest="res-1",
-            mission_id=mission_id,
-            contract_digest=mission_data["contract_digest"],
-            policy_version="1.0",
-            scope="maintenance:repair",
-            verification_requirement="verified",
-        )
+    # 5. Approve mission through the real HTTP route (organ 42) -- a genuine
+    # DRAFT -> AWAITING_APPROVAL -> APPROVED transition via one governed
+    # POST, not a direct in-process MissionService bypass.
+    approve_resp = _approved_post(
+        client,
+        f"/api/v1/maintenance/repairs/{mission_id}/approve",
+        {"contract_digest": mission_data["contract_digest"]},
     )
-
-    service.mission_service.start_deliberation(mission_id)
-    service.mission_service.request_approval(mission_id)
-    service.mission_service.approve(
-        mission_id,
-        operator_id="op-api-1",
-        capability_digest=cap_token,
-        contract_digest=mission_data["contract_digest"],
-        authentication_event_id="auth-api-1",
-        session_id="session-api-1",
-    )
+    assert approve_resp.status_code == 200, approve_resp.text
+    assert approve_resp.json()["state"] == "approved"
 
     # 6. Run approved repair → 200 VERIFIED_RESOLVED
     run_resp = _approved_post(
@@ -418,3 +394,84 @@ def test_governed_maintenance_flow_end_to_end(maintenance_env) -> None:
     # 8. Check finding status → VERIFIED_RESOLVED
     updated_finding = service.finding_repository.get(fingerprint)
     assert updated_finding.status == "VERIFIED_RESOLVED"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Organ 42 -- the real approval route's own refusal paths
+# ---------------------------------------------------------------------------
+
+
+def test_approve_unknown_mission_is_404(maintenance_env) -> None:
+    client, _service, _stop, _project = maintenance_env
+
+    resp = _approved_post(
+        client,
+        "/api/v1/maintenance/repairs/no-such-mission/approve",
+        {"contract_digest": "irrelevant"},
+    )
+    assert resp.status_code == 404
+
+
+def test_approve_contract_digest_mismatch_refused(maintenance_env) -> None:
+    client, service, _stop, _project = maintenance_env
+
+    scan_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/scans",
+        {"scanner_id": "admitted-scanner", "target_id": "bug.txt"},
+    )
+    fingerprint = service.finding_repository.list_findings()[0].fingerprint
+    create_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/repairs/missions",
+        {"finding_fingerprint": fingerprint, "operator_id": "op-api-1"},
+    )
+    mission_id = create_resp.json()["mission_id"]
+
+    resp = _approved_post(
+        client,
+        f"/api/v1/maintenance/repairs/{mission_id}/approve",
+        {"contract_digest": "not-the-real-digest"},
+    )
+    assert resp.status_code == 403
+    assert "contract digest" in resp.json()["detail"]
+
+    status_resp = client.get(f"/api/v1/maintenance/repairs/{mission_id}/status")
+    assert status_resp.json()["state"] == "draft"
+
+
+def test_approve_blocked_by_emergency_stop(maintenance_env) -> None:
+    client, service, emergency_stop, _project = maintenance_env
+
+    scan_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/scans",
+        {"scanner_id": "admitted-scanner", "target_id": "bug.txt"},
+    )
+    fingerprint = service.finding_repository.list_findings()[0].fingerprint
+    create_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/repairs/missions",
+        {"finding_fingerprint": fingerprint, "operator_id": "op-api-1"},
+    )
+    mission_data = create_resp.json()
+    approve_path = f"/api/v1/maintenance/repairs/{mission_data['mission_id']}/approve"
+    approve_payload = {"contract_digest": mission_data["contract_digest"]}
+    cap_token = _challenge(client, "POST", approve_path, approve_payload)
+
+    emergency_stop.engage(
+        EmergencyStopRequest(
+            reason="test-emergency",
+            operator_id="operator-1",
+            authentication_event_id="auth-event-1",
+        )
+    )
+
+    resp = client.post(
+        approve_path,
+        json=approve_payload,
+        headers={"X-AIOS-Capability": cap_token},
+    )
+    assert resp.status_code in (403, 503), (
+        f"Expected 403/503 on emergency stop, got {resp.status_code}"
+    )
