@@ -15,12 +15,13 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 
 from aios import config
 from aios.domain.executor import ExecutorJob, ExecutorRepairReceipt, ExecutorResult
 from aios.infrastructure.executor.docker_runner import DockerJobRunner
 from aios.infrastructure.executor import workspace as workspace_policy
+from aios.operations.tracing import bind_trace_context, new_trace_context
 
 
 EXECUTOR_SERVICE_IDENTITY_VERSION = "gagos-executor-service/1"
@@ -264,6 +265,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
 @app.post("/v1/jobs", response_model=ExecutorResult)
 def execute_job(
     job: ExecutorJob,
+    request: Request,
     authorization: str | None = Header(default=None),
 ) -> ExecutorResult:
     if not _token():
@@ -280,17 +282,23 @@ def execute_job(
         raise HTTPException(
             status_code=403, detail="workspace is outside executor staging root"
         )
-    if job.argv and job.argv[0] == "repair":
-        return execute_registered_operation_in_service(job)
-    try:
-        result = DockerJobRunner()(job)
-    except Exception as exc:  # noqa: BLE001 - normalize to a truthful refusal
-        return ExecutorResult(
-            job_id=job.job_id,
-            status="unavailable",
-            isolation_verified=False,
-            reason=f"isolated executor unavailable: {exc}",
-        )
+    # Organ 52: bind the caller's propagated trace context (if any) for the
+    # duration of this job's dispatch, so a spawned per-job container's
+    # --env entries (aios.core.executor.DockerRunner) carry the same
+    # correlation ids the request arrived with, instead of a fresh,
+    # unrelated one generated inside this process.
+    with bind_trace_context(new_trace_context(request.headers)):
+        if job.argv and job.argv[0] == "repair":
+            return execute_registered_operation_in_service(job)
+        try:
+            result = DockerJobRunner()(job)
+        except Exception as exc:  # noqa: BLE001 - normalize to a truthful refusal
+            return ExecutorResult(
+                job_id=job.job_id,
+                status="unavailable",
+                isolation_verified=False,
+                reason=f"isolated executor unavailable: {exc}",
+            )
     limit = job.resource_limits.max_output_bytes
     stdout = result.stdout.encode("utf-8", "replace")[:limit].decode("utf-8", "replace")
     stderr = result.stderr.encode("utf-8", "replace")[:limit].decode("utf-8", "replace")

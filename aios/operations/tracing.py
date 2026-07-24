@@ -43,6 +43,18 @@ class TraceContext:
         }
         return {key: value for key, value in values.items() if value}
 
+    def as_env(self) -> dict[str, str]:
+        """Same non-empty trace values as `headers()`, reshaped as
+        environment-variable names for propagation across a subprocess
+        boundary (e.g. `docker run --env`) rather than an HTTP transport --
+        organ 52's own named gap: a trace id crossing into the isolated
+        executor's spawned per-job container had no propagation mechanism
+        at all before this."""
+        return {
+            f"AIOS_TRACE_{key[2:].upper().replace('-', '_')}": value
+            for key, value in self.headers().items()
+        }
+
     def with_ids(self, **values: str | None) -> "TraceContext":
         allowed = {
             key: _normalize_id(value) if value is not None else None

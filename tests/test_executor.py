@@ -307,6 +307,34 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
     assert "bind-propagation=private" in mount
 
 
+def test_docker_runner_propagates_the_current_trace_context(tmp_path) -> None:
+    """Organ 52: a trace id crossing into the spawned per-job container is
+    now genuinely propagated as fixed --env entries, distinct from the
+    job's own security-reviewed environment_allowlist."""
+    from aios.operations.tracing import bind_trace_context, new_trace_context
+
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    trace = new_trace_context(
+        {"x-request-id": "req-trace-1", "x-mission-id": "mission-trace-1"}
+    )
+    runner = DockerRunner(image="test-image", process_runner=fake_run)
+    with bind_trace_context(trace):
+        runner("echo hi", cwd=str(tmp_path), env={}, timeout_s=1)
+
+    argv = calls[0]
+    assert "--env" in argv
+    assert "AIOS_TRACE_REQUEST_ID=req-trace-1" in argv
+    assert "AIOS_TRACE_MISSION_ID=mission-trace-1" in argv
+    # Trace propagation must never bypass into the job's own allowlisted
+    # environment dict -- only fixed --env entries are added.
+    assert argv[-3:] == ["test-image", "echo", "hi"]
+
+
 def test_docker_runner_accepts_explicit_windows_daemon_workspace_path() -> None:
     calls = []
 

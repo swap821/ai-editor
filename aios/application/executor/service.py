@@ -18,6 +18,7 @@ from aios.domain.executor import ExecutorJob, ExecutorResult
 from aios.domain.executor import ExecutorCapability, ResourceLimits
 from aios.infrastructure.executor.argv import parse_argv
 from aios.infrastructure.executor.workspace import resolve_staged_workspace
+from aios.operations.tracing import get_trace_context
 
 
 class IsolationUnavailable(RuntimeError):
@@ -73,6 +74,12 @@ class StructuredExecutorClient:
                 "Accept": "application/json",
                 "Authorization": f"Bearer {self.token}",
                 "Content-Type": "application/json",
+                # Organ 52: propagate the current trace context across the
+                # HTTP boundary into the isolated executor service, so it can
+                # bind the same correlation ids before spawning a job's own
+                # per-job container -- correlation metadata only, never
+                # authority (aios.operations.tracing's own module docstring).
+                **get_trace_context().headers(),
             },
             method="POST",
         )

@@ -2,6 +2,7 @@
 
 import inspect
 import pytest
+from starlette.requests import Request
 from unittest.mock import MagicMock
 
 from aios import executor_service
@@ -51,7 +52,10 @@ def test_red_1_executor_service_cannot_run_registered_repair(tmp_path, monkeypat
         ),
         verification_expectation={"executor_policy": "private_service"},
     )
-    result = executor_service.execute_job(job, authorization="Bearer test-token")
+    request = Request(scope={"type": "http", "headers": []})
+    result = executor_service.execute_job(
+        job, request, authorization="Bearer test-token"
+    )
     assert result.status == "completed"
     assert result.isolation_verified is True
 
