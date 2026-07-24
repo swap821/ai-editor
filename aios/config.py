@@ -124,6 +124,7 @@ HUMAN_STATE_HYPOTHESIS_DB_PATH: Final[Path] = (
 REPRESENTATIVE_CONTEXT_DB_PATH: Final[Path] = (
     DATA_DIR / "aios_representative_contexts.db"
 )
+CONSTITUTION_SNAPSHOT_DB_PATH: Final[Path] = DATA_DIR / "aios_constitution_snapshots.db"
 BACKUP_DIR: Final[Path] = DATA_DIR / "backups"
 FAISS_INDEX_PATH: Final[Path] = DATA_DIR / "vector_index.faiss"
 ROLLBACK_DIR: Final[Path] = _env_path("AIOS_ROLLBACK_DIR", DATA_DIR / "rollback")
@@ -601,6 +602,7 @@ __all__ = [
     "MISSION_TRANSITION_JOURNAL_DB_PATH",
     "HUMAN_STATE_HYPOTHESIS_DB_PATH",
     "REPRESENTATIVE_CONTEXT_DB_PATH",
+    "CONSTITUTION_SNAPSHOT_DB_PATH",
     "BACKUP_DIR",
     "FAISS_INDEX_PATH",
     "ROLLBACK_DIR",

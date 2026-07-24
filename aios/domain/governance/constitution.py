@@ -198,9 +198,35 @@ def build_constitution_snapshot(
     )
 
 
+def snapshot_digest_from_record(snapshot: ConstitutionSnapshotV1) -> str:
+    """Recompute the canonical digest from an already-built snapshot's own
+    fields, reproducing `build_constitution_snapshot()`'s exact
+    `digest_payload` shape (same field set, same sorted scope_roots/
+    frozen_paths, `created_at` excluded). Used by `ConstitutionSnapshotStore`
+    to detect a row tampered with outside the store, the same tamper-
+    detection shape `DeliberationStore`/`RepresentativeContextStore` use."""
+    payload = {
+        "constitution_id": snapshot.constitution_id,
+        "version": snapshot.version,
+        "foundation_laws": list(snapshot.foundation_laws),
+        "policy_references": [
+            {"name": ref.name, "digest": ref.digest}
+            for ref in snapshot.policy_references
+        ],
+        "scope_roots": sorted(snapshot.scope_roots),
+        "frozen_paths": sorted(snapshot.frozen_paths),
+        "provider_policy_digest": snapshot.provider_policy_digest,
+        "autonomy_policy_digest": snapshot.autonomy_policy_digest,
+        "ratified_by_operator_id": snapshot.ratified_by_operator_id,
+        "previous_snapshot_digest": snapshot.previous_snapshot_digest,
+    }
+    return _canonical_digest(payload)
+
+
 __all__ = [
     "FOUNDATION_LAWS",
     "PolicyReference",
     "ConstitutionSnapshotV1",
     "build_constitution_snapshot",
+    "snapshot_digest_from_record",
 ]

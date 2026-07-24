@@ -78,6 +78,9 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
+from aios.infrastructure.governance.constitution_snapshot_store import (
+    ConstitutionSnapshotStore,
+)
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 from aios.infrastructure.memory.human_representation_store import (
     HumanStateHypothesisStore,
@@ -112,6 +115,8 @@ _human_state_hypothesis_store: Optional[HumanStateHypothesisStore] = None
 _human_state_hypothesis_store_lock = threading.Lock()
 _governance_amendment_store: Optional[GovernanceAmendmentStore] = None
 _governance_amendment_store_lock = threading.Lock()
+_constitution_snapshot_store: Optional[ConstitutionSnapshotStore] = None
+_constitution_snapshot_store_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -607,6 +612,23 @@ def get_governance_amendment_store() -> GovernanceAmendmentStore:
                 config.GOVERNANCE_AMENDMENT_DB_PATH
             )
     return _governance_amendment_store
+
+
+def get_constitution_snapshot_store() -> ConstitutionSnapshotStore:
+    """Provide the durable, content-addressed ConstitutionSnapshotV1 history
+    singleton (organ 45) -- gives activate_amendment_route()/rollback_
+    amendment_route() a real cross-restart chain to advance and revert,
+    instead of rebuilding a fresh, ephemeral "previous" snapshot on every
+    call."""
+    global _constitution_snapshot_store
+    if _constitution_snapshot_store is not None:
+        return _constitution_snapshot_store
+    with _constitution_snapshot_store_lock:
+        if _constitution_snapshot_store is None:
+            _constitution_snapshot_store = ConstitutionSnapshotStore(
+                config.CONSTITUTION_SNAPSHOT_DB_PATH
+            )
+    return _constitution_snapshot_store
 
 
 def get_authenticated_principal(
