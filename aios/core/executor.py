@@ -48,6 +48,7 @@ from aios.infrastructure.executor.argv import (
     argv_is_safe as _argv_is_safe,
     parse_argv as _parse_argv,
 )
+from aios.operations.tracing import get_trace_context
 
 if TYPE_CHECKING:
     from aios.policy.kernel import PolicyKernel
@@ -342,9 +343,15 @@ class DockerRunner:
             # promotion floor). `-o addopts=` clears the ini addopts for the
             # sandbox run so the summary line is present and counts parse.
             "PYTEST_ADDOPTS=-p no:cacheprovider -o addopts=",
-            self.image,
-            *argv,
         ]
+        # Organ 52: propagate the current trace context (correlation metadata
+        # only -- never authority, per aios.operations.tracing's own module
+        # docstring) as fixed --env entries, distinct from the job's own
+        # security-reviewed environment_allowlist mechanism, which this must
+        # not bypass or widen.
+        for key, value in get_trace_context().as_env().items():
+            docker_argv.extend(["--env", f"{key}={value}"])
+        docker_argv.extend([self.image, *argv])
         completed = self._process_runner(
             docker_argv,
             shell=False,

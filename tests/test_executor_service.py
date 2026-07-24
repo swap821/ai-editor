@@ -126,6 +126,51 @@ def test_docker_job_runner_maps_container_workspace_to_daemon_root(
     assert calls[0]["cwd"] == str(daemon_root / "job-1")
 
 
+def test_executor_service_binds_the_incoming_trace_context_for_the_job(
+    monkeypatch, tmp_path
+) -> None:
+    """Organ 52: a real request-scoped trace id (propagated by
+    StructuredExecutorClient) is bound for the duration of job dispatch, so
+    aios.core.executor.DockerRunner's own get_trace_context() read sees the
+    caller's real ids, not a fresh unrelated one."""
+    from aios.operations.tracing import get_trace_context
+
+    staging_root = tmp_path / "jobs"
+    workspace = staging_root / "job-1"
+    workspace.mkdir(parents=True)
+    monkeypatch.setenv("AIOS_EXECUTOR_TOKEN", "private-token")
+    monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(staging_root))
+    monkeypatch.setenv("AIOS_EXECUTOR_DAEMON_WORKSPACE_ROOT", str(staging_root))
+
+    seen: dict[str, object] = {}
+
+    def fake_runner(command, **kwargs):
+        seen["mission_id"] = get_trace_context().mission_id
+        seen["request_id"] = get_trace_context().request_id
+        return "ok", "", 0
+
+    monkeypatch.setattr(
+        "aios.executor_service.DockerJobRunner",
+        lambda: DockerJobRunner(runner=fake_runner),
+    )
+
+    response = TestClient(app).post(
+        "/v1/jobs",
+        json=_job(str(workspace)),
+        headers={
+            "Authorization": "Bearer private-token",
+            "X-Request-Id": "req-from-caller",
+            "X-Mission-Id": "mission-from-caller",
+        },
+    )
+
+    assert response.status_code == 200
+    assert seen == {
+        "mission_id": "mission-from-caller",
+        "request_id": "req-from-caller",
+    }
+
+
 def test_docker_job_runner_reports_timeout_as_timeout(monkeypatch, tmp_path) -> None:
     staging_root = tmp_path / "jobs"
     workspace = staging_root / "job-1"

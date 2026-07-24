@@ -88,6 +88,32 @@ def test_structured_client_submits_job_with_private_auth_and_validates_isolation
     }
 
 
+def test_structured_client_propagates_the_current_trace_context() -> None:
+    """Organ 52: the caller's trace context crosses the HTTP boundary into
+    the isolated executor service as request headers -- correlation
+    metadata only, never authority."""
+    from aios.operations.tracing import bind_trace_context, new_trace_context
+
+    seen: dict[str, object] = {}
+
+    def transport(request, timeout):
+        seen["request_id"] = request.get_header("X-request-id")
+        seen["mission_id"] = request.get_header("X-mission-id")
+        return _Response(_result())
+
+    trace = new_trace_context(
+        {"x-request-id": "req-trace-1", "x-mission-id": "mission-trace-1"}
+    )
+    with bind_trace_context(trace):
+        StructuredExecutorClient(
+            base_url="http://executor:8081",
+            token="private-token",
+            transport=transport,
+        ).execute(_job())
+
+    assert seen == {"request_id": "req-trace-1", "mission_id": "mission-trace-1"}
+
+
 def test_structured_client_refuses_job_id_mismatch() -> None:
     client = StructuredExecutorClient(
         base_url="http://executor:8081",

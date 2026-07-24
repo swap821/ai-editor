@@ -15,15 +15,20 @@ from typing import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from aios.api.deps import get_governance_amendment_store
+from aios.api.deps import get_constitution_snapshot_store, get_governance_amendment_store
 from aios.api.main import app
+from aios.infrastructure.governance.constitution_snapshot_store import (
+    ConstitutionSnapshotStore,
+)
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 
 
 @pytest.fixture()
 def client(tmp_path) -> Iterator[TestClient]:
     store = GovernanceAmendmentStore(tmp_path / "amendments.db")
+    snapshot_store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     app.dependency_overrides[get_governance_amendment_store] = lambda: store
+    app.dependency_overrides[get_constitution_snapshot_store] = lambda: snapshot_store
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
             yield test_client
@@ -166,5 +171,75 @@ def test_cannot_critique_an_already_rejected_proposal(client) -> None:
         "/api/v1/governance/amendments/amend-1/critique",
         json={"critique_text": "too late"},
     )
+
+    assert resp.status_code == 409
+
+
+# --------------------------------------------------------------------------- #
+# Organ 45: durable constitution snapshot history + real /rollback route
+# --------------------------------------------------------------------------- #
+
+
+def test_two_activations_chain_against_the_real_persisted_current_snapshot(
+    client,
+) -> None:
+    """The second activation's "previous" must be the first activation's real
+    result, not a fresh baseline rebuilt from scratch (the pre-persistence
+    bug this organ closes)."""
+    client.post("/api/v1/governance/amendments/propose", json=_propose_body())
+    client.post("/api/v1/governance/amendments/amend-1/ratify", json={})
+    first = client.post("/api/v1/governance/amendments/amend-1/activate", json={})
+    first_digest = first.json()["newConstitutionDigest"]
+
+    client.post(
+        "/api/v1/governance/amendments/propose",
+        json=_propose_body(proposal_id="amend-2", proposed_diff="a second change"),
+    )
+    client.post("/api/v1/governance/amendments/amend-2/ratify", json={})
+    second = client.post("/api/v1/governance/amendments/amend-2/activate", json={})
+
+    assert second.status_code == 200, second.text
+    second_digest = second.json()["newConstitutionDigest"]
+    assert second_digest != first_digest
+
+
+def test_rollback_reverts_to_the_exact_predecessor_digest(client) -> None:
+    client.post("/api/v1/governance/amendments/propose", json=_propose_body())
+    client.post("/api/v1/governance/amendments/amend-1/ratify", json={})
+    activated = client.post(
+        "/api/v1/governance/amendments/amend-1/activate", json={}
+    )
+    activated_digest = activated.json()["newConstitutionDigest"]
+
+    resp = client.post("/api/v1/governance/amendments/amend-1/rollback", json={})
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["proposal"]["status"] == "rolled_back"
+    assert body["revertedConstitutionDigest"] != activated_digest
+
+
+def test_rollback_unratified_proposal_is_refused(client) -> None:
+    client.post("/api/v1/governance/amendments/propose", json=_propose_body())
+
+    resp = client.post("/api/v1/governance/amendments/amend-1/rollback", json={})
+
+    assert resp.status_code == 409
+
+
+def test_rollback_unknown_proposal_is_404(client) -> None:
+    resp = client.post(
+        "/api/v1/governance/amendments/no-such-proposal/rollback", json={}
+    )
+    assert resp.status_code == 404
+
+
+def test_rollback_without_any_activation_history_is_refused(client) -> None:
+    """Ratified but never activated -- there is no constitution snapshot
+    chain at all yet for this operator."""
+    client.post("/api/v1/governance/amendments/propose", json=_propose_body())
+    client.post("/api/v1/governance/amendments/amend-1/ratify", json={})
+
+    resp = client.post("/api/v1/governance/amendments/amend-1/rollback", json={})
 
     assert resp.status_code == 409

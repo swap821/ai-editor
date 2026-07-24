@@ -204,11 +204,15 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         action_type=ActionType.CONSTITUTIONAL_AMENDMENT_ACTIVATE,
         capability_required="constitutional_amendment.activate",
     ),
-    # No /rollback route entry: rollback_amendment() needs a durable history
-    # of ConstitutionSnapshotV1 objects to find "the exact predecessor" of a
-    # given activation, and no such store exists yet (see governance.py's
-    # own comment on this organ's routes). An entry with no real endpoint
-    # behind it would be misleading, not forward-looking documentation.
+    "/api/v1/governance/amendments/{proposal_id}/rollback": RouteAuthority(
+        "YELLOW",
+        3,
+        "server-session",
+        confirm_required=True,
+        audit_event="constitutional_amendment_rollback",
+        action_type=ActionType.CONSTITUTIONAL_AMENDMENT_ROLLBACK,
+        capability_required="constitutional_amendment.rollback",
+    ),
     # ------------------------------------------------------------------ #
     # Constitutional Learning (organ 46)
     # ------------------------------------------------------------------ #
@@ -322,6 +326,13 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="maintenance_repair_create",
         action_type=ActionType.MAINTENANCE_REPAIR_CREATE,
+    ),
+    "/api/v1/maintenance/repairs/{mission_id}/approve": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="maintenance_repair_approve",
+        action_type=ActionType.MAINTENANCE_REPAIR_APPROVE,
     ),
     "/api/v1/maintenance/repairs/run": RouteAuthority(
         "YELLOW",

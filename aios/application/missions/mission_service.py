@@ -67,6 +67,19 @@ class MissionService:
             reason="Council passed deliberation",
         )
 
+    def request_approval_direct(self, mission_id: str) -> MissionRecord:
+        """Request approval directly from DRAFT (`MissionTransition.
+        DIRECT_REQUEST_APPROVAL`), for execution paths -- such as Maintenance
+        repair missions -- that never go through Council's DELIBERATING
+        state and so cannot use `request_approval()`'s own actor/reason
+        text truthfully."""
+        return self.repository.apply_transition(
+            mission_id,
+            MissionState.AWAITING_APPROVAL,
+            actor="maintenance",
+            reason="Direct approval requested (no Council deliberation)",
+        )
+
     def block(self, mission_id: str, reason: str) -> MissionRecord:
         record = self.repository.apply_transition(
             mission_id,

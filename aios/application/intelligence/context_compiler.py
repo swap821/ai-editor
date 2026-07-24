@@ -226,4 +226,23 @@ def compile_representative_context(
     )
 
 
-__all__ = ["CompilationTarget", "compile_representative_context"]
+def context_digest_from_record(context: RepresentativeContextV1) -> str:
+    """Recompute the canonical digest from an already-compiled context's own
+    fields (not the raw pre-compile inputs). `context.model_dump(mode="json",
+    exclude={"context_digest"})` reproduces the exact same key set and shape
+    `compile_representative_context()`'s own `digest_payload` dict built
+    (tuples become JSON arrays, nested `PreferenceProjection` models become
+    plain dicts, `sort_keys=True` makes key order irrelevant) -- so this is
+    the same digest, not a different one computed a different way. Used by
+    `RepresentativeContextStore` to detect a row tampered with outside the
+    store, the same tamper-detection shape `DeliberationStore` already uses.
+    """
+    payload = context.model_dump(mode="json", exclude={"context_digest"})
+    return _canonical_digest(payload)
+
+
+__all__ = [
+    "CompilationTarget",
+    "compile_representative_context",
+    "context_digest_from_record",
+]

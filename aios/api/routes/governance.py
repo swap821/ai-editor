@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aios.api.action_guard import CAPABILITY_HEADER, enforce_action_boundary
 from aios.api.deps import (
+    get_constitution_snapshot_store,
     get_emergency_stop,
     get_governance_amendment_store,
     require_privileged_operator,
@@ -23,6 +24,7 @@ from aios.application.governance.amendment_authority import (
     propose_amendment,
     reject_amendment,
     ratify_amendment,
+    rollback_amendment,
     simulate_amendment,
 )
 from aios.application.governance.constitutional_learning import (
@@ -36,6 +38,9 @@ from aios.domain.governance import EmergencyStopRequest
 from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.domain.governance.learning import GovernanceEventClass, SimulationCheckResult
 from aios.domain.identity.models import Principal
+from aios.infrastructure.governance.constitution_snapshot_store import (
+    ConstitutionSnapshotStore,
+)
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 
 
@@ -118,14 +123,11 @@ def clear_emergency_stop(
 # every other YELLOW route in this codebase already uses (organ 45 does not
 # invent new capability-issuance semantics, it reuses the existing one).
 #
-# `rollback_amendment()` is deliberately NOT wired here: it requires a
-# durable history of `ConstitutionSnapshotV1` objects to look up "the exact
-# predecessor" of a given activation, and no such store exists yet --
-# `build_constitution_snapshot()`'s own docstring already documents that gap
-# ("this function... does not persist a chain across process restarts"),
-# tied to organ 25's own already-recorded "durable cross-restart persistence
-# of the constitution... remains genuinely unbuilt" blocker. Building a
-# snapshot-history store is a real, separate task, not assumed here.
+# `rollback_amendment()` is now wired via `ConstitutionSnapshotStore` (organ
+# 45): every activation persists its new snapshot and advances a per-
+# constitution "current" pointer, so a later rollback can look up "the
+# exact predecessor" of a real, previously-activated chain instead of one
+# rebuilt fresh (and never itself persisted) on every call.
 # --------------------------------------------------------------------------- #
 
 
@@ -291,23 +293,44 @@ def ratify_amendment_route(
     return updated.as_dict()
 
 
+def _current_or_baseline_snapshot(
+    snapshot_store: ConstitutionSnapshotStore, *, ratified_by_operator_id: str
+):
+    """The real current snapshot for this operator's constitution chain, or
+    -- the very first time this machine ever activates an amendment for
+    them -- a freshly built version-1 baseline, persisted immediately so it
+    becomes real chain history rather than a value computed and discarded."""
+    constitution_id = f"constitution:{ratified_by_operator_id}"
+    current = snapshot_store.get_current(constitution_id)
+    if current is not None:
+        return current
+    baseline = build_constitution_snapshot(
+        ratified_by_operator_id=ratified_by_operator_id
+    )
+    snapshot_store.save(baseline)
+    return baseline
+
+
 @router.post("/api/v1/governance/amendments/{proposal_id}/activate")
 def activate_amendment_route(
     proposal_id: str,
     principal: Principal = Depends(require_privileged_operator),
     store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+    snapshot_store: ConstitutionSnapshotStore = Depends(get_constitution_snapshot_store),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Only a ratified proposal may activate -- `ratify_amendment` is the
-    real gate; this step just chains the next constitution version the same
-    way every other version bump does (Slice 26)."""
+    real gate; this step chains the next constitution version the same way
+    every other version bump does (Slice 26), against the real durably-
+    persisted current snapshot (organ 45) rather than a fresh one rebuilt
+    and discarded every call."""
     current = _get_current_proposal_or_404(store, proposal_id)
     if current.ratified_by_operator_id is None:
         raise HTTPException(
             status_code=409, detail="proposal has not been ratified"
         )
-    previous_snapshot = build_constitution_snapshot(
-        ratified_by_operator_id=current.ratified_by_operator_id
+    previous_snapshot = _current_or_baseline_snapshot(
+        snapshot_store, ratified_by_operator_id=current.ratified_by_operator_id
     )
     try:
         updated, new_snapshot = activate_amendment(
@@ -318,9 +341,82 @@ def activate_amendment_route(
     except (AmendmentError, EmergencyStopError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.save_proposal(updated)
+    snapshot_store.save(new_snapshot)
     return {
         "proposal": updated.as_dict(),
         "newConstitutionDigest": new_snapshot.snapshot_digest,
+    }
+
+
+@router.post("/api/v1/governance/amendments/{proposal_id}/rollback")
+def rollback_amendment_route(
+    proposal_id: str,
+    principal: Principal = Depends(require_privileged_operator),
+    store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+    snapshot_store: ConstitutionSnapshotStore = Depends(get_constitution_snapshot_store),
+    emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
+) -> dict[str, Any]:
+    """Revert an activated proposal's constitution version to its exact
+    predecessor (organ 45) -- the real durable chain `activate_amendment_
+    route()` now maintains, not an ephemeral pair of snapshots the caller
+    happened to hold in memory.
+
+    Honest, named limitation: this reverts the operator's *current* live
+    constitution to its immediate predecessor. `ConstitutionalAmendmentProposalV1`
+    does not itself record which snapshot digest its own activation produced
+    (a real, separate schema gap, not invented here), so if another proposal
+    has activated since this one, rolling back "this" proposal_id still only
+    ever undoes the single most recent step, not specifically this
+    proposal's own change. `rollback_amendment()`'s own pre-existing
+    contract already has this shape -- this route does not weaken it
+    further, but does not silently claim more precision than it has either.
+    """
+    try:
+        emergency_stop.assert_operational()
+    except EmergencyStopError as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Emergency stop engaged: {exc}"
+        ) from exc
+
+    current_proposal = _get_current_proposal_or_404(store, proposal_id)
+    if current_proposal.ratified_by_operator_id is None:
+        raise HTTPException(
+            status_code=409, detail="proposal has not been ratified"
+        )
+    constitution_id = f"constitution:{current_proposal.ratified_by_operator_id}"
+    current_snapshot = snapshot_store.get_current(constitution_id)
+    if current_snapshot is None:
+        raise HTTPException(
+            status_code=409,
+            detail="no constitution snapshot history exists to roll back",
+        )
+    if current_snapshot.previous_snapshot_digest is None:
+        raise HTTPException(
+            status_code=409,
+            detail="current constitution snapshot has no predecessor to roll back to",
+        )
+    previous_snapshot = snapshot_store.get_by_digest(
+        current_snapshot.previous_snapshot_digest
+    )
+    if previous_snapshot is None:
+        raise HTTPException(
+            status_code=409,
+            detail="predecessor snapshot is missing from durable history",
+        )
+
+    try:
+        updated, reverted_snapshot = rollback_amendment(
+            current_proposal,
+            current_snapshot=current_snapshot,
+            previous_snapshot=previous_snapshot,
+        )
+    except AmendmentError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    store.save_proposal(updated)
+    snapshot_store.save(reverted_snapshot)
+    return {
+        "proposal": updated.as_dict(),
+        "revertedConstitutionDigest": reverted_snapshot.snapshot_digest,
     }
 
 

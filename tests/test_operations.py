@@ -43,6 +43,29 @@ def test_trace_context_rejects_unbounded_or_invalid_header_values() -> None:
         assert get_trace_context() == trace
 
 
+def test_trace_context_as_env_reshapes_headers_for_subprocess_propagation() -> None:
+    trace = new_trace_context(
+        {"x-request-id": "req-1", "x-mission-id": "mission-1", "x-turn-id": "turn-1"}
+    )
+
+    env = trace.as_env()
+
+    assert env == {
+        "AIOS_TRACE_REQUEST_ID": "req-1",
+        "AIOS_TRACE_MISSION_ID": "mission-1",
+        "AIOS_TRACE_TURN_ID": "turn-1",
+    }
+
+
+def test_trace_context_as_env_omits_unset_fields() -> None:
+    trace = new_trace_context({"x-request-id": "req-1"})
+
+    env = trace.as_env()
+
+    assert env == {"AIOS_TRACE_REQUEST_ID": "req-1"}
+    assert "AIOS_TRACE_MISSION_ID" not in env
+
+
 def test_doctor_reports_executor_as_fatal_only_in_production(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

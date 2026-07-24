@@ -230,3 +230,58 @@ def test_gateway_denial_never_invokes_the_model_call_callback() -> None:
     with pytest.raises(IntelligenceGatewayError):
         _route(constitution_digest="", model_call=_model_call)
     assert calls == []
+
+
+def test_gateway_durably_records_the_compiled_context(tmp_path: Path) -> None:
+    """Organ 31: every context that passes governance is durably recorded,
+    not just returned in-memory and discarded."""
+    from aios.infrastructure.intelligence.representative_context_store import (
+        RepresentativeContextStore,
+    )
+
+    store = RepresentativeContextStore(tmp_path / "contexts.db")
+    result = _route(request_id="req-recorded", context_store=store)
+
+    recorded = store.get("req-recorded")
+    assert recorded is not None
+    assert recorded == result.context
+
+
+def test_gateway_denial_records_no_context() -> None:
+    """A refused request has no context to record -- the store must never
+    see a request that never passed identity/constitution validation."""
+    recorder_calls: list[object] = []
+
+    class _SpyStore:
+        def save(self, context: object) -> None:
+            recorder_calls.append(context)
+
+    with pytest.raises(IntelligenceGatewayError):
+        _route(operator_identity_digest="", context_store=_SpyStore())
+    assert recorder_calls == []
+
+
+def test_gateway_context_recording_failure_never_breaks_a_governed_call() -> None:
+    """A store failure is best-effort -- it must never surface to the caller
+    or block a call that already passed every governance check."""
+
+    class _BrokenStore:
+        def save(self, context: object) -> None:
+            raise RuntimeError("disk full")
+
+    result = _route(context_store=_BrokenStore())
+    assert result.output == "summary of: summarize the incident"
+
+
+def test_stream_gateway_durably_records_the_compiled_context(tmp_path: Path) -> None:
+    from aios.infrastructure.intelligence.representative_context_store import (
+        RepresentativeContextStore,
+    )
+
+    store = RepresentativeContextStore(tmp_path / "contexts.db")
+    result = _stream(request_id="req-stream-recorded", context_store=store)
+    list(result.chunks)
+
+    recorded = store.get("req-stream-recorded")
+    assert recorded is not None
+    assert recorded == result.context
