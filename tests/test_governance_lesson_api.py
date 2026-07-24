@@ -132,51 +132,74 @@ def test_draft_amendment_from_unknown_lesson_is_404(client) -> None:
     assert resp.status_code == 404
 
 
-def test_check_simulations_ready_when_all_nine_pass(client) -> None:
+def _draft_amendment(client, *, proposal_id: str, proposed_diff: str, rollback_plan: str = "revert") -> None:
+    client.post("/api/v1/governance/lessons/propose", json=_propose_lesson_body())
     resp = client.post(
-        "/api/v1/governance/lessons/check-simulations",
+        "/api/v1/governance/lessons/lesson-1/draft-amendment",
         json={
-            "results": [
-                {"check_name": name, "passed": True}
-                for name in ADVERSARIAL_SIMULATION_CHECKS
-            ]
+            "proposal_id": proposal_id,
+            "target_articles": ["article-9-reauth-policy"],
+            "proposed_diff": proposed_diff,
+            "migration_plan": "roll out behind a flag",
+            "rollback_plan": rollback_plan,
         },
     )
-
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"ready": True, "reason": ""}
 
 
-def test_check_simulations_not_ready_when_one_is_missing(client) -> None:
-    incomplete = list(ADVERSARIAL_SIMULATION_CHECKS)[:-1]
+def test_check_simulations_runs_all_nine_for_real_and_is_ready_for_a_clean_proposal(
+    client,
+) -> None:
+    _draft_amendment(
+        client, proposal_id="amend-clean", proposed_diff="cache reauth for a short trusted window"
+    )
 
     resp = client.post(
         "/api/v1/governance/lessons/check-simulations",
-        json={
-            "results": [
-                {"check_name": name, "passed": True} for name in incomplete
-            ]
-        },
+        json={"proposal_id": "amend-clean"},
     )
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["ready"] is False
-    assert "missing" in body["reason"]
+    assert body["ready"] is True
+    assert body["reason"] == ""
+    checked_names = {r["check_name"] for r in body["results"]}
+    assert checked_names == set(ADVERSARIAL_SIMULATION_CHECKS)
+    assert all(r["passed"] for r in body["results"])
 
 
-def test_check_simulations_not_ready_when_one_failed(client) -> None:
-    results = [
-        {"check_name": name, "passed": name != "provider_lock_in"}
-        for name in ADVERSARIAL_SIMULATION_CHECKS
-    ]
+def test_check_simulations_catches_a_risky_proposal_a_caller_never_disclosed(
+    client,
+) -> None:
+    """The whole point of running simulations for real: a caller cannot
+    simply assert `passed: True` for a proposal that actually reduces
+    provider diversity and blocks rollback."""
+    _draft_amendment(
+        client,
+        proposal_id="amend-risky",
+        proposed_diff="remove ollama and require openai only for all requests",
+        rollback_plan="cannot be undone once cutover completes",
+    )
 
     resp = client.post(
         "/api/v1/governance/lessons/check-simulations",
-        json={"results": results},
+        json={"proposal_id": "amend-risky"},
     )
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["ready"] is False
     assert "provider_lock_in" in body["reason"]
+    results_by_name = {r["check_name"]: r for r in body["results"]}
+    assert results_by_name["provider_lock_in"]["passed"] is False
+    assert results_by_name["reduced_human_reversibility"]["passed"] is False
+    # Checks unrelated to this proposal's risky language still pass.
+    assert results_by_name["capability_replay"]["passed"] is True
+
+
+def test_check_simulations_unknown_proposal_is_404(client) -> None:
+    resp = client.post(
+        "/api/v1/governance/lessons/check-simulations",
+        json={"proposal_id": "no-such-proposal"},
+    )
+    assert resp.status_code == 404

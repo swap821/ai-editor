@@ -6,15 +6,16 @@ further than a proposal. Ratification still requires the real human
 capability Slice 37 already enforces; this module adds nothing that could
 activate a change by itself.
 
-Honest scope note: the 9 adversarial simulations named in the brief
+The 9 adversarial simulations named in the brief
 (`ADVERSARIAL_SIMULATION_CHECKS`) are a fixed, typed catalog a proposal must
 have a passing result for before this module calls it ready for human
-review -- but this module does not implement the simulations themselves
-(real adversarial testing against a running system). `require_all_
-simulations_pass` refuses to proceed on a missing result exactly the same
-way it refuses on a failed one, so a simulation can never be silently
-skipped, but who runs them is a caller responsibility this slice does not
-build.
+review. `require_all_simulations_pass` refuses to proceed on a missing
+result exactly the same way it refuses on a failed one, so a simulation
+can never be silently skipped. The simulations themselves are run by
+`aios.application.governance.adversarial_simulations.
+run_adversarial_simulations` -- a real per-check textual risk screen plus a
+live probe of the production mechanism each check protects, never a
+caller-asserted result.
 """
 
 from __future__ import annotations
