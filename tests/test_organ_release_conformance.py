@@ -307,13 +307,60 @@ def test_validate_manifest_accepts_a_correct_manifest(tmp_path) -> None:
     )
 
 
-def test_validate_manifest_rejects_stale_source_commit_sha(tmp_path) -> None:
+def test_validate_manifest_accepts_a_non_matching_source_commit_sha_by_default(
+    tmp_path,
+) -> None:
+    """Not a violation in the default (continuous) mode: a manifest committed
+    alongside other changes can only ever stamp its parent's SHA, never its
+    own -- see validate_manifest()'s own docstring for why."""
+    records = _baseline_records()
+    manifest = _manifest_for(records, repo_root=tmp_path)
+    assert (
+        validate_manifest(manifest, records, repo_root=tmp_path, current_sha="2" * 40)
+        == ()
+    )
+
+
+def test_validate_manifest_strict_source_commit_rejects_a_mismatched_sha(
+    tmp_path,
+) -> None:
     records = _baseline_records()
     manifest = _manifest_for(records, repo_root=tmp_path)
     violations = validate_manifest(
-        manifest, records, repo_root=tmp_path, current_sha="2" * 40
+        manifest,
+        records,
+        repo_root=tmp_path,
+        current_sha="2" * 40,
+        strict_source_commit=True,
     )
     assert any("does not match the evaluated commit" in v for v in violations)
+
+
+def test_validate_manifest_strict_source_commit_passes_on_exact_match(
+    tmp_path,
+) -> None:
+    records = _baseline_records()
+    manifest = _manifest_for(records, repo_root=tmp_path)
+    assert (
+        validate_manifest(
+            manifest,
+            records,
+            repo_root=tmp_path,
+            current_sha="1" * 40,
+            strict_source_commit=True,
+        )
+        == ()
+    )
+
+
+def test_validate_manifest_rejects_a_malformed_source_commit_sha(tmp_path) -> None:
+    records = _baseline_records()
+    manifest = _manifest_for(records, repo_root=tmp_path)
+    manifest["source_commit_sha"] = ""
+    violations = validate_manifest(manifest, records, repo_root=tmp_path)
+    assert any(
+        "is missing or does not look like a real commit sha" in v for v in violations
+    )
 
 
 def test_validate_manifest_rejects_wrong_ledger_hash(tmp_path) -> None:
@@ -412,7 +459,7 @@ def test_organ_proof_manifest_hash_pins_the_ledger() -> None:
     assert manifest["organ_summary"] == expected_summary
 
 
-def test_shipped_manifest_is_a_fully_honest_pin_at_the_evaluated_commit() -> None:
+def test_shipped_manifest_is_a_fully_honest_pin() -> None:
     """Regression test for a real, shipped bug this pass found by hand:
     source_commit_sha pointed at a commit that no longer existed after a
     squash-merge conflict was resolved by rebase, and the `files` hash map
@@ -420,16 +467,14 @@ def test_shipped_manifest_is_a_fully_honest_pin_at_the_evaluated_commit() -> Non
     validate_ledger()'s own manifest test above only ever checked
     `ledger_sha256`/`organ_summary`, never `source_commit_sha` or `files`,
     so neither drift was ever caught mechanically. validate_manifest() now
-    checks all four; this proves the shipped manifest passes every one of
-    them against HEAD, not just the two that were already covered."""
-    from aios.application.governance.organ_ledger import current_commit_sha
-
+    checks all four (source_commit_sha only for well-formedness here, not
+    exact HEAD match -- see its own docstring for why exact match on every
+    ordinary commit is unsatisfiable by construction); this proves the
+    shipped manifest passes every one of them, not just the two that were
+    already covered."""
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     records = load_ledger(LEDGER_PATH)
-    current_sha = current_commit_sha(REPO_ROOT)
-    violations = validate_manifest(
-        manifest, records, repo_root=REPO_ROOT, current_sha=current_sha
-    )
+    violations = validate_manifest(manifest, records, repo_root=REPO_ROOT)
     assert violations == (), violations
 
 
