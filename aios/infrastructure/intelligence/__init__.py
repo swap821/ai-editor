@@ -4,5 +4,8 @@ from aios.infrastructure.intelligence.deliberation_store import (
     DeliberationStore,
     RecordTamperedError,
 )
+from aios.infrastructure.intelligence.representative_context_store import (
+    RepresentativeContextStore,
+)
 
-__all__ = ["DeliberationStore", "RecordTamperedError"]
+__all__ = ["DeliberationStore", "RecordTamperedError", "RepresentativeContextStore"]

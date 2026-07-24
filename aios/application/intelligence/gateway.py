@@ -20,6 +20,7 @@ pre-existing "gateway"-shaped implementations,
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -35,6 +36,8 @@ from aios.domain.memory.human_representation import (
     ProjectPassportV1,
 )
 from aios.runtime.secret_policy import SecretPolicy
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class IntelligenceGatewayError(RuntimeError):
@@ -116,6 +119,28 @@ def _validate_and_compile(
     )
 
 
+def _default_context_store() -> Any:
+    from aios import config
+    from aios.infrastructure.intelligence.representative_context_store import (
+        RepresentativeContextStore,
+    )
+
+    return RepresentativeContextStore(config.REPRESENTATIVE_CONTEXT_DB_PATH)
+
+
+def _record_context(context: RepresentativeContextV1, store: Any | None) -> None:
+    """Organ 31: durably record every context that passed identity/
+    constitution/emergency-stop validation and is about to inform a real
+    model call. Best-effort, never fatal -- a store failure must never
+    block an already-governed call, matching `_record_human_state`'s
+    (organ 30) established convention exactly."""
+    try:
+        target = store if store is not None else _default_context_store()
+        target.save(context)
+    except Exception:  # noqa: BLE001 - persistence must never break a gated call
+        _LOGGER.warning("Failed to record representative context", exc_info=True)
+
+
 def route_intelligence_request(
     *,
     request_id: str,
@@ -138,6 +163,7 @@ def route_intelligence_request(
     latest_correction: CorrectionRecordV1 | None = None,
     secret_policy: SecretPolicy | None = None,
     emergency_stop: Any | None = None,
+    context_store: Any | None = None,
 ) -> IntelligenceGatewayResult:
     """Compile context, invoke the caller's model call, redact the output.
 
@@ -150,6 +176,11 @@ def route_intelligence_request(
     they already exist (`aios.core.router`, `aios.runtime.budget_guard`) and
     a caller wires them into how it builds `model_call`, rather than this
     pipeline re-deciding provider selection.
+
+    `context_store` (organ 31) durably records the compiled context once it
+    has passed every check above -- pass an explicit store (or a test spy)
+    to override the default `RepresentativeContextStore`; the record is
+    best-effort and never blocks the call itself.
     """
     policy = secret_policy or SecretPolicy()
     context = _validate_and_compile(
@@ -173,6 +204,7 @@ def route_intelligence_request(
         policy=policy,
         emergency_stop=emergency_stop,
     )
+    _record_context(context, context_store)
 
     raw_output = model_call(context)
     decision = policy.inspect_text(raw_output)
@@ -205,6 +237,7 @@ def stream_intelligence_request(
     latest_correction: CorrectionRecordV1 | None = None,
     secret_policy: SecretPolicy | None = None,
     emergency_stop: Any | None = None,
+    context_store: Any | None = None,
 ) -> StreamingIntelligenceGatewayResult:
     """Streaming counterpart to `route_intelligence_request()` for text-chunk
     model calls (chat's token-by-token reply). Same upfront governance --
@@ -227,6 +260,10 @@ def stream_intelligence_request(
     tool-call events (`dict[str, Any]`), a genuinely different shape this
     variant does not cover -- deliberately not attempted in the same pass,
     per the operator-confirmed "streaming variant only" scope decision.
+
+    `context_store` (organ 31): same durable, best-effort audit record as
+    `route_intelligence_request()`, written once the context is compiled and
+    before the first chunk is pulled.
     """
     policy = secret_policy or SecretPolicy()
     context = _validate_and_compile(
@@ -250,6 +287,7 @@ def stream_intelligence_request(
         policy=policy,
         emergency_stop=emergency_stop,
     )
+    _record_context(context, context_store)
 
     def _redacted_chunks() -> Iterator[str]:
         for chunk in model_call(context):
