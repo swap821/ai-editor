@@ -1,12 +1,19 @@
 """Regenerate `release/organ-proof-manifest.json` deterministically.
 
 Nothing about this file should ever be hand-edited again: `organ_summary` is
-always computed from the ledger (never handwritten), `ledger_sha256` and every
-entry in `files` are always the actual sha256 of the file on disk right now,
-and `source_commit_sha` is always the exact commit this script ran at. Hand
-edits are exactly how the manifest drifted before this script existed --
-`source_commit_sha` pointed at a rebased-away commit, and both tracked file
-hashes were stale relative to their real content.
+always computed from the ledger (never handwritten), and `ledger_sha256` and
+every entry in `files` are always the actual sha256 of the file on disk right
+now. Hand edits are exactly how the manifest drifted before this script
+existed -- `source_commit_sha` pointed at a rebased-away commit, and both
+tracked file hashes were stale relative to their real content.
+
+`source_commit_sha` is always the commit this script ran at (`git rev-parse
+HEAD`) -- which, when this file is committed alongside other changes, is
+necessarily that commit's *parent*: a commit's own SHA hashes its finalized
+tree, so nothing committed as part of it can ever know that SHA in advance.
+`--check` therefore does not require `source_commit_sha` to match exactly
+(see `_manifests_equal_ignoring_volatile_fields`); it only requires every
+hash/count field derived from real file content to match.
 
 Run with `--check` (no writes) in CI to fail the build the moment the
 committed manifest stops matching what this script would generate -- the
@@ -96,7 +103,16 @@ def build_manifest(*, note: str | None = None) -> dict[str, object]:
 def _manifests_equal_ignoring_volatile_fields(
     a: dict[str, object], b: dict[str, object]
 ) -> bool:
-    volatile = {"created_at"}
+    # `created_at` always changes. `source_commit_sha` legitimately differs
+    # between "freshly built right now" and "committed" too: a commit built
+    # alongside other changes can only ever stamp its parent's SHA (its own
+    # SHA is a hash of its finalized tree, unknowable before the commit
+    # exists), so the committed value naturally lags one commit behind
+    # whatever a fresh rebuild's `git rev-parse HEAD` reports in CI, on the
+    # exact commit that first introduced or last touched the manifest.
+    # `validate_manifest`'s `strict_source_commit` mode is where an exact
+    # match is actually required (Organ 23's release-tagging gate).
+    volatile = {"created_at", "source_commit_sha"}
     return {k: v for k, v in a.items() if k not in volatile} == {
         k: v for k, v in b.items() if k not in volatile
     }

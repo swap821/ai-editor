@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -367,15 +368,27 @@ def validate_manifest(
     *,
     repo_root: str | Path,
     current_sha: str | None = None,
+    strict_source_commit: bool = False,
 ) -> tuple[str, ...]:
     """Return a tuple of truthful violation descriptions for a release
-    manifest; empty means the manifest is an honest, current hash-pin of
-    *records* and the files it claims to cover.
+    manifest; empty means the manifest is an honest hash-pin of *records*
+    and the files it claims to cover.
 
-    Every check here is deliberately continuous (true on every commit, not
-    only at release-tagging time): a manifest that drifts from the ledger it
-    claims to pin, or from the files it claims to hash, is never a valid
-    state to ship regardless of which commit produced it.
+    The hash/summary checks below are genuinely continuous (true on every
+    commit, not only at release-tagging time): a manifest whose recorded
+    hashes drift from the actual file content it claims to cover is never a
+    valid state to ship, regardless of which commit produced it.
+
+    `source_commit_sha` is different, deliberately not held to the same
+    continuous exact-match bar: a commit's SHA is a hash of its own final
+    tree, so a file committed *as part of* that commit can only ever record
+    its parent's SHA, never its own -- requiring exact equality to whatever
+    HEAD happens to be on every ordinary commit is unsatisfiable by
+    construction, not a real drift signal. This function only requires
+    `source_commit_sha` to be present and well-formed continuously; exact
+    equality to `current_sha` is opt-in via `strict_source_commit` for the
+    Organ 23 / release-tagging gate, where the manifest is regenerated and
+    verified as the last step before a tag is cut against that same commit.
     """
     violations: list[str] = []
     root = Path(repo_root)
@@ -410,11 +423,23 @@ def validate_manifest(
     else:
         violations.append("manifest is missing a non-empty ledger_path")
 
-    if current_sha is not None and manifest.get("source_commit_sha") != current_sha:
+    source_commit_sha = manifest.get("source_commit_sha")
+    if not isinstance(source_commit_sha, str) or not re.fullmatch(
+        r"[0-9a-f]{7,64}", source_commit_sha
+    ):
         violations.append(
-            f"manifest source_commit_sha {manifest.get('source_commit_sha')!r} does "
-            f"not match the evaluated commit {current_sha!r} -- the manifest was not "
-            "regenerated at this commit"
+            f"manifest source_commit_sha {source_commit_sha!r} is missing or "
+            "does not look like a real commit sha"
+        )
+    elif (
+        strict_source_commit
+        and current_sha is not None
+        and source_commit_sha != current_sha
+    ):
+        violations.append(
+            f"manifest source_commit_sha {source_commit_sha!r} does not match "
+            f"the evaluated commit {current_sha!r} -- the manifest was not "
+            "regenerated at this exact commit (release-tagging gate)"
         )
 
     files = manifest.get("files")

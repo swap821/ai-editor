@@ -8,9 +8,14 @@ intentionally a thin CLI over `aios.application.governance.organ_ledger`'s
 this script just runs them against the real shipped files and reports.
 
 `--strict-release` additionally requires every green organ's
-`last_verified_sha` to equal the exact commit under test -- the Organ 23 /
-release-tagging gate, not a rule every ordinary commit's CI should enforce
-(most commits don't re-verify every organ, and they shouldn't have to).
+`last_verified_sha`, and the manifest's own `source_commit_sha`, to equal
+the exact commit under test -- the Organ 23 / release-tagging gate, not a
+rule every ordinary commit's CI should enforce. A commit's SHA is only
+known once its own content (including a just-regenerated manifest) is
+finalized, so no manifest committed alongside other changes can ever
+truthfully name its own commit; `source_commit_sha` names its parent
+instead, which the default (non-strict) run only checks is a well-formed
+commit sha, not an exact match to whatever HEAD happens to be right now.
 """
 
 from __future__ import annotations
@@ -62,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
             records,
             repo_root=REPO_ROOT,
             current_sha=current_sha,
+            strict_source_commit=args.strict_release,
         )
     )
 
