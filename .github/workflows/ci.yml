@@ -147,7 +147,19 @@ jobs:
             tests/test_route_registry_conformance.py \
             tests/test_operations.py \
             tests/test_executor_service.py \
-            tests/test_deployment_hardening.py
+            tests/test_deployment_hardening.py \
+            tests/test_organ_release_conformance.py
+
+      - name: Verify organ ledger and release manifest contracts
+        # PR 0 (green-contract enforcement): fails fast, before any Docker
+        # build below, the moment a green claim or the release manifest
+        # drifts from reality -- a stale source_commit_sha or a stale
+        # tracked-file hash is exactly the bug class that shipped silently
+        # before this step existed (see scripts/build_release_manifest.py's
+        # own docstring for the real incident that motivated it).
+        run: |
+          python scripts/build_release_manifest.py --check
+          python scripts/verify_organ_contracts.py
 
       - name: Ruff check and format gate
         run: |
@@ -156,18 +168,22 @@ jobs:
             aios/application/executor aios/infrastructure/executor \
             aios/executor_service.py aios/launcher.py \
             scripts/security_scan.py scripts/generate_sbom.py \
+            scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
             tests/test_release_conformance.py tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
             tests/test_operations.py \
             tests/test_executor_service.py tests/test_executor_client.py \
-            tests/test_executor_integration.py tests/test_runtime_worker_container.py
+            tests/test_executor_integration.py tests/test_runtime_worker_container.py \
+            tests/test_organ_release_conformance.py
           ruff format --check \
             scripts/security_scan.py scripts/generate_sbom.py \
+            scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
             tests/test_release_conformance.py tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
             tests/test_operations.py tests/test_executor_service.py \
             tests/test_executor_client.py tests/test_executor_integration.py \
             tests/test_runtime_worker_container.py \
+            tests/test_organ_release_conformance.py \
             aios/executor_service.py aios/launcher.py \
             aios/application/governance aios/application/executor \
             aios/infrastructure/executor
