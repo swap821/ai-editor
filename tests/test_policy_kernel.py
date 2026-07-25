@@ -242,7 +242,12 @@ def test_feature_enabled_reads_config(kernel, monkeypatch):
 
 def test_constitution_snapshot(kernel):
     snapshot = kernel.constitution_snapshot()
-    assert snapshot is kernel.constitution
+    assert isinstance(snapshot.snapshot_digest, str)
+    assert len(snapshot.snapshot_digest) == 64
+    assert len(snapshot.foundation_laws) == 6
+
+
+
 
 
 # --------------------------------------------------------------------------- #

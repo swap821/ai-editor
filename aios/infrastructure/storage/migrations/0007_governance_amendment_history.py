@@ -44,7 +44,10 @@ class GovernanceAmendmentHistoryMigration:
                 simulation_notes_json TEXT NOT NULL,
                 ratified_by_operator_id TEXT,
                 ratification_capability_digest TEXT,
+                activated_snapshot_digest TEXT,
+                predecessor_snapshot_digest TEXT,
                 created_at TEXT NOT NULL,
+
                 recorded_at TEXT NOT NULL,
                 record_digest TEXT NOT NULL,
                 PRIMARY KEY (proposal_id, revision)

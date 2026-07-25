@@ -90,8 +90,9 @@ class GovernanceAmendmentStore:
                     migration_plan, rollback_plan, proposed_by, proposer_type,
                     status, critiques_json, simulation_notes_json,
                     ratified_by_operator_id, ratification_capability_digest,
+                    activated_snapshot_digest, predecessor_snapshot_digest,
                     created_at, recorded_at, record_digest
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     proposal.proposal_id,
@@ -113,10 +114,13 @@ class GovernanceAmendmentStore:
                     json.dumps(list(proposal.simulation_notes)),
                     proposal.ratified_by_operator_id,
                     proposal.ratification_capability_digest,
+                    proposal.activated_snapshot_digest,
+                    proposal.predecessor_snapshot_digest,
                     proposal.created_at,
                     _utc_now(),
                     digest,
                 ),
+
             )
             conn.commit()
         return revision
@@ -205,6 +209,9 @@ class GovernanceAmendmentStore:
 
 
 def _proposal_from_row(row: sqlite3.Row) -> ConstitutionalAmendmentProposalV1:
+    keys = row.keys() if hasattr(row, "keys") else ()
+    activated_snapshot_digest = row["activated_snapshot_digest"] if "activated_snapshot_digest" in keys else None
+    predecessor_snapshot_digest = row["predecessor_snapshot_digest"] if "predecessor_snapshot_digest" in keys else None
     record = ConstitutionalAmendmentProposalV1(
         proposal_id=row["proposal_id"],
         target_articles=tuple(json.loads(row["target_articles_json"])),
@@ -224,10 +231,13 @@ def _proposal_from_row(row: sqlite3.Row) -> ConstitutionalAmendmentProposalV1:
         simulation_notes=tuple(json.loads(row["simulation_notes_json"])),
         ratified_by_operator_id=row["ratified_by_operator_id"],
         ratification_capability_digest=row["ratification_capability_digest"],
+        activated_snapshot_digest=activated_snapshot_digest,
+        predecessor_snapshot_digest=predecessor_snapshot_digest,
         created_at=row["created_at"],
     )
     _verify(record, row["record_digest"])
     return record
+
 
 
 def _lesson_from_row(row: sqlite3.Row) -> GovernanceLessonV1:

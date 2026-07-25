@@ -168,8 +168,9 @@ def test_rollback_refuses_a_non_predecessor_snapshot() -> None:
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
     unrelated = build_constitution_snapshot(ratified_by_operator_id="operator:xyz")
-    with pytest.raises(AmendmentError, match="not the exact predecessor"):
+    with pytest.raises(AmendmentError, match="does not match proposal predecessor_snapshot_digest|not the exact predecessor"):
         rollback_amendment(activated, current_snapshot=v2, previous_snapshot=unrelated)
+
 
 
 # --- emergency stop blocks activation --------------------------------------

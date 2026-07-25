@@ -396,14 +396,16 @@ def rollback_amendment_route(
             status_code=409,
             detail="no constitution snapshot history exists to roll back",
         )
-    if current_snapshot.previous_snapshot_digest is None:
+    target_predecessor_digest = (
+        current_proposal.predecessor_snapshot_digest
+        or current_snapshot.previous_snapshot_digest
+    )
+    if target_predecessor_digest is None:
         raise HTTPException(
             status_code=409,
             detail="current constitution snapshot has no predecessor to roll back to",
         )
-    previous_snapshot = snapshot_store.get_by_digest(
-        current_snapshot.previous_snapshot_digest
-    )
+    previous_snapshot = snapshot_store.get_by_digest(target_predecessor_digest)
     if previous_snapshot is None:
         raise HTTPException(
             status_code=409,
@@ -424,6 +426,7 @@ def rollback_amendment_route(
         "proposal": updated.as_dict(),
         "revertedConstitutionDigest": reverted_snapshot.snapshot_digest,
     }
+
 
 
 # --------------------------------------------------------------------------- #

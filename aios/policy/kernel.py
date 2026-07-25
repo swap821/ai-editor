@@ -19,6 +19,12 @@ from aios.domain.actions.envelope import ActionEnvelope, ActionType
 from aios.domain.policy.decision import PolicyDecision
 from aios.interfaces.http import edge_security
 from aios.policy.constitution import Constitution, build_constitution
+from aios.domain.governance.constitution import (
+    ConstitutionSnapshotV1,
+    build_constitution_snapshot,
+)
+from aios.application.governance.constitution_authority import ConstitutionAuthority
+
 from aios.runtime import profiles
 from aios.security.gateway import (
     GatewayDecision,
@@ -845,10 +851,13 @@ class PolicyKernel:
         rate_limiter: RateLimiter | None = None,
         autonomy_ledger: AutonomyLedger | None = None,
         constitution: Constitution | None = None,
+        constitution_authority: ConstitutionAuthority | None = None,
     ) -> None:
         self.rate_limiter = rate_limiter or RateLimiter()
         self.autonomy = autonomy_ledger or AutonomyLedger()
         self.constitution = constitution or build_constitution()
+        self.constitution_authority = constitution_authority
+
         self._route_table = _ROUTE_AUTHORITY
         # Unknown routes are never allowed to inherit a permissive policy.
         self._fallback = RouteAuthority(
@@ -1147,9 +1156,13 @@ class PolicyKernel:
         """Return a feature flag value from config."""
         return bool(getattr(config, f"{name.upper()}_ENABLED", False))
 
-    def constitution_snapshot(self) -> Constitution:
-        """Return the current constitutional snapshot."""
-        return self.constitution
+    def constitution_snapshot(self) -> ConstitutionSnapshotV1 | Constitution:
+        """Return the current constitutional snapshot (Organ 25)."""
+        if self.constitution_authority is not None:
+            return self.constitution_authority.get_active_snapshot()
+        return build_constitution_snapshot(ratified_by_operator_id="operator")
+
+
 
     # ------------------------------------------------------------------ #
     # Runtime profile authority

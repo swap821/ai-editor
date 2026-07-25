@@ -123,6 +123,8 @@ _governance_amendment_store: Optional[GovernanceAmendmentStore] = None
 _governance_amendment_store_lock = threading.Lock()
 _constitution_snapshot_store: Optional[ConstitutionSnapshotStore] = None
 _constitution_snapshot_store_lock = threading.Lock()
+_constitution_authority: Optional[ConstitutionAuthority] = None
+_constitution_authority_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -672,6 +674,19 @@ def get_constitution_snapshot_store() -> ConstitutionSnapshotStore:
                 config.CONSTITUTION_SNAPSHOT_DB_PATH
             )
     return _constitution_snapshot_store
+
+
+def get_constitution_authority() -> ConstitutionAuthority:
+    """Provide the single ConstitutionAuthority owner singleton (organ 25)."""
+    global _constitution_authority
+    if _constitution_authority is not None:
+        return _constitution_authority
+    with _constitution_authority_lock:
+        if _constitution_authority is None:
+            store = get_constitution_snapshot_store()
+            _constitution_authority = ConstitutionAuthority(store)
+    return _constitution_authority
+
 
 
 def get_authenticated_principal(

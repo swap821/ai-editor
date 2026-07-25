@@ -66,7 +66,10 @@ class ConstitutionalAmendmentProposalV1(BaseModel):
     simulation_notes: tuple[str, ...] = ()
     ratified_by_operator_id: str | None = None
     ratification_capability_digest: str | None = None
+    activated_snapshot_digest: str | None = None
+    predecessor_snapshot_digest: str | None = None
     created_at: str = Field(default_factory=_utc_now)
+
 
     def as_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
