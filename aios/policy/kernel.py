@@ -508,6 +508,23 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         action_type=ActionType.PROJECT_SCOPE_HINTS,
     ),
     # ------------------------------------------------------------------ #
+    # Operator preferences (organ 27)
+    # ------------------------------------------------------------------ #
+    "/api/v1/preferences": RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="preference_save",
+        action_type=ActionType.PREFERENCE_SAVE,
+    ),
+    "/api/v1/preferences/{preference_id}/withdraw": RouteAuthority(
+        "GREEN",
+        60,
+        "session",
+        audit_event="preference_withdraw",
+        action_type=ActionType.PREFERENCE_WITHDRAW,
+    ),
+    # ------------------------------------------------------------------ #
     # Security
     # ------------------------------------------------------------------ #
     "/api/v1/security/tokens/rotate": RouteAuthority(

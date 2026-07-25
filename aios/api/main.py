@@ -92,6 +92,7 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_session_manager,
     get_identity_service,
     get_authenticated_principal,
+    get_optional_principal,
     require_privileged_operator,
     get_executor,
     get_action_broker,
@@ -431,6 +432,7 @@ from aios.api.routes.voice import router as _voice_router
 from aios.api.routes.sovereignty import router as _sovereignty_router
 from aios.api.routes.council import router as _council_router
 from aios.api.routes.projects import router as _projects_router
+from aios.api.routes.preferences import router as _preferences_router
 from aios.api.routes.files import router as _files_router
 from aios.api.routes.security import router as _security_router
 from aios.api.routes.execution_debugger import router as _execution_debugger_router
@@ -452,6 +454,7 @@ app.include_router(_voice_router)
 app.include_router(_sovereignty_router)
 app.include_router(_council_router)
 app.include_router(_projects_router)
+app.include_router(_preferences_router)
 app.include_router(_files_router)
 app.include_router(_security_router)
 app.include_router(_execution_debugger_router)
@@ -1388,6 +1391,7 @@ def correct_human_state(
     req: HumanStateCorrectionRequest,
     request: Request,
     human_state_store=Depends(get_human_state_hypothesis_store),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
     """Organ 30: let the operator correct a ``human_state`` guess.
 
@@ -1395,11 +1399,17 @@ def correct_human_state(
     classifier shipped, but nothing ever gave a human a real place to
     exercise it -- this is that place. Records real ground truth against
     the exact turn being corrected; never re-classifies, never changes the
-    reply already given, never gates anything.
+    reply already given, never gates anything. ``principal`` is best-effort
+    (this route stays reachable from an unauthenticated local session by
+    design); the correction is attributed to a real operator id when one
+    is resolvable, and honestly to none when it is not.
     """
     session_id = _session_id_from_request(request, req.session_id)
     corrected = human_state_store.record_correction(
-        session_id, req.turn_id, req.corrected_state
+        session_id,
+        req.turn_id,
+        req.corrected_state,
+        operator_id=principal.principal_id if principal is not None else None,
     )
     if not corrected:
         raise HTTPException(

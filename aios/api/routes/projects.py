@@ -16,7 +16,10 @@ from pydantic import BaseModel, Field
 
 from aios.api.deps import get_project_passport_store
 from aios.application.governance.organ_ledger import current_commit_sha
-from aios.application.memory.human_representation import build_project_passport_v1
+from aios.application.memory.human_representation import (
+    build_project_passport_v1,
+    diff_project_passports,
+)
 from aios.cognition.repo_map import (
     SymbolRepoMapLimits,
     scan_symbol_repo_map,
@@ -30,8 +33,6 @@ from aios.api.action_guard import enforce_action_boundary
 
 
 router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
-_LAST_PROJECT_PASSPORT_SCAN: dict[str, object] | None = None
-_LAST_PROJECT_PASSPORT_ID: str | None = None
 _LAST_SYMBOL_REPO_MAP_SCAN: dict[str, object] | None = None
 
 
@@ -57,10 +58,15 @@ def scan_project_passport(
     ProjectPassportStore) -- previously build_project_passport_v1() had zero
     production callers anywhere; every real scan silently discarded the
     typed representation this organ exists to provide. The route's own
-    response shape is unchanged (existing frontend callers are unaffected);
-    the durable record is additive.
+    response shape is unchanged (existing frontend callers are unaffected
+    beyond the additive ``passportDiff`` field); the durable record and the
+    active-project pointer are additive.
+
+    The "last scanned project" pointer used to live only in a process-local
+    module global (``_LAST_PROJECT_PASSPORT_ID``) -- silently forgotten on
+    every restart even though the scan history itself was already durable.
+    ``store.set_active``/``store.get_active`` now persist that pointer.
     """
-    global _LAST_PROJECT_PASSPORT_SCAN, _LAST_PROJECT_PASSPORT_ID
     workspace = Path.cwd().resolve()
     root = _resolve_scan_root(req.root, workspace)
     try:
@@ -69,7 +75,7 @@ def scan_project_passport(
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    _LAST_PROJECT_PASSPORT_SCAN = _project_passport_summary(passport)
+    scan_summary = _project_passport_summary(passport)
 
     project_id = _project_id_for_root(root)
     typed_passport = build_project_passport_v1(
@@ -78,10 +84,14 @@ def scan_project_passport(
         verified_at_commit=current_commit_sha(root),
         passport=passport,
     )
+    previous_passport = store.get_current(project_id)
+    passport_diff = diff_project_passports(previous_passport, typed_passport)
     store.save(typed_passport)
-    _LAST_PROJECT_PASSPORT_ID = project_id
+    store.set_active(project_id, scan_summary)
 
-    return passport.as_dict()
+    response = passport.as_dict()
+    response["passportDiff"] = passport_diff
+    return response
 
 
 def _project_id_for_root(root: Path) -> str:
@@ -95,12 +105,22 @@ def _project_id_for_root(root: Path) -> str:
 def project_passport_status(
     store: ProjectPassportStore = Depends(get_project_passport_store),
 ) -> dict:
-    """Return status for the local-only RepoMap harvester without scanning."""
+    """Return status for the local-only RepoMap harvester without scanning.
+
+    Organ 28: the active project and its last scan summary now come from
+    ``store.get_active()`` (durable) rather than a process-local module
+    global -- this route used to report ``lastScan``/``durable`` as
+    unconditionally empty after every restart, even when a real scan
+    history already existed on disk.
+    """
+    last_scan: dict[str, object] | None = None
     durable: dict[str, object] | None = None
-    if _LAST_PROJECT_PASSPORT_ID is not None:
-        current = store.get_current(_LAST_PROJECT_PASSPORT_ID)
+    active = store.get_active()
+    if active is not None:
+        project_id, last_scan = active
+        current = store.get_current(project_id)
         if current is not None:
-            history = store.get_history(_LAST_PROJECT_PASSPORT_ID)
+            history = store.get_history(project_id)
             durable = {
                 "revisionCount": len(history),
                 "passportDigest": current.passport_digest,
@@ -111,7 +131,7 @@ def project_passport_status(
         "localOnly": True,
         "activation": "proposal/evidence",
         "trustedMemoryActivated": False,
-        "lastScan": _LAST_PROJECT_PASSPORT_SCAN,
+        "lastScan": last_scan,
         "durable": durable,
     }
 

@@ -58,7 +58,9 @@ class OperatorPreferenceV1(BaseModel):
     review_after: str | None = None
     supersedes: tuple[str, ...] = ()
     contradicted_by: tuple[str, ...] = ()
-    status: Literal["proposed", "active", "superseded", "rejected"] = "proposed"
+    status: Literal["proposed", "active", "superseded", "rejected", "withdrawn"] = (
+        "proposed"
+    )
 
     def as_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
@@ -93,7 +95,10 @@ class CorrectionRecordV1(BaseModel):
     The prior interpretation is retained by digest (never discarded), the
     current interpretation is recorded by digest, and `grants_authority` is
     fixed `False`: correcting how a request was understood never authorizes
-    anything by itself.
+    anything by itself. `operator_id` is honestly nullable -- a correction
+    is reachable from a session that was never bound to a fully
+    authenticated Human Sovereign principal, and this organ must record
+    "unknown" rather than fabricate an identity when that is the case.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -106,6 +111,7 @@ class CorrectionRecordV1(BaseModel):
     prior_interpretation_digest: str = Field(min_length=64, max_length=64)
     current_interpretation_digest: str = Field(min_length=64, max_length=64)
     source: Literal["user"] = "user"
+    operator_id: str | None = None
     created_at: str = Field(default_factory=_utc_now)
     grants_authority: Literal[False] = False
 

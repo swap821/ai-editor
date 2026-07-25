@@ -87,6 +87,8 @@ class ActionType(str, Enum):
     INTENT_PREVIEW = "intent_preview"
     PROJECT_PASSPORT_SCAN = "project_passport_scan"
     PROJECT_SCOPE_HINTS = "project_scope_hints"
+    PREFERENCE_SAVE = "preference_save"
+    PREFERENCE_WITHDRAW = "preference_withdraw"
     DEVELOPMENT_AUTONOMY_REVOKE = "development_autonomy_revoke"
     DEVELOPMENT_CURRICULUM = "development_curriculum"
     DEVELOPMENT_CURRICULUM_ACCEPT = "development_curriculum_accept"

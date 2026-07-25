@@ -1067,6 +1067,29 @@ def test_user_correction_persists_reapplies_and_can_be_cleared(client: TestClien
     ]
     assert corrected_body["correctionHistory"][0]["status"] == "active"
 
+    # Organ 29: the real production route now also builds and durably
+    # records a typed CorrectionRecordV1 -- previously nothing in
+    # production ever called the typed builder at all.
+    record = corrected_body["correctionRecord"]
+    assert record["session_id"] == session_id
+    assert record["corrected_fields"] == [
+        "communication_mode",
+        "goal",
+        "intent",
+        "unknowns",
+    ]
+    assert record["grants_authority"] is False
+    assert len(record["prior_interpretation_digest"]) == 64
+    assert len(record["current_interpretation_digest"]) == 64
+
+    session_restore = client.post(
+        "/api/v1/conversation/session", json={"sessionId": session_id}
+    )
+    assert session_restore.status_code == 200
+    restored_records = session_restore.json()["correctionRecords"]
+    assert len(restored_records) == 1
+    assert restored_records[0]["correction_id"] == record["correction_id"]
+
     chat = CapturingOllama()
     app.dependency_overrides[get_ollama_client] = lambda: chat
     continued = client.post(
