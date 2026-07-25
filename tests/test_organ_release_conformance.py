@@ -542,13 +542,13 @@ def test_verify_organ_contracts_strict_release_reports_organs_not_yet_release_gr
 # --- CLI wiring -----------------------------------------------------------
 
 
-def test_launcher_organ_check_strict_passes_when_all_organs_green(
+def test_launcher_organ_check_strict_fails_until_all_organs_green(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     config = launcher.LauncherConfig.from_environment(profile="development")
-    assert launcher.organ_check(config, strict=True, as_json=True) == 0
+    assert launcher.organ_check(config, strict=True, as_json=True) == 1
     payload = json.loads(capsys.readouterr().out)
-    assert payload["all_green"] is True
+    assert payload["all_green"] is False
     assert payload["yellow_count"] == sum(
         1 for r in load_ledger(LEDGER_PATH) if r.status == "yellow"
     )
