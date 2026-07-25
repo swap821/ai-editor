@@ -8,7 +8,6 @@ the exact same active snapshot from a single authority.
 from __future__ import annotations
 
 import threading
-from typing import Optional
 
 from aios.domain.governance.constitution import (
     ConstitutionSnapshotV1,
@@ -22,12 +21,16 @@ from aios.infrastructure.governance.constitution_snapshot_store import (
 class ConstitutionAuthority:
     """Authority for active constitution snapshot retrieval and activation."""
 
-    def __init__(self, store: ConstitutionSnapshotStore, *, constitution_id: str | None = None) -> None:
+    def __init__(
+        self, store: ConstitutionSnapshotStore, *, constitution_id: str | None = None
+    ) -> None:
         self.store = store
         self.constitution_id = constitution_id
         self._lock = threading.Lock()
 
-    def get_active_snapshot(self, ratified_by_operator_id: str = "system") -> ConstitutionSnapshotV1:
+    def get_active_snapshot(
+        self, ratified_by_operator_id: str = "system"
+    ) -> ConstitutionSnapshotV1:
         with self._lock:
             cid = self.constitution_id or f"constitution:{ratified_by_operator_id}"
             snapshot = self.store.get_current(cid)

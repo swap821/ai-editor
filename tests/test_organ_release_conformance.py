@@ -555,7 +555,6 @@ def test_launcher_organ_check_strict_passes_when_all_organs_green(
     assert payload["conformant"] is True
 
 
-
 def test_launcher_organ_check_non_strict_passes_with_truthful_yellow_baseline(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

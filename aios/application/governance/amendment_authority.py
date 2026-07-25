@@ -99,7 +99,9 @@ def simulate_amendment(
 
 def _touches_foundation_law(proposal: ConstitutionalAmendmentProposalV1) -> bool:
     haystack = " ".join((proposal.proposed_diff, *proposal.target_articles)).lower()
-    law_id_markers = tuple(f"law_{i}" for i in range(1, 7)) + tuple(f"law {i}" for i in range(1, 7))
+    law_id_markers = tuple(f"law_{i}" for i in range(1, 7)) + tuple(
+        f"law {i}" for i in range(1, 7)
+    )
     if any(marker in haystack for marker in law_id_markers):
         return True
     return any(law.lower() in haystack for law in FOUNDATION_LAWS)
@@ -211,7 +213,6 @@ def rollback_amendment(
             "previous_snapshot is not the exact predecessor of current_snapshot"
         )
     return proposal.model_copy(update={"status": "rolled_back"}), previous_snapshot
-
 
 
 __all__ = [

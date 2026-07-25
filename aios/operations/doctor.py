@@ -131,7 +131,9 @@ def _backup_check(*, production: bool, backup_dir: Path) -> DoctorCheck:
             f"no backup archive found in {backup_dir}",
             required=production,
         )
-    newest = max(backup_dir.glob("gagos-*.tar.gz"), key=lambda path: path.stat().st_mtime)
+    newest = max(
+        backup_dir.glob("gagos-*.tar.gz"), key=lambda path: path.stat().st_mtime
+    )
     if age_seconds > BACKUP_STALE_AFTER_SECONDS:
         age_days = int(age_seconds // 86400)
         return _check(
