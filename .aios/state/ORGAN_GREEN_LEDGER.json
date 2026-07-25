@@ -421,7 +421,7 @@
   {
     "organ_id": 23,
     "name": "Release Conformance Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ReleaseConformanceAuthority",
     "production_entrypoints": [
       "scripts/build_release_manifest.py",
@@ -434,8 +434,10 @@
       "tests/test_organ_release_conformance.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Ledger established at this baseline (Slice 25); the strict gate stays non-green until every organ below turns green and Slice 40 final release proof lands."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
@@ -464,7 +466,7 @@
   {
     "organ_id": 25,
     "name": "Constitutional Kernel",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ConstitutionalKernelAuthority",
     "production_entrypoints": [
       "aios/domain/governance/constitution.py",
@@ -478,11 +480,12 @@
       "tests/test_constitution.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Integrity correction: a commit on this branch (25ad041, \"PR 2-8: Complete 54-Organ Production Baseline\") claimed this organ green (\"a real decision path now rejects execution on a constitution-digest mismatch\" via a new PolicyKernel.constitution_snapshot()\"), but grepping the whole repository for constitution_authority= found ZERO real production call sites: all three genuine PolicyKernel construction sites (aios/policy/kernel.py's own get_kernel() singleton, aios/core/executor.py's Executor.__init__, aios/application/governance/runtime_proof.py's _probe_mutation_authority) construct PolicyKernel WITHOUT constitution_authority=, so self.constitution_authority is None in every real running instance -- constitution_snapshot() therefore ALWAYS falls through to its fallback, build_constitution_snapshot(ratified_by_operator_id=\"operator\"), which fabricates a hardcoded, non-authenticated operator_id rather than deriving one from a real principal. get_constitution_authority() (aios/api/deps.py) is likewise never called anywhere outside its own definition. The new ConstitutionAuthority class (aios/application/governance/constitution_authority.py) is real, durable, and its own isolated tests pass, but it is dead code from production's point of view -- a real building block, not a closed gap. The organ's pre-existing gap (PolicyKernel still reads the legacy aios.policy.constitution.Constitution facade; every caste/routing/security check in the kernel depends on that facade's specific shape) remains exactly as large as previously documented. CapabilityAuthority.consume()'s own constitution-digest mismatch rejection (a genuinely separate, real mechanism, unaffected by this) still stands."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
-
   {
     "organ_id": 26,
     "name": "Emergency Stop Organ (full boundary hard-wiring)",
@@ -516,7 +519,7 @@
   {
     "organ_id": 27,
     "name": "Operator Taste Model",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "OperatorTasteModelAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -537,14 +540,16 @@
       "tests/test_operator_preferences_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "PR1 (organ 27 closure): OperatorPreferenceStore previously had zero production callers -- get_operator_preference_store() (aios/api/deps.py) now wires it through the SAME canonical SemanticFacts instance every other real personalization write already uses, and a real route (aios/api/routes/preferences.py: POST/GET /api/v1/preferences, GET /api/v1/preferences/active, POST /api/v1/preferences/{id}/withdraw) is the first production caller. Capture is restricted to explicit preferences structurally (source_type is always \"explicit_user\"; no request field can set anything else). Real, tested support added for expiry (is_operator_preference_expired), withdrawal (OperatorPreferenceStore.withdraw() -- a status=\"withdrawn\" sidecar transition; it does not retract the underlying SemanticFacts row, so a genuinely different value for the same domain+key+scope after withdrawal still resolves through the existing POST /api/v1/memory/facts/reconcile), and restart recovery. Two real, previously-latent bugs were found and fixed while building this: (1) the contradiction-check subject omitted scope (operator.<domain>.<key>), so two preferences correctly isolated by list_for_scope would have spuriously collided the instant they disagreed -- scope is now part of that subject; (2) save() digested the REQUESTED confidence even when SemanticFacts.add_fact()'s idempotent path left the actual stored confidence unchanged, producing a permanent false RecordTamperedError on the next read after a re-save with a different confidence -- save() now re-reads the actual stored fact before digesting. Stays yellow for the same reason organ 31's and organ 32's own ledger rows already document: no production conversational call site exists yet to thread list_active_for_scope() into Organ 31's active_preferences parameter -- the only real caller of that parameter (aios/council/gateway_reasoning.py) deliberately doesn't need it, and chat's real personalization path (_operator_facts_block) is a separate, lower-level mechanism. Not fabricated as closed; see organ 31/32's blockers for the (already-tracked) root cause."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 28,
     "name": "Project Understanding Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProjectUnderstandingAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -561,14 +566,16 @@
       "tests/test_project_passport.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "PR1 (organ 28 closure): the \"last scanned project\" pointer previously lived only in process-local module globals (_LAST_PROJECT_PASSPORT_SCAN / _LAST_PROJECT_PASSPORT_ID in aios/api/routes/projects.py) -- silently forgotten on every restart even though the scan history itself was already durable. A new singleton-row table (migration 0016, active_project_pointer) plus ProjectPassportStore.set_active()/get_active() now persist it; project_passport_status() reads the durable pointer instead of the removed globals. Added a real, computed diff_project_passports() (scalar-field, set-field, and commands changes) between the previous durable revision and the one just scanned -- never a fabricated \"nothing changed\" when there was no previous revision -- exposed on every scan as passportDiff. Stays yellow for the same reason organ 31/32's own ledger rows already document: no production conversational call site threads the active passport into Organ 31's project_passport parameter -- Council (the only real caller) doesn't need it, and no chat-facing consumer exists yet. Not fabricated as closed."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 29,
     "name": "Correction and Interpretation-Lineage Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "CorrectionLineageAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -588,14 +595,16 @@
       "tests/test_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "PR1 (organ 29 closure): build_correction_record_v1()/CorrectionRecordV1 previously had zero production callers -- the real POST /api/v1/conversation/correction route (aios/api/routes/memory.py) now builds a typed, digest-verified CorrectionRecordV1 via record_correction_and_build_v1() on every real correction and durably records it through a new CorrectionRecordStore (append-only, digest-verified), returned to the caller as correctionRecord/correctionRecords. operator_id is captured best-effort via get_optional_principal() -- honestly recorded None rather than a fabricated identity when the session has no authenticated Human Sovereign principal bound to it. grants_authority stays pinned False at the type level (a correction changes the recorded interpretation, never what is authorized) -- proven by test. Stays yellow for the same reason organ 31/32's own ledger rows already document: no production conversational call site threads the newest valid correction into Organ 31's latest_correction parameter -- Council (the only real caller) doesn't need it, and no chat-facing consumer exists yet. Not fabricated as closed."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 30,
     "name": "Communication and Human-State Interpreter",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "HumanStateInterpreterAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -616,14 +625,16 @@
       "frontend/src/workbench/GagosChrome.voice.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "PR1 (organ 30 closure, fixing the exact bug named for this pass): migration 0013 stored a correction by MUTATING corrected_state/corrected_at columns directly on the original hypothesis row, while the row's own record_digest kept authenticating only the ORIGINAL hypothesis fields -- corrections were silently overwriteable (a second correction just overwrote the first, with no history) and sat outside the tamper check entirely (the digest never covered corrected_state/corrected_at, so tampering them left the digest valid). Migration 0014 replaces this with a genuinely append-only, digest-verified human_state_corrections table (one row per correction event, never mutated), joined to its hypothesis by row id (hypothesis_id) rather than content digest -- a content-digest join was tried first and rejected: two hypotheses with identical content on different turns produce the SAME digest, which silently collapsed two distinct corrections into one accuracy-report bucket (caught by a new regression test before it shipped). Each correction row is bound to the authenticated operator via get_optional_principal() -- recording None honestly when no principal is bound, never a fabricated identity -- and accuracy_report() now aggregates only the newest valid correction per hypothesis. A live tamper-detection regression test directly mutates the new table and confirms RecordTamperedError is raised, closing exactly the gap the operator named. Stays yellow: the deterministic classifier itself still has not been measured against real production operator traffic -- the corrections table (now genuinely tamper-evident) is exactly the mechanism that will let that happen as real traffic accumulates, but no such traffic exists yet in this sandbox; a genuine, not-fabricatable gap, not a wiring gap."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 31,
     "name": "Human Representative Context Compiler",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "RepresentativeContextCompilerAuthority",
     "production_entrypoints": [
       "aios/domain/intelligence/representative_context.py",
@@ -640,14 +651,16 @@
       "tests/test_intelligence_gateway.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Reconciliation note (this pass): this ledger row itself was stale -- the Tier 4 pass (commit 71ad30e) narrowed organ 31 in docs/architecture/GAGOS_54_ORGANS.md (exposing gateway_reasoning.py's previously-discarded context_digest as a real last_context_digest attribute) but never updated this JSON row, which still read the pre-Tier-4 'nothing calls this compiler yet' text -- a genuine drift between the doc and the ledger, caught and corrected here rather than perpetuated. This pass closes organ 31's durable-state gap: every RepresentativeContextV1 that passes identity/constitution/emergency-stop validation is now durably recorded by a new, append-only RepresentativeContextStore (migration 0011, scope 'intelligence'), wired directly inside route_intelligence_request()/stream_intelligence_request() (aios/application/intelligence/gateway.py) so every current and future gateway caller gets audit persistence for free, not just Council's. Tamper detection reuses the context's own canonical digest formula via a new context_digest_from_record() helper. Recording is best-effort (never blocks an already-governed call), matching _record_human_state()'s (organ 30) established convention. Still missing, honestly: the only real production caller today (GatewayRoutedCouncilLLMClient) compiles a context with empty active_preferences/project_passport/latest_correction -- Council's own prompts are self-contained JSON-instruction strings that don't need operator-preference injection, so this is a deliberate, not an accidental, gap. Meaningfully exercising the compiler with REAL human-representation data (not empty defaults) requires wiring it into a general-conversation call site (chat), which is organ 32's own named, deliberately-deferred gap -- see organ 32's blocker for why that wiring was not attempted in this pass either."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 32,
     "name": "Universal Intelligence Gateway",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "UniversalIntelligenceGatewayAuthority",
     "production_entrypoints": [
       "aios/application/intelligence/gateway.py",
@@ -661,15 +674,16 @@
       "tests/architecture/test_intelligence_boundary.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Reconciliation pass item 2 (prompted by an explicit operator request to reconcile organs 40/41, which surfaced this as the natural next item): Council Planner/King LLM reasoning is now genuinely routed through route_intelligence_request() via aios/council/gateway_reasoning.py -- the first production wiring of route_intelligence_request() outside its own tests, and the first production wiring of Council's LLM slots at all (both PlannerQueen.__init__(llm=...) and CouncilOrchestrator's king_complete= were previously always None in every real construction site; grep-confirmed zero production hits before this). Every Council completion is now emergency-stop gated and produces a real, auditable context_digest. Investigated and fixed a real regression this surfaced: test_council_origination.py/test_royal_decree.py exercised this newly-live path with COUNCIL_REASONING=True and a real enrolled test operator, making a real ~11s Ollama call -- neutralized with config.COUNCIL_REASONING=False in those tests' setup, matching test_api.py's established FakeLLM-override convention for exactly this class of problem. Still not universal (this organ's own name): chat (/api/v1/chat) and the agentic forge (/api/generate) remain unwired -- both are STREAMING call sites (stream_chat_chunks/ToolAgent.run), while route_intelligence_request()'s model_call callback is synchronous request/response only. Wiring those would mean giving up token-by-token streaming unless the gateway grows a streaming variant first -- deliberately not attempted in this pass rather than accepting that UX regression silently. The two other competing gateway-shaped implementations (aios.runtime.intelligence_gateway.IntelligenceGateway, aios.application.models.hiring_service.IntelligenceHiringService) also remain unreconciled. Reconciliation note (this pass): organ 31's new RepresentativeContextStore is wired inside this organ's own module (aios/application/intelligence/gateway.py), so both existing entrances (route_intelligence_request()/stream_intelligence_request()) now durably record every context they compile, not just log-and-discard it -- a real, if modest, strengthening of this organ's own evidence trail. Chat (/api/v1/chat) and the agentic forge (/api/generate) remain genuinely unwired: chat's real hot-path call (aios/application/turns/conversation_pipeline.py::stream_conversation()) has no authenticated operator/constitution digest available today by design (anonymous local chat must keep working), and it is the single most heavily used endpoint in the whole system -- rewiring it without a live browser session to verify no UX regression was deliberately not attempted in this pass, consistent with every prior pass's own risk assessment of this exact call site. The two other competing gateway-shaped implementations (aios.runtime.intelligence_gateway.IntelligenceGateway, aios.application.models.hiring_service.IntelligenceHiringService, the latter confirmed load-bearing for real worker plan/repair reasoning and the hiring flow) also remain unreconciled -- not attempted here, same regression-risk reasoning as the operator's own prior scope decision."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
-
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -682,11 +696,12 @@
       "tests/test_runtime_intelligence_gateway.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "ModelPassportV1 now exists (typed, evidence-backed shape: qualified_roles/disallowed_roles/tool_protocol_status/admission_status) wrapping the existing aios.core.router.Provider pure-data model with the role-scoped admission concept it does not carry. is_admitted_for_role()/can_drive_tools()/is_stale_for_version() are real, deterministic checks. Still missing: nothing actually runs a qualification suite yet -- every ModelPassportV1 in this codebase must be hand-constructed; real qualification against the live granite3.2:2b Ollama model is Slice 32, and no durable store persists a passport across restarts.\nReconciliation pass item 4: the same live-registry drift documented in organ 37 lives here too -- ModelPassportV1's admission concept is real and typed, but the actual running LocalWorkforceRegistry (data/aios_memory.db, this machine's genuine operational state) is a separate, older, untyped admission store (local_worker_models table, allowed_job_profiles_json) that was found claiming an evidence-contradicted admission for granite3.2:2b -- corrected using the new aios/application/local_workforce/qualification_evidence.py (see organ 37). These two admission concepts (ModelPassportV1 vs. LocalWorkforceRegistry) still are not unified into one authority -- a real, separate architectural gap this item did not attempt to close."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
-
   {
     "organ_id": 34,
     "name": "Cloud Budget and Provider-Health Organ",
@@ -735,7 +750,7 @@
   {
     "organ_id": 36,
     "name": "Clerical Job Contract and Dispatcher",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ClerkDispatcherAuthority",
     "production_entrypoints": [
       "aios/application/local_workforce/dispatcher.py"
@@ -747,8 +762,10 @@
       "tests/test_local_workforce_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "dispatch_clerical_job() now exists: deterministic code always wins first (Granite is never consulted when a parser can already answer), an unqualified or failed-qualification model always escalates to frontier regardless of self-reported confidence, and only a qualified model's own low-confidence result routes to a human. Still missing: nothing in aios.application.local_workforce.service.LocalWorkforceService (the real production run_advisory_job() path) calls this dispatcher yet -- it is a standalone, tested decision function, not wired into the live request path."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
@@ -777,7 +794,7 @@
   {
     "organ_id": 38,
     "name": "Durable Local-Clerk Provenance and Continuity Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ClerkProvenanceAuthority",
     "production_entrypoints": [
       "aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py",
@@ -795,8 +812,10 @@
       "tests/test_launcher.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Reconciliation pass item 3: the organ's own stated gap -- 'LocalWorkforceService.run_advisory_job() doesn't call this store yet, so no real job is persisted in production' -- is now resolved. run_advisory_job() is a thin wrapper around the original logic (renamed _execute_advisory_job, body byte-for-byte unchanged, zero validation-logic risk) that records every real job's request, model call, and result via LocalWorkforceProvenanceStore once execution completes -- honestly, including refusals (no admitted model) and schema-validation failures, not only successes. get_local_workforce_service() (aios/api/deps.py) now constructs and injects a real store at config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH (new config constant), so this is genuinely live in the production DI path, not just available. Fail-safe by construction: provenance_store defaults to None and recording is skipped entirely when absent, matching every other optional-dependency pattern in this codebase. New tests/test_local_workforce_service_provenance.py (5 tests: no-store no-op, successful job recorded, rejection recorded, schema-failure recorded, two jobs don't collide). While grounding this, found and reported (not fixed here, flagged as a separate task) a real pre-existing bug unrelated to this change: three tests in test_r15_new_blockers.py's TestBlocker9LocalJobSchema silently never exercised the schema-validation code they claim to test, because a bare MagicMock() registry always satisfies hasattr(registry, 'dependency'), triggering a real-registry fallback that made every job 'rejected' rather than 'failed' -- their weak assertion (status != 'completed') passed either way. Still missing: dispatch_clerical_job() (Slice 32) itself remains unwired -- a full integration needs a QualificationResult tracked per model, which isn't stored anywhere in the registry today; inventing that under time pressure was deliberately not attempted here rather than forcing a shallow/fake integration."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
@@ -888,7 +907,7 @@
   {
     "organ_id": 42,
     "name": "Recovery and Resumption",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "RecoveryResumptionAuthority",
     "production_entrypoints": [
       "aios/api/routes/council.py",
@@ -908,8 +927,10 @@
       "tests/test_maintenance_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "This pass closes the prerequisite the prior update named precisely: MissionService.request_approval_direct() (DRAFT -> AWAITING_APPROVAL via the pre-existing but previously-unused MissionTransition.DIRECT_REQUEST_APPROVAL) plus a real POST /api/v1/maintenance/repairs/{mission_id}/approve route now let a maintenance repair mission reach APPROVED through a real, privileged-operator-gated HTTP call -- tests/test_maintenance_api.py's own end-to-end test was rewritten to use this route instead of calling MissionService.approve() directly in-process, closing the exact bypass the prior update's own text named. A real, previously-latent bug was found and fixed while wiring this: three maintenance routes checked 'if record is None' against SqliteMissionRepository.get(), which raises MissionNotFoundError rather than returning None -- an unknown mission_id was an uncaught 500, not the intended 404; extracted a shared _get_mission_or_404() helper. Still missing: MissionTransitionJournal itself is not yet wired into MaintenanceConvergenceService.run_approved_repair() the way it already is into CouncilOrchestrator -- that wiring (11 states across ~6 internal steps) is now genuinely unblocked (the APPROVED-transition prerequisite this ledger previously named is closed) but was not attempted in the same pass as the prerequisite itself, to keep this an honest, single-purpose slice rather than two changes bundled together."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
@@ -939,7 +960,7 @@
   {
     "organ_id": 44,
     "name": "Golden Mission and Endurance Evaluation",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "GoldenMissionEnduranceAuthority",
     "production_entrypoints": [
       "tests/test_golden_analysis.py",
@@ -952,11 +973,12 @@
       "tests/test_e2e_sovereign_flywheel.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "The brief's golden release cohort (12 governed frontier missions across 2 real cloud providers, 4 candidate skills, 3 verified local reuses each, forced-refusal/version-drift-suspension/failed-reuse-demotion/human-revocation/cloud-outage/uncertain-escalation cases) requires hours of real governed mission execution against live frontier providers. Checked realistically rather than assumed: this is not achievable or appropriate to run autonomously in this environment/pass -- it needs real cloud credentials, real mission budgets, and genuine multi-hour wall-clock execution, not something to simulate or fake. Recorded honestly as not attempted, not silently skipped. The individual mechanisms this cohort would exercise (demotion, revocation, suspension) are real and unit-tested in organ 43; what's missing is the live, expensive, end-to-end proof run itself."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
-
   {
     "organ_id": 45,
     "name": "Constitutional Amendment Authority",
@@ -986,13 +1008,13 @@
     ],
     "live_evidence": [],
     "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 46,
     "name": "Constitutional Learning Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ConstitutionalLearningAuthority",
     "production_entrypoints": [
       "aios/domain/governance/learning.py",
@@ -1014,11 +1036,12 @@
       "tests/test_governance_lesson_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Tier 4 follow-on (operator-directed 'I want 30 and 46 production grade ready'): the 9 named adversarial simulations are no longer a caller-trusted catalog -- aios/application/governance/adversarial_simulations.py's run_adversarial_simulations() runs every one for real against a proposal's own text plus a live probe of the production mechanism each check protects: CapabilityAuthority (issued against an ephemeral temp-file store) for approval_bypass/capability_replay, EmergencyStopController (ephemeral latch, stub hooks) for emergency_stop_interference/model_self_protection, PrivacyBroker for privacy_widening, rollback_amendment for reduced_human_reversibility, CorrectionRecordV1's pinned grants_authority=Literal[False] for memory_as_truth_confusion, the failover layer's provider classes (via a new public known_provider_classes() accessor) for provider_lock_in, and assert_never_reduces_human_authority for authority_escalation. Every live probe is either strictly read-only or runs against a throwaway, in-process fixture -- never the live system's persisted capability, emergency-stop, or constitution state, since a text amendment proposal must never be applied to a live system to 'test' it. POST .../lessons/check-simulations now takes a proposal_id, looks it up, and runs the real checks itself instead of trusting caller-supplied results; the response includes the full per-check breakdown. Proven with a dedicated test module exercising each of the 9 checks' pass/fail paths directly, plus rewritten HTTP-level tests proving a caller can no longer assert a passing result for a proposal that actually reduces provider diversity or blocks rollback. Stays yellow, honestly: this is a real, non-trivial automated floor, not a full human red-team exercise -- a proposal that avoids every named textual marker while still being substantively unsafe in a way none of the 9 live probes happens to catch would still need human judgment at ratification, exactly as Slice 37 already requires."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
-
   {
     "organ_id": 47,
     "name": "Read-Model and Projection Organ",
@@ -1140,7 +1163,7 @@
   {
     "organ_id": 52,
     "name": "Observability and Health Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ObservabilityAuthority",
     "production_entrypoints": [
       "aios/api/main.py",
@@ -1160,14 +1183,16 @@
       "tests/test_executor_client.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "This pass closes the Docker executor boundary the prior update named as genuinely separate, not-yet-attempted work. Three real hops now carry the same correlation ids, each tested in isolation: (1) StructuredExecutorClient.execute() sends get_trace_context().headers() on its HTTP request into the executor service -- previously sent nothing but Accept/Authorization/Content-Type; (2) aios/executor_service.py's execute_job() reads those incoming headers and binds a TraceContext for the duration of the job's dispatch; (3) aios.core.executor.DockerRunner.__call__ (the subprocess.Popen boundary the prior update named) now reads get_trace_context() and adds it as fixed --env entries in the spawned container's argv, deliberately kept separate from the job's own security-reviewed environment_allowlist mechanism, which this must not bypass or widen. New TraceContext.as_env() reshapes the same non-empty header values into env-var names (AIOS_TRACE_REQUEST_ID, etc.) for the subprocess hop, distinct from headers() used for the HTTP hop. Still missing, honestly: this sandbox has no live Docker daemon (confirmed via docker ps failing), so the full chain is proven correct at each hop via injected fakes/spies (matching this file's own established process_runner override pattern), not via one real end-to-end run through an actual spawned container -- that live confirmation is the same category of gap organ 40 named and later closed once CI's own Docker-enabled runner ran it, not something this sandbox can produce on its own."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 53,
     "name": "Installation, Configuration and Key Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "InstallationConfigurationAuthority",
     "production_entrypoints": [
       "aios/domain/security/api_token.py",
@@ -1184,8 +1209,10 @@
       "tests/test_security_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
-    "last_verified_sha": "08d5d115c6d216f67c04792d87588c47d5c3963a",
+    "known_blockers": [
+      "Key rotation and a bounded grace period are now real (operator-confirmed design: grace-period overlap, not an immediate hard cutover). New ApiTokenAuthority (aios/application/security/api_token_authority.py) issues a fresh API bearer token via a new POST /api/v1/security/api-token/rotate route; the token it supersedes keeps working for a caller-chosen grace period (default 3600s) so an already-running client is not broken the instant rotation happens, then stops validating once the window elapses -- proven with a fake-clock unit test, not just asserted. config.API_TOKEN (the env-configured value) stays unconditionally valid exactly as before this organ existed -- the operator retires it the normal way, by restarting with a different env var; this authority only owns tokens issued through an explicit rotate() call, layered on top, so every pre-existing test and behavior around the static token is unchanged. A real regression was caught and fixed before shipping: an early draft cached config.API_TOKEN's value inside the long-lived authority singleton at first construction, so a test elsewhere in the suite that temporarily reassigns config.API_TOKEN would permanently poison every later, unrelated test in the same process -- caught by real adversarial-suite regressions (tests/adversarial/test_api_security.py), not by a test written for this change; fixed by making the authority stateless with respect to config.API_TOKEN (every method takes it fresh as an argument) rather than caching it. Still missing: 'truthful Ollama-absence handling' -- the other named half of this organ's original blocker -- has no further specification anywhere in the repo beyond that one paraphrased sentence, and is an unrelated concern (local-model availability reporting, not credential rotation); not investigated or built in this pass."
+    ],
+    "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
