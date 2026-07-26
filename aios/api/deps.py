@@ -78,6 +78,10 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
+from aios.application.governance.constitution_authority import (
+    ConstitutionAuthority,
+    get_constitution_authority as _get_constitution_authority,
+)
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConstitutionSnapshotStore,
 )
@@ -573,6 +577,10 @@ def get_identity_service() -> IdentityService:
             _identity_service = IdentityService(
                 identity_db_path=config.IDENTITY_DB_PATH,
                 session_db_path=config.SESSION_DB_PATH,
+                # Explicit, so production really does have ONE authority
+                # object shared with the policy kernel and capability
+                # authority -- not merely several pointed at one file.
+                constitution_authority=get_constitution_authority(),
             )
     return _identity_service
 
@@ -677,15 +685,19 @@ def get_constitution_snapshot_store() -> ConstitutionSnapshotStore:
 
 
 def get_constitution_authority() -> ConstitutionAuthority:
-    """Provide the single ConstitutionAuthority owner singleton (organ 25)."""
-    global _constitution_authority
-    if _constitution_authority is not None:
-        return _constitution_authority
-    with _constitution_authority_lock:
-        if _constitution_authority is None:
-            store = get_constitution_snapshot_store()
-            _constitution_authority = ConstitutionAuthority(store)
-    return _constitution_authority
+    """Provide the single ConstitutionAuthority owner singleton (organ 25).
+
+    Delegates to the authority module's own singleton rather than caching a
+    second instance here. The non-HTTP construction sites (``get_policy_
+    kernel``, ``Executor.__init__``, the runtime proof) cannot import this
+    module without a cycle, so a local cache would mean "one authority per
+    entry point" -- which is the thing organ 25 exists to eliminate.
+
+    This function previously referenced ``ConstitutionAuthority`` without the
+    module ever importing it, so calling it raised ``NameError``. That it
+    survived undetected is itself the proof it had no callers.
+    """
+    return _get_constitution_authority()
 
 
 
@@ -781,6 +793,8 @@ def get_capability_authority() -> CapabilityAuthority:
     """Provide the server-issued exact capability authority."""
     if _CAPABILITIES.emergency_stop is None:
         _CAPABILITIES.emergency_stop = get_emergency_stop()
+    if _CAPABILITIES.constitution_authority is None:
+        _CAPABILITIES.constitution_authority = get_constitution_authority()
     return _CAPABILITIES
 
 

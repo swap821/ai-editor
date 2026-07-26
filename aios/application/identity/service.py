@@ -11,6 +11,9 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
+from aios import config
 from aios.core.session_manager import SessionManager
 from aios.domain.identity.models import (
     AuthenticationResult,
@@ -19,6 +22,11 @@ from aios.domain.identity.models import (
     PrincipalType,
 )
 from aios.infrastructure.identity.sqlite_store import IdentityStore, credential_digest
+
+if TYPE_CHECKING:
+    from aios.application.governance.constitution_authority import (
+        ConstitutionAuthority,
+    )
 
 
 class IdentityError(RuntimeError):
@@ -54,9 +62,42 @@ class IdentityService:
         *,
         identity_db_path: str | Path,
         session_db_path: str | Path,
+        constitution_authority: "ConstitutionAuthority | None" = None,
     ) -> None:
         self.store = IdentityStore(identity_db_path)
         self.sessions = SessionManager(store_path=session_db_path)
+        if constitution_authority is None:
+            # Default to an authority backed by THIS service's own identity
+            # store. That is deliberate, and stronger than accepting an
+            # injected one unconditionally: the authority's enrollment check
+            # and this service's own view of "who is enrolled" then cannot
+            # disagree, because they are literally the same store. An
+            # authority wired to a different identity store could refuse a
+            # principal this service just authenticated.
+            from aios.application.governance.constitution_authority import (
+                ConstitutionAuthority,
+            )
+            from aios.infrastructure.governance.constitution_snapshot_store import (
+                ConstitutionSnapshotStore,
+            )
+
+            constitution_authority = ConstitutionAuthority(
+                ConstitutionSnapshotStore(config.CONSTITUTION_SNAPSHOT_DB_PATH),
+                identity_store=self.store,
+            )
+        self._constitution_authority = constitution_authority
+
+    @property
+    def constitution_authority(self) -> "ConstitutionAuthority":
+        """The authority that stamps this service's Principals.
+
+        Exposed so callers that hold an authenticated Principal from THIS
+        service resolve the constitution through the same authority that
+        stamped it. Reaching for the process singleton instead would let a
+        caller check a principal against an identity store that never enrolled
+        it -- which surfaces as a spurious "operator identity changed" refusal.
+        """
+        return self._constitution_authority
 
     def is_enrolled(self) -> bool:
         return self.store.operator() is not None
@@ -237,8 +278,7 @@ class IdentityService:
             authentication_event_id=event_id,
         )
 
-    @staticmethod
-    def _principal_from_session(session_cookie: str, session) -> Principal:
+    def _principal_from_session(self, session_cookie: str, session) -> Principal:
         authenticated_at = datetime.fromtimestamp(session.created_at, tz=timezone.utc)
         operator_id = str(session.data["operator_id"])
         return Principal(
@@ -258,25 +298,23 @@ class IdentityService:
                 "authentication_event_id": session.data.get("authentication_event_id")
             },
             session_generation=int(session.data.get("session_generation") or 0),
-            constitution_digest=IdentityService._current_constitution_digest(
-                operator_id
-            ),
+            constitution_digest=self._current_constitution_digest(operator_id),
         )
 
-    @staticmethod
-    def _current_constitution_digest(operator_id: str) -> str:
-        """Stamp the digest of the constitution active right now.
+    def _current_constitution_digest(self, operator_id: str) -> str:
+        """Stamp the digest of the constitution active right now (Organ 25).
 
-        Slice 26 note: this snapshot is rebuilt fresh from live config on
-        every call (matching `aios.policy.constitution.build_constitution`'s
-        existing convention) rather than read from a durably persisted,
-        version-chained store. Durable ratification with a persisted
-        `previous_snapshot_digest` chain across process restarts is
-        Slice 37's Constitutional Amendment Authority; until then this is an
-        honest per-process digest, not a cross-restart-stable one.
+        This used to rebuild a snapshot from live config on every call, which
+        always produced version 1 regardless of any ratified amendment. The
+        consequence was not merely a stale display value: because
+        `CapabilityAuthority.consume()` compared a binding's digest against a
+        digest rebuilt the same way, both sides always agreed and the
+        "capability issued under a stale constitution" rejection could never
+        fire for a real amendment.
+
+        It now reads the durable chain, so an activated amendment reaches
+        every capability minted afterwards.
         """
-        from aios.domain.governance.constitution import build_constitution_snapshot
-
-        return build_constitution_snapshot(
-            ratified_by_operator_id=operator_id
+        return self._constitution_authority.get_active_snapshot(
+            operator_id
         ).snapshot_digest

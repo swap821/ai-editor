@@ -25,6 +25,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 import _pytest.pathlib as pytest_pathlib
+import pytest
 
 # Patch TestClient to always include a local Origin so mutation protection allows it
 from fastapi.testclient import TestClient
@@ -189,3 +190,39 @@ atexit.register(shutil.rmtree, _PYTEST_SESSION_ROOT, ignore_errors=True)
 # a 32-char production signing key.  In production, this env var is NOT set, so
 # the authority classes will refuse an unset or short key (Blocker 13 fix).
 os.environ.setdefault("AIOS_TEST_SIGNING_KEYS_ALLOWED", "1")
+
+
+@pytest.fixture(autouse=True)
+def _reset_constitution_singletons():
+    """Drop the process-wide constitution/kernel singletons around every test.
+
+    `AIOS_DATA_DIR` above is session-scoped, so without this the FIRST test to
+    touch `get_policy_kernel()` pins `_KERNEL.constitution_authority` to
+    whatever authority existed at that moment, for the rest of the pytest run.
+    A later test's `app.dependency_overrides[get_constitution_authority]` only
+    reaches FastAPI's own DI graph -- it never reaches that cached kernel, so
+    an assertion about the kernel's constitution could pass by reading another
+    test's accumulated chain rather than the activation under test.
+
+    That failure mode is silent and order-dependent: the test still goes
+    green, for the wrong reason. Resetting makes each test start from a clean
+    constitutional world.
+
+    `aios.policy.kernel._KERNEL` is deliberately NOT reset here. Doing so
+    measured ~20% slower across the suite (test_api.py alone went 1m57 ->
+    2m20) because every kernel rebuild re-opens the rate-limiter and autonomy
+    databases and re-runs migrations. A test that overrides the constitution
+    authority AND asserts on what the kernel serves must call
+    `aios.policy.kernel.reset_policy_kernel()` itself.
+    """
+    from aios.application.governance import constitution_authority as _ca
+
+    def _reset() -> None:
+        _ca.reset_constitution_authority()
+        import aios.api.deps as _deps
+
+        _deps._constitution_snapshot_store = None
+
+    _reset()
+    yield
+    _reset()

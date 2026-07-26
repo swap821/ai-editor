@@ -136,6 +136,9 @@ from aios.core.router_wiring import (
 from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.governance import EmergencyStopError
+from aios.application.governance.constitution_authority import (
+    ConstitutionAuthorityError,
+)
 from aios.application.identity.service import IdentityDegraded
 from aios.api.action_guard import enforce_action_boundary
 from aios.domain.actions.envelope import (
@@ -340,6 +343,29 @@ async def _identity_degraded_handler(
     return JSONResponse(
         status_code=503,
         content={"detail": f"identity service degraded: {exc}"},
+    )
+
+
+@app.exception_handler(ConstitutionAuthorityError)
+async def _constitution_degraded_handler(
+    request: Request, exc: ConstitutionAuthorityError
+) -> JSONResponse:
+    """Organ 25: one centralized 503 for every fail-closed constitution state.
+
+    Mirrors the IdentityDegraded handler above, and for the same reason: the
+    constitution is resolved from many call sites (the policy kernel,
+    capability consumption, every Principal stamp, the mirror projection), and
+    each of them must produce the same honest answer rather than a 500 that
+    reads like a bug.
+
+    Covers all three subclasses -- no enrolled sovereign, an operator identity
+    that has changed since a session or capability was minted, and a store
+    that is unreadable or holds a tampered row. In every case no NEW action
+    can be authorized, because there is no constitution to authorize it under.
+    """
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"constitution unavailable: {exc}"},
     )
 
 

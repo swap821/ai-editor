@@ -240,11 +240,48 @@ def test_feature_enabled_reads_config(kernel, monkeypatch):
     assert kernel.feature_enabled("earned_autonomy") is False
 
 
-def test_constitution_snapshot(kernel):
+def test_constitution_snapshot(tmp_path):
+    """Organ 25: the kernel serves the durable chain, never a rebuild.
+
+    This test previously passed against a kernel with NO authority wired,
+    because `constitution_snapshot()` fabricated one ratified by a hardcoded
+    "operator" string. It asserted only shape -- digest length and law count --
+    which a fabricated snapshot satisfies just as well as a real one. It now
+    asserts identity: the digest must be the one the authority actually holds.
+    """
+    from aios.application.governance.constitution_authority import (
+        ConstitutionAuthority,
+    )
+    from aios.infrastructure.governance.constitution_snapshot_store import (
+        ConstitutionSnapshotStore,
+    )
+
+    class _Enrolled:
+        def operator(self):
+            return {"operator_id": "operator-under-test"}
+
+    authority = ConstitutionAuthority(
+        ConstitutionSnapshotStore(tmp_path / "constitution.db"),
+        identity_store=_Enrolled(),
+    )
+    kernel = PolicyKernel(
+        rate_limiter=RateLimiter(max_per_session=100),
+        constitution_authority=authority,
+    )
+
     snapshot = kernel.constitution_snapshot()
-    assert isinstance(snapshot.snapshot_digest, str)
+
     assert len(snapshot.snapshot_digest) == 64
     assert len(snapshot.foundation_laws) == 6
+    assert snapshot.snapshot_digest == authority.get_active_snapshot().snapshot_digest
+    assert snapshot.ratified_by_operator_id == "operator-under-test"
+
+
+def test_constitution_snapshot_without_an_authority_fails_closed(kernel):
+    """An unwired kernel must refuse rather than invent a constitution."""
+    assert kernel.constitution_authority is None
+    with pytest.raises(RuntimeError, match="ConstitutionAuthority"):
+        kernel.constitution_snapshot()
 
 
 

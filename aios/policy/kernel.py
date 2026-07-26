@@ -19,10 +19,7 @@ from aios.domain.actions.envelope import ActionEnvelope, ActionType
 from aios.domain.policy.decision import PolicyDecision
 from aios.interfaces.http import edge_security
 from aios.policy.constitution import Constitution, build_constitution
-from aios.domain.governance.constitution import (
-    ConstitutionSnapshotV1,
-    build_constitution_snapshot,
-)
+from aios.domain.governance.constitution import ConstitutionSnapshotV1
 from aios.application.governance.constitution_authority import ConstitutionAuthority
 
 from aios.runtime import profiles
@@ -1156,11 +1153,24 @@ class PolicyKernel:
         """Return a feature flag value from config."""
         return bool(getattr(config, f"{name.upper()}_ENABLED", False))
 
-    def constitution_snapshot(self) -> ConstitutionSnapshotV1 | Constitution:
-        """Return the current constitutional snapshot (Organ 25)."""
-        if self.constitution_authority is not None:
-            return self.constitution_authority.get_active_snapshot()
-        return build_constitution_snapshot(ratified_by_operator_id="operator")
+    def constitution_snapshot(self) -> ConstitutionSnapshotV1:
+        """Return the current constitutional snapshot (Organ 25).
+
+        There is no fallback. This previously returned
+        ``build_constitution_snapshot(ratified_by_operator_id="operator")`` --
+        a snapshot ratified by a hardcoded string that matched no real
+        authenticated identity, and that disagreed with both the durable chain
+        and the digest stamped onto every ``Principal``. Fabricating a
+        constitution is worse than refusing to serve one, so an unwired kernel
+        now fails closed.
+        """
+        if self.constitution_authority is None:
+            raise RuntimeError(
+                "PolicyKernel has no ConstitutionAuthority wired; refusing to "
+                "fabricate a constitutional snapshot. Construct it with "
+                "constitution_authority=get_constitution_authority()."
+            )
+        return self.constitution_authority.get_active_snapshot()
 
 
 
@@ -1358,13 +1368,34 @@ def get_policy_kernel(
     if _KERNEL is None:
         with _KERNEL_LOCK:
             if _KERNEL is None:
+                from aios.application.governance.constitution_authority import (
+                    get_constitution_authority,
+                )
+
                 _KERNEL = PolicyKernel(
                     rate_limiter=rate_limiter
                     or RateLimiter(db_path=config.APPROVAL_DB_PATH),
                     autonomy_ledger=autonomy_ledger or AutonomyLedger(),
                     constitution=constitution,
+                    constitution_authority=get_constitution_authority(),
                 )
     return _KERNEL
+
+
+def reset_policy_kernel() -> None:
+    """Drop the cached kernel singleton.
+
+    Test-support only, and deliberately NOT run for every test: rebuilding the
+    kernel re-opens the rate-limiter and autonomy databases and re-runs the
+    constitution/identity migrations, which measured ~20% slower across the
+    suite. Call it explicitly from tests that override the constitution
+    authority and then assert on what the kernel serves -- otherwise the
+    kernel keeps the authority it captured on first construction and the
+    assertion silently reads the wrong chain.
+    """
+    global _KERNEL
+    with _KERNEL_LOCK:
+        _KERNEL = None
 
 
 __all__ = [
@@ -1373,4 +1404,5 @@ __all__ = [
     "PolicyKernel",
     "RouteAuthority",
     "get_policy_kernel",
+    "reset_policy_kernel",
 ]

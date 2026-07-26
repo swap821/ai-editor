@@ -37,6 +37,7 @@ from aios.application.models.health import ProviderHealthTracker
 from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.api.deps import (
     get_capability_authority,
+    get_constitution_authority,
     get_development_tracker,
     get_emergency_stop,
     get_identity_service,
@@ -46,7 +47,10 @@ from aios.api.deps import (
     get_provider_health,
     get_skill_memory,
 )
-from aios.domain.governance.constitution import build_constitution_snapshot
+from aios.application.governance.constitution_authority import (
+    ConstitutionAuthority,
+    NoEnrolledSovereignError,
+)
 from aios.domain.identity.models import PrincipalType
 from aios.domain.read_models import MetricEnvelope, MetricStatus
 from aios.memory.development import DevelopmentTracker
@@ -235,11 +239,12 @@ def get_governance_projection(
     Unauthenticated by design, matching /snapshot's own convention -- the
     living mirror reflects state, it never gates on who's watching (risky
     ACTIONS are gated elsewhere). The constitution is honestly UNAVAILABLE
-    (never fabricated) unless a real Human Sovereign session is active,
-    reusing the exact same per-request build_constitution_snapshot()
-    pattern IdentityService._current_constitution_digest() already stamps
-    onto every authenticated Principal -- not a new construction, the same
-    established one. providerHealth omits any provider with zero recorded
+    (never fabricated) unless a real Human Sovereign session is active, and
+    now reads the DURABLE chain via ConstitutionAuthority (organ 25) -- the
+    same single authority that stamps every Principal and gates capability
+    consumption. It previously rebuilt a snapshot from live config per
+    request, which meant this panel showed version 1 forever and never
+    reflected a ratified amendment. providerHealth omits any provider with zero recorded
     outcomes entirely (never a fabricated "healthy" placeholder). approvals
     projects CapabilityAuthority.list_pending() -- the real production
     issue/consume authority, not the legacy ApprovalStore -- and never
@@ -251,12 +256,20 @@ def get_governance_projection(
     organ 50's full two-part claim.
     """
     principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
+    snapshot = None
     if principal is not None and principal.principal_type is PrincipalType.OPERATOR:
-        snapshot = build_constitution_snapshot(
-            ratified_by_operator_id=principal.principal_id
-        )
-    else:
-        snapshot = None
+        try:
+            # The authority that stamped this principal, not the process
+            # singleton -- checking a principal against an identity store that
+            # never enrolled it reads as "operator identity changed".
+            snapshot = identity.constitution_authority.get_active_snapshot(
+                principal.principal_id
+            )
+        except NoEnrolledSovereignError:
+            # Honestly UNAVAILABLE, matching the unauthenticated branch. A
+            # ConstitutionDegraded is deliberately NOT caught: a store that is
+            # unreadable or tampered is a real 503, not an empty panel.
+            snapshot = None
     constitution = project_constitution(snapshot)
     stop_projection = project_emergency_stop(emergency_stop.state())
     provider_health_list = project_provider_health_list(provider_health)

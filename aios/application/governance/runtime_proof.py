@@ -364,7 +364,11 @@ def _mutating_route_decorators(repo: Path) -> list[tuple[str, str]]:
 
 
 def _probe_mutation_authority(repo: Path, scratch: Path) -> str:
-    kernel = PolicyKernel()
+    from aios.application.governance.constitution_authority import (
+        get_constitution_authority,
+    )
+
+    kernel = PolicyKernel(constitution_authority=get_constitution_authority())
     registered = 0
     for method, route in _mutating_route_decorators(repo):
         authority = kernel.route_authority(route, method)

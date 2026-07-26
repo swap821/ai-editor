@@ -26,8 +26,11 @@ _LOGGER = get_logger(__name__)
 from aios import config
 from aios.application.intelligence.gateway import route_intelligence_request
 from aios.core.llm import LLMClient, OllamaClient
-from aios.domain.governance.constitution import build_constitution_snapshot
-from aios.infrastructure.identity.sqlite_store import IdentityStore, credential_digest
+from aios.application.governance.constitution_authority import (
+    NoEnrolledSovereignError,
+    get_constitution_authority,
+)
+from aios.infrastructure.identity.sqlite_store import credential_digest
 
 _DELEGATED_AUTHORITY_SUMMARY = (
     "Council reasoning is strictly advisory: it may only narrow scope or "
@@ -116,12 +119,14 @@ def build_council_llm_client(
     """
     if not config.COUNCIL_REASONING:
         return None
-    identity_store = IdentityStore(config.IDENTITY_DB_PATH)
-    operator = identity_store.operator()
-    if operator is None:
+    try:
+        # Organ 25: the durable chain, so an activated amendment reaches
+        # Council's representative context. This previously rebuilt from live
+        # config and always produced version 1.
+        snapshot = get_constitution_authority().get_active_snapshot()
+    except NoEnrolledSovereignError:
         return None
-    operator_id = str(operator["operator_id"])
-    snapshot = build_constitution_snapshot(ratified_by_operator_id=operator_id)
+    operator_id = snapshot.ratified_by_operator_id
     return GatewayRoutedCouncilLLMClient(
         operator_identity_digest=credential_digest(operator_id),
         constitution_digest=snapshot.snapshot_digest,
@@ -167,10 +172,12 @@ def build_dissent_llm_client(
     """
     if not config.COUNCIL_REASONING:
         return None
-    identity_store = IdentityStore(config.IDENTITY_DB_PATH)
-    operator = identity_store.operator()
-    if operator is None:
+    try:
+        # Organ 25: one durable chain, same as build_council_llm_client above.
+        snapshot = get_constitution_authority().get_active_snapshot()
+    except NoEnrolledSovereignError:
         return None
+    operator_id = snapshot.ratified_by_operator_id
 
     from aios.api import deps
 
@@ -187,8 +194,6 @@ def build_dissent_llm_client(
         if client is None:
             continue
         model_id = str(getattr(client, "model", "unknown"))
-        operator_id = str(operator["operator_id"])
-        snapshot = build_constitution_snapshot(ratified_by_operator_id=operator_id)
         dissent_client = GatewayRoutedCouncilLLMClient(
             operator_identity_digest=credential_digest(operator_id),
             constitution_digest=snapshot.snapshot_digest,
