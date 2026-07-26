@@ -159,9 +159,7 @@ class ConstitutionAuthority:
             # baseline. This is reachable only for the *enrolled* operator --
             # an unknown id fails closed in `_resolve` above rather than
             # minting a second chain.
-            baseline = build_constitution_snapshot(
-                ratified_by_operator_id=operator_id
-            )
+            baseline = build_constitution_snapshot(ratified_by_operator_id=operator_id)
             try:
                 self.store.save(baseline, expected_previous_digest=None)
             except ConcurrentActivationError:
@@ -174,8 +172,7 @@ class ConstitutionAuthority:
                 return existing
             except sqlite3.Error as exc:
                 raise ConstitutionDegraded(
-                    f"constitution store unwritable during baseline "
-                    f"creation: {exc}"
+                    f"constitution store unwritable during baseline creation: {exc}"
                 ) from exc
             return baseline
 
@@ -185,9 +182,7 @@ class ConstitutionAuthority:
         except RecordTamperedError as exc:
             raise ConstitutionDegraded(str(exc)) from exc
         except sqlite3.Error as exc:
-            raise ConstitutionDegraded(
-                f"constitution store unreadable: {exc}"
-            ) from exc
+            raise ConstitutionDegraded(f"constitution store unreadable: {exc}") from exc
 
     def _get_current(self, cid: str) -> ConstitutionSnapshotV1 | None:
         try:
@@ -195,9 +190,7 @@ class ConstitutionAuthority:
         except RecordTamperedError as exc:
             raise ConstitutionDegraded(str(exc)) from exc
         except sqlite3.Error as exc:
-            raise ConstitutionDegraded(
-                f"constitution store unreadable: {exc}"
-            ) from exc
+            raise ConstitutionDegraded(f"constitution store unreadable: {exc}") from exc
 
     # ------------------------------------------------------------------ #
     # Writes
