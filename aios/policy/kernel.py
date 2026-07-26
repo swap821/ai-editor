@@ -1392,6 +1392,15 @@ def reset_policy_kernel() -> None:
     authority and then assert on what the kernel serves -- otherwise the
     kernel keeps the authority it captured on first construction and the
     assertion silently reads the wrong chain.
+
+    CAUTION: ``aios/api/main.py`` binds ``_RATE_LIMIT_HITS =
+    _POLICY_KERNEL.endpoint_hits`` at import time -- a reference to THIS
+    kernel's internal dict. After a reset the live kernel has a new dict, so
+    anything still clearing the old reference (conftest does, per test client)
+    silently clears an orphan while the real bucket fills up, and unrelated
+    later tests start seeing 429s. If you only need to prove that a fresh
+    kernel reads current state, construct ``PolicyKernel(constitution_
+    authority=...)`` directly instead of resetting the singleton.
     """
     global _KERNEL
     with _KERNEL_LOCK:

@@ -221,7 +221,7 @@ def _reset_constitution_singletons():
         _ca.reset_constitution_authority()
         import aios.api.deps as _deps
 
-        _deps._constitution_snapshot_store = None
+        _deps._CAPABILITIES.constitution_authority = None
 
     _reset()
     yield

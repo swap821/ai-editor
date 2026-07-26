@@ -125,10 +125,6 @@ _operator_preference_store: Optional[OperatorPreferenceStore] = None
 _operator_preference_store_lock = threading.Lock()
 _governance_amendment_store: Optional[GovernanceAmendmentStore] = None
 _governance_amendment_store_lock = threading.Lock()
-_constitution_snapshot_store: Optional[ConstitutionSnapshotStore] = None
-_constitution_snapshot_store_lock = threading.Lock()
-_constitution_authority: Optional[ConstitutionAuthority] = None
-_constitution_authority_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -668,20 +664,17 @@ def get_governance_amendment_store() -> GovernanceAmendmentStore:
 
 
 def get_constitution_snapshot_store() -> ConstitutionSnapshotStore:
-    """Provide the durable, content-addressed ConstitutionSnapshotV1 history
-    singleton (organ 45) -- gives activate_amendment_route()/rollback_
-    amendment_route() a real cross-restart chain to advance and revert,
-    instead of rebuilding a fresh, ephemeral "previous" snapshot on every
-    call."""
-    global _constitution_snapshot_store
-    if _constitution_snapshot_store is not None:
-        return _constitution_snapshot_store
-    with _constitution_snapshot_store_lock:
-        if _constitution_snapshot_store is None:
-            _constitution_snapshot_store = ConstitutionSnapshotStore(
-                config.CONSTITUTION_SNAPSHOT_DB_PATH
-            )
-    return _constitution_snapshot_store
+    """Provide the durable ConstitutionSnapshotV1 history store.
+
+    Organ 25 note: the amendment routes no longer depend on this directly --
+    they go through `get_constitution_authority()`, which owns the store. A
+    route holding the raw store could advance a chain that no other consumer
+    reads, which is the class of split this organ exists to close. This
+    remains only so callers that genuinely want raw history (not the active
+    pointer) have a seam; override `get_constitution_authority` instead if
+    you are isolating the chain in a test.
+    """
+    return get_constitution_authority().store
 
 
 def get_constitution_authority() -> ConstitutionAuthority:

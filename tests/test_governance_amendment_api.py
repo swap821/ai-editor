@@ -15,8 +15,13 @@ from typing import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from aios.api.deps import get_constitution_snapshot_store, get_governance_amendment_store
+from aios.api.deps import (
+    get_constitution_authority,
+    get_governance_amendment_store,
+    get_identity_service,
+)
 from aios.api.main import app
+from aios.application.governance.constitution_authority import ConstitutionAuthority
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConstitutionSnapshotStore,
 )
@@ -26,9 +31,20 @@ from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 @pytest.fixture()
 def client(tmp_path) -> Iterator[TestClient]:
     store = GovernanceAmendmentStore(tmp_path / "amendments.db")
-    snapshot_store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
+    # Override the AUTHORITY, not the raw snapshot store. The routes read the
+    # chain through the authority now, so overriding the store alone would
+    # isolate nothing -- the ceremony would quietly advance the real
+    # process-wide chain while this fixture watched an empty database.
+    #
+    # The authority keeps the REAL identity store: conftest enrolls the test
+    # sovereign there, and an authority pointed at a different identity store
+    # would refuse every principal with "operator identity changed".
+    authority = ConstitutionAuthority(
+        ConstitutionSnapshotStore(tmp_path / "constitution.db"),
+        identity_store=get_identity_service().store,
+    )
     app.dependency_overrides[get_governance_amendment_store] = lambda: store
-    app.dependency_overrides[get_constitution_snapshot_store] = lambda: snapshot_store
+    app.dependency_overrides[get_constitution_authority] = lambda: authority
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
             yield test_client

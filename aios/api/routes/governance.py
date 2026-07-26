@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aios.api.action_guard import CAPABILITY_HEADER, enforce_action_boundary
 from aios.api.deps import (
-    get_constitution_snapshot_store,
+    get_constitution_authority,
     get_emergency_stop,
     get_governance_amendment_store,
     require_privileged_operator,
@@ -38,15 +38,14 @@ from aios.application.governance.constitutional_learning import (
 )
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance import EmergencyStopRequest
-from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.domain.governance.learning import (
     ADVERSARIAL_SIMULATION_CHECKS,
     GovernanceEventClass,
 )
 from aios.domain.identity.models import Principal
+from aios.application.governance.constitution_authority import ConstitutionAuthority
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConcurrentActivationError,
-    ConstitutionSnapshotStore,
 )
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 
@@ -130,7 +129,7 @@ def clear_emergency_stop(
 # every other YELLOW route in this codebase already uses (organ 45 does not
 # invent new capability-issuance semantics, it reuses the existing one).
 #
-# `rollback_amendment()` is now wired via `ConstitutionSnapshotStore` (organ
+# `rollback_amendment()` is now wired via `ConstitutionAuthority` (organ
 # 45): every activation persists its new snapshot and advances a per-
 # constitution "current" pointer, so a later rollback can look up "the
 # exact predecessor" of a real, previously-activated chain instead of one
@@ -300,55 +299,31 @@ def ratify_amendment_route(
     return updated.as_dict()
 
 
-def _current_or_baseline_snapshot(
-    snapshot_store: ConstitutionSnapshotStore, *, ratified_by_operator_id: str
-):
-    """The real current snapshot for this operator's constitution chain, or
-    -- the very first time this machine ever activates an amendment for
-    them -- a freshly built version-1 baseline, persisted immediately so it
-    becomes real chain history rather than a value computed and discarded."""
-    constitution_id = f"constitution:{ratified_by_operator_id}"
-    current = snapshot_store.get_current(constitution_id)
-    if current is not None:
-        return current
-    baseline = build_constitution_snapshot(
-        ratified_by_operator_id=ratified_by_operator_id
-    )
-    try:
-        # Assert nobody else created this chain's first snapshot concurrently.
-        snapshot_store.save(baseline, expected_previous_digest=None)
-    except ConcurrentActivationError:
-        # Another request bootstrapped the same chain first. Its baseline is
-        # every bit as authoritative as ours would have been -- adopt it
-        # rather than overwriting a chain that may already have advanced.
-        existing = snapshot_store.get_current(constitution_id)
-        if existing is None:  # pragma: no cover - defensive
-            raise
-        return existing
-    return baseline
-
-
 @router.post("/api/v1/governance/amendments/{proposal_id}/activate")
 def activate_amendment_route(
     proposal_id: str,
     principal: Principal = Depends(require_privileged_operator),
     store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
-    snapshot_store: ConstitutionSnapshotStore = Depends(get_constitution_snapshot_store),
+    authority: ConstitutionAuthority = Depends(get_constitution_authority),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Only a ratified proposal may activate -- `ratify_amendment` is the
     real gate; this step chains the next constitution version the same way
-    every other version bump does (Slice 26), against the real durably-
-    persisted current snapshot (organ 45) rather than a fresh one rebuilt
-    and discarded every call."""
+    every other version bump does, through the ONE ConstitutionAuthority
+    (organ 25) that also stamps every Principal and gates capability
+    consumption. Routing this through the raw store instead would let the
+    ceremony advance a chain nobody else reads.
+
+    The predecessor is resolved under the proposal's OWN
+    `ratified_by_operator_id`, not "whoever is enrolled right now". If the
+    sovereign was replaced between ratification and activation, the authority
+    refuses -- an amendment ratified under one sovereign's authority must not
+    silently graft onto another's chain.
+    """
     current = _get_current_proposal_or_404(store, proposal_id)
     if current.ratified_by_operator_id is None:
-        raise HTTPException(
-            status_code=409, detail="proposal has not been ratified"
-        )
-    previous_snapshot = _current_or_baseline_snapshot(
-        snapshot_store, ratified_by_operator_id=current.ratified_by_operator_id
-    )
+        raise HTTPException(status_code=409, detail="proposal has not been ratified")
+    previous_snapshot = authority.get_active_snapshot(current.ratified_by_operator_id)
     try:
         updated, new_snapshot = activate_amendment(
             current,
@@ -361,7 +336,7 @@ def activate_amendment_route(
         # Compare-and-swap: refuse if the chain moved between the read above
         # and this write, rather than silently clobbering the activation that
         # got there first and losing an amendment with no error.
-        snapshot_store.save(
+        authority.activate_snapshot(
             new_snapshot,
             expected_previous_digest=previous_snapshot.snapshot_digest,
         )
@@ -379,7 +354,7 @@ def rollback_amendment_route(
     proposal_id: str,
     principal: Principal = Depends(require_privileged_operator),
     store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
-    snapshot_store: ConstitutionSnapshotStore = Depends(get_constitution_snapshot_store),
+    authority: ConstitutionAuthority = Depends(get_constitution_authority),
     emergency_stop: EmergencyStopController = Depends(get_emergency_stop),
 ) -> dict[str, Any]:
     """Revert an activated proposal's constitution version to its exact
@@ -409,13 +384,9 @@ def rollback_amendment_route(
         raise HTTPException(
             status_code=409, detail="proposal has not been ratified"
         )
-    constitution_id = f"constitution:{current_proposal.ratified_by_operator_id}"
-    current_snapshot = snapshot_store.get_current(constitution_id)
-    if current_snapshot is None:
-        raise HTTPException(
-            status_code=409,
-            detail="no constitution snapshot history exists to roll back",
-        )
+    current_snapshot = authority.get_active_snapshot(
+        current_proposal.ratified_by_operator_id
+    )
     target_predecessor_digest = (
         current_proposal.predecessor_snapshot_digest
         or current_snapshot.previous_snapshot_digest
@@ -425,7 +396,7 @@ def rollback_amendment_route(
             status_code=409,
             detail="current constitution snapshot has no predecessor to roll back to",
         )
-    previous_snapshot = snapshot_store.get_by_digest(target_predecessor_digest)
+    previous_snapshot = authority.get_snapshot_by_digest(target_predecessor_digest)
     if previous_snapshot is None:
         raise HTTPException(
             status_code=409,
@@ -443,7 +414,7 @@ def rollback_amendment_route(
     try:
         # Same compare-and-swap contract as activation: a rollback that races
         # a fresh activation must lose loudly, not silently undo it.
-        snapshot_store.save(
+        authority.activate_snapshot(
             reverted_snapshot,
             expected_previous_digest=current_snapshot.snapshot_digest,
         )
