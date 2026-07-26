@@ -166,7 +166,9 @@ def get_bedrock_client() -> Optional[BedrockClient]:
         if _bedrock_client is not None:
             return _bedrock_client
         try:
-            _bedrock_client = BedrockClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
+            _bedrock_client = BedrockClient(
+                privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+            )
         except LLMError:
             return None
     return _bedrock_client
@@ -210,7 +212,9 @@ def get_openai_client() -> Optional[Any]:
             return _openai_client
         from aios.core.openai_compat import OpenAICompatClient
 
-        _openai_client = OpenAICompatClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
+        _openai_client = OpenAICompatClient(
+            privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+        )
     return _openai_client
 
 
@@ -226,7 +230,9 @@ def get_anthropic_client() -> Optional[Any]:
             return _anthropic_client
         from aios.core.anthropic_direct import AnthropicDirectClient
 
-        _anthropic_client = AnthropicDirectClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
+        _anthropic_client = AnthropicDirectClient(
+            privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+        )
     return _anthropic_client
 
 
@@ -664,6 +670,8 @@ def get_representative_context_store() -> RepresentativeContextStore:
                 config.REPRESENTATIVE_CONTEXT_DB_PATH
             )
     return _representative_context_store
+
+
 def get_governance_amendment_store() -> GovernanceAmendmentStore:
     """Provide the durable, append-only ConstitutionalAmendmentProposalV1
     history singleton (Slice 37 / reconciliation item 6 / organ 45) -- the
@@ -707,7 +715,6 @@ def get_constitution_authority() -> ConstitutionAuthority:
     survived undetected is itself the proof it had no callers.
     """
     return _get_constitution_authority()
-
 
 
 def get_authenticated_principal(
@@ -1016,6 +1023,7 @@ def get_hiring_service(
     repository: Any = Depends(get_hiring_repository),
     cortex: Any = Depends(get_cortex_observation_bus),
     policy: Any = Depends(get_policy_kernel),
+    emergency_stop: Any = Depends(get_emergency_stop),
 ) -> Any:
     """Compose the canonical HiringBroker with injected runtime adapters."""
     from aios.application.models.hiring_service import (
@@ -1050,6 +1058,7 @@ def get_hiring_service(
         repository=repository,
         cortex=cortex,
         policy=policy.router_policy(),
+        emergency_stop=emergency_stop,
     )
 
 

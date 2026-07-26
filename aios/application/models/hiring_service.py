@@ -13,6 +13,7 @@ from aios.domain.intelligence.broker import HiringBroker, HiringSelection
 from aios.domain.intelligence.repository import HiringRecord, HiringRecordRepository
 from aios.domain.privacy import ModelCallRecord, ModelCallRequest, digest_output
 from aios.runtime.cortex_bus import CortexBus
+from aios.runtime.secret_policy import SecretPolicy
 
 
 class ProviderClient(Protocol):
@@ -67,6 +68,8 @@ class IntelligenceHiringService:
         repository: HiringRecordRepository,
         cortex: CortexBus | None = None,
         policy: router.Policy = router.LOCAL_FIRST,
+        emergency_stop: Any | None = None,
+        secret_policy: SecretPolicy | None = None,
     ) -> None:
         self.broker = broker
         self.clients = dict(clients)
@@ -79,6 +82,15 @@ class IntelligenceHiringService:
         self.repository = repository
         self.cortex = cortex
         self.policy = policy
+        #: Organ 32. This service reaches a real external provider and had no
+        #: emergency-stop check anywhere in its call chain -- optional here to
+        #: match gateway.py's established pattern, wired for real in deps.py.
+        self.emergency_stop = emergency_stop
+        #: Egress was asymmetric: the outgoing prompt is scrubbed
+        #: (selection.privacy.scrubbed_prompt) but the provider's RESPONSE was
+        #: returned to the caller raw, so a secret echoed or emitted by the
+        #: model left through the reply.
+        self.secret_policy = secret_policy or SecretPolicy()
 
     def complete(
         self,
@@ -86,6 +98,8 @@ class IntelligenceHiringService:
         *,
         system: str | None = None,
     ) -> tuple[str, ModelCallRecord]:
+        if self.emergency_stop is not None:
+            self.emergency_stop.assert_operational()
         started = time.perf_counter()
         selection = self.broker.select_model_call(
             request,
@@ -130,6 +144,9 @@ class IntelligenceHiringService:
                 self._record_observation(request, record, "failed")
                 raise
 
+        # Redact BEFORE building the record, so the durable provenance row
+        # cannot store a secret the caller was never allowed to see either.
+        result = self.secret_policy.redact_text(result)
         record = self._build_record(
             request, selection, selected, fallback, "completed", started, result=result
         )
