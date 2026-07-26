@@ -885,6 +885,22 @@ class PolicyKernel:
     def endpoint_hits(self) -> dict[str, list[tuple[str, float]]]:
         return self._endpoint_hits
 
+    def clear_endpoint_hits(self) -> None:
+        """Clear all recorded endpoint-rate-limit hit buckets on this kernel.
+
+        This is the supported way to reset rate-limit state (e.g. at a test's
+        TestClient boundary): it mutates the live kernel's own bucket in place
+        rather than requiring a caller to hold a direct reference to
+        ``endpoint_hits``. A reference to that dict captured before a
+        ``reset_policy_kernel()`` rebuild would point at an orphaned kernel's
+        bucket -- clearing it would do nothing, while the *new* kernel's
+        bucket kept filling, eventually producing spurious 429s. Always
+        resolve the live kernel via ``get_policy_kernel()`` (or a fixture that
+        does the same) immediately before calling this method.
+        """
+        with self._endpoint_hits_lock:
+            self._endpoint_hits.clear()
+
     def route_authority(self, path: str, method: str | None = None) -> RouteAuthority:
         """Return method-aware authority metadata, failing closed when unknown."""
         if method:
@@ -1382,29 +1398,27 @@ def get_policy_kernel(
     return _KERNEL
 
 
-def reset_policy_kernel() -> None:
-    """Drop the cached kernel singleton.
+def reset_policy_kernel() -> PolicyKernel:
+    """Rebuild the process-wide ``PolicyKernel`` singleton (test helper only).
 
-    Test-support only, and deliberately NOT run for every test: rebuilding the
-    kernel re-opens the rate-limiter and autonomy databases and re-runs the
-    constitution/identity migrations, which measured ~20% slower across the
-    suite. Call it explicitly from tests that override the constitution
-    authority and then assert on what the kernel serves -- otherwise the
-    kernel keeps the authority it captured on first construction and the
-    assertion silently reads the wrong chain.
+    Returns the freshly constructed kernel so a caller that needs it can grab
+    it in one call: ``kernel = reset_policy_kernel()``.
 
-    CAUTION: ``aios/api/main.py`` binds ``_RATE_LIMIT_HITS =
-    _POLICY_KERNEL.endpoint_hits`` at import time -- a reference to THIS
-    kernel's internal dict. After a reset the live kernel has a new dict, so
-    anything still clearing the old reference (conftest does, per test client)
-    silently clears an orphan while the real bucket fills up, and unrelated
-    later tests start seeing 429s. If you only need to prove that a fresh
-    kernel reads current state, construct ``PolicyKernel(constitution_
-    authority=...)`` directly instead of resetting the singleton.
+    Hazard for callers: never hold a bare reference to a kernel's mutable
+    internals (e.g. ``some_kernel.endpoint_hits``, or the kernel object
+    itself) across a reset. The old kernel and everything it owns become
+    orphaned the moment ``_KERNEL`` is rebuilt -- reads and writes against the
+    stale reference silently diverge from what the live kernel enforces
+    instead of raising. Always re-resolve through ``get_policy_kernel()`` at
+    the point of use (module code should call it fresh rather than caching
+    its return value at import time), or through a kernel method such as
+    ``clear_endpoint_hits()`` that mutates whatever kernel is current.
     """
     global _KERNEL
     with _KERNEL_LOCK:
         _KERNEL = None
+    return get_policy_kernel()
+
 
 
 __all__ = [

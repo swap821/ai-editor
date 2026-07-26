@@ -86,6 +86,89 @@ def test_check_endpoint_rate_limit_uses_per_ip_bucket(kernel):
     kernel.check_endpoint_rate_limit(path, "2.2.2.2")
 
 
+def test_clear_endpoint_hits_empties_the_live_bucket(kernel):
+    path = "/api/v1/runtime/rollbacks/prune"
+    kernel.check_endpoint_rate_limit(path, "203.0.113.5")
+    assert kernel.endpoint_hits
+    kernel.clear_endpoint_hits()
+    assert kernel.endpoint_hits == {}
+
+
+# --------------------------------------------------------------------------- #
+# Singleton reset (test isolation) -- regression for a captured
+# `endpoint_hits` reference going stale across `reset_policy_kernel()`.
+# --------------------------------------------------------------------------- #
+
+def test_reset_policy_kernel_rebuilds_singleton_and_isolates_endpoint_hits():
+    """A caller must never hold a bare reference to a kernel's mutable
+    internals (e.g. its ``endpoint_hits`` dict) across a reset: the old
+    kernel and everything it owns become orphaned the moment the singleton is
+    rebuilt, so a captured reference silently diverges from what the live
+    kernel enforces instead of raising.
+    """
+    from aios.policy import kernel as kernel_module
+
+    original = kernel_module.get_policy_kernel()
+    try:
+        path = "/api/v1/runtime/rollbacks/prune"
+        original.check_endpoint_rate_limit(path, "203.0.113.5")
+        stale_hits_ref = original.endpoint_hits
+        assert stale_hits_ref  # captured a live, non-empty dict
+
+        rebuilt = kernel_module.reset_policy_kernel()
+
+        assert rebuilt is not original
+        assert kernel_module.get_policy_kernel() is rebuilt
+        # The live kernel starts with a clean bucket...
+        assert rebuilt.endpoint_hits == {}
+        # ...while a reference captured before the reset is now orphaned:
+        # it still reports the old kernel's state, untouched by the rebuild.
+        assert stale_hits_ref
+
+        # Clearing through the live kernel is what test isolation actually
+        # needs -- it must not require also clearing the orphaned dict.
+        rebuilt.check_endpoint_rate_limit(path, "203.0.113.5")
+        rebuilt.clear_endpoint_hits()
+        assert rebuilt.endpoint_hits == {}
+    finally:
+        with kernel_module._KERNEL_LOCK:
+            kernel_module._KERNEL = original
+
+
+def test_main_rate_limit_helpers_track_current_kernel_after_reset():
+    """``aios.api.main``'s rate-limit helpers must resolve the live kernel at
+    call time. Before this fix, ``main`` cached ``get_policy_kernel()`` (and
+    its ``endpoint_hits`` dict) in a module global at import time, so a
+    kernel reset left ``main``'s enforcement silently counting hits into an
+    orphaned bucket forever -- while anything resolving the kernel fresh saw
+    a bucket that never filled, producing spurious unrelated 429s.
+    """
+    from aios.api import main as api_main
+    from aios.policy import kernel as kernel_module
+
+    original = kernel_module.get_policy_kernel()
+    try:
+        path = "/api/v1/runtime/rollbacks/prune"
+        api_main._check_endpoint_rate_limit(path, "198.51.100.9")
+        assert original.endpoint_hits
+
+        rebuilt = kernel_module.reset_policy_kernel()
+        assert rebuilt.endpoint_hits == {}
+
+        # main's helper must now count against the *new* kernel, not keep
+        # filling the orphaned one.
+        api_main._check_endpoint_rate_limit(path, "198.51.100.9")
+        assert rebuilt.endpoint_hits
+        key = next(iter(rebuilt.endpoint_hits))
+        assert len(rebuilt.endpoint_hits[key]) == 1
+        # The pre-reset kernel's bucket is untouched by the post-reset hit.
+        old_key = next(iter(original.endpoint_hits))
+        assert len(original.endpoint_hits[old_key]) == 1
+    finally:
+        with kernel_module._KERNEL_LOCK:
+            kernel_module._KERNEL = original
+
+
 # --------------------------------------------------------------------------- #
 # Action evaluation
 # --------------------------------------------------------------------------- #
