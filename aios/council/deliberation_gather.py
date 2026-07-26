@@ -39,6 +39,10 @@ from aios.domain.intelligence.deliberation import (
     DeliberationRole,
     ModelPosition,
 )
+from aios.core.verification_strength import (
+    VerificationStrength,
+    strength_from_name,
+)
 from aios.runtime.contracts import KingReport
 
 logger = logging.getLogger(__name__)
@@ -50,8 +54,12 @@ _BLOCK_TIER_RECOMMENDATIONS = frozenset({"revise", "rollback", "reject"})
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 _DISSENT_ROLES = (
-    DeliberationRole(role="primary", provider_requirements=(), independence_required=True),
-    DeliberationRole(role="critic", provider_requirements=(), independence_required=True),
+    DeliberationRole(
+        role="primary", provider_requirements=(), independence_required=True
+    ),
+    DeliberationRole(
+        role="critic", provider_requirements=(), independence_required=True
+    ),
 )
 
 
@@ -132,10 +140,56 @@ def _parse_dissent_position(
             answer=answer.strip(),
             confidence=confidence,
             security_concerns=tuple(concerns) if isinstance(concerns, list) else (),
-            unresolved_questions=tuple(questions) if isinstance(questions, list) else (),
+            unresolved_questions=tuple(questions)
+            if isinstance(questions, list)
+            else (),
         )
     except Exception:  # noqa: BLE001 - a malformed field must never raise here
         return None
+
+
+#: Organ 39 requires MEASURED confidence, not a fixed constant. The one
+#: genuinely evidence-derived signal available on a KingReport is
+#: VerificationStrength: it is derived from the command that actually ran and
+#: is COMMAND-AWARE, so a command merely printing "5 passed" cannot forge
+#: STRONG -- that requires a recognized test runner.
+#:
+#: Per-Queen confidences are deliberately NOT mixed in, even though they are
+#: right there on the report. They are hardcoded literals authored per code
+#: branch (0.6, 0.8, 0.85, 0.88, ...), not derived from evidence, so combining
+#: them with a real signal would produce something that LOOKS measured while
+#: still being a constant in disguise. That is precisely the class of
+#: dishonesty this organ exists to remove.
+_STRENGTH_TO_CONFIDENCE = {
+    VerificationStrength.NONE: 0.25,
+    VerificationStrength.WEAK: 0.45,
+    VerificationStrength.MEDIUM: 0.65,
+    VerificationStrength.STRONG: 0.85,
+}
+
+
+def _measured_king_confidence(report: KingReport) -> float:
+    """King confidence from real verification evidence.
+
+    This replaces a fixed `1.0 if blocking else 0.5`, which asserted total
+    certainty for any block recommendation regardless of what evidence -- if
+    any -- actually supported it.
+
+    Fail-closed: a missing or unparseable strength reads NONE (the weakest),
+    matching `king_report.py`'s own convention, so unknown evidence lowers
+    confidence rather than inheriting a default high one.
+
+    The ordinal-to-scale mapping is a stated convention, not itself a
+    measurement; the INPUT is the measured part.
+    """
+    raw = report.verification_result or {}
+    strength = strength_from_name(raw.get("strength"), VerificationStrength.NONE)
+    confidence = _STRENGTH_TO_CONFIDENCE[strength]
+    if not raw.get("meets_floor", True):
+        # Evidence explicitly below the promotion floor must never read as
+        # strong, whatever the ordinal mapping said.
+        confidence = min(confidence, _STRENGTH_TO_CONFIDENCE[VerificationStrength.WEAK])
+    return confidence
 
 
 def maybe_deliberate(
@@ -165,7 +219,7 @@ def maybe_deliberate(
         provider=king_provider,
         exact_model_id=king_exact_model_id,
         answer=report.recommendation,
-        confidence=1.0 if report.recommendation in _BLOCK_TIER_RECOMMENDATIONS else 0.5,
+        confidence=_measured_king_confidence(report),
         security_concerns=(),
     )
 
