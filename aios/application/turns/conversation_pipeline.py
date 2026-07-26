@@ -16,6 +16,7 @@ from aios.application.memory.human_representation import classify_human_state
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
+from aios.application.intelligence.gateway import IntelligenceGatewayError
 from aios.core.llm import LLMError
 from aios.core.prompt_writer import PromptSection, PromptWriter
 from aios.memory.fact_extraction import extract_candidates
@@ -68,32 +69,67 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
 
     human_state = classify_human_state(user_text)
     yield sse("human_state", human_state.as_dict())
-    extra["record_human_state"](context.session_id, context.turn_id, human_state)
+    human_state_hypothesis_id = extra["record_human_state"](
+        context.session_id, context.turn_id, human_state
+    )
 
-    prompt_sections = [
-        PromptSection(
-            name="operator_facts",
-            priority=90,
-            render=lambda: extra["operator_facts_block"](
-                runtime.facts,
-                authority=runtime.memory_authority,
+    # Authenticated chat is intentionally a separate, injected application
+    # path. It must reach the provider only through the Organ 32 streaming
+    # gateway and never compose legacy raw fact/recall prompt sections.
+    authenticated_representation = extra.get("authenticated_representation")
+    representation_stream = None
+    if authenticated_representation is not None:
+        try:
+            provider, _ = _active_route(runtime, chat_client, model)
+            representation_stream = authenticated_representation.stream(
+                context=context,
+                user_text=user_text,
+                task=task,
+                provider=provider,
+                chat_client=chat_client,
+                model=model,
+                human_state=human_state,
+                human_state_hypothesis_id=human_state_hypothesis_id,
+                stream_chat_chunks=extra["stream_chat_chunks"],
+                chat_system_prompt=extra["chat_system_prompt"],
+            )
+        except IntelligenceGatewayError as exc:
+            record_telemetry(telemetry.OUTCOME_ABORTED)
+            yield sse("error", {"text": str(exc)})
+            return
+        yield sse(
+            "representative_context",
+            {
+                "context_digest": representation_stream.context.context_digest,
+                "receipt_digest": representation_stream.receipt.receipt_digest,
+                "expires_at": representation_stream.receipt.expires_at,
+            },
+        )
+    else:
+        prompt_sections = [
+            PromptSection(
+                name="operator_facts",
+                priority=90,
+                render=lambda: extra["operator_facts_block"](
+                    runtime.facts,
+                    authority=runtime.memory_authority,
+                ),
+                max_tokens=800,
             ),
-            max_tokens=800,
-        ),
-        PromptSection(
-            name="recall",
-            priority=70,
-            render=lambda: extra["recall_memory"](user_text),
-            max_tokens=1500,
-        ),
-    ]
-    system_prompt = PromptWriter(
-        extra["chat_system_prompt"], prompt_sections, total_budget=4000
-    ).assemble(user_text)
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_text},
-    ]
+            PromptSection(
+                name="recall",
+                priority=70,
+                render=lambda: extra["recall_memory"](user_text),
+                max_tokens=1500,
+            ),
+        ]
+        system_prompt = PromptWriter(
+            extra["chat_system_prompt"], prompt_sections, total_budget=4000
+        ).assemble(user_text)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text},
+        ]
 
     extra["record_episode"](context.session_id, "user", user_text)
     route_sent = False
@@ -112,7 +148,12 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
         }
 
     try:
-        for chunk in extra["stream_chat_chunks"](chat_client, messages, model=model):
+        chunk_stream = (
+            representation_stream.chunks
+            if representation_stream is not None
+            else extra["stream_chat_chunks"](chat_client, messages, model=model)
+        )
+        for chunk in chunk_stream:
             if not route_sent:
                 yield sse("route", route_payload())
                 route_sent = True

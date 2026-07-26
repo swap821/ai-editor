@@ -101,6 +101,8 @@ class FakeLLM:
 
 
 class FakeOllama:
+    host: str = "http://127.0.0.1:11434"
+
     def list_models(self) -> dict:
         return {"available": True, "models": ["llama3.2:3b"]}
 
@@ -1546,14 +1548,16 @@ def test_record_human_state_uses_injected_store() -> None:
     class FakeStore:
         def save(
             self, session_id: str, turn_id: str, hypothesis: HumanStateHypothesis
-        ) -> None:
+        ) -> int:
             calls.append((session_id, turn_id, hypothesis))
+            return 73
 
     hypothesis = HumanStateHypothesis(
         state="frustrated", confidence=0.6, visible_reason="test"
     )
-    _record_human_state("session-1", "turn-1", hypothesis, store=FakeStore())
+    hypothesis_id = _record_human_state("session-1", "turn-1", hypothesis, store=FakeStore())
 
+    assert hypothesis_id == 73
     assert calls == [("session-1", "turn-1", hypothesis)]
 
 

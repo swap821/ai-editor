@@ -293,6 +293,8 @@ def test_confidence_gated_turn_records_aborted_telemetry_row(
 class CapturingChatOllama:
     """Deterministic Ollama stand-in that records every chat() it receives."""
 
+    host: str = "http://127.0.0.1:11434"
+
     def __init__(self) -> None:
         self.calls: list[list] = []
 
@@ -319,6 +321,8 @@ class FakeFacts:
 
 @pytest.fixture()
 def chat_client_fixture() -> Iterator[tuple[TestClient, CapturingChatOllama]]:
+    from aios.api.deps import get_optional_principal
+
     ollama = CapturingChatOllama()
     indexer = FakeIndexer()
     app.dependency_overrides[get_ollama_client] = lambda: ollama
@@ -326,6 +330,7 @@ def chat_client_fixture() -> Iterator[tuple[TestClient, CapturingChatOllama]]:
     app.dependency_overrides[get_gemini_client] = lambda: None
     app.dependency_overrides[get_semantic_indexer] = lambda: indexer
     app.dependency_overrides[get_semantic_facts] = lambda: FakeFacts()
+    app.dependency_overrides[get_optional_principal] = lambda: None
     with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
         yield test_client, ollama
     app.dependency_overrides.clear()

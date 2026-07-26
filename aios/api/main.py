@@ -102,6 +102,11 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_self_apply_engine,
     get_edit_snapshot,
     get_human_state_hypothesis_store,
+    get_constitution_authority,
+    get_operator_preference_store,
+    get_project_passport_store,
+    get_correction_record_store,
+    get_representative_context_store,
     _session_id_from_request,
     _RATE_LIMITER,
     _SESSION_MANAGER,
@@ -138,6 +143,9 @@ from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.governance import EmergencyStopError
 from aios.application.governance.constitution_authority import (
     ConstitutionAuthorityError,
+)
+from aios.application.intelligence.authenticated_chat import (
+    AuthenticatedChatRepresentation,
 )
 from aios.application.identity.service import IdentityDegraded
 from aios.api.action_guard import enforce_action_boundary
@@ -1014,6 +1022,8 @@ def _build_turn_context(
     mission_requested: bool = False,
     governance_requested: bool = False,
     data_classification: str = "PROJECT_INTERNAL",
+    operator_id: str | None = None,
+    project_id: str | None = None,
 ) -> TurnContext:
     """Create a canonical TurnContext for the current directive."""
     mode = TurnCoordinator.classify_mode(
@@ -1024,8 +1034,8 @@ def _build_turn_context(
     return TurnContext(
         turn_id=str(uuid.uuid4()),
         session_id=session_id,
-        operator_id=None,
-        project_id=None,
+        operator_id=operator_id,
+        project_id=project_id,
         directive=directive,
         mode=mode,
         model_id=model_id,
@@ -1307,6 +1317,14 @@ def chat(
     compactor: MemoryCompactor = Depends(get_compactor),
     memory_authority=Depends(get_memory_authority),
     human_state_store=Depends(get_human_state_hypothesis_store),
+    principal: Principal | None = Depends(get_optional_principal),
+    constitution_authority=Depends(get_constitution_authority),
+    preference_store=Depends(get_operator_preference_store),
+    project_passport_store=Depends(get_project_passport_store),
+    correction_store=Depends(get_correction_record_store),
+    conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
+    representative_context_store=Depends(get_representative_context_store),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> StreamingResponse:
     """Stream a lean Hinglish conversational reply (the GAGOS voice mind).
 
@@ -1332,7 +1350,11 @@ def chat(
     (self-reinforcing recall), exactly like ``/api/generate``. Best-effort
     persistence never breaks the chat.
     """
-    session_id = _session_id_from_request(request, req.session_id)
+    session_id = (
+        principal.session_id
+        if principal is not None
+        else _session_id_from_request(request, req.session_id)
+    )
     authority_adapters = getattr(memory_authority, "adapters", {})
     if "compaction" in authority_adapters and memory_authority.owns_store(
         "compaction", compactor
@@ -1352,6 +1374,22 @@ def chat(
         user_text,
         model_id=req.model_id,
         approval_tokens=[],
+        operator_id=principal.principal_id if principal is not None else None,
+    )
+
+    authenticated_representation = (
+        AuthenticatedChatRepresentation(
+            principal=principal,
+            constitution_authority=constitution_authority,
+            preference_store=preference_store,
+            project_passport_store=project_passport_store,
+            correction_store=correction_store,
+            conversation_state=conversation_state,
+            representative_context_store=representative_context_store,
+            emergency_stop=emergency_stop,
+        )
+        if principal is not None
+        else None
     )
 
     # The application handler owns provider selection, prompt construction,
@@ -1390,6 +1428,7 @@ def chat(
                 "record_human_state": lambda sid, tid, hyp: _record_human_state(
                     sid, tid, hyp, store=human_state_store
                 ),
+                "authenticated_representation": authenticated_representation,
                 "index_turn": _index_turn,
                 "operator_facts_block": _operator_facts_block,
                 "recall_memory": _recall_memory,

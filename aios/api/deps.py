@@ -92,6 +92,9 @@ from aios.infrastructure.memory.human_representation_store import (
     OperatorPreferenceStore,
     ProjectPassportStore,
 )
+from aios.infrastructure.intelligence.representative_context_store import (
+    RepresentativeContextStore,
+)
 from aios.security.audit_logger import log_action
 from aios.security.gateway import RateLimiter, Zone
 
@@ -123,6 +126,8 @@ _correction_record_store: Optional[CorrectionRecordStore] = None
 _correction_record_store_lock = threading.Lock()
 _operator_preference_store: Optional[OperatorPreferenceStore] = None
 _operator_preference_store_lock = threading.Lock()
+_representative_context_store: Optional[RepresentativeContextStore] = None
+_representative_context_store_lock = threading.Lock()
 _governance_amendment_store: Optional[GovernanceAmendmentStore] = None
 _governance_amendment_store_lock = threading.Lock()
 
@@ -648,6 +653,17 @@ def get_operator_preference_store() -> OperatorPreferenceStore:
     return _operator_preference_store
 
 
+def get_representative_context_store() -> RepresentativeContextStore:
+    """Provide the shared durable authenticated-chat receipt store."""
+    global _representative_context_store
+    if _representative_context_store is not None:
+        return _representative_context_store
+    with _representative_context_store_lock:
+        if _representative_context_store is None:
+            _representative_context_store = RepresentativeContextStore(
+                config.REPRESENTATIVE_CONTEXT_DB_PATH
+            )
+    return _representative_context_store
 def get_governance_amendment_store() -> GovernanceAmendmentStore:
     """Provide the durable, append-only ConstitutionalAmendmentProposalV1
     history singleton (Slice 37 / reconciliation item 6 / organ 45) -- the
@@ -716,13 +732,9 @@ def get_optional_principal(
     request: Request,
     identity: IdentityService = Depends(get_identity_service),
 ) -> Principal | None:
-    """Best-effort operator identity for routes that must stay reachable
-    from an unauthenticated local session by design (organs 29/30's
-    correction endpoints), but should still record who made a correction
-    when a real authenticated principal happens to be resolvable. Never
-    raises -- the honest answer to "no session" is `None`, not a
-    fabricated identity or a hard failure on a route nothing else here
-    requires authentication for."""
+    """Best-effort operator identity for advisory endpoints that remain
+    useful in an unauthenticated local session, such as human-state feedback.
+    Never creates a principal or silently grants authenticated authority."""
     principal = identity.get_authenticated_principal(request.cookies.get("session_id"))
     if principal is None:
         return None
@@ -929,6 +941,7 @@ __all__ = [
     "get_memory_authority",
     "get_council_memory_scope",
     "get_conversation_state_store",
+    "get_representative_context_store",
     "get_alignment_evaluation_store",
     "get_alignment_interpreter",
     "get_session_manager",

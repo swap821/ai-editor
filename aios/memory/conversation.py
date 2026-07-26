@@ -112,6 +112,18 @@ class ConversationStateStore:
             return None
         return {"revision": int(row["id"]), "corrections": overrides, "fields": fields}
 
+    def active_correction_revision(self, session_id: str) -> int | None:
+        """Return only the live correction revision, never its mutable values."""
+        if not session_id:
+            return None
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT id FROM conversation_corrections "
+                "WHERE session_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+                (self._session_key(session_id),),
+            ).fetchone()
+        return int(row["id"]) if row is not None else None
     def refresh_active_correction(
         self,
         session_id: str,
@@ -255,6 +267,74 @@ class ConversationStateStore:
             )
         return restored
 
+    def rollback_correction_transition(
+        self,
+        session_id: str,
+        *,
+        expected_revision: int,
+        expected_status: str,
+    ) -> dict[str, Any]:
+        """Compensate a failed immutable-ledger write without leaving state live.
+
+        Correction state and its authenticated append-only ledger live in
+        separate SQLite stores. This local transaction reverses the just-made
+        state transition when the ledger rejects it: it restores the prior
+        active correction (or the base frame) and supersedes the failed transition.
+        A caller must still surface the ledger failure.
+        """
+        if not session_id:
+            raise ValueError("conversation correction requires a session id")
+        if expected_status not in {"active", "cleared"}:
+            raise ValueError("unsupported correction transition status")
+        key = self._session_key(session_id)
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            failed = conn.execute(
+                "SELECT id, before_frame_json FROM conversation_corrections "
+                "WHERE session_id = ? AND id = ? AND status = ?",
+                (key, expected_revision, expected_status),
+            ).fetchone()
+            if failed is None:
+                raise ValueError("conversation correction changed; retry")
+            prior = conn.execute(
+                "SELECT id, after_frame_json FROM conversation_corrections "
+                "WHERE session_id = ? AND status = 'superseded' "
+                "AND ledger_rejected_at IS NULL AND id < ? "
+                "ORDER BY id DESC LIMIT 1",
+                (key, expected_revision),
+            ).fetchone()
+            payload = (
+                str(prior["after_frame_json"])
+                if prior is not None
+                else str(failed["before_frame_json"])
+            )
+            restored = json.loads(payload)
+            if not isinstance(restored, dict):
+                raise ValueError("stored correction rollback frame is invalid")
+            conn.execute(
+                "UPDATE conversation_corrections SET status = 'superseded', "
+                "superseded_at = CURRENT_TIMESTAMP, "
+                "ledger_rejected_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (expected_revision,),
+            )
+            if prior is not None:
+                conn.execute(
+                    "UPDATE conversation_corrections SET status = 'active', "
+                    "superseded_at = NULL WHERE id = ?",
+                    (int(prior["id"]),),
+                )
+            restored_payload = self._payload(
+                restored, label="correction rollback frame"
+            )
+            conn.execute(
+                "INSERT INTO conversation_state (session_id, updated_at, frame_json) "
+                "VALUES (?, CURRENT_TIMESTAMP, ?) "
+                "ON CONFLICT(session_id) DO UPDATE SET "
+                "updated_at = CURRENT_TIMESTAMP, frame_json = excluded.frame_json",
+                (key, restored_payload),
+            )
+        return restored
+
     def correction_lineage_frames(
         self, session_id: str, limit: int = 20
     ) -> list[dict[str, Any]]:
@@ -271,7 +351,7 @@ class ConversationStateStore:
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
-                "SELECT id, created_at, superseded_at, status, corrected_fields_json, "
+                "SELECT id, created_at, superseded_at, ledger_rejected_at, status, corrected_fields_json, "
                 "before_frame_json, after_frame_json FROM conversation_corrections "
                 "WHERE session_id = ? ORDER BY id DESC LIMIT ?",
                 (self._session_key(session_id), max(1, min(100, int(limit)))),
@@ -295,6 +375,11 @@ class ConversationStateStore:
                     "superseded_at": (
                         str(row["superseded_at"]) if row["superseded_at"] else None
                     ),
+                    "ledger_rejected_at": (
+                        str(row["ledger_rejected_at"])
+                        if row["ledger_rejected_at"]
+                        else None
+                    ),
                     "status": str(row["status"]),
                     "corrected_fields": fields,
                     "before_frame": before_frame,
@@ -312,7 +397,7 @@ class ConversationStateStore:
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
-                "SELECT id, created_at, superseded_at, status, overrides_json, "
+                "SELECT id, created_at, superseded_at, ledger_rejected_at, status, overrides_json, "
                 "corrected_fields_json FROM conversation_corrections "
                 "WHERE session_id = ? ORDER BY id DESC LIMIT ?",
                 (self._session_key(session_id), max(1, min(100, int(limit)))),
@@ -330,6 +415,11 @@ class ConversationStateStore:
                     "created_at": str(row["created_at"]),
                     "superseded_at": (
                         str(row["superseded_at"]) if row["superseded_at"] else None
+                    ),
+                    "ledger_rejected_at": (
+                        str(row["ledger_rejected_at"])
+                        if row["ledger_rejected_at"]
+                        else None
                     ),
                     "status": str(row["status"]),
                     "corrections": overrides if isinstance(overrides, dict) else {},

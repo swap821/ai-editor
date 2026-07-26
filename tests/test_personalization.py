@@ -29,6 +29,8 @@ from aios.memory.fact_extraction import extract_candidates
 # ── Fakes ─────────────────────────────────────────────────────────────────────
 
 class _DeterministicOllama:
+    host: str = "http://127.0.0.1:11434"
+
     def list_models(self) -> dict:
         return {"available": True, "models": ["llama3.2:3b"]}
 
@@ -56,6 +58,8 @@ def tmp_facts(tmp_path: Path) -> SemanticFacts:
 @pytest.fixture()
 def chat_client_with_facts(tmp_facts: SemanticFacts) -> Iterator[TestClient]:
     """Chat endpoint wired with real SemanticFacts on a temp DB."""
+    from aios.api.deps import get_optional_principal
+
     ollama = _DeterministicOllama()
     indexer = _FakeIndexer()
     app.dependency_overrides[get_ollama_client] = lambda: ollama
@@ -63,6 +67,7 @@ def chat_client_with_facts(tmp_facts: SemanticFacts) -> Iterator[TestClient]:
     app.dependency_overrides[get_gemini_client] = lambda: None
     app.dependency_overrides[get_semantic_indexer] = lambda: indexer
     app.dependency_overrides[get_semantic_facts] = lambda: tmp_facts
+    app.dependency_overrides[get_optional_principal] = lambda: None
     with TestClient(app, client=("127.0.0.1", 12345)) as c:
         yield c
     app.dependency_overrides.clear()

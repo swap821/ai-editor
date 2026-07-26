@@ -27,11 +27,14 @@ from aios.api.deps import (
     get_correction_record_store,
     get_memory_authority,
     get_memory_consolidator,
-    get_optional_principal,
+    get_authenticated_principal,
     get_semantic_facts,
     require_privileged_operator,
 )
-from aios.application.memory.human_representation import record_correction_and_build_v1
+from aios.application.memory.human_representation import (
+    build_correction_record_v1,
+    record_correction_and_build_v1,
+)
 from aios.core.alignment import (
     apply_user_corrections,
     frame_from_state,
@@ -44,6 +47,7 @@ from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.facts import SemanticFacts
 from aios.domain.identity.models import Principal
+from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.domain.memory import MemoryRecallContext
 from aios.api.action_guard import enforce_action_boundary
 
@@ -114,6 +118,11 @@ class ConversationCorrectionRequest(BaseModel):
 
     session_id: str = Field(..., min_length=1, alias="sessionId")
     corrections: dict[str, Any]
+    reason: str = Field(
+        "explicit authenticated operator correction",
+        min_length=1,
+        max_length=500,
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -251,19 +260,23 @@ def correct_conversation_alignment(
     state: ConversationStateStore = Depends(get_conversation_state_store),
     evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
     correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
-    principal: Principal | None = Depends(get_optional_principal),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
-    """Apply user-authored interpretation overrides; never grant authority.
+    """Append an authenticated correction before it can influence governed chat.
 
-    Organ 29: also builds and durably records a typed, digest-verified
-    ``CorrectionRecordV1`` via ``record_correction_and_build_v1`` --
-    previously this typed layer had zero production callers anywhere; this
-    route built only untyped dicts. The route's existing response shape is
-    unchanged; the durable, operator-attributed record is additive.
-    ``principal`` is best-effort (this route stays reachable from an
-    unauthenticated local session by design).
+    Mutable conversation state is the local interaction surface; the separate
+    immutable ledger is the sole source eligible for representative context.
+    If that ledger cannot commit, a local compensating transaction restores
+    the prior state and this route fails closed.
     """
     session_id = _require_cookie_session(request)
+    if (
+        principal.session_id != session_id
+        or not principal.authentication_event_id
+    ):
+        raise HTTPException(
+            status_code=403, detail="authenticated session does not own this correction"
+        )
     current_payload = state.get(session_id)
     if current_payload is None:
         raise HTTPException(
@@ -289,11 +302,34 @@ def correct_conversation_alignment(
             corrections=merged,
             corrected_fields=sorted(merged),
             expected_revision=expected_revision,
-            operator_id=principal.principal_id if principal is not None else None,
+            operator_id=principal.principal_id,
         )
-        correction_records.save(typed_record)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        authenticated_event = correction_records.append_authenticated(
+            typed_record,
+            corrected_values=incoming,
+            reason=req.reason,
+            operator_id=principal.principal_id,
+            operator_identity_digest=credential_digest(principal.principal_id),
+            authentication_event_id=principal.authentication_event_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - preserve the safe local rollback
+        try:
+            state.rollback_correction_transition(
+                session_id, expected_revision=revision, expected_status="active"
+            )
+        except Exception as rollback_exc:  # noqa: BLE001 - fail closed on both stores
+            logger.error(
+                "Authenticated correction rollback failed",
+                exc_info=rollback_exc,
+            )
+        logger.error("Authenticated correction ledger write failed", exc_info=exc)
+        raise HTTPException(
+            status_code=503,
+            detail="authenticated correction ledger unavailable; correction was rolled back",
+        ) from exc
     try:
         observation_id = (
             evaluation_payload.get("observation_id")
@@ -318,6 +354,7 @@ def correct_conversation_alignment(
         },
         "correctionHistory": state.correction_history(session_id),
         "correctionRecord": typed_record.as_dict(),
+        "authenticatedCorrectionEvent": authenticated_event.as_dict(),
     }
 
 
@@ -359,22 +396,86 @@ def clear_conversation_alignment_correction(
     req: ConversationSessionRequest,
     request: Request,
     state: ConversationStateStore = Depends(get_conversation_state_store),
+    correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
-    """Clear active user corrections and restore the superseded base frame."""
+    """Append an authenticated clear event and restore the base interpretation."""
     session_id = _require_cookie_session(request)
+    if (
+        principal.session_id != session_id
+        or not principal.authentication_event_id
+    ):
+        raise HTTPException(
+            status_code=403, detail="authenticated session does not own this correction"
+        )
     try:
         restored = state.clear_correction(session_id)
+        frames = state.correction_lineage_frames(session_id, limit=2)
+        cleared_frame = next(
+            frame for frame in frames if frame["status"] == "cleared"
+        )
+        prior_frame = next(
+            (
+                frame
+                for frame in frames
+                if frame["status"] == "superseded"
+                and frame.get("ledger_rejected_at") is None
+            ),
+            None,
+        )
+        typed_record = build_correction_record_v1(
+            correction_id=f"correction:{session_id}:{cleared_frame['revision']}",
+            session_id=session_id,
+            base_revision=(
+                int(prior_frame["revision"]) if prior_frame is not None else 0
+            ),
+            correction_revision=int(cleared_frame["revision"]),
+            corrected_fields=tuple(cleared_frame["corrected_fields"]),
+            before_frame=cleared_frame["before_frame"],
+            after_frame=cleared_frame["after_frame"],
+            operator_id=principal.principal_id,
+        )
         alignment = frame_from_state(restored).as_dict()
         evaluation_payload = restored.get("evaluation")
         if isinstance(evaluation_payload, dict):
             alignment["evaluation"] = evaluation_payload
-        state.save(session_id, alignment)
-    except ValueError as exc:
+    except (StopIteration, TypeError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    clear_revision = int(cleared_frame["revision"])
+    try:
+        authenticated_event = correction_records.append_authenticated_clear(
+            typed_record,
+            reason="explicit authenticated operator clear",
+            operator_id=principal.principal_id,
+            operator_identity_digest=credential_digest(principal.principal_id),
+            authentication_event_id=principal.authentication_event_id,
+        )
+    except Exception as exc:  # noqa: BLE001 - preserve the safe local rollback
+        try:
+            state.rollback_correction_transition(
+                session_id,
+                expected_revision=clear_revision,
+                expected_status="cleared",
+            )
+        except Exception as rollback_exc:  # noqa: BLE001 - fail closed on both stores
+            logger.error(
+                "Authenticated correction clear rollback failed",
+                exc_info=rollback_exc,
+            )
+        logger.error(
+            "Authenticated correction clear ledger write failed", exc_info=exc
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="authenticated correction ledger unavailable; clear was rolled back",
+        ) from exc
+    state.save(session_id, alignment)
     return {
         "alignment": alignment,
         "activeCorrection": None,
         "correctionHistory": state.correction_history(session_id),
+        "correctionRecord": typed_record.as_dict(),
+        "authenticatedCorrectionEvent": authenticated_event.as_dict(),
     }
 
 

@@ -10,6 +10,7 @@ carries from `aios/api/main.py::chat()`.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from aios.application.turns.conversation_pipeline import stream_conversation
@@ -165,3 +166,63 @@ def test_stream_conversation_yields_human_state_before_calling_record_human_stat
 
     assert "human_state_before_persist" in frames
     assert call_order == ["record_human_state"]
+
+def test_stream_conversation_authenticated_representation_uses_gateway_before_route() -> (
+    None
+):
+    """An authenticated turn must not fall back to the legacy raw-facts prompt.
+
+    The actual authenticated gateway is wired by the HTTP route. This test
+    keeps the application boundary honest: it proves the production turn
+    pipeline invokes that gateway, exposes only receipt references before the
+    provider route, and leaves raw fact/recall assembly unreachable.
+    """
+
+    context = _make_context(operator_id="operator-1", session_id="session-auth")
+    calls: list[dict[str, object]] = []
+
+    class _AuthenticatedRepresentation:
+        def stream(self, **kwargs: object) -> object:
+            calls.append(kwargs)
+            return SimpleNamespace(
+                context=SimpleNamespace(context_digest="a" * 64),
+                receipt=SimpleNamespace(
+                    receipt_digest="b" * 64,
+                    expires_at="2026-07-26T00:05:00+00:00",
+                ),
+                chunks=iter(("governed ", "reply")),
+            )
+
+    def _legacy_prompt_path(*args: object, **kwargs: object) -> str:
+        raise AssertionError("authenticated chat must not use legacy prompt assembly")
+
+    runtime = _make_runtime(
+        extra_overrides={
+            "authenticated_representation": _AuthenticatedRepresentation(),
+            "record_human_state": lambda sid, tid, hyp: 73,
+            "operator_facts_block": _legacy_prompt_path,
+            "recall_memory": _legacy_prompt_path,
+            "stream_chat_chunks": _legacy_prompt_path,
+        }
+    )
+
+    frames = list(stream_conversation(context, runtime))
+    events = [frame.split(":", 1)[0] for frame in frames]
+
+    assert len(calls) == 1
+    assert calls[0]["context"] == context
+    assert calls[0]["human_state_hypothesis_id"] == 73
+    assert calls[0]["provider"] == "ollama"
+    assert events.index("human_state") < events.index("representative_context")
+    assert events.index("representative_context") < events.index("route")
+    receipt_frame = next(
+        frame for frame in frames if frame.startswith("representative_context:")
+    )
+    assert "a" * 64 in receipt_frame
+    assert "b" * 64 in receipt_frame
+    text = "".join(
+        frame.split("'text': ", 1)[1].rstrip("}") .strip("'")
+        for frame in frames
+        if frame.startswith("text_chunk:")
+    )
+    assert text == "governed reply"
