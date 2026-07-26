@@ -331,3 +331,86 @@ def test_mounted_hiring_call_uses_exact_capability_and_real_service() -> None:
             assert replay.status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+# --------------------------------------------------------------------------- #
+# Organ 32: this service reaches a real external provider on
+# POST /api/v1/hiring/call, entirely outside aios/application/intelligence/
+# gateway.py. Two gaps that had no test:
+#   * no emergency-stop check anywhere in its call chain
+#   * egress was ASYMMETRIC -- the outgoing prompt is scrubbed via
+#     selection.privacy.scrubbed_prompt, but the provider's RESPONSE was
+#     returned to the caller, and persisted, completely raw
+# --------------------------------------------------------------------------- #
+
+
+def _engaged_stop(tmp_path):
+    from aios.application.governance import (
+        EmergencyStopController,
+        EmergencyStopHooks,
+    )
+    from aios.domain.governance import EmergencyStopRequest
+
+    controller = EmergencyStopController(
+        tmp_path / "emergency.db",
+        hooks=EmergencyStopHooks(
+            revoke_capabilities=lambda: None,
+            cancel_queued_missions=lambda: None,
+            kill_active_workers=lambda: None,
+            disable_autonomy=lambda: None,
+            preserve_evidence=lambda reason: None,
+        ),
+    )
+    controller.engage(
+        EmergencyStopRequest(
+            operator_id="operator-1",
+            authentication_event_id="auth-1",
+            reason="test",
+        )
+    )
+    return controller
+
+
+def test_engaged_emergency_stop_blocks_the_hiring_call(tmp_path) -> None:
+    from aios.application.governance import EmergencyStopError
+
+    cloud = FakeClient()
+    service = IntelligenceHiringService(
+        broker=HiringBroker(),
+        providers=_providers(),
+        clients={"gemini": cloud},
+        repository=HiringRecordRepository(tmp_path / "state.db"),
+        policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=_engaged_stop(tmp_path),
+    )
+
+    with pytest.raises(EmergencyStopError):
+        service.complete(_request())
+
+    assert cloud.calls == [], "provider was reached while the stop was engaged"
+
+
+def test_the_provider_response_is_redacted_before_it_reaches_the_caller(
+    tmp_path,
+) -> None:
+    """The outgoing prompt was scrubbed while the reply came back raw, so a
+    secret the model echoed or emitted left through the response."""
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    cloud = FakeClient(response=f"use {secret} to deploy")
+    service = IntelligenceHiringService(
+        broker=HiringBroker(),
+        providers=_providers(),
+        clients={"gemini": cloud},
+        repository=HiringRecordRepository(tmp_path / "state.db"),
+        policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+    )
+
+    result, record = service.complete(_request())
+
+    assert secret not in result
+    assert "REDACTED" in result
+    # And the durable provenance row must not preserve what the caller was not
+    # allowed to see.
+    assert secret not in str(
+        record.model_dump() if hasattr(record, "model_dump") else record
+    )
