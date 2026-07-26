@@ -14,6 +14,34 @@ from aios.domain.capabilities.digest import payload_digest
 from aios.domain.governance.constitution import build_constitution_snapshot
 
 
+def _constitution_authority(tmp_path, operator_id: str = "operator:one"):
+    """A real ConstitutionAuthority over a real durable chain.
+
+    These tests previously compared fabricated literal digests
+    ("sha256:old-digest") that no snapshot ever produced, against a "current"
+    digest rebuilt from live config. That could never reproduce the real
+    failure mode, because in production BOTH sides were rebuilt the same way
+    and therefore always matched -- the rejection under test was structurally
+    unreachable. Driving a genuine v1 -> v2 activation is what makes these
+    assertions mean something.
+    """
+    from aios.application.governance.constitution_authority import (
+        ConstitutionAuthority,
+    )
+    from aios.infrastructure.governance.constitution_snapshot_store import (
+        ConstitutionSnapshotStore,
+    )
+
+    class _Enrolled:
+        def operator(self):
+            return {"operator_id": operator_id}
+
+    return ConstitutionAuthority(
+        ConstitutionSnapshotStore(tmp_path / "constitution.db"),
+        identity_store=_Enrolled(),
+    )
+
+
 def _binding(**overrides) -> CapabilityBinding:
     values = {
         "operator_id": "operator:one",
@@ -230,10 +258,11 @@ def test_constitution_digest_none_is_unaffected(tmp_path):
 
 
 def test_constitution_digest_match_is_accepted(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "digest-match.db")
-    current_digest = build_constitution_snapshot(
-        ratified_by_operator_id="operator:one"
-    ).snapshot_digest
+    constitution = _constitution_authority(tmp_path)
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "digest-match.db", constitution_authority=constitution
+    )
+    current_digest = constitution.get_active_snapshot().snapshot_digest
     binding = _binding(constitution_digest=current_digest)
 
     token = authority.issue(binding)
@@ -241,15 +270,55 @@ def test_constitution_digest_match_is_accepted(tmp_path):
     assert proof.constitution_digest == current_digest
 
 
+def test_a_real_activated_amendment_invalidates_an_outstanding_capability(tmp_path):
+    """Organ 25, the regression that matters.
+
+    A capability is issued under v1, a real amendment is activated, and the
+    capability is then consumed within its TTL. Before this organ, the
+    "current" digest was rebuilt from live config on both sides, so the two
+    always matched and this rejection could never fire -- an activated
+    amendment had no effect on any outstanding capability.
+    """
+    constitution = _constitution_authority(tmp_path)
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "digest-amended.db", constitution_authority=constitution
+    )
+    v1 = constitution.get_active_snapshot()
+    binding = _binding(constitution_digest=v1.snapshot_digest)
+    token = authority.issue(binding)
+
+    v2 = build_constitution_snapshot(
+        ratified_by_operator_id="operator:one", previous_snapshot=v1
+    )
+    constitution.activate_snapshot(v2, expected_previous_digest=v1.snapshot_digest)
+
+    with pytest.raises(CapabilityError, match="stale constitution"):
+        authority.consume(token, binding)
+
+
 def test_constitution_digest_mismatch_is_rejected_outright(tmp_path):
     """Organ 24/25: a capability issued under a stale constitution is
     refused at consume time even though nothing else about it has expired,
     been revoked, or been tampered with."""
-    authority = CapabilityAuthority(db_path=tmp_path / "digest-mismatch.db")
-    binding = _binding(constitution_digest="sha256:stale-constitution-digest")
+    constitution = _constitution_authority(tmp_path)
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "digest-mismatch.db", constitution_authority=constitution
+    )
+    binding = _binding(constitution_digest="f" * 64)
 
     token = authority.issue(binding)
     with pytest.raises(CapabilityError, match="stale constitution"):
+        authority.consume(token, binding)
+
+
+def test_a_constitution_bound_capability_needs_a_wired_authority(tmp_path):
+    """Fail closed: without an authority there is nothing to verify against,
+    so the capability must be refused rather than waved through."""
+    authority = CapabilityAuthority(db_path=tmp_path / "digest-unwired.db")
+    binding = _binding(constitution_digest="f" * 64)
+
+    token = authority.issue(binding)
+    with pytest.raises(CapabilityError, match="no constitution authority"):
         authority.consume(token, binding)
 
 
@@ -260,13 +329,14 @@ def test_constitution_digest_is_excluded_from_the_replay_equality_check(tmp_path
     generic binding-equality check, a legitimate constitutional amendment
     during the TTL window would surface as an opaque "binding mismatch"
     and this test's own stale-constitution check would be unreachable."""
-    authority = CapabilityAuthority(db_path=tmp_path / "digest-replay.db")
-    issued_binding = _binding(constitution_digest="sha256:old-digest")
+    constitution = _constitution_authority(tmp_path)
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "digest-replay.db", constitution_authority=constitution
+    )
+    issued_binding = _binding(constitution_digest="a" * 64)
     token = authority.issue(issued_binding)
 
-    freshly_reconstructed = replace(
-        issued_binding, constitution_digest="sha256:new-digest"
-    )
+    freshly_reconstructed = replace(issued_binding, constitution_digest="b" * 64)
 
     with pytest.raises(CapabilityError, match="stale constitution"):
         authority.consume(token, freshly_reconstructed)
@@ -279,15 +349,18 @@ def test_constitution_digest_survives_the_real_store_round_trip(tmp_path):
     (like two separate requests) so nothing but the real SQLite row can
     carry the value across."""
     db_path = tmp_path / "digest-roundtrip.db"
-    current_digest = build_constitution_snapshot(
-        ratified_by_operator_id="operator:one"
-    ).snapshot_digest
+    constitution = _constitution_authority(tmp_path)
+    current_digest = constitution.get_active_snapshot().snapshot_digest
     binding = _binding(constitution_digest=current_digest)
 
-    issuing_authority = CapabilityAuthority(db_path=db_path)
+    issuing_authority = CapabilityAuthority(
+        db_path=db_path, constitution_authority=constitution
+    )
     token = issuing_authority.issue(binding)
 
-    consuming_authority = CapabilityAuthority(db_path=db_path)
+    consuming_authority = CapabilityAuthority(
+        db_path=db_path, constitution_authority=constitution
+    )
     proof = consuming_authority.consume(token, binding)
     assert proof.constitution_digest == current_digest
 

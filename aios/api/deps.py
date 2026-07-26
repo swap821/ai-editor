@@ -78,6 +78,10 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 from aios.infrastructure.memory import MemoryAuthorityStore
+from aios.application.governance.constitution_authority import (
+    ConstitutionAuthority,
+    get_constitution_authority as _get_constitution_authority,
+)
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConstitutionSnapshotStore,
 )
@@ -121,10 +125,6 @@ _operator_preference_store: Optional[OperatorPreferenceStore] = None
 _operator_preference_store_lock = threading.Lock()
 _governance_amendment_store: Optional[GovernanceAmendmentStore] = None
 _governance_amendment_store_lock = threading.Lock()
-_constitution_snapshot_store: Optional[ConstitutionSnapshotStore] = None
-_constitution_snapshot_store_lock = threading.Lock()
-_constitution_authority: Optional[ConstitutionAuthority] = None
-_constitution_authority_lock = threading.Lock()
 
 
 def get_llm_client() -> LLMClient:
@@ -573,6 +573,10 @@ def get_identity_service() -> IdentityService:
             _identity_service = IdentityService(
                 identity_db_path=config.IDENTITY_DB_PATH,
                 session_db_path=config.SESSION_DB_PATH,
+                # Explicit, so production really does have ONE authority
+                # object shared with the policy kernel and capability
+                # authority -- not merely several pointed at one file.
+                constitution_authority=get_constitution_authority(),
             )
     return _identity_service
 
@@ -660,32 +664,33 @@ def get_governance_amendment_store() -> GovernanceAmendmentStore:
 
 
 def get_constitution_snapshot_store() -> ConstitutionSnapshotStore:
-    """Provide the durable, content-addressed ConstitutionSnapshotV1 history
-    singleton (organ 45) -- gives activate_amendment_route()/rollback_
-    amendment_route() a real cross-restart chain to advance and revert,
-    instead of rebuilding a fresh, ephemeral "previous" snapshot on every
-    call."""
-    global _constitution_snapshot_store
-    if _constitution_snapshot_store is not None:
-        return _constitution_snapshot_store
-    with _constitution_snapshot_store_lock:
-        if _constitution_snapshot_store is None:
-            _constitution_snapshot_store = ConstitutionSnapshotStore(
-                config.CONSTITUTION_SNAPSHOT_DB_PATH
-            )
-    return _constitution_snapshot_store
+    """Provide the durable ConstitutionSnapshotV1 history store.
+
+    Organ 25 note: the amendment routes no longer depend on this directly --
+    they go through `get_constitution_authority()`, which owns the store. A
+    route holding the raw store could advance a chain that no other consumer
+    reads, which is the class of split this organ exists to close. This
+    remains only so callers that genuinely want raw history (not the active
+    pointer) have a seam; override `get_constitution_authority` instead if
+    you are isolating the chain in a test.
+    """
+    return get_constitution_authority().store
 
 
 def get_constitution_authority() -> ConstitutionAuthority:
-    """Provide the single ConstitutionAuthority owner singleton (organ 25)."""
-    global _constitution_authority
-    if _constitution_authority is not None:
-        return _constitution_authority
-    with _constitution_authority_lock:
-        if _constitution_authority is None:
-            store = get_constitution_snapshot_store()
-            _constitution_authority = ConstitutionAuthority(store)
-    return _constitution_authority
+    """Provide the single ConstitutionAuthority owner singleton (organ 25).
+
+    Delegates to the authority module's own singleton rather than caching a
+    second instance here. The non-HTTP construction sites (``get_policy_
+    kernel``, ``Executor.__init__``, the runtime proof) cannot import this
+    module without a cycle, so a local cache would mean "one authority per
+    entry point" -- which is the thing organ 25 exists to eliminate.
+
+    This function previously referenced ``ConstitutionAuthority`` without the
+    module ever importing it, so calling it raised ``NameError``. That it
+    survived undetected is itself the proof it had no callers.
+    """
+    return _get_constitution_authority()
 
 
 
@@ -781,6 +786,8 @@ def get_capability_authority() -> CapabilityAuthority:
     """Provide the server-issued exact capability authority."""
     if _CAPABILITIES.emergency_stop is None:
         _CAPABILITIES.emergency_stop = get_emergency_stop()
+    if _CAPABILITIES.constitution_authority is None:
+        _CAPABILITIES.constitution_authority = get_constitution_authority()
     return _CAPABILITIES
 
 

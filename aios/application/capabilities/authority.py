@@ -96,11 +96,15 @@ class CapabilityAuthority:
         ttl_seconds: float = 120.0,
         clock: Callable[[], float] = time.time,
         emergency_stop: Any | None = None,
+        constitution_authority: Any | None = None,
     ) -> None:
         self.store = CapabilityStore(db_path)
         self.ttl_seconds = max(float(ttl_seconds), 0.001)
         self.clock = clock
         self.emergency_stop = emergency_stop
+        #: Organ 25. Late-bindable, matching `emergency_stop`'s existing
+        #: convention -- `aios/api/deps.py` sets it on the singleton.
+        self.constitution_authority = constitution_authority
 
     @staticmethod
     def _token_digest(token: str) -> str:
@@ -170,12 +174,19 @@ class CapabilityAuthority:
             # Organ 24/25: reject outright rather than downgrade -- a
             # capability issued under a constitution that has since been
             # amended must never be honored, even if it hasn't expired.
-            from aios.domain.governance.constitution import (
-                build_constitution_snapshot,
-            )
-
-            current_digest = build_constitution_snapshot(
-                ratified_by_operator_id=capability.binding.operator_id
+            #
+            # This used to rebuild the "current" digest from live config. The
+            # binding's own digest was produced the same way, so both sides
+            # always matched and this rejection could never fire for a real
+            # amendment. It now reads the durable chain, which actually moves
+            # when an amendment activates.
+            if self.constitution_authority is None:
+                raise CapabilityError(
+                    "no constitution authority is wired; refusing to consume a "
+                    "constitution-bound capability without verifying it"
+                )
+            current_digest = self.constitution_authority.get_active_snapshot(
+                capability.binding.operator_id
             ).snapshot_digest
             if current_digest != capability.binding.constitution_digest:
                 raise CapabilityError(

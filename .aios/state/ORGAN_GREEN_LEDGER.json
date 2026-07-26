@@ -469,19 +469,34 @@
     "status": "yellow",
     "authority_owner": "ConstitutionalKernelAuthority",
     "production_entrypoints": [
+      "aios/application/governance/constitution_authority.py",
+      "aios/infrastructure/governance/constitution_snapshot_store.py",
       "aios/domain/governance/constitution.py",
-      "aios/application/governance/constitution_authority.py"
+      "aios/policy/kernel.py",
+      "aios/application/identity/service.py",
+      "aios/application/capabilities/authority.py",
+      "aios/api/routes/governance.py",
+      "aios/api/routes/mirror.py",
+      "aios/council/gateway_reasoning.py",
+      "aios/core/executor.py",
+      "aios/api/deps.py",
+      "aios/api/main.py"
     ],
     "focused_tests": [
+      "tests/test_constitution_authority.py",
       "tests/test_constitution_snapshot.py",
-      "tests/test_constitution_authority.py"
+      "tests/test_constitution_snapshot_store.py",
+      "tests/test_policy_kernel.py"
     ],
     "integration_tests": [
-      "tests/test_constitution.py"
+      "tests/test_organ25_constitution_e2e.py",
+      "tests/test_governance_amendment_api.py",
+      "tests/test_exact_capabilities.py",
+      "tests/test_mirror.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Integrity correction: a commit on this branch (25ad041, \"PR 2-8: Complete 54-Organ Production Baseline\") claimed this organ green (\"a real decision path now rejects execution on a constitution-digest mismatch\" via a new PolicyKernel.constitution_snapshot()\"), but grepping the whole repository for constitution_authority= found ZERO real production call sites: all three genuine PolicyKernel construction sites (aios/policy/kernel.py's own get_kernel() singleton, aios/core/executor.py's Executor.__init__, aios/application/governance/runtime_proof.py's _probe_mutation_authority) construct PolicyKernel WITHOUT constitution_authority=, so self.constitution_authority is None in every real running instance -- constitution_snapshot() therefore ALWAYS falls through to its fallback, build_constitution_snapshot(ratified_by_operator_id=\"operator\"), which fabricates a hardcoded, non-authenticated operator_id rather than deriving one from a real principal. get_constitution_authority() (aios/api/deps.py) is likewise never called anywhere outside its own definition. The new ConstitutionAuthority class (aios/application/governance/constitution_authority.py) is real, durable, and its own isolated tests pass, but it is dead code from production's point of view -- a real building block, not a closed gap. The organ's pre-existing gap (PolicyKernel still reads the legacy aios.policy.constitution.Constitution facade; every caste/routing/security check in the kernel depends on that facade's specific shape) remains exactly as large as previously documented. CapabilityAuthority.consume()'s own constitution-digest mismatch rejection (a genuinely separate, real mechanism, unaffected by this) still stands."
+      "PR-1 (organ 25) IMPLEMENTED, status deliberately NOT flipped yet -- see the last two sentences. The gap this organ carried is closed. Measured before the fix (real code, not inference): activating a real amendment moved the durable chain to v2 while EVERY enforcement consumer stayed at v1 forever, because IdentityService._current_constitution_digest, CapabilityAuthority.consume, mirror.py and gateway_reasoning.py each rebuilt a snapshot per call from live config (always version 1), and PolicyKernel.constitution_snapshot() fell through to build_constitution_snapshot(ratified_by_operator_id='operator') in all three real construction sites. The consequence was not cosmetic: consume() compared a rebuilt digest against a binding stamped by the SAME rebuild, so both sides always matched and the 'capability issued under a stale constitution' rejection was structurally unreachable for a real amendment -- its four tests passed only because they compared fabricated literals ('sha256:old-digest') no snapshot ever produced. Separately, aios/api/deps.py referenced ConstitutionAuthority without importing it, so get_constitution_authority() raised NameError -- proof it had never been called. NOW: one ConstitutionAuthority is authoritative for the active snapshot, every Principal's digest, PolicyKernel decisions, capability issuance and consumption, Council context and the mirror projection. The hardcoded 'operator' fallback is deleted (an unwired kernel raises rather than fabricating). Enrollment is re-verified on EVERY call, not only the argument-free one -- the distinction is load-bearing because the two paths that actually run in production both pass an explicit operator id, so a check guarding only the zero-arg path would have guarded nothing; a caller-supplied id is now an assertion to VERIFY, never a chain selector, so an unknown id can no longer mint a second never-amended shadow chain. Fail-closed: NoEnrolledSovereignError / OperatorIdentityChangedError / ConstitutionDegraded, all mapped to one 503 handler. Activation and rollback are compare-and-swap under BEGIN IMMEDIATE with expected_previous_digest REQUIRED (no default), so an unprotected write is a TypeError rather than a silent last-writer-wins; a losing activation raises instead of vanishing. A two-thread race test proves exactly one wins. Also fixed an ordering bug: activate marked the proposal 'activated' BEFORE persisting the snapshot, so a failed write left a proposal claiming an activation that never happened. Verified by tests/test_organ25_constitution_e2e.py, which drives the real HTTP ceremony (ratify consumes a genuine server-issued capability answering the 428 challenge), restarts, then proves the amended digest reaches a fresh Principal and a fresh kernel, that an old-digest capability is refused and a new-digest one succeeds, that rollback survives a restart, and that the mirror reports the amendment. That test is mutation-checked: reverting IdentityService to the per-call rebuild fails all three cases. Deliberately NOT added: a UNIQUE(constitution_id, version) index -- it looks like free belt-and-braces but breaks a sequence this organ's own contract requires (after a rollback to v1, activating a new amendment under any changed config yields a different v2 digest at the same version). REMAINING before green, and the only reason this row is still yellow: green-contract conditions 11 and 12 -- the exact tested commit must be recorded here and verified by a CI run on that same commit. Full local backend suite is exit 0; CI on the pushed branch has not yet run."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

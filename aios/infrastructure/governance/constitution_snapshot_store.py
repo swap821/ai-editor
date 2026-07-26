@@ -27,6 +27,37 @@ class RecordTamperedError(RuntimeError):
     """Raised when a stored record's digest no longer matches its content."""
 
 
+class ConcurrentActivationError(RuntimeError):
+    """Raised when a compare-and-swap activation loses the race.
+
+    The caller read a "current" snapshot, decided what should follow it, and
+    by the time it wrote, the current pointer had already moved. Refusing the
+    write is what keeps the chain single-threaded: two concurrent activations
+    produce one ordered chain plus one loser, never two competing "current"
+    versions.
+    """
+
+
+class _Unchecked:
+    """Type of :data:`UNCHECKED`."""
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "UNCHECKED"
+
+
+#: Explicit opt-out of the compare-and-swap. ``expected_previous_digest`` is a
+#: REQUIRED argument precisely so this cannot be reached by accident: a bare
+#: ``store.save(snapshot)`` is a TypeError, not a silent unprotected write.
+#:
+#: Distinct from ``expected_previous_digest=None``, which is a real assertion
+#: that *no* current pointer exists yet (the first activation).
+#:
+#: No production call site should use this. It exists for test fixtures that
+#: are seeding state rather than exercising activation, and for a documented
+#: one-time migration. Grepping for ``UNCHECKED`` finds every such write.
+UNCHECKED = _Unchecked()
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -38,47 +69,100 @@ class ConstitutionSnapshotStore:
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path).resolve()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             apply_migrations(conn, scope="constitution")
+            conn.commit()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
+        # ``isolation_level=None`` puts this connection in autocommit mode so
+        # ``save()`` can issue its own explicit ``BEGIN IMMEDIATE`` -- the
+        # only way to make the pointer read and the pointer write one
+        # atomic, write-locked step. WAL plus a real busy timeout is what
+        # lets a second uvicorn worker block on that lock instead of
+        # immediately failing with "database is locked".
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0, isolation_level=None)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("PRAGMA busy_timeout=30000")
         return conn
 
-    def save(self, snapshot: ConstitutionSnapshotV1) -> None:
+    def save(
+        self,
+        snapshot: ConstitutionSnapshotV1,
+        *,
+        expected_previous_digest: str | None | _Unchecked,
+    ) -> None:
         """Record `snapshot` (a no-op if this exact digest is already
-        stored) and point `constitution_id`'s current snapshot at it."""
+        stored) and point `constitution_id`'s current snapshot at it.
+
+        ``expected_previous_digest`` is REQUIRED and makes this a
+        compare-and-swap:
+
+        * ``None`` -- assert that *no* current pointer exists yet. This is
+          the first-activation/bootstrap case; if another writer got there
+          first, that is a real race and this raises rather than clobbering.
+        * a digest -- assert the current pointer is exactly that snapshot.
+        * :data:`UNCHECKED` -- explicitly opt out (test fixtures only).
+
+        There is deliberately no default. An unprotected write into the
+        current pointer is the exact hazard this organ exists to close, so
+        reaching one has to be a decision somebody typed, greppable as
+        ``UNCHECKED`` -- not the thing that happens when you forget a keyword.
+
+        On a failed assertion nothing is written and
+        :class:`ConcurrentActivationError` is raised. The compare and the
+        write share one ``BEGIN IMMEDIATE`` transaction, so the check cannot
+        be invalidated between reading and writing.
+        """
         payload = snapshot.as_dict()
         now = _utc_now()
         with closing(self._connect()) as conn:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO constitution_snapshots (
-                    snapshot_digest, constitution_id, version, snapshot_json,
-                    recorded_at
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    snapshot.snapshot_digest,
-                    snapshot.constitution_id,
-                    snapshot.version,
-                    json.dumps(payload, sort_keys=True),
-                    now,
-                ),
-            )
-            conn.execute(
-                """
-                INSERT INTO constitution_current_pointer (
-                    constitution_id, snapshot_digest, updated_at
-                ) VALUES (?, ?, ?)
-                ON CONFLICT(constitution_id) DO UPDATE SET
-                    snapshot_digest = excluded.snapshot_digest,
-                    updated_at = excluded.updated_at
-                """,
-                (snapshot.constitution_id, snapshot.snapshot_digest, now),
-            )
-            conn.commit()
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                if not isinstance(expected_previous_digest, _Unchecked):
+                    row = conn.execute(
+                        "SELECT snapshot_digest FROM constitution_current_pointer "
+                        "WHERE constitution_id = ?",
+                        (snapshot.constitution_id,),
+                    ).fetchone()
+                    actual = row["snapshot_digest"] if row is not None else None
+                    if actual != expected_previous_digest:
+                        raise ConcurrentActivationError(
+                            f"constitution {snapshot.constitution_id!r} moved "
+                            f"under this activation: expected current "
+                            f"{expected_previous_digest!r}, found {actual!r}"
+                        )
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO constitution_snapshots (
+                        snapshot_digest, constitution_id, version, snapshot_json,
+                        recorded_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        snapshot.snapshot_digest,
+                        snapshot.constitution_id,
+                        snapshot.version,
+                        json.dumps(payload, sort_keys=True),
+                        now,
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO constitution_current_pointer (
+                        constitution_id, snapshot_digest, updated_at
+                    ) VALUES (?, ?, ?)
+                    ON CONFLICT(constitution_id) DO UPDATE SET
+                        snapshot_digest = excluded.snapshot_digest,
+                        updated_at = excluded.updated_at
+                    """,
+                    (snapshot.constitution_id, snapshot.snapshot_digest, now),
+                )
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+            conn.execute("COMMIT")
 
     def get_current(self, constitution_id: str) -> ConstitutionSnapshotV1 | None:
         with closing(self._connect()) as conn:
@@ -128,4 +212,9 @@ def _snapshot_from_row(row: sqlite3.Row) -> ConstitutionSnapshotV1:
     return record
 
 
-__all__ = ["ConstitutionSnapshotStore", "RecordTamperedError"]
+__all__ = [
+    "UNCHECKED",
+    "ConcurrentActivationError",
+    "ConstitutionSnapshotStore",
+    "RecordTamperedError",
+]

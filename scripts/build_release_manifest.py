@@ -164,8 +164,14 @@ def main(argv: list[str] | None = None) -> int:
         print("release/organ-proof-manifest.json is up to date")
         return 0
 
-    MANIFEST_PATH.write_text(
-        json.dumps(fresh, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    # write_bytes, NOT write_text: on Windows write_text translates "\n" to
+    # "\r\n", and this file's own bytes are hash-pinned. A CRLF working copy
+    # hashes differently from the LF bytes git stores and CI checks out, so the
+    # manifest would verify locally and fail on every Linux/macOS runner.
+    # `.gitattributes` pins these paths to eol=lf; this keeps the file we
+    # actually hash consistent with that.
+    MANIFEST_PATH.write_bytes(
+        (json.dumps(fresh, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     )
     print(f"wrote {MANIFEST_PATH}")
     return 0

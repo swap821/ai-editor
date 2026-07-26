@@ -574,9 +574,16 @@ class Executor:
         ):
             self.approved_runner = self.runner
         self.rate_limiter = rate_limiter
-        self.policy_kernel = policy_kernel or PolicyKernel(
-            rate_limiter=self.rate_limiter
-        )
+        if policy_kernel is None:
+            from aios.application.governance.constitution_authority import (
+                get_constitution_authority,
+            )
+
+            policy_kernel = PolicyKernel(
+                rate_limiter=self.rate_limiter,
+                constitution_authority=get_constitution_authority(),
+            )
+        self.policy_kernel = policy_kernel
         self.timeout_s = timeout_s
         self.actor = actor
         self.emergency_stop = emergency_stop
