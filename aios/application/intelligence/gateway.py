@@ -60,7 +60,7 @@ class IntelligenceGatewayResult:
 @dataclass(frozen=True, slots=True)
 class StreamingIntelligenceGatewayResult:
     """The compiled context (available immediately, before streaming starts)
-    plus a lazy, per-chunk-redacted stream of text. ``context`` is available
+    plus a lazy, boundary-safe redacted stream of text. ``context`` is available
     right away specifically so a caller can emit a "route"/metadata frame
     before the first text chunk, matching the existing chat SSE wire shape.
     """
@@ -146,6 +146,70 @@ def _record_context(context: RepresentativeContextV1, store: Any | None) -> None
         _LOGGER.warning("Failed to record representative context", exc_info=True)
 
 
+#: How much raw text is held back before emitting, so a secret straddling a
+#: chunk boundary is still whole when it is scanned.
+_REDACTION_LAG_CHARS = 64
+
+#: Hard ceiling on buffered text. Reached only when a candidate match keeps
+#: straddling the boundary; without it a hostile or malformed stream could grow
+#: the buffer without limit.
+_REDACTION_MAX_BUFFER_CHARS = 65536
+
+
+def _redact_stream(chunks: Iterable[Any], policy: SecretPolicy) -> Iterator[str]:
+    """Redact a token stream without letting a split secret escape.
+
+    Redacting each chunk independently is not safe, and not theoretically so:
+    an OpenAI ``sk-`` key, an AWS access key id and a GitHub PAT all pass
+    through *in full* when split at the wrong offset, because neither half
+    matches on its own. Whole-string redaction catches all three.
+
+    A fixed look-behind window cannot fix this on its own -- every key pattern
+    is open-ended (``{32,}``), and the PEM private-key pattern spans arbitrary
+    content between its BEGIN and END markers. Nor can we flush on whitespace:
+    ``Bearer\\s+<token>`` and ``password\\s*=\\s*<value>`` both match across it.
+
+    So the boundary is detected rather than assumed. Text is held back by
+    ``_REDACTION_LAG_CHARS``; before emitting a prefix we check whether
+    redacting the buffer as a whole differs from redacting the prefix and the
+    held-back tail separately. If it differs, some match straddles the cut, and
+    the buffer grows instead of emitting. That is exact for anything the
+    scanner can match, not an approximation of it.
+
+    Honest, bounded limitation: a single secret longer than
+    ``_REDACTION_MAX_BUFFER_CHARS`` could still be split at the cap. 64 KiB
+    comfortably exceeds a 4096-bit PEM key, and the alternative -- unbounded
+    buffering -- is a denial-of-service vector.
+    """
+    carry = ""
+    for chunk in chunks:
+        text = str(chunk)
+        if not text:
+            continue
+        carry += text
+        if len(carry) <= _REDACTION_LAG_CHARS:
+            continue
+        head, tail = carry[:-_REDACTION_LAG_CHARS], carry[-_REDACTION_LAG_CHARS:]
+        joint = policy.redact_text(carry)
+        if joint == policy.redact_text(head) + policy.redact_text(tail):
+            # Nothing spans the cut: the prefix is final and safe to emit.
+            emitted = policy.redact_text(head)
+            if emitted:
+                yield emitted
+            carry = tail
+        elif len(carry) >= _REDACTION_MAX_BUFFER_CHARS:
+            # Still straddling at the ceiling. Emit the whole buffer redacted
+            # as one piece -- correct for every match inside it -- rather than
+            # buffering without limit.
+            if joint:
+                yield joint
+            carry = ""
+    if carry:
+        final = policy.redact_text(carry)
+        if final:
+            yield final
+
+
 def _record_required_receipt(
     context: RepresentativeContextV1,
     *,
@@ -178,6 +242,7 @@ def _record_required_receipt(
             "representative context receipt persistence failed"
         ) from exc
     return receipt
+
 
 def route_intelligence_request(
     *,
@@ -276,9 +341,8 @@ def stream_intelligence_request(
     secret_policy: SecretPolicy | None = None,
     emergency_stop: Any | None = None,
     context_store: Any | None = None,
-    receipt_factory: Callable[
-        [RepresentativeContextV1], RepresentativeContextReceiptV1
-    ] | None = None,
+    receipt_factory: Callable[[RepresentativeContextV1], RepresentativeContextReceiptV1]
+    | None = None,
     require_context_receipt: bool = False,
 ) -> StreamingIntelligenceGatewayResult:
     """Streaming counterpart to `route_intelligence_request()` for text-chunk
@@ -287,15 +351,18 @@ def stream_intelligence_request(
     context compilation -- computed eagerly before any chunk is produced, so
     a refused request never starts a stream at all.
 
-    Each chunk is redacted independently as it is produced, not after the
-    full reply is buffered -- true token-by-token streaming is the entire
-    point of this variant. This is an honest, real limitation, not a silent
-    gap: per-chunk redaction cannot catch a secret whose bytes are split
-    across a chunk boundary, so it is strictly an improvement over zero
-    redaction (`aios.api.main._stream_chat_chunks`'s current behavior today),
-    not an equivalent guarantee to `route_intelligence_request()`'s
-    whole-text scan. A caller that needs the stronger guarantee should use
-    the non-streaming pipeline instead.
+    Output is redacted through `_redact_stream()`, which holds text back just
+    far enough to detect a secret straddling a chunk boundary rather than
+    scanning each chunk in isolation. Chunks were previously redacted
+    independently, which was not a merely theoretical weakness -- an OpenAI
+    `sk-` key, an AWS access key id and a GitHub PAT each passed through IN
+    FULL when split at the wrong offset. See `_redact_stream()` for the
+    mechanism and its one honest, bounded limitation.
+
+    The cost is that chunk boundaries are no longer preserved one-for-one:
+    the delivered text is identical, but it arrives reframed and with a small
+    lag. Streaming remains genuinely incremental -- the full reply is never
+    buffered.
 
     Organ 32 scope note: this variant covers plain-text chunk streams
     (chat's shape). The agentic forge's `ToolAgent.run()` yields structured
@@ -342,10 +409,7 @@ def stream_intelligence_request(
         _record_context(context, context_store)
 
     def _redacted_chunks() -> Iterator[str]:
-        for chunk in model_call(context):
-            text = str(chunk)
-            if text:
-                yield policy.redact_text(text)
+        return _redact_stream(model_call(context), policy)
 
     return StreamingIntelligenceGatewayResult(
         context=context, chunks=_redacted_chunks(), receipt=receipt

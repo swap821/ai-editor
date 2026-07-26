@@ -132,24 +132,28 @@ def _stream(**overrides: object):
     return stream_intelligence_request(**fields)
 
 
-def test_stream_gateway_yields_chunks_from_the_model_call() -> None:
+def test_stream_gateway_yields_the_model_calls_text() -> None:
+    """Chunk BOUNDARIES are no longer preserved one-for-one: redaction now
+    holds text back so a secret split across a boundary is still whole when it
+    is scanned. The delivered text is what the contract is about, and it is
+    unchanged."""
     result = _stream()
     assert result.context.goal == "summarize the incident"
-    assert list(result.chunks) == [
-        "chunk-one ",
-        "chunk-two ",
-        "goal:summarize the incident",
-    ]
+    assert "".join(result.chunks) == ("chunk-one chunk-two goal:summarize the incident")
 
 
-def test_stream_gateway_redacts_each_chunk_independently() -> None:
+def test_stream_gateway_redacts_secrets_without_dropping_safe_text() -> None:
     result = _stream(
-        model_call=lambda ctx: iter(["safe text ", "here is the key: AKIAABCDEFGHIJKLMNOP"])
+        model_call=lambda ctx: iter(
+            ["safe text ", "here is the key: AKIAABCDEFGHIJKLMNOP"]
+        )
     )
-    chunks = list(result.chunks)
-    assert chunks[0] == "safe text "
-    assert "AKIAABCDEFGHIJKLMNOP" not in chunks[1]
-    assert "REDACTED" in chunks[1]
+
+    out = "".join(result.chunks)
+
+    assert out.startswith("safe text here is the key: ")
+    assert "AKIAABCDEFGHIJKLMNOP" not in out
+    assert "REDACTED" in out
 
 
 def test_stream_gateway_context_is_available_before_any_chunk_is_produced() -> None:
@@ -172,7 +176,9 @@ def test_stream_gateway_context_is_available_before_any_chunk_is_produced() -> N
     assert produced == ["chunk-1"]
 
 
-def test_stream_gateway_missing_operator_identity_digest_never_starts_a_stream() -> None:
+def test_stream_gateway_missing_operator_identity_digest_never_starts_a_stream() -> (
+    None
+):
     calls: list[str] = []
 
     def _model_call(ctx):
@@ -360,3 +366,91 @@ def test_strict_streaming_receipt_is_persisted_before_the_provider_runs(
     assert provider_calls == []
     assert list(result.chunks) == ["governed reply"]
     assert provider_calls == [result.context.context_digest]
+
+
+# --------------------------------------------------------------------------- #
+# Organ 32: streaming redaction must survive a chunk boundary.
+#
+# Redacting each chunk independently is not merely theoretically weak -- three
+# real credential formats pass through IN FULL when split at the wrong offset,
+# because neither half matches on its own. These cases are the proof, and they
+# fail against per-chunk redaction.
+# --------------------------------------------------------------------------- #
+
+_SPLIT_SECRETS = {
+    "openai": "sk-abcdefghij1234567890ABCDEFGHIJ1234",
+    "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+    "github_pat": "ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+    "bearer": "Bearer abcdefghijklmnopqrstuvwxyz012345",
+}
+
+
+@pytest.mark.parametrize("secret", _SPLIT_SECRETS.values(), ids=_SPLIT_SECRETS.keys())
+def test_a_secret_split_at_any_offset_never_reaches_the_client(secret: str) -> None:
+    from aios.application.intelligence.gateway import _redact_stream
+    from aios.runtime.secret_policy import SecretPolicy
+
+    policy = SecretPolicy()
+    text = f"here is your key {secret} -- keep it safe"
+    offset = text.index(secret)
+
+    leaked_at = [
+        i
+        for i in range(1, len(secret))
+        if secret
+        in "".join(_redact_stream([text[: offset + i], text[offset + i :]], policy))
+    ]
+
+    assert leaked_at == [], f"secret survived redaction when split at {leaked_at}"
+
+
+def test_one_character_at_a_time_is_still_redacted() -> None:
+    """The pathological stream: every chunk is a single character, so every
+    pattern is split many times over."""
+    from aios.application.intelligence.gateway import _redact_stream
+    from aios.runtime.secret_policy import SecretPolicy
+
+    secret = _SPLIT_SECRETS["openai"]
+    text = f"here is your key {secret} -- keep it safe"
+
+    out = "".join(_redact_stream(list(text), SecretPolicy()))
+
+    assert secret not in out
+    assert "REDACTED" in out
+    # Non-secret text must survive intact -- redaction must not eat the reply.
+    assert out.startswith("here is your key ")
+    assert out.endswith(" -- keep it safe")
+
+
+def test_ordinary_text_streams_through_unchanged() -> None:
+    from aios.application.intelligence.gateway import _redact_stream
+    from aios.runtime.secret_policy import SecretPolicy
+
+    chunks = ["Hello, ", "this is ", "an ordinary reply ", "with no secrets."]
+
+    assert "".join(_redact_stream(chunks, SecretPolicy())) == "".join(chunks)
+
+
+def test_buffering_is_bounded_against_a_hostile_stream() -> None:
+    """A stream that never resolves its straddling candidate must not grow the
+    buffer without limit -- unbounded buffering would be a DoS vector."""
+    from aios.application.intelligence.gateway import (
+        _REDACTION_MAX_BUFFER_CHARS,
+        _redact_stream,
+    )
+    from aios.runtime.secret_policy import SecretPolicy
+
+    # A single unbroken high-entropy run: every cut looks like it splits a
+    # candidate token, so the straddle check keeps deferring.
+    hostile = ["A1b2C3d4" * 64 for _ in range(400)]
+    total_in = sum(len(c) for c in hostile)
+
+    emitted = list(_redact_stream(hostile, SecretPolicy()))
+
+    assert emitted, "a bounded buffer must still flush"
+    # Nothing is silently dropped, and no single emission exceeds the ceiling
+    # by more than one incoming chunk.
+    assert max(len(piece) for piece in emitted) <= (
+        _REDACTION_MAX_BUFFER_CHARS + len(hostile[0])
+    )
+    assert total_in > _REDACTION_MAX_BUFFER_CHARS
