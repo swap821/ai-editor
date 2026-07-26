@@ -65,10 +65,13 @@ def _patched_testclient_init(self, *args, **kwargs):
     if has_session_route and client_addr and client_addr[0] in {"127.0.0.1", "::1"}:
         # Endpoint-rate-limit buckets are process-wide policy state. Reset them
         # at the test-client boundary so one test cannot make a later
-        # authorization assertion observe a synthetic 429.
-        from aios.api.main import _RATE_LIMIT_HITS
+        # authorization assertion observe a synthetic 429. Resolve the live
+        # kernel and clear its bucket in place -- never cache a reference to
+        # the bucket dict itself, which would go stale across a kernel reset
+        # (see aios.policy.kernel.reset_policy_kernel).
+        from aios.policy.kernel import get_policy_kernel
 
-        _RATE_LIMIT_HITS.clear()
+        get_policy_kernel().clear_endpoint_hits()
         # Seed an explicitly authenticated Human Sovereign session without
         # spending the API's endpoint-rate-limit bucket during TestClient setup.
         # Tests that need an anonymous-but-valid session call /auth/session or

@@ -242,11 +242,14 @@ def test_docs_disabled_returns_403_for_non_loopback(monkeypatch) -> None:
 def test_endpoint_rate_limit_returns_429_after_cap(client: TestClient) -> None:
     session_id = "rate-limit-approval-req"
     cap = config._RATE_LIMIT_ENDPOINTS if hasattr(config, "_RATE_LIMIT_ENDPOINTS") else None
-    from aios.api.main import _RATE_LIMIT_ENDPOINTS, _RATE_LIMIT_HITS
+    from aios.api.main import _RATE_LIMIT_ENDPOINTS
+    from aios.policy.kernel import get_policy_kernel
 
     limit = _RATE_LIMIT_ENDPOINTS["/api/v1/approval/req"]
     # Clear any stray state from other tests hitting this endpoint's window.
-    _RATE_LIMIT_HITS.clear()
+    # Resolve the live kernel and clear in place rather than caching the
+    # bucket dict, which would go stale across a kernel reset.
+    get_policy_kernel().clear_endpoint_hits()
     responses = [
         client.post(
             "/api/v1/approval/req",
@@ -257,7 +260,7 @@ def test_endpoint_rate_limit_returns_429_after_cap(client: TestClient) -> None:
     statuses = [r.status_code for r in responses]
     assert statuses[:limit] == [403] * limit  # invalid capability, but under the cap
     assert statuses[-1] == 429
-    _RATE_LIMIT_HITS.clear()
+    get_policy_kernel().clear_endpoint_hits()
 
 
 def test_endpoint_rate_limit_uses_fastapi_route_template_for_policy_vote(
@@ -265,11 +268,12 @@ def test_endpoint_rate_limit_uses_fastapi_route_template_for_policy_vote(
     monkeypatch,
     tmp_path,
 ) -> None:
-    from aios.api.main import _RATE_LIMIT_ENDPOINTS, _RATE_LIMIT_HITS
+    from aios.api.main import _RATE_LIMIT_ENDPOINTS
+    from aios.policy.kernel import get_policy_kernel
 
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
-    _RATE_LIMIT_HITS.clear()
+    get_policy_kernel().clear_endpoint_hits()
     try:
         proposed = client.post(
             "/api/v1/policy/propose",
@@ -298,7 +302,7 @@ def test_endpoint_rate_limit_uses_fastapi_route_template_for_policy_vote(
         assert statuses[:limit] == [200] * limit
         assert statuses[-1] == 429
     finally:
-        _RATE_LIMIT_HITS.clear()
+        get_policy_kernel().clear_endpoint_hits()
 
 
 def test_route_authority_registry_covers_sensitive_scan_and_control_routes() -> None:

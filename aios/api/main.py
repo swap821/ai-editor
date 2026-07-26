@@ -578,22 +578,39 @@ _RATE_LIMIT_WINDOW_S = 60.0
 
 
 # Route authority and per-endpoint rate limiting are owned by the PolicyKernel.
-# Force lazy initialization now (this module is the runtime assembly point).
-_POLICY_KERNEL = get_policy_kernel()
-# Keep backward-compatible aliases so existing tests can import them from main.
-_ROUTE_AUTHORITY = _POLICY_KERNEL.route_table
-_RATE_LIMIT_ENDPOINTS = _POLICY_KERNEL.rate_limit_endpoints
-_RATE_LIMIT_HITS = _POLICY_KERNEL.endpoint_hits
+#
+# `_ROUTE_AUTHORITY` / `_RATE_LIMIT_ENDPOINTS` are safe to snapshot once at
+# import time: both are derived from the kernel's route table, which is a
+# single shared module global in `aios.policy.kernel` that every
+# `PolicyKernel` instance reuses, so their content is identical no matter
+# which kernel instance is live. Kept as backward-compatible aliases so
+# existing tests can import them from `main`.
+#
+# The endpoint-hit *bucket* is different: it is a fresh, mutable dict created
+# per `PolicyKernel.__init__`. It is deliberately NOT snapshotted into a
+# module global here (there used to be a `_RATE_LIMIT_HITS` alias that did
+# exactly that). If the kernel singleton is ever rebuilt (see
+# `aios.policy.kernel.reset_policy_kernel`), a captured reference keeps
+# pointing at the OLD kernel's bucket while the live kernel counts hits into a
+# new one -- clearing the stale bucket (e.g. from a test fixture) then does
+# nothing, while the real bucket fills up forever, eventually producing
+# spurious 429s unrelated to the endpoint actually being hit. Every rate-limit
+# code path below calls `get_policy_kernel()` fresh at the point of use
+# instead, so it always operates on whichever kernel is currently live; to
+# clear hits, call `get_policy_kernel().clear_endpoint_hits()` at the point of
+# use too (see `tests/conftest.py`), never a cached dict reference.
+_ROUTE_AUTHORITY = get_policy_kernel().route_table
+_RATE_LIMIT_ENDPOINTS = get_policy_kernel().rate_limit_endpoints
 
 
 def _rate_limited_route_path(request: Request) -> str | None:
     """Return the literal or templated route key used by the rate limiter."""
-    return _POLICY_KERNEL.rate_limited_route_path(request.url.path)
+    return get_policy_kernel().rate_limited_route_path(request.url.path)
 
 
 def _check_endpoint_rate_limit(path: str, client_ip: str) -> None:
     """Backward-compatible alias for the kernel's endpoint rate-limit check."""
-    return _POLICY_KERNEL.check_endpoint_rate_limit(path, client_ip)
+    return get_policy_kernel().check_endpoint_rate_limit(path, client_ip)
 
 
 @app.middleware("http")
@@ -606,7 +623,7 @@ async def endpoint_rate_limit(request: Request, call_next):
     """
     if request.method != "OPTIONS" and request.url.path == "/api/v1/approval/req":
         try:
-            _POLICY_KERNEL.check_endpoint_rate_limit(
+            get_policy_kernel().check_endpoint_rate_limit(
                 "/api/v1/approval/req", edge_security.real_client_ip(request)
             )
         except HTTPException:
