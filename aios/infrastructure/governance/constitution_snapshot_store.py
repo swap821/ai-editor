@@ -38,10 +38,24 @@ class ConcurrentActivationError(RuntimeError):
     """
 
 
-#: Sentinel distinguishing "no compare-and-swap requested" (the legacy,
-#: unconditional write) from ``expected_previous_digest=None``, which is a
-#: real assertion that *no* current pointer exists yet (first activation).
-_UNCHECKED: object = object()
+class _Unchecked:
+    """Type of :data:`UNCHECKED`."""
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "UNCHECKED"
+
+
+#: Explicit opt-out of the compare-and-swap. ``expected_previous_digest`` is a
+#: REQUIRED argument precisely so this cannot be reached by accident: a bare
+#: ``store.save(snapshot)`` is a TypeError, not a silent unprotected write.
+#:
+#: Distinct from ``expected_previous_digest=None``, which is a real assertion
+#: that *no* current pointer exists yet (the first activation).
+#:
+#: No production call site should use this. It exists for test fixtures that
+#: are seeding state rather than exercising activation, and for a documented
+#: one-time migration. Grepping for ``UNCHECKED`` finds every such write.
+UNCHECKED = _Unchecked()
 
 
 def _utc_now() -> str:
@@ -77,19 +91,24 @@ class ConstitutionSnapshotStore:
         self,
         snapshot: ConstitutionSnapshotV1,
         *,
-        expected_previous_digest: str | None | object = _UNCHECKED,
+        expected_previous_digest: str | None | _Unchecked,
     ) -> None:
         """Record `snapshot` (a no-op if this exact digest is already
         stored) and point `constitution_id`'s current snapshot at it.
 
-        ``expected_previous_digest`` turns this into a compare-and-swap:
+        ``expected_previous_digest`` is REQUIRED and makes this a
+        compare-and-swap:
 
-        * omitted -- unconditional write (the original behavior; kept so
-          non-activation callers and existing tests are unaffected).
         * ``None`` -- assert that *no* current pointer exists yet. This is
           the first-activation/bootstrap case; if another writer got there
           first, that is a real race and this raises rather than clobbering.
         * a digest -- assert the current pointer is exactly that snapshot.
+        * :data:`UNCHECKED` -- explicitly opt out (test fixtures only).
+
+        There is deliberately no default. An unprotected write into the
+        current pointer is the exact hazard this organ exists to close, so
+        reaching one has to be a decision somebody typed, greppable as
+        ``UNCHECKED`` -- not the thing that happens when you forget a keyword.
 
         On a failed assertion nothing is written and
         :class:`ConcurrentActivationError` is raised. The compare and the
@@ -101,7 +120,7 @@ class ConstitutionSnapshotStore:
         with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                if expected_previous_digest is not _UNCHECKED:
+                if not isinstance(expected_previous_digest, _Unchecked):
                     row = conn.execute(
                         "SELECT snapshot_digest FROM constitution_current_pointer "
                         "WHERE constitution_id = ?",
@@ -194,6 +213,7 @@ def _snapshot_from_row(row: sqlite3.Row) -> ConstitutionSnapshotV1:
 
 
 __all__ = [
+    "UNCHECKED",
     "ConcurrentActivationError",
     "ConstitutionSnapshotStore",
     "RecordTamperedError",

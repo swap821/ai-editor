@@ -14,6 +14,7 @@ from aios.domain.governance.constitution import (
     build_constitution_snapshot,
 )
 from aios.infrastructure.governance.constitution_snapshot_store import (
+    ConcurrentActivationError,
     ConstitutionSnapshotStore,
 )
 
@@ -38,9 +39,26 @@ class ConstitutionAuthority:
                 snapshot = build_constitution_snapshot(
                     ratified_by_operator_id=ratified_by_operator_id,
                 )
-                self.store.save(snapshot)
+                try:
+                    self.store.save(snapshot, expected_previous_digest=None)
+                except ConcurrentActivationError:
+                    # Another writer bootstrapped this chain between our read
+                    # and our write. Theirs is authoritative; re-read rather
+                    # than overwriting a chain that may already have advanced.
+                    existing = self.store.get_current(cid)
+                    if existing is None:  # pragma: no cover - defensive
+                        raise
+                    return existing
             return snapshot
 
-    def activate_snapshot(self, snapshot: ConstitutionSnapshotV1) -> None:
+    def activate_snapshot(
+        self,
+        snapshot: ConstitutionSnapshotV1,
+        *,
+        expected_previous_digest: str | None,
+    ) -> None:
+        """Move this chain's current pointer to `snapshot`, but only if it is
+        still where the caller last saw it. A losing activation raises
+        :class:`ConcurrentActivationError` rather than clobbering."""
         with self._lock:
-            self.store.save(snapshot)
+            self.store.save(snapshot, expected_previous_digest=expected_previous_digest)

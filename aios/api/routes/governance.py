@@ -45,6 +45,7 @@ from aios.domain.governance.learning import (
 )
 from aios.domain.identity.models import Principal
 from aios.infrastructure.governance.constitution_snapshot_store import (
+    ConcurrentActivationError,
     ConstitutionSnapshotStore,
 )
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
@@ -313,7 +314,17 @@ def _current_or_baseline_snapshot(
     baseline = build_constitution_snapshot(
         ratified_by_operator_id=ratified_by_operator_id
     )
-    snapshot_store.save(baseline)
+    try:
+        # Assert nobody else created this chain's first snapshot concurrently.
+        snapshot_store.save(baseline, expected_previous_digest=None)
+    except ConcurrentActivationError:
+        # Another request bootstrapped the same chain first. Its baseline is
+        # every bit as authoritative as ours would have been -- adopt it
+        # rather than overwriting a chain that may already have advanced.
+        existing = snapshot_store.get_current(constitution_id)
+        if existing is None:  # pragma: no cover - defensive
+            raise
+        return existing
     return baseline
 
 
@@ -346,8 +357,17 @@ def activate_amendment_route(
         )
     except (AmendmentError, EmergencyStopError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    try:
+        # Compare-and-swap: refuse if the chain moved between the read above
+        # and this write, rather than silently clobbering the activation that
+        # got there first and losing an amendment with no error.
+        snapshot_store.save(
+            new_snapshot,
+            expected_previous_digest=previous_snapshot.snapshot_digest,
+        )
+    except ConcurrentActivationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.save_proposal(updated)
-    snapshot_store.save(new_snapshot)
     return {
         "proposal": updated.as_dict(),
         "newConstitutionDigest": new_snapshot.snapshot_digest,
@@ -420,8 +440,16 @@ def rollback_amendment_route(
         )
     except AmendmentError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    try:
+        # Same compare-and-swap contract as activation: a rollback that races
+        # a fresh activation must lose loudly, not silently undo it.
+        snapshot_store.save(
+            reverted_snapshot,
+            expected_previous_digest=current_snapshot.snapshot_digest,
+        )
+    except ConcurrentActivationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.save_proposal(updated)
-    snapshot_store.save(reverted_snapshot)
     return {
         "proposal": updated.as_dict(),
         "revertedConstitutionDigest": reverted_snapshot.snapshot_digest,

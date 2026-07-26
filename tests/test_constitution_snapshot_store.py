@@ -10,6 +10,7 @@ import pytest
 
 from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.infrastructure.governance.constitution_snapshot_store import (
+    UNCHECKED,
     ConcurrentActivationError,
     ConstitutionSnapshotStore,
     RecordTamperedError,
@@ -20,7 +21,7 @@ def test_save_and_get_current_round_trips(tmp_path: Path) -> None:
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     snapshot = build_constitution_snapshot(ratified_by_operator_id="op-1")
 
-    store.save(snapshot)
+    store.save(snapshot, expected_previous_digest=UNCHECKED)
 
     current = store.get_current(snapshot.constitution_id)
     assert current == snapshot
@@ -36,10 +37,12 @@ def test_activation_chain_advances_current_and_preserves_history(
 ) -> None:
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     v1 = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(v1)
+    store.save(v1, expected_previous_digest=UNCHECKED)
 
-    v2 = build_constitution_snapshot(ratified_by_operator_id="op-1", previous_snapshot=v1)
-    store.save(v2)
+    v2 = build_constitution_snapshot(
+        ratified_by_operator_id="op-1", previous_snapshot=v1
+    )
+    store.save(v2, expected_previous_digest=UNCHECKED)
 
     assert store.get_current(v1.constitution_id) == v2
     history = store.get_history(v1.constitution_id)
@@ -55,11 +58,15 @@ def test_rollback_repoints_current_without_duplicating_history(
     create a second row for a digest it already has."""
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     v1 = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(v1)
-    v2 = build_constitution_snapshot(ratified_by_operator_id="op-1", previous_snapshot=v1)
-    store.save(v2)
+    store.save(v1, expected_previous_digest=UNCHECKED)
+    v2 = build_constitution_snapshot(
+        ratified_by_operator_id="op-1", previous_snapshot=v1
+    )
+    store.save(v2, expected_previous_digest=UNCHECKED)
 
-    store.save(v1)  # rollback: re-point current back to v1
+    store.save(
+        v1, expected_previous_digest=UNCHECKED
+    )  # rollback: re-point current back to v1
 
     assert store.get_current(v1.constitution_id) == v1
     history = store.get_history(v1.constitution_id)
@@ -69,7 +76,7 @@ def test_rollback_repoints_current_without_duplicating_history(
 def test_get_by_digest(tmp_path: Path) -> None:
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     snapshot = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(snapshot)
+    store.save(snapshot, expected_previous_digest=UNCHECKED)
 
     assert store.get_by_digest(snapshot.snapshot_digest) == snapshot
     assert store.get_by_digest("no-such-digest") is None
@@ -79,7 +86,7 @@ def test_tampered_row_is_detected_at_read_time(tmp_path: Path) -> None:
     db_path = tmp_path / "constitution.db"
     store = ConstitutionSnapshotStore(db_path)
     snapshot = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(snapshot)
+    store.save(snapshot, expected_previous_digest=UNCHECKED)
 
     conn = sqlite3.connect(str(db_path))
     row = conn.execute(
@@ -124,7 +131,7 @@ def test_cas_bootstrap_rejects_a_second_first_activation(tmp_path: Path) -> None
 def test_cas_rejects_an_activation_whose_predecessor_moved(tmp_path: Path) -> None:
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     v1 = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(v1)
+    store.save(v1, expected_previous_digest=UNCHECKED)
     v2 = build_constitution_snapshot(
         ratified_by_operator_id="op-1", previous_snapshot=v1
     )
@@ -147,7 +154,7 @@ def test_cas_failure_writes_nothing_at_all(tmp_path: Path) -> None:
     was never actually made current."""
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     v1 = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(v1)
+    store.save(v1, expected_previous_digest=UNCHECKED)
 
     orphan = build_constitution_snapshot(
         ratified_by_operator_id="op-1", previous_snapshot=v1
@@ -159,21 +166,34 @@ def test_cas_failure_writes_nothing_at_all(tmp_path: Path) -> None:
     assert [s.version for s in store.get_history(v1.constitution_id)] == [1]
 
 
-def test_omitting_expected_previous_digest_stays_unconditional(
-    tmp_path: Path,
-) -> None:
-    """Non-activation callers (and the rollback re-point) must be unaffected."""
+def test_explicit_unchecked_still_writes_unconditionally(tmp_path: Path) -> None:
+    """`UNCHECKED` remains an escape hatch for fixtures -- but a stated one."""
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     v1 = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(v1)
+    store.save(v1, expected_previous_digest=UNCHECKED)
     v2 = build_constitution_snapshot(
         ratified_by_operator_id="op-1", previous_snapshot=v1
     )
-    store.save(v2)
+    store.save(v2, expected_previous_digest=UNCHECKED)
 
-    store.save(v1)  # rollback re-point, no CAS requested
+    store.save(v1, expected_previous_digest=UNCHECKED)
 
     assert store.get_current(v1.constitution_id) == v1
+
+
+def test_save_without_an_expectation_is_a_type_error(tmp_path: Path) -> None:
+    """The structural guarantee: an unprotected write into the current
+    pointer cannot be reached by forgetting a keyword. Three independent
+    adversarial reviews all landed on the same hazard -- a bare
+    ``store.save(snapshot)`` silently reverting to last-writer-wins -- so the
+    parameter has no default at all."""
+    store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
+    snapshot = build_constitution_snapshot(ratified_by_operator_id="op-1")
+
+    with pytest.raises(TypeError):
+        store.save(snapshot)  # type: ignore[call-arg]
+
+    assert store.get_current(snapshot.constitution_id) is None
 
 
 def test_concurrent_activations_produce_one_ordered_chain(tmp_path: Path) -> None:
@@ -183,7 +203,7 @@ def test_concurrent_activations_produce_one_ordered_chain(tmp_path: Path) -> Non
 
     store = ConstitutionSnapshotStore(tmp_path / "constitution.db")
     v1 = build_constitution_snapshot(ratified_by_operator_id="op-1")
-    store.save(v1)
+    store.save(v1, expected_previous_digest=UNCHECKED)
 
     barrier = threading.Barrier(2)
     outcomes: list[str] = []
