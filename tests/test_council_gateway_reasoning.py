@@ -51,6 +51,13 @@ def _engaged_controller(tmp_path: Path) -> EmergencyStopController:
 
 
 class _FakeProvider:
+    #: A "local" target is only credible for a provably loopback host, and
+    #: GatewayRoutedCouncilLLMClient asserts that invariant. A fake standing in
+    #: for local Ollama must therefore look like local Ollama -- weakening the
+    #: invariant so a host-less fake could claim "local" would remove exactly
+    #: the check that catches the dissent leak.
+    host = "http://127.0.0.1:11434"
+
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None, bool]] = []
 
@@ -118,6 +125,7 @@ def test_complete_routes_through_the_gateway_not_the_provider_directly(
     client = GatewayRoutedCouncilLLMClient(
         operator_identity_digest=credential_digest("op-council"),
         constitution_digest="c" * 64,
+        target="local",
         provider=provider,
     )
 
@@ -149,6 +157,7 @@ def test_complete_exposes_and_logs_the_compiled_context_digest(
     client = GatewayRoutedCouncilLLMClient(
         operator_identity_digest=credential_digest("op-council"),
         constitution_digest="c" * 64,
+        target="local",
         provider=provider,
     )
     assert client.last_context_digest is None
@@ -167,6 +176,7 @@ def test_complete_is_blocked_while_emergency_stop_is_engaged(tmp_path: Path) -> 
     client = GatewayRoutedCouncilLLMClient(
         operator_identity_digest=credential_digest("op-council"),
         constitution_digest="c" * 64,
+        target="local",
         emergency_stop=_engaged_controller(tmp_path),
         provider=provider,
     )
@@ -184,6 +194,7 @@ def test_king_compatible_call_shape_single_positional_argument(tmp_path: Path) -
     client = GatewayRoutedCouncilLLMClient(
         operator_identity_digest=credential_digest("op-council"),
         constitution_digest="c" * 64,
+        target="local",
         provider=provider,
     )
     king_complete = client.complete
@@ -205,7 +216,9 @@ class _FakeChatClient:
 
     model = "gemini-2.5-flash"
 
-    def __init__(self, content: str = '{"answer": "reject", "confidence": 0.7}') -> None:
+    def __init__(
+        self, content: str = '{"answer": "reject", "confidence": 0.7}'
+    ) -> None:
         self._content = content
         self.calls: list[list[dict]] = []
 
@@ -306,13 +319,112 @@ def test_chat_backed_completer_wraps_chat_into_a_completion_string() -> None:
 
     assert output == "a real assistant reply"
     assert fake.calls == [
-        [{"role": "system", "content": "be terse"}, {"role": "user", "content": "hello"}]
+        [
+            {"role": "system", "content": "be terse"},
+            {"role": "user", "content": "hello"},
+        ]
     ]
 
 
 def test_chat_backed_completer_returns_empty_string_for_tool_only_reply() -> None:
     fake = _FakeChatClient()
-    fake.chat = lambda messages: {"role": "assistant", "content": None, "tool_calls": []}
+    fake.chat = lambda messages: {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [],
+    }
     completer = _ChatBackedCompleter(fake)
 
     assert completer.complete("hello") == ""
+
+
+# --------------------------------------------------------------------------- #
+# Organ 39: the target must be TRUE, not assumed.
+#
+# `complete()` hardcoded target="local" while `build_dissent_llm_client()`
+# injected a real cloud provider into this same class. Measured against the
+# real compiler, that meant the goal kept raw credentials and
+# relevant_memory_refs were passed through -- unscrubbed operator text and
+# private memory pointers going to Gemini/Anthropic/OpenAI/Bedrock.
+# --------------------------------------------------------------------------- #
+
+
+def test_a_cloud_targeted_client_scrubs_and_withholds() -> None:
+    """The property that was broken: cloud compilation must scrub the goal and
+    withhold memory refs. Asserted against the REAL compiler, not a mock."""
+    from aios.application.intelligence.context_compiler import (
+        compile_representative_context,
+    )
+
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    common = dict(
+        request_id="r",
+        operator_identity_digest="d" * 64,
+        constitution_digest="c" * 64,
+        goal=f"deploy with {secret}",
+        desired_outcome="answer",
+        delegated_authority_summary="advisory",
+        relevant_memory_refs=("memory:private-note",),
+    )
+
+    local = compile_representative_context(target="local", **common)
+    cloud = compile_representative_context(target="cloud", **common)
+
+    assert secret in local.goal and local.relevant_memory_refs
+    assert secret not in cloud.goal
+    assert cloud.relevant_memory_refs == ()
+
+
+def test_target_is_required_so_it_can_never_be_silently_defaulted() -> None:
+    with pytest.raises(TypeError):
+        GatewayRoutedCouncilLLMClient(  # type: ignore[call-arg]
+            operator_identity_digest=credential_digest("op-council"),
+            constitution_digest="c" * 64,
+            provider=_FakeProvider(),
+        )
+
+
+def test_a_local_claim_over_a_remote_host_is_refused() -> None:
+    """The invariant that stops this bug recurring. target and provider are
+    independent arguments, so a careless call site could pair a cloud provider
+    with target="local" exactly as before -- unless the pairing is checked."""
+
+    class _RemoteProvider(_FakeProvider):
+        host = "http://198.51.100.7:11434"
+
+    with pytest.raises(ValueError, match="loopback"):
+        GatewayRoutedCouncilLLMClient(
+            operator_identity_digest=credential_digest("op-council"),
+            constitution_digest="c" * 64,
+            target="local",
+            provider=_RemoteProvider(),
+        )
+
+
+def test_a_provider_with_no_host_cannot_claim_local() -> None:
+    class _HostlessProvider:
+        def complete(self, prompt, *, system=None, json_mode=False) -> str:
+            return "{}"
+
+    with pytest.raises(ValueError, match="loopback"):
+        GatewayRoutedCouncilLLMClient(
+            operator_identity_digest=credential_digest("op-council"),
+            constitution_digest="c" * 64,
+            target="local",
+            provider=_HostlessProvider(),
+        )
+
+
+def test_cloud_target_is_accepted_for_any_provider() -> None:
+    """Cloud is the conservative direction -- it over-scrubs rather than
+    leaking -- so it is never refused."""
+    client = GatewayRoutedCouncilLLMClient(
+        operator_identity_digest=credential_digest("op-council"),
+        constitution_digest="c" * 64,
+        target="cloud",
+        provider=_FakeProvider(),
+        provider_name="gemini",
+    )
+
+    assert client._target == "cloud"
+    assert client.provider_name == "gemini"

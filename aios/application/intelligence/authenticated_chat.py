@@ -8,14 +8,11 @@ those remain available only to the compatibility path for anonymous chat.
 
 from __future__ import annotations
 
-import ipaddress
 import json
-import socket
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import urlsplit
 
 from aios.application.intelligence.gateway import (
     IntelligenceGatewayError,
@@ -39,34 +36,14 @@ from aios.domain.memory.human_representation import (
     OperatorPreferenceV1,
     ProjectPassportV1,
 )
+from aios.application.intelligence.transport_target import (
+    classify_transport,
+    is_loopback_http_url,
+)
 from aios.infrastructure.identity.sqlite_store import credential_digest
 
 _HUMAN_STATE_MIN_CONFIDENCE = 0.60
 _RECEIPT_TTL = timedelta(minutes=5)
-
-
-def _hostname_resolves_only_to_loopback(hostname: str) -> bool:
-    """Whether every address `hostname` resolves to right now is loopback.
-
-    Fails closed: any resolution error, or a single non-loopback answer,
-    means "not provably local", which classifies the turn as cloud (scrubbed)
-    rather than granting it local-only trust. Only the system resolver is
-    consulted -- no outbound request is made.
-    """
-    try:
-        infos = socket.getaddrinfo(hostname, None)
-    except (socket.gaierror, UnicodeError, OSError):
-        return False
-    if not infos:
-        return False
-    for info in infos:
-        address = info[4][0]
-        try:
-            if not ipaddress.ip_address(str(address).split("%", 1)[0]).is_loopback:
-                return False
-        except ValueError:
-            return False
-    return True
 
 
 class AuthenticatedChatRepresentationError(IntelligenceGatewayError):
@@ -214,25 +191,12 @@ class AuthenticatedChatRepresentation:
         pipeline treats that refusal as fatal -- so an authenticated operator
         asking a coding or reasoning question (both of which
         ``AIOS_ROUTER_CLOUD_TASKS`` permits to route to a cloud provider by
-        default) got an error instead of a reply, and the multi-provider
-        router became unusable for authenticated chat.
+        default) got an error instead of a reply, and the multi-provider router
+        was unusable while signed in.
 
-        Classifying instead of refusing is both safer and more useful: the
-        compiler already has a real cloud path that scrubs every free-text
-        field through ``SecretPolicy``, sends only the passport DIGEST rather
-        than the passport, and withholds ``relevant_memory_refs`` entirely. So
-        a cloud turn stays governed and personalised-but-scrubbed, rather than
-        failing.
-
-        The classification must be TRUTHFUL, because it becomes the compiled
-        context's ``privacy_classification`` and the receipt's target. A
-        remote Ollama endpoint is real egress and is therefore ``"cloud"``,
-        even though the provider label says ollama; and a genuinely loopback
-        endpoint must not be labelled ``"cloud"`` just because we were unsure.
+        The decision itself now lives in ``transport_target.classify_transport``
+        so this adapter and Council's cannot drift apart on it.
         """
-        if provider.strip().lower() != "ollama":
-            return "cloud"
-
         if isinstance(chat_client, FailoverChatClient):
             candidates = chat_client.candidates
             if not candidates:
@@ -253,57 +217,13 @@ class AuthenticatedChatRepresentation:
                 clients.append(candidate[0])
         else:
             clients = [chat_client]
-
-        if any(
-            not self._is_loopback_ollama_host(getattr(client, "host", None))
-            for client in clients
-        ):
-            return "cloud"
-        return "local"
+        return classify_transport(provider=provider, clients=clients)
 
     @staticmethod
     def _is_loopback_ollama_host(raw_host: object) -> bool:
-        """Return whether an Ollama base URL provably reaches this machine.
-
-        Provider labels are not transport proof: an ``OllamaClient`` can be
-        configured with an arbitrary host, so a remote Ollama is real egress.
-
-        Literal loopback IPs (v4 and v6) are accepted directly. A hostname is
-        accepted only when EVERY address it currently resolves to is loopback.
-        Resolving rather than trusting the name keeps the original security
-        property -- a ``localhost`` repointed at a remote host resolves to a
-        non-loopback address and is correctly classified as egress -- while
-        no longer misclassifying an ordinary ``OLLAMA_HOST=http://localhost:
-        11434`` setup, which is genuinely local and previously broke
-        authenticated chat outright.
-        """
-        if not isinstance(raw_host, str) or raw_host != raw_host.strip():
-            return False
-        try:
-            parsed = urlsplit(raw_host)
-            if (
-                parsed.scheme not in {"http", "https"}
-                or not parsed.netloc
-                or parsed.username is not None
-                or parsed.password is not None
-                or parsed.query
-                or parsed.fragment
-            ):
-                return False
-            # Accessing ``port`` validates malformed and out-of-range ports.
-            port = parsed.port
-            if port is not None and not 1 <= port <= 65535:
-                return False
-            hostname = parsed.hostname
-        except ValueError:
-            return False
-        if hostname is None:
-            return False
-        try:
-            return ipaddress.ip_address(hostname).is_loopback
-        except ValueError:
-            pass
-        return _hostname_resolves_only_to_loopback(hostname)
+        """Delegates to the shared classifier so this adapter and Council's
+        cannot drift apart on what counts as local."""
+        return is_loopback_http_url(raw_host)
 
     def _validated_constitution_digest(self) -> str:
         if self.principal.principal_type is not PrincipalType.OPERATOR:

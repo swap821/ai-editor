@@ -24,7 +24,12 @@ from aios.logging_config import get_logger
 _LOGGER = get_logger(__name__)
 
 from aios import config
+from aios.application.intelligence.context_compiler import CompilationTarget
 from aios.application.intelligence.gateway import route_intelligence_request
+from aios.application.intelligence.transport_target import (
+    classify_transport,
+    is_loopback_http_url,
+)
 from aios.core.llm import LLMClient, OllamaClient
 from aios.application.governance.constitution_authority import (
     NoEnrolledSovereignError,
@@ -58,13 +63,36 @@ class GatewayRoutedCouncilLLMClient:
         *,
         operator_identity_digest: str,
         constitution_digest: str,
+        target: CompilationTarget,
         emergency_stop: Optional[Any] = None,
         provider: Optional[LLMClient] = None,
+        provider_name: str = "ollama",
     ) -> None:
         self._operator_identity_digest = operator_identity_digest
         self._constitution_digest = constitution_digest
         self._emergency_stop = emergency_stop
         self._provider: LLMClient = provider or OllamaClient()
+        #: Organ 39. REQUIRED, never inferred from a provider label. This was
+        #: hardcoded to "local" while build_dissent_llm_client() injected a
+        #: real CLOUD provider into this same class -- measured consequence:
+        #: the goal kept raw credentials and relevant_memory_refs were passed
+        #: through, because compile_representative_context() only scrubs and
+        #: withholds for target="cloud".
+        if target not in ("local", "cloud"):
+            raise ValueError(f"target must be 'local' or 'cloud', got {target!r}")
+        # Two independent parameters can disagree, and a careless future call
+        # site would reproduce exactly the bug being fixed. Assert the
+        # invariant rather than trusting them to stay in step: a "local" claim
+        # is only credible for an Ollama client on a provably loopback host.
+        if target == "local" and not is_loopback_http_url(
+            getattr(self._provider, "host", None)
+        ):
+            raise ValueError(
+                "target='local' requires a provably loopback provider host; "
+                "a remote endpoint is real egress and must compile as 'cloud'"
+            )
+        self._target: CompilationTarget = target
+        self.provider_name = provider_name
         #: Organ 31: the compiled context_digest from the most recent
         #: complete() call. route_intelligence_request() genuinely computes
         #: one on every call, but this adapter's own .complete() -> str
@@ -88,7 +116,7 @@ class GatewayRoutedCouncilLLMClient:
             desired_outcome=(
                 "a single valid JSON object per the Council reasoning schema"
             ),
-            target="local",
+            target=self._target,
             delegated_authority_summary=_DELEGATED_AUTHORITY_SUMMARY,
             model_call=lambda _context: self._provider.complete(
                 prompt, system=system, json_mode=json_mode
@@ -127,10 +155,19 @@ def build_council_llm_client(
     except NoEnrolledSovereignError:
         return None
     operator_id = snapshot.ratified_by_operator_id
+    provider = OllamaClient()
+    # Do NOT assume "the King runs locally". That is the same class of
+    # assumption that produced the dissent leak -- a role/label standing in for
+    # a transport fact. OLLAMA_HOST can point anywhere, and a remote Ollama is
+    # real egress. Classify the actual configured host.
+    target = classify_transport(provider="ollama", clients=[provider])
     return GatewayRoutedCouncilLLMClient(
         operator_identity_digest=credential_digest(operator_id),
         constitution_digest=snapshot.snapshot_digest,
+        target=target,
         emergency_stop=emergency_stop,
+        provider=provider,
+        provider_name="ollama" if target == "local" else "ollama-remote",
     )
 
 
@@ -197,8 +234,13 @@ def build_dissent_llm_client(
         dissent_client = GatewayRoutedCouncilLLMClient(
             operator_identity_digest=credential_digest(operator_id),
             constitution_digest=snapshot.snapshot_digest,
+            # Every provider in this loop is a real cloud provider. Compiling
+            # these as "local" is what leaked unscrubbed operator text and
+            # private memory refs to third parties.
+            target="cloud",
             emergency_stop=emergency_stop,
             provider=_ChatBackedCompleter(client),
+            provider_name=provider_name,
         )
         return dissent_client, provider_name, model_id
     return None

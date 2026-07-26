@@ -1130,6 +1130,7 @@ def generate(
     facts: SemanticFacts = Depends(get_semantic_facts),
     memory_authority=Depends(get_memory_authority),
     compactor: MemoryCompactor = Depends(get_compactor),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -1145,6 +1146,15 @@ def generate(
       4. Persist the assistant's final answer to L2 episodic memory and embed the
          completed turn into L3 semantic memory (self-reinforcing recall).
     """
+    # Organ 32 / foundation law "human can stop, revoke and correct".
+    #
+    # The forge is the highest-traffic model path in the repo and had NO
+    # emergency-stop check on its model call at all: the stop is only reached
+    # from CapabilityAuthority.issue()/.consume(), which a read-only GREEN turn
+    # never triggers, and ToolAgent.run() does not enter the gateway. So the
+    # agent kept reasoning after the operator hit stop.
+    emergency_stop.assert_operational()
+
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
     # Agentic generation can execute tools and therefore must be bound to the
@@ -1350,6 +1360,26 @@ def chat(
     (self-reinforcing recall), exactly like ``/api/generate``. Best-effort
     persistence never breaks the chat.
     """
+    # Organ 32 / foundation law "human can stop, revoke and correct".
+    #
+    # This dependency was already injected here, but it was only ever handed to
+    # AuthenticatedChatRepresentation -- so an ANONYMOUS turn (principal None)
+    # reached a live, possibly cloud, provider with the stop engaged, and the
+    # reply reached the client. Measured, not inferred: with the stop engaged
+    # the provider spy was still called and its text still streamed back.
+    #
+    # Chat is a GREEN action, so it never issues or consumes a capability, and
+    # assert_operational() is only reached from CapabilityAuthority.issue()/
+    # .consume(). The gateway checks the stop too, but the anonymous path never
+    # enters the gateway. Nothing on this route checked it.
+    #
+    # Routing anonymous chat through the gateway needs an answer to "what is an
+    # anonymous caller's identity digest?", which is a real open design
+    # question. Refusing to serve ANY chat turn while the operator has hit stop
+    # does not -- so it is not deferred with it. EmergencyStopError is already
+    # mapped to a 503 by the handler above.
+    emergency_stop.assert_operational()
+
     session_id = (
         principal.session_id
         if principal is not None
