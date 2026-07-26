@@ -32,12 +32,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
+from aios.application.memory.human_representation import diff_project_passports
 from aios.domain.memory.human_representation import (
+    AuthenticatedCorrectionEventV1,
+    CorrectionProjectionV1,
     CorrectionRecordV1,
     HumanStateHypothesis,
     OperatorPreferenceV1,
     ProjectPassportV1,
+    authenticated_correction_event_digest_from_record,
 )
+from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.infrastructure.storage.migrations import apply_migrations
 from aios.memory.db import init_memory_db
 
@@ -111,12 +116,18 @@ class OperatorPreferenceStore:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def save(self, pref: OperatorPreferenceV1) -> OperatorPreferenceSaveResult:
-        # `scope` is part of the contradiction-check subject (not just
-        # domain+key) -- otherwise two preferences correctly isolated by
-        # `list_for_scope` (e.g. the same domain+key in two different
-        # projects) would spuriously collide as a "contradiction" the
-        # instant they disagreed, even though they were never in conflict.
+    def save(
+        self, pref: OperatorPreferenceV1, *, operator_identity_digest: str | None = None
+    ) -> OperatorPreferenceSaveResult:
+        with closing(self._connect()) as conn:
+            existing = conn.execute(
+                "SELECT operator_identity_digest FROM operator_preference_sidecar WHERE preference_id = ?",
+                (pref.preference_id,),
+            ).fetchone()
+            if existing is not None and existing["operator_identity_digest"] is not None:
+                if existing["operator_identity_digest"] != operator_identity_digest:
+                    return OperatorPreferenceSaveResult(saved=False, reason="owner_mismatch")
+
         subject = f"operator.{pref.scope}.{pref.domain}.{pref.key}"
         value_json = json.dumps(pref.value, sort_keys=True, separators=(",", ":"))
         result = self.facts.add_fact(
@@ -128,15 +139,6 @@ class OperatorPreferenceStore:
                 reason=result.reason,
                 conflict_object=result.conflict_object,
             )
-        # Re-read the fact this store just wrote (or reused) rather than
-        # trusting `pref.confidence` -- SemanticFacts.add_fact()'s idempotent
-        # "exact triple already exists" path leaves the STORED confidence
-        # untouched unless `approved_by` is set (which this store never
-        # passes). Digesting the requested-but-not-actually-applied
-        # confidence produced a permanent false RecordTamperedError on every
-        # later read: re-saving "the same" preference with a different
-        # confidence updated the sidecar's digest to a value the fact row
-        # never actually held.
         stored_fact = self.facts.get(result.fact_id)
         actual_confidence = (
             float(stored_fact["confidence"])
@@ -151,8 +153,9 @@ class OperatorPreferenceStore:
                 INSERT INTO operator_preference_sidecar (
                     preference_id, fact_id, domain, key, scope, source_type,
                     source_ids_json, valid_from, review_after, supersedes_json,
-                    contradicted_by_json, status, recorded_at, record_digest
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    contradicted_by_json, status, recorded_at, record_digest,
+                    operator_identity_digest
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(preference_id) DO UPDATE SET
                     fact_id = excluded.fact_id,
                     domain = excluded.domain,
@@ -166,7 +169,8 @@ class OperatorPreferenceStore:
                     contradicted_by_json = excluded.contradicted_by_json,
                     status = excluded.status,
                     recorded_at = excluded.recorded_at,
-                    record_digest = excluded.record_digest
+                    record_digest = excluded.record_digest,
+                    operator_identity_digest = excluded.operator_identity_digest
                 """,
                 (
                     pref.preference_id,
@@ -183,6 +187,7 @@ class OperatorPreferenceStore:
                     pref.status,
                     _utc_now(),
                     digest,
+                    operator_identity_digest,
                 ),
             )
             conn.commit()
@@ -199,9 +204,6 @@ class OperatorPreferenceStore:
         return self._reconstruct(row)
 
     def list_for_scope(self, scope: str) -> tuple[OperatorPreferenceV1, ...]:
-        """Every lookup is scope-filtered by construction -- there is no
-        "all preferences regardless of scope" method, which is exactly the
-        leak-prevention this organ's ledger entry names."""
         with closing(self._connect()) as conn:
             rows = conn.execute(
                 "SELECT * FROM operator_preference_sidecar WHERE scope = ? "
@@ -211,13 +213,19 @@ class OperatorPreferenceStore:
         records = (self._reconstruct(row) for row in rows)
         return tuple(record for record in records if record is not None)
 
+    def list_for_operator_scope(
+        self, operator_identity_digest: str, scope: str
+    ) -> tuple[OperatorPreferenceV1, ...]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM operator_preference_sidecar WHERE operator_identity_digest = ? AND scope = ? "
+                "ORDER BY recorded_at ASC",
+                (operator_identity_digest, scope),
+            ).fetchall()
+        records = (self._reconstruct(row) for row in rows)
+        return tuple(record for record in records if record is not None)
+
     def list_active_for_scope(self, scope: str) -> tuple[OperatorPreferenceV1, ...]:
-        """The subset of `list_for_scope` a real consumer (Organ 31's
-        `active_preferences` parameter) would feed forward -- `status`
-        alone is filtered here; a caller also wanting to drop expired
-        preferences composes this with `is_operator_preference_expired`
-        (application layer), since this store only ever depends on the
-        domain layer, never upward on application code."""
         with closing(self._connect()) as conn:
             rows = conn.execute(
                 "SELECT * FROM operator_preference_sidecar "
@@ -227,18 +235,36 @@ class OperatorPreferenceStore:
         records = (self._reconstruct(row) for row in rows)
         return tuple(record for record in records if record is not None)
 
-    def withdraw(self, preference_id: str) -> bool:
-        """Organ 27's withdrawal support: an operator can retract a
-        preference they previously stated. Reuses `save()`'s existing
-        upsert-by-preference_id path rather than a second write path, so
-        withdrawal stays digest-verified and idempotent the same way every
-        other mutation on this row already is. Returns `False` (no-op) for
-        an unknown preference_id instead of raising -- withdrawing
-        something that was never recorded is not an error condition."""
+    def list_active_for_operator_scope(
+        self, operator_identity_digest: str, scope: str
+    ) -> tuple[OperatorPreferenceV1, ...]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM operator_preference_sidecar "
+                "WHERE operator_identity_digest = ? AND scope = ? AND status = 'active' ORDER BY recorded_at ASC",
+                (operator_identity_digest, scope),
+            ).fetchall()
+        records = (self._reconstruct(row) for row in rows)
+        return tuple(record for record in records if record is not None)
+
+    def withdraw(
+        self, preference_id: str, *, operator_identity_digest: str | None = None
+    ) -> bool:
         current = self.get(preference_id)
         if current is None:
             return False
-        result = self.save(current.model_copy(update={"status": "withdrawn"}))
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT operator_identity_digest FROM operator_preference_sidecar WHERE preference_id = ?",
+                (preference_id,),
+            ).fetchone()
+            if row is not None and row["operator_identity_digest"] is not None:
+                if row["operator_identity_digest"] != operator_identity_digest:
+                    return False
+        result = self.save(
+            current.model_copy(update={"status": "withdrawn"}),
+            operator_identity_digest=operator_identity_digest,
+        )
         return result.saved
 
     def _reconstruct(self, row: sqlite3.Row) -> OperatorPreferenceV1 | None:
@@ -284,15 +310,28 @@ class ProjectPassportStore:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def save(self, passport: ProjectPassportV1) -> int:
+    def save_and_diff(
+        self, passport: ProjectPassportV1
+    ) -> tuple[int, dict[str, Any]]:
+        """Save a new passport revision and return (revision, passport_diff)
+        atomically under an IMMEDIATE transaction lock.
+
+        Guarantees concurrent rescans select the actual prior revision for
+        passportDiff rather than reading across a race window.
+        """
         digest = _digest(passport.model_dump(mode="json"))
         with closing(self._connect()) as conn:
-            row = conn.execute(
-                "SELECT COALESCE(MAX(revision), 0) FROM project_passports "
-                "WHERE project_id = ?",
+            conn.execute("BEGIN IMMEDIATE")
+            prev_row = conn.execute(
+                "SELECT * FROM project_passports WHERE project_id = ? "
+                "ORDER BY revision DESC LIMIT 1",
                 (passport.project_id,),
             ).fetchone()
-            revision = int(row[0]) + 1
+            previous_passport = (
+                _passport_from_row(prev_row) if prev_row is not None else None
+            )
+            passport_diff = diff_project_passports(previous_passport, passport)
+            revision = (int(prev_row["revision"]) + 1) if prev_row is not None else 1
             conn.execute(
                 """
                 INSERT INTO project_passports (
@@ -322,9 +361,19 @@ class ProjectPassportStore:
                 ),
             )
             conn.commit()
+        return revision, passport_diff
+
+    def save(self, passport: ProjectPassportV1) -> int:
+        revision, _ = self.save_and_diff(passport)
         return revision
 
     def get_current(self, project_id: str) -> ProjectPassportV1 | None:
+        current = self.get_current_with_revision(project_id)
+        return current[1] if current is not None else None
+
+    def get_current_with_revision(
+        self, project_id: str
+    ) -> tuple[int, ProjectPassportV1] | None:
         with closing(self._connect()) as conn:
             row = conn.execute(
                 "SELECT * FROM project_passports WHERE project_id = ? "
@@ -333,7 +382,7 @@ class ProjectPassportStore:
             ).fetchone()
         if row is None:
             return None
-        return _passport_from_row(row)
+        return int(row["revision"]), _passport_from_row(row)
 
     def get_history(self, project_id: str) -> tuple[ProjectPassportV1, ...]:
         with closing(self._connect()) as conn:
@@ -344,36 +393,47 @@ class ProjectPassportStore:
             ).fetchall()
         return tuple(_passport_from_row(row) for row in rows)
 
-    def set_active(self, project_id: str, summary: dict[str, Any]) -> None:
-        """Durably record which project was most recently scanned --
-        organ 28's own named gap: previously this lived only in a
-        process-local module global in ``routes/projects.py`` and was
-        silently lost on every restart, even though the scan history
-        itself (``project_passports``) was already durable."""
+    def set_active(
+        self,
+        project_id: str,
+        summary: dict[str, Any],
+        *,
+        operator_identity_digest: str | None = None,
+    ) -> None:
         with closing(self._connect()) as conn:
             conn.execute(
                 """
                 INSERT INTO active_project_pointer (
-                    id, project_id, last_scan_summary_json, updated_at
-                ) VALUES (1, ?, ?, ?)
+                    id, project_id, last_scan_summary_json, operator_identity_digest, updated_at
+                ) VALUES (1, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     project_id = excluded.project_id,
                     last_scan_summary_json = excluded.last_scan_summary_json,
+                    operator_identity_digest = excluded.operator_identity_digest,
                     updated_at = excluded.updated_at
                 """,
-                (project_id, json.dumps(summary), _utc_now()),
+                (project_id, json.dumps(summary), operator_identity_digest, _utc_now()),
             )
             conn.commit()
 
     def get_active(self) -> tuple[str, dict[str, Any]] | None:
-        """Return (project_id, last_scan_summary) for the active project,
-        surviving a process restart -- ``None`` only when nothing has ever
-        been scanned, not merely because this process just started."""
+        return self.get_active_for_operator(None)
+
+    def get_active_for_operator(
+        self, operator_identity_digest: str | None = None
+    ) -> tuple[str, dict[str, Any]] | None:
         with closing(self._connect()) as conn:
-            row = conn.execute(
-                "SELECT project_id, last_scan_summary_json "
-                "FROM active_project_pointer WHERE id = 1"
-            ).fetchone()
+            if operator_identity_digest is None:
+                row = conn.execute(
+                    "SELECT project_id, last_scan_summary_json "
+                    "FROM active_project_pointer WHERE id = 1"
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT project_id, last_scan_summary_json "
+                    "FROM active_project_pointer WHERE id = 1 AND operator_identity_digest = ?",
+                    (operator_identity_digest,),
+                ).fetchone()
         if row is None:
             return None
         return row["project_id"], json.loads(row["last_scan_summary_json"])
@@ -464,10 +524,10 @@ class HumanStateHypothesisStore:
 
     def save(
         self, session_id: str, turn_id: str, hypothesis: HumanStateHypothesis
-    ) -> None:
+    ) -> int:
         digest = _digest(hypothesis.model_dump(mode="json"))
         with closing(self._connect()) as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO human_state_hypotheses (
                     session_id, turn_id, state, confidence, visible_reason,
@@ -485,6 +545,7 @@ class HumanStateHypothesisStore:
                 ),
             )
             conn.commit()
+            return int(cursor.lastrowid)
 
     def get_history(
         self, session_id: str
@@ -748,6 +809,181 @@ class CorrectionRecordStore:
                 "the row was altered outside this store"
             )
         return record
+
+    def append_authenticated(
+        self,
+        record: CorrectionRecordV1,
+        *,
+        corrected_values: dict[str, Any],
+        reason: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+    ) -> AuthenticatedCorrectionEventV1:
+        self.save(record)
+        record_digest = _digest(record.model_dump(mode="json"))
+        conversation_session_digest = credential_digest(record.session_id)
+        prev_digest = self._latest_event_digest(conversation_session_digest)
+        projections = tuple(
+            CorrectionProjectionV1(
+                field=k,
+                value=v if isinstance(v, str) else json.dumps(v),
+            )
+            for k, v in sorted(corrected_values.items())
+        )
+        event = AuthenticatedCorrectionEventV1.create(
+            event_id=f"event:{record.correction_id}",
+            correction_id=record.correction_id,
+            base_revision=record.base_revision,
+            correction_revision=record.correction_revision,
+            correction_record_digest=record_digest,
+            prior_interpretation_digest=record.prior_interpretation_digest,
+            conversation_session_digest=conversation_session_digest,
+            operator_id=operator_id,
+            operator_identity_digest=operator_identity_digest,
+            authentication_event_id=authentication_event_id,
+            corrected_values=projections,
+            reason=reason,
+            previous_correction_digest=prev_digest,
+            event_kind="applied",
+        )
+        self._save_authenticated_event(event)
+        return event
+
+    def append_authenticated_clear(
+        self,
+        record: CorrectionRecordV1,
+        *,
+        reason: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+    ) -> AuthenticatedCorrectionEventV1:
+        self.save(record)
+        record_digest = _digest(record.model_dump(mode="json"))
+        conversation_session_digest = credential_digest(record.session_id)
+        prev_digest = self._latest_event_digest(conversation_session_digest)
+        event = AuthenticatedCorrectionEventV1.create(
+            event_id=f"event:clear:{record.correction_id}",
+            correction_id=record.correction_id,
+            base_revision=record.base_revision,
+            correction_revision=record.correction_revision,
+            correction_record_digest=record_digest,
+            prior_interpretation_digest=record.prior_interpretation_digest,
+            conversation_session_digest=conversation_session_digest,
+            operator_id=operator_id,
+            operator_identity_digest=operator_identity_digest,
+            authentication_event_id=authentication_event_id,
+            corrected_values=(),
+            reason=reason,
+            previous_correction_digest=prev_digest,
+            event_kind="cleared",
+        )
+        self._save_authenticated_event(event)
+        return event
+
+    def _latest_event_digest(self, conversation_session_digest: str) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT event_digest FROM authenticated_correction_events "
+                "WHERE conversation_session_digest = ? ORDER BY id DESC LIMIT 1",
+                (conversation_session_digest,),
+            ).fetchone()
+        return row["event_digest"] if row else None
+
+    def _save_authenticated_event(
+        self, event: AuthenticatedCorrectionEventV1
+    ) -> None:
+        values_json = json.dumps(
+            [item.model_dump(mode="json") for item in event.corrected_values]
+        )
+        with closing(self._connect()) as conn:
+            conn.execute(
+                """
+                INSERT INTO authenticated_correction_events (
+                    event_id, correction_id, base_revision, correction_revision,
+                    correction_record_digest, prior_interpretation_digest,
+                    conversation_session_digest, operator_id, operator_identity_digest,
+                    authentication_event_id, authentication_verifier, event_kind,
+                    corrected_values_json, reason, previous_correction_digest,
+                    recorded_at, event_digest
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.correction_id,
+                    event.base_revision,
+                    event.correction_revision,
+                    event.correction_record_digest,
+                    event.prior_interpretation_digest,
+                    event.conversation_session_digest,
+                    event.operator_id,
+                    event.operator_identity_digest,
+                    event.authentication_event_id,
+                    event.authentication_verifier,
+                    event.event_kind,
+                    values_json,
+                    event.reason,
+                    event.previous_correction_digest,
+                    event.recorded_at,
+                    event.event_digest,
+                ),
+            )
+            conn.commit()
+
+    def verified_active_projection(
+        self,
+        session_id: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+        active_revision: int,
+    ) -> tuple[AuthenticatedCorrectionEventV1, dict[str, str]] | None:
+        conversation_session_digest = credential_digest(session_id)
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT * FROM authenticated_correction_events "
+                "WHERE conversation_session_digest = ? AND operator_identity_digest = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (conversation_session_digest, operator_identity_digest),
+            ).fetchone()
+        if not row:
+            return None
+        if row["event_kind"] == "cleared" or row["correction_revision"] != active_revision:
+            return None
+
+        raw_values = json.loads(row["corrected_values_json"])
+        projections = tuple(
+            CorrectionProjectionV1(field=v["field"], value=v["value"])
+            for v in raw_values
+        )
+        event = AuthenticatedCorrectionEventV1(
+            event_id=row["event_id"],
+            correction_id=row["correction_id"],
+            base_revision=row["base_revision"],
+            correction_revision=row["correction_revision"],
+            correction_record_digest=row["correction_record_digest"],
+            prior_interpretation_digest=row["prior_interpretation_digest"],
+            conversation_session_digest=row["conversation_session_digest"],
+            operator_id=row["operator_id"],
+            operator_identity_digest=row["operator_identity_digest"],
+            authentication_event_id=row["authentication_event_id"],
+            authentication_verifier=row["authentication_verifier"],
+            event_kind=row["event_kind"],
+            corrected_values=projections,
+            reason=row["reason"],
+            previous_correction_digest=row["previous_correction_digest"],
+            recorded_at=row["recorded_at"],
+            event_digest=row["event_digest"],
+        )
+        recomputed = authenticated_correction_event_digest_from_record(event)
+        if recomputed != row["event_digest"]:
+            raise RecordTamperedError(
+                f"stored authenticated correction event digest mismatch for {row['event_id']!r}: "
+                "the row was altered outside this store"
+            )
+        values_dict = {item.field: item.value for item in projections}
+        return event, values_dict
 
 
 __all__ = [

@@ -1118,6 +1118,7 @@ def test_user_correction_persists_reapplies_and_can_be_cleared(client: TestClien
     assert cleared_body["alignment"]["correction"]["active"] is False
     assert cleared_body["activeCorrection"] is None
     assert cleared_body["correctionHistory"][0]["status"] == "cleared"
+    assert cleared_body["authenticatedCorrectionEvent"]["event_kind"] == "cleared"
 
 
 def test_alignment_evaluation_records_feedback_and_correction_evidence(

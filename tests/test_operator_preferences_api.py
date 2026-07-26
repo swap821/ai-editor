@@ -27,6 +27,17 @@ def _client_with_isolated_store(tmp_path: Path) -> TestClient:
     return TestClient(app, client=("127.0.0.1", 12345))
 
 
+def test_preference_routes_require_an_authenticated_operator(tmp_path: Path) -> None:
+    client = _client_with_isolated_store(tmp_path)
+    try:
+        client.cookies.clear()
+        response = client.get(
+            "/api/v1/preferences", params={"scope": "project:ai-editor"}
+        )
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+
 def test_save_preference_persists_as_explicit_and_active(tmp_path: Path) -> None:
     client = _client_with_isolated_store(tmp_path)
     try:

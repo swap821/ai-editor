@@ -22,9 +22,11 @@ Four organs, four contracts, all advisory unless stated otherwise:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
+import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def _utc_now() -> str:
@@ -146,9 +148,120 @@ class HumanStateHypothesis(BaseModel):
         return self.model_dump(mode="json")
 
 
+
+def _authenticated_correction_digest(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+class CorrectionProjectionV1(BaseModel):
+    """One bounded, already-redacted correction value safe for model context."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str = Field(min_length=1, max_length=200)
+    value: str = Field(min_length=1, max_length=1000)
+
+
+class AuthenticatedCorrectionEventV1(BaseModel):
+    """Immutable, session-bound correction lineage for representative chat.
+
+    This sidecar deliberately leaves ``CorrectionRecordV1`` untouched: legacy
+    correction metadata retains its original digest shape, while this event
+    carries the authenticated, bounded projection that may reach a model.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str = Field(min_length=1, max_length=200)
+    correction_id: str = Field(min_length=1, max_length=200)
+    base_revision: int = Field(ge=0)
+    correction_revision: int = Field(ge=1)
+    correction_record_digest: str = Field(min_length=64, max_length=64)
+    prior_interpretation_digest: str = Field(min_length=64, max_length=64)
+    conversation_session_digest: str = Field(min_length=64, max_length=64)
+    operator_id: str = Field(min_length=1, max_length=256)
+    operator_identity_digest: str = Field(min_length=64, max_length=64)
+    authentication_event_id: str = Field(min_length=1, max_length=256)
+    authentication_verifier: Literal["identity_service_session"] = (
+        "identity_service_session"
+    )
+    event_kind: Literal["applied", "cleared"] = "applied"
+    corrected_values: tuple[CorrectionProjectionV1, ...] = ()
+    reason: str = Field(min_length=1, max_length=500)
+    previous_correction_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    recorded_at: str = Field(default_factory=_utc_now)
+    grants_authority: Literal[False] = False
+    event_digest: str = Field(min_length=64, max_length=64)
+
+    @model_validator(mode="after")
+    def _valid_event_shape(self) -> "AuthenticatedCorrectionEventV1":
+        if self.event_kind == "applied" and not self.corrected_values:
+            raise ValueError("applied authenticated correction requires values")
+        if self.event_kind == "cleared" and self.corrected_values:
+            raise ValueError("cleared authenticated correction cannot carry values")
+        return self
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        event_id: str,
+        correction_id: str,
+        base_revision: int,
+        correction_revision: int,
+        correction_record_digest: str,
+        prior_interpretation_digest: str,
+        conversation_session_digest: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+        corrected_values: tuple[CorrectionProjectionV1, ...],
+        reason: str,
+        previous_correction_digest: str | None,
+        event_kind: Literal["applied", "cleared"] = "applied",
+        recorded_at: str | None = None,
+    ) -> "AuthenticatedCorrectionEventV1":
+        payload: dict[str, Any] = {
+            "event_id": event_id,
+            "correction_id": correction_id,
+            "base_revision": base_revision,
+            "correction_revision": correction_revision,
+            "correction_record_digest": correction_record_digest,
+            "prior_interpretation_digest": prior_interpretation_digest,
+            "conversation_session_digest": conversation_session_digest,
+            "operator_id": operator_id,
+            "operator_identity_digest": operator_identity_digest,
+            "authentication_event_id": authentication_event_id,
+            "authentication_verifier": "identity_service_session",
+            "event_kind": event_kind,
+            "corrected_values": [value.model_dump(mode="json") for value in corrected_values],
+            "reason": reason,
+            "previous_correction_digest": previous_correction_digest,
+            "recorded_at": recorded_at or _utc_now(),
+            "grants_authority": False,
+        }
+        return cls(
+            **payload,
+            event_digest=_authenticated_correction_digest(payload),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+
+def authenticated_correction_event_digest_from_record(
+    event: AuthenticatedCorrectionEventV1,
+) -> str:
+    return _authenticated_correction_digest(
+        event.model_dump(mode="json", exclude={"event_digest"})
+    )
 __all__ = [
     "OperatorPreferenceV1",
     "ProjectPassportV1",
     "CorrectionRecordV1",
+    "CorrectionProjectionV1",
+    "AuthenticatedCorrectionEventV1",
+    "authenticated_correction_event_digest_from_record",
     "HumanStateHypothesis",
 ]

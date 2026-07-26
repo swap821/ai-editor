@@ -23,11 +23,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from aios.api.action_guard import enforce_action_boundary
-from aios.api.deps import get_operator_preference_store
+from aios.api.deps import get_authenticated_principal, get_operator_preference_store
 from aios.application.memory.human_representation import (
     is_operator_preference_expired,
 )
+from aios.domain.identity.models import Principal
 from aios.domain.memory.human_representation import OperatorPreferenceV1
+from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.infrastructure.memory.human_representation_store import (
     OperatorPreferenceStore,
 )
@@ -62,6 +64,7 @@ class OperatorPreferenceRequest(BaseModel):
 def save_operator_preference(
     req: OperatorPreferenceRequest,
     store: OperatorPreferenceStore = Depends(get_operator_preference_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
     """Capture one explicit operator preference."""
     preference_id = _preference_id(req.scope, req.domain, req.key)
@@ -76,7 +79,10 @@ def save_operator_preference(
         review_after=req.review_after,
         status="active",
     )
-    result = store.save(pref)
+    result = store.save(
+        pref,
+        operator_identity_digest=credential_digest(principal.principal_id),
+    )
     if not result.saved:
         if result.reason == "contradiction":
             raise HTTPException(
@@ -90,13 +96,18 @@ def save_operator_preference(
     saved = store.get(preference_id)
     if saved is None:  # pragma: no cover - save() just committed this row
         raise HTTPException(status_code=500, detail="preference save did not persist")
-    return {"preference": saved.as_dict(), "preferenceId": preference_id}
+    return {
+        "preference": saved.as_dict(),
+        "preferenceId": preference_id,
+        "authenticatedOwnerBound": True,
+    }
 
 
 @router.get("/api/v1/preferences")
 def list_operator_preferences(
     scope: str,
     store: OperatorPreferenceStore = Depends(get_operator_preference_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
     """Every explicit preference recorded for one scope -- always
     scope-filtered (organ 27's own leak-prevention requirement: there is no
@@ -104,7 +115,9 @@ def list_operator_preferences(
     rather than requiring the caller to re-derive it."""
     if not scope.strip():
         raise HTTPException(status_code=422, detail="scope is required")
-    preferences = store.list_for_scope(scope)
+    preferences = store.list_for_operator_scope(
+        credential_digest(principal.principal_id), scope
+    )
     return {
         "scope": scope,
         "preferences": [
@@ -118,6 +131,7 @@ def list_operator_preferences(
 def list_active_operator_preferences(
     scope: str,
     store: OperatorPreferenceStore = Depends(get_operator_preference_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
     """The subset of ``list_operator_preferences`` a real consumer would
     feed forward as Organ 31's ``active_preferences`` -- ``status ==
@@ -127,7 +141,9 @@ def list_active_operator_preferences(
         raise HTTPException(status_code=422, detail="scope is required")
     preferences = [
         pref
-        for pref in store.list_active_for_scope(scope)
+        for pref in store.list_active_for_operator_scope(
+            credential_digest(principal.principal_id), scope
+        )
         if not is_operator_preference_expired(pref)
     ]
     return {"scope": scope, "preferences": [pref.as_dict() for pref in preferences]}
@@ -137,6 +153,7 @@ def list_active_operator_preferences(
 def withdraw_operator_preference(
     preference_id: str,
     store: OperatorPreferenceStore = Depends(get_operator_preference_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
     """Retract a previously stated explicit preference.
 
@@ -148,7 +165,10 @@ def withdraw_operator_preference(
     domain+key+scope still resolves that through the existing human-gated
     ``POST /api/v1/memory/facts/reconcile`` path, unchanged.
     """
-    withdrawn = store.withdraw(preference_id)
+    withdrawn = store.withdraw(
+        preference_id,
+        operator_identity_digest=credential_digest(principal.principal_id),
+    )
     if not withdrawn:
         raise HTTPException(status_code=404, detail="preference not found")
     return {"preferenceId": preference_id, "status": "withdrawn"}

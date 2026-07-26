@@ -21,6 +21,7 @@ pre-existing "gateway"-shaped implementations,
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -29,7 +30,10 @@ from aios.application.intelligence.context_compiler import (
     CompilationTarget,
     compile_representative_context,
 )
-from aios.domain.intelligence.representative_context import RepresentativeContextV1
+from aios.domain.intelligence.representative_context import (
+    RepresentativeContextReceiptV1,
+    RepresentativeContextV1,
+)
 from aios.domain.memory.human_representation import (
     CorrectionRecordV1,
     OperatorPreferenceV1,
@@ -63,6 +67,7 @@ class StreamingIntelligenceGatewayResult:
 
     context: RepresentativeContextV1
     chunks: Iterator[str]
+    receipt: RepresentativeContextReceiptV1 | None = None
 
 
 def _validate_and_compile(
@@ -140,6 +145,39 @@ def _record_context(context: RepresentativeContextV1, store: Any | None) -> None
     except Exception:  # noqa: BLE001 - persistence must never break a gated call
         _LOGGER.warning("Failed to record representative context", exc_info=True)
 
+
+def _record_required_receipt(
+    context: RepresentativeContextV1,
+    *,
+    receipt_factory: Callable[[RepresentativeContextV1], RepresentativeContextReceiptV1]
+    | None,
+    store: Any | None,
+) -> RepresentativeContextReceiptV1:
+    """Persist a complete authenticated-chat receipt before any provider call.
+
+    The generic gateway keeps its historic best-effort context recording for
+    compatibility. Authenticated chat opts into this stricter bundle operation:
+    a missing, expired, malformed, or unwritable receipt is a refusal, never a
+    reason to silently fall back to an unrecorded model call.
+    """
+    if receipt_factory is None:
+        raise IntelligenceGatewayError(
+            "authenticated request requires a representative context receipt"
+        )
+    try:
+        receipt = receipt_factory(context)
+        expiry = datetime.fromisoformat(receipt.expires_at.replace("Z", "+00:00"))
+        if expiry <= datetime.now(timezone.utc):
+            raise IntelligenceGatewayError("representative context receipt expired")
+        target = store if store is not None else _default_context_store()
+        target.save_bundle(context, receipt)
+    except IntelligenceGatewayError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - strict authenticated boundary
+        raise IntelligenceGatewayError(
+            "representative context receipt persistence failed"
+        ) from exc
+    return receipt
 
 def route_intelligence_request(
     *,
@@ -238,6 +276,10 @@ def stream_intelligence_request(
     secret_policy: SecretPolicy | None = None,
     emergency_stop: Any | None = None,
     context_store: Any | None = None,
+    receipt_factory: Callable[
+        [RepresentativeContextV1], RepresentativeContextReceiptV1
+    ] | None = None,
+    require_context_receipt: bool = False,
 ) -> StreamingIntelligenceGatewayResult:
     """Streaming counterpart to `route_intelligence_request()` for text-chunk
     model calls (chat's token-by-token reply). Same upfront governance --
@@ -287,7 +329,17 @@ def stream_intelligence_request(
         policy=policy,
         emergency_stop=emergency_stop,
     )
-    _record_context(context, context_store)
+    receipt = (
+        _record_required_receipt(
+            context,
+            receipt_factory=receipt_factory,
+            store=context_store,
+        )
+        if require_context_receipt
+        else None
+    )
+    if not require_context_receipt:
+        _record_context(context, context_store)
 
     def _redacted_chunks() -> Iterator[str]:
         for chunk in model_call(context):
@@ -295,7 +347,9 @@ def stream_intelligence_request(
             if text:
                 yield policy.redact_text(text)
 
-    return StreamingIntelligenceGatewayResult(context=context, chunks=_redacted_chunks())
+    return StreamingIntelligenceGatewayResult(
+        context=context, chunks=_redacted_chunks(), receipt=receipt
+    )
 
 
 __all__ = [

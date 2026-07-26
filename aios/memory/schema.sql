@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS conversation_corrections (
     session_id          TEXT NOT NULL,
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     superseded_at       DATETIME,
+    ledger_rejected_at  DATETIME,
     status              TEXT NOT NULL
                         CHECK (status IN ('active','superseded','cleared')),
     overrides_json      TEXT NOT NULL,

@@ -465,15 +465,16 @@ def _record_human_state(
     hypothesis: HumanStateHypothesis,
     *,
     store: Any | None = None,
-) -> None:
+) -> int | None:
     """Persist organ 30's per-turn human-state hypothesis. Best-effort;
     never fatal -- a store failure must never break the chat turn whose
     classification already happened and was already streamed to the UI."""
     try:
         target = store or get_human_state_hypothesis_store()
-        target.save(session_id, turn_id, hypothesis)
+        return int(target.save(session_id, turn_id, hypothesis))
     except Exception as exc:  # noqa: BLE001 - persistence must not break the chat
         logger.warning("Failed to record human state hypothesis", exc_info=exc)
+        return None
 
 
 def _recall_lessons(

@@ -14,7 +14,9 @@ import hashlib
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from aios.api.deps import get_project_passport_store
+from aios.api.deps import get_authenticated_principal, get_project_passport_store
+from aios.domain.identity.models import Principal
+from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.application.governance.organ_ledger import current_commit_sha
 from aios.application.memory.human_representation import (
     build_project_passport_v1,
@@ -50,6 +52,7 @@ class ProjectPassportScanRequest(BaseModel):
 def scan_project_passport(
     req: ProjectPassportScanRequest,
     store: ProjectPassportStore = Depends(get_project_passport_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict:
     """Return a local-only Project Passport as proposal/evidence.
 
@@ -69,27 +72,37 @@ def scan_project_passport(
     """
     workspace = Path.cwd().resolve()
     root = _resolve_scan_root(req.root, workspace)
+    commit_before = current_commit_sha(root)
     try:
         passport = harvest_project_passport(
             root, limits=RepoScanLimits(max_files=req.max_files)
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    commit_after = current_commit_sha(root)
+    if commit_before != commit_after:
+        raise HTTPException(
+            status_code=409,
+            detail="scan invalidated: git commit changed during scan",
+        )
     scan_summary = _project_passport_summary(passport)
 
     project_id = _project_id_for_root(root)
     typed_passport = build_project_passport_v1(
         root,
         project_id=project_id,
-        verified_at_commit=current_commit_sha(root),
+        verified_at_commit=commit_after,
         passport=passport,
     )
-    previous_passport = store.get_current(project_id)
-    passport_diff = diff_project_passports(previous_passport, typed_passport)
-    store.save(typed_passport)
-    store.set_active(project_id, scan_summary)
+    _revision, passport_diff = store.save_and_diff(typed_passport)
+    store.set_active(
+        project_id,
+        scan_summary,
+        operator_identity_digest=credential_digest(principal.principal_id),
+    )
 
     response = passport.as_dict()
+    response["projectId"] = project_id
     response["passportDiff"] = passport_diff
     return response
 
@@ -104,6 +117,7 @@ def _project_id_for_root(root: Path) -> str:
 @router.get("/api/v1/projects/passport/status")
 def project_passport_status(
     store: ProjectPassportStore = Depends(get_project_passport_store),
+    principal: Principal = Depends(get_authenticated_principal),
 ) -> dict:
     """Return status for the local-only RepoMap harvester without scanning.
 
@@ -113,9 +127,12 @@ def project_passport_status(
     unconditionally empty after every restart, even when a real scan
     history already existed on disk.
     """
+    project_id: str | None = None
     last_scan: dict[str, object] | None = None
     durable: dict[str, object] | None = None
-    active = store.get_active()
+    active = store.get_active_for_operator(
+        credential_digest(principal.principal_id)
+    )
     if active is not None:
         project_id, last_scan = active
         current = store.get_current(project_id)
@@ -131,6 +148,26 @@ def project_passport_status(
         "localOnly": True,
         "activation": "proposal/evidence",
         "trustedMemoryActivated": False,
+        "projectId": project_id,
+        "lastScan": last_scan,
+        "durable": durable,
+    }
+    if active is not None:
+        project_id, last_scan = active
+        current = store.get_current(project_id)
+        if current is not None:
+            history = store.get_history(project_id)
+            durable = {
+                "revisionCount": len(history),
+                "passportDigest": current.passport_digest,
+                "verifiedAtCommit": current.verified_at_commit,
+            }
+    return {
+        "available": True,
+        "localOnly": True,
+        "activation": "proposal/evidence",
+        "trustedMemoryActivated": False,
+        "projectId": project_id,
         "lastScan": last_scan,
         "durable": durable,
     }

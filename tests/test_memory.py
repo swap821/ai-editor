@@ -162,6 +162,7 @@ def test_conversation_correction_revision_supersedes_and_clears_to_base(
     assert persisted["correction"]["revision"] == revision
     assert second_persisted["correction"]["revision"] == second_revision
     assert store.active_correction(session_id)["corrections"]["goal"] == "Implement the public API"
+    assert store.active_correction_revision(session_id) == second_revision
     assert [item["status"] for item in store.correction_history(session_id)] == [
         "active",
         "superseded",
@@ -169,9 +170,44 @@ def test_conversation_correction_revision_supersedes_and_clears_to_base(
     assert store.clear_correction(session_id) == base
     assert store.get(session_id) == base
     assert store.active_correction(session_id) is None
+    assert store.active_correction_revision(session_id) is None
     assert store.correction_history(session_id)[0]["status"] == "cleared"
     assert session_id.encode() not in db_path.read_bytes()
 
+
+def test_correction_transition_rollback_restores_last_auditable_state(
+    db_path: Path,
+) -> None:
+    store = ConversationStateStore(db_path)
+    base = {"goal": "base"}
+    first = {"goal": "first", "correction": {"active": True}}
+    first_revision, first_persisted = store.record_correction(
+        "sess",
+        before_frame=base,
+        after_frame=first,
+        corrections={"goal": "first"},
+        corrected_fields=["goal"],
+    )
+    second_revision, _ = store.record_correction(
+        "sess",
+        before_frame=first_persisted,
+        after_frame={"goal": "second", "correction": {"active": True}},
+        corrections={"goal": "second"},
+        corrected_fields=["goal"],
+        expected_revision=first_revision,
+    )
+
+    assert store.rollback_correction_transition(
+        "sess", expected_revision=second_revision, expected_status="active"
+    ) == first_persisted
+    assert store.active_correction_revision("sess") == first_revision
+
+    store.clear_correction("sess")
+    clear_revision = store.correction_lineage_frames("sess", limit=1)[0]["revision"]
+    assert store.rollback_correction_transition(
+        "sess", expected_revision=clear_revision, expected_status="cleared"
+    ) == first_persisted
+    assert store.active_correction_revision("sess") == first_revision
 
 def test_active_correction_refresh_makes_clear_restore_latest_interpretation(
     db_path: Path,

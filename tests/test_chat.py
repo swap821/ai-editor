@@ -11,6 +11,7 @@ from typing import Iterator, Optional
 
 import pytest
 from fastapi.testclient import TestClient
+from aios.api.deps import get_optional_principal
 
 from aios.api.main import (
     CHAT_SYSTEM_PROMPT,
@@ -69,6 +70,14 @@ class FakeIndexer:
     def add(self, text: str) -> int:
         self.added.append(text)
         return len(self.added)
+
+
+@pytest.fixture(autouse=True)
+def _force_anonymous_chat_path() -> Iterator[None]:
+    """Keep the legacy chat contract explicitly anonymous in this suite."""
+    app.dependency_overrides[get_optional_principal] = lambda: None
+    yield
+    app.dependency_overrides.pop(get_optional_principal, None)
 
 
 @pytest.fixture()

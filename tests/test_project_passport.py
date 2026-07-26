@@ -90,6 +90,7 @@ def test_project_passport_api_returns_real_backend_scan_without_memory_activatio
     assert body["activation"] == "proposal/evidence"
     assert body["root"] == str(tmp_path.resolve())
     assert body["purpose"].startswith("API Passport")
+    assert isinstance(body["projectId"], str) and body["projectId"]
     status = TestClient(app, client=("127.0.0.1", 12345)).get(
         "/api/v1/projects/passport/status"
     )
@@ -97,6 +98,7 @@ def test_project_passport_api_returns_real_backend_scan_without_memory_activatio
     status_body = status.json()
     assert status_body["localOnly"] is True
     assert status_body["trustedMemoryActivated"] is False
+    assert status_body["projectId"] == body["projectId"]
     assert status_body["lastScan"]["root"] == str(tmp_path.resolve())
     assert status_body["lastScan"]["purpose"].startswith("API Passport")
 
@@ -122,6 +124,7 @@ def test_project_passport_status_does_not_scan_or_activate_memory(
     assert body["localOnly"] is True
     assert body["activation"] == "proposal/evidence"
     assert body["trustedMemoryActivated"] is False
+    assert body["projectId"] is None
     assert body["lastScan"] is None
     assert body["durable"] is None
 
@@ -146,6 +149,8 @@ def test_project_passport_scan_persists_a_real_typed_passport_durably(
             "/api/v1/projects/passport/scan", json={"root": ".", "maxFiles": 20}
         )
         assert first.status_code == 200
+        project_id = first.json()["projectId"]
+        assert isinstance(project_id, str) and project_id
 
         status = client.get("/api/v1/projects/passport/status")
         assert status.status_code == 200
@@ -153,14 +158,17 @@ def test_project_passport_scan_persists_a_real_typed_passport_durably(
         assert durable is not None
         assert durable["revisionCount"] == 1
         assert durable["passportDigest"]
+        assert status.json()["projectId"] == project_id
 
         second = client.post(
             "/api/v1/projects/passport/scan", json={"root": ".", "maxFiles": 20}
         )
         assert second.status_code == 200
+        assert second.json()["projectId"] == project_id
 
         status_after = client.get("/api/v1/projects/passport/status")
         assert status_after.json()["durable"]["revisionCount"] == 2
+        assert status_after.json()["projectId"] == project_id
     finally:
         app.dependency_overrides.clear()
 
@@ -182,3 +190,64 @@ def test_project_passport_api_rejects_scan_outside_workspace(
 
     assert response.status_code == 403
     assert "current workspace" in response.json()["detail"]
+
+
+def test_project_passport_scan_rejects_commit_changing_during_scan(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write(tmp_path / "README.md", "# Commit Race Test\n")
+    monkeypatch.chdir(tmp_path)
+
+    sha_sequence = iter(["commit_before_111", "commit_after_222"])
+
+    def _mock_commit_sha(root):
+        return next(sha_sequence)
+
+    import aios.api.routes.projects as projects_route
+
+    monkeypatch.setattr(projects_route, "current_commit_sha", _mock_commit_sha)
+
+    client = TestClient(app, client=("127.0.0.1", 12345))
+    response = client.post(
+        "/api/v1/projects/passport/scan",
+        json={"root": ".", "maxFiles": 10},
+    )
+
+    assert response.status_code == 409
+    assert "git commit changed during scan" in response.json()["detail"]
+
+
+def test_project_passport_store_save_and_diff_atomic_predecessor(
+    tmp_path: Path,
+) -> None:
+    from aios.application.memory.human_representation import build_project_passport_v1
+
+    store = ProjectPassportStore(tmp_path / "passports.db")
+    project_root = tmp_path / "proj"
+    _write(project_root / "README.md", "# Predecessor Diff Test\n")
+
+    p1 = harvest_project_passport(project_root)
+    v1 = build_project_passport_v1(
+        project_root,
+        project_id="test_proj_id",
+        verified_at_commit="sha111",
+        passport=p1,
+    )
+    rev1, diff1 = store.save_and_diff(v1)
+    assert rev1 == 1
+    assert diff1["is_first_scan"] is True
+
+    _write(project_root / "README.md", "# Predecessor Diff Test Updated\n")
+    p2 = harvest_project_passport(project_root)
+    v2 = build_project_passport_v1(
+        project_root,
+        project_id="test_proj_id",
+        verified_at_commit="sha222",
+        passport=p2,
+    )
+    rev2, diff2 = store.save_and_diff(v2)
+    assert rev2 == 2
+    assert diff2["is_first_scan"] is False
+    assert "verified_at_commit" in diff2["changed_fields"]
+

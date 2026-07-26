@@ -145,6 +145,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE mistake_pool ADD COLUMN failed_command TEXT NOT NULL DEFAULT ''"
         )
 
+    # Correction transitions are first persisted in the conversation database
+    # and then mirrored to the separate immutable authenticated ledger. Keep a
+    # durable local marker when that second write fails and is compensated.
+    correction_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(conversation_corrections)")
+    }
+    if correction_cols and "ledger_rejected_at" not in correction_cols:
+        conn.execute(
+            "ALTER TABLE conversation_corrections ADD COLUMN ledger_rejected_at DATETIME"
+        )
+
     # self_analysis_report.fingerprint (added post-PR#4 for finding reconcile).
     cols = {row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")}
     if cols and "fingerprint" not in cols:

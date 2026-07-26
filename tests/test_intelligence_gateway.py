@@ -17,6 +17,9 @@ from aios.application.intelligence.gateway import (
     stream_intelligence_request,
 )
 from aios.domain.governance import EmergencyStopRequest
+from aios.domain.intelligence.representative_context import (
+    RepresentativeContextReceiptV1,
+)
 
 
 def _controller(tmp_path: Path) -> EmergencyStopController:
@@ -285,3 +288,75 @@ def test_stream_gateway_durably_records_the_compiled_context(tmp_path: Path) -> 
     recorded = store.get("req-stream-recorded")
     assert recorded is not None
     assert recorded == result.context
+
+
+def _receipt_for_gateway_context(context):
+    return RepresentativeContextReceiptV1.create(
+        request_id=context.request_id,
+        context_digest=context.context_digest,
+        operator_identity_digest=context.operator_identity_digest,
+        constitution_digest=context.constitution_digest,
+        target=context.privacy_classification,
+        active_project_revision=None,
+        included_preference_ids=(),
+        included_correction_ids=(),
+        human_state_hypothesis_id=None,
+        human_state_disposition="abstained",
+        exclusions=(),
+        consent_status="not_required_local",
+        consent_scope=("authenticated-chat",),
+        created_at="2026-07-26T00:00:00+00:00",
+        expires_at="2099-07-26T00:05:00+00:00",
+    )
+
+
+def test_strict_streaming_receipt_persistence_failure_never_invokes_provider() -> None:
+    """Authenticated chat must fail closed if its pre-call receipt is absent."""
+    provider_calls: list[str] = []
+
+    def _model_call(context):
+        provider_calls.append(context.goal)
+        yield "must not be reached"
+
+    class _BrokenBundleStore:
+        def save_bundle(self, context, receipt) -> None:
+            raise OSError("disk full")
+
+    with pytest.raises(IntelligenceGatewayError, match="receipt persistence"):
+        _stream(
+            model_call=_model_call,
+            context_store=_BrokenBundleStore(),
+            receipt_factory=_receipt_for_gateway_context,
+            require_context_receipt=True,
+        )
+    assert provider_calls == []
+
+
+def test_strict_streaming_receipt_is_persisted_before_the_provider_runs(
+    tmp_path: Path,
+) -> None:
+    from aios.infrastructure.intelligence.representative_context_store import (
+        RepresentativeContextStore,
+    )
+
+    store = RepresentativeContextStore(tmp_path / "strict-contexts.db")
+    provider_calls: list[str] = []
+
+    def _model_call(context):
+        provider_calls.append(context.context_digest)
+        yield "governed reply"
+
+    result = _stream(
+        request_id="req-strict-receipt",
+        model_call=_model_call,
+        context_store=store,
+        receipt_factory=_receipt_for_gateway_context,
+        require_context_receipt=True,
+    )
+
+    persisted = store.get_bundle("req-strict-receipt")
+    assert persisted is not None
+    assert persisted == (result.context, result.receipt)
+    assert provider_calls == []
+    assert list(result.chunks) == ["governed reply"]
+    assert provider_calls == [result.context.context_digest]
