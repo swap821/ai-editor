@@ -195,6 +195,23 @@ def doctor_report(
     checks.append(
         _check("executor", executor_ok, executor_message, required=production)
     )
+    
+    # Organ 53: Ollama local runtime check
+    try:
+        from aios.core.llm import OllamaClient
+        client = OllamaClient()
+        ollama_ok = client.is_available()
+    except Exception:
+        ollama_ok = False
+        
+    checks.append(
+        _check(
+            "ollama_runtime",
+            ollama_ok,
+            "Ollama local runtime is available" if ollama_ok else "Ollama local runtime is unavailable/degraded",
+            required=production,
+        )
+    )
 
     roots = project_roots if project_roots is not None else config.SCOPE_ROOTS
     root_ok = bool(roots) and all(path.exists() and path.is_dir() for path in roots)

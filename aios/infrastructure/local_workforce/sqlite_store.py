@@ -20,6 +20,7 @@ from aios.domain.local_workforce.contracts import (
     LocalJobRequestRecord,
     LocalJobResultRecord,
     LocalModelCallRecord,
+    LocalClerkProvenanceRecord,
 )
 from aios.infrastructure.storage.migrations import apply_migrations
 
@@ -31,6 +32,11 @@ class RecordTamperedError(RuntimeError):
 def _digest(payload: dict[str, object]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+class ProvenanceChainBrokenError(RuntimeError):
+    """The hash chain does not link up -- a record was deleted, reordered or
+    inserted, even though every surviving row still matches its own digest."""
 
 
 class LocalWorkforceProvenanceStore:
@@ -174,9 +180,7 @@ class LocalWorkforceProvenanceStore:
         _verify(record, row["record_digest"])
         return record
 
-    def get_model_calls_for_job(
-        self, job_id: str
-    ) -> tuple[LocalModelCallRecord, ...]:
+    def get_model_calls_for_job(self, job_id: str) -> tuple[LocalModelCallRecord, ...]:
         with closing(self._connect()) as conn:
             rows = conn.execute(
                 "SELECT * FROM local_model_calls WHERE local_job_id = ? "
@@ -227,9 +231,159 @@ class LocalWorkforceProvenanceStore:
         _verify(record, row["record_digest"])
         return record
 
+    # ------------------------------------------------------------------ #
+    # Organ 38: the hash-linked chain.
+    #
+    # The link is computed HERE, not by the caller. When the caller supplied
+    # it, it was computed as sha256(model_dump_json()) while the store wrote
+    # sha256(json.dumps(payload, sort_keys=True, separators=(",",":"))) --
+    # different bytes, so every `previous_record_digest` was wrong and the
+    # chain never linked up. Deriving both from the same `_digest` here makes
+    # that class of mismatch impossible rather than merely fixed once.
+    # ------------------------------------------------------------------ #
+
+    def _provenance_from_row(self, row: sqlite3.Row) -> LocalClerkProvenanceRecord:
+        return LocalClerkProvenanceRecord(
+            job_id=row["job_id"],
+            job_contract_digest=row["job_contract_digest"],
+            dispatcher_decision=row["dispatcher_decision"],
+            passport_digest=row["passport_digest"],
+            qualification_evidence_digest=row["qualification_evidence_digest"],
+            representative_context_digest=row["representative_context_digest"],
+            model_request_digest=row["model_request_digest"],
+            model_result_digest=row["model_result_digest"],
+            validation_outcome=row["validation_outcome"],
+            escalation_outcome=row["escalation_outcome"],
+            previous_record_digest=row["previous_record_digest"],
+        )
+
+    def get_latest_provenance_record(self) -> LocalClerkProvenanceRecord | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT * FROM local_clerk_provenance_chain ORDER BY rowid DESC LIMIT 1"
+            ).fetchone()
+        if row is None:
+            return None
+        record = self._provenance_from_row(row)
+        _verify(record, row["record_digest"])
+        return record
+
+    def get_provenance_record(self, job_id: str) -> LocalClerkProvenanceRecord | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT * FROM local_clerk_provenance_chain WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        record = self._provenance_from_row(row)
+        _verify(record, row["record_digest"])
+        return record
+
+    def save_provenance_record(
+        self, record: LocalClerkProvenanceRecord
+    ) -> LocalClerkProvenanceRecord:
+        """Append `record` to the chain, linking it to the current head.
+
+        Any `previous_record_digest` on the incoming record is IGNORED and
+        replaced with the real head digest -- a caller cannot choose its own
+        predecessor, so it cannot fork the chain.
+
+        Idempotent by `job_id`: re-recording the same job returns the stored
+        record unchanged instead of raising an IntegrityError (a retry must
+        not crash) or appending a second head (which would fork the chain).
+        """
+        with closing(self._connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = conn.execute(
+                    "SELECT * FROM local_clerk_provenance_chain WHERE job_id = ?",
+                    (record.job_id,),
+                ).fetchone()
+                if existing is not None:
+                    stored = self._provenance_from_row(existing)
+                    _verify(stored, existing["record_digest"])
+                    conn.execute("ROLLBACK")
+                    return stored
+
+                head = conn.execute(
+                    "SELECT record_digest FROM local_clerk_provenance_chain "
+                    "ORDER BY rowid DESC LIMIT 1"
+                ).fetchone()
+                linked = record.model_copy(
+                    update={
+                        "previous_record_digest": (
+                            head["record_digest"] if head is not None else None
+                        )
+                    }
+                )
+                digest = _digest(linked.model_dump(mode="json"))
+                conn.execute(
+                    """
+                    INSERT INTO local_clerk_provenance_chain (
+                        job_id, job_contract_digest, dispatcher_decision,
+                        passport_digest, qualification_evidence_digest,
+                        representative_context_digest, model_request_digest,
+                        model_result_digest, validation_outcome,
+                        escalation_outcome, previous_record_digest, record_digest
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        linked.job_id,
+                        linked.job_contract_digest,
+                        linked.dispatcher_decision,
+                        linked.passport_digest,
+                        linked.qualification_evidence_digest,
+                        linked.representative_context_digest,
+                        linked.model_request_digest,
+                        linked.model_result_digest,
+                        linked.validation_outcome,
+                        linked.escalation_outcome,
+                        linked.previous_record_digest,
+                        digest,
+                    ),
+                )
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+            conn.execute("COMMIT")
+        return linked
+
+    def verify_provenance_chain(self) -> int:
+        """Walk the whole chain, proving every record AND every link.
+
+        Per-row digests alone would not catch a deleted, reordered or
+        inserted record -- only that each surviving row matches its own
+        content. Checking that each record's `previous_record_digest` equals
+        the preceding row's `record_digest` is what makes this a chain.
+
+        Returns the number of records verified.
+        """
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM local_clerk_provenance_chain ORDER BY rowid ASC"
+            ).fetchall()
+        expected_previous: str | None = None
+        for position, row in enumerate(rows):
+            record = self._provenance_from_row(row)
+            _verify(record, row["record_digest"])
+            if record.previous_record_digest != expected_previous:
+                raise ProvenanceChainBrokenError(
+                    f"provenance chain broken at position {position} "
+                    f"(job_id={record.job_id!r}): record claims predecessor "
+                    f"{record.previous_record_digest!r} but the preceding "
+                    f"record's digest is {expected_previous!r} -- a record was "
+                    "deleted, reordered, or inserted"
+                )
+            expected_previous = row["record_digest"]
+        return len(rows)
+
 
 def _verify(
-    record: LocalJobRequestRecord | LocalModelCallRecord | LocalJobResultRecord,
+    record: LocalJobRequestRecord
+    | LocalModelCallRecord
+    | LocalJobResultRecord
+    | LocalClerkProvenanceRecord,
     stored_digest: str,
 ) -> None:
     recomputed = _digest(record.model_dump(mode="json"))
