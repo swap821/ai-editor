@@ -129,3 +129,64 @@ def test_real_qwen_coder_evidence_backs_all_four_mapped_profiles() -> None:
             LocalJobProfile.SUMMARISE,
         }
     )
+
+
+# --------------------------------------------------------------------------- #
+# Organ 33: a profile must be EARNED, not asserted.
+#
+# POST /api/v1/local-workforce/{model_id}/profiles wrote whatever the request
+# body asked for, validating only that each value was a real vocabulary member.
+# That is the exact mechanism behind the drift already found in this repo's live
+# registry: granite3.2:2b claimed `summarise` while every recorded qualification
+# run failed summarisation. Vocabulary validation could never catch it --
+# `summarise` IS a valid profile, the model just had not earned it.
+# --------------------------------------------------------------------------- #
+
+
+def test_a_never_qualified_model_earns_nothing() -> None:
+    """None persisted evidence means nothing is backed. Refusing everything is
+    the honest answer, not an inconvenience to route around."""
+    from aios.application.local_workforce.qualification_evidence import (
+        evidence_backed_profiles,
+    )
+
+    assert evidence_backed_profiles({"runs": []}) == frozenset()
+
+
+def test_a_profile_failing_in_any_run_is_not_backed() -> None:
+    """One flaky pass is not proof -- the profile must pass in EVERY run."""
+    from aios.domain.local_workforce.contracts import LocalJobProfile
+    from aios.application.local_workforce.qualification_evidence import (
+        evidence_backed_profiles,
+    )
+
+    def _run(summarisation_passed: bool) -> dict:
+        return {
+            "result": {
+                "test_results": [
+                    {"test_id": "extraction", "passed": True},
+                    {"test_id": "summarisation", "passed": summarisation_passed},
+                ]
+            }
+        }
+
+    both_passed = evidence_backed_profiles({"runs": [_run(True), _run(True)]})
+    one_failed = evidence_backed_profiles({"runs": [_run(True), _run(False)]})
+
+    assert LocalJobProfile.SUMMARISE in both_passed
+    assert LocalJobProfile.SUMMARISE not in one_failed
+    # extraction passed in both runs either way
+    assert LocalJobProfile.EXTRACT in one_failed
+
+
+def test_the_service_refuses_a_profile_its_evidence_does_not_back() -> None:
+    """Guards the regression at the level that matters: the production write
+    path must consult evidence, not just the vocabulary."""
+    import inspect
+
+    from aios.application.local_workforce import service as service_module
+
+    source = inspect.getsource(service_module.LocalWorkforceService.update_profiles)
+
+    assert "unsupported_profile_claims" in source
+    assert "UnsupportedJobProfileClaim" in source
