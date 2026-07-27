@@ -12,14 +12,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from aios.api.action_guard import CAPABILITY_HEADER, enforce_action_boundary
 from aios.api.deps import (
     get_constitution_authority,
+    get_constitutional_learning_authority,
     get_emergency_stop,
     get_governance_amendment_store,
     require_privileged_operator,
 )
 from aios.application.governance import EmergencyStopController, EmergencyStopError
-from aios.application.governance.adversarial_simulations import (
-    run_adversarial_simulations,
-)
 from aios.application.governance.amendment_authority import (
     AmendmentError,
     activate_amendment,
@@ -34,7 +32,6 @@ from aios.application.governance.constitutional_learning import (
     ConstitutionalLearningError,
     lesson_to_amendment_proposal,
     propose_lesson,
-    require_all_simulations_pass,
 )
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance import EmergencyStopRequest
@@ -381,9 +378,7 @@ def rollback_amendment_route(
 
     current_proposal = _get_current_proposal_or_404(store, proposal_id)
     if current_proposal.ratified_by_operator_id is None:
-        raise HTTPException(
-            status_code=409, detail="proposal has not been ratified"
-        )
+        raise HTTPException(status_code=409, detail="proposal has not been ratified")
     current_snapshot = authority.get_active_snapshot(
         current_proposal.ratified_by_operator_id
     )
@@ -425,7 +420,6 @@ def rollback_amendment_route(
         "proposal": updated.as_dict(),
         "revertedConstitutionDigest": reverted_snapshot.snapshot_digest,
     }
-
 
 
 # --------------------------------------------------------------------------- #
@@ -543,12 +537,16 @@ def check_lesson_simulations_route(
     body: CheckSimulationsRequest,
     principal: Principal = Depends(require_privileged_operator),
     store: GovernanceAmendmentStore = Depends(get_governance_amendment_store),
+    learning: Any = Depends(get_constitutional_learning_authority),
 ) -> dict[str, Any]:
     proposal = _get_current_proposal_or_404(store, body.proposal_id)
-    results = run_adversarial_simulations(proposal)
+    # Organ 46: run and require through the organ's named authority. Composed
+    # here rather than via `screen_proposal()` because this route must report
+    # the per-check breakdown on FAILURE too, and screen_proposal raises.
+    results = learning.run_simulations(proposal)
     results_payload = [r.model_dump(mode="json") for r in results]
     try:
-        require_all_simulations_pass(results)
+        learning.require_all_simulations_pass(results)
     except ConstitutionalLearningError:
         # Recompute the reason from the typed results already in hand,
         # rather than relaying the exception's own message text into an
