@@ -65,10 +65,34 @@ class ApiTokenAuthority:
             and state.previous_expires_at is not None
             and self.clock() < state.previous_expires_at
         ):
-            return hmac.compare_digest(
-                candidate_digest, state.previous_token_digest
-            )
+            return hmac.compare_digest(candidate_digest, state.previous_token_digest)
         return False
+
+    def is_retired(self, candidate: str) -> bool:
+        """Whether `candidate` is a token this authority has RETIRED.
+
+        Organ 53. `rotate()` records the token it supersedes -- including the
+        live ``config.API_TOKEN`` on the first rotation -- with a grace-period
+        expiry. Once that window closes the superseded token is retired and
+        must stop authenticating, even though it may still be sitting in the
+        environment. That is what makes the env token revocable without a
+        restart.
+
+        Deliberately narrow: this retires the SPECIFIC token that was
+        superseded, not the env mechanism itself. An operator who rotates and
+        then sets a genuinely new AIOS_API_TOKEN has not been locked out --
+        only the value they replaced stops working.
+        """
+        if not candidate:
+            return False
+        state = self.store.current()
+        if state is None:
+            return False
+        if state.previous_token_digest is None or state.previous_expires_at is None:
+            return False
+        if self.clock() < state.previous_expires_at:
+            return False  # still inside its grace window
+        return hmac.compare_digest(token_digest(candidate), state.previous_token_digest)
 
     def rotate(
         self, *, grace_period_seconds: float = 3600.0, current_env_token: str = ""

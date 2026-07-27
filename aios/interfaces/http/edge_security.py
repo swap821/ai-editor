@@ -42,10 +42,17 @@ def get_api_token_authority() -> "ApiTokenAuthority":
     """
     global _API_TOKEN_AUTHORITY
     if _API_TOKEN_AUTHORITY is None:
+        from aios import config as _real_config
         from aios.application.security.api_token_authority import ApiTokenAuthority
 
+        # Read the db path from the REAL config module rather than this
+        # module's `config` name. The path is process-lifetime-stable (see
+        # above), while `config.API_TOKEN`'s VALUE must stay swappable -- and
+        # tests legitimately swap `edge_security.config` wholesale to control
+        # that value. Resolving the path through the swapped name made those
+        # tests fail with AttributeError on a fake that only models API_TOKEN.
         _API_TOKEN_AUTHORITY = ApiTokenAuthority(
-            db_path=config.API_TOKEN_ROTATION_DB_PATH,
+            db_path=_real_config.API_TOKEN_ROTATION_DB_PATH,
         )
     return _API_TOKEN_AUTHORITY
 
@@ -231,12 +238,29 @@ def _check_host_header(request: Request) -> Optional[JSONResponse]:
 def check_bearer_token(request: Request) -> bool:
     """Return True if the Authorization header bears a currently-valid API token.
 
-    Organ 53: ``config.API_TOKEN`` (the env-configured value) is always a
-    valid credential, exactly as before -- the operator retires it the
-    normal way, by restarting with a different env var. On top of that, the
-    durable rotation authority (aios.application.security.api_token_authority)
-    additionally accepts a freshly-rotated token, or the one it superseded
-    within its grace-period window, without needing a restart.
+    Organ 53: the env token is RETIRABLE, not permanent.
+
+    This previously accepted ``config.API_TOKEN`` unconditionally, BEFORE the
+    rotation authority was consulted at all -- so the env value was a bearer
+    credential that could never be revoked without restarting the process. The
+    operator's plan forbids exactly that ("no permanent unrevocable bearer
+    credential"), and it made rotation actively misleading: an operator who
+    rotated reasonably believed the old credential was gone.
+
+    The mechanism to retire it already existed and was simply bypassed.
+    ``ApiTokenAuthority.rotate()`` records the live env token as
+    ``previous_token_digest`` with a grace-period expiry on the first
+    rotation; the short-circuit meant that recorded expiry never applied to it.
+
+    So:
+
+    * before any rotation has ever happened, the env token is the ONLY
+      credential and is accepted directly (unchanged -- a fresh install must
+      never be locked out);
+    * once a rotation exists, the authority is the single source of truth,
+      including for the env token, which it holds as the superseded value.
+      After the grace period elapses the env token stops working, with no
+      restart required.
     """
     auth = request.headers.get("authorization", "")
     parts = auth.split()
@@ -245,9 +269,16 @@ def check_bearer_token(request: Request) -> bool:
     if parts[0].lower() != "bearer":
         return False
     candidate = parts[1]
-    if config.API_TOKEN and secrets.compare_digest(candidate, config.API_TOKEN):
-        return True
-    return get_api_token_authority().is_valid(candidate)
+    authority = get_api_token_authority()
+    env_token = getattr(config, "API_TOKEN", "") or ""
+    if env_token and secrets.compare_digest(candidate, env_token):
+        # The env value still authenticates UNLESS this exact token is one the
+        # authority has retired (superseded by a rotation, past its grace
+        # window). Retiring the specific token rather than the mechanism means
+        # an operator who rotates and then sets a genuinely NEW env token is
+        # not locked out -- only the value they replaced stops working.
+        return not authority.is_retired(candidate)
+    return authority.is_valid(candidate)
 
 
 def check_api_token_or_loopback(request: Request) -> Optional[JSONResponse]:

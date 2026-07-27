@@ -150,12 +150,73 @@ def _backup_check(*, production: bool, backup_dir: Path) -> DoctorCheck:
     )
 
 
+def _model_runtime_check(
+    *,
+    production: bool,
+    probe: Callable[[], tuple[bool, tuple[str, ...]]] | None = None,
+) -> DoctorCheck:
+    """Report the local model runtime honestly, including when it is absent.
+
+    Organ 53: `doctor` had NO model-runtime check at all, so it could not say
+    whether Ollama was reachable either way -- an operator reading a clean
+    report would reasonably infer the runtime was fine when nothing had
+    looked. The plan is explicit that an unavailable runtime must read as
+    degraded or unavailable, never healthy.
+
+    `probe` is injectable so this never performs a live network call on a test
+    path; the default asks the real client, which already collapses every
+    failure to ``available: False`` rather than raising.
+    """
+
+    def _default_probe() -> tuple[bool, tuple[str, ...]]:
+        from aios.core.llm import OllamaClient
+
+        listing = OllamaClient().list_models()
+        return bool(listing.get("available")), tuple(listing.get("models") or ())
+
+    try:
+        available, models = (probe or _default_probe)()
+    except Exception as exc:  # noqa: BLE001 - an unreachable runtime is a result
+        return _check(
+            "model_runtime",
+            False,
+            f"model runtime {config.OLLAMA_HOST} is unavailable: {exc}",
+            required=production,
+        )
+
+    if not available:
+        return _check(
+            "model_runtime",
+            False,
+            f"model runtime {config.OLLAMA_HOST} is unavailable "
+            "(no local model can be qualified or dispatched)",
+            required=production,
+        )
+    if not models:
+        # Reachable but empty is DEGRADED, not healthy: the engine answered,
+        # but there is nothing installed to run.
+        return _check(
+            "model_runtime",
+            False,
+            f"model runtime {config.OLLAMA_HOST} is reachable but no model is installed",
+            required=production,
+        )
+    return _check(
+        "model_runtime",
+        True,
+        f"model runtime {config.OLLAMA_HOST} is available with "
+        f"{len(models)} installed model(s)",
+        required=production,
+    )
+
+
 def doctor_report(
     *,
     profile: str | None = None,
     project_roots: tuple[Path, ...] | None = None,
     executor_probe: Callable[[], tuple[bool, str]] | None = None,
     backup_dir: Path | None = None,
+    model_runtime_probe: Callable[[], tuple[bool, tuple[str, ...]]] | None = None,
 ) -> DoctorReport:
     """Return measured posture without starting models or changing projects."""
     resolved_profile = (
@@ -181,6 +242,9 @@ def doctor_report(
             backup_dir=backup_dir if backup_dir is not None else config.BACKUP_DIR,
         )
     )
+    checks.append(
+        _model_runtime_check(production=production, probe=model_runtime_probe)
+    )
 
     executor_ok, executor_message = (
         executor_probe()
@@ -195,20 +259,23 @@ def doctor_report(
     checks.append(
         _check("executor", executor_ok, executor_message, required=production)
     )
-    
+
     # Organ 53: Ollama local runtime check
     try:
         from aios.core.llm import OllamaClient
+
         client = OllamaClient()
         ollama_ok = client.is_available()
     except Exception:
         ollama_ok = False
-        
+
     checks.append(
         _check(
             "ollama_runtime",
             ollama_ok,
-            "Ollama local runtime is available" if ollama_ok else "Ollama local runtime is unavailable/degraded",
+            "Ollama local runtime is available"
+            if ollama_ok
+            else "Ollama local runtime is unavailable/degraded",
             required=production,
         )
     )
