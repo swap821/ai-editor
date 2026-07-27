@@ -196,6 +196,7 @@ export default function SovereignStatePanel() {
 
   useEffect(() => {
     const ctrl = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load(ctrl.signal);
     return () => ctrl.abort();
   }, [load]);

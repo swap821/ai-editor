@@ -1,6 +1,6 @@
 export type MetricStatus = 'measured' | 'derived' | 'unavailable' | 'stale' | 'simulated';
 
-export interface MetricEnvelope<T = any> {
+export interface MetricEnvelope<T = unknown> {
   value: T | null;
   status: MetricStatus;
   measured_at: string | null;
