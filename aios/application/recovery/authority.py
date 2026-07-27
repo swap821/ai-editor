@@ -42,9 +42,9 @@ class RecoveryResumptionAuthority:
         self.journal = journal
 
     @classmethod
-    def from_config(cls, db_path: str | Path | None = None) -> (
-        "RecoveryResumptionAuthority"
-    ):
+    def from_config(
+        cls, db_path: str | Path | None = None
+    ) -> "RecoveryResumptionAuthority":
         """Build against the durable journal the production paths write to."""
         from aios import config
 

@@ -76,6 +76,8 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_curriculum_manager,
     get_development_tracker,
     get_emergency_stop,
+    get_observability_authority,
+    get_recovery_resumption_authority,
     get_gemini_client,
     get_llm_client,
     get_memory_consolidator,
@@ -239,35 +241,36 @@ async def lifespan(app: FastAPI):
     logger.info("runtime_profile_active", profile=active_profile.name)
     init_memory_db()
     init_audit_db()
+    # Organ 52: make structured logs survive the process that wrote them.
+    # Attached FIRST, so the organ-42 recovery report below is itself captured
+    # durably -- a crash report that only ever reached a dead process's stderr
+    # is not evidence anyone can read afterwards.
+    _observability = get_observability_authority()
+    _log_path = _observability.enable_durable_logs()
+    logger.info("observability_durable_logs", **_observability.durable_log_status())
+
     # Organ 42: surface missions whose last journalled transition is not
-    # terminal -- i.e. those a crash interrupted mid-flight.
+    # terminal -- i.e. those a crash interrupted mid-flight -- and prove the
+    # journal saying so has not been altered.
     #
-    # `resume_pending()` existed, was unit-tested, and had NO production
-    # caller anywhere, so the journal recorded interruptions that nothing ever
-    # read. This closes that half of the organ.
+    # `resume_pending()` existed, was unit-tested, and had NO production caller
+    # anywhere, so the journal recorded interruptions that nothing ever read.
     #
     # Deliberately REPORTS rather than re-drives: silently resuming a
     # half-promoted repair without a human decision is precisely the
-    # unsupervised recovery this system refuses. Startup must also never be
-    # blocked by the recovery scan itself.
-    try:
-        from aios.infrastructure.missions.transition_journal_store import (
-            MissionTransitionJournal,
-        )
-
-        interrupted = MissionTransitionJournal(
-            config.MISSION_TRANSITION_JOURNAL_DB_PATH
-        ).resume_pending()
-        if interrupted:
-            logger.warning(
-                "missions_interrupted_pending_resumption",
-                count=len(interrupted),
-                mission_ids=list(interrupted),
-            )
-        else:
-            logger.info("missions_interrupted_pending_resumption", count=0)
-    except Exception as exc:  # noqa: BLE001 - reporting must never block startup
-        logger.warning("mission_resume_scan_failed", error=str(exc))
+    # unsupervised recovery this system refuses. `recovery_report()` never
+    # raises, so the scan cannot block startup.
+    _recovery = get_recovery_resumption_authority()
+    _report = _recovery.recovery_report()
+    if _report["integrity"] == "tampered":
+        # Not fatal, but never quiet: recovery reads this journal to decide how
+        # far a mission got, so an altered row misdirects recovery rather than
+        # merely misreporting it.
+        logger.error("mission_journal_tampered", **_report)
+    elif _report["interrupted_count"]:
+        logger.warning("missions_interrupted_pending_resumption", **_report)
+    else:
+        logger.info("missions_interrupted_pending_resumption", **_report)
     # Opt-in second injection layer: install the vector blocklist when enabled.
     # Best-effort — a model/load failure must never block startup, since the
     # regex layer remains the active defence.
@@ -545,7 +548,10 @@ async def bind_request_context(request: Request, call_next):
     """
     from structlog.contextvars import bind_contextvars, clear_contextvars
 
-    from aios.operations.tracing import bind_trace_context, new_trace_context
+    # Organ 52: built and bound through the organ's named authority rather
+    # than by calling the tracing module directly, so there is one owner of
+    # the correlation chain instead of several equivalent call sites.
+    observability = get_observability_authority()
 
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     clear_contextvars()
@@ -554,8 +560,8 @@ async def bind_request_context(request: Request, call_next):
     )
     trace_headers = dict(request.headers)
     trace_headers["x-request-id"] = request_id
-    trace_context = new_trace_context(trace_headers)
-    with bind_trace_context(trace_context):
+    trace_context = observability.context_from_headers(trace_headers)
+    with observability.bind(trace_context):
         try:
             session_id = await edge_security.extract_session_id(
                 request, allow_body_fallback=True

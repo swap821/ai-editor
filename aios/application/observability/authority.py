@@ -106,7 +106,9 @@ class ObservabilityAuthority:
             handler.setFormatter(logging.Formatter("%(message)s"))
             logging.getLogger().addHandler(handler)
         except Exception as exc:  # noqa: BLE001 - logging must never block boot
-            _LOGGER.warning("durable_log_handler_unavailable", extra={"error": str(exc)})
+            _LOGGER.warning(
+                "durable_log_handler_unavailable", extra={"error": str(exc)}
+            )
             return None
 
         self._durable_handler = handler

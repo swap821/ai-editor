@@ -401,6 +401,48 @@ def get_development_tracker(
     return _authority_store("development", DevelopmentTracker)
 
 
+_recovery_resumption_authority: Any | None = None
+_observability_authority: Any | None = None
+
+
+def get_recovery_resumption_authority() -> Any:
+    """Organ 42's named authority owner, over the durable transition journal.
+
+    A process-wide singleton so the API startup scan, the maintenance repair
+    path and any future resumption surface all read and write one journal.
+    """
+    global _recovery_resumption_authority
+    if _recovery_resumption_authority is None:
+        from aios.application.recovery import RecoveryResumptionAuthority
+
+        _recovery_resumption_authority = RecoveryResumptionAuthority.from_config()
+    return _recovery_resumption_authority
+
+
+def get_observability_authority() -> Any:
+    """Organ 52's named authority owner, over correlation ids and health."""
+    global _observability_authority
+    if _observability_authority is None:
+        from aios.application.observability import ObservabilityAuthority
+
+        _observability_authority = ObservabilityAuthority.from_config()
+    return _observability_authority
+
+
+def get_constitutional_learning_authority() -> Any:
+    """Organ 46's named authority owner, over lessons and their screening.
+
+    Stateless, so a fresh instance per request is correct -- it owns the
+    invariant (a lesson may only become a proposal after all nine adversarial
+    simulations actually pass), not any mutable state.
+    """
+    from aios.application.governance.constitutional_learning import (
+        ConstitutionalLearningAuthority,
+    )
+
+    return ConstitutionalLearningAuthority()
+
+
 def get_emergency_stop() -> EmergencyStopController:
     """Provide the one durable stop latch shared by production boundaries."""
     global _emergency_stop
@@ -968,7 +1010,10 @@ __all__ = [
     "get_skill_repository",
     "get_maintenance_finding_repository",
     "get_maintenance_scan_repository",
+    "get_constitutional_learning_authority",
     "get_maintenance_convergence_service",
+    "get_observability_authority",
+    "get_recovery_resumption_authority",
     "get_learning_service",
 ]
 
@@ -1504,9 +1549,6 @@ def get_maintenance_convergence_service(
     from aios.infrastructure.missions.sqlite_mission_repository import (
         SqliteMissionRepository,
     )
-    from aios.infrastructure.missions.transition_journal_store import (
-        MissionTransitionJournal,
-    )
 
     workspace_manager = getattr(promotion_authority, "workspace_manager", None)
     if workspace_manager is None:
@@ -1535,10 +1577,10 @@ def get_maintenance_convergence_service(
         workspace_manager=workspace_manager,
         lifecycle_engine=lifecycle_engine,
         emergency_stop=emergency_stop,
-        # Organ 42: the same durable journal the Council path already writes
-        # to (routes/council.py:490), so a crash mid-repair leaves the same
-        # resumption evidence a crash mid-mission already does.
-        mission_journal=MissionTransitionJournal(
-            config.MISSION_TRANSITION_JOURNAL_DB_PATH
-        ),
+        # Organ 42: the journal owned by the organ's named authority -- the
+        # same durable store the Council path already writes to
+        # (routes/council.py:490), so a crash mid-repair leaves the same
+        # resumption evidence a crash mid-mission already does, and the
+        # startup recovery scan reads exactly what this path wrote.
+        mission_journal=get_recovery_resumption_authority().journal,
     )
