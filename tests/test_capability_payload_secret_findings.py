@@ -21,6 +21,7 @@ from __future__ import annotations
 import pytest
 
 from aios.application.capabilities.authority import (
+    _GIT_OBJECT_ID,
     _action_payload_contains_secret,
     _action_payload_secret_findings,
 )
@@ -33,6 +34,10 @@ _MACOS_TMP = (
 )
 _LINUX_TMP = "/tmp/pytest-of-runner/pytest-0/test_x0/repo"
 _GIT_SHA = "e15442c48d1f7000af3761c79d86052db5689d9d"
+#: A 40-hex sha that contains "ec2" -- the ~1%-of-shas case that actually
+#: broke CI. Kept as a literal so it fires on every platform and every run,
+#: rather than depending on a real repository handing us an unlucky sha.
+_EC2_GIT_SHA = "a1b2ec2c48d1f7000af3761c79d86052db5689d9"
 
 
 # --------------------------------------------------------------------------- #
@@ -64,6 +69,54 @@ def test_a_git_sha_is_not_mistaken_for_an_aws_key() -> None:
     """A 40-char hex sha matches the AWS 40-char character class, so this
     would refuse every rollback if the AWS pattern were not context-gated."""
     assert _action_payload_secret_findings({"snapshot_id": _GIT_SHA}) == ()
+
+
+def test_a_git_sha_containing_ec2_is_not_mistaken_for_an_aws_key() -> None:
+    """The real intermittent failure, pinned.
+
+    The AWS_SECRET_KEY rule is a broad `[A-Za-z0-9/+=]{40}` catch-all gated on
+    an AWS keyword within 100 characters. A lone sha IS that whole window, and
+    exactly one gate keyword is spellable in hex: "ec2". A sha containing it
+    opened the gate and got the rollback refused as credential-bearing.
+
+    Measured rate: 1925/200000 random shas (0.96%). That ~1-in-104 dice roll
+    is what was previously recorded as an "order-dependent flake"; it is
+    neither order- nor platform-dependent. `_GIT_SHA` above does NOT contain
+    "ec2", which is exactly why testing one arbitrary sha missed this.
+    """
+    assert "ec2" in _EC2_GIT_SHA and len(_EC2_GIT_SHA) == 40
+
+    assert _action_payload_secret_findings({"snapshot_id": _EC2_GIT_SHA}) == ()
+    # The precise payload the Council rollback route issues.
+    assert (
+        _action_payload_secret_findings(
+            {"mission_id": "mission-abc", "snapshot_id": _EC2_GIT_SHA}
+        )
+        == ()
+    )
+
+
+def test_the_git_id_carve_out_does_not_excuse_a_real_aws_key() -> None:
+    """The tolerance is shape-scoped, not key-scoped: a genuine AWS secret is
+    mixed-case base64, never 40 lowercase hex, so it must still be refused in
+    the very same field."""
+    real_secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+    findings = _action_payload_secret_findings(
+        {"snapshot_id": f"aws secret {real_secret}"}
+    )
+
+    assert findings, "a real AWS secret in bound metadata must still be refused"
+    assert any(f.startswith("snapshot_id:") for f in findings)
+
+
+def test_the_git_id_carve_out_requires_the_exact_shape() -> None:
+    """Anything that is not exactly 40 lowercase hex characters keeps the
+    strict rule -- an uppercase or over-long value is not a git object id."""
+    assert _GIT_OBJECT_ID.fullmatch(_EC2_GIT_SHA) is not None
+    assert _GIT_OBJECT_ID.fullmatch(_EC2_GIT_SHA.upper()) is None
+    assert _GIT_OBJECT_ID.fullmatch(_EC2_GIT_SHA + "a") is None
+    assert _GIT_OBJECT_ID.fullmatch(_EC2_GIT_SHA[:39]) is None
 
 
 # --------------------------------------------------------------------------- #
