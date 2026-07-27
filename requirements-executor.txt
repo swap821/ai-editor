@@ -3,6 +3,6 @@
 # retrieval, or frontend stack; keep that larger dependency closure out of the
 # privileged service image.
 cryptography==49.0.0
-fastapi==0.139.2
+fastapi==0.140.0
 python-dotenv==1.2.2
 uvicorn==0.51.0
