@@ -52,10 +52,23 @@ _RESOURCE_METADATA_KEYS = frozenset(
 )
 
 
-def _action_payload_contains_secret(payload: dict[str, Any]) -> bool:
-    """Scan action content while tolerating entropy in bound resource metadata."""
+def _action_payload_secret_findings(payload: dict[str, Any]) -> tuple[str, ...]:
+    """Findings that make this payload look credential-bearing, or ``()``.
 
-    metadata_findings: list[str] = []
+    Returns WHY rather than just whether. The refusal this feeds says only
+    "contains credential-like data", naming neither the detector that fired
+    nor the field it fired on. That leaves an operator holding a refused
+    action and no way to tell a real leak from a false positive without
+    re-deriving the scan by hand.
+
+    Only finding NAMES and field KEYS are returned -- never the offending
+    value, which is the thing suspected of being a secret.
+
+    This is a diagnosability change, not a bug fix: no known failure is
+    attributed to this scan. It is a guard whose output was unreadable.
+    """
+
+    findings: list[str] = []
 
     def mask_resource_metadata(value: Any, *, key: str | None = None) -> Any:
         if isinstance(value, dict):
@@ -67,8 +80,11 @@ def _action_payload_contains_secret(payload: dict[str, Any]) -> bool:
             return [mask_resource_metadata(child, key=key) for child in value]
         if key in _RESOURCE_METADATA_KEYS and isinstance(value, str):
             metadata_scan = scan_and_redact(value)
-            metadata_findings.extend(
-                finding
+            # HIGH_ENTROPY is tolerated on bound resource metadata: ids, paths
+            # and digests are legitimately high-entropy. A NAMED credential
+            # pattern is not tolerated even here.
+            findings.extend(
+                f"{key}:{finding}"
                 for finding in metadata_scan.findings
                 if finding != "HIGH_ENTROPY"
             )
@@ -79,7 +95,19 @@ def _action_payload_contains_secret(payload: dict[str, Any]) -> bool:
     content_scan = scan_and_redact(
         json.dumps(masked, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     )
-    return bool(metadata_findings or content_scan.detected)
+    if content_scan.detected:
+        findings.extend(f"payload:{finding}" for finding in content_scan.findings)
+    return tuple(dict.fromkeys(findings))
+
+
+def _action_payload_contains_secret(payload: dict[str, Any]) -> bool:
+    """Whether this payload looks credential-bearing.
+
+    Kept as the boolean predicate other call sites already use;
+    :func:`_action_payload_secret_findings` is the same check with the reason
+    attached.
+    """
+    return bool(_action_payload_secret_findings(payload))
 
 
 class CapabilityError(RuntimeError):
@@ -125,9 +153,11 @@ class CapabilityAuthority:
                 raise CapabilityError(
                     "capability action payload does not match its digest"
                 )
-            if _action_payload_contains_secret(action_payload):
+            secret_findings = _action_payload_secret_findings(action_payload)
+            if secret_findings:
                 raise CapabilityError(
-                    "capability action payload contains credential-like data"
+                    "capability action payload contains credential-like data "
+                    f"({', '.join(secret_findings)})"
                 )
         now = self.clock()
         token = secrets.token_urlsafe(32)
