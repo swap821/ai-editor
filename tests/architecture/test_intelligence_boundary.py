@@ -37,6 +37,8 @@ ALLOWED_CLIENT_IMPORTERS = {
     # rather than calling a provider directly -- same category as the
     # local-model adapters above, not a boundary bypass.
     "aios/council/gateway_reasoning.py",
+    # Slice 53: local worker environment verification.
+    "aios/operations/doctor.py",
 }
 
 # Provider adapter classes that should not be used directly.

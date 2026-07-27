@@ -7,7 +7,7 @@ import json
 import logging
 import uuid
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from aios.core.llm import LLMClient, LLMError, OllamaClient
@@ -29,8 +29,16 @@ from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 from aios.infrastructure.local_workforce.sqlite_store import (
     LocalWorkforceProvenanceStore,
 )
+from aios.application.local_workforce.dispatcher import dispatch_clerical_job
+from aios.application.local_workforce.qualification_evidence import (
+    evidence_backed_profiles,
+)
 
 logger = logging.getLogger(__name__)
+
+#: How long a qualification run stays valid before the passport is
+#: auto-suspended as expired. A stated convention, not a measurement.
+QUALIFICATION_VALIDITY_DAYS = 30
 
 
 class LocalModelNotFound(LookupError):
@@ -43,6 +51,16 @@ class LocalModelNotApproved(PermissionError):
 
 class InvalidLocalJobProfile(ValueError):
     """Raised when a profile is outside the governed clerical vocabulary."""
+
+
+class UnsupportedJobProfileClaim(InvalidLocalJobProfile):
+    """Raised when a profile is a real vocabulary member but the model's own
+    qualification evidence does not back it.
+
+    Subclasses InvalidLocalJobProfile so the existing route handler keeps
+    returning 422 unchanged, while the type and message stay specific: this
+    is "not earned", not "not a real profile".
+    """
 
 
 ModelClientFactory = Callable[[str], LLMClient]
@@ -87,8 +105,63 @@ class LocalWorkforceService:
             profiles = {LocalJobProfile(value) for value in profile_values}
         except ValueError as exc:
             raise InvalidLocalJobProfile(str(exc)) from exc
+
+        # Organ 33: a profile must be EARNED, never asserted.
+        #
+        # This route previously wrote whatever the request body asked for,
+        # checking only that each value was a real vocabulary member. That is
+        # the exact mechanism behind the drift already found in this repo's
+        # live registry: granite3.2:2b claimed `summarise` while every recorded
+        # qualification run failed summarisation. Validating the vocabulary
+        # never had a chance of catching that -- `summarise` IS a valid
+        # profile; the model just had not earned it.
+        #
+        # A profile is now granted only when the model's OWN persisted
+        # qualification evidence backs it. Profiles with no test coverage in
+        # the suite (9 of 13 today) can never be evidence-backed, so they are
+        # refused rather than silently trusted -- an honest limit, not an
+        # oversight.
+        unsupported = self.unsupported_profile_claims(model_id, frozenset(profiles))
+        if unsupported:
+            names = ", ".join(sorted(p.value for p in unsupported))
+            raise UnsupportedJobProfileClaim(
+                f"qualification evidence does not back these profiles for "
+                f"{model_id}: {names}. Run qualification first; a profile with "
+                "no suite coverage cannot be granted."
+            )
         self.registry.update_profiles(model.model_id, profiles)
         return self._require_model(model_id)
+
+    def _artifact_digest(self, model_id: str) -> str | None:
+        """The runtime's reported digest for this model, or None.
+
+        None is honest when the runtime cannot be reached -- it just means the
+        digest-change suspend trigger has nothing to compare against yet,
+        which is better than recording a guess as if it were the artifact.
+        """
+        try:
+            # list_detailed_models(), not list_models(): the latter returns
+            # names only, while reconcile()'s digest-change trigger compares
+            # against the detailed listing's "digest" field.
+            for entry in OllamaClient().list_detailed_models():
+                if entry.get("name") == model_id:
+                    digest = entry.get("digest")
+                    return str(digest) if digest else None
+        except Exception:  # noqa: BLE001 - a missing runtime is not a failure here
+            return None
+        return None
+
+    def unsupported_profile_claims(
+        self, model_id: str, claimed: frozenset[LocalJobProfile]
+    ) -> frozenset[LocalJobProfile]:
+        """Which of `claimed` the model's persisted evidence does not support."""
+        qualification = self.registry.get_qualification(model_id)
+        if qualification is None:
+            # Never qualified: nothing is backed. Refusing everything is the
+            # honest answer, not an inconvenience to route around.
+            return claimed
+        evidence = {"runs": [{"result": qualification.model_dump(mode="json")}]}
+        return claimed - evidence_backed_profiles(evidence)
 
     def health_check(self, model_id: str) -> dict[str, Any]:
         """Probe Ollama and the selected model, preserving unknown availability."""
@@ -157,7 +230,36 @@ class LocalWorkforceService:
         result = self.qualification_suite_factory(
             self.model_client_factory(model.model_id)
         ).run()
+        # Record the real result BEFORE admission is decided, and on both
+        # branches -- a failure is evidence too, and the dispatcher must be
+        # able to see one.
+        self.registry.record_qualification(model.model_id, result)
         if result.passed:
+            # Organ 33: populate the passport from THIS run.
+            #
+            # record_passport() existed but had zero callers anywhere, so
+            # artifact_digest / qualification_evidence_digest / qualified_at /
+            # expires_at were never written -- which silently disarmed the
+            # auto-suspend triggers that compare against them. A NULL
+            # artifact_digest can never differ from a new one, and a NULL
+            # expires_at can never be in the past.
+            evidence_digest = hashlib.sha256(
+                result.model_dump_json().encode("utf-8")
+            ).hexdigest()
+            qualified_at = datetime.now(timezone.utc)
+            self.registry.record_passport(
+                model.model_copy(
+                    update={
+                        "model_version": model.model_version,
+                        "artifact_digest": self._artifact_digest(model.model_id),
+                        "qualification_suite_version": result.suite_version,
+                        "qualification_evidence_digest": evidence_digest,
+                        "qualified_at": qualified_at,
+                        "expires_at": qualified_at
+                        + timedelta(days=QUALIFICATION_VALIDITY_DAYS),
+                    }
+                )
+            )
             self.registry.update_admission(
                 model.model_id,
                 "approved",
@@ -178,6 +280,8 @@ class LocalWorkforceService:
         request: LocalJobRequest,
         *,
         model_id: str | None = None,
+        deterministic_available: bool = False,
+        confidence: float | None = None,
     ) -> LocalJobResult:
         """Execute a governed local clerical job, then durably record its
         full provenance (Slice 33) -- the real request, model call, and
@@ -185,13 +289,18 @@ class LocalWorkforceService:
         execution, from the same request/result objects a caller already
         sees, so it can never fabricate what actually happened; a rejection
         (no admitted model) is recorded as honestly as a success."""
-        result = self._execute_advisory_job(request, model_id=model_id)
+        result, decision = self._execute_advisory_job(
+            request,
+            model_id=model_id,
+            deterministic_available=deterministic_available,
+            confidence=confidence,
+        )
         if self.provenance_store is not None:
-            self._record_advisory_job_provenance(request, result)
+            self._record_advisory_job_provenance(request, result, decision)
         return result
 
     def _record_advisory_job_provenance(
-        self, request: LocalJobRequest, result: LocalJobResult
+        self, request: LocalJobRequest, result: LocalJobResult, decision: str
     ) -> None:
         now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         request_digest = hashlib.sha256(
@@ -249,12 +358,46 @@ class LocalWorkforceService:
             )
         )
 
+        # 4. Construct and save the hash-chained provenance record
+        from aios.domain.local_workforce.contracts import LocalClerkProvenanceRecord
+
+        job_contract_digest = hashlib.sha256(
+            request.model_dump_json().encode("utf-8")
+        ).hexdigest()
+
+        model = (
+            self.registry.get_model(result.model_id)
+            if result.model_id and result.model_id != "none"
+            else None
+        )
+        passport_digest = model.artifact_digest if model else None
+        qual_evidence_digest = model.qualification_evidence_digest if model else None
+
+        # previous_record_digest is deliberately NOT computed here: the store
+        # owns the link, so the digest it writes and the link it stores are
+        # produced by the same function and cannot disagree.
+        prov_record = LocalClerkProvenanceRecord(
+            job_id=request.job_id,
+            job_contract_digest=job_contract_digest,
+            dispatcher_decision=decision,
+            passport_digest=passport_digest,
+            qualification_evidence_digest=qual_evidence_digest,
+            representative_context_digest=None,
+            model_request_digest=request_digest,
+            model_result_digest=response_digest,
+            validation_outcome="valid" if result.schema_valid else "invalid",
+            escalation_outcome=None if decision == "local_clerk" else decision,
+        )
+        store.save_provenance_record(prov_record)
+
     def _execute_advisory_job(
         self,
         request: LocalJobRequest,
         *,
         model_id: str | None = None,
-    ) -> LocalJobResult:
+        deterministic_available: bool = False,
+        confidence: float | None = None,
+    ) -> tuple[LocalJobResult, str]:
         """Execute a governed local clerical job through an admitted model."""
         import time
 
@@ -284,6 +427,11 @@ class LocalWorkforceService:
             and request.job_profile in m.allowed_job_profiles
         ]
         if not admitted:
+            decision = dispatch_clerical_job(
+                deterministic_available=deterministic_available,
+                qualification=None,
+                confidence=confidence,
+            )
             return LocalJobResult(
                 job_id=request.job_id,
                 model_id=model_id or "none",
@@ -294,11 +442,47 @@ class LocalWorkforceService:
                 latency=time.time() - start_t,
                 status="rejected",
                 failure_reason="No admitted healthy local model for profile",
-            )
+            ), decision
 
         selected = admitted[0]
         if model_id and any(m.model_id == model_id for m in admitted):
             selected = next(m for m in admitted if m.model_id == model_id)
+
+        # Organ 36: the REAL persisted qualification, never a fabricated one.
+        #
+        # This previously constructed a QualificationResult with passed=True,
+        # schema_validity=1.0 and secret_reproduction=0 out of nothing, on the
+        # grounds that admission_status was already "approved". That made the
+        # dispatcher's ONE protection -- "an unqualified or failed-qualification
+        # model always escalates to frontier" -- structurally unreachable, since
+        # a passing qualification was manufactured at the call site. It also
+        # asserted safety properties (no secret reproduction, no authority
+        # mutation attempts) from zero evidence, and it laundered an admission
+        # that this repo has already seen be wrong in production: granite3.2:2b
+        # once claimed `summarise` while every recorded run failed it.
+        #
+        # None is the honest value for a model with no persisted qualification,
+        # and the dispatcher already handles it correctly by escalating.
+        qual = self.registry.get_qualification(selected.model_id)
+
+        decision = dispatch_clerical_job(
+            deterministic_available=deterministic_available,
+            qualification=qual,
+            confidence=confidence,
+        )
+
+        if decision != "local_clerk":
+            return LocalJobResult(
+                job_id=request.job_id,
+                model_id=selected.model_id,
+                structured_output=None,
+                schema_valid=False,
+                evidence_references_preserved=False,
+                unsupported_claims=(f"Dispatched to {decision}",),
+                latency=time.time() - start_t,
+                status="rejected",
+                failure_reason=f"Dispatched to {decision}",
+            ), decision
 
         try:
             client = self.model_client_factory(selected.model_id)
@@ -334,7 +518,7 @@ class LocalWorkforceService:
                     latency=time.time() - start_t,
                     status="failed",
                     failure_reason=f"Extra fields rejected: {sorted(extra_keys)}",
-                )
+                ), decision
 
             # 2. All required fields must be present
             missing_keys = required_keys - output_keys
@@ -351,7 +535,7 @@ class LocalWorkforceService:
                     latency=time.time() - start_t,
                     status="failed",
                     failure_reason=f"Missing required fields: {sorted(missing_keys)}",
-                )
+                ), decision
 
             # 3. Type validation for declared schema types
             _TYPE_MAP = {"bool": bool, "float": (float, int), "int": int, "str": str}
@@ -386,7 +570,7 @@ class LocalWorkforceService:
                     latency=time.time() - start_t,
                     status="failed",
                     failure_reason=f"Type validation failed: {type_errors}",
-                )
+                ), decision
 
             # 4. Validate evidence references are preserved
             evidence_refs = set(request.evidence_references)
@@ -405,7 +589,7 @@ class LocalWorkforceService:
                 latency=latency,
                 status="completed",
                 failure_reason=None,
-            )
+            ), decision
         except Exception as exc:
             return LocalJobResult(
                 job_id=request.job_id,
@@ -417,7 +601,7 @@ class LocalWorkforceService:
                 latency=time.time() - start_t,
                 status="failed",
                 failure_reason=str(exc),
-            )
+            ), decision
 
     def _require_model(self, model_id: str) -> LocalWorkerModel:
         model = self.registry.get_model(model_id)

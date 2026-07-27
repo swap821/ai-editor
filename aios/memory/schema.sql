@@ -322,7 +322,7 @@ CREATE TABLE IF NOT EXISTS local_worker_models (
     installed INTEGER NOT NULL CHECK (installed IN (0,1)),
     operator_approved INTEGER NOT NULL CHECK (operator_approved IN (0,1)),
     health TEXT NOT NULL CHECK (health IN ('healthy','degraded','failing','unknown')),
-    admission_status TEXT NOT NULL CHECK (admission_status IN ('pending','approved','rejected')),
+    admission_status TEXT NOT NULL CHECK (admission_status IN ('pending','approved','rejected','suspended')),
     admission_reason TEXT,
     max_context INTEGER NOT NULL,
     max_output INTEGER NOT NULL,
@@ -330,6 +330,14 @@ CREATE TABLE IF NOT EXISTS local_worker_models (
     allowed_job_profiles_json TEXT NOT NULL,
     last_success DATETIME,
     failure_count INTEGER NOT NULL DEFAULT 0,
-    metadata_confidence TEXT NOT NULL CHECK (metadata_confidence IN ('verified','inferred','unknown'))
+    metadata_confidence TEXT NOT NULL CHECK (metadata_confidence IN ('verified','inferred','unknown')),
+    model_version TEXT,
+    artifact_digest TEXT,
+    qualification_suite_version TEXT,
+    qualification_evidence_digest TEXT,
+    limitations_json TEXT NOT NULL DEFAULT '[]',
+    qualified_at DATETIME,
+    expires_at DATETIME,
+    qualification_result_json TEXT
 );
 
