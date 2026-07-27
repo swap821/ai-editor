@@ -49,7 +49,7 @@ class LocalWorkerModel(BaseModel):
     installed: bool
     operator_approved: bool
     health: Literal["healthy", "degraded", "failing", "unknown"]
-    admission_status: Literal["pending", "approved", "rejected"]
+    admission_status: Literal["pending", "approved", "rejected", "suspended"]
     admission_reason: str | None = None
     max_context: int
     max_output: int
@@ -58,6 +58,13 @@ class LocalWorkerModel(BaseModel):
     last_success: datetime | None = None
     failure_count: int = 0
     metadata_confidence: Literal["verified", "inferred", "unknown"]
+    model_version: str | None = None
+    artifact_digest: str | None = None
+    qualification_suite_version: str | None = None
+    qualification_evidence_digest: str | None = None
+    limitations: tuple[str, ...] = ()
+    qualified_at: datetime | None = None
+    expires_at: datetime | None = None
 
 
 class LocalJobRequest(BaseModel):
@@ -152,3 +159,21 @@ class LocalJobResultRecord(BaseModel):
     unsupported_claims: tuple[str, ...] = ()
     status: str
     failure_reason: str | None = None
+
+
+class LocalClerkProvenanceRecord(BaseModel):
+    """Hash-linked provenance record of a local job."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_id: str
+    job_contract_digest: str
+    dispatcher_decision: str
+    passport_digest: str | None = None
+    qualification_evidence_digest: str | None = None
+    representative_context_digest: str | None = None
+    model_request_digest: str | None = None
+    model_result_digest: str | None = None
+    validation_outcome: str | None = None
+    escalation_outcome: str | None = None
+    previous_record_digest: str | None = None
