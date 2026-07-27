@@ -22,7 +22,10 @@ surfaced via `python -m aios.launcher organ-check [--json] [--strict]`.
 
 - **green** — typed contract, one production authority path, durable state,
   tests, and (where required) live evidence stamped with the commit under
-  evaluation. Never a synthetic fixture presented as live proof.
+  evaluation. Never a synthetic fixture presented as live proof. Since
+  Decision A (2026-07-27, below), `authority_owner` must also name a real
+  class defined somewhere in the organ's own `production_entrypoints` — a
+  string that only matches `CANONICAL_ORGANS` is a label, not a claim.
 - **yellow** — genuinely partial or missing; the ledger records the exact
   blocker instead of an aspirational claim.
 
@@ -244,34 +247,61 @@ reverted to yellow below, with real blockers restored (or, for organ 25,
 a new blocker documenting exactly what's real vs. fabricated). Counts:
 38 green / 16 yellow.
 
-## Green organs (22) — established prior to Slice 25
+**Decision A & B (2026-07-27, Phase 0 of the proof plan closing the 54-organ
+green contract):** two questions the ledger had never mechanically forced
+were settled in writing, per the operator's own direction, before any
+further organ work. **Decision A:** `authority_owner` is a *class
+reference*, not a documentation label -- 45 of 54 organs (including 33 of
+the 38 then-green) named a class that `validate_ledger()` had only ever
+string-compared against `CANONICAL_ORGANS`, never proven exists. Grepping
+every canonical owner name against `aios/`, `backend/`, `gateway/`,
+`scripts/`, `tools/`, `observability/`, and `frontend/` found 33 of those
+names defined *nowhere in the repository at all* -- not merely unwired, but
+never written. `validate_ledger()` now requires (`_authority_owner_is_class_
+reference` in `aios/application/governance/organ_ledger.py`) that a green
+organ's `authority_owner` be defined as a class inside that organ's own
+`production_entrypoints` -- reusing the field the ledger already tracks
+rather than adding new schema. **All 33 unsupported organs are demoted to
+yellow in this same commit**, each with a `known_blockers` entry naming the
+missing class and pointing at the organ 42/46/52 (PR #169) template for
+building a real one -- one honest regression beats a standing overstatement.
+Counts: 5 green / 49 yellow. (The 5 survivors -- organs 9, 15, 16, 18, 19 --
+already had a real class wired inside their own listed entrypoint; nothing
+about their status changed.) **Decision B:** live (non-fixture) evidence
+gates green *per organ*, not universally -- `requires_live_evidence` stays
+the mechanism, set `true` only where live evidence is actually achievable in
+this environment (Docker-backed organs, or anything provable through the API
+against real SQLite state in CI) and left `false` only alongside a specific,
+named, non-fabricatable blocker (cloud-provider credentials this session is
+barred from handling; a local Ollama instance in CI) recorded in
+`known_blockers` -- never silently exempted. Decision B is a policy for
+future green flips, not a retroactive audit of the 5 survivors above (that
+audit is Phase 4's own job, not Phase 0's); no `requires_live_evidence`
+values changed in this commit.
+
+## Green organs (5) — established prior to Slice 25 (17 regressed under Decision A, 2026-07-27 — see the Yellow organs table)
 
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
-| 1 | Security Gateway | `SecurityGatewayAuthority` | `aios/security/gateway.py` | `tests/test_security.py`, `tests/adversarial/test_gateway_bypass.py` |
-| 2 | Scope Lock | `ScopeLockAuthority` | `aios/security/scope_lock.py` | `tests/test_security.py`, `tests/adversarial/test_sandbox_escape.py` |
-| 3 | Secret Scanner | `SecretScannerAuthority` | `aios/security/secret_scanner.py` | `tests/test_security.py`, `tests/adversarial/test_secret_detection.py` |
-| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `aios/security/audit_logger.py` | `tests/test_audit.py`, `tests/adversarial/test_audit_integrity.py` |
-| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `aios/security/injection_shield.py` | `tests/test_generate_input_shield.py`, `tests/test_chat_input_shield.py` |
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `aios/interfaces/http/edge_security.py` | `tests/test_edge_security.py`, `tests/test_api.py` |
-| 7 | Policy Kernel | `PolicyKernelAuthority` | `aios/policy/kernel.py` | `tests/test_policy_kernel.py`, `tests/test_route_registry_conformance.py` |
-| 8 | Action Broker | `ActionBrokerAuthority` | `aios/application/action_broker.py` | `tests/test_action_broker.py`, `tests/test_release_conformance.py` |
 | 9 | Exact Capability Authority | `CapabilityAuthority` | `aios/application/capabilities/authority.py` | `tests/test_exact_capabilities.py`, `tests/test_e2e_sovereign_flywheel.py` |
-| 10 | Mission Authority | `MissionAuthority` | `aios/application/missions/mission_service.py` | `tests/test_mission_contract_v1.py`, `tests/test_council_orchestrator.py` |
-| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `aios/application/turns/turn_coordinator.py` | `tests/test_turn_coordinator.py`, `tests/test_chat.py` |
-| 12 | Worker Foundry | `WorkerFoundryAuthority` | `aios/application/workers/foundry.py` | `tests/test_worker_foundry.py`, `tests/test_council_orchestrator.py` |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `aios/executor_service.py` | `tests/test_executor_service.py`, `tests/test_release_conformance.py` |
-| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `aios/application/workspaces/staged.py` | `tests/test_staged_workspaces.py`, `tests/test_council_orchestrator.py` |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `aios/application/evidence/verification.py` | `tests/test_verification_strength.py`, `tests/test_promotion_authority.py` |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | `aios/application/promotion/authority.py` | `tests/test_promotion_authority.py`, `tests/test_council_orchestrator.py` |
-| 17 | Cortex Observation Bus | `CortexBusAuthority` | `aios/runtime/cortex_bus.py` | `tests/test_cortex_bus.py`, `tests/test_release_conformance.py` |
 | 18 | Memory Authority (construction) | `MemoryAuthority` | `aios/application/memory/authority.py` | `tests/test_memory_authority.py`, `tests/test_chat.py` |
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `aios/application/governance/emergency_stop.py` | `tests/test_governance.py`, `tests/test_release_conformance.py` |
-| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `frontend/src/superbrain/lib/livingMirrorRegistry.ts` | `frontend/src/superbrain/lib/livingMirrorRegistry.test.ts`, `frontend/src/superbrain/lib/aiosMirror.test.ts` |
-| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` | `tests/test_council_orchestrator.py`, `tests/test_e2e_sovereign_flywheel.py` |
-| 22 | V1 Release Declaration (`gagos v1-check`) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` | `tests/test_v1_declaration.py`, `tests/test_launcher.py` |
 
-## Green organs closed since baseline (16)
+Regressed to yellow under Decision A (2026-07-27) — organs 1, 2, 3, 4, 5, 6,
+7, 8, 10, 11, 12, 13, 14, 17, 20, 21, 22: `authority_owner` was never
+defined as a class anywhere in the organ's own `production_entrypoints`.
+See the Yellow organs table below for each one's specific blocker.
+
+## Green organs closed since baseline, now regressed under Decision A (2026-07-27) — 0 of 16 remain green
+
+All 16 rows below regressed to yellow under Decision A: each organ's own
+narrative note (further down this section) records real work that genuinely
+happened and remains true; only the **green claim itself** is retracted,
+because none of these 16 `authority_owner` names was ever defined as a class
+anywhere in the repository. See the Yellow organs table below for each
+organ's specific Decision A blocker.
 
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
@@ -358,10 +388,46 @@ nothing on a mission's execution path re-checks identity mid-flight, so
 degrading the identity store only blocks the resolution of a NEW `Principal`
 (and therefore new capability issuance), never an already-running mission.
 
-## Yellow organs (16) — the Slices 26-40 completion target
+## Yellow organs (49)
+
+The original 16 (Slices 26-40 completion target) plus 33 regressed under
+Decision A (2026-07-27) — see the two green-organ sections above.
 
 | # | Organ | Authority owner | Slice | Truthful blocker |
 |---|-------|------------------|-------|-------------------|
+| 1 | Security Gateway | `SecurityGatewayAuthority` | Decision A | Regressed 2026-07-27: `SecurityGatewayAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 2 | Scope Lock | `ScopeLockAuthority` | Decision A | Regressed 2026-07-27: `ScopeLockAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 3 | Secret Scanner | `SecretScannerAuthority` | Decision A | Regressed 2026-07-27: `SecretScannerAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | Decision A | Regressed 2026-07-27: `AuditLoggerAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | Decision A | Regressed 2026-07-27: `InjectionShieldAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | Decision A | Regressed 2026-07-27: `EdgeTrustAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | Decision A | Regressed 2026-07-27: `PolicyKernelAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 8 | Action Broker | `ActionBrokerAuthority` | Decision A | Regressed 2026-07-27: `ActionBrokerAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 10 | Mission Authority | `MissionAuthority` | Decision A | Regressed 2026-07-27: `MissionAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | Decision A | Regressed 2026-07-27: `TurnCoordinatorAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | Decision A | Regressed 2026-07-27: `WorkerFoundryAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | Decision A | Regressed 2026-07-27: `ExecutorServiceAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | Decision A | Regressed 2026-07-27: `StagedWorkspaceAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | Decision A | Regressed 2026-07-27: `CortexBusAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | Decision A | Regressed 2026-07-27: `LivingMirrorAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | Decision A | Regressed 2026-07-27: `QueenCouncilAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | Decision A | Regressed 2026-07-27: `ReleaseDeclarationAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | Decision A | Regressed 2026-07-27: `IdentityAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | Decision A | Regressed 2026-07-27: `EmergencyStopHardWiringAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | Decision A | Regressed 2026-07-27: `ProviderHealthBudgetAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | Decision A | Regressed 2026-07-27: `LocalClerkRuntimeAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | Decision A | Regressed 2026-07-27: `LocalModelQualificationAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | Decision A | Regressed 2026-07-27: `DeliberationCouncilAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | Decision A | Regressed 2026-07-27: `IsolatedExecutorLiveAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | Decision A | Regressed 2026-07-27: `PromotionRollbackLiveAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | Decision A | Regressed 2026-07-27: `SkillLifecycleAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | Decision A | Regressed 2026-07-27: `ConstitutionalAmendmentAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | Decision A | Regressed 2026-07-27: `ReadModelProjectionAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | Decision A | Regressed 2026-07-27: `TruthfulMirrorAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | Decision A | Regressed 2026-07-27: `ApprovalDecisionSurfaceAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | Decision A | Regressed 2026-07-27: `ProvenanceExplanationSurfaceAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | Decision A | Regressed 2026-07-27: `SovereignHeartbeatSurfaceAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | Decision A | Regressed 2026-07-27: `BackupDisasterRecoveryAuthority` names no class defined in this organ's own `production_entrypoints` — a label only, not a class reference. Needs a real, reachable owner class (organ 42/46/52 / PR #169 template) before this organ can be green again. |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | 25 / 40 | Ledger established at this baseline; the strict gate stays non-green until every organ below turns green and Slice 40's final release proof lands. |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | PR-1 | **PR-1: gap closed, status not yet flipped (CI verification pending).** Before this, three different answers to "what is the current constitution?" coexisted: the durable chain (written only by the amendment routes); a per-call `build_constitution_snapshot()` rebuild from live config that always returns version 1 (used by `IdentityService` for EVERY `Principal`, by `CapabilityAuthority.consume()`, by `mirror.py` and by `gateway_reasoning.py`); and a hardcoded `ratified_by_operator_id="operator"` fallback inside `PolicyKernel`, reached in all three real construction sites because none passed `constitution_authority=`. Measured consequence: an activated amendment moved the durable chain and reached NOTHING -- and because `consume()` compared a rebuilt digest against a binding stamped by the same rebuild, both sides always matched, making the stale-constitution rejection structurally unreachable for a real amendment (its four tests passed only by comparing fabricated literals no snapshot ever produced). `get_constitution_authority()` also raised `NameError` -- `aios/api/deps.py` never imported the class -- proving it had no callers. Now one `ConstitutionAuthority` is authoritative for the active snapshot, every `Principal` digest, `PolicyKernel` decisions, capability issuance and consumption, Council context and the mirror. The fabricated fallback is deleted (an unwired kernel raises). Enrollment is re-verified on EVERY call, not just the argument-free one -- load-bearing, because both production paths pass an explicit operator id; a supplied id is now an assertion to verify, never a chain selector, so no shadow chain can be minted. Fail-closed via `NoEnrolledSovereignError` / `OperatorIdentityChangedError` / `ConstitutionDegraded`, all mapped to one 503. Activation and rollback are compare-and-swap under `BEGIN IMMEDIATE`, with `expected_previous_digest` REQUIRED so an unprotected write is a `TypeError`, not a silent clobber. Proven by `tests/test_organ25_constitution_e2e.py` (real HTTP ceremony -> restart -> old-digest capability refused, new-digest accepted, rollback survives restart), which is mutation-checked: reverting `IdentityService` to the per-call rebuild fails all three cases. Remaining before green: green-contract conditions 11-12 only (record the exact tested commit, and have CI verify that same commit). |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | PR1 | **Narrowed from green (see PR1 update note above):** `get_operator_preference_store()` (`aios/api/deps.py`) plus a real, explicit-only route (`aios/api/routes/preferences.py`) are the first production wiring `OperatorPreferenceStore` has ever had; expiry, withdrawal, restart recovery, and a scope-aware contradiction check (a real cross-scope false-contradiction bug, fixed) are all real and tested. Still missing: no production conversational call site threads `list_active_for_scope()` into Organ 31's `active_preferences` -- the only real caller of that parameter (Council) deliberately doesn't need it. |
@@ -389,6 +455,8 @@ python -m aios.launcher organ-check --strict
 `--strict` exits non-zero until all 54 organs are green. `validate_ledger`
 additionally refuses: duplicate `organ_id`, duplicate `authority_owner`,
 missing or unknown organs, a `green` organ without focused or integration
-tests, a `green` organ that requires live evidence but has none, live
-evidence labelled `fixture` where `live` is required, and live evidence
-stamped with any commit other than the one under evaluation.
+tests, a `green` organ whose `authority_owner` is not defined as a class
+anywhere in its own `production_entrypoints` (Decision A, 2026-07-27), a
+`green` organ that requires live evidence but has none, live evidence
+labelled `fixture` where `live` is required, and live evidence stamped with
+any commit other than the one under evaluation.

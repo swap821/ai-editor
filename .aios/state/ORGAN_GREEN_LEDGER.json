@@ -2,7 +2,7 @@
   {
     "organ_id": 1,
     "name": "Security Gateway",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SecurityGatewayAuthority",
     "production_entrypoints": [
       "aios/security/gateway.py"
@@ -15,14 +15,16 @@
       "tests/adversarial/test_gateway_bypass.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'SecurityGatewayAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 2,
     "name": "Scope Lock",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ScopeLockAuthority",
     "production_entrypoints": [
       "aios/security/scope_lock.py"
@@ -34,14 +36,16 @@
       "tests/adversarial/test_sandbox_escape.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ScopeLockAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 3,
     "name": "Secret Scanner",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SecretScannerAuthority",
     "production_entrypoints": [
       "aios/security/secret_scanner.py"
@@ -53,14 +57,16 @@
       "tests/adversarial/test_secret_detection.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'SecretScannerAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 4,
     "name": "Tamper-Evident Audit Logger",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "AuditLoggerAuthority",
     "production_entrypoints": [
       "aios/security/audit_logger.py"
@@ -72,14 +78,16 @@
       "tests/adversarial/test_audit_integrity.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'AuditLoggerAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 5,
     "name": "Prompt Injection Shield",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "InjectionShieldAuthority",
     "production_entrypoints": [
       "aios/security/injection_shield.py"
@@ -91,14 +99,16 @@
       "tests/test_chat_input_shield.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'InjectionShieldAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 6,
     "name": "Edge Trust Boundary",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "EdgeTrustAuthority",
     "production_entrypoints": [
       "aios/interfaces/http/edge_security.py"
@@ -110,14 +120,16 @@
       "tests/test_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'EdgeTrustAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 7,
     "name": "Policy Kernel",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "PolicyKernelAuthority",
     "production_entrypoints": [
       "aios/policy/kernel.py"
@@ -129,14 +141,16 @@
       "tests/test_route_registry_conformance.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'PolicyKernelAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 8,
     "name": "Action Broker",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ActionBrokerAuthority",
     "production_entrypoints": [
       "aios/application/action_broker.py"
@@ -148,7 +162,9 @@
       "tests/test_release_conformance.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ActionBrokerAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
@@ -174,7 +190,7 @@
   {
     "organ_id": 10,
     "name": "Mission Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "MissionAuthority",
     "production_entrypoints": [
       "aios/application/missions/mission_service.py"
@@ -186,14 +202,16 @@
       "tests/test_council_orchestrator.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'MissionAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 11,
     "name": "Turn Coordinator",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "TurnCoordinatorAuthority",
     "production_entrypoints": [
       "aios/application/turns/turn_coordinator.py"
@@ -205,14 +223,16 @@
       "tests/test_chat.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'TurnCoordinatorAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 12,
     "name": "Worker Foundry",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "WorkerFoundryAuthority",
     "production_entrypoints": [
       "aios/application/workers/foundry.py"
@@ -224,14 +244,16 @@
       "tests/test_council_orchestrator.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'WorkerFoundryAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 13,
     "name": "Isolated Executor Service (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ExecutorServiceAuthority",
     "production_entrypoints": [
       "aios/executor_service.py"
@@ -243,14 +265,16 @@
       "tests/test_release_conformance.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ExecutorServiceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 14,
     "name": "Staged Workspace Manager (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "StagedWorkspaceAuthority",
     "production_entrypoints": [
       "aios/application/workspaces/staged.py"
@@ -262,7 +286,9 @@
       "tests/test_council_orchestrator.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'StagedWorkspaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
@@ -307,7 +333,7 @@
   {
     "organ_id": 17,
     "name": "Cortex Observation Bus",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "CortexBusAuthority",
     "production_entrypoints": [
       "aios/runtime/cortex_bus.py"
@@ -319,7 +345,9 @@
       "tests/test_release_conformance.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'CortexBusAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
@@ -364,7 +392,7 @@
   {
     "organ_id": 20,
     "name": "Living Mirror Reaction Registry (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LivingMirrorAuthority",
     "production_entrypoints": [
       "frontend/src/superbrain/lib/livingMirrorRegistry.ts"
@@ -376,14 +404,16 @@
       "frontend/src/superbrain/lib/aiosMirror.test.ts"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'LivingMirrorAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 21,
     "name": "Queen Council Orchestrator",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "QueenCouncilAuthority",
     "production_entrypoints": [
       "aios/council/council_orchestrator.py"
@@ -395,14 +425,16 @@
       "tests/test_e2e_sovereign_flywheel.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'QueenCouncilAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
   {
     "organ_id": 22,
     "name": "V1 Release Declaration (gagos v1-check)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ReleaseDeclarationAuthority",
     "production_entrypoints": [
       "aios/application/governance/v1_declaration.py"
@@ -414,7 +446,9 @@
       "tests/test_launcher.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ReleaseDeclarationAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
@@ -443,7 +477,7 @@
   {
     "organ_id": 24,
     "name": "Human Sovereign Identity",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "IdentityAuthority",
     "production_entrypoints": [
       "aios/domain/identity/models.py",
@@ -459,7 +493,9 @@
       "tests/test_human_sovereign_identity.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'IdentityAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -504,7 +540,7 @@
   {
     "organ_id": 26,
     "name": "Emergency Stop Organ (full boundary hard-wiring)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "EmergencyStopHardWiringAuthority",
     "production_entrypoints": [
       "aios/runtime/intelligence_gateway.py",
@@ -527,7 +563,9 @@
       "tests/test_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'EmergencyStopHardWiringAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -720,7 +758,7 @@
   {
     "organ_id": 34,
     "name": "Cloud Budget and Provider-Health Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProviderHealthBudgetAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -738,14 +776,16 @@
       "tests/test_route_wiring.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ProviderHealthBudgetAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 35,
     "name": "Local Clerk Runtime",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LocalClerkRuntimeAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/contracts.py"
@@ -758,7 +798,9 @@
       "tests/domain/test_local_workforce_qualifier.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'LocalClerkRuntimeAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -786,7 +828,7 @@
   {
     "organ_id": 37,
     "name": "Local Model Qualification and Health",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LocalModelQualificationAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/qualifier.py",
@@ -802,7 +844,9 @@
       "tests/test_r15_runtime_proof.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'LocalModelQualificationAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -836,7 +880,7 @@
   {
     "organ_id": 39,
     "name": "Multi-Model Deliberation and Dissent Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "DeliberationCouncilAuthority",
     "production_entrypoints": [
       "aios/domain/intelligence/deliberation.py",
@@ -858,14 +902,16 @@
       "tests/test_council_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'DeliberationCouncilAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 40,
     "name": "Isolated Workspace and Executor (live proof)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
@@ -895,14 +941,16 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'IsolatedExecutorLiveAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 41,
     "name": "Promotion, Checkpoint and Rollback (live proof)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "PromotionRollbackLiveAuthority",
     "production_entrypoints": [
       "aios/application/promotion/authority.py",
@@ -915,7 +963,9 @@
       "tests/test_maintenance_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'PromotionRollbackLiveAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -951,7 +1001,7 @@
   {
     "organ_id": 43,
     "name": "Local Skill Reuse, Confidence and Demotion",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SkillLifecycleAuthority",
     "production_entrypoints": [
       "aios/domain/learning/skill_contracts.py",
@@ -968,7 +1018,9 @@
       "tests/test_learning_application.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'SkillLifecycleAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -997,7 +1049,7 @@
   {
     "organ_id": 45,
     "name": "Constitutional Amendment Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ConstitutionalAmendmentAuthority",
     "production_entrypoints": [
       "aios/domain/governance/amendments.py",
@@ -1022,7 +1074,9 @@
       "tests/test_governance_amendment_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ConstitutionalAmendmentAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -1060,7 +1114,7 @@
   {
     "organ_id": 47,
     "name": "Read-Model and Projection Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ReadModelProjectionAuthority",
     "production_entrypoints": [
       "aios/domain/read_models/contracts.py",
@@ -1074,14 +1128,16 @@
       "tests/test_mirror.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ReadModelProjectionAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1094,14 +1150,16 @@
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'TruthfulMirrorAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
   },
   {
     "organ_id": 49,
     "name": "Approval and Decision Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ApprovalDecisionSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1114,14 +1172,16 @@
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ApprovalDecisionSurfaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
   },
   {
     "organ_id": 50,
     "name": "Provenance and Explanation Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
     "production_entrypoints": [
       "aios/memory/development.py",
@@ -1151,14 +1211,16 @@
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'ProvenanceExplanationSurfaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
   },
   {
     "organ_id": 51,
     "name": "Sovereign Control and Heartbeat Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SovereignHeartbeatSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1171,7 +1233,9 @@
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'SovereignHeartbeatSurfaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
   },
@@ -1233,7 +1297,7 @@
   {
     "organ_id": 54,
     "name": "Backup and Disaster-Recovery Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "BackupDisasterRecoveryAuthority",
     "production_entrypoints": [
       "aios/operations/recovery.py",
@@ -1247,7 +1311,9 @@
       "tests/test_operations.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Decision A regression (2026-07-27): authority_owner 'BackupDisasterRecoveryAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+    ],
     "last_verified_sha": null,
     "requires_live_evidence": false
   }

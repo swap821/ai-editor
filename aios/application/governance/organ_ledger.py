@@ -181,6 +181,25 @@ class OrganLedgerReport:
         }
 
 
+def _authority_owner_is_class_reference(record: OrganRecord, repo_root: Path) -> bool:
+    """Decision A (2026-07-27, see docs/architecture/GAGOS_54_ORGANS.md): a green
+    organ's `authority_owner` must name a real class defined somewhere in that
+    organ's own `production_entrypoints` -- not merely a string that happens to
+    match `CANONICAL_ORGANS`. Matches both Python (`class Foo`) and TypeScript/
+    JS (`export class Foo`) class-definition syntax; a name that only appears in
+    a comment or string is a false positive this heuristic accepts, the same
+    tradeoff already made by `_frontend_error_state_coverage` below."""
+    pattern = re.compile(rf"\bclass\s+{re.escape(record.authority_owner)}\b")
+    for rel_path in record.production_entrypoints:
+        try:
+            text = (repo_root / rel_path).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if pattern.search(text):
+            return True
+    return False
+
+
 def _frontend_error_state_coverage(record: OrganRecord, repo_root: Path) -> bool:
     """Best-effort keyword check: do this organ's own test files demonstrate
     both an "unavailable" case and a distinct error/stale/disconnected case?
@@ -298,6 +317,13 @@ def validate_ledger(
             violations.append(
                 f"organ_id {record.organ_id} ({record.name}) is green but still "
                 f"lists known_blockers: {list(record.known_blockers)!r}"
+            )
+        if root is not None and not _authority_owner_is_class_reference(record, root):
+            violations.append(
+                f"organ_id {record.organ_id} ({record.name}) is green but its "
+                f"authority_owner {record.authority_owner!r} is not defined as a "
+                "class anywhere in its own production_entrypoints -- a label, "
+                "not a class reference (Decision A)"
             )
         if strict_last_verified and record.last_verified_sha != current_sha:
             violations.append(

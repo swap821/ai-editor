@@ -212,6 +212,84 @@ def test_referenced_file_check_is_skipped_without_repo_root() -> None:
     assert validate_ledger(records) == ()
 
 
+# --- Decision A (2026-07-27): authority_owner is a class reference -------
+
+
+def test_green_organ_with_no_owner_class_anywhere_fails(tmp_path) -> None:
+    entry_file = tmp_path / "gateway.py"
+    entry_file.write_text("def do_the_thing():\n    pass\n", encoding="utf-8")
+    records = _baseline_records()
+    records[0] = _make_green(
+        records[0],
+        production_entrypoints=(str(entry_file.relative_to(tmp_path)),),
+    )
+    violations = validate_ledger(records, repo_root=tmp_path)
+    assert any(
+        "is not defined as a class anywhere in its own production_entrypoints" in v
+        for v in violations
+    )
+
+
+def test_green_organ_with_no_production_entrypoints_at_all_fails(tmp_path) -> None:
+    records = _baseline_records()
+    records[0] = _make_green(records[0])
+    assert records[0].production_entrypoints == ()
+    violations = validate_ledger(records, repo_root=tmp_path)
+    assert any(
+        "is not defined as a class anywhere in its own production_entrypoints" in v
+        for v in violations
+    )
+
+
+def test_green_organ_with_owner_class_defined_in_its_entrypoint_passes(
+    tmp_path,
+) -> None:
+    entry_file = tmp_path / "gateway.py"
+    canonical_name, canonical_owner = CANONICAL_ORGANS[1]
+    entry_file.write_text(
+        f"class {canonical_owner}:\n    pass\n", encoding="utf-8"
+    )
+    rel = str(entry_file.relative_to(tmp_path))
+    records = _baseline_records()
+    records[0] = _make_green(
+        records[0],
+        production_entrypoints=(rel,),
+        focused_tests=(rel,),
+        integration_tests=(rel,),
+    )
+    assert validate_ledger(records, repo_root=tmp_path) == ()
+
+
+def test_owner_class_check_matches_typescript_export_class_syntax(
+    tmp_path,
+) -> None:
+    """A frontend organ's owner may be a TS/JS class, not just Python --
+    `export class Foo` must satisfy the check exactly like `class Foo`."""
+    entry_file = tmp_path / "registry.ts"
+    canonical_name, canonical_owner = CANONICAL_ORGANS[1]
+    entry_file.write_text(
+        f"export class {canonical_owner} {{}}\n", encoding="utf-8"
+    )
+    rel = str(entry_file.relative_to(tmp_path))
+    records = _baseline_records()
+    records[0] = _make_green(
+        records[0],
+        production_entrypoints=(rel,),
+        focused_tests=(rel,),
+        integration_tests=(rel,),
+    )
+    assert validate_ledger(records, repo_root=tmp_path) == ()
+
+
+def test_owner_class_check_is_skipped_without_repo_root() -> None:
+    """Matches current_sha's and the file-existence check's own established
+    opt-in pattern: no filesystem to check against means no fabricated
+    failure, not a silent pass-by-omission of the rule itself."""
+    records = _baseline_records()
+    records[0] = _make_green(records[0])
+    assert validate_ledger(records) == ()
+
+
 def test_strict_last_verified_rejects_a_stale_or_missing_sha() -> None:
     records = _baseline_records()
     records[0] = _make_green(records[0], last_verified_sha="0" * 40)
@@ -260,10 +338,13 @@ def test_frontend_error_state_organ_with_keyword_coverage_passes(tmp_path) -> No
         "def test_shows_stale_badge_past_the_freshness_threshold():\n    assert True\n",
         encoding="utf-8",
     )
+    owner_file = tmp_path / "owner.py"
+    owner_file.write_text("class SecurityGatewayAuthority:\n    pass\n", encoding="utf-8")
     records = _baseline_records()
     records[0] = _make_green(
         records[0],
         requires_frontend_error_states=True,
+        production_entrypoints=(str(owner_file.relative_to(tmp_path)),),
         focused_tests=(str(test_file.relative_to(tmp_path)),),
         integration_tests=(str(test_file.relative_to(tmp_path)),),
     )
