@@ -32,7 +32,7 @@ iniconfig==2.3.0
 Jinja2==3.1.6
 jmespath==1.1.0
 joblib==1.5.3
-mando==0.8.2
+mando==0.7.1
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
