@@ -1504,6 +1504,9 @@ def get_maintenance_convergence_service(
     from aios.infrastructure.missions.sqlite_mission_repository import (
         SqliteMissionRepository,
     )
+    from aios.infrastructure.missions.transition_journal_store import (
+        MissionTransitionJournal,
+    )
 
     workspace_manager = getattr(promotion_authority, "workspace_manager", None)
     if workspace_manager is None:
@@ -1532,4 +1535,10 @@ def get_maintenance_convergence_service(
         workspace_manager=workspace_manager,
         lifecycle_engine=lifecycle_engine,
         emergency_stop=emergency_stop,
+        # Organ 42: the same durable journal the Council path already writes
+        # to (routes/council.py:490), so a crash mid-repair leaves the same
+        # resumption evidence a crash mid-mission already does.
+        mission_journal=MissionTransitionJournal(
+            config.MISSION_TRANSITION_JOURNAL_DB_PATH
+        ),
     )

@@ -239,6 +239,35 @@ async def lifespan(app: FastAPI):
     logger.info("runtime_profile_active", profile=active_profile.name)
     init_memory_db()
     init_audit_db()
+    # Organ 42: surface missions whose last journalled transition is not
+    # terminal -- i.e. those a crash interrupted mid-flight.
+    #
+    # `resume_pending()` existed, was unit-tested, and had NO production
+    # caller anywhere, so the journal recorded interruptions that nothing ever
+    # read. This closes that half of the organ.
+    #
+    # Deliberately REPORTS rather than re-drives: silently resuming a
+    # half-promoted repair without a human decision is precisely the
+    # unsupervised recovery this system refuses. Startup must also never be
+    # blocked by the recovery scan itself.
+    try:
+        from aios.infrastructure.missions.transition_journal_store import (
+            MissionTransitionJournal,
+        )
+
+        interrupted = MissionTransitionJournal(
+            config.MISSION_TRANSITION_JOURNAL_DB_PATH
+        ).resume_pending()
+        if interrupted:
+            logger.warning(
+                "missions_interrupted_pending_resumption",
+                count=len(interrupted),
+                mission_ids=list(interrupted),
+            )
+        else:
+            logger.info("missions_interrupted_pending_resumption", count=0)
+    except Exception as exc:  # noqa: BLE001 - reporting must never block startup
+        logger.warning("mission_resume_scan_failed", error=str(exc))
     # Opt-in second injection layer: install the vector blocklist when enabled.
     # Best-effort — a model/load failure must never block startup, since the
     # regex layer remains the active defence.
