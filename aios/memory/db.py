@@ -354,3 +354,23 @@ def _migrate(conn: sqlite3.Connection) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_active_sig_v2 "
         "ON procedural_skills(signature_v2) WHERE status != 'superseded'"
     )
+
+    local_worker_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(local_worker_models)")
+    }
+    local_worker_additions = {
+        "model_version": "TEXT",
+        "artifact_digest": "TEXT",
+        "qualification_suite_version": "TEXT",
+        "qualification_evidence_digest": "TEXT",
+        "limitations_json": "TEXT NOT NULL DEFAULT '[]'",
+        "qualified_at": "DATETIME",
+        "expires_at": "DATETIME",
+        # Organ 36: the dispatcher needs a REAL QualificationResult. Before
+        # this column existed, qualify() ran the suite and threw the result
+        # away, so the call site fabricated a perfect one.
+        "qualification_result_json": "TEXT",
+    }
+    for name, ddl in local_worker_additions.items():
+        if local_worker_cols and name not in local_worker_cols:
+            conn.execute(f"ALTER TABLE local_worker_models ADD COLUMN {name} {ddl}")
