@@ -1081,7 +1081,7 @@
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1095,13 +1095,13 @@
     ],
     "live_evidence": [],
     "known_blockers": [],
-    "last_verified_sha": null,
+    "last_verified_sha": "d5b2f52d7fec8a9d560d25d22c3c46102e4cacfc",
     "requires_live_evidence": false
   },
   {
     "organ_id": 49,
     "name": "Approval and Decision Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ApprovalDecisionSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1115,13 +1115,13 @@
     ],
     "live_evidence": [],
     "known_blockers": [],
-    "last_verified_sha": null,
+    "last_verified_sha": "d5b2f52d7fec8a9d560d25d22c3c46102e4cacfc",
     "requires_live_evidence": false
   },
   {
     "organ_id": 50,
     "name": "Provenance and Explanation Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
     "production_entrypoints": [
       "aios/memory/development.py",
@@ -1152,13 +1152,13 @@
     ],
     "live_evidence": [],
     "known_blockers": [],
-    "last_verified_sha": null,
+    "last_verified_sha": "d5b2f52d7fec8a9d560d25d22c3c46102e4cacfc",
     "requires_live_evidence": false
   },
   {
     "organ_id": 51,
     "name": "Sovereign Control and Heartbeat Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "SovereignHeartbeatSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1172,7 +1172,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [],
-    "last_verified_sha": null,
+    "last_verified_sha": "d5b2f52d7fec8a9d560d25d22c3c46102e4cacfc",
     "requires_live_evidence": false
   },
   {
