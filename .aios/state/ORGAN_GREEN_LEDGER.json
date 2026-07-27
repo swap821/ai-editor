@@ -981,7 +981,9 @@
       "aios/application/missions/mission_service.py",
       "aios/domain/missions/transition_journal.py",
       "aios/infrastructure/missions/transition_journal_store.py",
-      "aios/infrastructure/storage/migrations/0006_mission_transition_journal.py"
+      "aios/infrastructure/storage/migrations/0006_mission_transition_journal.py",
+      "aios/application/recovery/authority.py",
+      "aios/api/main.py"
     ],
     "focused_tests": [
       "tests/test_council_orchestrator.py",
