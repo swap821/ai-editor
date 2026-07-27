@@ -70,7 +70,7 @@ smmap==5.0.3
 starlette==1.3.1
 sympy==1.14.0
 threadpoolctl==3.6.0
-tokenizers==0.23.0
+tokenizers==0.22.2
 torch==2.13.0
 tqdm==4.69.1
 transformers==5.14.1
