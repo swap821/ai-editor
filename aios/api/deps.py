@@ -86,6 +86,10 @@ from aios.infrastructure.governance.constitution_snapshot_store import (
     ConstitutionSnapshotStore,
 )
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
+from aios.application.memory.authorities import (
+    OperatorTasteModelAuthority,
+    ProjectUnderstandingAuthority,
+)
 from aios.infrastructure.memory.human_representation_store import (
     CorrectionRecordStore,
     HumanStateHypothesisStore,
@@ -649,6 +653,20 @@ def get_project_passport_store() -> ProjectPassportStore:
     return _project_passport_store
 
 
+def get_project_understanding_authority(
+    store: ProjectPassportStore = Depends(get_project_passport_store),
+) -> ProjectUnderstandingAuthority:
+    """Provide organ 28's named owner over `get_project_passport_store()`'s
+    singleton -- Decision A (docs/architecture/GAGOS_54_ORGANS.md): the
+    ledger's `authority_owner` must be a real class, not a label. Declared
+    as a FastAPI sub-dependency (not a plain function call) so
+    ``app.dependency_overrides[get_project_passport_store]`` in existing
+    tests keeps working through this new layer -- calling the getter
+    directly here would silently bypass every override and fall through to
+    the real production singleton."""
+    return ProjectUnderstandingAuthority(store)
+
+
 def get_human_state_hypothesis_store() -> HumanStateHypothesisStore:
     """Provide the durable, append-only HumanStateHypothesis history
     singleton (organ 30) -- turns classify_human_state()'s previously
@@ -699,6 +717,20 @@ def get_operator_preference_store() -> OperatorPreferenceStore:
                 config.OPERATOR_PREFERENCE_DB_PATH, facts=get_semantic_facts()
             )
     return _operator_preference_store
+
+
+def get_operator_taste_model_authority(
+    store: OperatorPreferenceStore = Depends(get_operator_preference_store),
+) -> OperatorTasteModelAuthority:
+    """Provide organ 27's named owner over `get_operator_preference_store()`'s
+    singleton -- Decision A (docs/architecture/GAGOS_54_ORGANS.md): the
+    ledger's `authority_owner` must be a real class, not a label. Declared
+    as a FastAPI sub-dependency (not a plain function call) so
+    ``app.dependency_overrides[get_operator_preference_store]`` in existing
+    tests keeps working through this new layer -- calling the getter
+    directly here would silently bypass every override and fall through to
+    the real production singleton."""
+    return OperatorTasteModelAuthority(store)
 
 
 def get_representative_context_store() -> RepresentativeContextStore:
@@ -1014,6 +1046,8 @@ __all__ = [
     "get_maintenance_convergence_service",
     "get_observability_authority",
     "get_recovery_resumption_authority",
+    "get_operator_taste_model_authority",
+    "get_project_understanding_authority",
     "get_learning_service",
 ]
 

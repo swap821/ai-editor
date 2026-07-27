@@ -581,12 +581,14 @@
       "aios/api/deps.py",
       "aios/api/routes/preferences.py",
       "aios/policy/kernel.py",
-      "aios/domain/actions/envelope.py"
+      "aios/domain/actions/envelope.py",
+      "aios/application/memory/authorities.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
       "tests/test_human_representation_store.py",
-      "tests/test_operator_preferences_api.py"
+      "tests/test_operator_preferences_api.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
       "tests/test_personalization.py",
@@ -609,11 +611,13 @@
       "aios/application/memory/human_representation.py",
       "aios/infrastructure/memory/human_representation_store.py",
       "aios/api/routes/projects.py",
-      "aios/api/deps.py"
+      "aios/api/deps.py",
+      "aios/application/memory/authorities.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
-      "tests/test_human_representation_store.py"
+      "tests/test_human_representation_store.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
       "tests/test_project_passport.py"

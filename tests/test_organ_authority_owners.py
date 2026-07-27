@@ -20,21 +20,37 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from aios.api.deps import (
     get_constitutional_learning_authority,
     get_observability_authority,
+    get_operator_preference_store,
+    get_operator_taste_model_authority,
+    get_project_passport_store,
+    get_project_understanding_authority,
     get_recovery_resumption_authority,
 )
+from aios.api.main import app
 from aios.application.governance.constitutional_learning import (
     ConstitutionalLearningAuthority,
     ConstitutionalLearningError,
 )
+from aios.application.memory.authorities import (
+    OperatorTasteModelAuthority,
+    ProjectUnderstandingAuthority,
+)
 from aios.application.observability import ObservabilityAuthority
 from aios.application.recovery import RecoveryResumptionAuthority
+from aios.domain.memory.human_representation import OperatorPreferenceV1
+from aios.infrastructure.memory.human_representation_store import (
+    OperatorPreferenceStore,
+    ProjectPassportStore,
+)
 from aios.infrastructure.missions.transition_journal_store import (
     MissionTransitionJournal,
 )
+from aios.memory.facts import SemanticFacts
 
 
 # --------------------------------------------------------------------------- #
@@ -269,3 +285,168 @@ def test_the_authority_permits_naming_a_weakness_without_proposing_surrender() -
         "the approval gate is easy to miss; add a second confirmation step "
         "and make refusals state which check failed"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Organ 27 -- OperatorTasteModelAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_taste_model_authority_is_what_the_real_preferences_route_uses(
+    tmp_path: Path,
+) -> None:
+    """Overrides only the STORE-level dependency (never the authority), then
+    proves the real HTTP route resolves a genuine OperatorTasteModelAuthority
+    wrapping it -- a class existing in isolation would not make this pass."""
+    db_path = tmp_path / "mem.db"
+    store = OperatorPreferenceStore(db_path, facts=SemanticFacts(db_path))
+    app.dependency_overrides[get_operator_preference_store] = lambda: store
+    try:
+        resolved = get_operator_taste_model_authority(store=store)
+        assert isinstance(resolved, OperatorTasteModelAuthority)
+        assert resolved.store is store
+
+        client = TestClient(app, client=("127.0.0.1", 12345))
+        response = client.post(
+            "/api/v1/preferences",
+            json={
+                "domain": "testing",
+                "key": "owner_reachability_probe",
+                "value": True,
+                "scope": "project:ai-editor",
+                "confidence": 0.9,
+            },
+        )
+        assert response.status_code == 200
+        # The route only ever sees the authority; if it round-trips through
+        # the STORE we overrode, the authority (not a bypass) handled it.
+        assert store.get(response.json()["preferenceId"]) is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_the_taste_model_authority_active_preferences_excludes_withdrawn_and_expired(
+    tmp_path: Path,
+) -> None:
+    """The real consolidation this authority owns (not a pass-through): the
+    store's own `list_active_for_operator_scope` only filters `status`; the
+    authority additionally drops expired rows, matching organ 31's exact
+    `active_preferences` contract."""
+    db_path = tmp_path / "mem.db"
+    store = OperatorPreferenceStore(db_path, facts=SemanticFacts(db_path))
+    authority = OperatorTasteModelAuthority(store)
+    digest = "owner-digest"
+
+    _, kept = authority.record_explicit_preference(
+        preference_id="pref-active",
+        domain="testing",
+        key="keep",
+        value=1,
+        scope="s",
+        confidence=1.0,
+        review_after=None,
+        operator_identity_digest=digest,
+    )
+    result, withdrawn_pref = authority.record_explicit_preference(
+        preference_id="pref-withdrawn",
+        domain="testing",
+        key="drop",
+        value=1,
+        scope="s",
+        confidence=1.0,
+        review_after=None,
+        operator_identity_digest=digest,
+    )
+    assert result.saved and withdrawn_pref is not None
+    assert authority.withdraw("pref-withdrawn", operator_identity_digest=digest)
+
+    active = authority.active_preferences_for_operator(digest, "s")
+
+    assert [p.preference_id for p in active] == ["pref-active"]
+    assert kept is not None
+
+
+# --------------------------------------------------------------------------- #
+# Organ 28 -- ProjectUnderstandingAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_project_understanding_authority_is_what_the_real_scan_route_uses(
+    tmp_path: Path,
+) -> None:
+    """Overrides only the STORE-level dependency, then proves the real HTTP
+    scan route resolves a genuine ProjectUnderstandingAuthority wrapping
+    it -- a class existing in isolation would not make this pass."""
+    store = ProjectPassportStore(tmp_path / "passports.db")
+    app.dependency_overrides[get_project_passport_store] = lambda: store
+    try:
+        resolved = get_project_understanding_authority(store=store)
+        assert isinstance(resolved, ProjectUnderstandingAuthority)
+        assert resolved.store is store
+
+        client = TestClient(app, client=("127.0.0.1", 12345))
+        response = client.post(
+            "/api/v1/projects/passport/scan",
+            json={"root": str(Path(__file__).resolve().parents[1]), "maxFiles": 5},
+        )
+        assert response.status_code == 200
+        project_id = response.json()["projectId"]
+        # The route only ever sees the authority; if the STORE we overrode
+        # now durably has this project, the authority (not a bypass) wrote it.
+        assert store.get_current(project_id) is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_the_project_understanding_authority_status_combines_three_store_reads(
+    tmp_path: Path,
+) -> None:
+    """The real consolidation this authority owns (not a pass-through): the
+    route used to assemble `active_project_status` from three separate store
+    calls inline (and, before this pass, had a dead duplicate copy of that
+    assembly after an unconditional `return`) -- the authority now owns that
+    assembly as one real method."""
+    from aios.memory.project_passport import ProjectPassport
+
+    store = ProjectPassportStore(tmp_path / "passports.db")
+    authority = ProjectUnderstandingAuthority(store)
+    digest = "owner-digest"
+
+    assert authority.active_project_status(digest) is None
+
+    passport = ProjectPassport(
+        root=str(tmp_path),
+        generated_at="2026-07-28T00:00:00+00:00",
+        purpose="test",
+        stack=[],
+        folder_map=[],
+        key_files=[],
+        install_commands=[],
+        run_commands=[],
+        build_commands=[],
+        test_commands=[],
+        env_vars=[],
+        safe_actions=[],
+        risky_actions=[],
+        known_issues=[],
+        current_goals=[],
+        suggested_improvements=[],
+        evidence_files=[],
+    )
+    revision, _diff = authority.record_scan(
+        tmp_path,
+        project_id="proj-1",
+        verified_at_commit="deadbeef",
+        passport=passport,
+        operator_identity_digest=digest,
+        scan_summary={"filesScanned": 1},
+    )
+    assert revision == 1
+
+    status = authority.active_project_status(digest)
+
+    assert status is not None
+    assert status["projectId"] == "proj-1"
+    assert status["lastScan"] == {"filesScanned": 1}
+    assert status["durable"]["revisionCount"] == 1
+    assert status["durable"]["verifiedAtCommit"] == "deadbeef"

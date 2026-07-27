@@ -14,22 +14,24 @@ import hashlib
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from aios.api.deps import get_authenticated_principal, get_project_passport_store
+from aios.api.deps import (
+    get_authenticated_principal,
+    get_project_understanding_authority,
+)
+from aios.application.memory.authorities import ProjectUnderstandingAuthority
 from aios.domain.identity.models import Principal
 from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.application.governance.organ_ledger import current_commit_sha
-from aios.application.memory.human_representation import (
-    build_project_passport_v1,
-    diff_project_passports,
-)
 from aios.cognition.repo_map import (
     SymbolRepoMapLimits,
     scan_symbol_repo_map,
     scope_hints_for_contract,
 )
-from aios.infrastructure.memory.human_representation_store import ProjectPassportStore
-from aios.memory.project_passport import ProjectPassport
-from aios.memory.project_passport import RepoScanLimits, harvest_project_passport
+from aios.memory.project_passport import (
+    ProjectPassport,
+    RepoScanLimits,
+    harvest_project_passport,
+)
 from aios.runtime.contracts import MissionContract
 from aios.api.action_guard import enforce_action_boundary
 
@@ -51,24 +53,28 @@ class ProjectPassportScanRequest(BaseModel):
 @router.post("/api/v1/projects/passport/scan")
 def scan_project_passport(
     req: ProjectPassportScanRequest,
-    store: ProjectPassportStore = Depends(get_project_passport_store),
+    authority: ProjectUnderstandingAuthority = Depends(
+        get_project_understanding_authority
+    ),
     principal: Principal = Depends(get_authenticated_principal),
 ) -> dict:
     """Return a local-only Project Passport as proposal/evidence.
 
     Organ 28: also builds the typed ProjectPassportV1 (Slice 28) from this
     same real scan and records it durably (append-only, digest-verified,
-    ProjectPassportStore) -- previously build_project_passport_v1() had zero
-    production callers anywhere; every real scan silently discarded the
-    typed representation this organ exists to provide. The route's own
-    response shape is unchanged (existing frontend callers are unaffected
-    beyond the additive ``passportDiff`` field); the durable record and the
-    active-project pointer are additive.
+    via the authority's ``ProjectPassportStore``) -- previously
+    ``build_project_passport_v1()`` had zero production callers anywhere;
+    every real scan silently discarded the typed representation this organ
+    exists to provide. The route's own response shape is unchanged
+    (existing frontend callers are unaffected beyond the additive
+    ``passportDiff`` field); the durable record and the active-project
+    pointer are additive.
 
     The "last scanned project" pointer used to live only in a process-local
     module global (``_LAST_PROJECT_PASSPORT_ID``) -- silently forgotten on
     every restart even though the scan history itself was already durable.
-    ``store.set_active``/``store.get_active`` now persist that pointer.
+    The authority's ``record_scan``/``active_project_status`` now persist
+    and read that pointer.
     """
     workspace = Path.cwd().resolve()
     root = _resolve_scan_root(req.root, workspace)
@@ -88,17 +94,13 @@ def scan_project_passport(
     scan_summary = _project_passport_summary(passport)
 
     project_id = _project_id_for_root(root)
-    typed_passport = build_project_passport_v1(
+    _revision, passport_diff = authority.record_scan(
         root,
         project_id=project_id,
         verified_at_commit=commit_after,
         passport=passport,
-    )
-    _revision, passport_diff = store.save_and_diff(typed_passport)
-    store.set_active(
-        project_id,
-        scan_summary,
         operator_identity_digest=credential_digest(principal.principal_id),
+        scan_summary=scan_summary,
     )
 
     response = passport.as_dict()
@@ -116,52 +118,29 @@ def _project_id_for_root(root: Path) -> str:
 
 @router.get("/api/v1/projects/passport/status")
 def project_passport_status(
-    store: ProjectPassportStore = Depends(get_project_passport_store),
+    authority: ProjectUnderstandingAuthority = Depends(
+        get_project_understanding_authority
+    ),
     principal: Principal = Depends(get_authenticated_principal),
 ) -> dict:
     """Return status for the local-only RepoMap harvester without scanning.
 
     Organ 28: the active project and its last scan summary now come from
-    ``store.get_active()`` (durable) rather than a process-local module
-    global -- this route used to report ``lastScan``/``durable`` as
-    unconditionally empty after every restart, even when a real scan
-    history already existed on disk.
+    the authority's durable status (``store.get_active()`` underneath)
+    rather than a process-local module global -- this route used to report
+    ``lastScan``/``durable`` as unconditionally empty after every restart,
+    even when a real scan history already existed on disk. (This pass also
+    removed a genuine pre-existing bug found while consolidating this
+    function into the authority: the status-assembly logic was duplicated
+    verbatim after an earlier ``return``, making the second copy dead,
+    unreachable code.)
     """
-    project_id: str | None = None
-    last_scan: dict[str, object] | None = None
-    durable: dict[str, object] | None = None
-    active = store.get_active_for_operator(
+    status = authority.active_project_status(
         credential_digest(principal.principal_id)
     )
-    if active is not None:
-        project_id, last_scan = active
-        current = store.get_current(project_id)
-        if current is not None:
-            history = store.get_history(project_id)
-            durable = {
-                "revisionCount": len(history),
-                "passportDigest": current.passport_digest,
-                "verifiedAtCommit": current.verified_at_commit,
-            }
-    return {
-        "available": True,
-        "localOnly": True,
-        "activation": "proposal/evidence",
-        "trustedMemoryActivated": False,
-        "projectId": project_id,
-        "lastScan": last_scan,
-        "durable": durable,
-    }
-    if active is not None:
-        project_id, last_scan = active
-        current = store.get_current(project_id)
-        if current is not None:
-            history = store.get_history(project_id)
-            durable = {
-                "revisionCount": len(history),
-                "passportDigest": current.passport_digest,
-                "verifiedAtCommit": current.verified_at_commit,
-            }
+    project_id = status["projectId"] if status is not None else None
+    last_scan = status["lastScan"] if status is not None else None
+    durable = status["durable"] if status is not None else None
     return {
         "available": True,
         "localOnly": True,
