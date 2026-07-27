@@ -12,7 +12,7 @@
  * styled entirely with existing council-dashboard classes — no new palette.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { fromEnvelope, displayValue } from '../types/measuredState';
+import { fromEnvelope, displayValue, booleanTone, isMeasured } from '../types/measuredState';
 import { AlertTriangle, Cloud, FileText, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   approveFactProposal,
@@ -97,6 +97,45 @@ function repoMapSummary(surface) {
  * silently-guessed default. */
 function envelopeText(envelope, formatValue = (v) => String(v)) {
   return displayValue(fromEnvelope(envelope), 'unavailable', formatValue);
+}
+
+/** Executor badge tone/text, with "unknown" kept distinct from "broken".
+ *
+ * Reachability is only meaningful once we know the executor is configured, so
+ * the checks are ordered: unknown-configured first, then not-configured, then
+ * unknown-reachability, and only then a real reachable/unreachable verdict.
+ */
+function executorState(executor) {
+  const configured = fromEnvelope(executor?.configured);
+  const reachable = fromEnvelope(executor?.reachable);
+  if (!isMeasured(configured)) return 'unknown';
+  if (!configured.value) return 'not-configured';
+  if (!isMeasured(reachable)) return 'unknown-reachability';
+  return reachable.value ? 'reachable' : 'unreachable';
+}
+
+const EXECUTOR_TONE = {
+  reachable: 'ok',
+  unreachable: 'danger',
+  'not-configured': 'warn',
+  'unknown-reachability': 'warn',
+  unknown: 'warn',
+};
+
+const EXECUTOR_TEXT = {
+  reachable: 'reachable',
+  unreachable: 'unreachable',
+  'not-configured': 'not configured',
+  'unknown-reachability': 'reachability unknown',
+  unknown: 'unavailable',
+};
+
+function executorTone(executor) {
+  return EXECUTOR_TONE[executorState(executor)];
+}
+
+function executorSummary(executor) {
+  return EXECUTOR_TEXT[executorState(executor)];
 }
 
 function getStopBadgeClass(engagedState) {
@@ -364,7 +403,15 @@ export default function SovereignStatePanel() {
             ) : (
               (governance?.providerHealth ?? []).map((p) => (
                 <div key={p.provider} className="council-dashboard__route">
-                  <span className={`council-dashboard__badge is-${p.reachable?.value ? 'ok' : 'danger'}`}>
+                  {/* `p.reachable?.value ? 'ok' : 'danger'` painted a provider
+                      we simply have not measured as FAILING. An unmeasured
+                      provider is unknown, not unhealthy. */}
+                  <span
+                    className={`council-dashboard__badge is-${booleanTone(
+                      fromEnvelope(p.reachable),
+                      { whenTrue: 'ok', whenFalse: 'danger', whenUnknown: 'warn' },
+                    )}`}
+                  >
                     {envelopeText(p.circuit_state)}
                   </span>
                   <span>
@@ -413,7 +460,23 @@ export default function SovereignStatePanel() {
             ) : (
               (governance?.routingDecisions ?? []).map((d, index) => (
                 <div key={index} className="council-dashboard__route">
-                  <span className={`council-dashboard__badge is-${envelopeText(d.privacy) === 'cloud' ? 'warn' : 'ok'}`}>
+                  {/* This compared the DISPLAY STRING to 'cloud', so an
+                      unmeasured privacy status rendered as 'unavailable',
+                      failed the comparison, and was painted green -- an
+                      unknown privacy posture shown as safe. Of the three
+                      badge bugs here this was the dangerous one: it is a
+                      reassuring claim about exactly the thing an operator
+                      most needs the truth about. Decided on the envelope's
+                      real status now, not on rendered text. */}
+                  <span
+                    className={`council-dashboard__badge is-${
+                      !isMeasured(fromEnvelope(d.privacy))
+                        ? 'warn'
+                        : envelopeText(d.privacy) === 'cloud'
+                          ? 'warn'
+                          : 'ok'
+                    }`}
+                  >
                     {envelopeText(d.privacy)}
                   </span>
                   <span>
@@ -444,16 +507,15 @@ export default function SovereignStatePanel() {
           <section className="council-dashboard__section" aria-label="Isolated executor, measured">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Isolated Executor
+              {/* Raw `?.value` again: an executor whose reachability was
+                  never measured was reported as 'unreachable', which is a
+                  failure claim we did not observe. "not configured" is
+                  likewise only true when `configured` was actually measured
+                  false -- otherwise the honest answer is that we do not know. */}
               <span
-                className={`council-dashboard__badge is-${
-                  executor?.reachable?.value ? 'ok' : executor?.configured?.value ? 'danger' : 'warn'
-                }`}
+                className={`council-dashboard__badge is-${executorTone(executor)}`}
               >
-                {executor?.reachable?.value
-                  ? 'reachable'
-                  : executor?.configured?.value
-                    ? 'unreachable'
-                    : 'not configured'}
+                {executorSummary(executor)}
               </span>
             </h3>
             <div className="council-dashboard__grid">
