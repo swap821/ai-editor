@@ -1242,7 +1242,7 @@
   {
     "organ_id": 52,
     "name": "Observability and Health Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ObservabilityAuthority",
     "production_entrypoints": [
       "aios/api/main.py",
@@ -1250,7 +1250,8 @@
       "aios/operations/tracing.py",
       "aios/core/executor.py",
       "aios/executor_service.py",
-      "aios/application/executor/service.py"
+      "aios/application/executor/service.py",
+      "aios/application/observability/authority.py"
     ],
     "focused_tests": [
       "tests/test_operations.py"
@@ -1259,13 +1260,18 @@
       "tests/test_logging.py",
       "tests/test_queen_service.py",
       "tests/test_executor_service.py",
-      "tests/test_executor_client.py"
+      "tests/test_executor_client.py",
+      "tests/test_executor_integration.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "This pass closes the Docker executor boundary the prior update named as genuinely separate, not-yet-attempted work. Three real hops now carry the same correlation ids, each tested in isolation: (1) StructuredExecutorClient.execute() sends get_trace_context().headers() on its HTTP request into the executor service -- previously sent nothing but Accept/Authorization/Content-Type; (2) aios/executor_service.py's execute_job() reads those incoming headers and binds a TraceContext for the duration of the job's dispatch; (3) aios.core.executor.DockerRunner.__call__ (the subprocess.Popen boundary the prior update named) now reads get_trace_context() and adds it as fixed --env entries in the spawned container's argv, deliberately kept separate from the job's own security-reviewed environment_allowlist mechanism, which this must not bypass or widen. New TraceContext.as_env() reshapes the same non-empty header values into env-var names (AIOS_TRACE_REQUEST_ID, etc.) for the subprocess hop, distinct from headers() used for the HTTP hop. Still missing, honestly: this sandbox has no live Docker daemon (confirmed via docker ps failing), so the full chain is proven correct at each hop via injected fakes/spies (matching this file's own established process_runner override pattern), not via one real end-to-end run through an actual spawned container -- that live confirmation is the same category of gap organ 40 named and later closed once CI's own Docker-enabled runner ran it, not something this sandbox can produce on its own."
+    "live_evidence": [
+      {
+        "description": "tests/test_executor_integration.py::test_trace_context_reaches_the_isolated_container (added in PR #166, commit bf81221) asserts AIOS_TRACE_REQUEST_ID/AIOS_TRACE_MISSION_ID env vars are genuinely present inside a real Docker-spawned container (StructuredExecutorClient -> executor_service.py -> DockerRunner -> container), closing the one gap known_blockers named (no live Docker daemon in this dev sandbox). CI run 30280348926 on commit ec6b089d65ad75997f87b5234d34f02dffc3e3b5 (this ledger entry's stamped commit) RE-CONFIRMED it -- ran it twice against a real docker-compose executor topology (initial start + post-restart), both '4 passed, 1 warning' -- ec6b089 did not introduce this test, it only re-proved it; see .github/workflows/ci.yml's release-authority job.",
+        "commit_sha": "ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
     "requires_live_evidence": false
   },
   {

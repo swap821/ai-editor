@@ -279,6 +279,55 @@ future green flips, not a retroactive audit of the 5 survivors above (that
 audit is Phase 4's own job, not Phase 0's); no `requires_live_evidence`
 values changed in this commit.
 
+**Decision B correction (2026-07-28, discovered while banking organ 52's
+evidence in Phase 1):** `requires_live_evidence=true` is more expensive than
+Decision B's wording above implies. `validate_ledger()`'s existing rule
+(predating Decision A/B) rejects live evidence whose `commit_sha` does not
+equal the *exact commit currently under evaluation* -- unconditionally,
+every time the ledger is checked, not only at strict-release time. Setting
+it `true` therefore asserts "this organ's live proof is current as of THIS
+commit" continuously, which requires re-running the proof and re-stamping
+the ledger on every single commit that moves `current_sha` forward -- CI
+automation that does not exist for any organ today. Organ 40 (checked while
+it was still green, pre-Decision-A) already discovered this the honest way:
+it carries two genuine, real Docker-CI live-evidence entries and still
+keeps `requires_live_evidence=false`, because turning it `true` without
+that automation would fail every future commit's ordinary (non-strict) CI
+run, not just re-flag the one organ. **Corrected policy:** record real live
+evidence when it's genuinely earned (Decision B's spirit is intact), but
+leave `requires_live_evidence=false` until a CI step exists that re-proves
+and re-stamps it every commit -- that automation is real, separate,
+unbuilt work (a natural Phase 4/5 item), not something to fake by flipping
+a flag with no mechanism behind it.
+
+## Green organs flipped in Phase 1 of the proof plan (2026-07-28)
+
+| # | Organ | Authority owner | Entry point | Tests |
+|---|-------|------------------|-------------|-------|
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `aios/application/observability/authority.py` (added to `production_entrypoints`; the class already existed from PR #169/#166 but the ledger row never listed the file it lives in) | `tests/test_operations.py`; `tests/test_logging.py`, `tests/test_queen_service.py`, `tests/test_executor_service.py`, `tests/test_executor_client.py`, `tests/test_executor_integration.py` |
+
+**Organ 52 note:** this organ's one remaining named blocker (no live Docker
+daemon in this dev sandbox, so Docker-executor-boundary trace propagation
+was only proven locally via injected fakes/spies) was already closed by CI,
+just never banked. `tests/test_executor_integration.py::
+test_trace_context_reaches_the_isolated_container` (added in PR #166,
+commit `bf81221`) asserts `AIOS_TRACE_REQUEST_ID`/`AIOS_TRACE_MISSION_ID`
+env vars are genuinely present inside a real Docker-spawned container. CI
+run [30280348926](https://github.com/swap821/ai-editor/actions/runs/30280348926)
+on commit `ec6b089` **re-confirmed** it (this commit did not introduce the
+test -- an independent adversarial re-check caught that this exact
+distinction matters and confirmed the ledger's evidence wording already
+gets it right) by running it twice against a real `docker-compose`
+executor topology (initial start + post-restart, the same
+restart-resilience pattern organ 40 established) -- both `4 passed, 1
+warning` -- confirmed directly from the CI log, not from the job name.
+`production_entrypoints`
+was also missing the file the real owner class lives in
+(`aios/application/observability/authority.py`, built in PR #169/#166)
+-- a pure ledger bookkeeping gap, not a code gap. `requires_live_evidence`
+stays `false` per the Decision B correction above. Counts: 6 green / 48
+yellow.
+
 ## Green organs (5) — established prior to Slice 25 (17 regressed under Decision A, 2026-07-27 — see the Yellow organs table)
 
 | # | Organ | Authority owner | Entry point | Tests |
@@ -388,9 +437,10 @@ nothing on a mission's execution path re-checks identity mid-flight, so
 degrading the identity store only blocks the resolution of a NEW `Principal`
 (and therefore new capability issuance), never an already-running mission.
 
-## Yellow organs (49)
+## Yellow organs (48)
 
-The original 16 (Slices 26-40 completion target) plus 33 regressed under
+The original 16 (Slices 26-40 completion target, minus organ 52 flipped
+green in Phase 1, 2026-07-28 — see above) plus 33 regressed under
 Decision A (2026-07-27) — see the two green-organ sections above.
 
 | # | Organ | Authority owner | Slice | Truthful blocker |
@@ -442,7 +492,6 @@ Decision A (2026-07-27) — see the two green-organ sections above.
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | 41 | **Tier 4 update + this pass:** `MissionTransitionJournal` wiring is real for the Council pipeline (`CouncilOrchestrator` appends all 11 real states at their genuine points), proven end to end with a real mission run asserting the exact ordered history. This pass closes the exact prerequisite the prior update named: `MissionService.request_approval_direct()` (using the pre-existing but previously-unused `DIRECT_REQUEST_APPROVAL` transition) plus a real `POST /api/v1/maintenance/repairs/{mission_id}/approve` route let a maintenance mission reach `APPROVED` through a real, privileged-operator-gated HTTP call -- `test_maintenance_api.py`'s own end-to-end test now uses this route instead of an in-process `MissionService.approve()` bypass. Also fixed a real, previously-latent bug found while wiring this: three maintenance routes checked `if record is None` against a repository method that raises `MissionNotFoundError` instead, so an unknown mission_id was an uncaught 500, not the intended 404. Still missing: `MissionTransitionJournal` itself is not yet wired into `MaintenanceConvergenceService.run_approved_repair()` the way it is into `CouncilOrchestrator` -- now genuinely unblocked, but not attempted in the same pass as its own prerequisite. |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | 36 | Checked realistically: the golden cohort (12 live governed missions, 2 real cloud providers, hours of wall-clock execution) is not achievable or appropriate to run autonomously in this pass -- recorded as not attempted, not faked. The individual mechanisms it would exercise are real and unit-tested (organ 43). |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | 38 | **Tier 4 follow-on:** the 9 named adversarial simulations are no longer a caller-trusted catalog. `adversarial_simulations.run_adversarial_simulations()` runs every one for real against a proposal's own text plus a live probe of the production mechanism each check protects (`CapabilityAuthority` against an ephemeral store for `approval_bypass`/`capability_replay`, `EmergencyStopController` against an ephemeral latch for `emergency_stop_interference`/`model_self_protection`, `PrivacyBroker` for `privacy_widening`, `rollback_amendment` for `reduced_human_reversibility`, `CorrectionRecordV1`'s pinned `grants_authority=Literal[False]` for `memory_as_truth_confusion`, the failover layer's provider classes for `provider_lock_in`, `assert_never_reduces_human_authority` for `authority_escalation`) -- every probe is read-only or runs against a throwaway fixture, never the live system's persisted state, since a text proposal must never be applied to a live system to "test" it. `POST .../lessons/check-simulations` now takes a `proposal_id`, looks it up, and runs the real checks itself; a caller can no longer assert a passing result it never earned. Still yellow, honestly: this is a real automated floor, not a full human red-team exercise. |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | 40 | **Tier 4 update (2 of 3 pieces closed) + this pass (3 of 3):** `aios/api/main.py`'s HTTP middleware wiring plus `QueenService._drain_loop()`'s per-mission `TraceContext` binding closed the in-process half. This pass closes the Docker executor boundary: `StructuredExecutorClient.execute()` now sends `get_trace_context().headers()` into the executor service's HTTP request; `aios/executor_service.py`'s `execute_job()` reads them and binds a `TraceContext` for the job's dispatch; `aios.core.executor.DockerRunner.__call__` (the `subprocess.Popen` boundary previously named) reads `get_trace_context()` and adds it as fixed `--env` entries in the spawned container's argv, kept deliberately separate from the job's own security-reviewed `environment_allowlist` so as not to bypass or widen it. New `TraceContext.as_env()` reshapes the same header values for the subprocess hop. Still missing, honestly: this sandbox has no live Docker daemon, so the full chain is proven correct at each hop via injected fakes/spies, not one real end-to-end run through an actual spawned container -- the same category of gap organ 40 closed only once CI's own Docker-enabled runner supplied live evidence. |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | 40 | **Tier 5 update (operator-authorized, grace-period-overlap design confirmed):** key rotation and a bounded grace period are now real. New `ApiTokenAuthority` issues a fresh API bearer token via `POST /api/v1/security/api-token/rotate`; the token it supersedes keeps working for a caller-chosen grace period (default 3600s) so an already-running client isn't broken instantly, then stops validating once the window elapses -- proven with a fake-clock unit test. `config.API_TOKEN` stays unconditionally valid exactly as before (the operator retires it the normal way, via restart with a different env var); this authority only layers rotated tokens on top, so every pre-existing token-related test and behavior is unchanged. A real regression was caught and fixed before shipping: an early draft cached `config.API_TOKEN`'s value inside the long-lived authority singleton at first construction, so a test elsewhere that temporarily reassigns it would permanently poison every later test in the same process -- caught by real adversarial-suite failures, not a test written for this change; fixed by making the authority stateless with respect to that value. Still missing: "truthful Ollama-absence handling," the other named half of this organ's original blocker, has no further specification anywhere in the repo and is an unrelated concern (local-model availability reporting, not credential rotation) -- not investigated here. |
 
 ## How this ledger is enforced

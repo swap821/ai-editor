@@ -9,6 +9,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -345,3 +346,36 @@ jobs:
           path: |
             sbom.cdx.json
             license-report.json
+
+  release-strict-gate:
+    # Organ 23's own job (Release Conformance), not every ordinary commit's:
+    # `--strict-release` requires every green organ's `last_verified_sha` to
+    # equal the exact commit under test, which most commits legitimately
+    # don't re-stamp (see verify_organ_contracts.py's own docstring). Wiring
+    # this into the push/pull_request triggers above would fail on every
+    # commit that doesn't re-verify every green organ today -- exactly the
+    # rule this job exists NOT to be. Manual `workflow_dispatch` instead:
+    # run this deliberately, immediately before cutting a real release, so a
+    # stale `last_verified_sha` is caught by CI rather than trusted by eye.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install release tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Strict release-gate check (organ 23)
+        run: |
+          python scripts/build_release_manifest.py --check
+          python scripts/verify_organ_contracts.py --strict-release
