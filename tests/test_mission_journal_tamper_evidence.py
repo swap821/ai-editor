@@ -211,7 +211,9 @@ def test_the_chain_spans_missions(tmp_path: Path) -> None:
     assert journal.verify_chain().verified == 6
 
     with _raw(journal) as conn:
-        conn.execute("DELETE FROM mission_execution_transitions WHERE mission_id = ?", ("m-1",))
+        conn.execute(
+            "DELETE FROM mission_execution_transitions WHERE mission_id = ?", ("m-1",)
+        )
         conn.commit()
 
     with pytest.raises(JournalTamperedError, match="chain broken"):
