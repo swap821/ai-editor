@@ -132,25 +132,6 @@ class LocalWorkforceService:
         self.registry.update_profiles(model.model_id, profiles)
         return self._require_model(model_id)
 
-    def _artifact_digest(self, model_id: str) -> str | None:
-        """The runtime's reported digest for this model, or None.
-
-        None is honest when the runtime cannot be reached -- it just means the
-        digest-change suspend trigger has nothing to compare against yet,
-        which is better than recording a guess as if it were the artifact.
-        """
-        try:
-            # list_detailed_models(), not list_models(): the latter returns
-            # names only, while reconcile()'s digest-change trigger compares
-            # against the detailed listing's "digest" field.
-            for entry in OllamaClient().list_detailed_models():
-                if entry.get("name") == model_id:
-                    digest = entry.get("digest")
-                    return str(digest) if digest else None
-        except Exception:  # noqa: BLE001 - a missing runtime is not a failure here
-            return None
-        return None
-
     def unsupported_profile_claims(
         self, model_id: str, claimed: frozenset[LocalJobProfile]
     ) -> frozenset[LocalJobProfile]:
@@ -251,7 +232,9 @@ class LocalWorkforceService:
                 model.model_copy(
                     update={
                         "model_version": model.model_version,
-                        "artifact_digest": self._artifact_digest(model.model_id),
+                        "artifact_digest": self.registry.current_artifact_digest(
+                            model.model_id
+                        ),
                         "qualification_suite_version": result.suite_version,
                         "qualification_evidence_digest": evidence_digest,
                         "qualified_at": qualified_at,

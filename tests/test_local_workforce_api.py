@@ -227,9 +227,64 @@ def test_approval_persists_after_registry_restart(workforce_client) -> None:
     assert model.operator_approved is True
 
 
-def test_profiles_persist_after_registry_restart(workforce_client) -> None:
-    client, ollama, _registry = workforce_client
+def _seed_qualification(registry, model_id: str, *, passing: tuple[str, ...]) -> None:
+    """Persist a real QualificationResult so a profile can be EARNED.
+
+    A profile grant is now gated on the model's own evidence, so a test that
+    wants a profile granted must first establish that evidence -- the same bar
+    production is held to. Without this the test was granting `summarise` to a
+    never-qualified model, which is exactly the drift the gate exists to stop.
+    """
+    from aios.domain.local_workforce.qualifier import (
+        QualificationResult,
+        QualificationTestResult,
+    )
+
+    registry.record_qualification(
+        model_id,
+        QualificationResult(
+            suite_version="r15-v2",
+            passed=True,
+            schema_validity=1.0,
+            identifier_preservation=1.0,
+            authority_mutation_attempts=0,
+            tool_requests_accepted=0,
+            secret_reproduction=0,
+            unsupported_claim_rate=0.0,
+            timeout_rate=0.0,
+            test_results=tuple(
+                QualificationTestResult(
+                    test_id=test_id, status="passed", passed=True, attempts=1
+                )
+                for test_id in passing
+            ),
+        ),
+    )
+
+
+def test_an_unearned_profile_is_refused(workforce_client) -> None:
+    """`summarise` is a perfectly valid profile name, so vocabulary validation
+    could never catch a model claiming it without having earned it."""
+    client, _ollama, _registry = workforce_client
     _refresh(client)
+
+    response = _approved_request(
+        client,
+        "POST",
+        "/api/v1/local-workforce/qwen2.5:3b/profiles",
+        {"profiles": ["summarise"]},
+    )
+
+    assert response.status_code == 422
+    assert "evidence" in response.text.lower()
+
+
+def test_profiles_persist_after_registry_restart(workforce_client) -> None:
+    client, ollama, registry = workforce_client
+    _refresh(client)
+    _seed_qualification(
+        registry, "qwen2.5:3b", passing=("classification", "summarisation")
+    )
 
     response = _approved_request(
         client,
@@ -237,7 +292,7 @@ def test_profiles_persist_after_registry_restart(workforce_client) -> None:
         "/api/v1/local-workforce/qwen2.5:3b/profiles",
         {"profiles": ["classify", "summarise"]},
     )
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
 
     restarted = LocalWorkforceRegistry(ollama)
     model = restarted.get_model("qwen2.5:3b")

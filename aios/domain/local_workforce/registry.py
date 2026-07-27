@@ -267,6 +267,23 @@ class LocalWorkforceRegistry:
             )
             conn.commit()
 
+    def current_artifact_digest(self, model_id: str) -> str | None:
+        """The runtime's reported digest for `model_id`, or None.
+
+        Uses THIS registry's injected client rather than constructing a fresh
+        OllamaClient, so a test's fake is honoured and no live network call is
+        made on a test path (which also cost every qualify() test a 4s
+        connection timeout on a runner with no Ollama).
+        """
+        try:
+            for entry in self._ollama.list_detailed_models():
+                if entry.get("name") == model_id:
+                    digest = entry.get("digest")
+                    return str(digest) if digest else None
+        except Exception:  # noqa: BLE001 - a missing runtime is not a failure here
+            return None
+        return None
+
     def record_qualification(self, model_id: str, result: Any) -> None:
         """Persist the REAL QualificationResult a suite run produced.
 
