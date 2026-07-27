@@ -1081,7 +1081,7 @@
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1101,7 +1101,7 @@
   {
     "organ_id": 49,
     "name": "Approval and Decision Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ApprovalDecisionSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -1121,7 +1121,7 @@
   {
     "organ_id": 50,
     "name": "Provenance and Explanation Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
     "production_entrypoints": [
       "aios/memory/development.py",
@@ -1158,7 +1158,7 @@
   {
     "organ_id": 51,
     "name": "Sovereign Control and Heartbeat Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SovereignHeartbeatSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",

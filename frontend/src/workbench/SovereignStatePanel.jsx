@@ -12,6 +12,7 @@
  * styled entirely with existing council-dashboard classes — no new palette.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { fromEnvelope, displayValue } from '../types/measuredState';
 import { AlertTriangle, Cloud, FileText, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   approveFactProposal,
@@ -95,8 +96,19 @@ function repoMapSummary(surface) {
  * real value when measured, an honest "unavailable" when not -- never a
  * silently-guessed default. */
 function envelopeText(envelope, formatValue = (v) => String(v)) {
-  if (!envelope || envelope.status !== 'measured') return 'unavailable';
-  return formatValue(envelope.value);
+  return displayValue(fromEnvelope(envelope), 'unavailable', formatValue);
+}
+
+function getStopBadgeClass(engagedState) {
+  if (engagedState._status === 'loading') return 'warn is-pulsing';
+  if (engagedState._status !== 'measured') return 'warn';
+  return engagedState.value ? 'danger' : 'ok';
+}
+
+function getStopBadgeText(engagedState) {
+  if (engagedState._status === 'loading') return 'reconnecting...';
+  if (engagedState._status !== 'measured') return 'unavailable';
+  return engagedState.value ? 'STOPPED' : 'operational';
 }
 
 export default function SovereignStatePanel() {
@@ -294,8 +306,11 @@ export default function SovereignStatePanel() {
           <section className="council-dashboard__section" aria-label="Constitution and emergency stop, measured">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Constitution &amp; Emergency Stop
-              <span className={`council-dashboard__badge is-${governance?.emergencyStop?.engaged?.value ? 'danger' : 'ok'}`}>
-                {governance?.emergencyStop?.engaged?.value ? 'STOPPED' : 'operational'}
+              <span 
+                className={`council-dashboard__badge is-${getStopBadgeClass(fromEnvelope(governance?.emergencyStop?.engaged))}`}
+                data-testid="emergency-stop-badge"
+              >
+                {getStopBadgeText(fromEnvelope(governance?.emergencyStop?.engaged))}
               </span>
             </h3>
             <p className="council-dashboard__muted">

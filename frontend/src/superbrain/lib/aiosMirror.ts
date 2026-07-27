@@ -37,6 +37,8 @@ async function refreshMirrorSnapshot(): Promise<void> {
 export async function startMirrorClient(): Promise<void> {
   if (mirrorEventSource) return;
 
+  useMirrorStore.getState().setConnection('connecting');
+
   let lastEventId: number | null = null;
   try {
     const response = await fetch(`${AIOS_BASE}/api/v1/mirror/snapshot`);
@@ -59,8 +61,15 @@ export async function startMirrorClient(): Promise<void> {
   const source = new EventSource(streamUrl);
   mirrorEventSource = source;
 
-  source.onopen = () => useMirrorStore.getState().setStatus('online');
-  source.onerror = () => useMirrorStore.getState().setStatus('offline');
+  source.onopen = () => {
+    useMirrorStore.getState().setStatus('online');
+    useMirrorStore.getState().setConnection('connected');
+  };
+  source.onerror = () => {
+    useMirrorStore.getState().setStatus('offline');
+    // EventSource automatically reconnects on error, so we indicate it's trying to reconnect
+    useMirrorStore.getState().setConnection('connecting');
+  };
   source.addEventListener('snapshot_required', (rawEvent: Event) => {
     const event = rawEvent as MessageEvent<string>;
     const detail = readJsonRecord(event.data ?? '');
@@ -104,4 +113,5 @@ export function stopMirrorClient(): void {
   mirrorEventSource.close();
   mirrorEventSource = null;
   useMirrorStore.getState().setStatus('offline');
+  useMirrorStore.getState().setConnection('disconnected');
 }

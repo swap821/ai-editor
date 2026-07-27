@@ -422,4 +422,64 @@ describe('CouncilDashboard sovereignty views', () => {
       expect(JSON.parse(call!.body)).toMatchObject({ resolvedBy: 'operator' });
     });
   });
+
+  it('renders honest states (reconnecting/unavailable) when governance data is missing or loading', async () => {
+    // Override the mock to return null for governance to simulate disconnected/loading state
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const u = String(url);
+        let payload: any = {};
+        if (u.includes('/mirror/governance')) payload = null; // simulate failed/empty response
+        return { ok: true, status: 200, json: async () => payload } as unknown as Response;
+      })
+    );
+    
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    
+    // We expect the emergency stop badge to show "reconnecting..." because governance is null (loading/disconnected)
+    expect(await screen.findByTestId('emergency-stop-badge')).toHaveTextContent('reconnecting...');
+    expect(screen.getByTestId('emergency-stop-badge')).toHaveClass('is-pulsing');
+  });
+
+  it('renders honest state for Approval and Decision Surface when data is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const u = String(url);
+        let payload: any = {};
+        if (u.includes('/mirror/governance')) {
+          payload = { approvals: [{ requested_action: { value: null, status: 'unavailable', source: 'test' } }] };
+        }
+        return { ok: true, status: 200, json: async () => payload } as unknown as Response;
+      })
+    );
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    
+    // Approval surface should show 'unavailable' instead of making up a default
+    expect(await screen.findByText(/Pending Approvals/)).toBeInTheDocument();
+    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+  });
+
+  it('renders honest state for Provenance and Explanation Surface when data is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const u = String(url);
+        let payload: any = {};
+        if (u.includes('/mirror/governance')) {
+          payload = { privacyAudits: [{ provider: { value: null, status: 'unavailable', source: 'test' } }] };
+        }
+        return { ok: true, status: 200, json: async () => payload } as unknown as Response;
+      })
+    );
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));
+    
+    // Provenance surface should show 'unavailable'
+    expect(await screen.findByText(/Provenance & Explanation/)).toBeInTheDocument();
+    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+  });
 });
