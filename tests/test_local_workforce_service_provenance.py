@@ -60,7 +60,9 @@ def _service_with(
     *, raw_output: str, provenance_store: LocalWorkforceProvenanceStore | None
 ) -> LocalWorkforceService:
     registry = MagicMock(spec=LocalWorkforceRegistry)
-    registry.list_models.return_value = [_admitted_model()]
+    admitted = _admitted_model()
+    registry.list_models.return_value = [admitted]
+    registry.get_model.return_value = admitted
     llm = MagicMock()
     llm.complete.return_value = raw_output
     return LocalWorkforceService(

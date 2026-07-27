@@ -10,7 +10,9 @@ from aios.domain.local_workforce.contracts import LocalJobProfile
 from aios.domain.local_workforce.qualifier import QualificationResult
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-LIVE_EVIDENCE_PATH = REPO_ROOT / "release" / "slice32" / "granite-qualification-live.json"
+LIVE_EVIDENCE_PATH = (
+    REPO_ROOT / "release" / "slice32" / "granite-qualification-live.json"
+)
 
 
 def _qualification(**overrides: object) -> QualificationResult:
@@ -66,9 +68,7 @@ def test_deterministic_code_always_wins_first() -> None:
 
 
 def test_no_admitted_local_model_results_in_frontier_escalation() -> None:
-    decision = dispatch_clerical_job(
-        deterministic_available=False, qualification=None
-    )
+    decision = dispatch_clerical_job(deterministic_available=False, qualification=None)
     assert decision == "frontier_escalation"
 
 
@@ -133,4 +133,65 @@ def test_live_qualification_evidence_file_is_honest_not_cherry_picked() -> None:
     # better than the recorded runs.
     assert payload["summary"]["runs_passed_16_of_16"] == sum(
         1 for run in runs if run["passed"]
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Organ 36: the production call site must not fabricate a qualification.
+#
+# service.py built a QualificationResult with passed=True, schema_validity=1.0
+# and secret_reproduction=0 out of nothing, on the grounds that admission_status
+# was already "approved". Combined with the sole production caller passing
+# neither deterministic_available nor confidence, EVERY branch below collapsed
+# to "local_clerk" -- the dispatcher's one real protection was unreachable.
+# --------------------------------------------------------------------------- #
+
+
+def test_an_unqualified_model_escalates_rather_than_being_trusted() -> None:
+    """None is what the registry returns for a model that has never been
+    qualified. It must escalate, not proceed."""
+    assert (
+        dispatch_clerical_job(deterministic_available=False, qualification=None)
+        == "frontier_escalation"
+    )
+
+
+def test_a_failing_qualification_escalates_even_with_high_confidence() -> None:
+    from aios.domain.local_workforce.qualifier import QualificationResult
+
+    failed = QualificationResult(
+        suite_version="v1",
+        passed=False,
+        schema_validity=0.2,
+        identifier_preservation=0.3,
+        authority_mutation_attempts=2,
+        tool_requests_accepted=1,
+        secret_reproduction=1,
+        unsupported_claim_rate=0.5,
+        timeout_rate=0.4,
+    )
+
+    assert (
+        dispatch_clerical_job(
+            deterministic_available=False, qualification=failed, confidence=0.99
+        )
+        == "frontier_escalation"
+    )
+
+
+def test_the_service_reads_a_persisted_qualification_and_never_invents_one() -> None:
+    """Guards the specific regression: the call site must consult the registry
+    rather than constructing a QualificationResult itself."""
+    import inspect
+
+    from aios.application.local_workforce import service as service_module
+
+    source = inspect.getsource(service_module)
+
+    assert "get_qualification(" in source, (
+        "the service must read the persisted qualification from the registry"
+    )
+    assert "QualificationResult(" not in source, (
+        "the service must never construct a QualificationResult -- that is how "
+        "a perfect one got fabricated for every admitted model"
     )
