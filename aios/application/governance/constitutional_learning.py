@@ -154,7 +154,75 @@ def require_all_simulations_pass(results: Sequence[SimulationCheckResult]) -> No
         raise ConstitutionalLearningError(f"failed adversarial simulations: {failed}")
 
 
+class ConstitutionalLearningAuthority:
+    """Organ 46's named owner: one authority over what GAGOS may learn.
+
+    The ledger has always named `ConstitutionalLearningAuthority` as this
+    organ's authority owner, and no such class existed -- the pipeline was a
+    set of free functions, so nothing owned the invariant that ties them
+    together.
+
+    That invariant is the point of the organ: a lesson may become an amendment
+    proposal ONLY after every one of the nine adversarial simulations has been
+    run for real and passed. Keeping `run` and `require` as separate free
+    functions made it possible for a caller to run the checks and then simply
+    not consult them. `screen_proposal()` closes that by doing both, so
+    refusing is the default rather than a step a caller must remember.
+
+    Deliberately NOT an amendment-ratification authority: passing these checks
+    permits a proposal to be *considered*, never to activate. Ratification
+    stays with organ 45 behind a human decision.
+    """
+
+    def propose_lesson(self, **kwargs: Any) -> GovernanceLessonV1:
+        return propose_lesson(**kwargs)
+
+    def assert_never_reduces_human_authority(self, text: str) -> None:
+        """The one rule this organ exists to serve."""
+        assert_never_reduces_human_authority(text)
+
+    def run_simulations(
+        self, proposal: ConstitutionalAmendmentProposalV1
+    ) -> tuple[SimulationCheckResult, ...]:
+        """Run all nine checks for real against `proposal`.
+
+        Imported lazily: `adversarial_simulations` probes live production
+        mechanisms and importing it at module scope would create an import
+        cycle back through this module.
+        """
+        from aios.application.governance.adversarial_simulations import (
+            run_adversarial_simulations,
+        )
+
+        return tuple(run_adversarial_simulations(proposal))
+
+    def require_all_simulations_pass(
+        self, results: Sequence[SimulationCheckResult]
+    ) -> None:
+        require_all_simulations_pass(results)
+
+    def screen_proposal(
+        self, proposal: ConstitutionalAmendmentProposalV1
+    ) -> tuple[SimulationCheckResult, ...]:
+        """Run every check and refuse unless all nine pass.
+
+        Returns the full per-check breakdown on success so a caller can show
+        an operator what was actually proven, rather than a bare boolean.
+        Raises `ConstitutionalLearningError` otherwise -- a missing check is
+        treated exactly like a failed one.
+        """
+        results = self.run_simulations(proposal)
+        self.require_all_simulations_pass(results)
+        return results
+
+    def lesson_to_amendment_proposal(
+        self, lesson: GovernanceLessonV1, **kwargs: Any
+    ) -> tuple[GovernanceLessonV1, ConstitutionalAmendmentProposalV1]:
+        return lesson_to_amendment_proposal(lesson, **kwargs)
+
+
 __all__ = [
+    "ConstitutionalLearningAuthority",
     "ConstitutionalLearningError",
     "assert_never_reduces_human_authority",
     "lesson_to_amendment_proposal",

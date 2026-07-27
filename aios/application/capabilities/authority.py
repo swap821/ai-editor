@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import time
 import uuid
@@ -51,6 +52,39 @@ _RESOURCE_METADATA_KEYS = frozenset(
     }
 )
 
+#: A git object id: exactly 40 lowercase hex characters.
+_GIT_OBJECT_ID = re.compile(r"[0-9a-f]{40}")
+
+#: Findings tolerated on bound resource metadata whose value is a git object
+#: id -- in addition to HIGH_ENTROPY, which is tolerated on all such metadata.
+#:
+#: WHY: `snapshot_id` on the Council rollback path is a git commit sha. The
+#: scanner's AWS_SECRET_KEY rule is a deliberately broad catch-all --
+#: `\b[A-Za-z0-9/+=]{40}\b` -- gated on an AWS keyword appearing within 100
+#: characters. A lone 40-char sha IS that whole window, and exactly one of the
+#: gate's keywords is spellable in hex: "ec2" (e, c, 2). So a sha that happens
+#: to contain "ec2" opens the gate and then matches the catch-all, and the
+#: rollback is refused with a credential warning about a plain commit id.
+#:
+#: Measured, not estimated: 1925 of 200000 random 40-hex shas contain "ec2"
+#: (0.96%, ~1 run in 104). That is the intermittent failure previously
+#: recorded as an "order-dependent flake" -- it is neither order- nor
+#: platform-dependent, just a ~1% dice roll on the sha.
+#:
+#: Why this is narrow rather than a weakened guard: it applies only to keys
+#: already in `_RESOURCE_METADATA_KEYS` (bound into the capability and
+#: resource digests), only to the exact 40-lowercase-hex shape, and only to
+#: the unlabelled catch-all -- never to a specific provider pattern. Those
+#: fields already tolerate HIGH_ENTROPY by design, so opaque high-entropy ids
+#: were always permitted here; a real AWS secret access key uses the full
+#: mixed-case base64 alphabet and is not all-lowercase-hex.
+#:
+#: The scanner itself is untouched: aios/security/secret_scanner.py is FROZEN
+#: CORE (AGENTS.md SXI), and its behaviour is correct for its own contract --
+#: the false positive belongs to this call site, which knows the value is a
+#: commit id and the scanner does not.
+_GIT_ID_TOLERATED_FINDINGS = frozenset({"AWS_SECRET_KEY"})
+
 
 def _action_payload_secret_findings(payload: dict[str, Any]) -> tuple[str, ...]:
     """Findings that make this payload look credential-bearing, or ``()``.
@@ -82,11 +116,17 @@ def _action_payload_secret_findings(payload: dict[str, Any]) -> tuple[str, ...]:
             metadata_scan = scan_and_redact(value)
             # HIGH_ENTROPY is tolerated on bound resource metadata: ids, paths
             # and digests are legitimately high-entropy. A NAMED credential
-            # pattern is not tolerated even here.
+            # pattern is not tolerated even here -- except the unlabelled
+            # AWS_SECRET_KEY catch-all on a value that is exactly a git object
+            # id, which is a commit sha and not a credential. See
+            # _GIT_ID_TOLERATED_FINDINGS for why that is narrow.
+            tolerated = {"HIGH_ENTROPY"}
+            if _GIT_OBJECT_ID.fullmatch(value):
+                tolerated |= _GIT_ID_TOLERATED_FINDINGS
             findings.extend(
                 f"{key}:{finding}"
                 for finding in metadata_scan.findings
-                if finding != "HIGH_ENTROPY"
+                if finding not in tolerated
             )
             return "<bound-resource-metadata>"
         return value

@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 
 export interface CortexMirrorState {
   status: 'offline' | 'online' | 'stale';
+  connection: 'disconnected' | 'connecting' | 'connected';
   pendingEvents: number;
   phase: string;
   activeCastes: string[];
@@ -25,6 +26,7 @@ export interface CortexMirrorState {
   bootFacts: Record<string, unknown> | null;
   // Reducers
   setStatus: (status: 'offline' | 'online' | 'stale') => void;
+  setConnection: (connection: 'disconnected' | 'connecting' | 'connected') => void;
   setAnnouncement: (announcement: string | null) => void;
   setSnapshotRequired: (reason?: string) => void;
   setSnapshot: (data: Record<string, unknown>) => void;
@@ -34,6 +36,7 @@ export interface CortexMirrorState {
 export const useMirrorStore = create<CortexMirrorState>()(
   subscribeWithSelector((set) => ({
     status: 'offline',
+    connection: 'disconnected',
     pendingEvents: 0,
     phase: 'idle',
     activeCastes: [],
@@ -49,6 +52,7 @@ export const useMirrorStore = create<CortexMirrorState>()(
     bootFacts: null,
 
     setStatus: (status) => set({ status }),
+    setConnection: (connection) => set({ connection }),
     setAnnouncement: (lastAnnouncement) => set({ lastAnnouncement }),
     setSnapshotRequired: (reason) => set({
       status: 'stale',

@@ -286,6 +286,16 @@
   border-color: rgba(248, 113, 113, 0.3);
 }
 
+.council-dashboard__badge.is-pulsing {
+  animation: council-badge-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes council-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+
 .council-dashboard__badge.is-danger,
 .council-dashboard__verdict.is-danger {
   box-shadow: 0 0 18px rgba(248, 113, 113, 0.18);
