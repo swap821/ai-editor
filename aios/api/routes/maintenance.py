@@ -296,6 +296,11 @@ def approve_repair_mission(
     except MissionTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    # Organ 42: only after the mission has genuinely reached APPROVED through
+    # this privileged-operator ceremony. Best-effort inside the service, so a
+    # journal failure cannot fail an approval the operator actually made.
+    service.record_mission_approved(mission_id)
+
     return {
         "mission_id": approved.mission_id,
         "state": approved.state.value,

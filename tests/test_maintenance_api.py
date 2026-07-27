@@ -42,6 +42,10 @@ from aios.domain.maintenance.scan_repository import MaintenanceScanRepository
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from aios.infrastructure.missions.transition_journal_store import (
+    MissionTransitionError,
+    MissionTransitionJournal,
+)
 from tests.helpers import executor_repair_result
 
 _NO_AUTO = {"X-AIOS-No-Auto-Capability": "1"}
@@ -135,6 +139,9 @@ def maintenance_env(
         ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
+        # Organ 42. Additive and best-effort, so every other test in this
+        # module is unaffected; reachable as `service.mission_journal`.
+        mission_journal=MissionTransitionJournal(tmp_path / "journal.db"),
     )
     worker.workspace_manager = workspace
 
@@ -394,6 +401,113 @@ def test_governed_maintenance_flow_end_to_end(maintenance_env) -> None:
     # 8. Check finding status → VERIFIED_RESOLVED
     updated_finding = service.finding_repository.get(fingerprint)
     assert updated_finding.status == "VERIFIED_RESOLVED"
+
+
+# ---------------------------------------------------------------------------
+# Organ 42: the maintenance path leaves real resumption evidence
+# ---------------------------------------------------------------------------
+
+
+def test_a_maintenance_repair_leaves_an_ordered_transition_journal(
+    maintenance_env,
+) -> None:
+    """A governed scan -> create -> approve -> run must leave a genuine,
+    durable, correctly-ordered MissionTransitionJournal record behind.
+
+    Mirrors the bar `test_council_orchestrator.py` already sets for the
+    Council path. Before this the maintenance pipeline -- the one most exposed
+    to crashing mid-repair, since it spawns a real executor container -- wrote
+    nothing at all, so a crash left no evidence of how far it had got.
+    """
+    client, service, _stop, _project = maintenance_env
+
+    scan_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/scans",
+        {"scanner_id": "admitted-scanner", "target_id": "bug.txt"},
+    )
+    assert scan_resp.status_code == 200
+    fingerprint = service.finding_repository.list_findings()[0].fingerprint
+
+    create_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/repairs/missions",
+        {"finding_fingerprint": fingerprint, "operator_id": "op-journal-1"},
+    )
+    assert create_resp.status_code == 200
+    mission = create_resp.json()
+    mission_id = mission["mission_id"]
+
+    journal = service.mission_journal
+    # Recorded at creation, not at run time. This is the transition the whole
+    # journal depends on: the store refuses any other first transition, so
+    # without it every later append would raise, be swallowed as best-effort,
+    # and leave this journal permanently empty while looking fully wired.
+    assert journal.current_state(mission_id) == "MISSION_CREATED"
+
+    approve_resp = _approved_post(
+        client,
+        f"/api/v1/maintenance/repairs/{mission_id}/approve",
+        {"contract_digest": mission["contract_digest"]},
+    )
+    assert approve_resp.status_code == 200, approve_resp.text
+    assert journal.current_state(mission_id) == "APPROVED"
+
+    run_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/repairs/run",
+        {"mission_id": mission_id},
+    )
+    assert run_resp.status_code == 200, run_resp.text
+    assert run_resp.json()["status"] == "VERIFIED_RESOLVED"
+
+    recorded = [entry.transition for entry in journal.history(mission_id)]
+    assert recorded == [
+        "MISSION_CREATED",
+        "APPROVED",
+        "WORKSPACE_CREATED",
+        "EXECUTION_SUBMITTED",
+        "EXECUTION_COMPLETED",
+        "VERIFIED",
+        "CHECKPOINT_CREATED",
+        "PROMOTION_STARTED",
+        "PROMOTED",
+        "POST_PROMOTION_VERIFIED",
+        "COMPLETED",
+    ], recorded
+    # Sequence numbers are what a restart reads to decide how far the repair
+    # got, so a gap or repeat would silently mislead recovery.
+    assert [entry.sequence for entry in journal.history(mission_id)] == list(
+        range(len(recorded))
+    )
+    assert journal.is_terminal(mission_id) is True
+    assert mission_id not in journal.resume_pending()
+
+
+def test_the_journal_refuses_a_maintenance_repair_that_never_registered(
+    maintenance_env,
+) -> None:
+    """Pins the trap the wiring above exists to avoid.
+
+    `_journal_append` swallows failures on purpose -- the journal is additive
+    evidence, never an authority over whether a repair may run. That swallow
+    means a missing MISSION_CREATED would not surface as an error anywhere;
+    it would just produce an empty journal. This asserts the store really does
+    refuse, so the swallowed-failure path is a real hazard being guarded
+    against and not a hypothetical one.
+    """
+    _client, service, _stop, _project = maintenance_env
+    journal = service.mission_journal
+
+    with pytest.raises(MissionTransitionError, match="MISSION_CREATED"):
+        journal.append("mission-never-created", "WORKSPACE_CREATED")
+
+    # Even an escape is refused as a first transition, which is why _failed()
+    # cannot be the only journalling site on the repair path.
+    with pytest.raises(MissionTransitionError, match="MISSION_CREATED"):
+        journal.append("mission-never-created", "FAILED")
+
+    assert journal.current_state("mission-never-created") is None
 
 
 # ---------------------------------------------------------------------------

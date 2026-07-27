@@ -26,8 +26,18 @@ class MissionTransitionJournal:
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path).resolve()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
+        # `with sqlite3.Connection` is a TRANSACTION scope, not a closing
+        # scope -- it commits but never closes. Every other method here
+        # already wraps `_connect()` in `closing()`; this one did not, so
+        # constructing a journal leaked an open handle for the life of the
+        # process. On Windows an open handle blocks renaming any parent
+        # directory, which breaks the disaster-recovery restore path.
+        # `apply_migrations` does not commit -- it leaves that to its caller,
+        # which is why the commit here is explicit rather than implied by the
+        # context manager (matching `append()`'s style in this same file).
+        with closing(self._connect()) as conn:
             apply_migrations(conn, scope="missions")
+            conn.commit()
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path))

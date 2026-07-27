@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -49,6 +50,9 @@ from aios.domain.maintenance.scan_repository import (
 )
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.missions.mission_state import MissionState
+from aios.infrastructure.missions.transition_journal_store import (
+    MissionTransitionJournal,
+)
 from aios.application.workspaces.staged import tree_digest
 
 
@@ -77,6 +81,9 @@ class MaintenanceRepairResult:
     reason: str | None = None
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 class MaintenanceConvergenceService:
     """Coordinate existing canonical organs without creating maintenance ones."""
 
@@ -94,6 +101,7 @@ class MaintenanceConvergenceService:
         workspace_manager: StagedWorkspaceManager,
         lifecycle_engine: MaintenanceLifecycleEngine,
         emergency_stop: Any | None = None,
+        mission_journal: MissionTransitionJournal | None = None,
     ) -> None:
         self.finding_repository = finding_repository
         self.scan_repository = scan_repository
@@ -111,10 +119,55 @@ class MaintenanceConvergenceService:
         self.lifecycle_engine = lifecycle_engine
         self._maintenance_force = AutonomousMaintenanceForce(lifecycle_engine)
         self.emergency_stop = emergency_stop
+        #: Organ 42. Optional and best-effort, matching CouncilOrchestrator's
+        #: own convention -- the journal is additive resumption evidence, not
+        #: an authority over whether a repair may proceed.
+        self.mission_journal = mission_journal
 
     def _assert_operational(self) -> None:
         if self.emergency_stop is not None:
             self.emergency_stop.assert_operational()
+
+    def _journal_append(self, mission_id: str, transition: str) -> None:
+        """Best-effort MissionTransitionJournal append (organ 42).
+
+        Mirrors ``CouncilOrchestrator._journal_append``: a wiring/IO failure
+        here must never fail an otherwise-valid repair, because the journal is
+        additive resumption evidence rather than an authority over execution.
+
+        The swallow is deliberate but it hides a specific trap, which is why
+        ``MISSION_CREATED`` and ``APPROVED`` are journaled on this path too
+        (see ``create_repair_mission`` and ``record_mission_approved``). The
+        journal refuses any first transition that is not ``MISSION_CREATED``
+        -- including the ``FAILED``/``ROLLED_BACK`` escapes -- so journaling
+        only the steps inside ``run_approved_repair`` would make every append
+        raise, get swallowed here, and leave a permanently EMPTY journal while
+        looking fully wired.
+        """
+        if self.mission_journal is None:
+            return
+        try:
+            self.mission_journal.append(mission_id, transition)
+        except Exception as exc:  # noqa: BLE001 - journal is additive, not authority
+            _LOGGER.warning(
+                "mission_transition_journal_append_failed",
+                extra={
+                    "mission_id": mission_id,
+                    "transition": transition,
+                    "error": str(exc),
+                },
+            )
+
+    def record_mission_approved(self, mission_id: str) -> None:
+        """Journal ``APPROVED`` for a repair mission that genuinely reached
+        APPROVED through the real privileged-operator HTTP route.
+
+        Public because the approval ceremony lives in the route
+        (``POST /api/v1/maintenance/repairs/{mission_id}/approve``), which owns
+        the contract-digest and exact-capability checks; the journal stays
+        owned by this service so there is one writer for it.
+        """
+        self._journal_append(mission_id, "APPROVED")
 
     def run_scan(
         self,
@@ -205,6 +258,9 @@ class MaintenanceConvergenceService:
         self.finding_repository.save(
             self.lifecycle_engine.bind_mission(finding, record.mission_id)
         )
+        # Organ 42: the journal's mandatory first transition. Without this the
+        # whole maintenance journal stays empty -- see _journal_append.
+        self._journal_append(record.mission_id, "MISSION_CREATED")
         return record
 
     async def run_approved_repair(
@@ -262,6 +318,11 @@ class MaintenanceConvergenceService:
             lease = self.workspace_manager.for_mission(mission_id)
             if lease is None:
                 return self._failed(mission_id, finding, "staged workspace unavailable")
+            # Journaled here rather than at start_execution(): this is the
+            # first point the staged workspace is known to exist. It still
+            # precedes EXECUTION_SUBMITTED below, so the journal's strict
+            # linear order holds.
+            self._journal_append(mission_id, "WORKSPACE_CREATED")
             diff_before = self.workspace_manager.diff(lease)
 
             proposal = getattr(worker_result, "proposal", {}) or {}
@@ -280,6 +341,7 @@ class MaintenanceConvergenceService:
                 expected_digest=expected_digest,
             )
 
+            self._journal_append(mission_id, "EXECUTION_SUBMITTED")
             try:
                 executor_result = self.executor_service.execute(executor_job)
                 self._validate_executor_receipt(
@@ -336,6 +398,11 @@ class MaintenanceConvergenceService:
                         status=fail_status,
                     )
                 executor_job_id = executor_result.job_id
+                # Only after the receipt is validated and provenance checks
+                # pass -- a returned-but-rejected result is not a completed
+                # execution, and journaling it as one would make the journal
+                # disagree with the mission's own outcome.
+                self._journal_append(mission_id, "EXECUTION_COMPLETED")
 
             except IsolationUnavailable as exc:
                 msg = str(exc).lower()
@@ -424,6 +491,7 @@ class MaintenanceConvergenceService:
                     finding,
                     f"authoritative verification failed: run_status={verifier_run.status} passed={verifier_run.passed} reason={verifier_run.reason} stderr={verifier_run.stderr} stdout={verifier_run.stdout} fingerprints={verifier_run.finding_fingerprints}",
                 )
+            self._journal_append(mission_id, "VERIFIED")
             bundle = EvidenceBundle(
                 mission_id=mission_id,
                 worker_id=worker_id,
@@ -447,6 +515,20 @@ class MaintenanceConvergenceService:
                 started_at=verifier_run.started_at,
                 ended_at=verifier_run.ended_at,
             )
+
+            # Organ 42: journaled from inside the promotion callbacks so each
+            # transition is recorded exactly when the real step runs, rather
+            # than around the whole promote() call -- a checkpoint that was
+            # never reached must not appear in the journal as if it had been.
+            def _create_checkpoint_and_journal(request: Any) -> str:
+                checkpoint_id = create_checkpoint(request)
+                self._journal_append(mission_id, "CHECKPOINT_CREATED")
+                return checkpoint_id
+
+            def _apply_and_journal(request: Any) -> Any:
+                self._journal_append(mission_id, "PROMOTION_STARTED")
+                return self.workspace_manager.apply(lease)
+
             promotion = self.promotion_authority.promote(
                 self._promotion_request(
                     record=record,
@@ -460,20 +542,26 @@ class MaintenanceConvergenceService:
                     bundle=bundle,
                     consumed_capability_proof=consumed_capability_proof,
                 ),
-                create_checkpoint=create_checkpoint,
-                apply_staged_diff=lambda _request: self.workspace_manager.apply(lease),
+                create_checkpoint=_create_checkpoint_and_journal,
+                apply_staged_diff=_apply_and_journal,
                 smoke_test=smoke_test,
                 restore_checkpoint=restore_checkpoint,
                 consume_capability=capability_consumer,
                 mark_completed=None,
             )
             if promotion.status.value != "promoted":
+                # PromotionAuthority may have rolled the checkpoint back
+                # itself; ROLLED_BACK is a terminal escape, so record it
+                # instead of FAILED when that is what actually happened.
+                if promotion.status.value == "rolled_back":
+                    self._journal_append(mission_id, "ROLLED_BACK")
                 return self._failed(
                     mission_id,
                     finding,
                     ";".join(promotion.reason_codes) or "promotion failed",
                     status="PROMOTION_FAILED",
                 )
+            self._journal_append(mission_id, "PROMOTED")
             rescan = self.run_scan(
                 rescan_contract,
                 scanner,
@@ -529,12 +617,14 @@ class MaintenanceConvergenceService:
                 )
 
             # Authoritative post-promotion rescan proved resolution: NOW complete mission
+            self._journal_append(mission_id, "POST_PROMOTION_VERIFIED")
             self.mission_service.complete(
                 mission_id,
                 evidence_digest=promotion.evidence_ids[0]
                 if promotion.evidence_ids
                 else None,
             )
+            self._journal_append(mission_id, "COMPLETED")
 
             return MaintenanceRepairResult(
                 status="VERIFIED_RESOLVED",
@@ -708,6 +798,14 @@ class MaintenanceConvergenceService:
                 self.mission_service.fail(mission_id, reason=reason)
         except Exception:  # noqa: BLE001 - preserve the durable finding failure
             pass
+        # Organ 42: one funnel for every failure path in run_approved_repair,
+        # so FAILED is journaled once wherever the repair actually died.
+        # FAILED is an escape, valid from any non-terminal state -- but it is
+        # still refused as a mission's FIRST transition, which is why
+        # MISSION_CREATED is journaled at creation time. If the promotion path
+        # already recorded the terminal ROLLED_BACK, this append is refused
+        # and swallowed, leaving the truer of the two states in place.
+        self._journal_append(mission_id, "FAILED")
         failed = self.lifecycle_engine.mark_verification_failed(
             finding, mission_id, reason
         )
