@@ -267,18 +267,6 @@ def test_an_unearned_profile_is_refused(workforce_client) -> None:
     could never catch a model claiming it without having earned it."""
     client, _ollama, _registry = workforce_client
     _refresh(client)
-    _approved_request(
-        client,
-        "POST",
-        "/api/v1/local-workforce/qwen2.5:3b/approve",
-        {"approved": True},
-    )
-    _approved_request(
-        client,
-        "POST",
-        "/api/v1/local-workforce/qwen2.5:3b/qualify",
-        {},
-    )
 
     response = _approved_request(
         client,
