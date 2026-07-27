@@ -21,6 +21,7 @@ caller-asserted result.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from aios.application.governance.amendment_authority import propose_amendment
 from aios.domain.governance.amendments import ConstitutionalAmendmentProposalV1
