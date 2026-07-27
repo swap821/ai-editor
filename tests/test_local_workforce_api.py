@@ -230,6 +230,18 @@ def test_approval_persists_after_registry_restart(workforce_client) -> None:
 def test_profiles_persist_after_registry_restart(workforce_client) -> None:
     client, ollama, _registry = workforce_client
     _refresh(client)
+    _approved_request(
+        client,
+        "POST",
+        "/api/v1/local-workforce/qwen2.5:3b/approve",
+        {"approved": True},
+    )
+    _approved_request(
+        client,
+        "POST",
+        "/api/v1/local-workforce/qwen2.5:3b/qualify",
+        {},
+    )
 
     response = _approved_request(
         client,
