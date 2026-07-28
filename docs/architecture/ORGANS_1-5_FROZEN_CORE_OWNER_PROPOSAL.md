@@ -1,0 +1,133 @@
+# Organs 1-5: frozen security-spine owner classes — PROPOSAL, NOT APPLIED
+
+**Status: Observe → Analyse → Propose complete. Test → Verify → Human Review →
+Approve → Deploy are NOT done and are not this document's job.** Per
+AGENTS.md §VIII ("Any change to core architecture... follows Observe →
+Analyse → Propose → Test → Verify → Human Review → Approve → Deploy.
+Proposing is GREEN; applying is YELLOW/RED"), this document is the Propose
+step only. No file under `aios/security/` has been edited to produce it, and
+none should be edited on the strength of this document alone — that is the
+operator's own call to make, and this repo's own `SCOPE_ROOTS` restriction
+keeps an automated agent structurally unable to make it regardless.
+
+## Why these 5 and not the other 49
+
+Decision A (docs/architecture/GAGOS_54_ORGANS.md, 2026-07-27) requires every
+green organ's `authority_owner` to be a real class defined inside that
+organ's own `production_entrypoints`. Organs 6-54 (49 of 54) now satisfy
+this — mostly by renaming an already-real, already-tested, already-wired
+class or module to the ledger's exact expected name, keeping a
+backward-compat alias so nothing else breaks. That same move is not
+available here: organs 1-5's `production_entrypoints` are exactly
+`aios/security/{gateway,scope_lock,secret_scanner,audit_logger,
+injection_shield}.py` — the security spine AGENTS.md marks FROZEN, Tier
+T4 = RED. Applying the identical fix here is exactly the kind of "change
+to core architecture" §VIII exists to gate.
+
+## What already exists (Observe)
+
+All five modules are genuinely real, heavily tested, and already called
+from dozens of production sites across the codebase (`aios/api/main.py`,
+`aios/api/action_guard.py`, `aios/policy/kernel.py`,
+`aios/application/capabilities/authority.py`, and many more — confirmed by
+grep, not assumed). None of them currently define a class matching the
+ledger's expected name; each is primarily a set of module-level functions
+plus a few narrow data-carrying classes (results/enums), not one owning
+class.
+
+| Organ | Expected class | Real module | Real entrypoint functions already in production use |
+|---|---|---|---|
+| 1 | `SecurityGatewayAuthority` | `aios/security/gateway.py` | `classify()`, `validate_command()`, `set_injection_shield()`, `reset_sensitive_actions()`, `RateLimiter` |
+| 2 | `ScopeLockAuthority` | `aios/security/scope_lock.py` | `is_path_in_scope()`, `command_stays_in_scope()`, `set_scope_roots()`, `get_scope_roots()` |
+| 3 | `SecretScannerAuthority` | `aios/security/secret_scanner.py` | `scan_and_redact()` |
+| 4 | `AuditLoggerAuthority` | `aios/security/audit_logger.py` | `log_action()`, `verify_chain()`, `rotate_audit_key()`, `get_anchor()`, `list_recent_entries()`, `retroactively_sign_unsinged_entries()`, `get_active_public_key()` |
+| 5 | `InjectionShieldAuthority` | `aios/security/injection_shield.py` | `class VectorInjectionShield` (already a class — see below) |
+
+## Analyse: what "owning the mechanism, not a pass-through" means for each
+
+The established pattern across organs 6-54 (see `EmergencyStopHardWiringAuthority`
+in `aios/application/capabilities/authority.py` for the fullest example) is:
+rename the real class/consolidate the real functions into a class matching
+the ledger's name, keep a backward-compat alias for every existing caller,
+and — where a real decision is currently duplicated or scattered across
+call sites — consolidate it into one method so the class owns something
+beyond the label. Applied here:
+
+- **Organ 1 (`SecurityGatewayAuthority`)**: wrap `classify()`,
+  `validate_command()`, `set_injection_shield()`/`reset_sensitive_actions()`,
+  and `RateLimiter` as methods/attributes of one class. Real consolidation
+  opportunity: `classify()`'s `injection_shield` parameter and the module
+  global `_injection_shield` set via `set_injection_shield()` are two ways
+  to supply the same dependency — the class could own this as a single
+  constructor-injected attribute instead of a parameter-or-global split,
+  removing an ambiguity rather than just relabeling it.
+- **Organ 2 (`ScopeLockAuthority`)**: wrap `is_path_in_scope()`,
+  `command_stays_in_scope()`, and the `set_scope_roots()`/`get_scope_roots()`
+  pair (currently module-global state) as instance state, so scope roots
+  become an explicit constructor argument instead of implicit global
+  mutation — the same class of improvement organ 26 made for emergency-stop
+  checking.
+- **Organ 3 (`SecretScannerAuthority`)**: wrap `scan_and_redact()`. This one
+  is the closest to a pure rename with no consolidation opportunity found —
+  the module is already a single cohesive scanning function; forcing extra
+  "ownership" onto it would risk inventing complexity `EmergencyStopHardWiringAuthority`-style
+  consolidation doesn't actually need here.
+- **Organ 4 (`AuditLoggerAuthority`)**: wrap `log_action()`, `verify_chain()`,
+  `rotate_audit_key()`, `get_anchor()`, `list_recent_entries()`, and
+  `retroactively_sign_unsinged_entries()` — the class becomes the one
+  object that owns "did this happen, and can I prove the record wasn't
+  altered", mirroring organ 42's `RecoveryResumptionAuthority` shape
+  (write side + verify side on one object) closely enough to reuse that
+  template directly.
+- **Organ 5 (`InjectionShieldAuthority`)**: `VectorInjectionShield` already
+  exists as a real class and is already the thing `set_injection_shield()`
+  installs — this is a pure rename
+  (`InjectionShieldAuthority = VectorInjectionShield`, or rename the class
+  itself with `VectorInjectionShield` kept as the alias), no new
+  consolidation needed. This is the smallest, lowest-risk of the five.
+
+## Propose: the concrete diff shape (NOT applied)
+
+For each module, the proposed change is additive-then-aliased, matching
+the pattern already proven safe across 40 other organs this session:
+
+```python
+# aios/security/gateway.py (illustrative — NOT applied)
+class SecurityGatewayAuthority:
+    """Own the fail-closed command classification and rate-limiting boundary."""
+
+    def __init__(self, injection_shield: object | None = None) -> None:
+        self._injection_shield = injection_shield
+
+    def classify(self, command: str) -> ClassificationResult:
+        return classify(command, injection_shield=self._injection_shield)
+
+    def validate_command(self, *args, **kwargs):
+        return validate_command(*args, **kwargs)
+
+    # ... RateLimiter, reset_sensitive_actions, etc.
+
+
+# Existing module-level functions (classify, validate_command, ...) are
+# left exactly as they are — every current caller keeps working unchanged.
+```
+
+The equivalent shape applies to organs 2-4; organ 5 is simpler still
+(a rename, not a wrapper).
+
+Estimated blast radius if applied: touches 5 files with dozens of existing
+callers each. The rename-with-alias pattern has now been proven safe across
+40 organs and a full green test suite in this exact session, which is the
+strongest evidence available that the *mechanism* is low-risk — but these
+five files are FROZEN regardless of mechanism risk, by policy, not by
+technical difficulty. That policy is the actual gate here, not engineering
+judgment about the diff.
+
+## What happens next is the operator's call, not this document's
+
+Per §VIII, the remaining steps — **Test, Verify, Human Review, Approve,
+Deploy** — are not something this document, or an automated agent, can
+complete. If the operator wants this applied: the smallest, safest place to
+start is organ 5 (pure rename, already a class, smallest diff), and the
+same adversarial-verification-before-commit discipline used for the other
+49 organs this session should apply here too, at minimum.
