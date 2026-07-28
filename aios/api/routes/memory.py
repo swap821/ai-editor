@@ -24,13 +24,14 @@ from aios.api.deps import (
     _session_id_from_request,
     get_alignment_evaluation_store,
     get_conversation_state_store,
-    get_correction_record_store,
+    get_correction_lineage_authority,
     get_memory_authority,
     get_memory_consolidator,
     get_authenticated_principal,
     get_semantic_facts,
     require_privileged_operator,
 )
+from aios.application.memory.authorities import CorrectionLineageAuthority
 from aios.application.memory.human_representation import (
     build_correction_record_v1,
     record_correction_and_build_v1,
@@ -40,7 +41,6 @@ from aios.core.alignment import (
     frame_from_state,
     validate_user_corrections,
 )
-from aios.infrastructure.memory.human_representation_store import CorrectionRecordStore
 from aios.logging_config import get_logger
 from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.consolidation import MemoryConsolidator
@@ -232,7 +232,9 @@ def restore_conversation_session(
     request: Request,
     state: ConversationStateStore = Depends(get_conversation_state_store),
     authority=Depends(get_memory_authority),
-    correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
+    correction_authority: CorrectionLineageAuthority = Depends(
+        get_correction_lineage_authority
+    ),
 ) -> dict[str, Any]:
     """Restore recent dialogue and the latest unverified alignment frame."""
     session_id = _require_cookie_session(request)
@@ -247,7 +249,8 @@ def restore_conversation_session(
         "activeCorrection": state.active_correction(session_id),
         "correctionHistory": state.correction_history(session_id),
         "correctionRecords": [
-            r.as_dict() for r in correction_records.get_lineage(session_id)
+            r.as_dict()
+            for r in correction_authority.lineage_for_session(session_id)
         ],
         "messages": messages,
     }
@@ -259,7 +262,9 @@ def correct_conversation_alignment(
     request: Request,
     state: ConversationStateStore = Depends(get_conversation_state_store),
     evaluation: AlignmentEvaluationStore = Depends(get_alignment_evaluation_store),
-    correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
+    correction_authority: CorrectionLineageAuthority = Depends(
+        get_correction_lineage_authority
+    ),
     principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
     """Append an authenticated correction before it can influence governed chat.
@@ -307,25 +312,18 @@ def correct_conversation_alignment(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
-        authenticated_event = correction_records.append_authenticated(
+        authenticated_event = correction_authority.append_authenticated_correction(
+            state,
+            session_id,
             typed_record,
+            revision=revision,
             corrected_values=incoming,
             reason=req.reason,
             operator_id=principal.principal_id,
             operator_identity_digest=credential_digest(principal.principal_id),
             authentication_event_id=principal.authentication_event_id,
         )
-    except Exception as exc:  # noqa: BLE001 - preserve the safe local rollback
-        try:
-            state.rollback_correction_transition(
-                session_id, expected_revision=revision, expected_status="active"
-            )
-        except Exception as rollback_exc:  # noqa: BLE001 - fail closed on both stores
-            logger.error(
-                "Authenticated correction rollback failed",
-                exc_info=rollback_exc,
-            )
-        logger.error("Authenticated correction ledger write failed", exc_info=exc)
+    except Exception as exc:  # noqa: BLE001 - authority already rolled back state
         raise HTTPException(
             status_code=503,
             detail="authenticated correction ledger unavailable; correction was rolled back",
@@ -396,7 +394,9 @@ def clear_conversation_alignment_correction(
     req: ConversationSessionRequest,
     request: Request,
     state: ConversationStateStore = Depends(get_conversation_state_store),
-    correction_records: CorrectionRecordStore = Depends(get_correction_record_store),
+    correction_authority: CorrectionLineageAuthority = Depends(
+        get_correction_lineage_authority
+    ),
     principal: Principal = Depends(get_authenticated_principal),
 ) -> dict[str, Any]:
     """Append an authenticated clear event and restore the base interpretation."""
@@ -443,28 +443,17 @@ def clear_conversation_alignment_correction(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     clear_revision = int(cleared_frame["revision"])
     try:
-        authenticated_event = correction_records.append_authenticated_clear(
+        authenticated_event = correction_authority.append_authenticated_clear(
+            state,
+            session_id,
             typed_record,
+            revision=clear_revision,
             reason="explicit authenticated operator clear",
             operator_id=principal.principal_id,
             operator_identity_digest=credential_digest(principal.principal_id),
             authentication_event_id=principal.authentication_event_id,
         )
-    except Exception as exc:  # noqa: BLE001 - preserve the safe local rollback
-        try:
-            state.rollback_correction_transition(
-                session_id,
-                expected_revision=clear_revision,
-                expected_status="cleared",
-            )
-        except Exception as rollback_exc:  # noqa: BLE001 - fail closed on both stores
-            logger.error(
-                "Authenticated correction clear rollback failed",
-                exc_info=rollback_exc,
-            )
-        logger.error(
-            "Authenticated correction clear ledger write failed", exc_info=exc
-        )
+    except Exception as exc:  # noqa: BLE001 - authority already rolled back state
         raise HTTPException(
             status_code=503,
             detail="authenticated correction ledger unavailable; clear was rolled back",

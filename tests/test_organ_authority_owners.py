@@ -25,6 +25,8 @@ from fastapi.testclient import TestClient
 
 from aios.api.deps import (
     get_constitutional_learning_authority,
+    get_correction_lineage_authority,
+    get_correction_record_store,
     get_observability_authority,
     get_operator_preference_store,
     get_operator_taste_model_authority,
@@ -40,6 +42,7 @@ from aios.application.governance.constitutional_learning import (
 from aios.application.local_workforce.provenance import ClerkProvenanceAuthority
 from aios.application.local_workforce.service import LocalWorkforceService
 from aios.application.memory.authorities import (
+    CorrectionLineageAuthority,
     OperatorTasteModelAuthority,
     ProjectUnderstandingAuthority,
 )
@@ -51,6 +54,7 @@ from aios.infrastructure.local_workforce.sqlite_store import (
     LocalWorkforceProvenanceStore,
 )
 from aios.infrastructure.memory.human_representation_store import (
+    CorrectionRecordStore,
     OperatorPreferenceStore,
     ProjectPassportStore,
 )
@@ -577,3 +581,69 @@ def test_the_provenance_authority_records_a_refusal_honestly(tmp_path: Path) -> 
     assert provenance.request is not None
     assert provenance.result is not None
     assert provenance.result.status == "rejected"
+
+
+# --------------------------------------------------------------------------- #
+# Organ 29 -- CorrectionLineageAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_correction_lineage_authority_is_what_session_restore_reads_through(
+    tmp_path: Path,
+) -> None:
+    """Overrides only the STORE-level dependency, then proves the real HTTP
+    session-restore route resolves a genuine CorrectionLineageAuthority
+    wrapping it. The heavier compensating-transaction behavior (roll back
+    ConversationStateStore when the immutable ledger write fails) is
+    already exercised end-to-end, through the real routes, by
+    tests/test_authenticated_chat_route.py::
+    test_correction_route_rolls_back_when_authenticated_ledger_write_fails
+    and its clear-route sibling -- both pass against this same authority."""
+    store = CorrectionRecordStore(tmp_path / "corrections.db")
+    app.dependency_overrides[get_correction_record_store] = lambda: store
+    try:
+        resolved = get_correction_lineage_authority(store=store)
+        assert isinstance(resolved, CorrectionLineageAuthority)
+        assert resolved.store is store
+
+        client = TestClient(app, client=("127.0.0.1", 12345))
+        response = client.post(
+            "/api/v1/conversation/session",
+            json={"sessionId": "unused-body-field", "limit": 5},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["correctionRecords"] == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_the_correction_lineage_authority_lineage_reads_newest_first(
+    tmp_path: Path,
+) -> None:
+    """The real read-side work this authority owns (not a pass-through
+    rename): `lineage_for_session` is the exact method organ 29's own
+    `correctionRecords` response field is built from."""
+    from aios.application.memory.human_representation import (
+        build_correction_record_v1,
+    )
+
+    store = CorrectionRecordStore(tmp_path / "corrections.db")
+    authority = CorrectionLineageAuthority(store)
+
+    for revision in (1, 2):
+        record = build_correction_record_v1(
+            correction_id=f"correction:s-1:{revision}",
+            session_id="s-1",
+            base_revision=revision - 1,
+            correction_revision=revision,
+            corrected_fields=("goal",),
+            before_frame={"goal": "old"},
+            after_frame={"goal": "new"},
+            operator_id="operator-1",
+        )
+        authority.store.save(record)
+
+    lineage = authority.lineage_for_session("s-1")
+
+    assert [r.correction_revision for r in lineage] == [2, 1]

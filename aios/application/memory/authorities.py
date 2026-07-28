@@ -18,6 +18,8 @@ method here does real work the route used to do itself.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -26,15 +28,21 @@ from aios.application.memory.human_representation import (
     is_operator_preference_expired,
 )
 from aios.domain.memory.human_representation import (
+    AuthenticatedCorrectionEventV1,
+    CorrectionRecordV1,
     OperatorPreferenceV1,
     ProjectPassportV1,
 )
 from aios.infrastructure.memory.human_representation_store import (
+    CorrectionRecordStore,
     OperatorPreferenceSaveResult,
     OperatorPreferenceStore,
     ProjectPassportStore,
 )
+from aios.memory.conversation import ConversationStateStore
 from aios.memory.project_passport import ProjectPassport
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class OperatorTasteModelAuthority:
@@ -176,7 +184,114 @@ class ProjectUnderstandingAuthority:
         }
 
 
+class CorrectionLineageAuthority:
+    """The one authority over corrected interpretations of what a human
+    said or meant.
+
+    Owns `CorrectionRecordStore` (the immutable, operator-attributed
+    ledger), and owns the compensating-transaction pattern this organ's
+    two real routes (correct, clear) each independently needed: append to
+    the immutable ledger, and if that fails, roll back the separate,
+    mutable `ConversationStateStore` transition that already happened so
+    the two stores never disagree about what is "active" -- then re-raise
+    the ledger failure, never swallow it. Previously this exact pattern was
+    duplicated inline in both routes.
+    """
+
+    def __init__(self, store: CorrectionRecordStore) -> None:
+        self.store = store
+
+    def append_authenticated_correction(
+        self,
+        state: ConversationStateStore,
+        session_id: str,
+        typed_record: CorrectionRecordV1,
+        *,
+        revision: int,
+        corrected_values: dict[str, Any],
+        reason: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+    ) -> AuthenticatedCorrectionEventV1:
+        return self._append_with_rollback(
+            state,
+            session_id,
+            expected_revision=revision,
+            expected_status="active",
+            rollback_log_message="Authenticated correction rollback failed",
+            ledger_log_message="Authenticated correction ledger write failed",
+            append=lambda: self.store.append_authenticated(
+                typed_record,
+                corrected_values=corrected_values,
+                reason=reason,
+                operator_id=operator_id,
+                operator_identity_digest=operator_identity_digest,
+                authentication_event_id=authentication_event_id,
+            ),
+        )
+
+    def append_authenticated_clear(
+        self,
+        state: ConversationStateStore,
+        session_id: str,
+        typed_record: CorrectionRecordV1,
+        *,
+        revision: int,
+        reason: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+    ) -> AuthenticatedCorrectionEventV1:
+        return self._append_with_rollback(
+            state,
+            session_id,
+            expected_revision=revision,
+            expected_status="cleared",
+            rollback_log_message="Authenticated correction clear rollback failed",
+            ledger_log_message="Authenticated correction clear ledger write failed",
+            append=lambda: self.store.append_authenticated_clear(
+                typed_record,
+                reason=reason,
+                operator_id=operator_id,
+                operator_identity_digest=operator_identity_digest,
+                authentication_event_id=authentication_event_id,
+            ),
+        )
+
+    def _append_with_rollback(
+        self,
+        state: ConversationStateStore,
+        session_id: str,
+        *,
+        expected_revision: int,
+        expected_status: str,
+        rollback_log_message: str,
+        ledger_log_message: str,
+        append: Callable[[], AuthenticatedCorrectionEventV1],
+    ) -> AuthenticatedCorrectionEventV1:
+        try:
+            return append()
+        except Exception as exc:  # noqa: BLE001 - preserve the safe local rollback
+            try:
+                state.rollback_correction_transition(
+                    session_id,
+                    expected_revision=expected_revision,
+                    expected_status=expected_status,
+                )
+            except Exception as rollback_exc:  # noqa: BLE001 - fail closed on both stores
+                _LOGGER.error(rollback_log_message, exc_info=rollback_exc)
+            _LOGGER.error(ledger_log_message, exc_info=exc)
+            raise
+
+    def lineage_for_session(
+        self, session_id: str
+    ) -> tuple[CorrectionRecordV1, ...]:
+        return self.store.get_lineage(session_id)
+
+
 __all__ = [
+    "CorrectionLineageAuthority",
     "OperatorTasteModelAuthority",
     "ProjectUnderstandingAuthority",
 ]

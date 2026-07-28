@@ -87,6 +87,7 @@ from aios.infrastructure.governance.constitution_snapshot_store import (
 )
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
 from aios.application.memory.authorities import (
+    CorrectionLineageAuthority,
     OperatorTasteModelAuthority,
     ProjectUnderstandingAuthority,
 )
@@ -698,6 +699,18 @@ def get_correction_record_store() -> CorrectionRecordStore:
     return _correction_record_store
 
 
+def get_correction_lineage_authority(
+    store: CorrectionRecordStore = Depends(get_correction_record_store),
+) -> CorrectionLineageAuthority:
+    """Provide organ 29's named owner over `get_correction_record_store()`'s
+    singleton -- Decision A (docs/architecture/GAGOS_54_ORGANS.md): the
+    ledger's `authority_owner` must be a real class, not a label. Declared
+    as a FastAPI sub-dependency (not a plain function call) so
+    ``app.dependency_overrides[get_correction_record_store]`` in existing
+    tests keeps working through this new layer."""
+    return CorrectionLineageAuthority(store)
+
+
 def get_operator_preference_store() -> OperatorPreferenceStore:
     """Provide the durable, digest-verified explicit-preference store
     (organ 27) -- previously ``OperatorPreferenceStore`` was constructed
@@ -1048,6 +1061,7 @@ __all__ = [
     "get_recovery_resumption_authority",
     "get_operator_taste_model_authority",
     "get_project_understanding_authority",
+    "get_correction_lineage_authority",
     "get_learning_service",
 ]
 
