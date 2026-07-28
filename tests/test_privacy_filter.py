@@ -256,6 +256,26 @@ class TestPathShapedTokensAreNotSecrets:
         safe, _ = pf.filter([{"role": "user", "content": f"key {secret} end"}])
         assert secret not in str(safe[0]["content"])
 
+    def test_two_high_entropy_secrets_in_one_message_both_redact(self) -> None:
+        """Regression: `_redact_high_entropy` used to reassign its `text`
+        local to a shorter string after the FIRST redaction (placeholders
+        are rarely the same length as the token they replace), while
+        `re.finditer` kept yielding match positions computed against the
+        original, longer string -- desynchronizing later matches from what
+        `text` actually held. With two qualifying secrets this either
+        silently mis-redacted the second one or raised IndexError in
+        `_in_filename_context` once a later match's position ran past the
+        now-shorter string's end."""
+        pf = PrivacyFilter()
+        first = "q7Zx9Kf2Lm8Rp4Tv6Wy1Bn3Cd5Gh0JkQ"
+        second = "zM4pQ2rT8sV6wX1yB3cD5eF7gH9jK0lN"
+        content = f"first key {first} then second key {second} done"
+        safe, audit = pf.filter([{"role": "user", "content": content}])
+        redacted = str(safe[0]["content"])
+        assert first not in redacted
+        assert second not in redacted
+        assert audit["redacted_secrets"] >= 2
+
     def test_slash_shaped_aws_secret_key_still_redacts(self) -> None:
         """Regression for the 2026-07-07 exemption's own bypass (found 2026-07-10):
         a real AWS secret access key can be slash-shaped (base64 alphabet includes

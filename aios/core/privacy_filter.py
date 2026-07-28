@@ -225,17 +225,31 @@ def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
 
 
 def _redact_high_entropy(text: str) -> tuple[str, int]:
-    """Replace high-entropy strings in *text* with hashed placeholders."""
+    """Replace high-entropy strings in *text* with hashed placeholders.
+
+    Builds the result via a cursor over the ORIGINAL *text* rather than
+    reassigning *text* mid-loop: `re.finditer` yields match positions
+    against the original string for its whole iteration, so a prior
+    reassignment (once any placeholder's length differs from its token's,
+    which is the common case) desynchronizes later matches' start/end from
+    what `text` now contains -- silently wrong slices at best, and an
+    IndexError in `_in_filename_context` once a later match's position runs
+    past the now-shorter string's end, at worst.
+    """
     count = 0
+    pieces: list[str] = []
+    cursor = 0
     for match in re.finditer(r"[A-Za-z0-9_+/=\-]{20,}", text):
         token = match.group(0)
         if _in_filename_context(text, match.start(), match.end(), token):
             continue
         if _looks_like_secret(token):
-            placeholder = _hash_placeholder(token)
-            text = text[: match.start()] + placeholder + text[match.end() :]
+            pieces.append(text[cursor : match.start()])
+            pieces.append(_hash_placeholder(token))
+            cursor = match.end()
             count += 1
-    return text, count
+    pieces.append(text[cursor:])
+    return "".join(pieces), count
 
 
 def _redact_credentials(text: str) -> tuple[str, int]:
