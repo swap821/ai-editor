@@ -834,7 +834,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [],
-    "last_verified_sha": null,
+    "last_verified_sha": "1f52ef89be48985a4434d0c162db8ab365acafd8",
     "requires_live_evidence": false
   },
   {
