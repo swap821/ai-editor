@@ -25,7 +25,7 @@ from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 from aios.infrastructure.local_workforce.sqlite_store import (
     LocalWorkforceProvenanceStore,
 )
-from aios.application.local_workforce.dispatcher import dispatch_clerical_job
+from aios.application.local_workforce.dispatcher import ClerkDispatcherAuthority
 from aios.application.local_workforce.provenance import ClerkProvenanceAuthority
 from aios.application.local_workforce.qualification_evidence import (
     evidence_backed_profiles,
@@ -88,6 +88,7 @@ class LocalWorkforceService:
             if provenance_store is not None
             else None
         )
+        self.dispatcher_authority = ClerkDispatcherAuthority()
 
     def refresh(self) -> Sequence[LocalWorkerModel]:
         """Reconcile durable state with the real Ollama model listing."""
@@ -329,7 +330,7 @@ class LocalWorkforceService:
             and request.job_profile in m.allowed_job_profiles
         ]
         if not admitted:
-            decision = dispatch_clerical_job(
+            decision = self.dispatcher_authority.dispatch(
                 deterministic_available=deterministic_available,
                 qualification=None,
                 confidence=confidence,
@@ -367,7 +368,7 @@ class LocalWorkforceService:
         # and the dispatcher already handles it correctly by escalating.
         qual = self.registry.get_qualification(selected.model_id)
 
-        decision = dispatch_clerical_job(
+        decision = self.dispatcher_authority.dispatch(
             deterministic_available=deterministic_available,
             qualification=qual,
             confidence=confidence,

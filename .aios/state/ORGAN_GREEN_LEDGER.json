@@ -819,21 +819,21 @@
   {
     "organ_id": 36,
     "name": "Clerical Job Contract and Dispatcher",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ClerkDispatcherAuthority",
     "production_entrypoints": [
-      "aios/application/local_workforce/dispatcher.py"
+      "aios/application/local_workforce/dispatcher.py",
+      "aios/application/local_workforce/service.py"
     ],
     "focused_tests": [
-      "tests/test_local_clerk_dispatcher.py"
+      "tests/test_local_clerk_dispatcher.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
       "tests/test_local_workforce_api.py"
     ],
     "live_evidence": [],
-    "known_blockers": [
-      "dispatch_clerical_job() now exists: deterministic code always wins first (Granite is never consulted when a parser can already answer), an unqualified or failed-qualification model always escalates to frontier regardless of self-reported confidence, and only a qualified model's own low-confidence result routes to a human. Still missing: nothing in aios.application.local_workforce.service.LocalWorkforceService (the real production run_advisory_job() path) calls this dispatcher yet -- it is a standalone, tested decision function, not wired into the live request path."
-    ],
+    "known_blockers": [],
     "last_verified_sha": null,
     "requires_live_evidence": false
   },
@@ -885,7 +885,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Reconciliation pass item 3: the organ's own stated gap -- 'LocalWorkforceService.run_advisory_job() doesn't call this store yet, so no real job is persisted in production' -- is now resolved. run_advisory_job() is a thin wrapper around the original logic (renamed _execute_advisory_job, body byte-for-byte unchanged, zero validation-logic risk) that records every real job's request, model call, and result via LocalWorkforceProvenanceStore once execution completes -- honestly, including refusals (no admitted model) and schema-validation failures, not only successes. get_local_workforce_service() (aios/api/deps.py) now constructs and injects a real store at config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH (new config constant), so this is genuinely live in the production DI path, not just available. Fail-safe by construction: provenance_store defaults to None and recording is skipped entirely when absent, matching every other optional-dependency pattern in this codebase. New tests/test_local_workforce_service_provenance.py (5 tests: no-store no-op, successful job recorded, rejection recorded, schema-failure recorded, two jobs don't collide). While grounding this, found and reported (not fixed here, flagged as a separate task) a real pre-existing bug unrelated to this change: three tests in test_r15_new_blockers.py's TestBlocker9LocalJobSchema silently never exercised the schema-validation code they claim to test, because a bare MagicMock() registry always satisfies hasattr(registry, 'dependency'), triggering a real-registry fallback that made every job 'rejected' rather than 'failed' -- their weak assertion (status != 'completed') passed either way. Still missing: dispatch_clerical_job() (Slice 32) itself remains unwired -- a full integration needs a QualificationResult tracked per model, which isn't stored anywhere in the registry today; inventing that under time pressure was deliberately not attempted here rather than forcing a shallow/fake integration."
+      "Reconciliation pass item 3: the organ's own stated gap -- 'LocalWorkforceService.run_advisory_job() doesn't call this store yet, so no real job is persisted in production' -- is now resolved. run_advisory_job() is a thin wrapper around the original logic (renamed _execute_advisory_job, body byte-for-byte unchanged, zero validation-logic risk) that records every real job's request, model call, and result via LocalWorkforceProvenanceStore once execution completes -- honestly, including refusals (no admitted model) and schema-validation failures, not only successes. get_local_workforce_service() (aios/api/deps.py) now constructs and injects a real store at config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH (new config constant), so this is genuinely live in the production DI path, not just available. Fail-safe by construction: provenance_store defaults to None and recording is skipped entirely when absent, matching every other optional-dependency pattern in this codebase. New tests/test_local_workforce_service_provenance.py (5 tests: no-store no-op, successful job recorded, rejection recorded, schema-failure recorded, two jobs don't collide). While grounding this, found and reported (not fixed here, flagged as a separate task) a real pre-existing bug unrelated to this change: three tests in test_r15_new_blockers.py's TestBlocker9LocalJobSchema silently never exercised the schema-validation code they claim to test, because a bare MagicMock() registry always satisfies hasattr(registry, 'dependency'), triggering a real-registry fallback that made every job 'rejected' rather than 'failed' -- their weak assertion (status != 'completed') passed either way. Still missing: dispatch_clerical_job() (Slice 32) itself remains unwired -- a full integration needs a QualificationResult tracked per model, which isn't stored anywhere in the registry today; inventing that under time pressure was deliberately not attempted here rather than forcing a shallow/fake integration. CORRECTION (2026-07-28, found while verifying organ 36's green flip): the claim above that dispatch_clerical_job() 'remains unwired' was already stale when it was written -- PR #165 (commit db07922, 2026-07-27, before this text was ever last touched) had already wired a real, persisted QualificationResult lookup (LocalWorkforceRegistry.get_qualification()) into the dispatch decision. Organ 36 itself flips green in this same pass on exactly that evidence. This organ (38, provenance) was never actually blocked by organ 36's gap -- they are different concerns that got conflated in this blocker's prior text. Whether organ 38 has any OTHER genuine remaining gap has not been re-audited in this pass; it stays yellow pending a dedicated re-check, not because of the dispatch claim above, which is retracted."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

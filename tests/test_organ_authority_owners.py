@@ -703,3 +703,66 @@ def test_the_passport_authority_returns_none_for_an_unregistered_model() -> None
     authority = ModelPassportAuthority(registry)
 
     assert authority.passport_for("unknown-model") is None
+
+
+# --------------------------------------------------------------------------- #
+# Organ 36 -- ClerkDispatcherAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_dispatcher_authority_is_what_the_real_service_calls_through() -> None:
+    """The service's own instance attribute, constructed in __init__ -- not
+    a second, disconnected authority the test builds itself."""
+    from unittest.mock import MagicMock
+
+    from aios.application.local_workforce.dispatcher import ClerkDispatcherAuthority
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    llm = MagicMock()
+    service = LocalWorkforceService(
+        registry=registry, ollama=llm, model_client_factory=lambda model_id: llm
+    )
+
+    assert isinstance(service.dispatcher_authority, ClerkDispatcherAuthority)
+
+
+def test_the_dispatcher_authority_escalates_an_unqualified_model_through_the_real_service(
+    tmp_path: Path,
+) -> None:
+    """The real decision this organ exists to enforce, exercised through
+    run_advisory_job() end to end (not the pure function in isolation): a
+    model with no persisted qualification (registry.get_qualification()
+    genuinely returns None, never a fabricated pass) must escalate to
+    frontier, never silently proceed as though it had qualified."""
+    from unittest.mock import MagicMock
+
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    admitted = _admitted_model()
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    registry.list_models.return_value = [admitted]
+    registry.get_model.return_value = admitted
+    registry.get_qualification.return_value = None
+    llm = MagicMock()
+
+    service = LocalWorkforceService(
+        registry=registry, ollama=llm, model_client_factory=lambda model_id: llm
+    )
+    request = LocalJobRequest(
+        job_id="owner-escalation-probe",
+        job_profile=LocalJobProfile.SELECT_SKILL,
+        input_schema_version="1.0",
+        evidence_references=frozenset({"skill-1"}),
+        redacted_payload="Evaluate skill applicability.",
+        token_budget=128,
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=30),
+        required_output_schema={"applicable": "bool", "confidence": "float"},
+    )
+
+    result = service.run_advisory_job(request)
+
+    assert result.status == "rejected"
+    assert result.failure_reason == "Dispatched to frontier_escalation"
+    registry.get_qualification.assert_called_once_with(admitted.model_id)
+    llm.complete.assert_not_called()

@@ -6,6 +6,17 @@ is never used merely because it is running: a caller that can answer
 deterministically should never reach this function's local-clerk branch at
 all, and an unqualified or failing-qualification model must escalate to
 frontier intelligence rather than being trusted anyway.
+
+The ledger has always named `ClerkDispatcherAuthority` as this organ's
+authority owner, but no such class existed anywhere (Decision A,
+docs/architecture/GAGOS_54_ORGANS.md). `dispatch_clerical_job()` itself was
+already real and already the thing `LocalWorkforceService._execute_advisory
+_job()` calls for every real job (with a genuinely persisted qualification
+lookup, `LocalWorkforceRegistry.get_qualification()`, never a fabricated
+one) -- the ledger's own blocker text calling this "not wired into the live
+request path" was stale, contradicted by the code since PR #165.
+`ClerkDispatcherAuthority` makes that real ownership explicit: the service
+now calls through it rather than importing the bare function directly.
 """
 
 from __future__ import annotations
@@ -46,4 +57,30 @@ def dispatch_clerical_job(
     return "local_clerk"
 
 
-__all__ = ["DispatchDecision", "dispatch_clerical_job"]
+class ClerkDispatcherAuthority:
+    """The one authority over how a clerical job is routed: deterministic
+    code, the local clerk, frontier escalation, or human clarification.
+
+    Stateless by nature (the decision depends only on its own arguments,
+    never on process state) -- the class exists so production code calls
+    through one named, ledger-visible owner instead of importing the bare
+    decision function directly, matching the organ 42/46/52/29 template.
+    """
+
+    def dispatch(
+        self,
+        *,
+        deterministic_available: bool,
+        qualification: QualificationResult | None,
+        confidence: float | None = None,
+        confidence_floor: float = 0.6,
+    ) -> DispatchDecision:
+        return dispatch_clerical_job(
+            deterministic_available=deterministic_available,
+            qualification=qualification,
+            confidence=confidence,
+            confidence_floor=confidence_floor,
+        )
+
+
+__all__ = ["ClerkDispatcherAuthority", "DispatchDecision", "dispatch_clerical_job"]
