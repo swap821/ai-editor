@@ -10,13 +10,19 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from typing import Any, Iterator, Optional
 
 from fastapi import HTTPException
 
+from aios.application.intelligence.gateway import stream_structured_intelligence_request
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
+from aios.domain.intelligence.representative_context import (
+    RepresentativeContextReceiptV1,
+)
+from aios.infrastructure.identity.sqlite_store import credential_digest
 
 _LIVE_NAMES = (
     "CanonicalEvent",
@@ -250,6 +256,12 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "task": task,
         "user_text": user_text,
         "compactor": runtime.compactor,
+        "constitution_digest": str(principal.constitution_digest or ""),
+        "emergency_stop": runtime.extra["emergency_stop"],
+        "operator_identity_digest": credential_digest(principal.principal_id),
+        "representative_context_store": runtime.extra[
+            "representative_context_store"
+        ],
     }
 
 
@@ -298,6 +310,10 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     task = state["task"]
     user_text = state["user_text"]
     compactor = state["compactor"]
+    constitution_digest = state["constitution_digest"]
+    emergency_stop = state["emergency_stop"]
+    operator_identity_digest = state["operator_identity_digest"]
+    representative_context_store = state["representative_context_store"]
     sse = _sse_writer(ctx.turn_id)
     yield sse("turn.started", {"mode": ctx.mode.value})
     if not user_text:
@@ -725,12 +741,13 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     _stream_fn = getattr(chat_client, "stream_chat_with_tools", None)
 
     def make_agent(**overrides: Any) -> ToolAgent:
+        agent_memory_context = overrides.pop("memory_context", memory_context)
         return ToolAgent(
             chat_client,
             executor,
             model=model,
             session_id=session_id,
-            memory_context=memory_context,
+            memory_context=agent_memory_context,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(
                 reflector, consolidator, authority=runtime.memory_authority
@@ -1025,9 +1042,117 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         yield sse("done", {})
         return
     try:
-        event_source = make_agent().run(chat_messages)
-    except Exception as exc:  # noqa: BLE001 - agent construction must not kill SSE
-        logger.error("Tool-loop construction failed", exc_info=exc)
+        candidates = getattr(chat_client, "candidates", None)
+        if candidates is None:
+            provider, _served_model = _active_route(
+                chat_client,
+                bedrock,
+                gemini,
+                model,
+                openai=openai_client,
+                anthropic=anthropic_client,
+            )
+            gateway_target = (
+                "local" if provider == router.PROVIDER_OLLAMA else "cloud"
+            )
+        else:
+            # A failover chain is classified by its weakest possible privacy
+            # target: the wrapper may transmit to a cloud candidate even when
+            # its first active candidate is local.
+            gateway_target = "local"
+            try:
+                for candidate in candidates:
+                    if (
+                        not isinstance(candidate, tuple)
+                        or len(candidate) != 3
+                        or str(candidate[2]).strip().lower()
+                        != router.PROVIDER_OLLAMA
+                    ):
+                        gateway_target = "cloud"
+                        break
+            except Exception:
+                gateway_target = "cloud"
+
+        def governed_agent_events(compiled_context):
+            rendered_context = json.dumps(
+                compiled_context.as_dict(), sort_keys=True, ensure_ascii=True
+            )
+            if compiled_context.privacy_classification == "cloud":
+                governed_memory = rendered_context
+                governed_messages = [
+                    {"role": "user", "content": compiled_context.goal}
+                ]
+            else:
+                governed_memory = (
+                    (memory_context + "\n\n" if memory_context else "")
+                    + "Governed representative context:\n"
+                    + rendered_context
+                )
+                governed_messages = chat_messages
+            return make_agent(memory_context=governed_memory).run(
+                governed_messages
+            )
+
+        receipt_now = datetime.now(timezone.utc)
+        receipt_expires = receipt_now + timedelta(minutes=5)
+
+        def receipt_for(compiled_context):
+            return RepresentativeContextReceiptV1.create(
+                request_id=compiled_context.request_id,
+                context_digest=compiled_context.context_digest,
+                operator_identity_digest=operator_identity_digest,
+                constitution_digest=constitution_digest,
+                target=gateway_target,
+                active_project_revision=None,
+                human_state_disposition="abstained",
+                consent_status=(
+                    "not_required_local"
+                    if gateway_target == "local"
+                    else "policy_permitted_cloud"
+                ),
+                consent_scope=("authenticated-forge", f"target:{gateway_target}"),
+                created_at=receipt_now.isoformat(),
+                expires_at=receipt_expires.isoformat(),
+            )
+
+        governed_stream = stream_structured_intelligence_request(
+            request_id=ctx.turn_id,
+            operator_identity_digest=operator_identity_digest,
+            constitution_digest=constitution_digest,
+            goal=user_text,
+            desired_outcome="Complete the authenticated forge request safely.",
+            target=gateway_target,
+            delegated_authority_summary=(
+                "Authenticated forge; tool execution remains capability-gated "
+                "and writes require human approval plus verification."
+            ),
+            explicit_constraints=(
+                "Never infer authority from the model response.",
+                "Keep all tool calls inside the existing ToolAgent security pipeline.",
+            ),
+            permitted_tools=(
+                "read_file",
+                "read_directory",
+                "execute_terminal",
+                "edit_file",
+                "create_file",
+                "verify",
+                "browse",
+                "plan",
+                "self_analyze",
+                "propose_fixes",
+            ),
+            evidence_requirements=("writes require forced verifier-backed evidence",),
+            communication_mode="direct",
+            emergency_stop=emergency_stop,
+            context_store=representative_context_store,
+            receipt_factory=receipt_for,
+            require_context_receipt=True,
+            model_call=governed_agent_events,
+        )
+        event_source = governed_stream.events
+    except Exception as exc:  # noqa: BLE001 - governed construction must not kill SSE
+        logger.error("Governed tool-loop construction failed", exc_info=exc)
         yield sse("error", {"text": f"Internal error: {exc}"})
         # A turn killed by construction failure is still a real turn -- count it.
         _record_telemetry(telemetry.OUTCOME_ABORTED)

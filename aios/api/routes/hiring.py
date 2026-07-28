@@ -11,6 +11,7 @@ from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import (
     get_anthropic_client,
     get_bedrock_client,
+    get_authenticated_principal,
     get_gemini_client,
     get_hiring_repository,
     get_hiring_service,
@@ -25,6 +26,8 @@ from aios.domain.privacy import (
     PrivacyPolicy,
 )
 from aios.domain.intelligence.repository import HiringRecordRepository
+from aios.domain.identity.models import Principal
+from aios.infrastructure.identity.sqlite_store import credential_digest
 
 router = APIRouter(
     tags=["intelligence-hiring"], dependencies=[Depends(enforce_action_boundary)]
@@ -124,6 +127,7 @@ def list_hiring_proposals(
 def execute_hiring_call(
     body: HiringCallRequest,
     request: Request,
+    principal: Principal = Depends(get_authenticated_principal),
     service: IntelligenceHiringService = Depends(get_hiring_service),
 ) -> dict[str, Any]:
     """Execute one bounded advisory call after the ordinary action boundary."""
@@ -131,9 +135,14 @@ def execute_hiring_call(
     operator_id = getattr(getattr(guard, "envelope", None), "operator_id", None)
     if not operator_id:
         raise HTTPException(status_code=401, detail="authenticated operator required")
+    if operator_id != principal.principal_id:
+        raise HTTPException(status_code=403, detail="operator identity binding mismatch")
     model_request = ModelCallRequest(
         request_id=body.request_id,
         principal_id=operator_id,
+        operator_identity_digest=credential_digest(principal.principal_id),
+        constitution_digest=principal.constitution_digest or None,
+        requires_governed_intelligence=True,
         mission_id=body.mission_id,
         turn_id=body.turn_id,
         purpose=body.purpose,

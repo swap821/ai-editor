@@ -25,6 +25,7 @@ from aios.application.executor.service import (
 )
 from aios.application.missions.mission_service import MissionService
 from aios.application.promotion.authority import PromotionAuthority
+from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.domain.evidence import (
     EvidenceBundle,
@@ -125,8 +126,9 @@ class MaintenanceConvergenceService:
         self.mission_journal = mission_journal
 
     def _assert_operational(self) -> None:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        EmergencyStopHardWiringAuthority.assert_operational(
+            self.emergency_stop, boundary="maintenance-service"
+        )
 
     def _journal_append(self, mission_id: str, transition: str) -> None:
         """Best-effort MissionTransitionJournal append (organ 42).

@@ -223,7 +223,7 @@ def _cases() -> tuple[_Case, ...]:
     )
 
 
-class QualificationSuite:
+class LocalModelQualificationAuthority:
     """Run a bounded, versioned local-model qualification suite."""
 
     def __init__(
@@ -519,9 +519,13 @@ class QualificationSuite:
         )
 
 
+QualificationSuite = LocalModelQualificationAuthority
+
+
 __all__ = [
     "QUALIFICATION_SUITE_VERSION",
     "QualificationResult",
+    "LocalModelQualificationAuthority",
     "QualificationSuite",
     "QualificationTestResult",
 ]

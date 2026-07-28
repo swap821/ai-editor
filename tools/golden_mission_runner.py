@@ -220,40 +220,76 @@ def reset_mission_files(mission: dict[str, Any]) -> None:
                 target.unlink()
 
 
+class GoldenMissionEnduranceAuthority:
+    """Own ordered mission verification and bounded endurance evaluation.
+
+    The runners still own transport and operator-approval interaction. This
+    authority owns the pass/fail contract: every golden step must meet its
+    declared verification outcome, and endurance is green only when both
+    success-rate and latency-stability thresholds are measured.
+    """
+
+    def run_mission(
+        self,
+        name: str,
+        mission: dict[str, Any],
+        model_id: str,
+        run_id: str,
+    ) -> dict[str, Any]:
+        reset_mission_files(mission)
+        steps_results: list[dict[str, Any]] = []
+        mission_passed = True
+
+        for step_idx, step in enumerate(mission["steps"]):
+            session_id = f"golden-{name}-s{step_idx}-{run_id}"
+            print(f"  step {step_idx + 1}/{len(mission['steps'])}: {step['prompt'][:80]}...")
+
+            result = run_prompt(step["prompt"], session_id, model_id=model_id)
+            expected = step["expect"]
+            step_passed = result["outcome"] == expected
+
+            steps_results.append({
+                "step": step_idx,
+                "outcome": result["outcome"],
+                "expected": expected,
+                "passed": step_passed,
+            })
+            status = "PASS" if step_passed else "FAIL"
+            print(f"    {status}: got={result['outcome']} expected={expected}")
+
+            if not step_passed:
+                mission_passed = False
+                break
+
+        return {
+            "mission": name,
+            "run_id": run_id,
+            "passed": mission_passed,
+            "steps": steps_results,
+            "steps_completed": len(steps_results),
+            "steps_total": len(mission["steps"]),
+        }
+
+    @staticmethod
+    def evaluate_endurance(
+        *,
+        successes: int,
+        total: int,
+        p95: float,
+        baseline_p95: float,
+    ) -> dict[str, Any]:
+        success_rate = round(successes / max(total, 1), 3)
+        latency_stable = p95 <= baseline_p95 * 2 if baseline_p95 > 0 else True
+        return {
+            "success_rate": success_rate,
+            "latency_stable": latency_stable,
+            "green": success_rate >= 0.80 and latency_stable,
+        }
+
+
+# Compatibility function for callers that used the pre-owner runner API.
 def run_mission(name: str, mission: dict[str, Any], model_id: str, run_id: str) -> dict[str, Any]:
-    reset_mission_files(mission)
-    steps_results: list[dict[str, Any]] = []
-    mission_passed = True
-
-    for step_idx, step in enumerate(mission["steps"]):
-        session_id = f"golden-{name}-s{step_idx}-{run_id}"
-        print(f"  step {step_idx + 1}/{len(mission['steps'])}: {step['prompt'][:80]}...")
-
-        result = run_prompt(step["prompt"], session_id, model_id=model_id)
-        expected = step["expect"]
-        step_passed = result["outcome"] == expected
-
-        steps_results.append({
-            "step": step_idx,
-            "outcome": result["outcome"],
-            "expected": expected,
-            "passed": step_passed,
-        })
-        status = "PASS" if step_passed else "FAIL"
-        print(f"    {status}: got={result['outcome']} expected={expected}")
-
-        if not step_passed:
-            mission_passed = False
-            break
-
-    return {
-        "mission": name,
-        "run_id": run_id,
-        "passed": mission_passed,
-        "steps": steps_results,
-        "steps_completed": len(steps_results),
-        "steps_total": len(mission["steps"]),
-    }
+    return GoldenMissionEnduranceAuthority().run_mission(name, mission, model_id, run_id)
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -261,6 +297,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         sys.exit(f"unknown mission: {args.mission!r}. Use 'list' to see available missions.")
 
     targets = {args.mission: MISSIONS[args.mission]} if args.mission else MISSIONS
+    authority = GoldenMissionEnduranceAuthority()
     all_results: list[dict[str, Any]] = []
 
     for repeat in range(args.repeats):
@@ -274,7 +311,7 @@ def cmd_run(args: argparse.Namespace) -> None:
             log_event({"kind": "mission-start", "mission": name, "run_id": run_id, "repeat": repeat})
 
             t0 = time.monotonic()
-            result = run_mission(name, mission, args.model, run_id)
+            result = authority.run_mission(name, mission, args.model, run_id)
             result["elapsed_s"] = round(time.monotonic() - t0, 1)
             result["repeat"] = repeat
 

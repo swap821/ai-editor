@@ -154,6 +154,27 @@ class CapabilityError(RuntimeError):
     """Raised when a capability is missing, altered, expired, or revoked."""
 
 
+class EmergencyStopHardWiringAuthority:
+    """Own the fail-closed policy for every injected emergency-stop boundary.
+
+    The durable latch remains :class:`EmergencyStopController`'s mechanism. This
+    owner makes the application boundary explicit: an optional stop is allowed
+    only for deliberately isolated fixtures, while a supplied dependency must
+    expose the real ``assert_operational`` method before any side effect.
+    """
+
+    @staticmethod
+    def assert_operational(emergency_stop: Any | None, *, boundary: str) -> None:
+        if emergency_stop is None:
+            return
+        checker = getattr(emergency_stop, "assert_operational", None)
+        if not callable(checker):
+            raise TypeError(
+                f"{boundary} emergency-stop dependency is not operationally checkable"
+            )
+        checker()
+
+
 class CapabilityAuthority:
     """Issue and atomically consume opaque capabilities bound to one action."""
 
@@ -184,8 +205,9 @@ class CapabilityAuthority:
         *,
         action_payload: dict[str, Any] | None = None,
     ) -> str:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        EmergencyStopHardWiringAuthority.assert_operational(
+            self.emergency_stop, boundary="capability-authority"
+        )
         if "*" in binding.scope:
             raise CapabilityError("wildcard capability scope is forbidden")
         if action_payload is not None:
@@ -224,8 +246,9 @@ class CapabilityAuthority:
     def consume(
         self, token: str, binding: CapabilityBinding
     ) -> ConsumedCapabilityProof:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        EmergencyStopHardWiringAuthority.assert_operational(
+            self.emergency_stop, boundary="capability-authority"
+        )
         capability = self.inspect(token)
         now = self.clock()
         # constitution_digest reflects "what was live when this side was

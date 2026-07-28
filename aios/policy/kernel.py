@@ -839,7 +839,7 @@ def _route_match(route: str, path: str) -> bool:
     return True
 
 
-class PolicyKernel:
+class PolicyKernelAuthority:
     """Runtime authority facade for the AI-OS API."""
 
     def __init__(
@@ -1421,9 +1421,13 @@ def reset_policy_kernel() -> PolicyKernel:
 
 
 
+PolicyKernel = PolicyKernelAuthority
+
+
 __all__ = [
     "AuthorityDecision",
     "ExecutionPolicy",
+    "PolicyKernelAuthority",
     "PolicyKernel",
     "RouteAuthority",
     "get_policy_kernel",

@@ -7,6 +7,8 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from aios import config
+from aios.application.intelligence.gateway import route_intelligence_request
+from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.core.llm import LLMClient, OllamaClient
 from aios.runtime.budget_guard import BudgetGuard
 from aios.runtime.contracts import MissionContract, RiskLevel
@@ -33,6 +35,8 @@ class IntelligenceRequest(RuntimeIntelligenceModel):
     risk: RiskLevel
     allow_cloud: bool = False
     max_tokens: int = 1500
+    operator_identity_digest: str | None = None
+    constitution_digest: str | None = None
     timeout_seconds: int = 20
 
 
@@ -77,6 +81,7 @@ class IntelligenceGateway:
         default_cloud_provider: str = "cloud",
         budget_guard: BudgetGuard | None = None,
         secret_policy: SecretPolicy | None = None,
+        context_store: Any | None = None,
         emergency_stop: Any | None = None,
     ) -> None:
         self.local_model = local_model or config.LLM_MODEL
@@ -85,11 +90,13 @@ class IntelligenceGateway:
         self.default_cloud_provider = default_cloud_provider
         self.budget_guard = budget_guard or BudgetGuard()
         self.secret_policy = secret_policy or SecretPolicy()
+        self.context_store = context_store
         self.emergency_stop = emergency_stop
 
     def _assert_operational(self) -> None:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        EmergencyStopHardWiringAuthority.assert_operational(
+            self.emergency_stop, boundary="intelligence-gateway"
+        )
 
     def request(
         self,
@@ -122,13 +129,40 @@ class IntelligenceGateway:
             "secret_detected": secret_decision.detected,
             "secret_findings": list(secret_decision.findings),
         }
+        operator_identity_digest = str(
+            request.operator_identity_digest
+            or getattr(contract, "operator_identity_digest", None)
+            or ""
+        ).strip()
+        constitution_digest = str(
+            request.constitution_digest
+            or getattr(contract, "constitution_digest", None)
+            or ""
+        ).strip()
+        if bool(operator_identity_digest) != bool(constitution_digest):
+            raise IntelligenceGatewayError(
+                "operator_identity_digest and constitution_digest must be supplied together"
+            )
+        governed = bool(operator_identity_digest and constitution_digest)
+        if getattr(contract, "requires_governed_intelligence", False) and not governed:
+            raise IntelligenceGatewayError(
+                "governed intelligence binding is required for this mission contract"
+            )
+        policy["universal_gateway"] = governed
 
         if cloud_allowed and self.cloud_clients:
             provider = self._choose_cloud_provider(contract)
             client = self.cloud_clients.get(provider)
             if client is not None:
                 try:
-                    raw = client.complete(safe_prompt, system=self.PLAN_SYSTEM_PROMPT)
+                    if governed:
+                        raw, context_digest = self._complete_via_universal(
+                            request, contract, client, provider, "cloud",
+                            operator_identity_digest, constitution_digest,
+                        )
+                        policy.setdefault("representative_context_digests", []).append(context_digest)
+                    else:
+                        raw = client.complete(safe_prompt, system=self.PLAN_SYSTEM_PROMPT)
                     text = self.secret_policy.redact_text(raw)
                     self.budget_guard.record_cloud_usage(
                         contract,
@@ -148,9 +182,23 @@ class IntelligenceGateway:
                     policy["cloud_error"] = str(exc)
 
         try:
-            raw = self.local_client.complete(
-                safe_prompt, system=self.PLAN_SYSTEM_PROMPT
-            )
+            if governed:
+                raw, context_digest = self._complete_via_universal(
+                    request,
+                    contract,
+                    self.local_client,
+                    "ollama",
+                    "local",
+                    operator_identity_digest,
+                    constitution_digest,
+                )
+                policy.setdefault("representative_context_digests", []).append(
+                    context_digest
+                )
+            else:
+                raw = self.local_client.complete(
+                    safe_prompt, system=self.PLAN_SYSTEM_PROMPT
+                )
         except Exception as exc:  # noqa: BLE001 - normalize provider failures
             raise IntelligenceGatewayError(
                 "local reasoning provider failed after cloud was denied or unavailable"
@@ -163,6 +211,43 @@ class IntelligenceGateway:
             fallback_used=bool(request.allow_cloud),
             policy=policy,
         )
+
+    def _complete_via_universal(
+        self,
+        request: IntelligenceRequest,
+        contract: MissionContract,
+        client: ReasoningClient,
+        provider: str,
+        target: Literal["local", "cloud"],
+        operator_identity_digest: str,
+        constitution_digest: str,
+    ) -> tuple[str, str]:
+        """Enter Organ 32 for a legacy worker request with real binding data."""
+        result = route_intelligence_request(
+            request_id=f"worker:{request.mission_id}:{request.worker_id}:{request.purpose}",
+            operator_identity_digest=operator_identity_digest,
+            constitution_digest=constitution_digest,
+            goal=request.prompt,
+            desired_outcome=(
+                f"Return bounded {request.purpose} guidance for mission "
+                f"{request.mission_id}."
+            ),
+            target=target,
+            delegated_authority_summary=(
+                "Worker reasoning only; no approval, file, command, or execution authority."
+            ),
+            explicit_constraints=(
+                "Do not claim approval or execute actions.",
+                f"Worker id: {request.worker_id}.",
+            ),
+            model_call=lambda context: client.complete(
+                context.goal,
+                system=self.PLAN_SYSTEM_PROMPT,
+            ),
+            emergency_stop=self.emergency_stop,
+            context_store=self.context_store,
+        )
+        return result.output, result.context.context_digest
 
     def _cloud_allowed(
         self,

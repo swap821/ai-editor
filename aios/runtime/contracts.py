@@ -40,6 +40,10 @@ class MissionContract(RuntimeContract):
     priority: int = 0
     risk_level: RiskLevel = "YELLOW"
     requires_approval: bool = True
+    operator_id: str | None = None
+    operator_identity_digest: str | None = None
+    constitution_digest: str | None = None
+    requires_governed_intelligence: bool = False
     workspace_root: str
     snapshot_id: str | None = None
     allowed_files: list[str] = Field(default_factory=list)

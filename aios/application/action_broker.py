@@ -24,7 +24,7 @@ class PolicyBrokerError(RuntimeError):
     """Raised when the broker cannot produce a usable PolicyDecision."""
 
 
-class ActionBroker:
+class ActionBrokerAuthority:
     """Submit one immutable envelope to policy and exact capability authority.
 
     ``capabilities`` is the production dependency. ``approvals`` is accepted
@@ -269,3 +269,11 @@ class ActionBroker:
             ActionType.KNOWLEDGE_INGEST: "create",
         }
         return mapping.get(envelope.action_type, "command")
+
+
+ActionBroker = ActionBrokerAuthority
+
+__all__ = [
+    "ActionBrokerAuthority",
+    "ActionBroker",
+]

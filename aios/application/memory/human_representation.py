@@ -341,50 +341,59 @@ _EXPLORATORY_MARKERS = re.compile(
 )
 
 
-def classify_human_state(text: str) -> HumanStateHypothesis:
-    """A small, deterministic, advisory guess -- never a model call.
+class HumanStateInterpreterAuthority:
+    """Own the deterministic, advisory interpretation of human state.
 
-    Checked in a fixed priority order (frustrated/rushed outrank the softer
-    signals) so a short, urgent, frustrated message doesn't get classified
-    as merely "decisive". Falls back to "neutral" with low confidence when
-    nothing matches -- an honest "no signal", not a fabricated one.
+    This authority owns the fixed-priority marker policy rather than merely
+    forwarding to the old function. The result remains explicitly advisory:
+    it never gates a request, grants authority, or calls a model.
     """
-    stripped = text.strip()
-    if _FRUSTRATED_MARKERS.search(stripped):
+
+    def classify(self, text: str) -> HumanStateHypothesis:
+        stripped = text.strip()
+        if _FRUSTRATED_MARKERS.search(stripped):
+            return HumanStateHypothesis(
+                state="frustrated",
+                confidence=0.6,
+                visible_reason="message contains repeated-complaint or frustration markers",
+            )
+        if _RUSHED_MARKERS.search(stripped):
+            return HumanStateHypothesis(
+                state="rushed",
+                confidence=0.6,
+                visible_reason="message contains urgency markers (asap/quickly/hurry)",
+            )
+        if _DECISIVE_MARKERS.search(stripped):
+            return HumanStateHypothesis(
+                state="decisive",
+                confidence=0.55,
+                visible_reason="message contains direct-instruction markers",
+            )
+        if _UNCERTAIN_MARKERS.search(stripped):
+            return HumanStateHypothesis(
+                state="uncertain",
+                confidence=0.5,
+                visible_reason="message contains hedging markers (not sure/maybe/perhaps)",
+            )
+        if _EXPLORATORY_MARKERS.search(stripped):
+            return HumanStateHypothesis(
+                state="exploratory",
+                confidence=0.5,
+                visible_reason="message contains open-ended/what-if markers",
+            )
         return HumanStateHypothesis(
-            state="frustrated",
-            confidence=0.6,
-            visible_reason="message contains repeated-complaint or frustration markers",
+            state="neutral",
+            confidence=0.3,
+            visible_reason="no distinguishing state markers matched",
         )
-    if _RUSHED_MARKERS.search(stripped):
-        return HumanStateHypothesis(
-            state="rushed",
-            confidence=0.6,
-            visible_reason="message contains urgency markers (asap/quickly/hurry)",
-        )
-    if _DECISIVE_MARKERS.search(stripped):
-        return HumanStateHypothesis(
-            state="decisive",
-            confidence=0.55,
-            visible_reason="message contains direct-instruction markers",
-        )
-    if _UNCERTAIN_MARKERS.search(stripped):
-        return HumanStateHypothesis(
-            state="uncertain",
-            confidence=0.5,
-            visible_reason="message contains hedging markers (not sure/maybe/perhaps)",
-        )
-    if _EXPLORATORY_MARKERS.search(stripped):
-        return HumanStateHypothesis(
-            state="exploratory",
-            confidence=0.5,
-            visible_reason="message contains open-ended/what-if markers",
-        )
-    return HumanStateHypothesis(
-        state="neutral",
-        confidence=0.3,
-        visible_reason="no distinguishing state markers matched",
-    )
+
+
+_DEFAULT_HUMAN_STATE_INTERPRETER = HumanStateInterpreterAuthority()
+
+
+def classify_human_state(text: str) -> HumanStateHypothesis:
+    """Compatibility entrypoint backed by the organ-30 authority."""
+    return _DEFAULT_HUMAN_STATE_INTERPRETER.classify(text)
 
 
 __all__ = [
@@ -394,6 +403,7 @@ __all__ = [
     "build_correction_record_v1",
     "record_correction_and_build_v1",
     "correction_lineage_v1",
+    "HumanStateInterpreterAuthority",
     "classify_human_state",
     "is_operator_preference_expired",
 ]

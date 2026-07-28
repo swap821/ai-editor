@@ -54,7 +54,7 @@ class IdentityDegraded(IdentityError):
     """
 
 
-class IdentityService:
+class IdentityAuthority:
     """Authoritative single-operator identity service."""
 
     def __init__(
@@ -318,3 +318,7 @@ class IdentityService:
         return self._constitution_authority.get_active_snapshot(
             operator_id
         ).snapshot_digest
+
+IdentityService = IdentityAuthority
+
+__all__ = ["IdentityAuthority", "IdentityService"]

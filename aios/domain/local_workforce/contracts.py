@@ -161,6 +161,26 @@ class LocalJobResultRecord(BaseModel):
     failure_reason: str | None = None
 
 
+class LocalClerkRuntimeAuthority:
+    """Own admission of models to the advisory-only local clerk runtime."""
+
+    def eligible_models(
+        self,
+        request: LocalJobRequest,
+        models: Sequence[LocalWorkerModel],
+    ) -> tuple[LocalWorkerModel, ...]:
+        """Return only installed, approved, healthy models earned for the job."""
+        return tuple(
+            model
+            for model in models
+            if model.installed
+            and model.operator_approved
+            and model.admission_status == "approved"
+            and model.health == "healthy"
+            and request.job_profile in model.allowed_job_profiles
+        )
+
+
 class LocalClerkProvenanceRecord(BaseModel):
     """Hash-linked provenance record of a local job."""
 

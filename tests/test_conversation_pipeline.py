@@ -226,3 +226,48 @@ def test_stream_conversation_authenticated_representation_uses_gateway_before_ro
         if frame.startswith("text_chunk:")
     )
     assert text == "governed reply"
+
+def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -> None:
+    context = _make_context(session_id="session-compat")
+    calls: list[str] = []
+
+    class _Client:
+        def __init__(self, label: str) -> None:
+            self.label = label
+
+        def stream_chat(self, messages, *, tools, model):
+            calls.append(self.label)
+            yield f"{self.label} reply"
+
+    local_client = _Client("local")
+    cloud_client = _Client("cloud")
+
+    def _active_route(chat_client, bedrock, gemini, model, *, openai=None, anthropic=None):
+        return ("cloud", "cloud-model") if chat_client is cloud_client else ("ollama", "local-model")
+
+    def _stream_chat_chunks(chat_client, messages, *, model):
+        yield from chat_client.stream_chat(messages, tools=None, model=model)
+
+    runtime = _make_runtime(
+        extra_overrides={
+            "select_chat_client": lambda task: (cloud_client, "cloud-model"),
+            "active_route": _active_route,
+            "stream_chat_chunks": _stream_chat_chunks,
+            "ollama_client": local_client,
+            "ollama_model": "local-model",
+        }
+    )
+
+    frames = list(stream_conversation(context, runtime))
+    route_frame = next(frame for frame in frames if frame.startswith("route:"))
+    text = "".join(
+        frame.split("'text': ", 1)[1].rstrip("}").strip("'")
+        for frame in frames
+        if frame.startswith("text_chunk:")
+    )
+
+    assert calls == ["local"]
+    assert "'provider': 'ollama'" in route_frame
+    assert "'model': 'local-model'" in route_frame
+    assert "'privacy': 'local'" in route_frame
+    assert text == "local reply"

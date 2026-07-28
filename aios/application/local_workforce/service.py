@@ -19,6 +19,7 @@ from aios.domain.local_workforce.contracts import (
     LocalJobRequest,
     LocalJobResult,
     LocalWorkerModel,
+    LocalClerkRuntimeAuthority,
 )
 from aios.domain.local_workforce.qualifier import QualificationSuite
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
@@ -83,6 +84,7 @@ class LocalWorkforceService:
         self.qualification_suite_factory = qualification_suite_factory
         self.model_client_factory = model_client_factory or self._default_model_client
         self.provenance_store = provenance_store
+        self.local_clerk_runtime_authority = LocalClerkRuntimeAuthority()
         self.provenance_authority = (
             ClerkProvenanceAuthority(provenance_store)
             if provenance_store is not None
@@ -320,15 +322,9 @@ class LocalWorkforceService:
             models = registry.list_models()
         except Exception:
             models = []
-        admitted = [
-            m
-            for m in models
-            if m.installed
-            and m.operator_approved
-            and m.admission_status == "approved"
-            and getattr(m, "health", "healthy") == "healthy"
-            and request.job_profile in m.allowed_job_profiles
-        ]
+        admitted = list(
+            self.local_clerk_runtime_authority.eligible_models(request, models)
+        )
         if not admitted:
             decision = self.dispatcher_authority.dispatch(
                 deterministic_available=deterministic_available,

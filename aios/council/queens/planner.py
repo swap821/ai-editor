@@ -46,6 +46,10 @@ class CouncilMissionRequest:
     worker_type: str = "hybrid_plan_worker"
     created_by: str = "planner_queen"
     risk_level: str = "YELLOW"
+    operator_id: str | None = None
+    operator_identity_digest: str | None = None
+    constitution_digest: str | None = None
+    requires_governed_intelligence: bool = False
     requires_approval: bool = True
     priority: int = 0
     timeout_seconds: int = 600
@@ -93,6 +97,10 @@ class PlannerQueen:
                 priority=request.priority,
                 risk_level=request.risk_level,  # type: ignore[arg-type]
                 requires_approval=request.requires_approval,
+                operator_id=request.operator_id,
+                operator_identity_digest=request.operator_identity_digest,
+                constitution_digest=request.constitution_digest,
+                requires_governed_intelligence=request.requires_governed_intelligence,
                 workspace_root=str(Path(request.workspace_root)),
                 allowed_files=list(request.allowed_files),
                 forbidden_files=list(request.forbidden_files),

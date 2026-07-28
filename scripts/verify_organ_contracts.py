@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
             current_sha=current_sha,
             repo_root=REPO_ROOT,
             strict_last_verified=args.strict_release,
+            enforce_owner_attestation=True,
         )
     )
     violations.extend(

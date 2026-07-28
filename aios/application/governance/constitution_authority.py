@@ -80,7 +80,7 @@ class OperatorLookup(Protocol):
     def operator(self) -> dict[str, Any] | None: ...
 
 
-class ConstitutionAuthority:
+class ConstitutionalKernelAuthority:
     """Authority for active constitution snapshot retrieval and activation."""
 
     def __init__(
@@ -230,7 +230,9 @@ class ConstitutionAuthority:
 # claim rather than a fact.
 # --------------------------------------------------------------------------- #
 
-_AUTHORITY: ConstitutionAuthority | None = None
+ConstitutionAuthority = ConstitutionalKernelAuthority
+
+_AUTHORITY: ConstitutionalKernelAuthority | None = None
 _AUTHORITY_LOCK = threading.Lock()
 
 
@@ -244,7 +246,7 @@ def get_constitution_authority() -> ConstitutionAuthority:
             from aios import config
             from aios.infrastructure.identity.sqlite_store import IdentityStore
 
-            _AUTHORITY = ConstitutionAuthority(
+            _AUTHORITY = ConstitutionalKernelAuthority(
                 ConstitutionSnapshotStore(config.CONSTITUTION_SNAPSHOT_DB_PATH),
                 identity_store=IdentityStore(config.IDENTITY_DB_PATH),
             )
@@ -264,6 +266,7 @@ def reset_constitution_authority() -> None:
 
 
 __all__ = [
+    "ConstitutionalKernelAuthority",
     "ConstitutionAuthority",
     "ConstitutionAuthorityError",
     "ConstitutionDegraded",

@@ -12,6 +12,7 @@ from aios.core.events import CanonicalEvent, EventPhase, TrustLevel
 from aios.domain.intelligence.broker import HiringBroker, HiringSelection
 from aios.domain.intelligence.repository import HiringRecord, HiringRecordRepository
 from aios.domain.privacy import ModelCallRecord, ModelCallRequest, digest_output
+from aios.application.intelligence.gateway import route_intelligence_request
 from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.secret_policy import SecretPolicy
 
@@ -69,8 +70,10 @@ class IntelligenceHiringService:
         cortex: CortexBus | None = None,
         policy: router.Policy = router.LOCAL_FIRST,
         emergency_stop: Any | None = None,
+        context_store: Any | None = None,
         secret_policy: SecretPolicy | None = None,
     ) -> None:
+        self.context_store = context_store
         self.broker = broker
         self.clients = dict(clients)
         # A provider row without its injected adapter is not executable runtime
@@ -166,6 +169,55 @@ class IntelligenceHiringService:
             raise RuntimeError(
                 f"selected provider adapter is not registered: {route.provider}"
             )
+        operator_identity_digest = str(request.operator_identity_digest or "").strip()
+        constitution_digest = str(request.constitution_digest or "").strip()
+        if bool(operator_identity_digest) != bool(constitution_digest):
+            raise RuntimeError(
+                "operator_identity_digest and constitution_digest must be supplied together"
+            )
+        governed = bool(operator_identity_digest and constitution_digest)
+        if request.requires_governed_intelligence and not governed:
+            raise RuntimeError(
+                "governed intelligence binding is required before provider call"
+            )
+        if governed:
+            target = (
+                "local" if route.privacy == router.PRIVACY_LOCAL else "cloud"
+            )
+            safe_system = (
+                self.secret_policy.redact_text(system)
+                if system is not None and target == "cloud"
+                else system
+            )
+            routed = route_intelligence_request(
+                request_id=request.request_id,
+                operator_identity_digest=operator_identity_digest,
+                constitution_digest=constitution_digest,
+                goal=request.prompt,
+                desired_outcome=(
+                    f"Return bounded {request.purpose} guidance for request "
+                    f"{request.request_id}."
+                ),
+                target=target,
+                delegated_authority_summary=(
+                    "Hiring provider reasoning only; no approval, file, command, "
+                    "or execution authority."
+                ),
+                explicit_constraints=(
+                    "Do not claim approval or execute actions.",
+                    "Provider selection is fixed by HiringBroker.",
+                    f"Selected provider: {route.provider}.",
+                ),
+                model_call=lambda context: client.complete(
+                    context.goal,
+                    system=safe_system,
+                    model=route.model,
+                    max_tokens=request.max_tokens,
+                ),
+                emergency_stop=self.emergency_stop,
+                context_store=self.context_store,
+            )
+            return routed.output
         return client.complete(
             prompt,
             system=system,

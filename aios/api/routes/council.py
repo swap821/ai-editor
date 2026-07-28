@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 from aios import config
 from aios.logging_config import get_logger
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
+from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.application.missions.mission_service import MissionService
 from aios.domain.actions.envelope import (
     ActionEnvelope,
@@ -63,6 +64,7 @@ from aios.api.deps import (
     get_emergency_stop,
     require_privileged_operator,
 )
+from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.domain.identity.models import Principal
 from aios.api.action_guard import enforce_action_boundary
 
@@ -626,7 +628,9 @@ def council_originate(
     """
     if not config.COUNCIL_ORIGINATION:
         raise HTTPException(status_code=404, detail="council origination is disabled")
-    emergency_stop.assert_operational()
+    EmergencyStopHardWiringAuthority.assert_operational(
+        emergency_stop, boundary="council-route"
+    )
     _enforce_conversation_rate_limit(principal.session_id)
     if injection_reason := _check_prompt_injection(req.goal):
         raise HTTPException(
@@ -651,6 +655,10 @@ def council_originate(
         # request_plan: the deterministic worker needs no model when reasoning is off.
         allowed_tools=allowed_tools,
         verification_commands=list(req.verification_commands),
+        operator_id=principal.principal_id,
+        operator_identity_digest=credential_digest(principal.principal_id),
+        constitution_digest=principal.constitution_digest or None,
+        requires_governed_intelligence=True,
         risk_level=req.risk_level,  # type: ignore[arg-type]
         metadata=mission_metadata,
     )
@@ -801,7 +809,9 @@ def council_mission_rollback(
     """Restore one Council mission workspace to its pre-worker snapshot."""
     # Organ 26: a destructive workspace restore must never proceed while the
     # emergency stop is engaged -- this route had no such check at all.
-    emergency_stop.assert_operational()
+    EmergencyStopHardWiringAuthority.assert_operational(
+        emergency_stop, boundary="council-route"
+    )
     safe_id = _validate_council_mission_id(mission_id)
     reports = KingReportStore(runtime_root)
     ledgers = RunLedgerStore(runtime_root)
@@ -941,7 +951,9 @@ def council_approve(
     ``awaiting_approval`` schedules execute() in the background — this is the gate
     where a human authorizes the worker to act.
     """
-    emergency_stop.assert_operational()
+    EmergencyStopHardWiringAuthority.assert_operational(
+        emergency_stop, boundary="council-route"
+    )
     # Mission-level Council origination is authorized by the SQLite mission
     # record.  The JSON King decision is only a projection written after the
     # authoritative transition succeeds.

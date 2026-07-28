@@ -33,7 +33,8 @@ from aios.domain.learning.reuse_orchestrator import (
     LocalExecutionDirective,
     SkillReuseOrchestrator,
 )
-from aios.application.learning.skill_lifecycle import apply_reuse_outcome
+from aios.application.learning.skill_lifecycle import SkillLifecycleAuthority
+from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.domain.learning.trajectory_gate import TrajectoryGate
 from aios.domain.learning.trajectory_repository import (
     TrajectoryRecord,
@@ -135,11 +136,16 @@ class LearningService:
         self.reuse = SkillReuseOrchestrator(self.applicability)
         self.trajectory_gate = TrajectoryGate()
         self.confidence = ConfidenceUpdater()
+        self.skill_lifecycle_authority = SkillLifecycleAuthority(
+            self.skill_repository,
+            updater=self.confidence,
+        )
         self.emergency_stop = emergency_stop
 
     def _assert_operational(self) -> None:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        EmergencyStopHardWiringAuthority.assert_operational(
+            self.emergency_stop, boundary="learning-service"
+        )
 
     def capture_trajectory(
         self,
@@ -380,13 +386,11 @@ class LearningService:
             policy_allows=policy_allows,
         )
         if isinstance(directive, EscalateToFrontierDirective):
-            apply_reuse_outcome(
-                self.skill_repository,
+            self.skill_lifecycle_authority.apply_reuse_outcome(
                 skill.skill_id,
                 skill.version,
                 success=False,
                 reason="applicability",
-                updater=self.confidence,
             )
             return directive
 
@@ -423,13 +427,11 @@ class LearningService:
             # a refusal that must escalate to the frontier; it must never fall
             # through to local mission creation.
             if clerk_res.status != "completed" or not clerk_res.structured_output:
-                apply_reuse_outcome(
-                    self.skill_repository,
+                self.skill_lifecycle_authority.apply_reuse_outcome(
                     skill.skill_id,
                     skill.version,
                     success=False,
                     reason="clerk_advisory_refused",
-                    updater=self.confidence,
                 )
                 return EscalateToFrontierDirective(
                     reason=clerk_res.failure_reason or "Local clerk advisory failed"
@@ -446,13 +448,11 @@ class LearningService:
                     or parsed.get("reason")
                     or "advisory evaluation declined local execution"
                 )
-                apply_reuse_outcome(
-                    self.skill_repository,
+                self.skill_lifecycle_authority.apply_reuse_outcome(
                     skill.skill_id,
                     skill.version,
                     success=False,
                     reason="clerk_advisory_refused",
-                    updater=self.confidence,
                 )
                 return EscalateToFrontierDirective(reason=reason)
         contract = MissionContract(
@@ -606,13 +606,11 @@ class LearningService:
                 for result in results
             )
         )
-        return apply_reuse_outcome(
-            self.skill_repository,
+        return self.skill_lifecycle_authority.apply_reuse_outcome(
             skill_id,
             version,
             success=passed,
             reason=None if passed else "verification",
-            updater=self.confidence,
         )
 
 

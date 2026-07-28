@@ -107,39 +107,56 @@ def _touches_foundation_law(proposal: ConstitutionalAmendmentProposalV1) -> bool
     return any(law.lower() in haystack for law in FOUNDATION_LAWS)
 
 
+class ConstitutionalAmendmentAuthority:
+    """Own the fail-closed capability gate for constitutional ratification."""
+
+    def ratify_amendment(
+            self,
+        proposal: ConstitutionalAmendmentProposalV1,
+        *,
+        capability_proof: Any,
+        operator_id: str,
+    ) -> ConstitutionalAmendmentProposalV1:
+        """The only step that can move a proposal toward activation. Refuses
+        without a real, already-consumed, exactly-bound capability -- there is
+        no other path through this function."""
+        if proposal.status not in _OPEN_STATUSES:
+            raise AmendmentError(f"cannot ratify a proposal in status {proposal.status!r}")
+        if _touches_foundation_law(proposal):
+            raise AmendmentError("foundation-law modifications are not amendable in v1")
+        if (
+            getattr(capability_proof, "action_type", None)
+            != CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
+        ):
+            raise AmendmentError(
+                "ratification capability must be bound to "
+                f"{CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION!r}, got "
+                f"{getattr(capability_proof, 'action_type', None)!r}"
+            )
+        if getattr(capability_proof, "operator_id", None) != operator_id:
+            raise AmendmentError("ratification capability operator does not match")
+        if getattr(capability_proof, "consumed_at", None) is None:
+            raise AmendmentError("ratification requires an already-consumed capability")
+
+        return proposal.model_copy(
+            update={
+                "status": "ratified",
+                "ratified_by_operator_id": operator_id,
+                "ratification_capability_digest": capability_proof.token_digest,
+            }
+        )
+
 def ratify_amendment(
     proposal: ConstitutionalAmendmentProposalV1,
     *,
     capability_proof: Any,
     operator_id: str,
 ) -> ConstitutionalAmendmentProposalV1:
-    """The only step that can move a proposal toward activation. Refuses
-    without a real, already-consumed, exactly-bound capability -- there is
-    no other path through this function."""
-    if proposal.status not in _OPEN_STATUSES:
-        raise AmendmentError(f"cannot ratify a proposal in status {proposal.status!r}")
-    if _touches_foundation_law(proposal):
-        raise AmendmentError("foundation-law modifications are not amendable in v1")
-    if (
-        getattr(capability_proof, "action_type", None)
-        != CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
-    ):
-        raise AmendmentError(
-            "ratification capability must be bound to "
-            f"{CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION!r}, got "
-            f"{getattr(capability_proof, 'action_type', None)!r}"
-        )
-    if getattr(capability_proof, "operator_id", None) != operator_id:
-        raise AmendmentError("ratification capability operator does not match")
-    if getattr(capability_proof, "consumed_at", None) is None:
-        raise AmendmentError("ratification requires an already-consumed capability")
-
-    return proposal.model_copy(
-        update={
-            "status": "ratified",
-            "ratified_by_operator_id": operator_id,
-            "ratification_capability_digest": capability_proof.token_digest,
-        }
+    """Compatibility entrypoint for the production governance routes."""
+    return ConstitutionalAmendmentAuthority().ratify_amendment(
+        proposal,
+        capability_proof=capability_proof,
+        operator_id=operator_id,
     )
 
 
@@ -217,6 +234,7 @@ def rollback_amendment(
 
 __all__ = [
     "AmendmentError",
+    "ConstitutionalAmendmentAuthority",
     "activate_amendment",
     "critique_amendment",
     "propose_amendment",

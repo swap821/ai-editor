@@ -46,7 +46,7 @@ class WorkerExecutionRequest:
     context: dict[str, Any] = field(default_factory=dict)
 
 
-class WorkerFoundry:
+class WorkerFoundryAuthority:
     """Admit, schedule and dissolve temporary workers through one boundary."""
 
     def __init__(
@@ -334,10 +334,14 @@ def _contract_budgets(contract: Any) -> dict[str, Any]:
     return {"value": str(budget)}
 
 
+WorkerFoundry = WorkerFoundryAuthority
+
+
 __all__ = [
     "StrategyUnavailable",
     "UnknownWorkerStrategy",
     "WorkerExecutionRequest",
+    "WorkerFoundryAuthority",
     "WorkerFoundry",
     "WorkerStrategy",
 ]

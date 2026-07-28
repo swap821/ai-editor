@@ -33,6 +33,7 @@ from aios.agents.reflection_agent import ReflectionAgent
 from aios.agents.rollback_engine import RollbackEngine
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.application.memory import MemoryAuthority
+from aios.application.memory.human_representation import HumanStateInterpreterAuthority
 from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.capabilities.verifier import CapabilityVerifier
 from aios.application.action_broker import ActionBroker
@@ -127,6 +128,7 @@ _project_passport_store: Optional[ProjectPassportStore] = None
 _project_passport_store_lock = threading.Lock()
 _human_state_hypothesis_store: Optional[HumanStateHypothesisStore] = None
 _human_state_hypothesis_store_lock = threading.Lock()
+_human_state_interpreter_authority = HumanStateInterpreterAuthority()
 _correction_record_store: Optional[CorrectionRecordStore] = None
 _correction_record_store_lock = threading.Lock()
 _operator_preference_store: Optional[OperatorPreferenceStore] = None
@@ -668,6 +670,11 @@ def get_project_understanding_authority(
     return ProjectUnderstandingAuthority(store)
 
 
+def get_human_state_interpreter_authority() -> HumanStateInterpreterAuthority:
+    """Provide organ 30's deterministic human-state authority."""
+    return _human_state_interpreter_authority
+
+
 def get_human_state_hypothesis_store() -> HumanStateHypothesisStore:
     """Provide the durable, append-only HumanStateHypothesis history
     singleton (organ 30) -- turns classify_human_state()'s previously
@@ -1131,6 +1138,7 @@ def get_hiring_service(
     cortex: Any = Depends(get_cortex_observation_bus),
     policy: Any = Depends(get_policy_kernel),
     emergency_stop: Any = Depends(get_emergency_stop),
+    context_store: Any = Depends(get_representative_context_store),
 ) -> Any:
     """Compose the canonical HiringBroker with injected runtime adapters."""
     from aios.application.models.hiring_service import (
@@ -1166,6 +1174,7 @@ def get_hiring_service(
         cortex=cortex,
         policy=policy.router_policy(),
         emergency_stop=emergency_stop,
+        context_store=context_store,
     )
 
 

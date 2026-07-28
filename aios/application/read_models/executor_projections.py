@@ -29,38 +29,55 @@ def _unavailable(source: str) -> MetricEnvelope:
     return MetricEnvelope(value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None)
 
 
-def project_executor_status(client: StructuredExecutorClient | None) -> ExecutorStatusProjection:
-    """Project the private executor's real, current reachability.
+class IsolatedExecutorLiveAuthority:
+    """Own the truthful executor reachability projection used by the mirror.
 
-    `client` is the real `ExecutorService.client` -- `None` only in a test
-    double that never configured one. A configured client with no base_url
-    or token fails `.health()` instantly (no network call); a configured,
-    unreachable one fails after a real bounded HTTP attempt. Both are
-    reported as an honest `reason`, never silently swallowed.
+    The owner never substitutes configuration for a health result: an
+    unconfigured client is unavailable, and a configured client must complete
+    its authenticated ``/health`` call before reachability is measured.
     """
-    source = "executor_service_health"
-    if client is None or not client.base_url or not client.token:
-        return ExecutorStatusProjection(
-            configured=_measured(False, source),
-            reachable=_unavailable(source),
-            runtime=_unavailable(source),
-            reason=_measured("private executor service is not configured", source),
-        )
-    try:
-        payload = client.health()
-    except IsolationUnavailable as exc:
+
+    def project(self, client: StructuredExecutorClient | None) -> ExecutorStatusProjection:
+        """Return measured executor state or an explicit unavailable envelope."""
+        source = "executor_service_health"
+        if client is None or not client.base_url or not client.token:
+            return ExecutorStatusProjection(
+                configured=_measured(False, source),
+                reachable=_unavailable(source),
+                runtime=_unavailable(source),
+                reason=_measured("private executor service is not configured", source),
+            )
+        try:
+            payload = client.health()
+        except IsolationUnavailable as exc:
+            return ExecutorStatusProjection(
+                configured=_measured(True, source),
+                reachable=_measured(False, source),
+                runtime=_unavailable(source),
+                reason=_measured(str(exc), source),
+            )
         return ExecutorStatusProjection(
             configured=_measured(True, source),
-            reachable=_measured(False, source),
-            runtime=_unavailable(source),
-            reason=_measured(str(exc), source),
+            reachable=_measured(True, source),
+            runtime=_measured(payload.get("runtime"), source),
+            reason=_unavailable(source),
         )
-    return ExecutorStatusProjection(
-        configured=_measured(True, source),
-        reachable=_measured(True, source),
-        runtime=_measured(payload.get("runtime"), source),
-        reason=_unavailable(source),
-    )
 
 
-__all__ = ["project_executor_status"]
+_ISOLATED_EXECUTOR_LIVE_AUTHORITY = IsolatedExecutorLiveAuthority()
+
+
+def get_isolated_executor_live_authority() -> IsolatedExecutorLiveAuthority:
+    return _ISOLATED_EXECUTOR_LIVE_AUTHORITY
+
+
+def project_executor_status(client: StructuredExecutorClient | None) -> ExecutorStatusProjection:
+    """Compatibility function for existing projection callers and tests."""
+    return _ISOLATED_EXECUTOR_LIVE_AUTHORITY.project(client)
+
+
+__all__ = [
+    "IsolatedExecutorLiveAuthority",
+    "get_isolated_executor_live_authority",
+    "project_executor_status",
+]

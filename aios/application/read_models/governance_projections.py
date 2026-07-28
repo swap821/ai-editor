@@ -21,6 +21,10 @@ from typing import Any
 
 from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.models.health import ProviderHealthTracker
+from aios.application.read_models.provenance_projections import (
+    project_privacy_audits,
+    project_routing_decisions,
+)
 from aios.core.approvals import ApprovedAction
 from aios.domain.capabilities.contracts import Capability
 from aios.domain.governance.constitution import ConstitutionSnapshotV1
@@ -239,8 +243,38 @@ def project_pending_approvals(
     )
 
 
+class ReadModelProjectionAuthority:
+    """Own the consolidated truthful sovereignty read-model surface."""
+
+    def build_governance_surface(
+        self,
+        *,
+        constitution: ConstitutionSnapshotV1 | None,
+        emergency_stop: Any,
+        provider_health: ProviderHealthTracker,
+        capability_authority: CapabilityAuthority,
+        development_tracker: Any,
+        privacy_audit_tracker: Any,
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        """Project one coherent surface from the live authoritative inputs."""
+        return {
+            "constitution": project_constitution(constitution),
+            "emergencyStop": project_emergency_stop(emergency_stop.state()),
+            "providerHealth": project_provider_health_list(provider_health),
+            "approvals": project_pending_approvals(capability_authority),
+            "routingDecisions": project_routing_decisions(
+                development_tracker, limit=limit
+            ),
+            "privacyAudits": project_privacy_audits(
+                privacy_audit_tracker, limit=limit
+            ),
+        }
+
+
 __all__ = [
     "KNOWN_PROVIDER_NAMES",
+    "ReadModelProjectionAuthority",
     "project_approval",
     "project_capability_approval",
     "project_constitution",

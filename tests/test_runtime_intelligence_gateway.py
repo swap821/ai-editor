@@ -3,10 +3,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 from aios.runtime.contracts import MissionContract
 from aios.runtime.intelligence_gateway import (
     IntelligenceRequest,
     IntelligenceGateway,
+    IntelligenceGatewayError,
     IntelligenceResponse,
 )
 from aios.runtime.worker_entry import run_worker
@@ -30,9 +33,11 @@ class FakeGateway:
     def __init__(self, response: IntelligenceResponse) -> None:
         self.response = response
         self.calls = 0
+        self.requests = []
 
     def request(self, request, *, contract):  # noqa: ANN001 - protocol test fake
         self.calls += 1
+        self.requests.append(request)
         assert request.mission_id == contract.mission_id
         return self.response
 
@@ -268,3 +273,89 @@ def gateway_request(
         risk=contract.risk_level,
         allow_cloud=allow_cloud,
     )
+def test_governed_gateway_routes_local_reasoning_through_universal_context(
+    tmp_path: Path,
+) -> None:
+    local = FakeReasoner("governed local plan")
+
+    class ContextStore:
+        def __init__(self) -> None:
+            self.saved = []
+
+        def save(self, context) -> None:  # noqa: ANN001 - test spy
+            self.saved.append(context)
+
+    context_store = ContextStore()
+    gateway = IntelligenceGateway(local_client=local, context_store=context_store)
+    contract = _mission(
+        tmp_path,
+        operator_identity_digest="a" * 64,
+        constitution_digest="b" * 64,
+        requires_governed_intelligence=True,
+    )
+
+    response = gateway.request(
+        request=gateway_request(contract, allow_cloud=False),
+        contract=contract,
+    )
+
+    assert response.used_cloud is False
+    assert response.text == "governed local plan"
+    assert response.policy["universal_gateway"] is True
+    assert response.policy["representative_context_digests"] == [
+        context_store.saved[0].context_digest
+    ]
+    assert context_store.saved[0].operator_identity_digest == "a" * 64
+    assert context_store.saved[0].constitution_digest == "b" * 64
+    assert local.calls
+
+
+def test_governed_gateway_refuses_missing_binding_before_provider_call(
+    tmp_path: Path,
+) -> None:
+    local = FakeReasoner("must not run")
+    gateway = IntelligenceGateway(local_client=local)
+    contract = _mission(tmp_path, requires_governed_intelligence=True)
+
+    with pytest.raises(
+        IntelligenceGatewayError,
+        match="governed intelligence binding is required",
+    ):
+        gateway.request(
+            request=gateway_request(contract, allow_cloud=False),
+            contract=contract,
+        )
+
+    assert local.calls == []
+
+
+def test_worker_runtime_propagates_governed_binding_to_gateway(
+    tmp_path: Path,
+) -> None:
+    contract = _mission(
+        tmp_path,
+        operator_identity_digest="operator-digest",
+        constitution_digest="constitution-digest",
+        requires_governed_intelligence=True,
+    )
+    response = IntelligenceResponse(
+        provider="ollama",
+        model="test",
+        used_cloud=False,
+        text="bounded plan",
+        fallback_used=False,
+    )
+    fake_gateway = FakeGateway(response)
+    runtime = WorkerRuntime(
+        contract,
+        worker_id="worker-governed",
+        runtime_root=tmp_path / "runtime",
+        result_path=tmp_path / "runtime" / "result.json",
+        intelligence_gateway=fake_gateway,
+    )
+
+    assert runtime.request_plan("Use only the allowed file.") == "bounded plan"
+
+    assert len(fake_gateway.requests) == 1
+    assert fake_gateway.requests[0].operator_identity_digest == "operator-digest"
+    assert fake_gateway.requests[0].constitution_digest == "constitution-digest"

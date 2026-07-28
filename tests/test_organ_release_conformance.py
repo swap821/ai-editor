@@ -290,6 +290,48 @@ def test_owner_class_check_is_skipped_without_repo_root() -> None:
     assert validate_ledger(records) == ()
 
 
+def test_phase2_owner_gate_rejects_yellow_without_owner_class(tmp_path) -> None:
+    entry_file = tmp_path / "gateway.py"
+    entry_file.write_text("def do_the_thing():\n    pass\n", encoding="utf-8")
+    records = _baseline_records()
+    # Organ 6 is non-frozen and remains yellow; Phase 2 must still verify its
+    # named owner rather than letting yellow status hide a missing class.
+    records[5] = records[5].model_copy(
+        update={"production_entrypoints": ("gateway.py",)}
+    )
+    violations = validate_ledger(
+        records, repo_root=tmp_path, enforce_owner_attestation=True
+    )
+    assert any(
+        "organ_id 6" in violation and "Phase 2 owner attestation" in violation
+        for violation in violations
+    )
+
+
+def test_phase2_owner_gate_allows_frozen_yellow_exception(tmp_path) -> None:
+    records = _baseline_records()
+    # Organ 1 is deliberately yellow and points at no mutable owner class: its
+    # production entrypoints are the frozen security spine. The exception must
+    # not turn into a general exemption for non-frozen organs.
+    violations = validate_ledger(
+        [records[0]], repo_root=tmp_path, enforce_owner_attestation=True
+    )
+    assert not any(
+        "organ_id 1" in violation and "Phase 2 owner attestation" in violation
+        for violation in violations
+    )
+    assert any("missing organ_id 2" in violation for violation in violations)
+
+
+def test_phase2_owner_gate_forbids_frozen_green_claim(tmp_path) -> None:
+    records = _baseline_records()
+    records[0] = _make_green(records[0])
+    violations = validate_ledger(
+        [records[0]], repo_root=tmp_path, enforce_owner_attestation=True
+    )
+    assert any("frozen security-spine RED" in violation for violation in violations)
+
+
 def test_strict_last_verified_rejects_a_stale_or_missing_sha() -> None:
     records = _baseline_records()
     records[0] = _make_green(records[0], last_verified_sha="0" * 40)
@@ -486,6 +528,9 @@ def test_shipped_ledger_has_all_54_organs_and_zero_violations() -> None:
     assert len(records) == 54
     assert {r.organ_id for r in records} == set(range(1, 55))
     assert validate_ledger(records) == ()
+    assert validate_ledger(
+        records, repo_root=REPO_ROOT, enforce_owner_attestation=True
+    ) == ()
 
 
 def test_shipped_ledger_32_target_organs_are_yellow_with_blockers_or_genuinely_green() -> (

@@ -19,12 +19,13 @@ from aios.api.main import get_cortex_bus
 from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
 from aios.application.read_models.projection import get_system_projection
 from aios.application.read_models.governance_projections import (
+    ReadModelProjectionAuthority,
     project_constitution,
     project_emergency_stop,
     project_pending_approvals,
     project_provider_health_list,
 )
-from aios.application.read_models.executor_projections import project_executor_status
+from aios.application.read_models.executor_projections import get_isolated_executor_live_authority
 from aios.application.read_models.provenance_projections import (
     project_privacy_audits,
     project_routing_decisions,
@@ -53,6 +54,9 @@ from aios.application.governance.constitution_authority import (
 )
 from aios.domain.identity.models import PrincipalType
 from aios.domain.read_models import MetricEnvelope, MetricStatus
+
+
+_READ_MODEL_PROJECTION_AUTHORITY = ReadModelProjectionAuthority()
 from aios.memory.development import DevelopmentTracker
 from aios.memory.skills import SkillMemory
 
@@ -270,20 +274,25 @@ def get_governance_projection(
             # ConstitutionDegraded is deliberately NOT caught: a store that is
             # unreadable or tampered is a real 503, not an empty panel.
             snapshot = None
-    constitution = project_constitution(snapshot)
-    stop_projection = project_emergency_stop(emergency_stop.state())
-    provider_health_list = project_provider_health_list(provider_health)
-    approvals = project_pending_approvals(capability_authority)
-    routing_decisions = project_routing_decisions(development_tracker, limit=10)
-    privacy_audits = project_privacy_audits(privacy_audit_tracker, limit=10)
+    surface = _READ_MODEL_PROJECTION_AUTHORITY.build_governance_surface(
+        constitution=snapshot,
+        emergency_stop=emergency_stop,
+        provider_health=provider_health,
+        capability_authority=capability_authority,
+        development_tracker=development_tracker,
+        privacy_audit_tracker=privacy_audit_tracker,
+    )
     return JSONResponse(
         content={
-            "constitution": constitution.model_dump(mode="json"),
-            "emergencyStop": stop_projection.model_dump(mode="json"),
-            "providerHealth": [p.model_dump(mode="json") for p in provider_health_list],
-            "approvals": [a.model_dump(mode="json") for a in approvals],
-            "routingDecisions": [r.model_dump(mode="json") for r in routing_decisions],
-            "privacyAudits": [p.model_dump(mode="json") for p in privacy_audits],
+            key: (
+                value.model_dump(mode="json")
+                if hasattr(value, "model_dump")
+                else [
+                    item.model_dump(mode="json")
+                    for item in value
+                ]
+            )
+            for key, value in surface.items()
         }
     )
 
@@ -302,7 +311,7 @@ def get_executor_status_projection(
     existing bound rather than inventing a second, narrower timeout.
     """
     client = getattr(executor_service, "client", None)
-    status = project_executor_status(client)
+    status = get_isolated_executor_live_authority().project(client)
     return JSONResponse(content={"executor": status.model_dump(mode="json")})
 
 

@@ -17,7 +17,7 @@ from aios.domain.missions.mission_state import MissionState
 from aios.application.workspaces import StagedWorkspaceManager
 
 
-class MissionService:
+class MissionAuthority:
     """Application service for the mission lifecycle state machine."""
 
     _instances: ClassVar[weakref.WeakSet["MissionService"]] = weakref.WeakSet()
@@ -301,4 +301,7 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-__all__ = ["MissionService"]
+MissionService = MissionAuthority
+
+
+__all__ = ["MissionAuthority", "MissionService"]

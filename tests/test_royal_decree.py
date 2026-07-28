@@ -55,6 +55,22 @@ def test_royal_decree_request_is_advisory_and_builder_bounded(tmp_path: Path) ->
     assert "request_approval" in request.forbidden_tools
 
 
+def test_royal_decree_preserves_governed_worker_binding(tmp_path: Path) -> None:
+    request = apply_royal_decree(
+        _request(
+            tmp_path,
+            operator_identity_digest="a" * 64,
+            constitution_digest="b" * 64,
+            requires_governed_intelligence=True,
+        ),
+        force=True,
+    )
+
+    assert request.operator_identity_digest == "a" * 64
+    assert request.constitution_digest == "b" * 64
+    assert request.requires_governed_intelligence is True
+
+
 def test_royal_decree_cannot_override_red_security_decision(tmp_path: Path) -> None:
     request = apply_royal_decree(
         _request(

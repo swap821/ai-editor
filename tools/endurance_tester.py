@@ -29,6 +29,7 @@ from typing import Any, Iterator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+from tools.golden_mission_runner import GoldenMissionEnduranceAuthority
 
 try:
     import requests
@@ -258,8 +259,6 @@ def cmd_run(args: argparse.Namespace) -> None:
     total_elapsed = time.monotonic() - start_time
     successes = outcomes.count("verified_success")
     total = len(outcomes)
-    success_rate = round(successes / max(total, 1), 3)
-
     sorted_lat = sorted(latencies)
     p50 = sorted_lat[len(sorted_lat) // 2] if sorted_lat else 0
     p95_idx = int(len(sorted_lat) * 0.95)
@@ -267,9 +266,15 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     baseline_window = sorted(latencies[:3]) if len(latencies) >= 3 else sorted_lat
     baseline_p95 = baseline_window[-1] if baseline_window else 0
-    latency_stable = p95 <= baseline_p95 * 2 if baseline_p95 > 0 else True
-
-    green = success_rate >= 0.80 and latency_stable
+    endurance_decision = GoldenMissionEnduranceAuthority.evaluate_endurance(
+        successes=successes,
+        total=total,
+        p95=p95,
+        baseline_p95=baseline_p95,
+    )
+    success_rate = endurance_decision["success_rate"]
+    latency_stable = endurance_decision["latency_stable"]
+    green = endurance_decision["green"]
 
     summary = {
         "kind": "endurance-summary",

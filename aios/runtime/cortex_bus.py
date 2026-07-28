@@ -117,7 +117,7 @@ def _row_to_event(row: sqlite3.Row) -> BusEvent:
     )
 
 
-class CortexBus:
+class CortexBusAuthority:
     """A durable SQLite outbox with idempotent, per-entity-ordered dispatch."""
 
     def __init__(
@@ -568,4 +568,7 @@ def _row_to_cursor(row: sqlite3.Row) -> ConsumerCursor:
     )
 
 
-__all__ = ["BusEvent", "ConsumerCursor", "ConsumerReplayGap", "CortexBus"]
+CortexBus = CortexBusAuthority
+
+
+__all__ = ["BusEvent", "ConsumerCursor", "ConsumerReplayGap", "CortexBusAuthority", "CortexBus"]

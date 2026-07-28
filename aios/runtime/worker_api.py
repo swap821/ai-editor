@@ -351,6 +351,7 @@ class WorkerRuntime:
             "request_plan",
             {"prompt_length": len(prompt), "allow_cloud": allow_cloud},
         )
+        operator_identity_digest, constitution_digest = self._intelligence_binding()
         response = self.intelligence_gateway.request(
             IntelligenceRequest(
                 mission_id=self.contract.mission_id,
@@ -360,6 +361,8 @@ class WorkerRuntime:
                 risk=self.contract.risk_level,
                 allow_cloud=allow_cloud,
                 max_tokens=int(self.contract.metadata.get("plan_max_tokens", 1500)),
+                operator_identity_digest=operator_identity_digest,
+                constitution_digest=constitution_digest,
                 timeout_seconds=int(
                     self.contract.metadata.get("plan_timeout_seconds", 20)
                 ),
@@ -399,6 +402,7 @@ class WorkerRuntime:
                 "purpose": purpose,
             },
         )
+        operator_identity_digest, constitution_digest = self._intelligence_binding()
         response = self.intelligence_gateway.request(
             IntelligenceRequest(
                 mission_id=self.contract.mission_id,
@@ -408,6 +412,8 @@ class WorkerRuntime:
                 risk=self.contract.risk_level,
                 allow_cloud=allow_cloud,
                 max_tokens=int(self.contract.metadata.get("change_max_tokens", 2000)),
+                operator_identity_digest=operator_identity_digest,
+                constitution_digest=constitution_digest,
                 timeout_seconds=int(
                     self.contract.metadata.get("change_timeout_seconds", 30)
                 ),
@@ -428,6 +434,23 @@ class WorkerRuntime:
         )
         self._persist_evidence()
         return response.text
+
+    def _intelligence_binding(self) -> tuple[str | None, str | None]:
+        operator_identity_digest = getattr(
+            self.contract, "operator_identity_digest", None
+        )
+        constitution_digest = getattr(self.contract, "constitution_digest", None)
+        if bool(operator_identity_digest) != bool(constitution_digest):
+            raise ContractViolation(
+                "operator_identity_digest and constitution_digest must be supplied together"
+            )
+        if getattr(self.contract, "requires_governed_intelligence", False) and not (
+            operator_identity_digest and constitution_digest
+        ):
+            raise ContractViolation(
+                "governed intelligence binding is required before worker reasoning"
+            )
+        return operator_identity_digest, constitution_digest
 
     def emit_evidence(self, data: dict[str, Any]) -> None:
         self.evidence.update(data)

@@ -66,38 +66,45 @@ def _tracked_files(existing: dict[str, object] | None) -> tuple[str, ...]:
     return tuple(tracked)
 
 
+class ReleaseConformanceAuthority:
+    """Own deterministic release-manifest construction from real repository state."""
+
+    def build_manifest(self, *, note: str | None = None) -> dict[str, object]:
+        from datetime import datetime, timezone
+
+        from aios.application.governance.organ_ledger import (
+            current_commit_sha,
+            load_ledger,
+        )
+
+        records = load_ledger(LEDGER_PATH)
+        existing = _existing_manifest()
+
+        organ_summary = {
+            "total": len(records),
+            "green": sum(1 for r in records if r.status == "green"),
+            "yellow": sum(1 for r in records if r.status == "yellow"),
+        }
+        files = {
+            rel_path: _sha256_of(REPO_ROOT / rel_path)
+            for rel_path in _tracked_files(existing)
+        }
+        resolved_note = note if note is not None else str((existing or {}).get("note", ""))
+
+        return {
+            "schema_version": str((existing or {}).get("schema_version", "1")),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "source_commit_sha": current_commit_sha(REPO_ROOT) or "",
+            "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
+            "ledger_sha256": _sha256_of(LEDGER_PATH),
+            "organ_summary": organ_summary,
+            "files": files,
+            "note": resolved_note,
+        }
+
 def build_manifest(*, note: str | None = None) -> dict[str, object]:
-    from datetime import datetime, timezone
-
-    from aios.application.governance.organ_ledger import (
-        current_commit_sha,
-        load_ledger,
-    )
-
-    records = load_ledger(LEDGER_PATH)
-    existing = _existing_manifest()
-
-    organ_summary = {
-        "total": len(records),
-        "green": sum(1 for r in records if r.status == "green"),
-        "yellow": sum(1 for r in records if r.status == "yellow"),
-    }
-    files = {
-        rel_path: _sha256_of(REPO_ROOT / rel_path)
-        for rel_path in _tracked_files(existing)
-    }
-    resolved_note = note if note is not None else str((existing or {}).get("note", ""))
-
-    return {
-        "schema_version": str((existing or {}).get("schema_version", "1")),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "source_commit_sha": current_commit_sha(REPO_ROOT) or "",
-        "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-        "ledger_sha256": _sha256_of(LEDGER_PATH),
-        "organ_summary": organ_summary,
-        "files": files,
-        "note": resolved_note,
-    }
+    """Compatibility entrypoint for release tooling and tests."""
+    return ReleaseConformanceAuthority().build_manifest(note=note)
 
 
 def _manifests_equal_ignoring_volatile_fields(
@@ -138,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         prior = str((existing or {}).get("note", "")).rstrip()
         note = f"{prior} {args.append_note}".strip() if prior else args.append_note
 
-    fresh = build_manifest(note=note)
+    fresh = ReleaseConformanceAuthority().build_manifest(note=note)
 
     if args.check:
         if existing is None:

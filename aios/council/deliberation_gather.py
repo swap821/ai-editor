@@ -192,6 +192,70 @@ def _measured_king_confidence(report: KingReport) -> float:
     return confidence
 
 
+class DeliberationCouncilAuthority:
+    """Own the advisory second-reviewer gather and synthesis boundary."""
+
+    def maybe_deliberate(
+            self,
+        report: KingReport,
+        *,
+        mission_id: str,
+        king_provider: str,
+        king_exact_model_id: str,
+        dissent_complete: Optional[Callable[[str], str]],
+        dissent_provider: str,
+        dissent_exact_model_id: str,
+    ) -> Optional[DeliberationRecord]:
+        """Gather a real, independent second opinion and synthesize a durable
+        `DeliberationRecord`, or return None when deliberation isn't warranted,
+        no dissent reviewer is configured, or the dissent call fails/is
+        unparseable. Never raises -- the caller wraps this best-effort anyway,
+        but every internal failure already degrades to None on its own.
+        """
+        if dissent_complete is None:
+            return None
+        triggered, reasons = _derive_trigger(report)
+        if not triggered:
+            return None
+
+        king_position = ModelPosition(
+            role="primary",
+            provider=king_provider,
+            exact_model_id=king_exact_model_id,
+            answer=report.recommendation,
+            confidence=_measured_king_confidence(report),
+            security_concerns=(),
+        )
+
+        try:
+            raw = dissent_complete(_build_dissent_prompt(report))
+        except Exception:  # noqa: BLE001 - a flaky dissent provider must never raise
+            logger.warning("Deliberation dissent call failed", exc_info=True)
+            return None
+
+        dissent_position = _parse_dissent_position(
+            raw, provider=dissent_provider, exact_model_id=dissent_exact_model_id
+        )
+        if dissent_position is None:
+            return None
+
+        positions: Sequence[ModelPosition] = (king_position, dissent_position)
+        violations = verify_independence(positions, _DISSENT_ROLES)
+        if violations:
+            logger.warning("Deliberation independence violated: %s", violations)
+            return None
+
+        try:
+            return synthesize_deliberation(
+                deliberation_id=f"deliberation-{uuid.uuid4().hex}",
+                trigger_reasons=reasons,
+                positions=positions,
+                final_disposition=report.recommendation,
+                mission_id=mission_id,
+            )
+        except DeliberationError:
+            return None
+
 def maybe_deliberate(
     report: KingReport,
     *,
@@ -202,55 +266,18 @@ def maybe_deliberate(
     dissent_provider: str,
     dissent_exact_model_id: str,
 ) -> Optional[DeliberationRecord]:
-    """Gather a real, independent second opinion and synthesize a durable
-    `DeliberationRecord`, or return None when deliberation isn't warranted,
-    no dissent reviewer is configured, or the dissent call fails/is
-    unparseable. Never raises -- the caller wraps this best-effort anyway,
-    but every internal failure already degrades to None on its own.
-    """
-    if dissent_complete is None:
-        return None
-    triggered, reasons = _derive_trigger(report)
-    if not triggered:
-        return None
-
-    king_position = ModelPosition(
-        role="primary",
-        provider=king_provider,
-        exact_model_id=king_exact_model_id,
-        answer=report.recommendation,
-        confidence=_measured_king_confidence(report),
-        security_concerns=(),
+    """Compatibility entrypoint for callers outside the council authority."""
+    return DeliberationCouncilAuthority().maybe_deliberate(
+        report,
+        mission_id=mission_id,
+        king_provider=king_provider,
+        king_exact_model_id=king_exact_model_id,
+        dissent_complete=dissent_complete,
+        dissent_provider=dissent_provider,
+        dissent_exact_model_id=dissent_exact_model_id,
     )
 
-    try:
-        raw = dissent_complete(_build_dissent_prompt(report))
-    except Exception:  # noqa: BLE001 - a flaky dissent provider must never raise
-        logger.warning("Deliberation dissent call failed", exc_info=True)
-        return None
-
-    dissent_position = _parse_dissent_position(
-        raw, provider=dissent_provider, exact_model_id=dissent_exact_model_id
-    )
-    if dissent_position is None:
-        return None
-
-    positions: Sequence[ModelPosition] = (king_position, dissent_position)
-    violations = verify_independence(positions, _DISSENT_ROLES)
-    if violations:
-        logger.warning("Deliberation independence violated: %s", violations)
-        return None
-
-    try:
-        return synthesize_deliberation(
-            deliberation_id=f"deliberation-{uuid.uuid4().hex}",
-            trigger_reasons=reasons,
-            positions=positions,
-            final_disposition=report.recommendation,
-            mission_id=mission_id,
-        )
-    except DeliberationError:
-        return None
 
 
-__all__ = ["maybe_deliberate"]
+
+__all__ = ["DeliberationCouncilAuthority", "maybe_deliberate"]

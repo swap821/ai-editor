@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from aios import config
+from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.application.read_models.projection import IncrementalSystemProjection
 from aios.core.approvals import ApprovalStore
 from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
@@ -234,6 +235,74 @@ def invalidate_stale_authority_after_restore(
     )
 
 
+class BackupDisasterRecoveryAuthority:
+    """Own verified backup installation and post-restore invalidation."""
+
+    def restore_backup(
+            self,
+        *,
+        bundle: Path,
+        data_dir: Path = config.DATA_DIR,
+        safety_backup: Path | None = None,
+        emergency_stop: Any | None = None,
+    ) -> Path | None:
+        """Stage and install verified state; retain the old directory when present.
+
+        Once the restored state is live, `invalidate_stale_authority_after_restore`
+        always runs -- a restored old session, capability or pending approval
+        must never silently act as current.
+        """
+        EmergencyStopHardWiringAuthority.assert_operational(
+            emergency_stop, boundary="backup-disaster-recovery"
+        )
+        manifest = verify_backup(Path(bundle))
+        destination = Path(data_dir).resolve()
+        if destination.exists() and any(destination.iterdir()) and safety_backup is None:
+            raise RecoveryError("non-empty data directory requires a safety backup")
+        if (
+            safety_backup is not None
+            and destination.exists()
+            and any(destination.iterdir())
+        ):
+            create_backup(data_dir=destination, destination=Path(safety_backup))
+
+        parent = destination.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.restore-", dir=parent))
+        try:
+            with tarfile.open(Path(bundle).resolve(), mode="r:gz") as archive:
+                for name in manifest.files:
+                    relative = _safe_member(name)
+                    member = archive.getmember(name)
+                    handle = archive.extractfile(member)
+                    if handle is None:
+                        raise RecoveryError(f"backup member is unreadable: {name!r}")
+                    target = staging.joinpath(*relative.parts)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with target.open("wb") as output:
+                        shutil.copyfileobj(handle, output)
+                    os.chmod(target, member.mode & 0o777)
+            old_dir: Path | None = None
+            if destination.exists():
+                old_dir = (
+                    parent
+                    / f"{destination.name}.pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+                )
+                destination.rename(old_dir)
+            staging.rename(destination)
+            invalidate_stale_authority_after_restore(data_dir=destination)
+            return old_dir
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+
+_BACKUP_DISASTER_RECOVERY_AUTHORITY = BackupDisasterRecoveryAuthority()
+
+
+def get_backup_disaster_recovery_authority() -> BackupDisasterRecoveryAuthority:
+    return _BACKUP_DISASTER_RECOVERY_AUTHORITY
+
+
 def restore_backup(
     *,
     bundle: Path,
@@ -241,54 +310,13 @@ def restore_backup(
     safety_backup: Path | None = None,
     emergency_stop: Any | None = None,
 ) -> Path | None:
-    """Stage and install verified state; retain the old directory when present.
-
-    Once the restored state is live, `invalidate_stale_authority_after_restore`
-    always runs -- a restored old session, capability or pending approval
-    must never silently act as current.
-    """
-    if emergency_stop is not None:
-        emergency_stop.assert_operational()
-    manifest = verify_backup(Path(bundle))
-    destination = Path(data_dir).resolve()
-    if destination.exists() and any(destination.iterdir()) and safety_backup is None:
-        raise RecoveryError("non-empty data directory requires a safety backup")
-    if (
-        safety_backup is not None
-        and destination.exists()
-        and any(destination.iterdir())
-    ):
-        create_backup(data_dir=destination, destination=Path(safety_backup))
-
-    parent = destination.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.restore-", dir=parent))
-    try:
-        with tarfile.open(Path(bundle).resolve(), mode="r:gz") as archive:
-            for name in manifest.files:
-                relative = _safe_member(name)
-                member = archive.getmember(name)
-                handle = archive.extractfile(member)
-                if handle is None:
-                    raise RecoveryError(f"backup member is unreadable: {name!r}")
-                target = staging.joinpath(*relative.parts)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with target.open("wb") as output:
-                    shutil.copyfileobj(handle, output)
-                os.chmod(target, member.mode & 0o777)
-        old_dir: Path | None = None
-        if destination.exists():
-            old_dir = (
-                parent
-                / f"{destination.name}.pre-restore-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
-            )
-            destination.rename(old_dir)
-        staging.rename(destination)
-        invalidate_stale_authority_after_restore(data_dir=destination)
-        return old_dir
-    except Exception:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise
+    """Compatibility entrypoint for the recovery CLI and API callers."""
+    return _BACKUP_DISASTER_RECOVERY_AUTHORITY.restore_backup(
+        bundle=bundle,
+        data_dir=data_dir,
+        safety_backup=safety_backup,
+        emergency_stop=emergency_stop,
+    )
 
 
 def verify_audit(*, db_path: Path = config.AUDIT_DB_PATH) -> dict[str, Any]:
@@ -325,10 +353,12 @@ def rebuild_projections(*, bus: CortexBus | None = None) -> int:
 
 
 __all__ = [
+    "BackupDisasterRecoveryAuthority",
     "BackupManifest",
     "RecoveryError",
     "RestoreInvalidationReport",
     "create_backup",
+    "get_backup_disaster_recovery_authority",
     "invalidate_stale_authority_after_restore",
     "rebuild_projections",
     "restore_backup",

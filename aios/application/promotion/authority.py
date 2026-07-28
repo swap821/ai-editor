@@ -24,6 +24,7 @@ from aios.domain.promotion import (
     PromotionAuthorization,
     PromotionRequest,
     PromotionResult,
+    PromotionRollbackLiveAuthority,
     PromotionStatus,
 )
 
@@ -387,6 +388,8 @@ class PromotionAuthority:
         checkpoint_id: str,
         request: PromotionRequest,
     ) -> bool:
+        if not PromotionRollbackLiveAuthority.checkpoint_id_is_valid(checkpoint_id):
+            return False
         try:
             return bool(restore_checkpoint(checkpoint_id, request))
         except Exception:  # noqa: BLE001 - restore failure is recorded, never hidden

@@ -15,6 +15,8 @@ from aios.application.intelligence.gateway import (
     IntelligenceGatewayError,
     route_intelligence_request,
     stream_intelligence_request,
+    stream_compatibility_intelligence_request,
+    stream_structured_intelligence_request,
 )
 from aios.domain.governance import EmergencyStopRequest
 from aios.domain.intelligence.representative_context import (
@@ -130,6 +132,89 @@ def _stream(**overrides: object):
     )
     fields.update(overrides)
     return stream_intelligence_request(**fields)
+
+
+def _structured_stream(**overrides: object):
+    fields: dict[str, object] = dict(
+        request_id="req-structured-1",
+        operator_identity_digest="operator-digest",
+        constitution_digest="c" * 64,
+        goal="edit the training ground",
+        desired_outcome="a governed tool-loop result",
+        target="local",
+        delegated_authority_summary="tool calls remain capability-gated",
+        model_call=lambda ctx: iter(
+            [
+                {"type": "text", "text": "structured reply"},
+                {"type": "done"},
+            ]
+        ),
+    )
+    fields.update(overrides)
+    return stream_structured_intelligence_request(**fields)
+
+
+def test_structured_gateway_is_eagerly_governed_but_provider_lazy() -> None:
+    produced: list[str] = []
+
+    def _model_call(ctx):
+        produced.append(ctx.context_digest)
+        yield {"type": "text", "text": "reply"}
+        yield {"type": "done"}
+
+    result = _structured_stream(model_call=_model_call)
+    assert result.context.goal == "edit the training ground"
+    assert produced == []
+    events = list(result.events)
+    assert produced == [result.context.context_digest]
+    assert events[-1] == {"type": "done"}
+    assert "".join(str(event.get("text", "")) for event in events) == "reply"
+
+
+def test_structured_gateway_redacts_nested_event_values() -> None:
+    secret = "AKIAABCDEFGHIJKLMNOP"
+    result = _structured_stream(
+        model_call=lambda ctx: iter(
+            [
+                {
+                    "type": "tool_result",
+                    "output": {"nested": {"credential": secret}},
+                }
+            ]
+        )
+    )
+    events = list(result.events)
+    assert secret not in repr(events)
+    assert "REDACTED" in repr(events)
+
+
+def test_structured_gateway_redacts_secret_split_across_text_events() -> None:
+    secret = "sk-abcdefghij1234567890ABCDEFGHIJ1234"
+    split = len(secret) // 2
+    result = _structured_stream(
+        model_call=lambda ctx: iter(
+            [
+                {"type": "text", "text": "prefix " + secret[:split]},
+                {"type": "text", "text": secret[split:] + " suffix"},
+            ]
+        )
+    )
+    output = "".join(str(event.get("text", "")) for event in result.events)
+    assert secret not in output
+    assert "REDACTED" in output
+    assert output.startswith("prefix ")
+
+
+def test_structured_gateway_refuses_invalid_identity_before_provider() -> None:
+    calls: list[str] = []
+
+    def _model_call(ctx):
+        calls.append(ctx.goal)
+        yield {"type": "done"}
+
+    with pytest.raises(IntelligenceGatewayError, match="operator_identity_digest"):
+        _structured_stream(operator_identity_digest="", model_call=_model_call)
+    assert calls == []
 
 
 def test_stream_gateway_yields_the_model_calls_text() -> None:
@@ -454,3 +539,54 @@ def test_buffering_is_bounded_against_a_hostile_stream() -> None:
         _REDACTION_MAX_BUFFER_CHARS + len(hostile[0])
     )
     assert total_in > _REDACTION_MAX_BUFFER_CHARS
+def test_anonymous_compatibility_gateway_is_local_only_and_redacts_output() -> None:
+    secret = "AKIAABCDEFGHIJKLMNOP"
+    result = stream_compatibility_intelligence_request(
+        request_id="anonymous-compat-1",
+        target="local",
+        model_call=lambda: iter(["safe ", "reply ", secret]),
+    )
+
+    output = "".join(result.chunks)
+
+    assert result.target == "local"
+    assert output.startswith("safe reply ")
+    assert secret not in output
+    assert "REDACTED" in output
+
+
+def test_anonymous_compatibility_gateway_refuses_cloud_before_provider_call() -> None:
+    calls: list[str] = []
+
+    def _model_call():
+        calls.append("called")
+        return iter(["must not run"])
+
+    with pytest.raises(IntelligenceGatewayError, match="local provider"):
+        stream_compatibility_intelligence_request(
+            request_id="anonymous-compat-2",
+            target="cloud",
+            model_call=_model_call,
+        )
+
+    assert calls == []
+def test_anonymous_compatibility_gateway_honors_emergency_stop(tmp_path: Path) -> None:
+    stopped = _controller(tmp_path)
+    stopped.engage(
+        EmergencyStopRequest(
+            operator_id="operator-1",
+            authentication_event_id="auth-compat-1",
+            reason="test",
+        )
+    )
+    calls: list[str] = []
+
+    with pytest.raises(EmergencyStopError):
+        stream_compatibility_intelligence_request(
+            request_id="anonymous-compat-3",
+            target="local",
+            model_call=lambda: calls.append("called") or iter(["must not run"]),
+            emergency_stop=stopped,
+        )
+
+    assert calls == []

@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
-from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
+from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError, EmergencyStopHardWiringAuthority
 from aios.api.deps import (
     _session_id_from_request,
     get_action_broker,
@@ -427,7 +427,9 @@ def rollback(
     """
     # Organ 26: a destructive workspace restore must never proceed while the
     # emergency stop is engaged -- this route had no such check at all.
-    emergency_stop.assert_operational()
+    EmergencyStopHardWiringAuthority.assert_operational(
+        emergency_stop, boundary="actions-route"
+    )
     session_id = _session_id_from_request(request, None)
     if not session_id:
         raise HTTPException(

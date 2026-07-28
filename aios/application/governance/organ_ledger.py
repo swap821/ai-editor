@@ -121,6 +121,12 @@ CANONICAL_ORGANS: Mapping[int, tuple[str, str]] = {
 #: so conformance tests can assert this set without re-deriving it from status.
 TARGET_ORGAN_IDS: tuple[int, ...] = tuple(range(23, 55))
 
+#: The security spine is RED/frozen by the repository contract. Its five
+#: production entrypoint modules cannot be edited merely to satisfy Decision A;
+#: they must remain yellow until the controlled self-modification process has
+#: been completed by an authorized human.
+FROZEN_SECURITY_ORGAN_IDS: frozenset[int] = frozenset(range(1, 6))
+
 
 def _default_ledger_path(root: Path) -> Path:
     return root / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
@@ -182,8 +188,9 @@ class OrganLedgerReport:
 
 
 def _authority_owner_is_class_reference(record: OrganRecord, repo_root: Path) -> bool:
-    """Decision A (2026-07-27, see docs/architecture/GAGOS_54_ORGANS.md): a green
-    organ's `authority_owner` must name a real class defined somewhere in that
+    """Decision A (2026-07-27, see docs/architecture/GAGOS_54_ORGANS.md): a
+    non-frozen organ's `authority_owner` must name a real class defined
+    somewhere in that
     organ's own `production_entrypoints` -- not merely a string that happens to
     match `CANONICAL_ORGANS`. Matches both Python (`class Foo`) and TypeScript/
     JS (`export class Foo`) class-definition syntax; a name that only appears in
@@ -225,6 +232,7 @@ def validate_ledger(
     current_sha: str | None = None,
     repo_root: str | Path | None = None,
     strict_last_verified: bool = False,
+    enforce_owner_attestation: bool = False,
 ) -> tuple[str, ...]:
     """Return a tuple of truthful violation descriptions; empty means conformant.
 
@@ -244,6 +252,12 @@ def validate_ledger(
     ``last_verified_sha`` must equal ``current_sha`` exactly -- a full
     re-verification pass immediately before a tag, not a rule that should
     fire on every unrelated commit touching organs nobody re-verified today.
+
+    ``enforce_owner_attestation`` is the Phase 2 CI/launcher boundary. When
+    enabled with ``repo_root``, every non-frozen organ must define its named
+    owner class in its own production entrypoints, regardless of whether the
+    row is currently yellow or green. Frozen organs 1--5 are explicitly
+    exempt from the class check but are forbidden from claiming green here.
     """
     violations: list[str] = []
     root = Path(repo_root) if repo_root is not None else None
@@ -301,6 +315,24 @@ def validate_ledger(
                             f"{field_name} path {rel_path!r}, which does not exist"
                         )
 
+    if root is not None and enforce_owner_attestation:
+        for record in records:
+            if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+                if record.status == "green":
+                    violations.append(
+                        f"organ_id {record.organ_id} ({record.name}) is frozen "
+                        "security-spine RED and cannot claim green before controlled "
+                        "self-modification approval"
+                    )
+                continue
+            if not _authority_owner_is_class_reference(record, root):
+                violations.append(
+                    f"organ_id {record.organ_id} ({record.name}) has no Phase 2 "
+                    f"owner attestation: authority_owner "
+                    f"{record.authority_owner!r} is not defined as a class in its "
+                    "own production_entrypoints"
+                )
+
     for record in records:
         if record.status != "green":
             continue
@@ -318,7 +350,14 @@ def validate_ledger(
                 f"organ_id {record.organ_id} ({record.name}) is green but still "
                 f"lists known_blockers: {list(record.known_blockers)!r}"
             )
-        if root is not None and not _authority_owner_is_class_reference(record, root):
+        if (
+            root is not None
+            and not enforce_owner_attestation
+            and not _authority_owner_is_class_reference(record, root)
+        ):
+            # Preserve the direct-call diagnostic used by existing fixture
+            # consumers. The Phase 2 release boundary uses the stronger
+            # all-status gate above and emits its own explicit message.
             violations.append(
                 f"organ_id {record.organ_id} ({record.name}) is green but its "
                 f"authority_owner {record.authority_owner!r} is not defined as a "
@@ -366,6 +405,7 @@ def evaluate_organs(
     ledger_path: str | Path | None = None,
     current_sha: str | None = None,
     strict_last_verified: bool = False,
+    enforce_owner_attestation: bool = True,
 ) -> OrganLedgerReport:
     repo = Path(root or Path(__file__).resolve().parents[3]).resolve()
     path = Path(ledger_path) if ledger_path is not None else _default_ledger_path(repo)
@@ -376,6 +416,7 @@ def evaluate_organs(
         current_sha=resolved_sha,
         repo_root=repo,
         strict_last_verified=strict_last_verified,
+        enforce_owner_attestation=enforce_owner_attestation,
     )
     green_count = sum(1 for record in records if record.status == "green")
     yellow_count = sum(1 for record in records if record.status == "yellow")
@@ -490,6 +531,7 @@ def validate_manifest(
 __all__ = [
     "CANONICAL_ORGANS",
     "TARGET_ORGAN_IDS",
+    "FROZEN_SECURITY_ORGAN_IDS",
     "REQUIRED_ORGAN_COUNT",
     "OrganLedgerReport",
     "current_commit_sha",

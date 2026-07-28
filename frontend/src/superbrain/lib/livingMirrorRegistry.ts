@@ -295,38 +295,60 @@ const core: Record<string, ReactionSpec> = {
   },
 };
 
+export class LivingMirrorAuthority {
+  /** Live event registry owner: schema admission, read-model application, and bounded reactions. */
+
+  registeredEventTypes(): string[] {
+    return Object.keys(core).sort();
+  }
+
+  dispatch(event: MirrorEventEnvelope): boolean {
+    const spec = core[event.eventType];
+    if (!spec) {
+      // Unknown events are observations from a future/backend extension. They
+      // never become frontend authority or animation.
+      console.debug(`[living-mirror] ignored unknown event: ${event.eventType}`);
+      return false;
+    }
+
+    const schemaVersion = event.canonical.schemaVersion ?? event.canonical.schema_version;
+    if (schemaVersion !== undefined && schemaVersion !== '1' && schemaVersion !== '1.0') {
+      useMirrorStore.getState().setAnnouncement(`Unsupported event schema: ${String(schemaVersion)}`);
+      return true;
+    }
+    if (!required(spec.requiredFields, event.payload)) {
+      useMirrorStore.getState().setAnnouncement('Incomplete backend event ignored.');
+      return true;
+    }
+    useMirrorStore.getState().applyEvent(event.id, event.eventType, event.canonical);
+    if (spec.announcement) useMirrorStore.getState().setAnnouncement(spec.announcement(event.payload));
+    try {
+      spec.react?.(event);
+    } catch {
+      useMirrorStore.getState().setAnnouncement('Backend event reaction unavailable.');
+    }
+    return true;
+  }
+
+  resetForTests(): void {
+    useMirrorStore.getState().setAnnouncement(null);
+  }
+}
+
+const LIVING_MIRROR_AUTHORITY = new LivingMirrorAuthority();
+
+export function getLivingMirrorAuthority(): LivingMirrorAuthority {
+  return LIVING_MIRROR_AUTHORITY;
+}
+
 export function registeredMirrorEventTypes(): string[] {
-  return Object.keys(core).sort();
+  return LIVING_MIRROR_AUTHORITY.registeredEventTypes();
 }
 
 export function dispatchLivingMirrorEvent(event: MirrorEventEnvelope): boolean {
-  const spec = core[event.eventType];
-  if (!spec) {
-    // Unknown events are observations from a future/backend extension. They
-    // never become frontend authority or animation.
-    console.debug(`[living-mirror] ignored unknown event: ${event.eventType}`);
-    return false;
-  }
-
-  const schemaVersion = event.canonical.schemaVersion ?? event.canonical.schema_version;
-  if (schemaVersion !== undefined && schemaVersion !== '1' && schemaVersion !== '1.0') {
-    useMirrorStore.getState().setAnnouncement(`Unsupported event schema: ${String(schemaVersion)}`);
-    return true;
-  }
-  if (!required(spec.requiredFields, event.payload)) {
-    useMirrorStore.getState().setAnnouncement('Incomplete backend event ignored.');
-    return true;
-  }
-  useMirrorStore.getState().applyEvent(event.id, event.eventType, event.canonical);
-  if (spec.announcement) useMirrorStore.getState().setAnnouncement(spec.announcement(event.payload));
-  try {
-    spec.react?.(event);
-  } catch {
-    useMirrorStore.getState().setAnnouncement('Backend event reaction unavailable.');
-  }
-  return true;
+  return LIVING_MIRROR_AUTHORITY.dispatch(event);
 }
 
 export function __resetLivingMirrorRegistryForTests(): void {
-  useMirrorStore.getState().setAnnouncement(null);
+  LIVING_MIRROR_AUTHORITY.resetForTests();
 }

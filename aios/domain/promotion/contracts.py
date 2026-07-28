@@ -93,9 +93,23 @@ class PromotionResult(BaseModel):
     post_promotion_receipt: PostPromotionVerificationReceipt | None = None
 
 
+class PromotionRollbackLiveAuthority:
+    """Own the fail-closed checkpoint target contract for rollback."""
+
+    @staticmethod
+    def checkpoint_id_is_valid(checkpoint_id: str | None) -> bool:
+        if not isinstance(checkpoint_id, str):
+            return False
+        value = checkpoint_id.strip()
+        return bool(value) and len(value) <= 200 and not any(
+            char in value for char in "\\/:\r\n\x00"
+        )
+
+
 __all__ = [
     "PromotionAuthorization",
     "PromotionRequest",
     "PromotionResult",
+    "PromotionRollbackLiveAuthority",
     "PromotionStatus",
 ]

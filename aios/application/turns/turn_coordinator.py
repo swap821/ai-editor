@@ -139,7 +139,7 @@ def production_handlers(
     }
 
 
-class TurnCoordinator:
+class TurnCoordinatorAuthority:
     """Owns the lifecycle of one human directive.
 
     Routes keep their HTTP responsibilities (CORS, rate-limit headers, auth
@@ -169,7 +169,7 @@ class TurnCoordinator:
 
         Usage as a decorator:
 
-            @TurnCoordinator.register(TurnMode.CONVERSATION)
+            @TurnCoordinatorAuthority.register(TurnMode.CONVERSATION)
             async def handle_conversation(ctx: TurnContext, deps: RuntimeDeps) -> ...
         """
 
@@ -244,3 +244,6 @@ class TurnCoordinator:
 
         events = handler(context, self.runtime)
         return TurnResult(context=context, events=events)
+
+
+TurnCoordinator = TurnCoordinatorAuthority

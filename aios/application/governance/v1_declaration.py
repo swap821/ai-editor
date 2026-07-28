@@ -36,7 +36,7 @@ class ReleaseGate:
 
 
 @dataclass(frozen=True, slots=True)
-class V1ReleaseDeclaration:
+class ReleaseDeclarationAuthority:
     version: str
     profile: str
     ready: bool
@@ -322,4 +322,7 @@ def evaluate_release(
     )
 
 
-__all__ = ["ReleaseGate", "V1ReleaseDeclaration", "evaluate_release"]
+V1ReleaseDeclaration = ReleaseDeclarationAuthority
+
+
+__all__ = ["ReleaseGate", "ReleaseDeclarationAuthority", "V1ReleaseDeclaration", "evaluate_release"]

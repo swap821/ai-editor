@@ -68,16 +68,54 @@ function collectCasteCounts(council) {
   return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
 }
 
-function pendingProposalCount({ facts, curriculum, council, selfAnalysis }) {
-  const pendingApprovals = asArray(council?.missions).reduce(
-    (total, mission) => total + asArray(mission.pendingApprovals).length,
-    0,
-  );
-  const selfAnalysisPending = asArray(selfAnalysis?.proposals).filter((proposal) => (
-    proposal?.status || 'proposed'
-  ) === 'proposed').length;
-  return facts.length + curriculum.length + pendingApprovals + selfAnalysisPending;
+export class ApprovalDecisionSurfaceAuthority {
+  pendingCount({ facts, curriculum, council, selfAnalysis }) {
+    const pendingApprovals = asArray(council?.missions).reduce(
+      (total, mission) => total + asArray(mission.pendingApprovals).length,
+      0,
+    );
+    const selfAnalysisPending = asArray(selfAnalysis?.proposals).filter((proposal) => (
+      proposal?.status || 'proposed'
+    ) === 'proposed').length;
+    return facts.length + curriculum.length + pendingApprovals + selfAnalysisPending;
+  }
+
+  approveFact(factId) {
+    return approveFactProposal(factId);
+  }
+
+  rejectFact(factId) {
+    return rejectFactProposal(factId);
+  }
 }
+
+export class TruthfulMirrorAuthority {
+  normalizeGovernance(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  }
+
+  normalizeExecutor(value) {
+    const payload = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+    return payload?.executor && typeof payload.executor === 'object' ? payload.executor : null;
+  }
+
+  allUnavailable(results) {
+    return results.every((result) => result.status === 'rejected');
+  }
+}
+
+export class ProvenanceExplanationSurfaceAuthority {
+  project(governance) {
+    return {
+      routingDecisions: asArray(governance?.routingDecisions),
+      privacyAudits: asArray(governance?.privacyAudits),
+    };
+  }
+}
+
+const APPROVAL_DECISION_SURFACE_AUTHORITY = new ApprovalDecisionSurfaceAuthority();
+const TRUTHFUL_MIRROR_AUTHORITY = new TruthfulMirrorAuthority();
+const PROVENANCE_EXPLANATION_SURFACE_AUTHORITY = new ProvenanceExplanationSurfaceAuthority();
 
 
 function scanSummary(surface) {
@@ -138,17 +176,18 @@ function executorSummary(executor) {
   return EXECUTOR_TEXT[executorState(executor)];
 }
 
-function getStopBadgeClass(engagedState) {
-  if (engagedState._status === 'loading') return 'warn is-pulsing';
-  if (engagedState._status !== 'measured') return 'warn';
-  return engagedState.value ? 'danger' : 'ok';
+export class SovereignHeartbeatSurfaceAuthority {
+  badge(engagedState) {
+    const status = engagedState?._status;
+    if (status === 'loading') return { className: 'warn is-pulsing', text: 'reconnecting...' };
+    if (status !== 'measured') return { className: 'warn', text: 'unavailable' };
+    return engagedState.value
+      ? { className: 'danger', text: 'STOPPED' }
+      : { className: 'ok', text: 'operational' };
+  }
 }
 
-function getStopBadgeText(engagedState) {
-  if (engagedState._status === 'loading') return 'reconnecting...';
-  if (engagedState._status !== 'measured') return 'unavailable';
-  return engagedState.value ? 'STOPPED' : 'operational';
-}
+const SOVEREIGN_HEARTBEAT_SURFACE_AUTHORITY = new SovereignHeartbeatSurfaceAuthority();
 
 export default function SovereignStatePanel() {
   const [autonomy, setAutonomy] = useState(null);
@@ -227,9 +266,9 @@ export default function SovereignStatePanel() {
       selfAnalysis: selfAnalysisR.status === 'fulfilled' ? selfAnalysisR.value : null,
     });
     setV10(v10R.status === 'fulfilled' ? v10R.value : null);
-    setGovernance(governanceR.status === 'fulfilled' ? governanceR.value : null);
-    setExecutor(executorR.status === 'fulfilled' ? executorR.value?.executor : null);
-    if (results.every((r) => r.status === 'rejected')) setError('Sovereign state link offline');
+    setGovernance(governanceR.status === 'fulfilled' ? TRUTHFUL_MIRROR_AUTHORITY.normalizeGovernance(governanceR.value) : null);
+    setExecutor(executorR.status === 'fulfilled' ? TRUTHFUL_MIRROR_AUTHORITY.normalizeExecutor(executorR.value) : null);
+    if (TRUTHFUL_MIRROR_AUTHORITY.allUnavailable(results)) setError('Sovereign state link offline');
     setLoading(false);
   }, []);
 
@@ -263,7 +302,7 @@ export default function SovereignStatePanel() {
   const hibernation = v7.hibernation;
   const pheromoneRows = asArray(v7.pheromones?.pheromones).slice(0, 4);
   const casteCounts = collectCasteCounts(v7.council);
-  const pendingCount = pendingProposalCount({
+  const pendingCount = APPROVAL_DECISION_SURFACE_AUTHORITY.pendingCount({
     facts,
     curriculum,
     council: v7.council,
@@ -274,6 +313,8 @@ export default function SovereignStatePanel() {
   const constitution = v10?.constitution;
   const metaLoop = v10?.metaLoop;
   const councilMemory = v10?.councilMemory;
+  const provenance = PROVENANCE_EXPLANATION_SURFACE_AUTHORITY.project(governance);
+  const stopBadge = SOVEREIGN_HEARTBEAT_SURFACE_AUTHORITY.badge(fromEnvelope(governance?.emergencyStop?.engaged));
 
   return (
     <div className="council-dashboard__body" aria-label="Sovereign state">
@@ -347,10 +388,10 @@ export default function SovereignStatePanel() {
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Constitution &amp; Emergency Stop
               <span 
-                className={`council-dashboard__badge is-${getStopBadgeClass(fromEnvelope(governance?.emergencyStop?.engaged))}`}
+                className={`council-dashboard__badge is-${stopBadge.className}`}
                 data-testid="emergency-stop-badge"
               >
-                {getStopBadgeText(fromEnvelope(governance?.emergencyStop?.engaged))}
+                {stopBadge.text}
               </span>
             </h3>
             <p className="council-dashboard__muted">
@@ -449,16 +490,16 @@ export default function SovereignStatePanel() {
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Provenance &amp; Explanation
               <span className="council-dashboard__badge is-ok">
-                {(governance?.routingDecisions ?? []).length} recent turn(s)
+                {provenance.routingDecisions.length} recent turn(s)
               </span>
             </h3>
             <p className="council-dashboard__muted">
               Why the router picked a model, for the most recent real turns — sourced from durably recorded routing metadata, never guessed.
             </p>
-            {(governance?.routingDecisions ?? []).length === 0 ? (
+            {provenance.routingDecisions.length === 0 ? (
               <p>No routed turn recorded yet this session.</p>
             ) : (
-              (governance?.routingDecisions ?? []).map((d, index) => (
+              provenance.routingDecisions.map((d, index) => (
                 <div key={index} className="council-dashboard__route">
                   {/* This compared the DISPLAY STRING to 'cloud', so an
                       unmeasured privacy status rendered as 'unavailable',
@@ -489,10 +530,10 @@ export default function SovereignStatePanel() {
             <p className="council-dashboard__muted" style={{ marginTop: '8px' }}>
               What was sent / what was removed before a cloud call — real per-call redaction counts, never a second logging sink.
             </p>
-            {(governance?.privacyAudits ?? []).length === 0 ? (
+            {provenance.privacyAudits.length === 0 ? (
               <p>No cloud call audited yet this session.</p>
             ) : (
-              (governance?.privacyAudits ?? []).map((a, index) => (
+              provenance.privacyAudits.map((a, index) => (
                 <div key={index} className="council-dashboard__route" aria-label="Privacy audit">
                   <span>{envelopeText(a.provider)}</span>
                   <span>
@@ -660,7 +701,7 @@ export default function SovereignStatePanel() {
                       act(`fact-${fact.id}`, async () => {
                         // Adapter helper: sends the required resolvedBy and
                         // maps the backend's 409 to a contradiction verdict.
-                        const result = await approveFactProposal(fact.id);
+                        const result = await APPROVAL_DECISION_SURFACE_AUTHORITY.approveFact(fact.id);
                         if (result === 'contradiction') {
                           throw new Error(
                             `Fact #${fact.id} contradicts active knowledge — it stays pending for reconcile.`,
@@ -677,7 +718,7 @@ export default function SovereignStatePanel() {
                     disabled={busyKey === `fact-${fact.id}`}
                     onClick={() =>
                       act(`fact-${fact.id}`, async () => {
-                        const ok = await rejectFactProposal(fact.id);
+                        const ok = await APPROVAL_DECISION_SURFACE_AUTHORITY.rejectFact(fact.id);
                         if (!ok) throw new Error(`Could not reject fact #${fact.id}`);
                       })
                     }

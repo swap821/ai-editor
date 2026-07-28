@@ -104,6 +104,7 @@ from aios.api.deps import (  # noqa: F401 — re-exported: tests + route modules
     get_self_apply_engine,
     get_edit_snapshot,
     get_human_state_hypothesis_store,
+    get_human_state_interpreter_authority,
     get_constitution_authority,
     get_operator_preference_store,
     get_project_passport_store,
@@ -140,7 +141,7 @@ from aios.core.router_wiring import (
     _router_policy,
     _select_chat_client,
 )
-from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError
+from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError, EmergencyStopHardWiringAuthority
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.governance import EmergencyStopError
 from aios.application.governance.constitution_authority import (
@@ -465,7 +466,7 @@ def _append_turn_completed(
 # headers are also narrowed from "*" to the surface the front-end actually uses.
 def _validate_cors_origins(origins: tuple[str, ...]) -> list[str]:
     """Reject wildcard/host-less origins so credentialed CORS can't widen silently."""
-    return edge_security.validate_cors_origins(origins)
+    return edge_security.get_edge_trust_authority().validate_cors_origins(origins)
 
 
 app.add_middleware(
@@ -563,7 +564,7 @@ async def bind_request_context(request: Request, call_next):
     trace_context = observability.context_from_headers(trace_headers)
     with observability.bind(trace_context):
         try:
-            session_id = await edge_security.extract_session_id(
+            session_id = await edge_security.get_edge_trust_authority().extract_session_id(
                 request, allow_body_fallback=True
             )
             if session_id:
@@ -589,13 +590,13 @@ def _is_private_ip(ip: str) -> bool:
 
 def _real_client_ip(request: Request) -> str:
     """Return the best-effort real client IP for auth decisions."""
-    return edge_security.real_client_ip(request)
+    return edge_security.get_edge_trust_authority().real_client_ip(request)
 
 
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
     """Protect API and schema surfaces; keep unauthenticated use loopback-only."""
-    error = edge_security.check_api_token_or_loopback(request)
+    error = edge_security.get_edge_trust_authority().check_api_token_or_loopback(request)
     if error is not None:
         return error
     return await call_next(request)
@@ -604,7 +605,7 @@ async def require_api_token(request: Request, call_next):
 @app.middleware("http")
 async def require_browser_or_token_for_mutations(request: Request, call_next):
     """CSRF/Mutation protection: block unauthenticated non-browser mutations."""
-    error = edge_security.check_mutation_origin_or_token(request)
+    error = edge_security.get_edge_trust_authority().check_mutation_origin_or_token(request)
     if error is not None:
         return error
     return await call_next(request)
@@ -1166,6 +1167,7 @@ def generate(
     memory_authority=Depends(get_memory_authority),
     compactor: MemoryCompactor = Depends(get_compactor),
     emergency_stop=Depends(get_emergency_stop),
+    representative_context_store=Depends(get_representative_context_store),
 ) -> StreamingResponse:
     """Run the agentic tool loop with memory, streaming it to the UI as SSE.
 
@@ -1188,7 +1190,9 @@ def generate(
     # from CapabilityAuthority.issue()/.consume(), which a read-only GREEN turn
     # never triggers, and ToolAgent.run() does not enter the gateway. So the
     # agent kept reasoning after the operator hit stop.
-    emergency_stop.assert_operational()
+    EmergencyStopHardWiringAuthority.assert_operational(
+        emergency_stop, boundary="api-main"
+    )
 
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
@@ -1244,6 +1248,8 @@ def generate(
             "principal": _principal,
             "capabilities": capabilities,
             "broker": broker,
+            "emergency_stop": emergency_stop,
+            "representative_context_store": representative_context_store,
         },
     )
     from aios.application.turns.generate_pipeline import (
@@ -1362,6 +1368,7 @@ def chat(
     compactor: MemoryCompactor = Depends(get_compactor),
     memory_authority=Depends(get_memory_authority),
     human_state_store=Depends(get_human_state_hypothesis_store),
+    human_state_interpreter=Depends(get_human_state_interpreter_authority),
     principal: Principal | None = Depends(get_optional_principal),
     constitution_authority=Depends(get_constitution_authority),
     preference_store=Depends(get_operator_preference_store),
@@ -1413,7 +1420,9 @@ def chat(
     # question. Refusing to serve ANY chat turn while the operator has hit stop
     # does not -- so it is not deferred with it. EmergencyStopError is already
     # mapped to a 503 by the handler above.
-    emergency_stop.assert_operational()
+    EmergencyStopHardWiringAuthority.assert_operational(
+        emergency_stop, boundary="api-main"
+    )
 
     session_id = (
         principal.session_id
@@ -1489,7 +1498,11 @@ def chat(
                 "active_route": _active_route,
                 "sse_writer": _sse_writer,
                 "stream_chat_chunks": _stream_chat_chunks,
+                "ollama_client": client,
+                "ollama_model": config.LLM_MODEL,
+                "emergency_stop": emergency_stop,
                 "record_episode": _record_episode,
+                "interpret_human_state": human_state_interpreter.classify,
                 "record_human_state": lambda sid, tid, hyp: _record_human_state(
                     sid, tid, hyp, store=human_state_store
                 ),

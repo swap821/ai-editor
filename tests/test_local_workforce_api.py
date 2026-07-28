@@ -409,6 +409,57 @@ def test_successful_qualification_uses_injected_deterministic_fake(
     assert model.admission_status == "approved"
 
 
+def test_passport_route_projects_durable_registry_after_restart(
+    workforce_client,
+) -> None:
+    """Organ 33: the real qualification/API path must survive a new registry
+    instance, not merely a new authority over an in-memory fake. The passport
+    remains a projection of the SQLite row, so restart evidence proves both
+    durability and single-source admission semantics without claiming live
+    Ollama evidence.
+    """
+    client, ollama, _registry = workforce_client
+    _refresh(client)
+    assert (
+        _approved_request(
+            client,
+            "POST",
+            "/api/v1/local-workforce/qwen2.5:3b/approve",
+            {"approved": True},
+        ).status_code
+        == 200
+    )
+    qualified = _approved_request(
+        client,
+        "POST",
+        "/api/v1/local-workforce/qwen2.5:3b/qualify",
+        {},
+    )
+    assert qualified.status_code == 200, qualified.text
+
+    before = client.get("/api/v1/local-workforce/qwen2.5:3b/passport")
+    assert before.status_code == 200, before.text
+    before_body = before.json()
+    assert before_body["admission_status"] == "admitted"
+    assert before_body["qualification_suite_version"]
+
+    restarted = LocalWorkforceRegistry(ollama)
+    persisted_model = restarted.get_model("qwen2.5:3b")
+    assert persisted_model is not None
+    assert persisted_model.qualification_evidence_digest
+
+    app.dependency_overrides[get_local_workforce_registry] = lambda: restarted
+    after = client.get("/api/v1/local-workforce/qwen2.5:3b/passport")
+    assert after.status_code == 200, after.text
+    after_body = after.json()
+
+    assert after_body["passport_digest"] == before_body["passport_digest"]
+    assert after_body["qualification_suite_version"] == before_body[
+        "qualification_suite_version"
+    ]
+    assert after_body["admission_status"] == "admitted"
+
+
 def test_emergency_stop_refuses_local_workforce_mutation(
     workforce_client, monkeypatch
 ) -> None:

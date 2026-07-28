@@ -36,7 +36,7 @@ def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-class ApiTokenAuthority:
+class InstallationConfigurationAuthority:
     """Owns the durable, digest-only rotation state for the API bearer token."""
 
     def __init__(
@@ -133,4 +133,6 @@ class ApiTokenAuthority:
         return self.store.current()
 
 
-__all__ = ["ApiTokenAuthority", "token_digest"]
+ApiTokenAuthority = InstallationConfigurationAuthority
+
+__all__ = ["InstallationConfigurationAuthority", "ApiTokenAuthority", "token_digest"]

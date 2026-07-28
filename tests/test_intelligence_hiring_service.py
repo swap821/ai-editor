@@ -323,6 +323,9 @@ def test_mounted_hiring_call_uses_exact_capability_and_real_service() -> None:
             assert approved.status_code == 200
             assert approved.json()["advisory"] is True
             assert fake.requests[0].principal_id
+            assert fake.requests[0].requires_governed_intelligence is True
+            assert len(fake.requests[0].operator_identity_digest) == 64
+            assert len(fake.requests[0].constitution_digest) == 64
             replay = client.post(
                 "/api/v1/hiring/call",
                 json=body,
@@ -414,3 +417,65 @@ def test_the_provider_response_is_redacted_before_it_reaches_the_caller(
     assert secret not in str(
         record.model_dump() if hasattr(record, "model_dump") else record
     )
+def test_bound_hiring_service_enters_universal_gateway(
+    tmp_path,
+) -> None:
+    local = FakeClient(response="bounded local answer")
+
+    class ContextStore:
+        def __init__(self) -> None:
+            self.saved = []
+
+        def save(self, context) -> None:  # noqa: ANN001 - test spy
+            self.saved.append(context)
+
+    context_store = ContextStore()
+    service = IntelligenceHiringService(
+        broker=HiringBroker(),
+        providers=_providers(),
+        clients={"ollama": local},
+        repository=HiringRecordRepository(tmp_path / "state.db"),
+        policy=router.Policy(
+            cloud_tasks=frozenset({"reasoning"}),
+            prefer_local=True,
+        ),
+        context_store=context_store,
+    )
+    request = _request(local_only=True).model_copy(
+        update={
+            "operator_identity_digest": "a" * 64,
+            "constitution_digest": "b" * 64,
+            "requires_governed_intelligence": True,
+        }
+    )
+
+    result, record = service.complete(request)
+
+    assert result == "bounded local answer"
+    assert record.local_cloud_decision == "local"
+    assert context_store.saved[0].operator_identity_digest == "a" * 64
+    assert context_store.saved[0].constitution_digest == "b" * 64
+    assert local.calls
+
+
+def test_bound_hiring_service_refuses_missing_binding_before_provider_call(
+    tmp_path,
+) -> None:
+    local = FakeClient()
+    service = IntelligenceHiringService(
+        broker=HiringBroker(),
+        providers=_providers(),
+        clients={"ollama": local},
+        repository=HiringRecordRepository(tmp_path / "state.db"),
+    )
+    request = _request(local_only=True).model_copy(
+        update={"requires_governed_intelligence": True}
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="governed intelligence binding is required before provider call",
+    ):
+        service.complete(request)
+
+    assert local.calls == []

@@ -70,6 +70,63 @@ def evaluate_demotion(
     return "suspended"
 
 
+class SkillLifecycleAuthority:
+    """Own evidence updates, demotion, and human revocation for skills."""
+
+    def __init__(
+        self,
+        repository: SkillRepository,
+        *,
+        updater: ConfidenceUpdater | None = None,
+    ) -> None:
+        self.repository = repository
+        self.updater = updater
+
+    def apply_reuse_outcome(
+        self,
+        skill_id: str,
+        version: int,
+        *,
+        success: bool,
+        reason: FailureReason | None = None,
+    ) -> SkillRecord:
+        current = self.repository.get(skill_id, version)
+        if current is None:
+            raise KeyError(f"skill {skill_id!r} version {version} not found")
+
+        conf_updater = self.updater or ConfidenceUpdater()
+        if success:
+            updated = conf_updater.record_success(current)
+        else:
+            if reason is None:
+                raise ValueError("a failure outcome requires a reason")
+            updated = conf_updater.record_failure(current, reason)
+
+        record = SkillRecord.model_validate(
+            {
+                **updated.model_dump(),
+                "created_at": current.created_at,
+                "updated_at": current.updated_at,
+            }
+        )
+        self.repository.save(record)
+
+        target_state = None if success else evaluate_demotion(record, reason=reason)
+        if target_state is not None:
+            return self.repository.transition_state(skill_id, version, target_state)
+        return self.repository.get(skill_id, version)  # type: ignore[return-value]
+
+    def human_revoke(self, skill_id: str, version: int) -> SkillRecord:
+        current = self.repository.get(skill_id, version)
+        if current is None:
+            raise KeyError(f"skill {skill_id!r} version {version} not found")
+        if current.state in {"revoked", "superseded", "deprecated"}:
+            raise ValueError(
+                f"cannot revoke a skill already in terminal state {current.state!r}"
+            )
+        return self.repository.transition_state(skill_id, version, "revoked")
+
+
 def apply_reuse_outcome(
     repository: SkillRepository,
     skill_id: str,
@@ -83,27 +140,15 @@ def apply_reuse_outcome(
     (or the failure reason itself) warrants it. Confidence is always
     updated first and persisted even when no demotion follows, so a skill
     that stays `active` still reflects the true, current evidence."""
-    current = repository.get(skill_id, version)
-    if current is None:
-        raise KeyError(f"skill {skill_id!r} version {version} not found")
-
-    conf_updater = updater or ConfidenceUpdater()
-    if success:
-        updated = conf_updater.record_success(current)
-    else:
-        if reason is None:
-            raise ValueError("a failure outcome requires a reason")
-        updated = conf_updater.record_failure(current, reason)
-
-    record = SkillRecord.model_validate(
-        {**updated.model_dump(), "created_at": current.created_at, "updated_at": current.updated_at}
+    return SkillLifecycleAuthority(
+        repository,
+        updater=updater,
+    ).apply_reuse_outcome(
+        skill_id,
+        version,
+        success=success,
+        reason=reason,
     )
-    repository.save(record)
-
-    target_state = None if success else evaluate_demotion(record, reason=reason)
-    if target_state is not None:
-        return repository.transition_state(skill_id, version, target_state)
-    return repository.get(skill_id, version)  # type: ignore[return-value]
 
 
 def human_revoke(
@@ -113,19 +158,13 @@ def human_revoke(
     non-terminal state (the repository's transition graph guarantees this;
     see its comment), unlike automatic demotion which only moves one step
     through the validated graph at a time."""
-    current = repository.get(skill_id, version)
-    if current is None:
-        raise KeyError(f"skill {skill_id!r} version {version} not found")
-    if current.state in {"revoked", "superseded", "deprecated"}:
-        raise ValueError(
-            f"cannot revoke a skill already in terminal state {current.state!r}"
-        )
-    return repository.transition_state(skill_id, version, "revoked")
+    return SkillLifecycleAuthority(repository).human_revoke(skill_id, version)
 
 
 __all__ = [
     "DEMOTION_CONFIDENCE_FLOOR",
     "MIN_ATTEMPTS_BEFORE_FLOOR_APPLIES",
+    "SkillLifecycleAuthority",
     "FailureReason",
     "apply_reuse_outcome",
     "evaluate_demotion",

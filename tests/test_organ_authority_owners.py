@@ -1,4 +1,4 @@
-"""Organs 27, 28, 38, 42, 46, 52: the named authority owners exist AND are reached.
+"""Phase-2 owner reachability: named authority owners exist AND are reached.
 
 The ledger names an `authority_owner` for every organ, but `validate_ledger()`
 only string-compares that field against a registry of strings -- it never
@@ -18,7 +18,9 @@ real production entrypoint and proves the authority was the thing that acted.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import inspect
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,12 +29,14 @@ from aios.api.deps import (
     get_constitutional_learning_authority,
     get_correction_lineage_authority,
     get_correction_record_store,
+    get_constitution_authority,
     get_observability_authority,
     get_operator_preference_store,
     get_operator_taste_model_authority,
     get_project_passport_store,
     get_project_understanding_authority,
     get_recovery_resumption_authority,
+    get_human_state_interpreter_authority,
 )
 from aios.api.main import app
 from aios.application.governance.constitutional_learning import (
@@ -650,6 +654,136 @@ def test_the_correction_lineage_authority_lineage_reads_newest_first(
 
 
 # --------------------------------------------------------------------------- #
+# Organ 31 -- RepresentativeContextCompilerAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_context_compiler_authority_is_the_gateway_compiler() -> None:
+    from aios.application.intelligence import gateway
+    from aios.application.intelligence.context_compiler import (
+        RepresentativeContextCompilerAuthority,
+    )
+
+    authority = gateway._REPRESENTATIVE_CONTEXT_COMPILER
+    assert isinstance(authority, RepresentativeContextCompilerAuthority)
+    context = authority.compile(
+        request_id="organ31-owner-test",
+        operator_identity_digest="a" * 64,
+        constitution_digest="b" * 64,
+        goal="inspect the context boundary",
+        desired_outcome="a compiled context",
+        target="local",
+        delegated_authority_summary="human operator decides",
+        explicit_constraints=(),
+        current_decisions=(),
+        active_preferences=(),
+        project_passport=None,
+        project_passport_stale=False,
+        relevant_memory_refs=(),
+        permitted_tools=(),
+        evidence_requirements=(),
+        communication_mode="direct",
+        latest_correction=None,
+        secret_policy=None,
+    )
+    assert context.request_id == "organ31-owner-test"
+
+
+# --------------------------------------------------------------------------- #
+# Organs 25 and 53 -- exact owner names over the existing live authorities
+# --------------------------------------------------------------------------- #
+
+
+def test_constitution_factory_returns_the_named_kernel_owner() -> None:
+    from aios.application.governance.constitution_authority import (
+        ConstitutionalKernelAuthority,
+    )
+
+    assert isinstance(get_constitution_authority(), ConstitutionalKernelAuthority)
+
+
+def test_edge_token_factory_returns_the_named_installation_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aios import config
+    from aios.application.security.api_token_authority import (
+        InstallationConfigurationAuthority,
+    )
+    from aios.interfaces.http import edge_security
+
+    monkeypatch.setattr(config, "API_TOKEN_ROTATION_DB_PATH", tmp_path / "tokens.db")
+    monkeypatch.setattr(edge_security, "_API_TOKEN_AUTHORITY", None)
+    resolved = edge_security.get_api_token_authority()
+    assert isinstance(resolved, InstallationConfigurationAuthority)
+
+
+# --------------------------------------------------------------------------- #
+# Organ 32 -- UniversalIntelligenceGatewayAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_universal_gateway_authority_owns_both_call_entrances() -> None:
+    from unittest.mock import MagicMock
+
+    from aios.application.intelligence import gateway
+    from aios.application.intelligence.gateway import (
+        UniversalIntelligenceGatewayAuthority,
+    )
+
+    authority = gateway._UNIVERSAL_GATEWAY_AUTHORITY
+    assert isinstance(authority, UniversalIntelligenceGatewayAuthority)
+    store = MagicMock()
+    result = gateway.route_intelligence_request(
+        request_id="organ32-owner-test",
+        operator_identity_digest="a" * 64,
+        constitution_digest="b" * 64,
+        goal="exercise the gateway owner",
+        desired_outcome="a governed result",
+        target="local",
+        delegated_authority_summary="human operator decides",
+        model_call=lambda _context: "governed reply",
+        context_store=store,
+    )
+    assert result.output == "governed reply"
+    store.save.assert_called_once()
+
+    structured = gateway.stream_structured_intelligence_request(
+        request_id="organ32-structured-owner-test",
+        operator_identity_digest="a" * 64,
+        constitution_digest="b" * 64,
+        goal="exercise the structured gateway owner",
+        desired_outcome="a governed event stream",
+        target="local",
+        delegated_authority_summary="human operator decides",
+        model_call=lambda _context: iter(
+            [{"type": "text", "text": "governed reply"}, {"type": "done"}]
+        ),
+        context_store=store,
+    )
+    assert list(structured.events)[-1] == {"type": "done"}
+    assert store.save.call_args.args[0] == structured.context
+    assert store.save.call_count == 2
+
+
+# --------------------------------------------------------------------------- #
+# Organ 30 -- HumanStateInterpreterAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_human_state_authority_is_reached_by_the_real_chat_route() -> None:
+    from aios.api.main import chat
+    from aios.application.memory.human_representation import (
+        HumanStateInterpreterAuthority,
+    )
+
+    authority = get_human_state_interpreter_authority()
+    assert isinstance(authority, HumanStateInterpreterAuthority)
+    parameter = inspect.signature(chat).parameters["human_state_interpreter"]
+    assert parameter.default.dependency is get_human_state_interpreter_authority
+    assert authority.classify("please do this asap").state == "rushed"
+
+
+# --------------------------------------------------------------------------- #
 # Organ 33 -- ModelPassportAuthority
 # --------------------------------------------------------------------------- #
 
@@ -766,3 +900,463 @@ def test_the_dispatcher_authority_escalates_an_unqualified_model_through_the_rea
     assert result.failure_reason == "Dispatched to frontier_escalation"
     registry.get_qualification.assert_called_once_with(admitted.model_id)
     llm.complete.assert_not_called()
+
+# --------------------------------------------------------------------------- #
+# Organs 7, 8, 10, 11, 12 and 14 -- exact owners over existing mechanisms
+# --------------------------------------------------------------------------- #
+
+
+def test_phase2_batch_owners_are_reached_by_production_constructors(
+    tmp_path: Path,
+) -> None:
+    """The six names below are the real classes, not pass-through wrappers.
+
+    Existing imports remain valid through aliases, while the production
+    dependency factories and lifecycle constructors now return objects whose
+    concrete class is the exact owner named in the ledger.
+    """
+    from aios.api.deps import (
+        get_action_broker,
+        get_capability_authority,
+        get_emergency_stop,
+        get_policy_kernel,
+        get_worker_foundry,
+    )
+    from aios.application.action_broker import (
+        ActionBroker,
+        ActionBrokerAuthority,
+    )
+    from aios.application.missions.mission_service import (
+        MissionAuthority,
+        MissionService,
+    )
+    from aios.application.turns.turn_coordinator import (
+        TurnCoordinator,
+        TurnCoordinatorAuthority,
+    )
+    from aios.application.workers.foundry import (
+        WorkerFoundry,
+        WorkerFoundryAuthority,
+    )
+    from aios.application.workspaces.staged import (
+        StagedWorkspaceAuthority,
+        StagedWorkspaceManager,
+    )
+    from aios.infrastructure.missions.sqlite_mission_repository import (
+        SqliteMissionRepository,
+    )
+    from aios.policy.kernel import PolicyKernel, PolicyKernelAuthority
+
+    assert ActionBroker is ActionBrokerAuthority
+    assert MissionService is MissionAuthority
+    assert TurnCoordinator is TurnCoordinatorAuthority
+    assert WorkerFoundry is WorkerFoundryAuthority
+    assert StagedWorkspaceManager is StagedWorkspaceAuthority
+    assert PolicyKernel is PolicyKernelAuthority
+
+    assert type(get_policy_kernel()) is PolicyKernelAuthority
+    assert (
+        type(
+            get_action_broker(
+                kernel=get_policy_kernel(),
+                capabilities=get_capability_authority(),
+            )
+        )
+        is ActionBrokerAuthority
+    )
+    assert (
+        type(get_worker_foundry(emergency_stop=get_emergency_stop()))
+        is WorkerFoundryAuthority
+    )
+    assert (
+        type(MissionAuthority(SqliteMissionRepository(tmp_path / "missions.db")))
+        is MissionAuthority
+    )
+    assert (
+        type(StagedWorkspaceAuthority(tmp_path / "staged", enrolled_roots=()))
+        is StagedWorkspaceAuthority
+    )
+    assert type(TurnCoordinatorAuthority(deps=None)) is TurnCoordinatorAuthority
+
+# --------------------------------------------------------------------------- #
+# Organs 13, 17, 21 and 22 -- exact owners over existing mechanisms
+# --------------------------------------------------------------------------- #
+
+
+def test_next_backend_owner_batch_is_reached_by_real_constructors(
+    tmp_path: Path,
+) -> None:
+    """The exact owner is the object the existing production API constructs."""
+    from aios.application.governance.v1_declaration import (
+        ReleaseDeclarationAuthority,
+        V1ReleaseDeclaration,
+        evaluate_release,
+    )
+    from aios.council.council_orchestrator import (
+        CouncilOrchestrator,
+        QueenCouncilAuthority,
+    )
+    from aios.executor_service import (
+        ExecutorServiceAuthority,
+        _EXECUTOR_SERVICE_AUTHORITY,
+    )
+    from aios.runtime.cortex_bus import CortexBus, CortexBusAuthority
+
+    assert CouncilOrchestrator is QueenCouncilAuthority
+    assert V1ReleaseDeclaration is ReleaseDeclarationAuthority
+    assert CortexBus is CortexBusAuthority
+
+    assert type(CortexBus(tmp_path / "cortex.db")) is CortexBusAuthority
+    assert (
+        type(QueenCouncilAuthority(runtime_root=tmp_path / "council"))
+        is QueenCouncilAuthority
+    )
+    declaration = evaluate_release(
+        root=tmp_path,
+        profile="development",
+        executor_available=False,
+    )
+    assert type(declaration) is ReleaseDeclarationAuthority
+    assert type(_EXECUTOR_SERVICE_AUTHORITY) is ExecutorServiceAuthority
+
+# --------------------------------------------------------------------------- #
+# Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
+# --------------------------------------------------------------------------- #
+
+
+def test_emergency_stop_hard_wiring_owner_is_reached_by_learning_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Organ 26: a real application boundary invokes the named owner.
+
+    This is intentionally a call assertion, not an ``isinstance`` check. If
+    LearningService ever calls a legacy helper directly, this test fails even
+    though ``EmergencyStopHardWiringAuthority`` still exists in the module.
+    """
+    from aios.application.capabilities.authority import (
+        EmergencyStopHardWiringAuthority,
+    )
+    from aios.application.learning.service import LearningService
+    from aios.domain.learning.trajectory_repository import TrajectoryRepository
+
+    calls: list[str] = []
+    original = EmergencyStopHardWiringAuthority.assert_operational
+
+    def spy(emergency_stop: object | None, *, boundary: str) -> None:
+        calls.append(boundary)
+        original(emergency_stop, boundary=boundary)
+
+    monkeypatch.setattr(
+        EmergencyStopHardWiringAuthority,
+        "assert_operational",
+        staticmethod(spy),
+    )
+    service = LearningService(
+        mission_service=MagicMock(),
+        trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
+    )
+
+    service._assert_operational()
+
+    assert calls == ["learning-service"]
+
+
+def test_isolated_executor_owner_is_reached_by_the_mirror_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 40: the live HTTP projection route calls the named owner."""
+    from types import SimpleNamespace
+
+    from aios.api.deps import get_private_executor_service
+    from aios.application.executor.service import StructuredExecutorClient
+    from aios.application.read_models.executor_projections import (
+        get_isolated_executor_live_authority,
+    )
+
+    authority = get_isolated_executor_live_authority()
+    original = authority.project
+    calls: list[object] = []
+
+    def spy(client: object) -> object:
+        calls.append(client)
+        return original(client)
+
+    monkeypatch.setattr(authority, "project", spy)
+    app.dependency_overrides[get_private_executor_service] = lambda: SimpleNamespace(
+        client=StructuredExecutorClient(base_url="", token="")
+    )
+    try:
+        response = TestClient(app, client=("127.0.0.1", 12345)).get(
+            "/api/v1/mirror/executor"
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert response.json()["executor"]["reachable"]["status"] == "unavailable"
+
+
+def test_skill_lifecycle_owner_is_reached_by_reuse_outcome_recording(
+    tmp_path: Path,
+) -> None:
+    """Organ 43: the real LearningService outcome path reaches the owner."""
+    from aios.application.learning.service import LearningService
+    from aios.domain.learning.contracts import ReuseOutcomeReference
+    from aios.domain.learning.trajectory_repository import TrajectoryRepository
+
+    service = LearningService(
+        mission_service=MagicMock(),
+        trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
+    )
+    skill = MagicMock(source_trajectory_ids=())
+    service.skill_repository = MagicMock()
+    service.skill_repository.get.return_value = skill
+    service.reuse_outcome_repository = MagicMock()
+    service.reuse_outcome_repository.record.return_value = True
+    service.mission_service.repository = MagicMock()
+    service.mission_service.repository.get.return_value = None
+    lifecycle = MagicMock(return_value=skill)
+    service.skill_lifecycle_authority.apply_reuse_outcome = lifecycle
+    reference = ReuseOutcomeReference(
+        reuse_outcome_id="outcome-1",
+        skill_id="skill-1",
+        skill_version=1,
+        source_trajectory_id="trajectory-1",
+        mission_id="mission-1",
+        worker_id="worker-1",
+        executor_job_id="job-1",
+        promotion_id="promotion-1",
+        local_job_id="local-job-1",
+        local_model_call_id="call-1",
+        verification_ids=("verification-1",),
+        workspace_digest="workspace-1",
+        diff_digest="diff-1",
+        project_digest="project-1",
+        contract_digest="contract-1",
+        policy_version="policy-1",
+    )
+
+    assert service.record_reuse_outcome(reference) is skill
+    lifecycle.assert_called_once_with(
+        "skill-1", 1, success=False, reason="verification"
+    )
+
+
+def test_golden_mission_runner_reaches_endurance_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 44: the compatibility runner delegates to the named owner."""
+    from tools import golden_mission_runner
+    from tools.golden_mission_runner import GoldenMissionEnduranceAuthority
+
+    calls: list[tuple[str, str, str]] = []
+
+    def run(self, name: str, mission: dict, model_id: str, run_id: str):
+        calls.append((name, model_id, run_id))
+        return {"mission": name, "passed": True}
+
+    monkeypatch.setattr(GoldenMissionEnduranceAuthority, "run_mission", run)
+
+    result = golden_mission_runner.run_mission(
+        "owner-probe", {"steps": []}, "model-probe", "run-probe"
+    )
+
+    assert result["passed"] is True
+    assert calls == [("owner-probe", "model-probe", "run-probe")]
+
+# --------------------------------------------------------------------------- #
+# Organ 6 -- EdgeTrustAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_edge_trust_authority_is_the_live_api_middleware_owner() -> None:
+    from aios.interfaces.http.edge_security import (
+        EdgeTrustAuthority,
+        get_edge_trust_authority,
+    )
+
+    authority = get_edge_trust_authority()
+    assert type(authority) is EdgeTrustAuthority
+    assert authority.validate_cors_origins(("http://localhost:5173",)) == [
+        "http://localhost:5173"
+    ]
+    assert authority.check_api_token_or_loopback.__self__ is authority
+    assert authority.check_mutation_origin_or_token.__self__ is authority
+
+# --------------------------------------------------------------------------- #
+# Organ 24 -- IdentityAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_identity_authority_is_the_real_identity_dependency() -> None:
+    from aios.api.deps import get_identity_service
+    from aios.application.identity.service import IdentityAuthority, IdentityService
+
+    assert IdentityService is IdentityAuthority
+    assert type(get_identity_service()) is IdentityAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 34 -- ProviderHealthBudgetAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_provider_health_budget_authority_is_the_shared_tracker() -> None:
+    from aios.api.deps import get_provider_health
+    from aios.application.models.health import (
+        ProviderHealthBudgetAuthority,
+        ProviderHealthTracker,
+    )
+
+    assert ProviderHealthTracker is ProviderHealthBudgetAuthority
+    assert type(get_provider_health()) is ProviderHealthBudgetAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 35 -- LocalClerkRuntimeAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_local_clerk_runtime_authority_owns_model_admission() -> None:
+    from unittest.mock import MagicMock
+
+    from aios.application.local_workforce.service import LocalWorkforceService
+    from aios.domain.local_workforce.contracts import LocalClerkRuntimeAuthority
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    service = LocalWorkforceService(
+        registry=MagicMock(spec=LocalWorkforceRegistry),
+        ollama=MagicMock(),
+    )
+
+    assert type(service.local_clerk_runtime_authority) is LocalClerkRuntimeAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 37 -- LocalModelQualificationAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_local_model_qualification_authority_is_the_real_factory() -> None:
+    from unittest.mock import MagicMock
+
+    from aios.application.local_workforce.service import LocalWorkforceService
+    from aios.domain.local_workforce.qualifier import (
+        LocalModelQualificationAuthority,
+        QualificationSuite,
+    )
+
+    service = LocalWorkforceService(
+        registry=MagicMock(),
+        ollama=MagicMock(),
+    )
+
+    assert QualificationSuite is LocalModelQualificationAuthority
+    assert service.qualification_suite_factory is LocalModelQualificationAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 39 -- DeliberationCouncilAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_deliberation_council_authority_is_the_live_gather_owner(
+    tmp_path: Path,
+) -> None:
+    from aios.council.council_orchestrator import QueenCouncilAuthority
+    from aios.council.deliberation_gather import DeliberationCouncilAuthority
+
+    orchestrator = QueenCouncilAuthority(runtime_root=tmp_path)
+    assert type(orchestrator.deliberation_authority) is DeliberationCouncilAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 41 -- PromotionRollbackLiveAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_promotion_rollback_live_authority_owns_checkpoint_validation() -> None:
+    from aios.domain.promotion.contracts import PromotionRollbackLiveAuthority
+
+    assert PromotionRollbackLiveAuthority.checkpoint_id_is_valid("checkpoint-1")
+    assert not PromotionRollbackLiveAuthority.checkpoint_id_is_valid("")
+    assert not PromotionRollbackLiveAuthority.checkpoint_id_is_valid("../escape")
+
+# --------------------------------------------------------------------------- #
+# Organ 45 -- ConstitutionalAmendmentAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_constitutional_amendment_authority_owns_ratification() -> None:
+    from types import SimpleNamespace
+
+    from aios.application.governance.amendment_authority import (
+        ConstitutionalAmendmentAuthority,
+        ratify_amendment,
+    )
+    from aios.domain.governance.amendments import (
+        CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION,
+    )
+
+    proof = SimpleNamespace(
+        action_type=CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION,
+        operator_id="operator-1",
+        consumed_at="2026-07-28T00:00:00+00:00",
+        token_digest="digest-owner-test",
+    )
+    proposal = _proposal()
+    authority = ConstitutionalAmendmentAuthority()
+
+    result = authority.ratify_amendment(
+        proposal,
+        capability_proof=proof,
+        operator_id="operator-1",
+    )
+
+    assert result.status == "ratified"
+    assert ratify_amendment(
+        proposal,
+        capability_proof=proof,
+        operator_id="operator-1",
+    ).status == "ratified"
+
+# --------------------------------------------------------------------------- #
+# Organ 47 -- ReadModelProjectionAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_read_model_projection_authority_is_the_mirror_owner() -> None:
+    from aios.api.routes.mirror import (
+        _READ_MODEL_PROJECTION_AUTHORITY,
+    )
+    from aios.application.read_models.governance_projections import (
+        ReadModelProjectionAuthority,
+    )
+
+    assert type(_READ_MODEL_PROJECTION_AUTHORITY) is ReadModelProjectionAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 54 -- BackupDisasterRecoveryAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_backup_disaster_recovery_authority_owns_restore() -> None:
+    from aios.operations.recovery import (
+        BackupDisasterRecoveryAuthority,
+        get_backup_disaster_recovery_authority,
+    )
+
+    assert type(get_backup_disaster_recovery_authority()) is BackupDisasterRecoveryAuthority
+
+# --------------------------------------------------------------------------- #
+# Organ 23 -- ReleaseConformanceAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_release_conformance_authority_is_the_manifest_builder() -> None:
+    import runpy
+
+    module = runpy.run_path(
+        str(Path(__file__).resolve().parents[1] / "scripts/build_release_manifest.py"),
+        run_name="release_manifest_test",
+    )
+    authority = module["ReleaseConformanceAuthority"]()
+    fresh = authority.build_manifest()
+    assert fresh["organ_summary"]["total"] == 54

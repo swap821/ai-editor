@@ -27,7 +27,7 @@ from aios.council.ganglia import (
     signals_from_verdicts,
     synthesize_signals,
 )
-from aios.council.deliberation_gather import maybe_deliberate
+from aios.council.deliberation_gather import DeliberationCouncilAuthority
 from aios.council.king_reasoning import reason_king
 from aios.council.reasoning import MistakeBackedRetriever
 from aios.council.participation import CouncilParticipationPolicy
@@ -118,7 +118,7 @@ class CouncilRun:
     report_path: Path
 
 
-class CouncilOrchestrator:
+class QueenCouncilAuthority:
     """Permanent council wrapper around temporary worker execution."""
 
     def __init__(
@@ -262,6 +262,7 @@ class CouncilOrchestrator:
         self.dissent_provider = dissent_provider
         self.dissent_exact_model_id = dissent_exact_model_id
         self.deliberation_store = deliberation_store
+        self.deliberation_authority = DeliberationCouncilAuthority()
         self.ledger_store = ledger_store or self.spawner.ledger_store
         self.report_store = report_store or self.spawner.report_store
         # Optional Phase-3A durable deliberation log. None → no persistence.
@@ -305,6 +306,7 @@ class CouncilOrchestrator:
             turn_id=getattr(contract, "turn_id", None),
             project_id=getattr(contract, "project_id", None),
             operator_id=getattr(contract, "operator_id", None) or "system",
+            constitution_digest=getattr(contract, "constitution_digest", None),
             goal=contract.goal,
             worker_type=contract.worker_type,
             created_by=contract.created_by,
@@ -656,7 +658,7 @@ class CouncilOrchestrator:
         is configured or deliberation isn't warranted for this mission."""
         if self.dissent_complete is None or self.deliberation_store is None:
             return
-        record = maybe_deliberate(
+        record = self.deliberation_authority.maybe_deliberate(
             report,
             mission_id=mission_id,
             king_provider="ollama",
@@ -1114,4 +1116,7 @@ class CouncilOrchestrator:
         )
 
 
-__all__ = ["CouncilOrchestrator", "CouncilRun"]
+CouncilOrchestrator = QueenCouncilAuthority
+
+
+__all__ = ["QueenCouncilAuthority", "CouncilOrchestrator", "CouncilRun"]

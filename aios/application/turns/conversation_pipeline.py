@@ -16,7 +16,10 @@ from aios.application.memory.human_representation import classify_human_state
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
-from aios.application.intelligence.gateway import IntelligenceGatewayError
+from aios.application.intelligence.gateway import (
+    IntelligenceGatewayError,
+    stream_compatibility_intelligence_request,
+)
 from aios.core.llm import LLMError
 from aios.core.prompt_writer import PromptSection, PromptWriter
 from aios.memory.fact_extraction import extract_candidates
@@ -42,6 +45,7 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
     user_text = str(extra.get("user_text", "")).strip()
     model_id = extra.get("model_id")
     task = str(extra["task"])
+    compatibility_stream = None
     sse = extra["sse_writer"](context.turn_id)
     telemetry = extra["telemetry"]
     started = time.perf_counter()
@@ -51,7 +55,11 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
     yield sse("turn.started", {"mode": context.mode.value})
 
     def record_telemetry(outcome: str) -> None:
-        provider, served_model = _active_route(runtime, chat_client, model)
+        if compatibility_stream is not None:
+            provider = extra["ollama_provider"]
+            served_model = str(extra.get("ollama_model", model))
+        else:
+            provider, served_model = _active_route(runtime, chat_client, model)
         telemetry.record_run(
             session_id=context.session_id,
             task_signature=extra["task_signature"](user_text) if user_text else None,
@@ -67,7 +75,8 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
         yield sse("error", {"text": "No transcript provided."})
         return
 
-    human_state = classify_human_state(user_text)
+    interpret_human_state = extra.get("interpret_human_state", classify_human_state)
+    human_state = interpret_human_state(user_text)
     yield sse("human_state", human_state.as_dict())
     human_state_hypothesis_id = extra["record_human_state"](
         context.session_id, context.turn_id, human_state
@@ -131,12 +140,31 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
             {"role": "user", "content": user_text},
         ]
 
+        try:
+            compatibility_stream = stream_compatibility_intelligence_request(
+                request_id=context.turn_id,
+                target="local",
+                emergency_stop=extra.get("emergency_stop"),
+                model_call=lambda: extra["stream_chat_chunks"](
+                    extra.get("ollama_client", chat_client),
+                    messages,
+                    model=str(extra.get("ollama_model", model)),
+                ),
+            )
+        except IntelligenceGatewayError as exc:
+            record_telemetry(telemetry.OUTCOME_ABORTED)
+            yield sse("error", {"text": str(exc)})
+            return
     extra["record_episode"](context.session_id, "user", user_text)
     route_sent = False
     text_parts: list[str] = []
 
     def route_payload() -> dict[str, Any]:
-        provider, served_model = _active_route(runtime, chat_client, model)
+        if compatibility_stream is not None:
+            provider = extra["ollama_provider"]
+            served_model = str(extra.get("ollama_model", model))
+        else:
+            provider, served_model = _active_route(runtime, chat_client, model)
         return {
             "provider": provider,
             "model": served_model,
@@ -151,6 +179,8 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
         chunk_stream = (
             representation_stream.chunks
             if representation_stream is not None
+            else compatibility_stream.chunks
+            if compatibility_stream is not None
             else extra["stream_chat_chunks"](chat_client, messages, model=model)
         )
         for chunk in chunk_stream:

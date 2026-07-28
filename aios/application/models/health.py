@@ -36,7 +36,7 @@ class _ProviderState:
 
 
 @dataclass
-class ProviderHealthTracker:
+class ProviderHealthBudgetAuthority:
     """Deterministic, threshold-based circuit breaker over reported outcomes.
 
     - `record_success`/`record_failure` are the only way state changes --
@@ -123,4 +123,7 @@ class ProviderHealthTracker:
         )
 
 
-__all__ = ["ProviderHealthTracker"]
+ProviderHealthTracker = ProviderHealthBudgetAuthority
+
+
+__all__ = ["ProviderHealthBudgetAuthority", "ProviderHealthTracker"]

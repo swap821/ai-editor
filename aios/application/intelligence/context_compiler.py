@@ -43,7 +43,7 @@ def _scrub(text: str, secret_policy: SecretPolicy) -> tuple[str, bool]:
     return decision.scrubbed, decision.detected
 
 
-def compile_representative_context(
+def _compile_representative_context(
     *,
     request_id: str,
     operator_identity_digest: str,
@@ -226,6 +226,43 @@ def compile_representative_context(
     )
 
 
+class RepresentativeContextCompilerAuthority:
+    """Own the validated compilation boundary for representative context.
+
+    The class owns the input contract and privacy-target validation before
+    delegating to the pure field-construction algorithm. Production gateway
+    entrances hold this authority; the old function remains only as a
+    compatibility seam for callers and tests.
+    """
+
+    def compile(self, **kwargs: Any) -> RepresentativeContextV1:
+        required = (
+            "request_id",
+            "operator_identity_digest",
+            "constitution_digest",
+            "goal",
+            "desired_outcome",
+            "target",
+            "delegated_authority_summary",
+        )
+        missing = [name for name in required if not str(kwargs.get(name, "")).strip()]
+        if missing:
+            raise ValueError(
+                "representative context requires: " + ", ".join(missing)
+            )
+        if kwargs["target"] not in ("local", "cloud"):
+            raise ValueError("representative context target must be local or cloud")
+        return _compile_representative_context(**kwargs)
+
+
+_DEFAULT_COMPILER = RepresentativeContextCompilerAuthority()
+
+
+def compile_representative_context(**kwargs: Any) -> RepresentativeContextV1:
+    """Compatibility entrypoint backed by the organ-31 authority."""
+    return _DEFAULT_COMPILER.compile(**kwargs)
+
+
 def context_digest_from_record(context: RepresentativeContextV1) -> str:
     """Recompute the canonical digest from an already-compiled context's own
     fields (not the raw pre-compile inputs). `context.model_dump(mode="json",
@@ -243,6 +280,7 @@ def context_digest_from_record(context: RepresentativeContextV1) -> str:
 
 __all__ = [
     "CompilationTarget",
+    "RepresentativeContextCompilerAuthority",
     "compile_representative_context",
     "context_digest_from_record",
 ]

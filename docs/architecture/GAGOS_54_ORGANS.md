@@ -25,7 +25,10 @@ surfaced via `python -m aios.launcher organ-check [--json] [--strict]`.
   evaluation. Never a synthetic fixture presented as live proof. Since
   Decision A (2026-07-27, below), `authority_owner` must also name a real
   class defined somewhere in the organ's own `production_entrypoints` — a
-  string that only matches `CANONICAL_ORGANS` is a label, not a claim.
+  string that only matches `CANONICAL_ORGANS` is a label, not a claim. The
+  Phase 2 CI/launcher boundary checks this for every non-frozen row, including
+  yellow rows; organs 1–5 are an explicit yellow-only exception because their
+  production entrypoints are the frozen RED security spine.
 - **yellow** — genuinely partial or missing; the ledger records the exact
   blocker instead of an aspirational claim.
 
@@ -257,11 +260,15 @@ string-compared against `CANONICAL_ORGANS`, never proven exists. Grepping
 every canonical owner name against `aios/`, `backend/`, `gateway/`,
 `scripts/`, `tools/`, `observability/`, and `frontend/` found 33 of those
 names defined *nowhere in the repository at all* -- not merely unwired, but
-never written. `validate_ledger()` now requires (`_authority_owner_is_class_
-reference` in `aios/application/governance/organ_ledger.py`) that a green
-organ's `authority_owner` be defined as a class inside that organ's own
+never written. `validate_ledger()` now provides an explicit Phase 2 owner-attestation gate
+(`enforce_owner_attestation=True`, implemented beside
+`_authority_owner_is_class_reference` in `aios/application/governance/organ_ledger.py`)
+that requires every non-frozen row, yellow or green, to define its
+`authority_owner` as a class inside that organ's own
 `production_entrypoints` -- reusing the field the ledger already tracks
-rather than adding new schema. **All 33 unsupported organs are demoted to
+rather than adding new schema. The launcher and CI verifier enable that gate;
+the five frozen security-spine organs are forbidden from green claims but are
+not required to edit their frozen entrypoint modules merely to satisfy it. **All 33 unsupported organs are demoted to
 yellow in this same commit**, each with a `known_blockers` entry naming the
 missing class and pointing at the organ 42/46/52 (PR #169) template for
 building a real one -- one honest regression beats a standing overstatement.
@@ -333,6 +340,16 @@ yellow.
 | # | Organ | Authority owner | Entry point | Tests |
 |---|-------|------------------|-------------|-------|
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `aios/application/local_workforce/dispatcher.py` (new class), `aios/application/local_workforce/service.py` (now calls through it) | `tests/test_local_clerk_dispatcher.py`, `tests/test_local_workforce_api.py`, `tests/test_organ_authority_owners.py` |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `aios/application/governance/constitution_authority.py` (the durable snapshot/enrollment/activation authority now has the exact Decision-A owner name; compatibility callers resolve to the same class) | `tests/test_constitution_authority.py`, `tests/test_organ25_constitution_e2e.py`, `tests/test_organ_authority_owners.py` |
+| 30 | Human-State Interpreter | `HumanStateInterpreterAuthority` | `aios/application/memory/human_representation.py` (owns the fixed-priority classifier), `aios/api/deps.py`, `aios/api/main.py`, `aios/application/turns/conversation_pipeline.py` | `tests/test_human_state_interpreter.py`, `tests/test_conversation_pipeline.py`, `tests/test_organ_authority_owners.py` |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | 29 | **Re-audit (2026-07-28):** the durable `RepresentativeContextStore` remains wired inside all three current gateway entrances, and authenticated `/api/v1/chat` plus `/api/generate` are real production callers. It resolves operator preferences, active project passport, verified correction lineage, human-state evidence, identity, and constitution before `stream_intelligence_request()`; the context receipt is persisted before provider chunks. The authenticated route and gateway suites pass (98 tests, 1 warning). The prior claim that only Council called the compiler with empty representation data is stale and withdrawn. Still yellow honestly: anonymous chat intentionally remains on its compatibility facts/recall path because it has no authenticated identity/constitution binding; live/exact-tip/remaining green-contract evidence is not claimed. |
+| 32 | Universal Intelligence Gateway | UniversalIntelligenceGatewayAuthority | 41 | **Phase 2/3 update (2026-07-28):** the authority now owns synchronous, plain-text streaming, structured forge-event, and anonymous compatibility entrances. Authenticated `/api/v1/chat` and `/api/generate` compile identity/constitution-bound representative context, enforce the emergency stop, persist a strict receipt before provider iteration, and return gateway-redacted output; the structured scrubber preserves exact command/edit/create payloads needed by the approval broker. Anonymous compatibility conversation now enters `stream_compatibility_intelligence_request()` through `conversation_pipeline`; because it has no authenticated operator identity/constitution digest, that entrance is intentionally local-only, applies emergency-stop and output-redaction gates, and makes no representative-receipt claim. The real Council background paths use gateway-routed Planner/King and independent dissent clients with durable identity/constitution binding; the legacy worker `IntelligenceGateway` and authenticated hiring route now carry the same binding and enter this gateway, while missing binding fails closed before provider execution. Focused gateway, Council, runtime, hiring, conversation, and generate regressions pass. Still genuinely open: maintenance/skill-compilation compatibility paths, no live cloud proof, and no exact-tip strict-release attestation are claimed. |
+| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | 31 | `ModelPassportV1` is typed and role-scoped, and the authority projects it from the durable `LocalWorkforceRegistry` rather than maintaining a second admission truth. **Phase 2/3 re-audit (2026-07-28):** the real refresh -> approve -> qualify API path persists admission, roles, qualification-suite/evidence, artifact, and expiry fields in SQLite; a fresh registry instance is then read by the real passport route and returns the same passport digest. `tests/test_local_workforce_api.py::test_passport_route_projects_durable_registry_after_restart` proves this end to end; the Organ 33/owner focused suite passed 63 tests with 1 warning. The prior blocker claim that no durable store persists a passport is withdrawn for the local path. Still yellow honestly: no authorized live Ollama qualification evidence is available here, cloud/provider passport fields remain a separate intentional projection boundary, and exact-tip strict-release/remaining green-contract conditions are not claimed. |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | 41 | `LocalWorkforceProvenanceStore` (SQLite, per-record sha256 digests, duplicate job_id fails closed) is genuinely wired into production: `LocalWorkforceService.run_advisory_job()` records every real job's request/model-call/result once execution completes, including refusals and schema failures, and `get_local_workforce_service()` injects the real store. The owner now controls both write and read-side reconstruction, and the persisted qualification lookup remains a separate fail-closed dispatcher boundary owned by organ 36. **Dedicated re-audit (2026-07-28):** the prior claim that `dispatch_clerical_job()` was still unwired was stale and is withdrawn; the service reads `LocalWorkforceRegistry.get_qualification()` and routes through `ClerkDispatcherAuthority`. Focused provenance, service, dispatcher, and owner-reachability suites pass (74 passed, 1 warning). Still yellow honestly: no live evidence or exact-tip strict-release attestation has been attached, and no additional implementation blocker was found in this re-audit. |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | 41 | **Tier 4 update + this pass:** `MissionTransitionJournal` wiring is real for the Council pipeline (`CouncilOrchestrator` appends all 11 real states at their genuine points), proven end to end with a real mission run asserting the exact ordered history. This pass closes the exact prerequisite the prior update named: `MissionService.request_approval_direct()` (using the pre-existing but previously-unused `DIRECT_REQUEST_APPROVAL` transition) plus a real `POST /api/v1/maintenance/repairs/{mission_id}/approve` route let a maintenance mission reach `APPROVED` through a real, privileged-operator-gated HTTP call -- `test_maintenance_api.py`'s own end-to-end test now uses this route instead of an in-process `MissionService.approve()` bypass. Also fixed a real, previously-latent bug found while wiring this: three maintenance routes checked `if record is None` against a repository method that raises `MissionNotFoundError` instead, so an unknown mission_id was an uncaught 500. **Phase 2 correction (2026-07-28):** the remaining maintenance-pipeline claim was stale: `MaintenanceConvergenceService` is now wired through the same `RecoveryResumptionAuthority.journal` dependency used by startup recovery, and its real creation, approval, execution, verification, checkpoint, promotion, post-promotion verification, completion, and failure paths append transitions at their actual execution points. `test_maintenance_api.py::test_a_maintenance_repair_leaves_an_ordered_transition_journal` proves the exact 11-state success history and contiguous sequence numbers end to end; focused Organ 42/owner tests pass (50 passed, 1 warning). Still yellow honestly: no crash/restart live proof or exact-tip CI evidence has been attached; FAILED/ROLLED_BACK escape paths are implemented but remain covered by focused assertions rather than a live interruption recovery run. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | 36 | **Phase 2 update (2026-07-28):** `GoldenMissionEnduranceAuthority` now owns ordered golden-step verification and endurance threshold evaluation in the two runnable tools listed in the ledger. `tests/test_organ_authority_owners.py` drives the real runner compatibility entrypoint and spies on the named owner. The 12-mission, two-provider, multi-hour live cohort remains honestly unattempted because this environment has no authorized cloud credentials/budget and cannot fabricate that evidence. |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | 38 | **Tier 4 follow-on:** the 9 named adversarial simulations are no longer a caller-trusted catalog. `adversarial_simulations.run_adversarial_simulations()` runs every one for real against a proposal's own text plus a live probe of the production mechanism each check protects (`CapabilityAuthority` against an ephemeral store for `approval_bypass`/`capability_replay`, `EmergencyStopController` against an ephemeral latch for `emergency_stop_interference`/`model_self_protection`, `PrivacyBroker` for `privacy_widening`, `rollback_amendment` for `reduced_human_reversibility`, `CorrectionRecordV1`'s pinned `grants_authority=Literal[False]` for `memory_as_truth_confusion`, the failover layer's provider classes for `provider_lock_in`, `assert_never_reduces_human_authority` for `authority_escalation`) -- every probe is read-only or runs against a throwaway fixture, never the live system's persisted state, since a text proposal must never be applied to a live system to "test" it. `POST .../lessons/check-simulations` now takes a `proposal_id`, looks it up, and runs the real checks itself; a caller can no longer assert a passing result it never earned. Still yellow, honestly: this is a real automated floor, not a full human red-team exercise. |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | 40 | **Tier 5 update (operator-authorized, grace-period-overlap design confirmed):** key rotation and a bounded grace period are now real. New `ApiTokenAuthority` issues a fresh API bearer token via `POST /api/v1/security/api-token/rotate`; the token it supersedes keeps working for a caller-chosen grace period (default 3600s) so an already-running client isn't broken instantly, then stops validating once the window elapses -- proven with a fake-clock unit test. `config.API_TOKEN` stays unconditionally valid exactly as before (the operator retires it the normal way, via restart with a different env var); this authority only layers rotated tokens on top, so every pre-existing token-related test and behavior is unchanged. A real regression was caught and fixed before shipping: an early draft cached `config.API_TOKEN`'s value inside the long-lived authority singleton at first construction, so a test elsewhere that temporarily reassigns it would permanently poison every later test in the same process -- caught by real adversarial-suite failures, not a test written for this change; fixed by making the authority stateless with respect to that value. Still missing: "truthful Ollama-absence handling," the other named half of this organ's original blocker, has no further specification anywhere in the repo and is an unrelated concern (local-model availability reporting, not credential rotation) -- not investigated here. |
 
 **Organ 36 note:** this organ's one ever-named blocker ("`dispatch_clerical_job()`
 ... not wired into `LocalWorkforceService`'s real request path") was
@@ -471,6 +488,8 @@ nothing on a mission's execution path re-checks identity mid-flight, so
 degrading the identity store only blocks the resolution of a NEW `Principal`
 (and therefore new capability issuance), never an already-running mission.
 
+**Superseded baseline note (2026-07-28):** the historical yellow-table Organ 32 row below records the pre-Phase-2 state. The current Organ 32 verdict is the Phase 2/3 row above; its remaining blockers are intentionally listed there.
+
 ## Yellow organs (47)
 
 The original 16 (Slices 26-40 completion target, minus organs 52 and 36
@@ -529,6 +548,8 @@ under Decision A (2026-07-27) — see the green-organ sections above.
 
 ## How this ledger is enforced
 
+## How this ledger is enforced
+
 ```
 python -m aios.launcher organ-check --json
 python -m aios.launcher organ-check --strict
@@ -537,8 +558,10 @@ python -m aios.launcher organ-check --strict
 `--strict` exits non-zero until all 54 organs are green. `validate_ledger`
 additionally refuses: duplicate `organ_id`, duplicate `authority_owner`,
 missing or unknown organs, a `green` organ without focused or integration
-tests, a `green` organ whose `authority_owner` is not defined as a class
-anywhere in its own `production_entrypoints` (Decision A, 2026-07-27), a
-`green` organ that requires live evidence but has none, live evidence
-labelled `fixture` where `live` is required, and live evidence stamped with
-any commit other than the one under evaluation.
+tests, a non-frozen organ whose `authority_owner` is not defined as a class
+anywhere in its own `production_entrypoints` when the Phase 2
+`enforce_owner_attestation` gate is enabled (yellow rows included), a frozen
+security-spine organ claiming green, a `green` organ that requires live
+evidence but has none, live evidence labelled `fixture` where `live` is
+required, and live evidence stamped with any commit other than the one under
+evaluation.

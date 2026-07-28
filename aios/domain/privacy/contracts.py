@@ -42,6 +42,9 @@ class ModelCallRequest(BaseModel):
 
     request_id: str
     principal_id: str
+    operator_identity_digest: str | None = None
+    constitution_digest: str | None = None
+    requires_governed_intelligence: bool = False
     mission_id: str | None = None
     turn_id: str | None = None
     purpose: str

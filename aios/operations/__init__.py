@@ -2,9 +2,11 @@
 
 from aios.operations.doctor import DoctorReport, doctor_report
 from aios.operations.recovery import (
+    BackupDisasterRecoveryAuthority,
     BackupManifest,
     RecoveryError,
     create_backup,
+    get_backup_disaster_recovery_authority,
     rebuild_projections,
     restore_backup,
     verify_audit,
@@ -12,10 +14,12 @@ from aios.operations.recovery import (
 )
 
 __all__ = [
+    "BackupDisasterRecoveryAuthority",
     "BackupManifest",
     "DoctorReport",
     "RecoveryError",
     "create_backup",
+    "get_backup_disaster_recovery_authority",
     "doctor_report",
     "rebuild_projections",
     "restore_backup",

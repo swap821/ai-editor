@@ -121,7 +121,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'EdgeTrustAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the API edge's request-level trust ordering is now owned by the concrete EdgeTrustAuthority class in this organ's production entrypoint; the live FastAPI middleware calls that singleton for CORS, client IP, token, host, session, and CSRF decisions while pure parsing helpers remain shared utilities. Verified by tests/test_organ_authority_owners.py and the focused edge/API/chat/policy suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -142,7 +142,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'PolicyKernelAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real PolicyKernel implementation is now the concrete PolicyKernelAuthority class in this organ's production entrypoint; the legacy PolicyKernel import is only a compatibility alias. The production singleton and route callers return this exact class, verified by tests/test_organ_authority_owners.py and the focused policy suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -163,7 +163,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ActionBrokerAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real ActionBroker implementation is now the concrete ActionBrokerAuthority class in this organ's production entrypoint; the legacy ActionBroker import is only a compatibility alias. The production dependency factory returns this exact class, verified by tests/test_organ_authority_owners.py and the focused action-broker suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -203,7 +203,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'MissionAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real MissionService lifecycle implementation is now the concrete MissionAuthority class in this organ's production entrypoint; the legacy MissionService import is only a compatibility alias. Existing mission lifecycle constructors reach this exact class, verified by tests/test_organ_authority_owners.py and the focused mission suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -224,7 +224,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'TurnCoordinatorAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real TurnCoordinator implementation is now the concrete TurnCoordinatorAuthority class in this organ's production entrypoint; the legacy TurnCoordinator import is only a compatibility alias. The chat-turn construction path reaches this exact class, verified by tests/test_organ_authority_owners.py and the focused turn-coordinator suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -245,7 +245,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'WorkerFoundryAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real WorkerFoundry implementation is now the concrete WorkerFoundryAuthority class in this organ's production entrypoint; the legacy WorkerFoundry import is only a compatibility alias. The production worker-foundry factory reaches this exact class, verified by tests/test_organ_authority_owners.py and the focused foundry suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -266,7 +266,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ExecutorServiceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the authenticated executor dispatch mechanism is now owned by the concrete ExecutorServiceAuthority class in this organ's production entrypoint; the FastAPI job route reaches the singleton authority, with the old function retained only as the HTTP compatibility entrypoint. Verified by tests/test_organ_authority_owners.py and the focused executor-service/conformance suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -287,7 +287,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'StagedWorkspaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real StagedWorkspaceManager implementation is now the concrete StagedWorkspaceAuthority class in this organ's production entrypoint; the legacy StagedWorkspaceManager import is only a compatibility alias. Existing workspace constructors reach this exact class, verified by tests/test_organ_authority_owners.py and the focused staged-workspace suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -346,7 +346,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'CortexBusAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the durable CortexBus implementation is now the concrete CortexBusAuthority class in this organ's production entrypoint; existing callers retain only a compatibility alias. Verified by tests/test_organ_authority_owners.py and the focused Cortex bus suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -405,7 +405,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'LivingMirrorAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: the substantive LivingMirrorAuthority class in frontend/src/superbrain/lib/livingMirrorRegistry.ts owns schema admission, read-model application, and bounded reactions; the public registry exports reach its singleton, verified by focused frontend tests. Browser/live UI evidence is still not claimed."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -426,7 +426,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'QueenCouncilAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the council orchestration implementation is now the concrete QueenCouncilAuthority class in this organ's production entrypoint; existing CouncilOrchestrator callers retain only a compatibility alias. Verified by tests/test_organ_authority_owners.py and the focused council orchestration suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -447,7 +447,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ReleaseDeclarationAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the V1 release declaration returned by the real evaluate_release function is now the concrete ReleaseDeclarationAuthority class in this organ's production entrypoint; the legacy V1ReleaseDeclaration import is only a compatibility alias. Verified by tests/test_organ_authority_owners.py and the focused release/launcher/conformance suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -469,7 +469,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Ledger established at this baseline (Slice 25); the strict gate stays non-green until every organ below turns green and Slice 40 final release proof lands."
+      "Decision A satisfied 2026-07-28: scripts/build_release_manifest.py now defines the substantive ReleaseConformanceAuthority class and the CLI main() reaches it; focused owner, release, and launcher tests pass. Remains yellow because strict release attestation still depends on all organs being green and exact-tip CI proof."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -494,7 +494,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'IdentityAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the existing Human Sovereign IdentityService implementation is now the concrete IdentityAuthority class in this organ's production entrypoints; the legacy IdentityService import is only a compatibility alias, and the real identity dependency returns the exact class. Verified by tests/test_organ_authority_owners.py and the focused identity/capability/snapshot suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -553,6 +553,7 @@
       "aios/api/routes/council.py"
     ],
     "focused_tests": [
+      "tests/test_organ_authority_owners.py",
       "tests/test_emergency_stop_boundaries.py"
     ],
     "integration_tests": [
@@ -564,7 +565,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'EmergencyStopHardWiringAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: the substantive EmergencyStopHardWiringAuthority in aios/application/capabilities/authority.py owns fail-closed dependency validation, and the listed capability, gateway, learning, maintenance, recovery, API, and Council boundaries reach it. tests/test_organ_authority_owners.py now spies on a real LearningService emergency-stop boundary and proves the named owner is called; the organ remains yellow because live evidence, exact-tip strict-release attestation, and the remaining green-contract conditions are open."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -582,7 +583,8 @@
       "aios/api/routes/preferences.py",
       "aios/policy/kernel.py",
       "aios/domain/actions/envelope.py",
-      "aios/application/memory/authorities.py"
+      "aios/application/memory/authorities.py",
+      "aios/application/intelligence/authenticated_chat.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
@@ -592,11 +594,12 @@
     ],
     "integration_tests": [
       "tests/test_personalization.py",
-      "tests/test_operator_preferences_api.py"
+      "tests/test_operator_preferences_api.py",
+      "tests/test_authenticated_chat_route.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "PR1 (organ 27 closure): OperatorPreferenceStore previously had zero production callers -- get_operator_preference_store() (aios/api/deps.py) now wires it through the SAME canonical SemanticFacts instance every other real personalization write already uses, and a real route (aios/api/routes/preferences.py: POST/GET /api/v1/preferences, GET /api/v1/preferences/active, POST /api/v1/preferences/{id}/withdraw) is the first production caller. Capture is restricted to explicit preferences structurally (source_type is always \"explicit_user\"; no request field can set anything else). Real, tested support added for expiry (is_operator_preference_expired), withdrawal (OperatorPreferenceStore.withdraw() -- a status=\"withdrawn\" sidecar transition; it does not retract the underlying SemanticFacts row, so a genuinely different value for the same domain+key+scope after withdrawal still resolves through the existing POST /api/v1/memory/facts/reconcile), and restart recovery. Two real, previously-latent bugs were found and fixed while building this: (1) the contradiction-check subject omitted scope (operator.<domain>.<key>), so two preferences correctly isolated by list_for_scope would have spuriously collided the instant they disagreed -- scope is now part of that subject; (2) save() digested the REQUESTED confidence even when SemanticFacts.add_fact()'s idempotent path left the actual stored confidence unchanged, producing a permanent false RecordTamperedError on the next read after a re-save with a different confidence -- save() now re-reads the actual stored fact before digesting. Stays yellow for the same reason organ 31's and organ 32's own ledger rows already document: no production conversational call site exists yet to thread list_active_for_scope() into Organ 31's active_preferences parameter -- the only real caller of that parameter (aios/council/gateway_reasoning.py) deliberately doesn't need it, and chat's real personalization path (_operator_facts_block) is a separate, lower-level mechanism. Not fabricated as closed; see organ 31/32's blockers for the (already-tracked) root cause."
+      "Dedicated re-audit 2026-07-28: OperatorTasteModelAuthority still owns the explicit preference API and durable store, and authenticated chat is now a real second consumer. AuthenticatedChatRepresentation._select_preferences() reads active global/project preferences, applies expiry/withdrawal/supersession rules, and passes the selected preference into the Organ 31 context; tests/test_authenticated_chat_route.py proves the project preference is included while the superseded global preference is excluded, with the receipt persisted before provider output. The prior claim that no production conversational caller threaded active_preferences is stale and withdrawn. Still yellow honestly: no real operator-traffic/live provider evidence or exact-tip strict-release attestation is claimed, and the anonymous compatibility chat path intentionally uses its separate lower-level facts block."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -612,7 +615,8 @@
       "aios/infrastructure/memory/human_representation_store.py",
       "aios/api/routes/projects.py",
       "aios/api/deps.py",
-      "aios/application/memory/authorities.py"
+      "aios/application/memory/authorities.py",
+      "aios/application/intelligence/authenticated_chat.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
@@ -620,11 +624,12 @@
       "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
-      "tests/test_project_passport.py"
+      "tests/test_project_passport.py",
+      "tests/test_authenticated_chat_route.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "PR1 (organ 28 closure): the \"last scanned project\" pointer previously lived only in process-local module globals (_LAST_PROJECT_PASSPORT_SCAN / _LAST_PROJECT_PASSPORT_ID in aios/api/routes/projects.py) -- silently forgotten on every restart even though the scan history itself was already durable. A new singleton-row table (migration 0016, active_project_pointer) plus ProjectPassportStore.set_active()/get_active() now persist it; project_passport_status() reads the durable pointer instead of the removed globals. Added a real, computed diff_project_passports() (scalar-field, set-field, and commands changes) between the previous durable revision and the one just scanned -- never a fabricated \"nothing changed\" when there was no previous revision -- exposed on every scan as passportDiff. Stays yellow for the same reason organ 31/32's own ledger rows already document: no production conversational call site threads the active passport into Organ 31's project_passport parameter -- Council (the only real caller) doesn't need it, and no chat-facing consumer exists yet. Not fabricated as closed."
+      "Dedicated re-audit 2026-07-28: ProjectUnderstandingAuthority still owns the durable active-project pointer and computed passport revisions/diffs, and authenticated chat is now a real consumer. AuthenticatedChatRepresentation._resolve_sources() reads the active project, rejects a stale/unverified passport, passes its project revision into the context receipt, and the end-to-end authenticated-chat proof asserts that revision survives with the provider call; the source stores are reopened after the request. The prior claim that no production conversational caller threaded project_passport is stale and withdrawn. Still yellow honestly: no real operator-traffic/live provider evidence or exact-tip strict-release attestation is claimed, and anonymous compatibility chat intentionally has no authenticated project binding."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -640,7 +645,8 @@
       "aios/infrastructure/memory/human_representation_store.py",
       "aios/api/deps.py",
       "aios/api/routes/memory.py",
-      "aios/application/memory/authorities.py"
+      "aios/application/memory/authorities.py",
+      "aios/application/intelligence/authenticated_chat.py"
     ],
     "focused_tests": [
       "tests/test_human_representation.py",
@@ -656,7 +662,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "PR1 (organ 29 closure): build_correction_record_v1()/CorrectionRecordV1 previously had zero production callers -- the real POST /api/v1/conversation/correction route (aios/api/routes/memory.py) now builds a typed, digest-verified CorrectionRecordV1 via record_correction_and_build_v1() on every real correction and durably records it through a new CorrectionRecordStore (append-only, digest-verified), returned to the caller as correctionRecord/correctionRecords. operator_id is captured best-effort via get_optional_principal() -- honestly recorded None rather than a fabricated identity when the session has no authenticated Human Sovereign principal bound to it. grants_authority stays pinned False at the type level (a correction changes the recorded interpretation, never what is authorized) -- proven by test. Stays yellow for the same reason organ 31/32's own ledger rows already document: no production conversational call site threads the newest valid correction into Organ 31's latest_correction parameter -- Council (the only real caller) doesn't need it, and no chat-facing consumer exists yet. Not fabricated as closed."
+      "Dedicated re-audit 2026-07-28: CorrectionLineageAuthority still owns the real POST /api/v1/conversation/correction route and its append-only, digest-verified CorrectionRecordStore. The prior claim that no chat-facing consumer threads the newest correction into Organ 31 is stale for authenticated chat: AuthenticatedChatRepresentation._resolve_sources() calls verified_active_projection() and passes the resulting correction ids/current decisions into stream_intelligence_request(); tests/test_authenticated_chat_route.py proves the correction is persisted before provider output and survives the source-store restart. Still yellow honestly: anonymous chat intentionally has no authenticated correction authority and retains its compatibility path, while live/exact-tip/remaining green-contract evidence is not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -700,11 +706,14 @@
       "aios/domain/intelligence/representative_context.py",
       "aios/application/intelligence/context_compiler.py",
       "aios/application/intelligence/gateway.py",
-      "aios/infrastructure/intelligence/representative_context_store.py"
+      "aios/infrastructure/intelligence/representative_context_store.py",
+      "aios/application/intelligence/authenticated_chat.py"
     ],
     "focused_tests": [
       "tests/test_representative_context_compiler.py",
-      "tests/test_representative_context_store.py"
+      "tests/test_representative_context_store.py",
+      "tests/test_authenticated_chat_representation.py",
+      "tests/test_authenticated_chat_route.py"
     ],
     "integration_tests": [
       "tests/test_human_representation.py",
@@ -712,7 +721,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Reconciliation note (this pass): this ledger row itself was stale -- the Tier 4 pass (commit 71ad30e) narrowed organ 31 in docs/architecture/GAGOS_54_ORGANS.md (exposing gateway_reasoning.py's previously-discarded context_digest as a real last_context_digest attribute) but never updated this JSON row, which still read the pre-Tier-4 'nothing calls this compiler yet' text -- a genuine drift between the doc and the ledger, caught and corrected here rather than perpetuated. This pass closes organ 31's durable-state gap: every RepresentativeContextV1 that passes identity/constitution/emergency-stop validation is now durably recorded by a new, append-only RepresentativeContextStore (migration 0011, scope 'intelligence'), wired directly inside route_intelligence_request()/stream_intelligence_request() (aios/application/intelligence/gateway.py) so every current and future gateway caller gets audit persistence for free, not just Council's. Tamper detection reuses the context's own canonical digest formula via a new context_digest_from_record() helper. Recording is best-effort (never blocks an already-governed call), matching _record_human_state()'s (organ 30) established convention. Still missing, honestly: the only real production caller today (GatewayRoutedCouncilLLMClient) compiles a context with empty active_preferences/project_passport/latest_correction -- Council's own prompts are self-contained JSON-instruction strings that don't need operator-preference injection, so this is a deliberate, not an accidental, gap. Meaningfully exercising the compiler with REAL human-representation data (not empty defaults) requires wiring it into a general-conversation call site (chat), which is organ 32's own named, deliberately-deferred gap -- see organ 32's blocker for why that wiring was not attempted in this pass either."
+      "Dedicated re-audit 2026-07-28: RepresentativeContextCompilerAuthority and its durable RepresentativeContextStore are now exercised by two real production entrances. Council compiles through gateway_reasoning, and authenticated /api/v1/chat resolves real operator preferences, active project passport, verified correction lineage, human-state evidence, identity, and constitution before entering stream_intelligence_request(); the representative context receipt is persisted before provider chunks. tests/test_authenticated_chat_route.py plus the authenticated representation/gateway suites prove this path (98 focused tests passed, 1 warning). The prior claim that only Council was a production caller with empty representation data is stale and withdrawn. Still yellow honestly: anonymous chat intentionally stays on its compatibility facts/recall path because it has no authenticated identity/constitution binding, and live/exact-tip/remaining green-contract evidence is not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -724,18 +733,36 @@
     "authority_owner": "UniversalIntelligenceGatewayAuthority",
     "production_entrypoints": [
       "aios/application/intelligence/gateway.py",
-      "aios/council/gateway_reasoning.py"
+      "aios/council/gateway_reasoning.py",
+      "aios/application/intelligence/authenticated_chat.py",
+      "aios/application/turns/conversation_pipeline.py",
+      "aios/api/main.py",
+      "aios/application/turns/generate_pipeline.py",
+      "aios/api/routes/council.py",
+      "aios/runtime/intelligence_gateway.py",
+      "aios/runtime/worker_api.py",
+      "aios/application/models/hiring_service.py",
+      "aios/api/routes/hiring.py"
     ],
     "focused_tests": [
       "tests/test_intelligence_gateway.py",
-      "tests/test_council_gateway_reasoning.py"
+      "tests/test_council_gateway_reasoning.py",
+      "tests/test_authenticated_chat_route.py",
+      "tests/test_authenticated_chat_representation.py",
+      "tests/test_authenticated_chat_boundary_guards.py",
+      "tests/test_conversation_pipeline.py",
+      "tests/test_runtime_intelligence_gateway.py",
+      "tests/test_intelligence_hiring_service.py",
+      "tests/test_council_reasoning.py",
+      "tests/test_royal_decree.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
       "tests/architecture/test_intelligence_boundary.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Reconciliation pass item 2 (prompted by an explicit operator request to reconcile organs 40/41, which surfaced this as the natural next item): Council Planner/King LLM reasoning is now genuinely routed through route_intelligence_request() via aios/council/gateway_reasoning.py -- the first production wiring of route_intelligence_request() outside its own tests, and the first production wiring of Council's LLM slots at all (both PlannerQueen.__init__(llm=...) and CouncilOrchestrator's king_complete= were previously always None in every real construction site; grep-confirmed zero production hits before this). Every Council completion is now emergency-stop gated and produces a real, auditable context_digest. Investigated and fixed a real regression this surfaced: test_council_origination.py/test_royal_decree.py exercised this newly-live path with COUNCIL_REASONING=True and a real enrolled test operator, making a real ~11s Ollama call -- neutralized with config.COUNCIL_REASONING=False in those tests' setup, matching test_api.py's established FakeLLM-override convention for exactly this class of problem. Still not universal (this organ's own name): chat (/api/v1/chat) and the agentic forge (/api/generate) remain unwired -- both are STREAMING call sites (stream_chat_chunks/ToolAgent.run), while route_intelligence_request()'s model_call callback is synchronous request/response only. Wiring those would mean giving up token-by-token streaming unless the gateway grows a streaming variant first -- deliberately not attempted in this pass rather than accepting that UX regression silently. The two other competing gateway-shaped implementations (aios.runtime.intelligence_gateway.IntelligenceGateway, aios.application.models.hiring_service.IntelligenceHiringService) also remain unreconciled. Reconciliation note (this pass): organ 31's new RepresentativeContextStore is wired inside this organ's own module (aios/application/intelligence/gateway.py), so both existing entrances (route_intelligence_request()/stream_intelligence_request()) now durably record every context they compile, not just log-and-discard it -- a real, if modest, strengthening of this organ's own evidence trail. Chat (/api/v1/chat) and the agentic forge (/api/generate) remain genuinely unwired: chat's real hot-path call (aios/application/turns/conversation_pipeline.py::stream_conversation()) has no authenticated operator/constitution digest available today by design (anonymous local chat must keep working), and it is the single most heavily used endpoint in the whole system -- rewiring it without a live browser session to verify no UX regression was deliberately not attempted in this pass, consistent with every prior pass's own risk assessment of this exact call site. The two other competing gateway-shaped implementations (aios.runtime.intelligence_gateway.IntelligenceGateway, aios.application.models.hiring_service.IntelligenceHiringService, the latter confirmed load-bearing for real worker plan/repair reasoning and the hiring flow) also remain unreconciled -- not attempted here, same regression-risk reasoning as the operator's own prior scope decision."
+      "Phase 2/3 update 2026-07-28: UniversalIntelligenceGatewayAuthority now owns synchronous, plain-text streaming, structured forge-event, and anonymous compatibility entrances. Authenticated /api/v1/chat and /api/generate compile identity/constitution-bound representative context, enforce the emergency stop, persist a strict receipt before provider iteration, and return gateway-redacted output; the structured scrubber preserves exact command/edit/create payloads needed by the approval broker. Anonymous compatibility conversation now enters stream_compatibility_intelligence_request() through conversation_pipeline; because it has no authenticated operator identity/constitution digest, that entrance is intentionally local-only, applies emergency-stop and output-redaction gates, and makes no representative-receipt claim. The real Council background paths use gateway-routed Planner/King and independent dissent clients with durable identity/constitution binding; the legacy worker IntelligenceGateway and authenticated hiring route now carry the same binding and enter this gateway, while missing binding fails closed before provider execution. Focused gateway, Council, runtime, hiring, conversation, and generate regressions pass. Still genuinely open: maintenance/skill-compilation compatibility paths, no live cloud proof, and no exact-tip strict-release attestation is claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -749,6 +776,7 @@
       "aios/domain/models/contracts.py",
       "aios/application/models/passport.py",
       "aios/application/models/passport_authority.py",
+      "aios/domain/local_workforce/registry.py",
       "aios/api/routes/local_workforce.py",
       "aios/api/deps.py"
     ],
@@ -758,11 +786,12 @@
       "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
+      "tests/test_local_workforce_api.py",
       "tests/test_runtime_intelligence_gateway.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "ModelPassportV1 now exists (typed, evidence-backed shape: qualified_roles/disallowed_roles/tool_protocol_status/admission_status) wrapping the existing aios.core.router.Provider pure-data model with the role-scoped admission concept it does not carry. is_admitted_for_role()/can_drive_tools()/is_stale_for_version() are real, deterministic checks. Still missing: nothing actually runs a qualification suite yet -- every ModelPassportV1 in this codebase must be hand-constructed; real qualification against the live granite3.2:2b Ollama model is Slice 32, and no durable store persists a passport across restarts.\nReconciliation pass item 4: the same live-registry drift documented in organ 37 lives here too -- ModelPassportV1's admission concept is real and typed, but the actual running LocalWorkforceRegistry (data/aios_memory.db, this machine's genuine operational state) is a separate, older, untyped admission store (local_worker_models table, allowed_job_profiles_json) that was found claiming an evidence-contradicted admission for granite3.2:2b -- corrected using the new aios/application/local_workforce/qualification_evidence.py (see organ 37). These two admission concepts (ModelPassportV1 vs. LocalWorkforceRegistry) still are not unified into one authority -- a real, separate architectural gap this item did not attempt to close."
+      "Dedicated re-audit 2026-07-28: Decision A is satisfied and the local passport path is now proven through a real caller and durable state. The production GET /api/v1/local-workforce/{model_id}/passport route reaches ModelPassportAuthority, which projects from LocalWorkforceRegistry's SQLite row; the real refresh -> approve -> qualify API flow persists admission, role, qualification-suite, qualification-evidence, artifact, and expiry fields, and a fresh registry instance returns the same passport digest after restart. New tests/test_local_workforce_api.py::test_passport_route_projects_durable_registry_after_restart proves this end to end; the Organ 33/owner focused suite passed 63 tests with 1 warning. The prior claim that no durable store persists a passport is stale for the local path and is withdrawn. Still yellow honestly: this is deterministic injected-API evidence, not live Ollama qualification evidence; cloud/provider passport fields remain a separate intentional projection boundary, and exact-tip strict-release/remaining green-contract conditions have not been claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -789,7 +818,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ProviderHealthBudgetAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the existing provider-health circuit breaker is now the concrete ProviderHealthBudgetAuthority class in this organ's production entrypoint; the legacy ProviderHealthTracker import is only a compatibility alias, and the shared dependency returns the exact class used by failover/router callers. Verified by tests/test_organ_authority_owners.py and the focused provider-health/failover/router suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -811,7 +840,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'LocalClerkRuntimeAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the local clerk's model-admission decision is now owned by the concrete LocalClerkRuntimeAuthority class in the ledger-listed contracts entrypoint, and the real LocalWorkforceService invokes it before dispatch. Verified by tests/test_organ_authority_owners.py and the focused local-workforce/admission/API/provenance suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -857,7 +886,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'LocalModelQualificationAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the concrete qualification suite is now the LocalModelQualificationAuthority class in this organ's ledger-listed production entrypoint, and the real local-workforce service factory invokes that exact class. Verified by tests/test_organ_authority_owners.py and the focused qualification/evidence/API/dispatcher suites. The organ remains yellow: automatic profile derivation is still deliberately not claimed, no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -885,7 +914,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Reconciliation pass item 3: the organ's own stated gap -- 'LocalWorkforceService.run_advisory_job() doesn't call this store yet, so no real job is persisted in production' -- is now resolved. run_advisory_job() is a thin wrapper around the original logic (renamed _execute_advisory_job, body byte-for-byte unchanged, zero validation-logic risk) that records every real job's request, model call, and result via LocalWorkforceProvenanceStore once execution completes -- honestly, including refusals (no admitted model) and schema-validation failures, not only successes. get_local_workforce_service() (aios/api/deps.py) now constructs and injects a real store at config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH (new config constant), so this is genuinely live in the production DI path, not just available. Fail-safe by construction: provenance_store defaults to None and recording is skipped entirely when absent, matching every other optional-dependency pattern in this codebase. New tests/test_local_workforce_service_provenance.py (5 tests: no-store no-op, successful job recorded, rejection recorded, schema-failure recorded, two jobs don't collide). While grounding this, found and reported (not fixed here, flagged as a separate task) a real pre-existing bug unrelated to this change: three tests in test_r15_new_blockers.py's TestBlocker9LocalJobSchema silently never exercised the schema-validation code they claim to test, because a bare MagicMock() registry always satisfies hasattr(registry, 'dependency'), triggering a real-registry fallback that made every job 'rejected' rather than 'failed' -- their weak assertion (status != 'completed') passed either way. Still missing: dispatch_clerical_job() (Slice 32) itself remains unwired -- a full integration needs a QualificationResult tracked per model, which isn't stored anywhere in the registry today; inventing that under time pressure was deliberately not attempted here rather than forcing a shallow/fake integration. CORRECTION (2026-07-28, found while verifying organ 36's green flip): the claim above that dispatch_clerical_job() 'remains unwired' was already stale when it was written -- PR #165 (commit db07922, 2026-07-27, before this text was ever last touched) had already wired a real, persisted QualificationResult lookup (LocalWorkforceRegistry.get_qualification()) into the dispatch decision. Organ 36 itself flips green in this same pass on exactly that evidence. This organ (38, provenance) was never actually blocked by organ 36's gap -- they are different concerns that got conflated in this blocker's prior text. Whether organ 38 has any OTHER genuine remaining gap has not been re-audited in this pass; it stays yellow pending a dedicated re-check, not because of the dispatch claim above, which is retracted."
+      "Dedicated re-audit 2026-07-28: Decision A is satisfied for provenance ownership. ClerkProvenanceAuthority is a substantive class in a ledger-listed production entrypoint; LocalWorkforceService.run_advisory_job() constructs it from the production-injected LocalWorkforceProvenanceStore and calls record_advisory_job() for completed, refused, and schema-failed jobs. Its job_provenance() read path reconstructs honest mid-crash states from the durable store, while the launcher compatibility command reads the same store. Focused provenance, service, dispatcher, and owner-reachability suites pass (74 passed, 1 warning). Still yellow honestly: no live evidence or exact-tip strict-release attestation has been attached, and the remaining green-contract conditions have not been completed; no additional implementation blocker was found in this re-audit."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -916,7 +945,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'DeliberationCouncilAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real deliberation gather and synthesis mechanism is now owned by the concrete DeliberationCouncilAuthority class in the ledger-listed council entrypoint, and the live QueenCouncilAuthority orchestrator invokes it for its advisory second-reviewer path. Verified by tests/test_organ_authority_owners.py and the focused deliberation/council/gateway/store suites. The organ remains yellow: live multi-model evidence and exact-tip strict-release attestation have not been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -934,6 +963,7 @@
       "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
+      "tests/test_organ_authority_owners.py",
       "tests/test_executor_service.py",
       "tests/test_executor_client.py",
       "tests/test_mirror.py",
@@ -955,7 +985,7 @@
       }
     ],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'IsolatedExecutorLiveAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: IsolatedExecutorLiveAuthority now owns the truthful authenticated health projection in the ledger-listed executor read-model entrypoint, and the live mirror executor route calls it directly. tests/test_organ_authority_owners.py spies on that route and proves the named owner receives the production client. Existing CI-backed Docker evidence remains recorded, but this local change does not create new live evidence or flip status."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -977,7 +1007,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'PromotionRollbackLiveAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the checkpoint target contract is now owned by the concrete PromotionRollbackLiveAuthority class in the ledger-listed promotion contracts entrypoint, and PromotionAuthority's real rollback callback gate invokes its fail-closed validation. Verified by tests/test_organ_authority_owners.py and the focused promotion/maintenance/rollback suites. The organ remains yellow: the integration probe still uses injected checkpoint callbacks rather than the live Docker-backed checkpoint runtime, and no exact-tip strict-release attestation has been claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -996,11 +1026,14 @@
       "aios/infrastructure/missions/transition_journal_store.py",
       "aios/infrastructure/storage/migrations/0006_mission_transition_journal.py",
       "aios/application/recovery/authority.py",
+      "aios/application/maintenance/service.py",
+      "aios/api/deps.py",
       "aios/api/main.py"
     ],
     "focused_tests": [
       "tests/test_council_orchestrator.py",
-      "tests/test_mission_transition_journal.py"
+      "tests/test_mission_transition_journal.py",
+      "tests/test_maintenance_api.py"
     ],
     "integration_tests": [
       "tests/test_mission_contract_v1.py",
@@ -1008,7 +1041,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "This pass closes the prerequisite the prior update named precisely: MissionService.request_approval_direct() (DRAFT -> AWAITING_APPROVAL via the pre-existing but previously-unused MissionTransition.DIRECT_REQUEST_APPROVAL) plus a real POST /api/v1/maintenance/repairs/{mission_id}/approve route now let a maintenance repair mission reach APPROVED through a real, privileged-operator-gated HTTP call -- tests/test_maintenance_api.py's own end-to-end test was rewritten to use this route instead of calling MissionService.approve() directly in-process, closing the exact bypass the prior update's own text named. A real, previously-latent bug was found and fixed while wiring this: three maintenance routes checked 'if record is None' against SqliteMissionRepository.get(), which raises MissionNotFoundError rather than returning None -- an unknown mission_id was an uncaught 500, not the intended 404; extracted a shared _get_mission_or_404() helper. Still missing: MissionTransitionJournal itself is not yet wired into MaintenanceConvergenceService.run_approved_repair() the way it already is into CouncilOrchestrator -- that wiring (11 states across ~6 internal steps) is now genuinely unblocked (the APPROVED-transition prerequisite this ledger previously named is closed) but was not attempted in the same pass as the prerequisite itself, to keep this an honest, single-purpose slice rather than two changes bundled together."
+      "Decision A is now satisfied for both production mission paths: RecoveryResumptionAuthority owns the durable MissionTransitionJournal, the startup recovery hook reads it, CouncilOrchestrator writes its ordered lifecycle, and MaintenanceConvergenceService receives the same authority journal through a real dependency in aios/api/deps.py. The privileged maintenance approval route records APPROVED, and the end-to-end maintenance API proof records the exact ordered success history MISSION_CREATED -> APPROVED -> WORKSPACE_CREATED -> EXECUTION_SUBMITTED -> EXECUTION_COMPLETED -> VERIFIED -> CHECKPOINT_CREATED -> PROMOTION_STARTED -> PROMOTED -> POST_PROMOTION_VERIFIED -> COMPLETED with contiguous sequence numbers and no resume-pending row. Still yellow honestly: no crash/restart live proof or exact-tip CI evidence has been attached; FAILED/ROLLED_BACK escape paths are implemented but remain covered by focused unit/API assertions rather than a live interruption recovery run."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1025,6 +1058,7 @@
       "aios/application/learning/service.py"
     ],
     "focused_tests": [
+      "tests/test_organ_authority_owners.py",
       "tests/test_skill_lifecycle.py",
       "tests/test_learning_application.py"
     ],
@@ -1034,7 +1068,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'SkillLifecycleAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: skill outcome recording, confidence demotion, and human revocation are now owned by the concrete SkillLifecycleAuthority class in the ledger-listed skill lifecycle entrypoint, and all four real LearningService reuse paths invoke it. Verified by tests/test_organ_authority_owners.py and the focused lifecycle/learning/heartbeat/flywheel suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1045,10 +1079,11 @@
     "status": "yellow",
     "authority_owner": "GoldenMissionEnduranceAuthority",
     "production_entrypoints": [
-      "tests/test_golden_analysis.py",
-      "tests/test_experience_harness.py"
+      "tools/golden_mission_runner.py",
+      "tools/endurance_tester.py"
     ],
     "focused_tests": [
+      "tests/test_organ_authority_owners.py",
       "tests/test_golden_analysis.py"
     ],
     "integration_tests": [
@@ -1056,7 +1091,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "The brief's golden release cohort (12 governed frontier missions across 2 real cloud providers, 4 candidate skills, 3 verified local reuses each, forced-refusal/version-drift-suspension/failed-reuse-demotion/human-revocation/cloud-outage/uncertain-escalation cases) requires hours of real governed mission execution against live frontier providers. Checked realistically rather than assumed: this is not achievable or appropriate to run autonomously in this environment/pass -- it needs real cloud credentials, real mission budgets, and genuine multi-hour wall-clock execution, not something to simulate or fake. Recorded honestly as not attempted, not silently skipped. The individual mechanisms this cohort would exercise (demotion, revocation, suspension) are real and unit-tested in organ 43; what's missing is the live, expensive, end-to-end proof run itself."
+      "Decision A satisfied 2026-07-28: GoldenMissionEnduranceAuthority now owns ordered golden-step verification and endurance threshold evaluation in the two runnable tools listed above. tests/test_organ_authority_owners.py drives the real runner compatibility entrypoint and spies on the named owner; the 12-mission, two-provider, multi-hour live cohort remains honestly unattempted because this environment has no authorized cloud credentials/budget and cannot fabricate that evidence."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1090,7 +1125,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ConstitutionalAmendmentAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the real constitutional ratification capability gate is now owned by the concrete ConstitutionalAmendmentAuthority class in the ledger-listed amendment entrypoint, and the production governance function delegates to that gate. Verified by tests/test_organ_authority_owners.py and the focused amendment/API/store/lesson/learning suites. The organ remains yellow: the live adversarial simulation catalog and exact-tip strict-release attestation are not claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1144,7 +1179,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ReadModelProjectionAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: the truthful governance read-model aggregation is now owned by the concrete ReadModelProjectionAuthority class in the ledger-listed projection entrypoint, and the live mirror route invokes it for the consolidated sovereignty surface. Verified by tests/test_organ_authority_owners.py and the focused mirror/read-model projection suites. The organ remains yellow: browser-surface verification, live evidence, and exact-tip strict-release attestation have not been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1166,7 +1201,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'TruthfulMirrorAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: the substantive TruthfulMirrorAuthority class in frontend/src/workbench/SovereignStatePanel.jsx owns truthful governance/executor normalization and total-outage handling; the live panel load path reaches it, verified by focused frontend tests. Browser/live UI evidence is still not claimed."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1188,7 +1223,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ApprovalDecisionSurfaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: the substantive ApprovalDecisionSurfaceAuthority class in frontend/src/workbench/SovereignStatePanel.jsx owns pending-decision accounting and fact approve/reject actions; the live panel buttons reach it, verified by focused frontend tests. Browser/live UI evidence is still not claimed."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1227,7 +1262,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'ProvenanceExplanationSurfaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: the substantive ProvenanceExplanationSurfaceAuthority class in frontend/src/workbench/SovereignStatePanel.jsx owns the routing/privacy explanation projection; the live panel reaches it, verified by focused frontend tests. Browser/live UI evidence is still not claimed."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1249,7 +1284,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'SovereignHeartbeatSurfaceAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Decision A satisfied 2026-07-28: the substantive SovereignHeartbeatSurfaceAuthority class in frontend/src/workbench/SovereignStatePanel.jsx owns measured stop-badge state; the live panel reaches it, verified by focused frontend tests. Browser/live UI evidence is still not claimed."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1299,10 +1334,17 @@
       "aios/infrastructure/security/api_token_store.py",
       "aios/application/security/api_token_authority.py",
       "aios/interfaces/http/edge_security.py",
-      "aios/api/routes/security.py"
+      "aios/api/routes/security.py",
+      "aios/core/llm.py",
+      "aios/core/router_wiring.py",
+      "aios/application/local_workforce/service.py",
+      "aios/operations/doctor.py"
     ],
     "focused_tests": [
-      "tests/test_api_token_authority.py"
+      "tests/test_api_token_authority.py",
+      "tests/test_llm.py",
+      "tests/test_local_workforce_api.py",
+      "tests/test_operations.py"
     ],
     "integration_tests": [
       "tests/test_edge_security.py",
@@ -1310,7 +1352,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Key rotation and a bounded grace period are now real (operator-confirmed design: grace-period overlap, not an immediate hard cutover). New ApiTokenAuthority (aios/application/security/api_token_authority.py) issues a fresh API bearer token via a new POST /api/v1/security/api-token/rotate route; the token it supersedes keeps working for a caller-chosen grace period (default 3600s) so an already-running client is not broken the instant rotation happens, then stops validating once the window elapses -- proven with a fake-clock unit test, not just asserted. config.API_TOKEN (the env-configured value) stays unconditionally valid exactly as before this organ existed -- the operator retires it the normal way, by restarting with a different env var; this authority only owns tokens issued through an explicit rotate() call, layered on top, so every pre-existing test and behavior around the static token is unchanged. A real regression was caught and fixed before shipping: an early draft cached config.API_TOKEN's value inside the long-lived authority singleton at first construction, so a test elsewhere in the suite that temporarily reassigns config.API_TOKEN would permanently poison every later, unrelated test in the same process -- caught by real adversarial-suite regressions (tests/adversarial/test_api_security.py), not by a test written for this change; fixed by making the authority stateless with respect to config.API_TOKEN (every method takes it fresh as an argument) rather than caching it. Still missing: 'truthful Ollama-absence handling' -- the other named half of this organ's original blocker -- has no further specification anywhere in the repo beyond that one paraphrased sentence, and is an unrelated concern (local-model availability reporting, not credential rotation); not investigated or built in this pass."
+      "Dedicated re-audit 2026-07-28: the previously unspecified 'truthful Ollama-absence' behavior is already implemented in the current production paths. OllamaClient.is_available() reports reachability, router_wiring keeps an unavailable local provider out of candidates without raising, LocalWorkforceService.health_check() returns status=unavailable and persists health=unknown without uninstalling the model, and operations doctor reports Ollama local runtime unavailable/degraded. tests/test_llm.py, tests/test_local_workforce_api.py, and tests/test_operations.py prove the absence paths; the token-rotation/security suites remain green (58 focused tests passed, 1 warning). The prior claim that this behavior was not investigated or built is withdrawn. Still yellow honestly: no live external-runtime evidence or exact-tip strict-release attestation is claimed, and the API-token authority itself still has the remaining green-contract conditions open."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1333,7 +1375,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'BackupDisasterRecoveryAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 2 owner requirement completed 2026-07-28: verified restore installation and post-restore stale-authority invalidation are now owned by the concrete BackupDisasterRecoveryAuthority class in the ledger-listed recovery entrypoint, with the recovery CLI/function path delegating to its singleton. Verified by tests/test_organ_authority_owners.py and the focused recovery/backup/audit/launcher suites. The organ remains yellow: live disaster-recovery execution and exact-tip strict-release attestation have not been claimed, and the remaining green-contract conditions are not yet complete."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

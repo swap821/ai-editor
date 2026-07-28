@@ -262,54 +262,72 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
     )
 
 
+class ExecutorServiceAuthority:
+    """Own the authenticated, network-disabled executor dispatch boundary."""
+
+    def execute(
+        self,
+        job: ExecutorJob,
+        request: Request,
+        authorization: str | None,
+    ) -> ExecutorResult:
+            if not _token():
+                raise HTTPException(
+                    status_code=503, detail="executor authentication is not configured"
+                )
+            if not _authorized(authorization):
+                raise HTTPException(status_code=401, detail="executor authentication failed")
+            if job.network_policy.mode != "none":
+                raise HTTPException(
+                    status_code=403, detail="executor network access is disabled in v1"
+                )
+            if not _workspace_allowed(job.workspace_snapshot):
+                raise HTTPException(
+                    status_code=403, detail="workspace is outside executor staging root"
+                )
+            # Organ 52: bind the caller's propagated trace context (if any) for the
+            # duration of this job's dispatch, so a spawned per-job container's
+            # --env entries (aios.core.executor.DockerRunner) carry the same
+            # correlation ids the request arrived with, instead of a fresh,
+            # unrelated one generated inside this process.
+            with bind_trace_context(new_trace_context(request.headers)):
+                if job.argv and job.argv[0] == "repair":
+                    return execute_registered_operation_in_service(job)
+                try:
+                    result = DockerJobRunner()(job)
+                except Exception as exc:  # noqa: BLE001 - normalize to a truthful refusal
+                    return ExecutorResult(
+                        job_id=job.job_id,
+                        status="unavailable",
+                        isolation_verified=False,
+                        reason=f"isolated executor unavailable: {exc}",
+                    )
+            limit = job.resource_limits.max_output_bytes
+            stdout = result.stdout.encode("utf-8", "replace")[:limit].decode("utf-8", "replace")
+            stderr = result.stderr.encode("utf-8", "replace")[:limit].decode("utf-8", "replace")
+            truncated = (
+                result.output_truncated
+                or len(result.stdout.encode()) > limit
+                or len(result.stderr.encode()) > limit
+            )
+            return result.model_copy(
+                update={"stdout": stdout, "stderr": stderr, "output_truncated": truncated}
+            )
+
+_EXECUTOR_SERVICE_AUTHORITY = ExecutorServiceAuthority()
+
+
 @app.post("/v1/jobs", response_model=ExecutorResult)
 def execute_job(
     job: ExecutorJob,
     request: Request,
     authorization: str | None = Header(default=None),
 ) -> ExecutorResult:
-    if not _token():
-        raise HTTPException(
-            status_code=503, detail="executor authentication is not configured"
-        )
-    if not _authorized(authorization):
-        raise HTTPException(status_code=401, detail="executor authentication failed")
-    if job.network_policy.mode != "none":
-        raise HTTPException(
-            status_code=403, detail="executor network access is disabled in v1"
-        )
-    if not _workspace_allowed(job.workspace_snapshot):
-        raise HTTPException(
-            status_code=403, detail="workspace is outside executor staging root"
-        )
-    # Organ 52: bind the caller's propagated trace context (if any) for the
-    # duration of this job's dispatch, so a spawned per-job container's
-    # --env entries (aios.core.executor.DockerRunner) carry the same
-    # correlation ids the request arrived with, instead of a fresh,
-    # unrelated one generated inside this process.
-    with bind_trace_context(new_trace_context(request.headers)):
-        if job.argv and job.argv[0] == "repair":
-            return execute_registered_operation_in_service(job)
-        try:
-            result = DockerJobRunner()(job)
-        except Exception as exc:  # noqa: BLE001 - normalize to a truthful refusal
-            return ExecutorResult(
-                job_id=job.job_id,
-                status="unavailable",
-                isolation_verified=False,
-                reason=f"isolated executor unavailable: {exc}",
-            )
-    limit = job.resource_limits.max_output_bytes
-    stdout = result.stdout.encode("utf-8", "replace")[:limit].decode("utf-8", "replace")
-    stderr = result.stderr.encode("utf-8", "replace")[:limit].decode("utf-8", "replace")
-    truncated = (
-        result.output_truncated
-        or len(result.stdout.encode()) > limit
-        or len(result.stderr.encode()) > limit
-    )
-    return result.model_copy(
-        update={"stdout": stdout, "stderr": stderr, "output_truncated": truncated}
-    )
+    """Dispatch through the one concrete executor-service authority."""
+    return _EXECUTOR_SERVICE_AUTHORITY.execute(job, request, authorization)
+
+
+__all__ = ["ExecutorServiceAuthority", "execute_job", "execute_registered_operation_in_service", "health"]
 
 
 def main() -> None:

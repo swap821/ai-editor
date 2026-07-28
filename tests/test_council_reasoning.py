@@ -229,6 +229,20 @@ def test_planner_deterministic_when_flag_off(monkeypatch: pytest.MonkeyPatch) ->
     assert draft.verdict.confidence == pytest.approx(0.82)
 
 
+def test_planner_preserves_governed_worker_binding() -> None:
+    request = _request(
+        operator_identity_digest="a" * 64,
+        constitution_digest="b" * 64,
+        requires_governed_intelligence=True,
+    )
+
+    draft = PlannerQueen(llm=FakeLLM("{}")).draft(request)
+
+    assert draft.contract.operator_identity_digest == "a" * 64
+    assert draft.contract.constitution_digest == "b" * 64
+    assert draft.contract.requires_governed_intelligence is True
+
+
 def test_planner_deterministic_when_no_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
     draft = PlannerQueen().draft(_request())

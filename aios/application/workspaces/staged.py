@@ -25,7 +25,7 @@ class BaselineChanged(RuntimeError):
     """Raised when the real project no longer matches the mission baseline."""
 
 
-class StagedWorkspaceManager:
+class StagedWorkspaceAuthority:
     """Own staged copies and promotion preconditions for enrolled projects."""
 
     def __init__(
@@ -305,9 +305,13 @@ def _is_within(candidate: Path, root: Path) -> bool:
     return True
 
 
+StagedWorkspaceManager = StagedWorkspaceAuthority
+
+
 __all__ = [
     "BaselineChanged",
     "StagedWorkspace",
+    "StagedWorkspaceAuthority",
     "StagedWorkspaceManager",
     "WorkspaceCollision",
     "WorkspacePathViolation",

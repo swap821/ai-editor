@@ -43,7 +43,7 @@ def get_api_token_authority() -> "ApiTokenAuthority":
     global _API_TOKEN_AUTHORITY
     if _API_TOKEN_AUTHORITY is None:
         from aios import config as _real_config
-        from aios.application.security.api_token_authority import ApiTokenAuthority
+        from aios.application.security.api_token_authority import InstallationConfigurationAuthority
 
         # Read the db path from the REAL config module rather than this
         # module's `config` name. The path is process-lifetime-stable (see
@@ -51,7 +51,7 @@ def get_api_token_authority() -> "ApiTokenAuthority":
         # tests legitimately swap `edge_security.config` wholesale to control
         # that value. Resolving the path through the swapped name made those
         # tests fail with AttributeError on a fake that only models API_TOKEN.
-        _API_TOKEN_AUTHORITY = ApiTokenAuthority(
+        _API_TOKEN_AUTHORITY = InstallationConfigurationAuthority(
             db_path=_real_config.API_TOKEN_ROTATION_DB_PATH,
         )
     return _API_TOKEN_AUTHORITY
@@ -395,3 +395,116 @@ async def extract_session_id(
             )
             return str(body_sid)
     return None
+
+class EdgeTrustAuthority:
+    """Own the API edge's request-level trust decisions.
+
+    Parsing helpers stay module-level because they are pure reusable
+    primitives. This authority owns the live ordering of host, token, origin,
+    session, and CSRF checks that the FastAPI middleware invokes.
+    """
+
+    def validate_cors_origins(self, origins: tuple[str, ...]) -> list[str]:
+        return validate_cors_origins(origins)
+
+    def real_client_ip(self, request: Request) -> str:
+        return real_client_ip(request)
+
+    def extract_session_id(
+        self,
+        request: Request,
+        *,
+        allow_body_fallback: bool = False,
+    ) -> Optional[str]:
+        return extract_session_id(
+            request,
+            allow_body_fallback=allow_body_fallback,
+        )
+
+    def check_api_token_or_loopback(self, request: Request) -> Optional[JSONResponse]:
+        """Apply host, docs, bearer, and loopback policy in one order."""
+        path = request.url.path
+        docs_paths = {"/docs", "/redoc", "/openapi.json"}
+        host_error = _check_host_header(request)
+        if host_error is not None:
+            return host_error
+        if path in docs_paths and not config.ENABLE_DOCS:
+            if request.method != "OPTIONS":
+                client_ip = self.real_client_ip(request)
+                if config.TRUST_PROXY_HEADERS or client_ip not in LOOPBACK_HOSTS:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "unauthenticated API access is loopback-only"},
+                    )
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        protected = path.startswith("/api/") or path in docs_paths
+        if not protected or request.method == "OPTIONS":
+            return None
+        if check_bearer_token(request):
+            return None
+        if get_api_token_authority().is_configured(current_env_token=config.API_TOKEN):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "invalid or missing API token"},
+            )
+        client_ip = self.real_client_ip(request)
+        if config.TRUST_PROXY_HEADERS or client_ip not in LOOPBACK_HOSTS:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "unauthenticated API access is loopback-only"},
+            )
+        return None
+
+    def check_mutation_origin_or_token(
+        self,
+        request: Request,
+    ) -> Optional[JSONResponse]:
+        """Require bearer auth or session-bound exact-origin CSRF proof."""
+        if request.method not in _MUTATION_METHODS:
+            return None
+        if check_bearer_token(request):
+            return None
+        origin = request.headers.get("origin")
+        if request.url.path in _BOOTSTRAP_AUTH_PATHS:
+            if origin and is_allowed_origin(origin):
+                return None
+        elif origin and is_allowed_origin(origin):
+            cookie_hash = request.cookies.get("session_id")
+            session = get_session_manager().validate_session(cookie_hash)
+            expected = session.data.get("csrf_token") if session is not None else None
+            supplied = request.headers.get("x-csrf-token") or request.cookies.get(
+                "csrf_token", ""
+            )
+            if isinstance(expected, str) and expected and isinstance(supplied, str):
+                if secrets.compare_digest(supplied, expected):
+                    return None
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": (
+                    "Mutation requires a bearer token or a valid session, exact Origin, "
+                    "and session-bound CSRF proof"
+                )
+            },
+        )
+
+
+_EDGE_TRUST_AUTHORITY = EdgeTrustAuthority()
+
+
+def get_edge_trust_authority() -> EdgeTrustAuthority:
+    """Return the one process-wide owner used by the API edge middleware."""
+    return _EDGE_TRUST_AUTHORITY
+
+
+__all__ = [
+    "EdgeTrustAuthority",
+    "get_edge_trust_authority",
+    "get_api_token_authority",
+    "check_api_token_or_loopback",
+    "check_mutation_origin_or_token",
+    "extract_session_id",
+    "is_allowed_origin",
+    "real_client_ip",
+    "validate_cors_origins",
+]

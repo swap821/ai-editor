@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   dispatchLivingMirrorEvent,
+  getLivingMirrorAuthority,
+  LivingMirrorAuthority,
   registeredMirrorEventTypes,
 } from './livingMirrorRegistry';
 import { useMirrorStore } from './mirrorStore';
@@ -176,5 +178,11 @@ describe('Living Mirror reaction registry', () => {
     expect(publishCognition).toHaveBeenLastCalledWith(
       expect.objectContaining({ type: 'route', detail: 'ollama:granite3.2:2b (local)' }),
     );
+  });
+
+  it('routes the public registry API through the LivingMirrorAuthority owner', () => {
+    const authority = getLivingMirrorAuthority();
+    expect(authority).toBeInstanceOf(LivingMirrorAuthority);
+    expect(registeredMirrorEventTypes()).toEqual(authority.registeredEventTypes());
   });
 });

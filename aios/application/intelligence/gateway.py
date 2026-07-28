@@ -9,26 +9,28 @@ than constructing a client itself -- so this module never needs to appear in
 new provider never requires touching this file.
 
 Full scope note: this pipeline is not yet the mandatory entrance for every
-model interaction in the codebase. See `docs/architecture/GAGOS_54_ORGANS.md`
-organ 32 for the itemized list of call sites that still bypass it (ordinary
-conversation, the agentic forge, Council Queens' currently-unwired LLM slots,
-maintenance/skill-compilation, and reconciling this against the two other
-pre-existing "gateway"-shaped implementations,
-`aios.runtime.intelligence_gateway.IntelligenceGateway` and
-`aios.application.models.hiring_service.IntelligenceHiringService`).
+model interaction in the codebase. See docs/architecture/GAGOS_54_ORGANS.md
+organ 32 for the itemized list of call sites that still bypass it (Council
+Queens' currently-unwired LLM slots, maintenance/skill-compilation, and
+reconciling this against the two other pre-existing gateway-shaped
+implementations, aios.runtime.intelligence_gateway.IntelligenceGateway and
+aios.application.models.hiring_service.IntelligenceHiringService).
+Anonymous compatibility conversation has an explicit local-only entrance
+below; it has no authenticated identity/constitution binding, so it emits no
+representative-context receipt.
 """
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from aios.application.intelligence.context_compiler import (
     CompilationTarget,
-    compile_representative_context,
+    RepresentativeContextCompilerAuthority,
 )
 from aios.domain.intelligence.representative_context import (
     RepresentativeContextReceiptV1,
@@ -42,6 +44,7 @@ from aios.domain.memory.human_representation import (
 from aios.runtime.secret_policy import SecretPolicy
 
 _LOGGER = logging.getLogger(__name__)
+_REPRESENTATIVE_CONTEXT_COMPILER = RepresentativeContextCompilerAuthority()
 
 
 class IntelligenceGatewayError(RuntimeError):
@@ -67,6 +70,22 @@ class StreamingIntelligenceGatewayResult:
 
     context: RepresentativeContextV1
     chunks: Iterator[str]
+    receipt: RepresentativeContextReceiptV1 | None = None
+
+@dataclass(frozen=True, slots=True)
+class CompatibilityStreamingIntelligenceGatewayResult:
+    """A redacted local-only stream for anonymous compatibility callers."""
+
+    chunks: Iterator[str]
+    target: str = "local"
+
+
+@dataclass(frozen=True, slots=True)
+class StructuredStreamingIntelligenceGatewayResult:
+    """Compiled context plus a lazy structured forge event stream."""
+
+    context: RepresentativeContextV1
+    events: Iterator[dict[str, Any]]
     receipt: RepresentativeContextReceiptV1 | None = None
 
 
@@ -102,7 +121,7 @@ def _validate_and_compile(
     if emergency_stop is not None:
         emergency_stop.assert_operational()
 
-    return compile_representative_context(
+    return _REPRESENTATIVE_CONTEXT_COMPILER.compile(
         request_id=request_id,
         operator_identity_digest=operator_identity_digest,
         constitution_digest=constitution_digest,
@@ -210,6 +229,166 @@ def _redact_stream(chunks: Iterable[Any], policy: SecretPolicy) -> Iterator[str]
             yield final
 
 
+def _stream_compatibility_intelligence_request(
+    *,
+    request_id: str,
+    target: str,
+    model_call: Callable[[], Iterable[str]],
+    secret_policy: SecretPolicy | None = None,
+    emergency_stop: Any | None = None,
+) -> CompatibilityStreamingIntelligenceGatewayResult:
+    """Govern the anonymous compatibility path without inventing authority.
+
+    Anonymous compatibility chat has no truthful operator identity or active
+    constitution digest. It is consequently restricted to the local provider,
+    does not compile or record a representative receipt, and still shares the
+    emergency-stop and output-redaction gates with authenticated chat.
+    """
+    if not str(request_id).strip():
+        raise IntelligenceGatewayError("request_id is required")
+    if target != "local":
+        raise IntelligenceGatewayError(
+            "anonymous compatibility requests must target the local provider"
+        )
+    if not callable(model_call):
+        raise IntelligenceGatewayError("model_call must be callable")
+    if emergency_stop is not None:
+        emergency_stop.assert_operational()
+    policy = secret_policy or SecretPolicy()
+
+    def _redacted_chunks() -> Iterator[str]:
+        yield from _redact_stream(model_call(), policy)
+
+    return CompatibilityStreamingIntelligenceGatewayResult(
+        chunks=_redacted_chunks()
+    )
+
+class _StructuredTextRedactor:
+    """Boundary-safe redaction window for incremental event text."""
+
+    def __init__(self, policy: SecretPolicy) -> None:
+        self._policy = policy
+        self._carry = ""
+
+    def feed(self, value: str) -> list[str]:
+        self._carry += value
+        if len(self._carry) <= _REDACTION_LAG_CHARS:
+            return []
+        head = self._carry[:-_REDACTION_LAG_CHARS]
+        tail = self._carry[-_REDACTION_LAG_CHARS:]
+        joint = self._policy.redact_text(self._carry)
+        if joint == self._policy.redact_text(head) + self._policy.redact_text(tail):
+            self._carry = tail
+            emitted = self._policy.redact_text(head)
+            return [emitted] if emitted else []
+        if len(self._carry) >= _REDACTION_MAX_BUFFER_CHARS:
+            self._carry = ""
+            return [joint] if joint else []
+        return []
+
+    def flush(self) -> list[str]:
+        if not self._carry:
+            return []
+        value = self._policy.redact_text(self._carry)
+        self._carry = ""
+        return [value] if value else []
+
+
+def _redact_structured_value(value: Any, policy: SecretPolicy) -> Any:
+    """Recursively redact provider-visible event values."""
+    if isinstance(value, str):
+        return policy.redact_text(value)
+    if isinstance(value, Mapping):
+        return {
+            str(key): _redact_structured_value(item, policy)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_structured_value(item, policy) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_structured_value(item, policy) for item in value)
+    return value
+
+
+def _redact_structured_event(
+    event: Mapping[str, Any], policy: SecretPolicy
+) -> dict[str, Any]:
+    """Scrub display fields while preserving exact approval payloads.
+
+    ToolAgent events are also an internal control protocol. The generate
+    pipeline must receive the original command/edit/create payload so its
+    capability binding and approval resume remain exact. Those fields are not
+    rewritten here; user-visible text, explanations, and tool results are.
+    """
+    event_type = str(event.get("type", ""))
+    authority_fields = (
+        {"command", "edit", "creation", "_convo_tail"}
+        if event_type in {"tool_call", "human_required"}
+        else set()
+    )
+    return {
+        str(key): (
+            value
+            if key in authority_fields
+            else _redact_structured_value(value, policy)
+        )
+        for key, value in event.items()
+    }
+
+
+def _redact_structured_stream(
+    events: Iterable[Mapping[str, Any]], policy: SecretPolicy
+) -> Iterator[dict[str, Any]]:
+    """Redact structured events, including secrets split across text events."""
+    stream_redactor = _StructuredTextRedactor(policy)
+    pending_template: dict[str, Any] | None = None
+    pending_key: str | None = None
+
+    def flush_pending() -> Iterator[dict[str, Any]]:
+        nonlocal pending_template, pending_key
+        if pending_template is None or pending_key is None:
+            return
+        for text_value in stream_redactor.flush():
+            event = dict(pending_template)
+            event[pending_key] = text_value
+            yield event
+        pending_template = None
+        pending_key = None
+
+    for raw_event in events:
+        if not isinstance(raw_event, Mapping):
+            raise IntelligenceGatewayError("structured model events must be mappings")
+        event_type = str(raw_event.get("type", ""))
+        stream_key = (
+            "text"
+            if event_type == "text" and isinstance(raw_event.get("text"), str)
+            else "code"
+            if event_type == "code" and isinstance(raw_event.get("code"), str)
+            else None
+        )
+        if stream_key is None:
+            yield from flush_pending()
+            yield _redact_structured_event(raw_event, policy)
+            continue
+
+        template = {
+            str(key): _redact_structured_value(value, policy)
+            for key, value in raw_event.items()
+            if key != stream_key
+        }
+        if pending_template is None:
+            pending_template = template
+            pending_key = stream_key
+        for text_value in stream_redactor.feed(str(raw_event[stream_key])):
+            event = dict(pending_template or template)
+            event[pending_key or stream_key] = text_value
+            yield event
+            pending_template = None
+            pending_key = None
+
+    yield from flush_pending()
+
+
 def _record_required_receipt(
     context: RepresentativeContextV1,
     *,
@@ -244,7 +423,7 @@ def _record_required_receipt(
     return receipt
 
 
-def route_intelligence_request(
+def _route_intelligence_request(
     *,
     request_id: str,
     operator_identity_digest: str,
@@ -318,7 +497,7 @@ def route_intelligence_request(
     )
 
 
-def stream_intelligence_request(
+def _stream_intelligence_request(
     *,
     request_id: str,
     operator_identity_digest: str,
@@ -416,10 +595,154 @@ def stream_intelligence_request(
     )
 
 
+def _stream_structured_intelligence_request(
+    *,
+    request_id: str,
+    operator_identity_digest: str,
+    constitution_digest: str,
+    goal: str,
+    desired_outcome: str,
+    target: CompilationTarget,
+    delegated_authority_summary: str,
+    model_call: Callable[[RepresentativeContextV1], Iterable[Mapping[str, Any]]],
+    explicit_constraints: Sequence[str] = (),
+    current_decisions: Sequence[str] = (),
+    active_preferences: Sequence[OperatorPreferenceV1] = (),
+    project_passport: ProjectPassportV1 | None = None,
+    project_passport_stale: bool = False,
+    relevant_memory_refs: Sequence[str] = (),
+    permitted_tools: Sequence[str] = (),
+    evidence_requirements: Sequence[str] = (),
+    communication_mode: str = "direct",
+    latest_correction: CorrectionRecordV1 | None = None,
+    secret_policy: SecretPolicy | None = None,
+    emergency_stop: Any | None = None,
+    context_store: Any | None = None,
+    receipt_factory: Callable[[RepresentativeContextV1], RepresentativeContextReceiptV1]
+    | None = None,
+    require_context_receipt: bool = False,
+) -> StructuredStreamingIntelligenceGatewayResult:
+    """Govern and redact a structured forge event stream."""
+    policy = secret_policy or SecretPolicy()
+    context = _validate_and_compile(
+        request_id=request_id,
+        operator_identity_digest=operator_identity_digest,
+        constitution_digest=constitution_digest,
+        goal=goal,
+        desired_outcome=desired_outcome,
+        target=target,
+        delegated_authority_summary=delegated_authority_summary,
+        explicit_constraints=explicit_constraints,
+        current_decisions=current_decisions,
+        active_preferences=active_preferences,
+        project_passport=project_passport,
+        project_passport_stale=project_passport_stale,
+        relevant_memory_refs=relevant_memory_refs,
+        permitted_tools=permitted_tools,
+        evidence_requirements=evidence_requirements,
+        communication_mode=communication_mode,
+        latest_correction=latest_correction,
+        policy=policy,
+        emergency_stop=emergency_stop,
+    )
+    receipt = (
+        _record_required_receipt(
+            context,
+            receipt_factory=receipt_factory,
+            store=context_store,
+        )
+        if require_context_receipt
+        else None
+    )
+    if not require_context_receipt:
+        _record_context(context, context_store)
+
+    def _redacted_events() -> Iterator[dict[str, Any]]:
+        raw_events = model_call(context)
+        yield from _redact_structured_stream(raw_events, policy)
+
+    return StructuredStreamingIntelligenceGatewayResult(
+        context=context, events=_redacted_events(), receipt=receipt
+    )
+
+
+class UniversalIntelligenceGatewayAuthority:
+    """Own synchronous, plain-text, and structured streaming gateway entrances.
+
+    The authority enforces the shared call contract before either execution
+    path is entered: a real request id, a valid local/cloud target, and a
+    callable provider adapter. All paths then share the existing identity,
+    constitution, emergency-stop, context-recording, and output-redaction
+    implementation; no caller can silently choose only one of those gates.
+    """
+
+    @staticmethod
+    def _validate_call_contract(kwargs: dict[str, Any]) -> None:
+        request_id = str(kwargs.get("request_id", "")).strip()
+        if not request_id:
+            raise IntelligenceGatewayError("request_id is required")
+        if kwargs.get("target") not in ("local", "cloud"):
+            raise IntelligenceGatewayError("target must be local or cloud")
+        if not callable(kwargs.get("model_call")):
+            raise IntelligenceGatewayError("model_call must be callable")
+
+    def route(self, **kwargs: Any) -> IntelligenceGatewayResult:
+        self._validate_call_contract(kwargs)
+        return _route_intelligence_request(**kwargs)
+
+    def stream(self, **kwargs: Any) -> StreamingIntelligenceGatewayResult:
+        self._validate_call_contract(kwargs)
+        return _stream_intelligence_request(**kwargs)
+
+    def stream_structured(
+        self, **kwargs: Any
+    ) -> StructuredStreamingIntelligenceGatewayResult:
+        self._validate_call_contract(kwargs)
+        return _stream_structured_intelligence_request(**kwargs)
+
+    def stream_compatibility(
+        self, **kwargs: Any
+    ) -> CompatibilityStreamingIntelligenceGatewayResult:
+        """Use the bounded local-only anonymous compatibility entrance."""
+        return _stream_compatibility_intelligence_request(**kwargs)
+
+
+_UNIVERSAL_GATEWAY_AUTHORITY = UniversalIntelligenceGatewayAuthority()
+
+
+def stream_structured_intelligence_request(
+    **kwargs: Any,
+) -> StructuredStreamingIntelligenceGatewayResult:
+    """Structured forge entrance backed by the organ-32 authority."""
+    return _UNIVERSAL_GATEWAY_AUTHORITY.stream_structured(**kwargs)
+
+
+def route_intelligence_request(**kwargs: Any) -> IntelligenceGatewayResult:
+    """Compatibility entrance backed by the organ-32 authority."""
+    return _UNIVERSAL_GATEWAY_AUTHORITY.route(**kwargs)
+
+
+def stream_intelligence_request(**kwargs: Any) -> StreamingIntelligenceGatewayResult:
+    """Compatibility streaming entrance backed by the organ-32 authority."""
+    return _UNIVERSAL_GATEWAY_AUTHORITY.stream(**kwargs)
+
+
+def stream_compatibility_intelligence_request(
+    **kwargs: Any,
+) -> CompatibilityStreamingIntelligenceGatewayResult:
+    """Anonymous compatibility entrance backed by organ-32 authority."""
+    return _UNIVERSAL_GATEWAY_AUTHORITY.stream_compatibility(**kwargs)
+
+
 __all__ = [
     "IntelligenceGatewayError",
+    "UniversalIntelligenceGatewayAuthority",
     "IntelligenceGatewayResult",
     "StreamingIntelligenceGatewayResult",
+    "CompatibilityStreamingIntelligenceGatewayResult",
+    "StructuredStreamingIntelligenceGatewayResult",
     "route_intelligence_request",
     "stream_intelligence_request",
+    "stream_compatibility_intelligence_request",
+    "stream_structured_intelligence_request",
 ]
