@@ -747,10 +747,15 @@
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
-      "aios/application/models/passport.py"
+      "aios/application/models/passport.py",
+      "aios/application/models/passport_authority.py",
+      "aios/api/routes/local_workforce.py",
+      "aios/api/deps.py"
     ],
     "focused_tests": [
-      "tests/test_model_passport_and_health.py"
+      "tests/test_model_passport_and_health.py",
+      "tests/test_model_passport_authority.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
       "tests/test_runtime_intelligence_gateway.py"

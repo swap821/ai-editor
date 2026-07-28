@@ -1062,6 +1062,7 @@ __all__ = [
     "get_operator_taste_model_authority",
     "get_project_understanding_authority",
     "get_correction_lineage_authority",
+    "get_model_passport_authority",
     "get_learning_service",
 ]
 
@@ -1073,6 +1074,19 @@ def get_local_workforce_registry(
     from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 
     return LocalWorkforceRegistry(ollama)
+
+
+def get_model_passport_authority(
+    registry: Any = Depends(get_local_workforce_registry),
+) -> Any:
+    """Provide organ 33's named owner -- Decision A
+    (docs/architecture/GAGOS_54_ORGANS.md): the ledger's `authority_owner`
+    must be a real class, not a label. `ModelPassportAuthority` itself
+    already existed (built in a prior pass, 12 tests, never wired to any
+    route); this is its first real production caller."""
+    from aios.application.models.passport_authority import ModelPassportAuthority
+
+    return ModelPassportAuthority(registry)
 
 
 def get_local_workforce_service(

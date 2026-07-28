@@ -11,6 +11,7 @@ from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import (
     get_local_workforce_registry,
     get_local_workforce_service,
+    get_model_passport_authority,
 )
 from aios.application.local_workforce.service import (
     InvalidLocalJobProfile,
@@ -18,8 +19,10 @@ from aios.application.local_workforce.service import (
     LocalModelNotFound,
     LocalWorkforceService,
 )
+from aios.application.models.passport_authority import ModelPassportAuthority
 from aios.domain.local_workforce.contracts import LocalWorkerModel
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+from aios.domain.models.contracts import ModelPassportV1
 
 
 router = APIRouter(
@@ -60,6 +63,26 @@ def get_model(
             status_code=404, detail=f"Model {model_id} not found in registry."
         )
     return model
+
+
+@router.get(
+    "/api/v1/local-workforce/{model_id}/passport",
+    response_model=ModelPassportV1,
+)
+def get_model_passport(
+    model_id: str,
+    authority: ModelPassportAuthority = Depends(get_model_passport_authority),
+) -> ModelPassportV1:
+    """The typed, role-scoped admission passport for one model (organ 33):
+    what may this model do, projected live from the durable registry row --
+    never a second place admission can be asserted, never stale relative to
+    the row that actually governs it."""
+    passport = authority.passport_for(model_id)
+    if passport is None:
+        raise HTTPException(
+            status_code=404, detail=f"Model {model_id} not found in registry."
+        )
+    return passport
 
 
 @router.post("/api/v1/local-workforce/refresh")

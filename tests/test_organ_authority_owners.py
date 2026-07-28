@@ -647,3 +647,59 @@ def test_the_correction_lineage_authority_lineage_reads_newest_first(
     lineage = authority.lineage_for_session("s-1")
 
     assert [r.correction_revision for r in lineage] == [2, 1]
+
+
+# --------------------------------------------------------------------------- #
+# Organ 33 -- ModelPassportAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_the_passport_authority_is_what_the_real_passport_route_uses() -> None:
+    """Overrides only the REGISTRY-level dependency, then proves the real
+    HTTP route resolves a genuine ModelPassportAuthority wrapping it -- this
+    class already existed (built in a prior pass, 12 unit tests) but had
+    ZERO production callers until this route; the class existing was not
+    enough, matching this project's own forbidden anti-pattern."""
+    from unittest.mock import MagicMock
+
+    from aios.api.deps import get_local_workforce_registry, get_model_passport_authority
+    from aios.application.models.passport_authority import ModelPassportAuthority
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    admitted = _admitted_model()
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    registry.get_model.return_value = admitted
+    app.dependency_overrides[get_local_workforce_registry] = lambda: registry
+    try:
+        resolved = get_model_passport_authority(registry=registry)
+        assert isinstance(resolved, ModelPassportAuthority)
+        assert resolved.registry is registry
+
+        client = TestClient(app, client=("127.0.0.1", 12345))
+        response = client.get(f"/api/v1/local-workforce/{admitted.model_id}/passport")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["exact_model_id"] == admitted.model_id
+        assert body["admission_status"] == "admitted"
+        # The overridden registry, not a bypass, answered this -- confirmed
+        # by asserting get_model was actually called with this model_id.
+        registry.get_model.assert_any_call(admitted.model_id)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_the_passport_authority_returns_none_for_an_unregistered_model() -> None:
+    """The real decision this authority owns (not a pass-through): None
+    means "no record", which the route maps to a 404 -- never a fabricated
+    proposed-but-empty passport for a model the registry has never seen."""
+    from unittest.mock import MagicMock
+
+    from aios.application.models.passport_authority import ModelPassportAuthority
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    registry.get_model.return_value = None
+    authority = ModelPassportAuthority(registry)
+
+    assert authority.passport_for("unknown-model") is None
