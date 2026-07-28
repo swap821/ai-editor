@@ -869,7 +869,8 @@
     ],
     "focused_tests": [
       "tests/test_local_workforce_provenance.py",
-      "tests/test_local_workforce_service_provenance.py"
+      "tests/test_local_workforce_service_provenance.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "integration_tests": [
       "tests/test_launcher.py"

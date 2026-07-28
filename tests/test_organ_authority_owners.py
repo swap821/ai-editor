@@ -1,4 +1,4 @@
-"""Organs 42, 46, 52: the named authority owners exist AND are reached.
+"""Organs 27, 28, 38, 42, 46, 52: the named authority owners exist AND are reached.
 
 The ledger names an `authority_owner` for every organ, but `validate_ledger()`
 only string-compares that field against a registry of strings -- it never
@@ -17,6 +17,7 @@ real production entrypoint and proves the authority was the thing that acted.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -36,13 +37,19 @@ from aios.application.governance.constitutional_learning import (
     ConstitutionalLearningAuthority,
     ConstitutionalLearningError,
 )
+from aios.application.local_workforce.provenance import ClerkProvenanceAuthority
+from aios.application.local_workforce.service import LocalWorkforceService
 from aios.application.memory.authorities import (
     OperatorTasteModelAuthority,
     ProjectUnderstandingAuthority,
 )
 from aios.application.observability import ObservabilityAuthority
 from aios.application.recovery import RecoveryResumptionAuthority
+from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
 from aios.domain.memory.human_representation import OperatorPreferenceV1
+from aios.infrastructure.local_workforce.sqlite_store import (
+    LocalWorkforceProvenanceStore,
+)
 from aios.infrastructure.memory.human_representation_store import (
     OperatorPreferenceStore,
     ProjectPassportStore,
@@ -450,3 +457,123 @@ def test_the_project_understanding_authority_status_combines_three_store_reads(
     assert status["lastScan"] == {"filesScanned": 1}
     assert status["durable"]["revisionCount"] == 1
     assert status["durable"]["verifiedAtCommit"] == "deadbeef"
+
+
+# --------------------------------------------------------------------------- #
+# Organ 38 -- ClerkProvenanceAuthority
+# --------------------------------------------------------------------------- #
+
+
+def _admitted_model():
+    from aios.domain.local_workforce.contracts import LocalWorkerModel
+
+    return LocalWorkerModel(
+        model_id="granite3.2:2b",
+        provider="ollama",
+        family="granite",
+        parameter_size="2B",
+        quantization="q4_K_M",
+        installed=True,
+        operator_approved=True,
+        health="healthy",
+        admission_status="approved",
+        admission_reason="Passed",
+        max_context=131072,
+        max_output=4096,
+        max_parallelism=1,
+        allowed_job_profiles=frozenset({LocalJobProfile.SELECT_SKILL}),
+        metadata_confidence="verified",
+    )
+
+
+def test_the_provenance_authority_is_what_run_advisory_job_writes_through(
+    tmp_path: Path,
+) -> None:
+    """Overrides nothing at the FastAPI layer (this organ's real caller is
+    LocalWorkforceService, not a route) -- instead proves the service's own
+    real production entrypoint (run_advisory_job) resolves and writes
+    through a genuine ClerkProvenanceAuthority, not a bare store call."""
+    from unittest.mock import MagicMock
+
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    store = LocalWorkforceProvenanceStore(tmp_path / "provenance.db")
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    admitted = _admitted_model()
+    registry.list_models.return_value = [admitted]
+    registry.get_model.return_value = admitted
+    llm = MagicMock()
+    llm.complete.return_value = '{"applicable": true, "confidence": 0.9}'
+
+    service = LocalWorkforceService(
+        registry=registry,
+        ollama=llm,
+        model_client_factory=lambda model_id: llm,
+        provenance_store=store,
+    )
+
+    assert isinstance(service.provenance_authority, ClerkProvenanceAuthority)
+    assert service.provenance_authority.store is store
+
+    request = LocalJobRequest(
+        job_id="owner-reachability-probe",
+        job_profile=LocalJobProfile.SELECT_SKILL,
+        input_schema_version="1.0",
+        evidence_references=frozenset({"skill-1"}),
+        redacted_payload="Evaluate skill applicability.",
+        token_budget=128,
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=30),
+        required_output_schema={"applicable": "bool", "confidence": "float"},
+    )
+    result = service.run_advisory_job(request)
+
+    assert result.status == "completed"
+    # The service only ever calls the authority; if the STORE we passed in
+    # now durably has this job, the authority (not a bypass) wrote it.
+    provenance = service.provenance_authority.job_provenance(
+        "owner-reachability-probe"
+    )
+    assert provenance.request is not None
+    assert provenance.result is not None
+    assert provenance.result.status == "completed"
+
+
+def test_the_provenance_authority_records_a_refusal_honestly(tmp_path: Path) -> None:
+    """The real consolidation this authority owns (not a pass-through): it
+    builds and links four typed records (request, model call, result, the
+    hash-chained provenance record) from one call -- including an honest
+    refusal, not only successes."""
+    from unittest.mock import MagicMock
+
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    store = LocalWorkforceProvenanceStore(tmp_path / "provenance.db")
+    authority = ClerkProvenanceAuthority(store)
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    registry.list_models.return_value = []
+    llm = MagicMock()
+
+    service = LocalWorkforceService(
+        registry=registry,
+        ollama=llm,
+        model_client_factory=lambda model_id: llm,
+        provenance_store=store,
+    )
+    request = LocalJobRequest(
+        job_id="owner-refusal-probe",
+        job_profile=LocalJobProfile.SELECT_SKILL,
+        input_schema_version="1.0",
+        evidence_references=frozenset({"skill-1"}),
+        redacted_payload="Evaluate skill applicability.",
+        token_budget=128,
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=30),
+        required_output_schema={"applicable": "bool", "confidence": "float"},
+    )
+
+    result = service.run_advisory_job(request)
+
+    assert result.status == "rejected"
+    provenance = authority.job_provenance("owner-refusal-probe")
+    assert provenance.request is not None
+    assert provenance.result is not None
+    assert provenance.result.status == "rejected"
