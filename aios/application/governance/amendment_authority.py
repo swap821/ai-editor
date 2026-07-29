@@ -111,7 +111,7 @@ class ConstitutionalAmendmentAuthority:
     """Own the fail-closed capability gate for constitutional ratification."""
 
     def ratify_amendment(
-            self,
+        self,
         proposal: ConstitutionalAmendmentProposalV1,
         *,
         capability_proof: Any,
@@ -121,7 +121,9 @@ class ConstitutionalAmendmentAuthority:
         without a real, already-consumed, exactly-bound capability -- there is
         no other path through this function."""
         if proposal.status not in _OPEN_STATUSES:
-            raise AmendmentError(f"cannot ratify a proposal in status {proposal.status!r}")
+            raise AmendmentError(
+                f"cannot ratify a proposal in status {proposal.status!r}"
+            )
         if _touches_foundation_law(proposal):
             raise AmendmentError("foundation-law modifications are not amendable in v1")
         if (
@@ -145,6 +147,7 @@ class ConstitutionalAmendmentAuthority:
                 "ratification_capability_digest": capability_proof.token_digest,
             }
         )
+
 
 def ratify_amendment(
     proposal: ConstitutionalAmendmentProposalV1,

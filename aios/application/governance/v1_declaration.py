@@ -325,4 +325,9 @@ def evaluate_release(
 V1ReleaseDeclaration = ReleaseDeclarationAuthority
 
 
-__all__ = ["ReleaseGate", "ReleaseDeclarationAuthority", "V1ReleaseDeclaration", "evaluate_release"]
+__all__ = [
+    "ReleaseGate",
+    "ReleaseDeclarationAuthority",
+    "V1ReleaseDeclaration",
+    "evaluate_release",
+]

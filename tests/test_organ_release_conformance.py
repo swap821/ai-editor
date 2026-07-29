@@ -246,9 +246,7 @@ def test_green_organ_with_owner_class_defined_in_its_entrypoint_passes(
 ) -> None:
     entry_file = tmp_path / "gateway.py"
     canonical_name, canonical_owner = CANONICAL_ORGANS[1]
-    entry_file.write_text(
-        f"class {canonical_owner}:\n    pass\n", encoding="utf-8"
-    )
+    entry_file.write_text(f"class {canonical_owner}:\n    pass\n", encoding="utf-8")
     rel = str(entry_file.relative_to(tmp_path))
     records = _baseline_records()
     records[0] = _make_green(
@@ -267,9 +265,7 @@ def test_owner_class_check_matches_typescript_export_class_syntax(
     `export class Foo` must satisfy the check exactly like `class Foo`."""
     entry_file = tmp_path / "registry.ts"
     canonical_name, canonical_owner = CANONICAL_ORGANS[1]
-    entry_file.write_text(
-        f"export class {canonical_owner} {{}}\n", encoding="utf-8"
-    )
+    entry_file.write_text(f"export class {canonical_owner} {{}}\n", encoding="utf-8")
     rel = str(entry_file.relative_to(tmp_path))
     records = _baseline_records()
     records[0] = _make_green(
@@ -381,7 +377,9 @@ def test_frontend_error_state_organ_with_keyword_coverage_passes(tmp_path) -> No
         encoding="utf-8",
     )
     owner_file = tmp_path / "owner.py"
-    owner_file.write_text("class SecurityGatewayAuthority:\n    pass\n", encoding="utf-8")
+    owner_file.write_text(
+        "class SecurityGatewayAuthority:\n    pass\n", encoding="utf-8"
+    )
     records = _baseline_records()
     records[0] = _make_green(
         records[0],
@@ -528,9 +526,10 @@ def test_shipped_ledger_has_all_54_organs_and_zero_violations() -> None:
     assert len(records) == 54
     assert {r.organ_id for r in records} == set(range(1, 55))
     assert validate_ledger(records) == ()
-    assert validate_ledger(
-        records, repo_root=REPO_ROOT, enforce_owner_attestation=True
-    ) == ()
+    assert (
+        validate_ledger(records, repo_root=REPO_ROOT, enforce_owner_attestation=True)
+        == ()
+    )
 
 
 def test_shipped_ledger_32_target_organs_are_yellow_with_blockers_or_genuinely_green() -> (

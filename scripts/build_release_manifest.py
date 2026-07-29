@@ -89,7 +89,9 @@ class ReleaseConformanceAuthority:
             rel_path: _sha256_of(REPO_ROOT / rel_path)
             for rel_path in _tracked_files(existing)
         }
-        resolved_note = note if note is not None else str((existing or {}).get("note", ""))
+        resolved_note = (
+            note if note is not None else str((existing or {}).get("note", ""))
+        )
 
         return {
             "schema_version": str((existing or {}).get("schema_version", "1")),
@@ -101,6 +103,7 @@ class ReleaseConformanceAuthority:
             "files": files,
             "note": resolved_note,
         }
+
 
 def build_manifest(*, note: str | None = None) -> dict[str, object]:
     """Compatibility entrypoint for release tooling and tests."""
