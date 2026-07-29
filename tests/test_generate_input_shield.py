@@ -102,6 +102,7 @@ def _fake_privileged_principal(request: Request) -> Principal:
         authenticated_at=datetime.now(timezone.utc),
         device_id="device:test-throttle",
         authentication_event_id="event:test-throttle",
+        constitution_digest="c" * 64,
     )
 
 

@@ -5,7 +5,6 @@ import {
   getLastEmittedCode,
   fetchOnboardingState,
   correctHumanState,
-  BACKEND_REDACTION_MARKER_RE,
 } from '../../superbrain/lib/aiosAdapter';
 import { publishCognition } from '../../superbrain/lib/cognitionBus';
 import { isWorkIntent } from '../../superbrain/lib/intentRouting';

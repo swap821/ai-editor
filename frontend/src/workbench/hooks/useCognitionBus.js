@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { subscribePendingApproval } from '../../superbrain/lib/aiosAdapter';
-import { publishCognition, subscribeCognition } from '../../superbrain/lib/cognitionBus';
+import { subscribeCognition } from '../../superbrain/lib/cognitionBus';
 import {
   getActiveBrain,
   setActiveBrain,
@@ -8,7 +8,6 @@ import {
 } from '../../superbrain/lib/activeBrain';
 import {
   getConversationPhase,
-  setConversationPhase,
   subscribeConversationPhase,
 } from '../../superbrain/lib/conversationPhaseBus';
 import {

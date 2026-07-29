@@ -151,9 +151,6 @@ describe('voiceSpeak', () => {
   it('publishes speaking and speaking-complete cognition events', () => {
     installSpeechMocks();
     const stop = startVoiceSpeak();
-    const seen: { phase?: string; source?: string }[] = [];
-    const unsub = subscribeVoiceSpeak(() => {});
-    const unsubCog = vi.fn();
     // cognition bus subscriber order is a singleton; use a lightweight spy on publishCognition
     // by observing state transitions instead.
     const stateLog: boolean[] = [];
@@ -164,7 +161,6 @@ describe('voiceSpeak', () => {
 
     expect(stateLog).toContain(true);
     stop();
-    unsub();
     unsubState();
   });
 
