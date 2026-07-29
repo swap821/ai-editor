@@ -148,6 +148,44 @@ def test_reflect_requests_json_mode_for_local_ollama(db_path: Path) -> None:
     assert llm.json_mode_seen is True
 
 
+def test_reflection_with_governed_adapter_preserves_json_mode_and_context(
+    db_path: Path, tmp_path: Path
+) -> None:
+    from aios.application.intelligence.gateway import GovernedAdvisoryCompletionClient
+    from aios.infrastructure.intelligence.representative_context_store import (
+        RepresentativeContextStore,
+    )
+
+    class Provider:
+        def __init__(self) -> None:
+            self.json_mode_seen: Optional[bool] = None
+
+        def complete(
+            self, prompt: str, *, system: Optional[str] = None, json_mode: bool = False
+        ) -> str:
+            self.json_mode_seen = json_mode
+            return _VALID
+
+    provider = Provider()
+    context_store = RepresentativeContextStore(tmp_path / "contexts.db")
+    client = GovernedAdvisoryCompletionClient(
+        provider,
+        request_id="reflection-test",
+        operator_identity_digest="a" * 64,
+        constitution_digest="b" * 64,
+        desired_outcome="bounded advisory reflection",
+        context_store=context_store,
+    )
+    agent = ReflectionAgent(client, mistakes=MistakeMemory(db_path))
+
+    agent.reflect("cmd", "err", task_id="t1")
+
+    assert provider.json_mode_seen is True
+    assert any(
+        context.desired_outcome == "bounded advisory reflection"
+        for context in context_store.list_recent()
+    )
+
 def test_reflect_stores_the_failed_command(db_path: Path) -> None:
     # The failed command is persisted so a later turn can rebuild the fail->confirm
     # tracker across an approval pause. A secret-free command is stored unchanged

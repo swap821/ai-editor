@@ -20,6 +20,7 @@ from aios.application.intelligence.gateway import (
     stream_intelligence_request,
 )
 from aios.application.governance.organ_ledger import current_commit_sha
+from aios.application.memory.authorities import ProjectPassportStaleError
 from aios.application.memory.human_representation import (
     is_operator_preference_expired,
     is_project_passport_stale,
@@ -64,6 +65,18 @@ class AuthenticatedChatRepresentation:
     emergency_stop: Any
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
     current_commit_lookup: Callable[[str], str | None] = current_commit_sha
+    # Production construction supplies Organ 27's authority. The store-only
+    # path remains only for older direct unit fixtures and is not used by the
+    # authenticated HTTP dependency graph.
+    preference_authority: Any | None = None
+    # Production construction supplies Organ 28's authority. The store-only
+    # path remains only for older direct unit fixtures and is not used by the
+    # authenticated HTTP dependency graph.
+    project_passport_authority: Any | None = None
+    # Production construction supplies Organ 29's authority. The store-only
+    # path remains only for older direct unit fixtures and is not used by the
+    # authenticated HTTP dependency graph.
+    correction_authority: Any | None = None
 
     def stream(
         self,
@@ -265,26 +278,29 @@ class AuthenticatedChatRepresentation:
         exclusions: list[ContextExclusionV1] = []
         current_decisions: list[str] = []
 
-        active_project = self.project_passport_store.get_active_for_operator(
-            owner_digest
-        )
         passport: ProjectPassportV1 | None = None
         passport_revision: int | None = None
         project_scope: str | None = None
-        if active_project is None:
-            exclusions.append(
-                ContextExclusionV1(
-                    source="project_passport",
-                    field="active_project",
-                    reason="unavailable",
+        if self.project_passport_authority is not None:
+            try:
+                selection = (
+                    self.project_passport_authority.active_project_for_operator(
+                        owner_digest,
+                        current_commit_lookup=self.current_commit_lookup,
+                    )
                 )
-            )
-        else:
-            project_id, summary = active_project
-            current_passport = self.project_passport_store.get_current_with_revision(
-                project_id
-            )
-            if current_passport is None:
+            except ProjectPassportStaleError as exc:
+                raise AuthenticatedChatRepresentationError(str(exc)) from exc
+            project_id = selection.project_id
+            if project_id is None:
+                exclusions.append(
+                    ContextExclusionV1(
+                        source="project_passport",
+                        field="active_project",
+                        reason="unavailable",
+                    )
+                )
+            elif selection.passport is None:
                 exclusions.append(
                     ContextExclusionV1(
                         source="project_passport",
@@ -294,25 +310,65 @@ class AuthenticatedChatRepresentation:
                     )
                 )
             else:
-                candidate_revision, candidate_passport = current_passport
-                root = summary.get("root")
-                current_commit: str | None = None
-                if isinstance(root, str) and root:
-                    try:
-                        current_commit = self.current_commit_lookup(root)
-                    except Exception:  # noqa: BLE001 - missing proof is stale
-                        current_commit = None
-                if is_project_passport_stale(
-                    candidate_passport, current_commit_sha=current_commit
-                ):
-                    raise AuthenticatedChatRepresentationError(
-                        "authenticated project passport is stale or unverified"
-                    )
-                passport_revision, passport = candidate_revision, candidate_passport
+                passport_revision, passport = (
+                    selection.revision,
+                    selection.passport,
+                )
                 project_scope = f"project:{project_id}"
                 current_decisions.append(
                     self._passport_decision(passport, passport_revision)
                 )
+        else:
+            # Compatibility fallback for direct unit fixtures that predate the
+            # production authority dependency. No HTTP production path uses it.
+            active_project = self.project_passport_store.get_active_for_operator(
+                owner_digest
+            )
+            if active_project is None:
+                exclusions.append(
+                    ContextExclusionV1(
+                        source="project_passport",
+                        field="active_project",
+                        reason="unavailable",
+                    )
+                )
+            else:
+                project_id, summary = active_project
+                current_passport = (
+                    self.project_passport_store.get_current_with_revision(project_id)
+                )
+                if current_passport is None:
+                    exclusions.append(
+                        ContextExclusionV1(
+                            source="project_passport",
+                            field="active_project",
+                            source_id=project_id,
+                            reason="unavailable",
+                        )
+                    )
+                else:
+                    candidate_revision, candidate_passport = current_passport
+                    root = summary.get("root")
+                    current_commit: str | None = None
+                    if isinstance(root, str) and root:
+                        try:
+                            current_commit = self.current_commit_lookup(root)
+                        except Exception:  # noqa: BLE001 - missing proof is stale
+                            current_commit = None
+                    if is_project_passport_stale(
+                        candidate_passport, current_commit_sha=current_commit
+                    ):
+                        raise AuthenticatedChatRepresentationError(
+                            "authenticated project passport is stale or unverified"
+                        )
+                    passport_revision, passport = (
+                        candidate_revision,
+                        candidate_passport,
+                    )
+                    project_scope = f"project:{project_id}"
+                    current_decisions.append(
+                        self._passport_decision(passport, passport_revision)
+                    )
         preferences, preference_ids, preference_exclusions = self._select_preferences(
             owner_digest=owner_digest,
             project_scope=project_scope,
@@ -322,13 +378,24 @@ class AuthenticatedChatRepresentation:
         active_revision = self.conversation_state.active_correction_revision(
             self.principal.session_id
         )
-        correction = self.correction_store.verified_active_projection(
-            session_id=self.principal.session_id,
-            operator_id=self.principal.principal_id,
-            operator_identity_digest=owner_digest,
-            authentication_event_id=self.principal.authentication_event_id,
-            active_revision=active_revision,
-        )
+        if self.correction_authority is not None:
+            correction = self.correction_authority.authenticated_active_projection(
+                session_id=self.principal.session_id,
+                operator_id=self.principal.principal_id,
+                operator_identity_digest=owner_digest,
+                authentication_event_id=self.principal.authentication_event_id,
+                active_revision=active_revision,
+            )
+        else:
+            # Compatibility fallback for direct unit fixtures that predate the
+            # production authority dependency. No HTTP production path uses it.
+            correction = self.correction_store.verified_active_projection(
+                session_id=self.principal.session_id,
+                operator_id=self.principal.principal_id,
+                operator_identity_digest=owner_digest,
+                authentication_event_id=self.principal.authentication_event_id,
+                active_revision=active_revision,
+            )
         correction_ids: tuple[str, ...] = ()
         if correction is None:
             exclusions.append(
@@ -386,10 +453,33 @@ class AuthenticatedChatRepresentation:
         list[ContextExclusionV1],
     ]:
         exclusions: list[ContextExclusionV1] = []
-        selected: dict[tuple[str, str], OperatorPreferenceV1] = {}
         scopes = ["global"]
         if project_scope is not None:
             scopes.append(project_scope)
+
+        if self.preference_authority is not None:
+            selection = self.preference_authority.active_preferences_for_scopes(
+                owner_digest, tuple(scopes)
+            )
+            for pref, reason in selection.exclusions:
+                exclusions.append(
+                    ContextExclusionV1(
+                        source="operator_preference",
+                        field=f"{pref.domain}.{pref.key}",
+                        source_id=pref.preference_id,
+                        reason=reason,
+                    )
+                )
+            values = selection.included
+            return (
+                values,
+                tuple(pref.preference_id for pref in values),
+                exclusions,
+            )
+
+        # Compatibility fallback for direct unit fixtures that predate the
+        # production authority dependency. No HTTP production path uses this.
+        selected: dict[tuple[str, str], OperatorPreferenceV1] = {}
         for scope in scopes:
             for pref in self.preference_store.list_for_operator_scope(
                 owner_digest, scope

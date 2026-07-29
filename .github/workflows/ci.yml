@@ -121,6 +121,11 @@ jobs:
       actions: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The release-authority job runs the tested-SHA ancestry regression
+          # test. A shallow checkout would make that test skip precisely when
+          # the history needed to catch an orphaned attestation is absent.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -142,6 +147,7 @@ jobs:
           python -m compileall -q aios tests scripts
           python -m pytest -q -o addopts='' \
             tests/test_release_conformance.py \
+            tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py \
             tests/test_v1_declaration.py \
@@ -170,7 +176,8 @@ jobs:
             aios/executor_service.py aios/launcher.py \
             scripts/security_scan.py scripts/generate_sbom.py \
             scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
-            tests/test_release_conformance.py tests/test_launcher.py \
+            tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
+            tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
             tests/test_operations.py \
             tests/test_executor_service.py tests/test_executor_client.py \
@@ -179,7 +186,8 @@ jobs:
           ruff format --check \
             scripts/security_scan.py scripts/generate_sbom.py \
             scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
-            tests/test_release_conformance.py tests/test_launcher.py \
+            tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
+            tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
             tests/test_operations.py tests/test_executor_service.py \
             tests/test_executor_client.py tests/test_executor_integration.py \
@@ -363,6 +371,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Strict release validation must be able to inspect the history of
+          # every recorded tested SHA rather than silently skipping ancestry
+          # checks in a shallow checkout.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -374,6 +387,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Materialize exact-tip manifest for strict gate
+        # A committed manifest can only know its parent commit's SHA. The
+        # strict release check is intentionally staged in CI's ephemeral
+        # workspace, where the checked-out HEAD is known and the manifest can
+        # be regenerated immediately before validation.
+        run: |
+          python scripts/build_release_manifest.py --check
+          python scripts/build_release_manifest.py
 
       - name: Strict release-gate check (organ 23)
         run: |

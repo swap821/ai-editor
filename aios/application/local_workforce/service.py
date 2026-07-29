@@ -31,6 +31,7 @@ from aios.application.local_workforce.provenance import ClerkProvenanceAuthority
 from aios.application.local_workforce.qualification_evidence import (
     evidence_backed_profiles,
 )
+from aios.application.intelligence.gateway import CompatibilityAdvisoryCompletionClient
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ class LocalWorkforceService:
         qualification_suite_factory: QualificationSuiteFactory = QualificationSuite,
         model_client_factory: ModelClientFactory | None = None,
         provenance_store: LocalWorkforceProvenanceStore | None = None,
+        emergency_stop: Any | None = None,
     ) -> None:
         self.registry = registry
         self.ollama = ollama
@@ -84,6 +86,7 @@ class LocalWorkforceService:
         self.qualification_suite_factory = qualification_suite_factory
         self.model_client_factory = model_client_factory or self._default_model_client
         self.provenance_store = provenance_store
+        self.emergency_stop = emergency_stop
         self.local_clerk_runtime_authority = LocalClerkRuntimeAuthority()
         self.provenance_authority = (
             ClerkProvenanceAuthority(provenance_store)
@@ -152,7 +155,7 @@ class LocalWorkforceService:
     def health_check(self, model_id: str) -> dict[str, Any]:
         """Probe Ollama and the selected model, preserving unknown availability."""
         model = self._require_model(model_id)
-        client = self.model_client_factory(model.model_id)
+        client = self._local_probe_client(model.model_id, "health")
         is_available = getattr(self.ollama, "is_available", None)
         if callable(is_available) and not bool(is_available()):
             detail = "Ollama is unavailable"
@@ -214,7 +217,7 @@ class LocalWorkforceService:
             }
 
         result = self.qualification_suite_factory(
-            self.model_client_factory(model.model_id)
+            self._local_probe_client(model.model_id, "qualification")
         ).run()
         # Record the real result BEFORE admission is decided, and on both
         # branches -- a failure is evidence too, and the dispatcher must be
@@ -384,7 +387,11 @@ class LocalWorkforceService:
             ), decision
 
         try:
-            client = self.model_client_factory(selected.model_id)
+            client = CompatibilityAdvisoryCompletionClient(
+                self.model_client_factory(selected.model_id),
+                request_id=f"local-clerk:{request.job_id}",
+                emergency_stop=self.emergency_stop,
+            )
             system_msg = (
                 f"Advisory clerical job: profile={request.job_profile.value}. "
                 "Respond strictly with JSON matching the required schema. No extra text or fields."
@@ -392,6 +399,7 @@ class LocalWorkforceService:
             raw_output = client.complete(
                 request.redacted_payload,
                 system=system_msg,
+                json_mode=True,
             )
             parsed = json.loads(raw_output)
             if not isinstance(parsed, dict):
@@ -507,6 +515,23 @@ class LocalWorkforceService:
         if model is None:
             raise LocalModelNotFound(f"Model {model_id} not found in registry")
         return model
+
+    def _local_probe_client(
+        self, model_id: str, purpose: str
+    ) -> CompatibilityAdvisoryCompletionClient:
+        """Keep operational local probes inside the bounded local gateway.
+
+        Health and qualification do not carry an authenticated operator
+        identity or constitution snapshot, so they intentionally use the same
+        receipt-free local-only compatibility contract as the clerk. They gain
+        stop/input/output gates without pretending to be authenticated advisory
+        work.
+        """
+        return CompatibilityAdvisoryCompletionClient(
+            self.model_client_factory(model_id),
+            request_id=f"local-workforce:{purpose}:{model_id}",
+            emergency_stop=self.emergency_stop,
+        )
 
     def _default_model_client(self, model_id: str) -> LLMClient:
         if not isinstance(self.ollama, OllamaClient):

@@ -19,13 +19,15 @@ method here does real work the route used to do itself.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from aios.application.memory.human_representation import (
     build_project_passport_v1,
     is_operator_preference_expired,
+    is_project_passport_stale,
 )
 from aios.domain.memory.human_representation import (
     AuthenticatedCorrectionEventV1,
@@ -43,6 +45,27 @@ from aios.memory.conversation import ConversationStateStore
 from aios.memory.project_passport import ProjectPassport
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class OperatorPreferenceSelection:
+    """Result of the Organ 27 selection decision for one authenticated context."""
+
+    included: tuple[OperatorPreferenceV1, ...]
+    exclusions: tuple[tuple[OperatorPreferenceV1, str], ...]
+
+
+@dataclass(frozen=True)
+class ProjectPassportSelection:
+    """The active, verified project representation for one operator."""
+
+    project_id: str | None
+    passport: ProjectPassportV1 | None
+    revision: int | None
+
+
+class ProjectPassportStaleError(RuntimeError):
+    """Raised when an active project passport cannot be trusted for chat."""
 
 
 class OperatorTasteModelAuthority:
@@ -96,19 +119,59 @@ class OperatorTasteModelAuthority:
     ) -> tuple[OperatorPreferenceV1, ...]:
         return self.store.list_for_operator_scope(operator_identity_digest, scope)
 
+    def active_preferences_for_scopes(
+        self,
+        operator_identity_digest: str,
+        scopes: Sequence[str],
+    ) -> OperatorPreferenceSelection:
+        """Select the preferences that belong in one authenticated context.
+
+        This owns the complete Organ 27 decision: identity and scope
+        isolation, active/non-expired filtering, and project-scope precedence
+        over global scope. The context compiler consumes the result; it does
+        not reimplement this policy.
+        """
+        selected: dict[tuple[str, str], OperatorPreferenceV1] = {}
+        exclusions: list[tuple[OperatorPreferenceV1, str]] = []
+        for scope in dict.fromkeys(scopes):
+            for pref in self.preferences_for_operator_scope(
+                operator_identity_digest, scope
+            ):
+                reason = self._excluded_preference_reason(pref)
+                if reason is not None:
+                    exclusions.append((pref, reason))
+                    continue
+                preference_key = (pref.domain, pref.key)
+                previous = selected.get(preference_key)
+                if previous is not None:
+                    exclusions.append((previous, "superseded"))
+                selected[preference_key] = pref
+        return OperatorPreferenceSelection(
+            included=tuple(selected.values()),
+            exclusions=tuple(exclusions),
+        )
+
     def active_preferences_for_operator(
         self, operator_identity_digest: str, scope: str
     ) -> tuple[OperatorPreferenceV1, ...]:
-        """Organ 31's exact `active_preferences` contract: status ==
-        "active" AND not expired -- a real filter this method owns, not a
-        pass-through to the store's own weaker "status == active" query."""
-        return tuple(
-            pref
-            for pref in self.store.list_active_for_operator_scope(
-                operator_identity_digest, scope
-            )
-            if not is_operator_preference_expired(pref)
-        )
+        """Return the active, non-expired preferences for one scope."""
+        return self.active_preferences_for_scopes(
+            operator_identity_digest, (scope,)
+        ).included
+
+    @staticmethod
+    def _excluded_preference_reason(
+        pref: OperatorPreferenceV1,
+    ) -> str | None:
+        if pref.status == "withdrawn":
+            return "withdrawn"
+        if pref.status in {"superseded", "rejected"}:
+            return "superseded"
+        if pref.status != "active":
+            return "unavailable"
+        if is_operator_preference_expired(pref):
+            return "expired"
+        return None
 
     def withdraw(
         self, preference_id: str, *, operator_identity_digest: str
@@ -155,6 +218,56 @@ class ProjectUnderstandingAuthority:
             operator_identity_digest=operator_identity_digest,
         )
         return revision, passport_diff
+
+    def active_project_for_operator(
+        self,
+        operator_identity_digest: str,
+        *,
+        current_commit_lookup: Callable[[str], str | None],
+    ) -> ProjectPassportSelection:
+        """Resolve and verify the active project for an authenticated context.
+
+        Organ 28 owns both the durable reads and the stale/unverified
+        rejection; callers consume a typed selection instead of reconstructing
+        policy from the store directly.
+        """
+        active = self.store.get_active_for_operator(operator_identity_digest)
+        if active is None:
+            return ProjectPassportSelection(
+                project_id=None,
+                passport=None,
+                revision=None,
+            )
+
+        project_id, summary = active
+        current = self.store.get_current_with_revision(project_id)
+        if current is None:
+            return ProjectPassportSelection(
+                project_id=project_id,
+                passport=None,
+                revision=None,
+            )
+
+        revision, passport = current
+        root = summary.get("root")
+        current_commit: str | None = None
+        if isinstance(root, str) and root:
+            try:
+                current_commit = current_commit_lookup(root)
+            except Exception:  # noqa: BLE001 - missing proof is stale
+                current_commit = None
+        if is_project_passport_stale(
+            passport,
+            current_commit_sha=current_commit,
+        ):
+            raise ProjectPassportStaleError(
+                "authenticated project passport is stale or unverified"
+            )
+        return ProjectPassportSelection(
+            project_id=project_id,
+            passport=passport,
+            revision=revision,
+        )
 
     def active_project_status(
         self, operator_identity_digest: str
@@ -284,6 +397,49 @@ class CorrectionLineageAuthority:
             _LOGGER.error(ledger_log_message, exc_info=exc)
             raise
 
+    def authenticated_active_projection(
+        self,
+        *,
+        session_id: str,
+        operator_id: str,
+        operator_identity_digest: str,
+        authentication_event_id: str,
+        active_revision: int | None,
+    ) -> tuple[AuthenticatedCorrectionEventV1, dict[str, str]] | None:
+        """Return only the correction bound to this authenticated context.
+
+        Organ 29 owns the final selection boundary: an absent active revision
+        or incomplete identity binding cannot enter representative context,
+        and a ledger row whose operator/event binding disagrees is excluded
+        even if its store lookup otherwise found a matching digest.
+        """
+        if (
+            not session_id
+            or not operator_id
+            or not operator_identity_digest
+            or not authentication_event_id
+            or active_revision is None
+        ):
+            return None
+        projection = self.store.verified_active_projection(
+            session_id=session_id,
+            operator_id=operator_id,
+            operator_identity_digest=operator_identity_digest,
+            authentication_event_id=authentication_event_id,
+            active_revision=active_revision,
+        )
+        if projection is None:
+            return None
+        event, corrected_values = projection
+        if (
+            event.operator_id != operator_id
+            or event.operator_identity_digest != operator_identity_digest
+            or event.authentication_event_id != authentication_event_id
+            or event.correction_revision != active_revision
+        ):
+            return None
+        return event, corrected_values
+
     def lineage_for_session(
         self, session_id: str
     ) -> tuple[CorrectionRecordV1, ...]:
@@ -292,6 +448,9 @@ class CorrectionLineageAuthority:
 
 __all__ = [
     "CorrectionLineageAuthority",
+    "OperatorPreferenceSelection",
     "OperatorTasteModelAuthority",
+    "ProjectPassportSelection",
+    "ProjectPassportStaleError",
     "ProjectUnderstandingAuthority",
 ]

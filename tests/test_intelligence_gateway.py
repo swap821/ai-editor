@@ -59,6 +59,53 @@ def test_gateway_compiles_context_and_returns_model_output() -> None:
     assert result.secrets_redacted is False
 
 
+def test_governed_advisory_completion_routes_through_gateway() -> None:
+    """Secondary synchronous completions get the same Organ 32 boundary."""
+    from aios.application.intelligence.gateway import (
+        GovernedAdvisoryCompletionClient,
+    )
+
+    provider_calls: list[tuple[str, str | None, bool]] = []
+    recorded_contexts: list[object] = []
+
+    class _Provider:
+        def complete(
+            self,
+            prompt: str,
+            *,
+            system: str | None = None,
+            json_mode: bool = False,
+        ) -> str:
+            provider_calls.append((prompt, system, json_mode))
+            return "advisory output AKIAABCDEFGHIJKLMNOP"
+
+    class _Store:
+        def save(self, context: object) -> None:
+            recorded_contexts.append(context)
+
+    client = GovernedAdvisoryCompletionClient(
+        _Provider(),
+        request_id="planner-req-1",
+        operator_identity_digest="operator-digest",
+        constitution_digest="c" * 64,
+        context_store=_Store(),
+    )
+
+    output = client.complete(
+        "draft a bounded plan",
+        system="planner system",
+        json_mode=True,
+    )
+
+    assert provider_calls == [
+        ("draft a bounded plan", "planner system", True)
+    ]
+    assert len(recorded_contexts) == 1
+    assert recorded_contexts[0].goal == "draft a bounded plan"
+    assert "AKIAABCDEFGHIJKLMNOP" not in output
+    assert "REDACTED" in output
+
+
 def test_provider_response_secrets_are_redacted() -> None:
     result = _route(model_call=lambda ctx: "here is the key: AKIAABCDEFGHIJKLMNOP")
     assert "AKIAABCDEFGHIJKLMNOP" not in result.output
@@ -588,5 +635,72 @@ def test_anonymous_compatibility_gateway_honors_emergency_stop(tmp_path: Path) -
             model_call=lambda: calls.append("called") or iter(["must not run"]),
             emergency_stop=stopped,
         )
+
+    assert calls == []
+
+
+def test_anonymous_compatibility_completion_is_local_redacted_and_json_aware() -> None:
+    from aios.application.intelligence.gateway import (
+        CompatibilityAdvisoryCompletionClient,
+    )
+
+    secret = "AKIAABCDEFGHIJKLMNOP"
+    calls: list[tuple[str, str | None, bool]] = []
+
+    class _Provider:
+        def complete(
+            self,
+            prompt: str,
+            *,
+            system: str | None = None,
+            json_mode: bool = False,
+        ) -> str:
+            calls.append((prompt, system, json_mode))
+            return '{"applicable": true, "reason": "' + secret + '"}'
+
+    result = CompatibilityAdvisoryCompletionClient(
+        _Provider(), request_id="local-clerk-test"
+    ).complete(
+        "evaluate " + secret,
+        system="advisory " + secret,
+        json_mode=True,
+    )
+
+    assert len(calls) == 1
+    assert calls[0][2] is True
+    assert secret not in calls[0][0]
+    assert secret not in (calls[0][1] or "")
+    assert secret not in result
+    assert "REDACTED" in result
+
+
+def test_anonymous_compatibility_completion_honors_emergency_stop(
+    tmp_path: Path,
+) -> None:
+    from aios.application.intelligence.gateway import (
+        CompatibilityAdvisoryCompletionClient,
+    )
+
+    stopped = _controller(tmp_path)
+    stopped.engage(
+        EmergencyStopRequest(
+            operator_id="operator-1",
+            authentication_event_id="auth-compat-completion-1",
+            reason="test",
+        )
+    )
+    calls: list[str] = []
+
+    class _Provider:
+        def complete(self, prompt: str, *, system: str | None = None) -> str:
+            calls.append(prompt)
+            return "must not run"
+
+    with pytest.raises(EmergencyStopError):
+        CompatibilityAdvisoryCompletionClient(
+            _Provider(),
+            request_id="local-clerk-stopped",
+            emergency_stop=stopped,
+        ).complete("must stop")
 
     assert calls == []

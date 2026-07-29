@@ -16,7 +16,13 @@ from typing import Any, Iterator, Optional
 
 from fastapi import HTTPException
 
-from aios.application.intelligence.gateway import stream_structured_intelligence_request
+from aios.application.intelligence.gateway import (
+    AdvisoryChatCompletionAdapter,
+    GovernedAdvisoryCompletionClient,
+    stream_structured_intelligence_request,
+)
+from aios.agents.reflection_agent import ReflectionAgent
+from aios.core.alignment import AlignmentInterpreter
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.domain.intelligence.representative_context import (
@@ -44,6 +50,8 @@ _LIVE_NAMES = (
     "_generate_capability_binding",
     "_calibrate_default_confidence",
     "_cortex_bus",
+    "_crag_cloud_source",
+    "_crag_llm_judge",
     "_index_turn",
     "_latest_user",
     "_make_confirm_hook",
@@ -218,11 +226,105 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             raise PolicyBrokerError("generate capability issuance returned no token")
         return decision.approval_token
 
+    alignment_interpreter = runtime.alignment_interpreter
+    if (
+        isinstance(alignment_interpreter, AlignmentInterpreter)
+        and alignment_interpreter.llm is not None
+    ):
+        alignment_interpreter = AlignmentInterpreter(
+            GovernedAdvisoryCompletionClient(
+                alignment_interpreter.llm,
+                request_id=f"{context.turn_id}:alignment",
+                operator_identity_digest=credential_digest(principal.principal_id),
+                constitution_digest=str(principal.constitution_digest or ""),
+                target="local",
+                desired_outcome="bounded advisory alignment",
+                context_store=runtime.extra["representative_context_store"],
+                emergency_stop=runtime.extra["emergency_stop"],
+            )
+        )
+    reflector = runtime.reflector
+    if isinstance(reflector, ReflectionAgent) and reflector.llm is not None:
+        reflector = ReflectionAgent(
+            GovernedAdvisoryCompletionClient(
+                reflector.llm,
+                request_id=f"{context.turn_id}:reflection",
+                operator_identity_digest=credential_digest(principal.principal_id),
+                constitution_digest=str(principal.constitution_digest or ""),
+                target="local",
+                desired_outcome="bounded advisory reflection",
+                context_store=runtime.extra["representative_context_store"],
+                emergency_stop=runtime.extra["emergency_stop"],
+            ),
+            mistakes=reflector.mistakes,
+            memory_authority=reflector.memory_authority,
+        )
+
+    planner_llm = GovernedAdvisoryCompletionClient(
+        runtime.planner_llm,
+        request_id=f"{context.turn_id}:planner",
+        operator_identity_digest=credential_digest(principal.principal_id),
+        constitution_digest=str(principal.constitution_digest or ""),
+        target="local",
+        context_store=runtime.extra["representative_context_store"],
+        emergency_stop=runtime.extra["emergency_stop"],
+    )
+
+    crag_judge = None
+    crag_cloud_source = None
+    if config.CRAG_LLM_JUDGE:
+        local_provider = runtime.llm_client
+        if callable(getattr(local_provider, "chat", None)):
+            governed_crag_judge = GovernedAdvisoryCompletionClient(
+                AdvisoryChatCompletionAdapter(local_provider, model=config.LLM_MODEL),
+                request_id=f"{context.turn_id}:crag-judge",
+                operator_identity_digest=credential_digest(principal.principal_id),
+                constitution_digest=str(principal.constitution_digest or ""),
+                target="local",
+                desired_outcome="bounded advisory CRAG relevance judgment",
+                context_store=runtime.extra["representative_context_store"],
+                emergency_stop=runtime.extra["emergency_stop"],
+            )
+
+            def crag_judge(query: str, passage: str) -> float:
+                return _crag_llm_judge(
+                    query, passage, completion=governed_crag_judge
+                )
+        else:
+
+            def crag_judge(query: str, passage: str) -> float:
+                raise RuntimeError(
+                    "CRAG judge has no local chat provider at the governed boundary"
+                )
+
+    if config.CRAG_CLOUD:
+        cloud_provider = runtime.gemini or runtime.bedrock
+        if callable(getattr(cloud_provider, "chat", None)):
+            governed_crag_cloud = GovernedAdvisoryCompletionClient(
+                AdvisoryChatCompletionAdapter(cloud_provider),
+                request_id=f"{context.turn_id}:crag-cloud",
+                operator_identity_digest=credential_digest(principal.principal_id),
+                constitution_digest=str(principal.constitution_digest or ""),
+                target="cloud",
+                desired_outcome="bounded advisory CRAG external source",
+                context_store=runtime.extra["representative_context_store"],
+                emergency_stop=runtime.extra["emergency_stop"],
+            )
+
+            def crag_cloud_source(query: str) -> list[str]:
+                return _crag_cloud_source(
+                    query, completion=governed_crag_cloud
+                )
+        else:
+
+            def crag_cloud_source(query: str) -> list[str]:
+                return []
+
     runtime.extra["generate_state"] = {
         "_issue_generate_capability": issue_generate_capability,
         "_route_meta": route_meta,
         "alignment_evaluation": runtime.alignment_evaluation,
-        "alignment_interpreter": runtime.alignment_interpreter,
+        "alignment_interpreter": alignment_interpreter,
         "anthropic_client": runtime.anthropic_client,
         "approved_commands": approved_commands,
         "approved_creations": approved_creations,
@@ -234,6 +336,8 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "chat_client": chat_client,
         "chat_messages": chat_messages,
         "consolidator": runtime.consolidator,
+        "crag_cloud_source": crag_cloud_source,
+        "crag_judge": crag_judge,
         "conversation_state": runtime.conversation_state,
         "curriculum": runtime.curriculum,
         "development": runtime.development,
@@ -245,8 +349,8 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "model": model,
         "native_planner": runtime.native_planner,
         "openai_client": runtime.openai_client,
-        "planner_llm": runtime.planner_llm,
-        "reflector": runtime.reflector,
+        "planner_llm": planner_llm,
+        "reflector": reflector,
         "req": req,
         "resume_tail": resume_tail,
         "session_id": session_id,
@@ -288,6 +392,8 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     chat_client = state["chat_client"]
     chat_messages = state["chat_messages"]
     consolidator = state["consolidator"]
+    crag_cloud_source = state["crag_cloud_source"]
+    crag_judge = state["crag_judge"]
     conversation_state = state["conversation_state"]
     curriculum = state["curriculum"]
     development = state["development"]
@@ -598,7 +704,15 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             yield sse("plan", serialize_plan(_stage_plan))
             context_parts.append(plan_to_prompt_block(_stage_plan))
 
-    semantic = _recall_memory(user_text, authority=runtime.memory_authority)
+    if crag_judge is None and crag_cloud_source is None:
+        semantic = _recall_memory(user_text, authority=runtime.memory_authority)
+    else:
+        semantic = _recall_memory(
+            user_text,
+            authority=runtime.memory_authority,
+            crag_judge=crag_judge,
+            crag_cloud_source=crag_cloud_source,
+        )
     if semantic:
         context_parts.append(semantic)
         yield sse(

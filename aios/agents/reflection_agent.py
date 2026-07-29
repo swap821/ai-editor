@@ -142,7 +142,7 @@ class ReflectionAgent:
         constraint fixes this at the source (measured 0/5 -> 5/5 parseable on the
         real multi-failure verify output). Cloud clients keep the plain path.
         """
-        if isinstance(self.llm, OllamaClient):
+        if isinstance(self.llm, OllamaClient) or getattr(self.llm, "supports_json_mode", False):
             return self.llm.complete(
                 prompt, system=REFLECT_SYSTEM_PROMPT, json_mode=True
             )

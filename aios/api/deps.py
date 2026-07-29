@@ -1099,6 +1099,7 @@ def get_model_passport_authority(
 def get_local_workforce_service(
     registry: Any = Depends(get_local_workforce_registry),
     ollama: OllamaClient = Depends(get_ollama_client),
+    emergency_stop: Any = Depends(get_emergency_stop),
 ) -> Any:
     """Provide the application-layer local-workforce orchestration service."""
     from aios.application.local_workforce.service import LocalWorkforceService
@@ -1106,11 +1107,15 @@ def get_local_workforce_service(
         LocalWorkforceProvenanceStore,
     )
 
+    if emergency_stop is None or hasattr(emergency_stop, "dependency"):
+        emergency_stop = get_emergency_stop()
+
     provenance_store = LocalWorkforceProvenanceStore(
         config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH
     )
     return LocalWorkforceService(
-        registry=registry, ollama=ollama, provenance_store=provenance_store
+        registry=registry, ollama=ollama, provenance_store=provenance_store,
+        emergency_stop=emergency_stop,
     )
 
 

@@ -14,6 +14,9 @@ Tests:
 from __future__ import annotations
 
 import hashlib
+import json
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
@@ -482,6 +485,64 @@ def test_a_maintenance_repair_leaves_an_ordered_transition_journal(
     )
     assert journal.is_terminal(mission_id) is True
     assert mission_id not in journal.resume_pending()
+
+
+def test_recovery_authority_reads_interrupted_mission_after_process_restart(
+    maintenance_env,
+) -> None:
+    """A fresh Python process must see an interrupted mission in SQLite.
+
+    This is deliberately an approved-but-not-run mission: the request process
+    has left a durable non-terminal state, and the new process must report it
+    as pending with a verified journal rather than silently forgetting it.
+    It proves the restart read path without pretending that this test is a
+    container crash or a full Docker-backed live run.
+    """
+    client, service, _stop, _project = maintenance_env
+
+    scan_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/scans",
+        {"scanner_id": "admitted-scanner", "target_id": "bug.txt"},
+    )
+    assert scan_resp.status_code == 200
+    fingerprint = service.finding_repository.list_findings()[0].fingerprint
+
+    create_resp = _approved_post(
+        client,
+        "/api/v1/maintenance/repairs/missions",
+        {"finding_fingerprint": fingerprint, "operator_id": "op-restart-1"},
+    )
+    assert create_resp.status_code == 200, create_resp.text
+    mission = create_resp.json()
+    mission_id = mission["mission_id"]
+
+    approve_resp = _approved_post(
+        client,
+        f"/api/v1/maintenance/repairs/{mission_id}/approve",
+        {"contract_digest": mission["contract_digest"]},
+    )
+    assert approve_resp.status_code == 200, approve_resp.text
+    journal_path = str(service.mission_journal.db_path)
+
+    child_code = (
+        "import json, sys; "
+        "from aios.application.recovery.authority import RecoveryResumptionAuthority; "
+        "report = RecoveryResumptionAuthority.from_config(sys.argv[1]).recovery_report(); "
+        "print(json.dumps(report, sort_keys=True))"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", child_code, journal_path],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    report = json.loads(completed.stdout)
+    assert report["integrity"] == "verified"
+    assert report["verified_entries"] == 2
+    assert report["interrupted_count"] == 1
+    assert report["interrupted_mission_ids"] == [mission_id]
 
 
 def test_the_journal_refuses_a_maintenance_repair_that_never_registered(

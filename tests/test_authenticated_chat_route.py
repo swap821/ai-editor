@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -15,13 +16,20 @@ from aios.api.deps import (
     get_human_state_hypothesis_store,
     get_identity_service,
     get_operator_preference_store,
+    get_operator_taste_model_authority,
     get_project_passport_store,
+    get_project_understanding_authority,
     get_representative_context_store,
 )
 from aios.core.alignment import UnderstandingFrame
 from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.infrastructure.intelligence.representative_context_store import (
     RepresentativeContextStore,
+)
+from aios.application.memory.authorities import (
+    OperatorTasteModelAuthority,
+    ProjectUnderstandingAuthority,
+    CorrectionLineageAuthority,
 )
 from aios.infrastructure.memory.human_representation_store import (
     CorrectionRecordStore,
@@ -99,6 +107,13 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
     human_states = HumanStateHypothesisStore(human_state_path)
     receipts = RepresentativeContextStore(contexts_path)
     provider = ReceiptCheckingOllama(receipts)
+    taste_authority = MagicMock(wraps=OperatorTasteModelAuthority(preferences))
+    project_authority = MagicMock(
+        wraps=ProjectUnderstandingAuthority(passports)
+    )
+    correction_authority = MagicMock(
+        wraps=CorrectionLineageAuthority(corrections)
+    )
 
     api_main.app.dependency_overrides[api_main.get_ollama_client] = lambda: provider
     api_main.app.dependency_overrides[api_main.get_bedrock_client] = lambda: None
@@ -108,8 +123,17 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
     api_main.app.dependency_overrides[api_main.get_semantic_facts] = lambda: facts
     api_main.app.dependency_overrides[api_main.get_semantic_indexer] = lambda: None
     api_main.app.dependency_overrides[get_operator_preference_store] = lambda: preferences
+    api_main.app.dependency_overrides[get_operator_taste_model_authority] = (
+        lambda: taste_authority
+    )
     api_main.app.dependency_overrides[get_project_passport_store] = lambda: passports
+    api_main.app.dependency_overrides[get_project_understanding_authority] = (
+        lambda: project_authority
+    )
     api_main.app.dependency_overrides[get_correction_record_store] = lambda: corrections
+    api_main.app.dependency_overrides[
+        api_main.get_correction_lineage_authority
+    ] = lambda: correction_authority
     api_main.app.dependency_overrides[get_conversation_state_store] = lambda: conversation
     api_main.app.dependency_overrides[get_human_state_hypothesis_store] = lambda: human_states
     api_main.app.dependency_overrides[get_representative_context_store] = lambda: receipts
@@ -187,6 +211,20 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
             )
 
         assert response.status_code == 200
+        taste_authority.active_preferences_for_scopes.assert_called_once_with(
+            owner_digest,
+            ("global", f"project:{project_id}"),
+        )
+        project_authority.active_project_for_operator.assert_called_once()
+        project_call = project_authority.active_project_for_operator.call_args
+        assert project_call.args[0] == owner_digest
+        assert callable(project_call.kwargs["current_commit_lookup"])
+        correction_authority.authenticated_active_projection.assert_called_once()
+        correction_call = correction_authority.authenticated_active_projection.call_args
+        assert correction_call.kwargs["operator_identity_digest"] == owner_digest
+        assert correction_call.kwargs["authentication_event_id"] == (
+            principal.authentication_event_id
+        )
         assert provider.receipt_was_persisted_before_provider is True
         assert "event: representative_context" in response.text
         assert response.text.index("event: human_state") < response.text.index(

@@ -26,22 +26,29 @@ from aios.api.main import (
     get_cerebellum,
     get_development_tracker,
     get_executor,
+    get_gemini_client,
     get_alignment_interpreter,
     get_llm_client,
+    get_memory_authority,
     get_mistake_memory,
     get_ollama_client,
     get_reflection_agent,
     get_semantic_indexer,
     get_skill_memory,
+    get_representative_context_store,
 )
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
 from aios.core.confidence_filter import GateResult
 from aios.core.executor import Executor
+from aios.agents.reflection_agent import ReflectionAgent
+from aios.memory import db as memdb
 from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
 from aios.memory.skills import SkillMemory
 from aios.security.gateway import RateLimiter
+from aios.infrastructure.intelligence.representative_context_store import RepresentativeContextStore
+from aios.domain.memory import MemoryHit
 
 
 class FakeIndexer:
@@ -128,6 +135,61 @@ class PlainOllama:
         return {"role": "assistant", "content": "just an answer, no tools involved"}
 
 
+class CragJudgeOllama(PlainOllama):
+    """Local chat fake that returns a deterministic CRAG relevance score."""
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        return {"role": "assistant", "content": "0.82"}
+
+
+class CragCloudProvider:
+    """Cloud chat fake used only to prove the authenticated CRAG cloud path."""
+
+    def chat(self, messages: list, *, tools: Optional[list] = None, model: Optional[str] = None) -> dict:
+        return {"role": "assistant", "content": "A governed external CRAG answer."}
+
+
+class CragMemoryAuthority:
+    """One real typed memory hit so the production CRAG judge must run."""
+
+    def recall(self, query, context, retrieval_fn):
+        return [
+            MemoryHit(
+                memory_type="semantic",
+                content_reference="crag-memory-1",
+                text="A verified memory passage for the CRAG judge.",
+                score=0.9,
+                faiss=0.9,
+                verification_status="verified",
+                source="test",
+            )
+        ]
+
+    def owns_store(self, name, candidate):
+        return False
+
+    def recall_skills(self, query, limit):
+        return []
+
+    def facts_search(self, query):
+        return []
+
+    def self_model(self):
+        return None
+
+    def record_episodic(self, *args, **kwargs):
+        return None
+
+    def record_semantic_chat(self, *args, **kwargs):
+        return None
+
+
 class YellowOllama:
     """First turn calls a YELLOW (needs-approval) command — the turn pauses."""
 
@@ -153,6 +215,69 @@ class YellowOllama:
                 }
             ],
         }
+
+
+class FailingOllama:
+    """Issue one green command, then finish after the real failure hook runs."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        self.calls += 1
+        if self.calls == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "execute_terminal",
+                            "arguments": {"command": "echo reflection probe"},
+                        }
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "The failed command was recorded."}
+
+
+class ReflectionCompletionLLM:
+    """Completion fake that records the adapter's JSON-mode request."""
+
+    def __init__(self) -> None:
+        self.json_mode_seen: Optional[bool] = None
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: Optional[str] = None,
+        json_mode: bool = False,
+    ) -> str:
+        self.json_mode_seen = json_mode
+        return json.dumps(
+            {
+                "error_type": "CommandFailure",
+                "root_cause": "the command returned a non-zero exit code",
+                "fix_applied": "recorded the failure for supervised follow-up",
+                "lesson_text": "inspect the command failure before retrying",
+                "confidence_delta": -0.1,
+            }
+        )
+
+
+class FailingReflectionRunner:
+    def __call__(self, command, *, cwd, env, timeout_s):
+        return "", "forced reflection failure", 1
 
 
 def _isolate_turn_memory(tmp_path, llm_factory) -> None:
@@ -261,6 +386,171 @@ def test_plan_stage_emits_structured_plan_event(
     escalated_ids = {e["step"]["step_id"] for e in plan["escalate"]}
     assert "2" in escalated_ids
     assert plan["requires_human"] is True
+
+
+def test_plan_stage_completion_is_recorded_by_the_gateway(
+    stage_client: TestClient, tmp_path, monkeypatch
+) -> None:
+    """The real forge plan stage must use the Organ 32 advisory adapter."""
+    monkeypatch.setattr(config, "PLAN_STAGE_ENABLED", True)
+    store = RepresentativeContextStore(tmp_path / "planner-contexts.db")
+    app.dependency_overrides[get_representative_context_store] = lambda: store
+
+    response = _generate(
+        stage_client,
+        "plan-stage-governed",
+        "plan stage gateway probe",
+    )
+
+    assert response.status_code == 200
+    assert any(
+        "plan stage gateway probe" in context.goal
+        and context.desired_outcome == "bounded advisory completion"
+        for context in store.list_recent()
+    )
+
+
+def test_alignment_completion_is_recorded_by_the_gateway(
+    stage_client: TestClient, tmp_path
+) -> None:
+    """The real authenticated alignment advisory must enter Organ 32."""
+    store = RepresentativeContextStore(tmp_path / "alignment-contexts.db")
+    app.dependency_overrides[get_representative_context_store] = lambda: store
+
+    response = _generate(
+        stage_client,
+        "alignment-governed",
+        "alignment gateway probe",
+    )
+
+    assert response.status_code == 200
+    assert any(
+        "Interpret the latest USER request." in context.goal
+        and context.desired_outcome == "bounded advisory alignment"
+        for context in store.list_recent()
+    )
+
+
+def test_crag_judge_completion_is_recorded_by_the_gateway(
+    stage_client: TestClient, tmp_path, monkeypatch
+) -> None:
+    """The real generate CRAG judge must enter authenticated Organ 32."""
+    monkeypatch.setattr(config, "PLAN_STAGE_ENABLED", False)
+    monkeypatch.setattr(config, "CRAG", True)
+    monkeypatch.setattr(config, "CRAG_LLM_JUDGE", True)
+    monkeypatch.setattr(config, "CRAG_EXTERNAL", False)
+    store = RepresentativeContextStore(tmp_path / "crag-contexts.db")
+    app.dependency_overrides[get_ollama_client] = lambda: CragJudgeOllama()
+    app.dependency_overrides[get_memory_authority] = lambda: CragMemoryAuthority()
+    app.dependency_overrides[get_representative_context_store] = lambda: store
+
+    response = _generate(stage_client, "crag-governed", "crag gateway probe")
+
+    assert response.status_code == 200
+    assert any(
+        "Rate how RELEVANT the passage" in context.goal
+        and context.desired_outcome == "bounded advisory CRAG relevance judgment"
+        for context in store.list_recent()
+    )
+
+
+def test_crag_cloud_source_completion_is_recorded_by_the_gateway(
+    stage_client: TestClient, tmp_path, monkeypatch
+) -> None:
+    """The real generate CRAG cloud source must enter authenticated Organ 32."""
+    monkeypatch.setattr(config, "PLAN_STAGE_ENABLED", False)
+    monkeypatch.setattr(config, "CRAG", True)
+    monkeypatch.setattr(config, "CRAG_LLM_JUDGE", False)
+    monkeypatch.setattr(config, "CRAG_EXTERNAL", True)
+    monkeypatch.setattr(config, "CRAG_CLOUD", True)
+    monkeypatch.setattr(config, "CRAG_DOCUMENTS", False)
+    monkeypatch.setattr(config, "CRAG_WEBSEARCH", False)
+    monkeypatch.setattr(config, "CRAG_UPPER", 0.95)
+    monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
+    store = RepresentativeContextStore(tmp_path / "crag-cloud-contexts.db")
+    app.dependency_overrides[get_gemini_client] = lambda: CragCloudProvider()
+    app.dependency_overrides[get_memory_authority] = lambda: CragMemoryAuthority()
+    app.dependency_overrides[get_representative_context_store] = lambda: store
+
+    response = _generate(stage_client, "crag-cloud-governed", "crag cloud probe")
+
+    assert response.status_code == 200
+    assert any(
+        "Answer the question concisely and factually" in context.goal
+        and context.desired_outcome == "bounded advisory CRAG external source"
+        for context in store.list_recent()
+    )
+
+
+def test_authenticated_reflection_completion_is_recorded_by_the_gateway(
+    tmp_path, monkeypatch
+) -> None:
+    """A real generate failure must route reflection through Organ 32."""
+    monkeypatch.setattr(config, "PLAN_STAGE_ENABLED", False)
+    monkeypatch.setattr(config, "OFFLINE_MODE", False)
+
+    ollama = FailingOllama()
+    reflection_llm = ReflectionCompletionLLM()
+    reflection_db = tmp_path / "reflection-memory.db"
+    memdb.init_memory_db(reflection_db)
+    reflector = ReflectionAgent(
+        reflection_llm,
+        mistakes=MistakeMemory(reflection_db),
+    )
+    store = RepresentativeContextStore(tmp_path / "reflection-contexts.db")
+
+    app.dependency_overrides[get_ollama_client] = lambda: ollama
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=FailingReflectionRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+    )
+    app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
+    _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
+    app.dependency_overrides[get_reflection_agent] = lambda: reflector
+    app.dependency_overrides[get_representative_context_store] = lambda: store
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = _generate(client, "reflection-governed", "run reflection probe")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "event: done" in response.text
+    assert "forced reflection failure" in response.text
+    assert ollama.calls >= 2
+    assert reflection_llm.json_mode_seen is True
+    assert any(
+        context.desired_outcome == "bounded advisory reflection"
+        for context in store.list_recent()
+    )
+
+
+def test_standalone_reflection_completion_is_recorded_by_the_gateway(tmp_path) -> None:
+    """The compatibility reflection API must use Organ 32 as well."""
+    provider = ReflectionCompletionLLM()
+    store = RepresentativeContextStore(tmp_path / "standalone-reflection-contexts.db")
+    app.dependency_overrides[get_llm_client] = lambda: provider
+    app.dependency_overrides[get_representative_context_store] = lambda: store
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.post(
+                "/api/v1/reflect",
+                json={
+                    "command": "echo standalone reflection probe",
+                    "error_output": "forced failure",
+                    "task_id": "standalone-reflection-governed",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert provider.json_mode_seen is True
+    assert any(
+        context.desired_outcome == "bounded advisory reflection"
+        for context in store.list_recent()
+    )
 
 
 def test_plan_stage_fails_open_on_unusable_plan(tmp_path, monkeypatch) -> None:

@@ -9,12 +9,19 @@ than constructing a client itself -- so this module never needs to appear in
 new provider never requires touching this file.
 
 Full scope note: this pipeline is not yet the mandatory entrance for every
-model interaction in the codebase. See docs/architecture/GAGOS_54_ORGANS.md
-organ 32 for the itemized list of call sites that still bypass it (Council
-Queens' currently-unwired LLM slots, maintenance/skill-compilation, and
-reconciling this against the two other pre-existing gateway-shaped
-implementations, aios.runtime.intelligence_gateway.IntelligenceGateway and
-aios.application.models.hiring_service.IntelligenceHiringService).
+model interaction in the codebase. Within the audited Phase-2 paths, the
+remaining direct model-call seams are narrow legacy CRAG helpers retained for
+direct unit tests. The production CRAG judge and optional cloud source enter
+this authority through authenticated generate-state callbacks; the local-clerk
+structured advisory path and local-workforce health/qualification probes enter
+the explicit local-only compatibility boundary below. The maintenance
+convergence service itself has no direct model call and is not an Organ 32
+bypass. See
+docs/architecture/GAGOS_54_ORGANS.md organ 32 for the exact current scope and
+follow-on work, including reconciliation with the two pre-existing
+gateway-shaped implementations, aios.runtime.intelligence_gateway.
+IntelligenceGateway and aios.application.models.hiring_service.
+IntelligenceHiringService.
 Anonymous compatibility conversation has an explicit local-only entrance
 below; it has no authenticated identity/constitution binding, so it emits no
 representative-context receipt.
@@ -22,6 +29,7 @@ representative-context receipt.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from datetime import datetime, timezone
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -262,6 +270,39 @@ def _stream_compatibility_intelligence_request(
     return CompatibilityStreamingIntelligenceGatewayResult(
         chunks=_redacted_chunks()
     )
+
+
+def _complete_compatibility_intelligence_request(
+    *,
+    request_id: str,
+    target: str,
+    model_call: Callable[[], str],
+    secret_policy: SecretPolicy | None = None,
+    emergency_stop: Any | None = None,
+) -> str:
+    """Govern one anonymous, local-only compatibility completion.
+
+    Compatibility callers have no truthful operator identity or constitution
+    digest. This entrance therefore deliberately provides neither a
+    representative-context receipt nor authenticated authority. It still
+    enforces the local-only target, emergency stop, input redaction performed
+    by its adapter, and output redaction before the result can be parsed by a
+    downstream advisory contract.
+    """
+    if not str(request_id).strip():
+        raise IntelligenceGatewayError("request_id is required")
+    if target != "local":
+        raise IntelligenceGatewayError(
+            "anonymous compatibility requests must target the local provider"
+        )
+    if not callable(model_call):
+        raise IntelligenceGatewayError("model_call must be callable")
+    if emergency_stop is not None:
+        emergency_stop.assert_operational()
+    policy = secret_policy or SecretPolicy()
+    decision = policy.inspect_text(model_call())
+    return decision.scrubbed
+
 
 class _StructuredTextRedactor:
     """Boundary-safe redaction window for incremental event text."""
@@ -706,6 +747,239 @@ class UniversalIntelligenceGatewayAuthority:
         """Use the bounded local-only anonymous compatibility entrance."""
         return _stream_compatibility_intelligence_request(**kwargs)
 
+    def complete_compatibility(self, **kwargs: Any) -> str:
+        """Use the bounded local-only synchronous compatibility entrance."""
+        return _complete_compatibility_intelligence_request(**kwargs)
+
+
+class CompatibilityAdvisoryCompletionClient:
+    """Adapt a local provider to the anonymous advisory gateway entrance.
+
+    This is intentionally weaker than ``GovernedAdvisoryCompletionClient``:
+    callers such as the local clerk do not carry an authenticated operator
+    identity or constitution snapshot. The adapter consequently grants no
+    context-backed authority and refuses non-local routing, while preserving
+    the provider's historical completion signature and JSON-mode capability.
+    """
+
+    def __init__(
+        self,
+        provider: Any,
+        *,
+        request_id: str,
+        emergency_stop: Any | None = None,
+        secret_policy: SecretPolicy | None = None,
+    ) -> None:
+        if not callable(getattr(provider, "complete", None)):
+            raise TypeError("provider must expose complete()")
+        if not request_id.strip():
+            raise ValueError("request_id is required")
+        self._provider = provider
+        self._request_id = request_id
+        self._emergency_stop = emergency_stop
+        self._secret_policy = secret_policy or SecretPolicy()
+        self._call_count = 0
+        try:
+            parameters = inspect.signature(provider.complete).parameters
+            self.supports_json_mode = "json_mode" in parameters or any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters.values()
+            )
+        except (TypeError, ValueError):
+            self.supports_json_mode = False
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        json_mode: bool = False,
+    ) -> str:
+        """Complete one local advisory prompt after passing the gateway."""
+        self._call_count += 1
+        safe_prompt = self._secret_policy.inspect_text(prompt).scrubbed
+        safe_system = (
+            self._secret_policy.inspect_text(system).scrubbed
+            if system is not None
+            else None
+        )
+
+        def _call() -> str:
+            if json_mode and self.supports_json_mode:
+                return self._provider.complete(
+                    safe_prompt,
+                    system=safe_system,
+                    json_mode=True,
+                )
+            return self._provider.complete(safe_prompt, system=safe_system)
+
+        return complete_compatibility_intelligence_request(
+            request_id=f"{self._request_id}:{self._call_count}",
+            target="local",
+            model_call=_call,
+            emergency_stop=self._emergency_stop,
+            secret_policy=self._secret_policy,
+        )
+
+
+    def running_model_metrics(self) -> Mapping[str, Any] | None:
+        """Expose provider metrics without exposing a second completion path.
+
+        The qualification suite uses this read-only probe to distinguish a
+        real Ollama resource snapshot from an unavailable metrics source. It
+        is deliberately delegated as data only; completions still have to
+        pass through ``complete()`` above.
+        """
+        probe = getattr(self._provider, "running_model_metrics", None)
+        if not callable(probe):
+            return None
+        value = probe()
+        return value if isinstance(value, Mapping) else None
+
+class AdvisoryChatCompletionAdapter:
+    """Normalize a provider's chat contract for advisory completion routing.
+
+    CRAG's historical helpers use ``chat()`` while Organ 32's synchronous
+    advisory boundary accepts ``complete()``. This adapter only translates the
+    message shape; it does not add tools, authority, or a second provider. The
+    caller still supplies the resulting adapter to a governed completion client
+    so identity, constitution, stop, context, and output gates remain owned by
+    the gateway.
+    """
+
+    def __init__(self, provider: Any, *, model: str | None = None) -> None:
+        if not callable(getattr(provider, "chat", None)):
+            raise TypeError("provider must expose chat()")
+        self._provider = provider
+        self._model = model
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        json_mode: bool = False,
+    ) -> str:
+        """Run one no-tools chat turn and return its assistant text."""
+        del json_mode  # CRAG asks for plain text; the chat protocol has no format flag.
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        response = self._provider.chat(
+            messages,
+            tools=None,
+            model=self._model,
+        )
+        if not isinstance(response, Mapping):
+            return ""
+        return str(response.get("content", ""))
+
+
+class GovernedAdvisoryCompletionClient:
+    """Route a secondary synchronous completion through Organ 32.
+
+    This adapter is intentionally advisory-only: it provides the same
+    identity/constitution validation, emergency-stop check, context recording,
+    input secret scrubbing, and output redaction as the synchronous gateway,
+    but it does not grant tool or write authority. The planner uses the local
+    target; the target remains configurable so other advisory callers can make
+    an explicit privacy choice.
+    """
+
+    def __init__(
+        self,
+        provider: Any,
+        *,
+        request_id: str,
+        operator_identity_digest: str,
+        constitution_digest: str,
+        target: CompilationTarget = "local",
+        context_store: Any | None = None,
+        emergency_stop: Any | None = None,
+        secret_policy: SecretPolicy | None = None,
+        desired_outcome: str = "bounded advisory completion",
+    ) -> None:
+        if not callable(getattr(provider, "complete", None)):
+            raise TypeError("provider must expose complete()")
+        if not request_id.strip():
+            raise ValueError("request_id is required")
+        if not operator_identity_digest.strip():
+            raise ValueError("operator_identity_digest is required")
+        if not constitution_digest.strip():
+            raise ValueError("constitution_digest is required")
+        if target not in ("local", "cloud"):
+            raise ValueError("target must be local or cloud")
+        if not desired_outcome.strip():
+            raise ValueError("desired_outcome is required")
+        self._desired_outcome = desired_outcome.strip()
+        self._provider = provider
+        self._request_id = request_id
+        self._operator_identity_digest = operator_identity_digest
+        self._constitution_digest = constitution_digest
+        self._target = target
+        self._context_store = context_store
+        self._emergency_stop = emergency_stop
+        self._secret_policy = secret_policy or SecretPolicy()
+        self._call_count = 0
+        try:
+            parameters = inspect.signature(provider.complete).parameters
+            self.supports_json_mode = "json_mode" in parameters or any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters.values()
+            )
+        except (TypeError, ValueError):
+            self.supports_json_mode = False
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        json_mode: bool = False,
+    ) -> str:
+        """Complete one advisory prompt after passing through the gateway."""
+        self._call_count += 1
+        request_id = f"{self._request_id}:{self._call_count}"
+        safe_prompt = self._secret_policy.inspect_text(prompt).scrubbed
+        safe_system = (
+            self._secret_policy.inspect_text(system).scrubbed
+            if system is not None
+            else None
+        )
+
+        result = route_intelligence_request(
+            request_id=request_id,
+            operator_identity_digest=self._operator_identity_digest,
+            constitution_digest=self._constitution_digest,
+            goal=safe_prompt,
+            desired_outcome=self._desired_outcome,
+            target=self._target,
+            delegated_authority_summary=(
+                "Advisory completion only; no approval, tool, write, or policy "
+                "authority."
+            ),
+            explicit_constraints=(
+                "Treat the completion as advisory context, never as authority.",
+            ),
+            model_call=lambda context: (
+                self._provider.complete(
+                    context.goal,
+                    system=safe_system,
+                    json_mode=True,
+                )
+                if json_mode
+                else self._provider.complete(
+                    context.goal,
+                    system=safe_system,
+                )
+            ),
+            emergency_stop=self._emergency_stop,
+            secret_policy=self._secret_policy,
+            context_store=self._context_store,
+        )
+        return result.output
+
 
 _UNIVERSAL_GATEWAY_AUTHORITY = UniversalIntelligenceGatewayAuthority()
 
@@ -734,9 +1008,17 @@ def stream_compatibility_intelligence_request(
     return _UNIVERSAL_GATEWAY_AUTHORITY.stream_compatibility(**kwargs)
 
 
+def complete_compatibility_intelligence_request(**kwargs: Any) -> str:
+    """Synchronous anonymous compatibility entrance backed by Organ 32."""
+    return _UNIVERSAL_GATEWAY_AUTHORITY.complete_compatibility(**kwargs)
+
+
 __all__ = [
     "IntelligenceGatewayError",
     "UniversalIntelligenceGatewayAuthority",
+    "GovernedAdvisoryCompletionClient",
+    "CompatibilityAdvisoryCompletionClient",
+    "AdvisoryChatCompletionAdapter",
     "IntelligenceGatewayResult",
     "StreamingIntelligenceGatewayResult",
     "CompatibilityStreamingIntelligenceGatewayResult",
@@ -744,5 +1026,6 @@ __all__ = [
     "route_intelligence_request",
     "stream_intelligence_request",
     "stream_compatibility_intelligence_request",
+    "complete_compatibility_intelligence_request",
     "stream_structured_intelligence_request",
 ]

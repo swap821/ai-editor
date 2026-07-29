@@ -22,6 +22,7 @@ from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError, EmergencyStopHardWiringAuthority
+from aios.application.intelligence.gateway import GovernedAdvisoryCompletionClient
 from aios.api.deps import (
     _session_id_from_request,
     get_action_broker,
@@ -31,8 +32,10 @@ from aios.api.deps import (
     get_llm_client,
     get_memory_authority,
     get_native_planner,
+    get_representative_context_store,
     get_rollback_engine,
     get_self_apply_engine,
+    get_authenticated_principal,
     require_privileged_operator,
 )
 from aios.core.executor import Executor
@@ -48,6 +51,7 @@ from aios.domain.actions.envelope import (
 from aios.domain.identity.models import Principal
 from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest, resource_digest
+from aios.infrastructure.identity.sqlite_store import credential_digest
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone
@@ -226,12 +230,25 @@ def reflect(
     req: ReflectRequest,
     llm: LLMClient = Depends(get_llm_client),
     authority=Depends(get_memory_authority),
+    principal: Principal = Depends(get_authenticated_principal),
+    context_store=Depends(get_representative_context_store),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> dict[str, Any]:
-    """Run the reflection agent on a failure and store a structured lesson."""
+    """Run a session-bound reflection through the Organ 32 advisory gateway."""
     lessons = authority.adapters.get("lessons")
     store = getattr(lessons, "store", None)
-    agent = ReflectionAgent(
+    governed_llm = GovernedAdvisoryCompletionClient(
         llm,
+        request_id=f"reflect:{uuid.uuid4().hex}",
+        operator_identity_digest=credential_digest(principal.principal_id),
+        constitution_digest=str(principal.constitution_digest or ""),
+        target="local",
+        desired_outcome="bounded advisory reflection",
+        context_store=context_store,
+        emergency_stop=emergency_stop,
+    )
+    agent = ReflectionAgent(
+        governed_llm,
         mistakes=store,
         memory_authority=authority,
     )

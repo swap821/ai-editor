@@ -6,6 +6,9 @@ flow never writes to it").
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -104,6 +107,53 @@ def test_successful_job_is_durably_recorded(tmp_path: Path) -> None:
     assert provenance.result.schema_valid is True
 
 
+def test_full_job_trace_reconstructs_after_process_restart(tmp_path: Path) -> None:
+    """A new process can reconstruct and verify the complete durable trace.
+
+    This crosses a real interpreter boundary, then reads the request, model
+    call, result, and hash-linked provenance chain from the same SQLite file.
+    It proves continuity without pretending that the child process is a live
+    Ollama run or a crash simulation.
+    """
+    db_path = tmp_path / "provenance-restart.db"
+    store = LocalWorkforceProvenanceStore(db_path)
+    service = _service_with(
+        raw_output='{"applicable": true, "confidence": 0.9}',
+        provenance_store=store,
+    )
+
+    result = service.run_advisory_job(_request("job-process-restart"))
+    assert result.status == "completed"
+
+    child_code = (
+        "import json, sys; "
+        "from aios.application.local_workforce.provenance import get_clerk_job_provenance; "
+        "from aios.infrastructure.local_workforce.sqlite_store import LocalWorkforceProvenanceStore; "
+        "store = LocalWorkforceProvenanceStore(sys.argv[1]); "
+        "trace = get_clerk_job_provenance(store, sys.argv[2]); "
+        "print(json.dumps({'status': trace.status, 'has_request': trace.request is not None, "
+        "'model_calls': len(trace.model_calls), 'has_result': trace.result is not None, "
+        "'result_status': trace.result.status if trace.result else None, "
+        "'chain_records': store.verify_provenance_chain()}, sort_keys=True))"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", child_code, str(db_path), "job-process-restart"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    report = json.loads(completed.stdout)
+    assert report == {
+        "chain_records": 1,
+        "has_request": True,
+        "has_result": True,
+        "model_calls": 1,
+        "result_status": "completed",
+        "status": "completed",
+    }
+
+
 def test_rejected_job_with_no_admitted_model_is_still_recorded(
     tmp_path: Path,
 ) -> None:
@@ -160,3 +210,44 @@ def test_two_jobs_do_not_collide_on_the_same_store(tmp_path: Path) -> None:
 
     assert get_clerk_job_provenance(store, "job-a").request is not None
     assert get_clerk_job_provenance(store, "job-b").request is not None
+
+
+def test_local_clerk_advisory_enters_compatibility_gateway() -> None:
+    calls: list[tuple[str, str | None, bool]] = []
+
+    class _Provider:
+        def complete(
+            self,
+            prompt: str,
+            *,
+            system: str | None = None,
+            json_mode: bool = False,
+        ) -> str:
+            calls.append((prompt, system, json_mode))
+            return '{"applicable": true, "confidence": 0.9}'
+
+    stop_calls: list[str] = []
+
+    class _EmergencyStop:
+        def assert_operational(self) -> None:
+            stop_calls.append("checked")
+
+    provider = _Provider()
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    admitted = _admitted_model()
+    registry.list_models.return_value = [admitted]
+    registry.get_model.return_value = admitted
+    service = LocalWorkforceService(
+        registry=registry,
+        ollama=provider,
+        model_client_factory=lambda model_id: provider,
+        emergency_stop=_EmergencyStop(),
+    )
+
+    result = service.run_advisory_job(_request("job-gateway"))
+
+    assert result.status == "completed"
+    assert len(calls) == 1
+    assert calls[0][2] is True
+    assert result.structured_output == {"applicable": True, "confidence": 0.9}
+    assert stop_calls == ["checked"]

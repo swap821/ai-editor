@@ -39,6 +39,23 @@ class _PreferenceStore:
         return self.global_prefs if scope == "global" else self.project_prefs
 
 
+class _PreferenceAuthority:
+    def __init__(
+        self,
+        selected: tuple[Any, ...],
+        exclusions: tuple[tuple[Any, str], ...] = (),
+    ) -> None:
+        self.selected = selected
+        self.exclusions = exclusions
+        self.calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def active_preferences_for_scopes(
+        self, owner_digest: str, scopes: tuple[str, ...]
+    ) -> SimpleNamespace:
+        self.calls.append((owner_digest, scopes))
+        return SimpleNamespace(included=self.selected, exclusions=self.exclusions)
+
+
 class _PassportStore:
     def __init__(self, passport: ProjectPassportV1) -> None:
         self.passport = passport
@@ -52,6 +69,24 @@ class _PassportStore:
         return 7, self.passport
 
 
+class _ProjectPassportAuthority:
+    def __init__(self, passport: ProjectPassportV1) -> None:
+        self.passport = passport
+        self.calls: list[tuple[str, object]] = []
+
+    def active_project_for_operator(
+        self, owner_digest: str, *, current_commit_lookup: object
+    ) -> SimpleNamespace:
+        assert owner_digest == credential_digest("operator-a")
+        assert callable(current_commit_lookup)
+        self.calls.append((owner_digest, current_commit_lookup))
+        return SimpleNamespace(
+            project_id=self.passport.project_id,
+            revision=7,
+            passport=self.passport,
+        )
+
+
 class _CorrectionStore:
     def verified_active_projection(self, **kwargs: Any):
         assert kwargs["active_revision"] == 44
@@ -59,6 +94,16 @@ class _CorrectionStore:
             SimpleNamespace(event_id="authenticated-correction:44"),
             {"goal": "Review only the public API"},
         )
+
+
+class _CorrectionAuthority:
+    def __init__(self, projection: Any) -> None:
+        self.projection = projection
+        self.calls: list[dict[str, Any]] = []
+
+    def authenticated_active_projection(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        return self.projection
 
 
 class _ConversationState:
@@ -123,6 +168,15 @@ def _context() -> TurnContext:
 def test_authenticated_chat_uses_only_representative_context_and_persists_receipt() -> None:
     order: list[str] = []
     receipts = _ReceiptStore(order)
+    preference_authority = _PreferenceAuthority(
+        selected=(_preference("pref-project", scope="project:chat-proof", value="concise"),),
+        exclusions=(
+            (
+                _preference("pref-global", scope="global", value="verbose"),
+                "superseded",
+            ),
+        ),
+    )
     passport = ProjectPassportV1(
         project_id="project:chat-proof",
         goal="Keep the chat representation trustworthy",
@@ -131,6 +185,13 @@ def test_authenticated_chat_uses_only_representative_context_and_persists_receip
         verified_at_commit="commit-current",
         passport_digest="p" * 64,
     )
+    project_authority = _ProjectPassportAuthority(passport)
+    correction_authority = _CorrectionAuthority(
+        (
+            SimpleNamespace(event_id="authenticated-correction:44"),
+            {"goal": "Review only the public API"},
+        )
+    )
     service = AuthenticatedChatRepresentation(
         principal=_principal(),
         constitution_authority=_ConstitutionAuthority(),
@@ -138,7 +199,10 @@ def test_authenticated_chat_uses_only_representative_context_and_persists_receip
             (_preference("pref-global", scope="global", value="verbose"),),
             (_preference("pref-project", scope="project:chat-proof", value="concise"),),
         ),
+        preference_authority=preference_authority,
+        project_passport_authority=project_authority,
         project_passport_store=_PassportStore(passport),
+        correction_authority=correction_authority,
         correction_store=_CorrectionStore(),
         conversation_state=_ConversationState(),
         representative_context_store=receipts,
@@ -172,6 +236,12 @@ def test_authenticated_chat_uses_only_representative_context_and_persists_receip
     )
 
     assert receipts.bundle == (result.context, result.receipt)
+    assert preference_authority.calls == [
+        (credential_digest("operator-a"), ("global", "project:project:chat-proof"))
+    ]
+    assert len(project_authority.calls) == 1
+    assert len(correction_authority.calls) == 1
+    assert correction_authority.calls[0]["active_revision"] == 44
     assert result.receipt.included_preference_ids == ("pref-project",)
     assert result.receipt.included_correction_ids == ("authenticated-correction:44",)
     assert result.receipt.active_project_revision == 7
@@ -191,6 +261,7 @@ def test_authenticated_chat_uses_only_representative_context_and_persists_receip
 
 def test_authenticated_chat_abstains_from_low_confidence_human_state() -> None:
     receipts = _ReceiptStore([])
+    preference_authority = _PreferenceAuthority(selected=())
     passport = ProjectPassportV1(
         project_id="project:chat-proof",
         goal="Keep the chat representation trustworthy",
@@ -198,11 +269,16 @@ def test_authenticated_chat_abstains_from_low_confidence_human_state() -> None:
         verified_at_commit="commit-current",
         passport_digest="p" * 64,
     )
+    project_authority = _ProjectPassportAuthority(passport)
+    correction_authority = _CorrectionAuthority(None)
     service = AuthenticatedChatRepresentation(
         principal=_principal(),
         constitution_authority=_ConstitutionAuthority(),
         preference_store=_PreferenceStore((), ()),
+        preference_authority=preference_authority,
+        project_passport_authority=project_authority,
         project_passport_store=_PassportStore(passport),
+        correction_authority=correction_authority,
         correction_store=_CorrectionStore(),
         conversation_state=_ConversationState(),
         representative_context_store=receipts,

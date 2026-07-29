@@ -260,24 +260,33 @@ _MEM_EXTERNAL_HEADER = (
 )
 
 
-def _crag_cloud_source(query: str) -> list[str]:
-    """CRAG external source A — the configured cloud model as a broader knowledge
-    base. Returns ``[]`` when no cloud provider is configured. The cloud client
-    secret-scrubs the message internally before transmission (PrivacyFilter)."""
-    client = get_gemini_client() or get_bedrock_client()
-    if client is None:
-        return []
+def _crag_cloud_source(
+    query: str, *, completion: Any | None = None
+) -> list[str]:
+    """CRAG external source A — the configured cloud model.
+
+    The compatibility call shape remains available for the existing helper
+    tests. The authenticated generate path supplies ``completion`` after
+    wrapping the real cloud chat client with Organ 32, so no cloud model call
+    escapes the identity/constitution/stop/context boundary there.
+    """
     prompt = (
         "Answer the question concisely and factually using only what you are "
         "confident about. If you do not know, say so rather than guessing.\n\n"
         f"Question: {query}"
     )
     try:
-        response = client.chat([{"role": "user", "content": prompt}], tools=None)
+        if completion is not None:
+            text = completion.complete(prompt).strip()
+        else:
+            client = get_gemini_client() or get_bedrock_client()
+            if client is None:
+                return []
+            response = client.chat([{"role": "user", "content": prompt}], tools=None)
+            text = str((response or {}).get("content", "")).strip()
     except Exception as exc:  # noqa: BLE001 - a cloud miss must not break recall
-        logger.warning("CRAG cloud source failed", exc_info=exc)
+        logger.warning("CRAG cloud source failed", exc_info=True)
         return []
-    text = str((response or {}).get("content", "")).strip()
     return [text] if text else []
 
 
@@ -299,13 +308,13 @@ def _crag_document_source(query: str) -> list[str]:
     return ingestor.search_chunks(query, limit=5)
 
 
-def _crag_external_sources() -> list:
+def _crag_external_sources(*, cloud_source: Any | None = None) -> list:
     """The enabled external corrective sources (each independently opt-in)."""
     sources: list = []
     if config.CRAG_DOCUMENTS:
         sources.append(_crag_document_source)
     if config.CRAG_CLOUD:
-        sources.append(_crag_cloud_source)
+        sources.append(cloud_source or _crag_cloud_source)
     if config.CRAG_WEBSEARCH:
         sources.append(_crag_web_source)
     return sources
@@ -314,36 +323,43 @@ def _crag_external_sources() -> list:
 _CRAG_JUDGE_NUMBER = re.compile(r"\d*\.?\d+")
 
 
-def _crag_llm_judge(query: str, passage: str) -> float:
-    """A local-model relevance score in [0,1] for one (query, passage) pair.
+def _crag_llm_judge(
+    query: str, passage: str, *, completion: Any | None = None
+) -> float:
+    """Return a local-model relevance score in [0,1].
 
-    Used as the evaluator's optional caution-only clamp (it can only *lower* a hit's
-    deterministic confidence — see ``evaluate_retrieval``). Raises on an unparseable
-    reply or a model error so the evaluator ignores it and the deterministic score
-    stands (never silently fabricates caution)."""
-    response = get_ollama_client().chat(
-        [
-            {
-                "role": "user",
-                "content": (
-                    "Rate how RELEVANT the passage is to answering the query, from "
-                    "0.0 (irrelevant) to 1.0 (directly answers it). Reply with ONLY "
-                    f"the number.\n\nQuery: {query}\nPassage: {passage}"
-                ),
-            }
-        ],
-        tools=None,
-        model=config.LLM_MODEL,
+    ``completion`` is the authenticated Organ 32 adapter used by the real
+    generate path. Leaving it optional preserves the narrow legacy helper
+    contract used by direct CRAG unit tests; that compatibility seam is not the
+    production caller.
+    """
+    prompt = (
+        "Rate how RELEVANT the passage is to answering the query, from "
+        "0.0 (irrelevant) to 1.0 (directly answers it). Reply with ONLY "
+        f"the number.\n\nQuery: {query}\nPassage: {passage}"
     )
-    text = str((response or {}).get("content", ""))
-    match = _CRAG_JUDGE_NUMBER.search(text)
+    if completion is not None:
+        text = completion.complete(prompt)
+    else:
+        response = get_ollama_client().chat(
+            [{"role": "user", "content": prompt}],
+            tools=None,
+            model=config.LLM_MODEL,
+        )
+        text = str((response or {}).get("content", ""))
+    match = _CRAG_JUDGE_NUMBER.search(str(text))
     if not match:
         raise ValueError(f"CRAG judge returned no score: {text!r}")
     return max(0.0, min(1.0, float(match.group(0))))
 
 
 def _recall_memory(
-    query: str, top_k: int = 3, *, authority: Any | None = None
+    query: str,
+    top_k: int = 3,
+    *,
+    authority: Any | None = None,
+    crag_judge: Any | None = None,
+    crag_cloud_source: Any | None = None,
 ) -> Optional[str]:
     """Best-effort hybrid recall of relevant semantic memories for *query*.
 
@@ -389,7 +405,13 @@ def _recall_memory(
                 hits,
                 upper=config.CRAG_UPPER,
                 lower=config.CRAG_LOWER,
-                judge=_crag_llm_judge if config.CRAG_LLM_JUDGE else None,
+                judge=(
+                    crag_judge
+                    if config.CRAG_LLM_JUDGE and crag_judge is not None
+                    else _crag_llm_judge
+                    if config.CRAG_LLM_JUDGE
+                    else None
+                ),
             )
             # Slice 3: on a low-confidence local recall, gather refined external
             # knowledge (privacy-gated, default off, only when a source is enabled).
@@ -399,7 +421,12 @@ def _recall_memory(
                 CragAction.AMBIGUOUS,
             ):
                 try:
-                    ext_docs = external_retrieve(query, _crag_external_sources())
+                    sources = (
+                        _crag_external_sources(cloud_source=crag_cloud_source)
+                        if crag_cloud_source is not None
+                        else _crag_external_sources()
+                    )
+                    ext_docs = external_retrieve(query, sources)
                     external_body = refine_context(query, ext_docs) if ext_docs else ""
                 except Exception as exc:  # noqa: BLE001 - external is additive
                     logger.warning("CRAG external retrieval failed", exc_info=exc)
