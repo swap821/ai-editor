@@ -532,3 +532,50 @@ def reset_sensitive_actions(
     """Reset a session after a genuine human approval/rejection decision."""
     limiter = rate_limiter if rate_limiter is not None else _default_rate_limiter
     limiter.reset(session_id)
+
+
+class SecurityGatewayAuthority:
+    """Own fail-closed command classification and rate-limiting (Decision A / organ 1).
+
+    Module-level :func:`classify`, :func:`validate_command`, and
+    :func:`set_injection_shield` remain the production call sites. This class is
+    the named authority owner; constructor-injected shield removes the
+    parameter-or-global ambiguity for callers that bind an authority instance.
+    """
+
+    def __init__(
+        self,
+        *,
+        injection_shield: object | None = None,
+        rate_limiter: RateLimiter | None = None,
+    ) -> None:
+        self._injection_shield = injection_shield
+        self._rate_limiter = (
+            rate_limiter if rate_limiter is not None else _default_rate_limiter
+        )
+
+    def classify(self, command: str) -> ClassificationResult:
+        return classify(command, injection_shield=self._injection_shield)
+
+    def validate_command(
+        self,
+        command: str,
+        *,
+        session_id: Optional[str] = None,
+        rate_limiter: Optional[RateLimiter] = None,
+    ) -> GatewayDecision:
+        return validate_command(
+            command,
+            session_id=session_id,
+            rate_limiter=rate_limiter
+            if rate_limiter is not None
+            else self._rate_limiter,
+        )
+
+    def set_injection_shield(self, shield: object | None) -> None:
+        """Bind shield on this authority and keep the process-wide install in sync."""
+        self._injection_shield = shield
+        set_injection_shield(shield)
+
+    def reset_sensitive_actions(self, session_id: Optional[str]) -> None:
+        reset_sensitive_actions(session_id, rate_limiter=self._rate_limiter)
