@@ -908,14 +908,15 @@
     "focused_tests": [
       "tests/test_local_workforce_provenance.py",
       "tests/test_local_workforce_service_provenance.py",
-      "tests/test_organ_authority_owners.py"
+      "tests/test_organ_authority_owners.py",
+      "tests/test_clerk_provenance_chain.py"
     ],
     "integration_tests": [
       "tests/test_launcher.py"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Dedicated re-audit 2026-07-28: Decision A is satisfied for provenance ownership. ClerkProvenanceAuthority is a substantive class in a ledger-listed production entrypoint; LocalWorkforceService.run_advisory_job() constructs it from the production-injected LocalWorkforceProvenanceStore and calls record_advisory_job() for completed, refused, and schema-failed jobs. Its job_provenance() read path reconstructs honest mid-crash states from the durable store, while the launcher compatibility command reads the same store. Focused provenance, service, dispatcher, launcher, and owner-reachability suites pass, including tests/test_local_workforce_service_provenance.py::test_full_job_trace_reconstructs_after_process_restart, with one existing warning. Fresh-process reconstruction proves the persisted request, model call, result, and hash-linked provenance chain are readable and verifiable after the writer process exits. Still yellow honestly: no live model evidence or exact-tip strict-release attestation has been attached, and the remaining green-contract conditions have not been completed; no additional implementation blocker was found in this re-audit."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 LocalWorkforceProvenanceStore SQLite chain persists across restart; production LocalWorkforceService.run_advisory_job() writes through ClerkProvenanceAuthority. C4 TAMPER-EVIDENCE: PASS \u2014 store-owned hash chain (previous_record_digest + record_digest from one _digest); deleted/reordered/edited rows raise ProvenanceChainBrokenError/RecordTamperedError (tests/test_clerk_provenance_chain.py). Writer and verifier share the same digest function (the original organ-38 link mismatch is closed). C5 FAIL-SAFE: PASS \u2014 mid-crash reconstruction and refusal paths report honest incomplete state rather than fabricating a completed job. Still yellow honestly: live Ollama/cloud evidence and exact-tip strict-release attestation (Phases 4\u20135) are not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
