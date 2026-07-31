@@ -244,3 +244,24 @@ def command_stays_in_scope(command: str) -> CommandScopeResult:
             offending=bare_target,
         )
     return CommandScopeResult(True, "All path tokens within scope.")
+
+
+class ScopeLockAuthority:
+    """Own path canonicalization and scope-root enforcement (Decision A / organ 2).
+
+    Existing module-level functions remain the production API. This class is the
+    named authority owner; it consolidates roots accessors with the path checks
+    so Decision A attestation resolves inside this organ's entrypoint.
+    """
+
+    def set_scope_roots(self, roots: Iterable[str | Path]) -> tuple[Path, ...]:
+        return set_scope_roots(roots)
+
+    def get_scope_roots(self) -> tuple[Path, ...]:
+        return get_scope_roots()
+
+    def is_path_in_scope(self, candidate: str) -> ScopeResult:
+        return is_path_in_scope(candidate)
+
+    def command_stays_in_scope(self, command: str) -> CommandScopeResult:
+        return command_stays_in_scope(command)
