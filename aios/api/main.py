@@ -280,10 +280,10 @@ async def lifespan(app: FastAPI):
     # regex layer remains the active defence.
     if config.INJECTION_VECTOR_SHIELD:
         try:
-            from aios.security.injection_shield import VectorInjectionShield
+            from aios.security.injection_shield import InjectionShieldAuthority
             from aios.security.gateway import set_injection_shield
 
-            set_injection_shield(VectorInjectionShield())
+            set_injection_shield(InjectionShieldAuthority())
         except Exception as exc:  # noqa: BLE001 - enhancement; never block startup
             logger.warning(
                 "Vector injection shield failed to load; regex layer remains active",
