@@ -964,6 +964,24 @@ def test_organ_10_mission_authority_is_reached_by_maintenance_service() -> None:
     assert type(service.mission_service) is MissionAuthority
 
 # --------------------------------------------------------------------------- #
+# Organ 11 -- TurnCoordinatorAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_11_turn_coordinator_is_reached_by_the_generate_route() -> None:
+    """Organ 11: /api/generate constructs TurnCoordinator(=TurnCoordinatorAuthority)."""
+    from aios.api import main as api_main
+    from aios.application.turns.turn_coordinator import (
+        TurnCoordinator,
+        TurnCoordinatorAuthority,
+    )
+
+    assert TurnCoordinator is TurnCoordinatorAuthority
+    source = inspect.getsource(api_main)
+    assert "TurnCoordinator(" in source
+    assert "turn = TurnCoordinator(" in source
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
