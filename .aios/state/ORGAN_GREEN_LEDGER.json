@@ -121,7 +121,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (request-scoped; token durability with organ 53). C4: PASS-PARTIAL (token rotation store; edge decisions themselves ephemeral). C5: PASS (fail closed on bad token/origin)."
+      "C3: PASS (request-scoped; token durability with organ 53). C4: N/A-BY-DESIGN (edge decisions ephemeral; durable token rotation owned by organ 53). C5: PASS (fail closed on bad token/origin)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -142,7 +142,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (binds durable autonomy/constitution deps). C4: PASS-PARTIAL (policy decisions audited via organ 4; kernel itself not a journal). C5: PASS (refuses when constitution unwired)."
+      "C3: PASS (binds durable autonomy/constitution deps). C4: N/A-BY-DESIGN (kernel is not a journal; policy decisions audited via organ 4). C5: PASS (refuses when constitution unwired)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -203,7 +203,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (mission SQLite durable). C4: PASS-PARTIAL (transitions journaled when organ-42 journal wired on path). C5: PASS."
+      "C3: PASS (mission SQLite durable). C4: PASS (production maintenance MissionAuthority journals MISSION_CREATED via organ-42 RecoveryResumptionAuthority). C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -245,7 +245,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (foundry/scheduler registry durable enough for cancel/stop). C4: PASS-PARTIAL (outcomes audited; not organ-38 chain). C5: PASS."
+      "C3: PASS (foundry/scheduler registry durable enough for cancel/stop). C4: N/A-BY-DESIGN (foundry not a hash-chain journal; outcomes audited via organ 4 / provenance via organ 38). C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -266,7 +266,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (workspaces on disk; container backend). C4: PASS-PARTIAL (execution audited; isolation not a hash chain). C5: PASS (unavailable reported honestly)."
+      "C3: PASS (workspaces on disk; container backend). C4: N/A-BY-DESIGN (isolation boundary, not a hash chain; execution audited via organ 4). C5: PASS (unavailable reported honestly)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -287,7 +287,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (staged workspaces on disk). C4: PASS-PARTIAL (integrity via promotion verification). C5: PASS."
+      "C3: PASS (staged workspaces on disk). C4: N/A-BY-DESIGN (integrity via promotion verification / organ 16; not organ-4 chain). C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -346,7 +346,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (SQLite outbox durable). C4: PASS-PARTIAL (append-then-commit; adversarial hash-chain is organ 4). C5: PASS."
+      "C3: PASS (SQLite outbox durable). C4: PASS (writer+verifier share cortex_event_content_digest; mismatch raises CortexBusPayloadTamperedError; adversarial audit chain remains organ 4). C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -426,7 +426,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (runtime dirs + ledgers durable). C4: PASS-PARTIAL (KingReport/ledger files; not organ-38 chain). C5: PASS."
+      "C3: PASS (runtime dirs + ledgers durable). C4: N/A-BY-DESIGN (KingReport/ledger files; adversarial chain owned by organ 4 / organ 38). C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -565,7 +565,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS-PARTIAL (stop latch + audit preserve_evidence). C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN (stop latch is process/control-plane state; evidence preservation audited via organ 4). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -599,7 +599,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (preference stores durable). C4: PASS-PARTIAL (store integrity; not organ-38 chain). C5: PASS."
+      "C3: PASS (preference stores durable). C4: N/A-BY-DESIGN (store integrity via preference SQLite; adversarial chain owned by organ 4 / organ 38). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -721,7 +721,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (context store + receipts). C4: PASS-PARTIAL (receipt durability). C5: PASS."
+      "C3: PASS (context store + receipts). C4: N/A-BY-DESIGN (receipt durability in context store; not organ-38/4 chain owner). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -763,7 +763,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (strict receipt before provider). C4: PASS-PARTIAL (receipt digests). C5: PASS."
+      "C3: PASS (strict receipt before provider). C4: N/A-BY-DESIGN (receipt digests are gateway artifacts; audit chain owned by organ 4). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -792,7 +792,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (registry SQLite durable). C4: PASS-PARTIAL (passport fields). C5: PASS. Outside-machine residual: live Ollama qualification cohort."
+      "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN (passport fields in registry store; adversarial chain owned by organ 4 / organ 38). C5: PASS. Outside-machine residual: live Ollama qualification cohort."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -841,7 +841,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable registry). C4: PASS-PARTIAL. C5: PASS. Outside-machine residual: live Ollama runtime."
+      "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN (runtime admission over registry; not a journal owner). C5: PASS. Outside-machine residual: live Ollama runtime."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -887,7 +887,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (qualification evidence in registry). C4: PASS-PARTIAL. C5: PASS. Outside-machine residual: live Ollama qualification suite."
+      "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN (qualification suite writes registry evidence; adversarial chain owned by organ 38). C5: PASS. Outside-machine residual: live Ollama qualification suite."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -947,7 +947,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (DeliberationStore). C4: PASS-PARTIAL (stored records; not organ-38 chain). C5: PASS."
+      "C3: PASS (DeliberationStore). C4: N/A-BY-DESIGN (stored deliberation records; adversarial chain owned by organ 4 / organ 38). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -987,7 +987,7 @@
       }
     ],
     "known_blockers": [
-      "C3: PASS. C4: PASS-PARTIAL (executor isolation + audit). C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN (executor isolation + audit via organ 4; not a hash-chain journal). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1071,7 +1071,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS-PARTIAL (outcome/confidence durability). C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN (outcome/confidence durability in skill store; adversarial chain owned by organ 38). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1159,7 +1159,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS-PARTIAL. C5: PASS. Outside-machine residual: adversarial simulation cohort may need live models."
+      "C3: PASS. C4: N/A-BY-DESIGN (learning outcomes durable in learning stores; adversarial chain owned by organ 4). C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1182,7 +1182,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable sources). C4: PASS-PARTIAL (projection freshness). C5: PASS (unavailable rather than zeros)."
+      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN (projection organ; freshness from source organs; not a journal owner). C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope)."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1355,7 +1355,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (token rotation DB durable). C4: PASS-PARTIAL (rotation store integrity). C5: PASS."
+      "C3: PASS (token rotation DB durable). C4: N/A-BY-DESIGN (rotation store integrity; adversarial audit chain owned by organ 4). C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
