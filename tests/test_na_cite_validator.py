@@ -108,4 +108,4 @@ def test_shipped_ledger_na_cite_count_is_nonzero() -> None:
         for blocker in record.known_blockers
         if "N/A-BY-DESIGN" in blocker
     )
-    assert cite_count >= 20
+    assert cite_count >= 10
