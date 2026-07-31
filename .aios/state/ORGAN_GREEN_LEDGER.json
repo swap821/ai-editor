@@ -183,7 +183,9 @@
       "tests/test_e2e_sovereign_flywheel.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 CapabilityAuthority / CapabilityStore SQLite durable (incl. constitution_digest column). C4 TAMPER-EVIDENCE: PASS \u2014 consume recomputes constitution digest; mismatch refuses. C5 FAIL-SAFE: PASS \u2014 IdentityDegraded / CapabilityError fail closed. Still yellow honestly: already green for construction; remaining green-contract live/SHA not re-attested this tip."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
