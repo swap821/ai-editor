@@ -29,9 +29,6 @@ from aios import config
 #: it is. Newlines are already handled by shlex's whitespace split.
 _SHELL_OPS = re.compile(r"[;|&<>`]+")
 
-_lock = threading.RLock()
-_scope_roots: list[Path] = [Path(p).resolve() for p in config.SCOPE_ROOTS]
-
 
 @dataclass(frozen=True)
 class ScopeResult:
@@ -51,23 +48,6 @@ class CommandScopeResult:
     offending: Optional[str] = None
 
 
-def set_scope_roots(roots: Iterable[str | Path]) -> tuple[Path, ...]:
-    """Replace the declared scope roots (session init). Returns the new roots."""
-    resolved = [Path(r).resolve() for r in roots]
-    if not resolved:
-        raise ValueError("At least one scope root is required.")
-    with _lock:
-        _scope_roots.clear()
-        _scope_roots.extend(resolved)
-        return tuple(_scope_roots)
-
-
-def get_scope_roots() -> tuple[Path, ...]:
-    """Return the currently declared scope roots."""
-    with _lock:
-        return tuple(_scope_roots)
-
-
 def _is_within(resolved: Path, root: Path) -> bool:
     """Return True if *resolved* is *root* itself or nested beneath it."""
     import os
@@ -77,36 +57,6 @@ def _is_within(resolved: Path, root: Path) -> bool:
     if res_str == root_str or res_str.startswith(root_str + os.sep):
         return True
     return False
-
-
-def is_path_in_scope(candidate: str) -> ScopeResult:
-    """Resolve *candidate* and check it against every declared scope root.
-
-    Relative paths are resolved against the primary (first) scope root.
-    Fail-closed: any resolution error yields ``in_scope=False``.
-    """
-    try:
-        if not candidate or not isinstance(candidate, str):
-            return ScopeResult(False, "", "Empty or invalid path (fail-closed).")
-
-        roots = get_scope_roots()
-        base = roots[0] if roots else Path.cwd()
-        raw = Path(candidate)
-        # Join relative paths onto the primary root; absolute/drive-rooted paths
-        # override the base per pathlib semantics (which is what we want — they
-        # then fail the scope check below).
-        resolved = (base / raw).resolve()
-
-        for root in roots:
-            if _is_within(resolved, root):
-                return ScopeResult(True, str(resolved), "Path within declared scope.")
-        return ScopeResult(
-            False,
-            str(resolved),
-            f"Path '{resolved}' escapes all declared scope roots.",
-        )
-    except Exception as exc:  # noqa: BLE001 - fail-closed on any error
-        return ScopeResult(False, "", f"Path resolution failed (fail-closed): {exc}")
 
 
 def _looks_like_path(token: str) -> bool:
@@ -180,6 +130,152 @@ def _bare_write_target_is_out_of_scope(words: list[str]) -> Optional[str]:
     return None
 
 
+class ScopeLockAuthority:
+    """Own path canonicalization and scope-root enforcement (Decision A / organ 2).
+
+    Module-level :func:`set_scope_roots`, :func:`get_scope_roots`,
+    :func:`is_path_in_scope`, and :func:`command_stays_in_scope` remain the
+    production call sites; they delegate to the process singleton
+    :data:`_SCOPE_LOCK`.
+    """
+
+    def __init__(self, roots: Iterable[str | Path] | None = None) -> None:
+        self._lock = threading.RLock()
+        initial = roots if roots is not None else config.SCOPE_ROOTS
+        self._scope_roots: list[Path] = [Path(p).resolve() for p in initial]
+
+    def set_scope_roots(self, roots: Iterable[str | Path]) -> tuple[Path, ...]:
+        """Replace the declared scope roots (session init). Returns the new roots."""
+        resolved = [Path(r).resolve() for r in roots]
+        if not resolved:
+            raise ValueError("At least one scope root is required.")
+        with self._lock:
+            self._scope_roots.clear()
+            self._scope_roots.extend(resolved)
+            return tuple(self._scope_roots)
+
+    def get_scope_roots(self) -> tuple[Path, ...]:
+        """Return the currently declared scope roots."""
+        with self._lock:
+            return tuple(self._scope_roots)
+
+    def is_path_in_scope(self, candidate: str) -> ScopeResult:
+        """Resolve *candidate* and check it against every declared scope root.
+
+        Relative paths are resolved against the primary (first) scope root.
+        Fail-closed: any resolution error yields ``in_scope=False``.
+        """
+        try:
+            if not candidate or not isinstance(candidate, str):
+                return ScopeResult(False, "", "Empty or invalid path (fail-closed).")
+
+            roots = self.get_scope_roots()
+            base = roots[0] if roots else Path.cwd()
+            raw = Path(candidate)
+            # Join relative paths onto the primary root; absolute/drive-rooted paths
+            # override the base per pathlib semantics (which is what we want — they
+            # then fail the scope check below).
+            resolved = (base / raw).resolve()
+
+            for root in roots:
+                if _is_within(resolved, root):
+                    return ScopeResult(True, str(resolved), "Path within declared scope.")
+            return ScopeResult(
+                False,
+                str(resolved),
+                f"Path '{resolved}' escapes all declared scope roots.",
+            )
+        except Exception as exc:  # noqa: BLE001 - fail-closed on any error
+            return ScopeResult(False, "", f"Path resolution failed (fail-closed): {exc}")
+
+    def command_stays_in_scope(self, command: str) -> CommandScopeResult:
+        """Verify every path-like *word* in *command* resolves inside a scope root.
+
+        The command is split into shell **words** and each path-like word is resolved
+        as a *single* path. This is deliberately different from scanning for path
+        *fragments*: a relative tool path like ``.venv\\Scripts\\python.exe`` is checked
+        intact, instead of a mid-word separator being mis-read as the rooted
+        ``\\Scripts\\python.exe`` (which used to falsely resolve to ``C:\\Scripts\\…``
+        and block legitimate commands). Real escapes are still caught — an absolute
+        path, a drive path, or relative traversal (``..\\..``) resolves outside the
+        root and is blocked. The line is first split on shell operators (so an
+        absolute path glued to a word by ``>`` ``;`` ``|`` ``&`` is isolated), and a
+        ``~`` home reference is refused outright. Returns at the first offending word;
+        fail-closed (unbalanced quotes fall back to a whitespace split).
+        """
+        if not command or not isinstance(command, str):
+            return CommandScopeResult(False, "Empty command (fail-closed).")
+
+        # Split on shell operators first so a glued absolute path (``x>/etc/p``,
+        # ``a;/etc/passwd``) becomes its own word, then shlex-tokenise each segment
+        # (posix=False keeps Windows backslashes literal). Unbalanced quotes fall
+        # back to a whitespace split. Over-splitting a quoted literal can only block,
+        # never silently allow — the right bias for a fail-closed scope gate.
+        words: list[str] = []
+        for segment in _SHELL_OPS.split(command):
+            if not segment.strip():
+                continue
+            try:
+                words.extend(shlex.split(segment, posix=False))
+            except ValueError:
+                words.extend(segment.split())
+
+        for raw in words:
+            token = raw.strip("\"'")
+            if not token:
+                continue
+            # Home reference: Path never expands ``~``, so a literal join would
+            # resolve in-scope. Refuse it — home is never inside the sandbox.
+            if token.startswith("~"):
+                return CommandScopeResult(
+                    False,
+                    f"Home-directory reference '{token}' escapes the sandbox scope.",
+                    offending=token,
+                )
+            if not _looks_like_path(token):
+                continue
+            # Skip tiny pure flags (``/s``, ``-r``) — but never a parent ref (``..``).
+            if len(token) < 3 and not token.startswith(".."):
+                continue
+            check = self.is_path_in_scope(token)
+            if not check.in_scope:
+                return CommandScopeResult(False, check.reason, offending=token)
+
+        bare_target = _bare_write_target_is_out_of_scope(words)
+        if bare_target is not None:
+            return CommandScopeResult(
+                False,
+                f"'{bare_target}' has no explicit sandbox-relative path (e.g. "
+                f"'training_ground/{bare_target}') — a bare argument to a "
+                "file-mutating command is ambiguous about which directory it "
+                "targets and is refused rather than guessed.",
+                offending=bare_target,
+            )
+        return CommandScopeResult(True, "All path tokens within scope.")
+
+
+_SCOPE_LOCK = ScopeLockAuthority()
+
+
+def set_scope_roots(roots: Iterable[str | Path]) -> tuple[Path, ...]:
+    """Replace the declared scope roots (session init). Returns the new roots."""
+    return _SCOPE_LOCK.set_scope_roots(roots)
+
+
+def get_scope_roots() -> tuple[Path, ...]:
+    """Return the currently declared scope roots."""
+    return _SCOPE_LOCK.get_scope_roots()
+
+
+def is_path_in_scope(candidate: str) -> ScopeResult:
+    """Resolve *candidate* and check it against every declared scope root.
+
+    Relative paths are resolved against the primary (first) scope root.
+    Fail-closed: any resolution error yields ``in_scope=False``.
+    """
+    return _SCOPE_LOCK.is_path_in_scope(candidate)
+
+
 def command_stays_in_scope(command: str) -> CommandScopeResult:
     """Verify every path-like *word* in *command* resolves inside a scope root.
 
@@ -195,73 +291,4 @@ def command_stays_in_scope(command: str) -> CommandScopeResult:
     ``~`` home reference is refused outright. Returns at the first offending word;
     fail-closed (unbalanced quotes fall back to a whitespace split).
     """
-    if not command or not isinstance(command, str):
-        return CommandScopeResult(False, "Empty command (fail-closed).")
-
-    # Split on shell operators first so a glued absolute path (``x>/etc/p``,
-    # ``a;/etc/passwd``) becomes its own word, then shlex-tokenise each segment
-    # (posix=False keeps Windows backslashes literal). Unbalanced quotes fall
-    # back to a whitespace split. Over-splitting a quoted literal can only block,
-    # never silently allow — the right bias for a fail-closed scope gate.
-    words: list[str] = []
-    for segment in _SHELL_OPS.split(command):
-        if not segment.strip():
-            continue
-        try:
-            words.extend(shlex.split(segment, posix=False))
-        except ValueError:
-            words.extend(segment.split())
-
-    for raw in words:
-        token = raw.strip("\"'")
-        if not token:
-            continue
-        # Home reference: Path never expands ``~``, so a literal join would
-        # resolve in-scope. Refuse it — home is never inside the sandbox.
-        if token.startswith("~"):
-            return CommandScopeResult(
-                False,
-                f"Home-directory reference '{token}' escapes the sandbox scope.",
-                offending=token,
-            )
-        if not _looks_like_path(token):
-            continue
-        # Skip tiny pure flags (``/s``, ``-r``) — but never a parent ref (``..``).
-        if len(token) < 3 and not token.startswith(".."):
-            continue
-        check = is_path_in_scope(token)
-        if not check.in_scope:
-            return CommandScopeResult(False, check.reason, offending=token)
-
-    bare_target = _bare_write_target_is_out_of_scope(words)
-    if bare_target is not None:
-        return CommandScopeResult(
-            False,
-            f"'{bare_target}' has no explicit sandbox-relative path (e.g. "
-            f"'training_ground/{bare_target}') — a bare argument to a "
-            "file-mutating command is ambiguous about which directory it "
-            "targets and is refused rather than guessed.",
-            offending=bare_target,
-        )
-    return CommandScopeResult(True, "All path tokens within scope.")
-
-
-class ScopeLockAuthority:
-    """Own path canonicalization and scope-root enforcement (Decision A / organ 2).
-
-    Existing module-level functions remain the production API. This class is the
-    named authority owner; it consolidates roots accessors with the path checks
-    so Decision A attestation resolves inside this organ's entrypoint.
-    """
-
-    def set_scope_roots(self, roots: Iterable[str | Path]) -> tuple[Path, ...]:
-        return set_scope_roots(roots)
-
-    def get_scope_roots(self) -> tuple[Path, ...]:
-        return get_scope_roots()
-
-    def is_path_in_scope(self, candidate: str) -> ScopeResult:
-        return is_path_in_scope(candidate)
-
-    def command_stays_in_scope(self, command: str) -> CommandScopeResult:
-        return command_stays_in_scope(command)
+    return _SCOPE_LOCK.command_stays_in_scope(command)
