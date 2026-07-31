@@ -163,7 +163,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: the real ActionBroker implementation is now the concrete ActionBrokerAuthority class in this organ's production entrypoint; the legacy ActionBroker import is only a compatibility alias. The production dependency factory returns this exact class, verified by tests/test_organ_authority_owners.py and the focused action-broker suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 action broker persists grants via capability authority stores. C4 TAMPER-EVIDENCE: PASS \u2014 capability payloads are server-issued, single-use, payload-bound. C5 FAIL-SAFE: PASS \u2014 missing/invalid grants refuse rather than forge approval. Still yellow honestly: exact-tip SHA + live evidence not claimed."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
