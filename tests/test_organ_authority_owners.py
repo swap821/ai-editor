@@ -1188,6 +1188,21 @@ def test_capability_authority_is_the_live_dependency_factory() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Organ 15 -- VerificationAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_verification_authority_is_the_live_dependency_factory() -> None:
+    """Organ 15: deps.get_verification_authority returns the ledger owner."""
+    from aios.api.deps import get_verification_authority
+    from aios.application.evidence.verification import VerificationAuthority
+
+    authority = get_verification_authority()
+    assert type(authority) is VerificationAuthority
+    assert get_verification_authority() is authority
+
+
+# --------------------------------------------------------------------------- #
 # Organ 6 -- EdgeTrustAuthority
 # --------------------------------------------------------------------------- #
 
