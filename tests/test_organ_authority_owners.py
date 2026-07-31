@@ -943,6 +943,27 @@ def test_organ_8_action_broker_is_the_live_dependency_factory() -> None:
     assert type(authority) is ActionBrokerAuthority
 
 # --------------------------------------------------------------------------- #
+# Organ 10 -- MissionAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_10_mission_authority_is_reached_by_maintenance_service() -> None:
+    """Organ 10: the maintenance convergence path owns a MissionAuthority.
+
+    Constructing MissionAuthority in a test would only prove the class exists.
+    The repair path must hold the ledger owner as its mission_service.
+    """
+    from aios.api.deps import get_maintenance_convergence_service
+    from aios.application.missions.mission_service import (
+        MissionAuthority,
+        MissionService,
+    )
+
+    assert MissionService is MissionAuthority
+    service = get_maintenance_convergence_service()
+    assert type(service.mission_service) is MissionAuthority
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
