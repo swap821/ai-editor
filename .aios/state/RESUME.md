@@ -1,15 +1,15 @@
-# Phases 4–6 absolute — closed via shortfall & CI gate resolution — 2026-07-31
+# Artifactplan 100% Phases 1/3/5/6 — 2026-07-31
 
-**Goal:** Solve GitHub CI release-authority manifest gate failure and maintain Phases 4, 5, and 6 conformance.
+**Goal:** Meet artifactplan.md exit criteria for Phases 1, 3, 5, 6 (strict honest — not soft PHASE_4_5_6_ABSOLUTE_BAR shortcuts).
 
 **Last completed + verified:**
-- **Phase 4 absolute:** live evidence for **38** organs on tip `5d482164707c6c6e62f3da6a37cff79f252f9260` via `scripts/phase4_live_evidence.py` → `release/phase4/live-evidence-5d482164707c.json`. Remaining **16** yellows hold precise named residuals (frozen / no Docker / no Ollama / Outside-machine / Phase 6 / browser-session). `verify_organ_contracts` **0**. No silent gaps.
-- **Phase 5 absolute:** flipped **31** organs green after evidence + tip SHA + Decision A + empty blockers (adversarial re-read). Totals: **38 green / 16 yellow**. Never flipped: 1–5, 20, 23, 33/35/37/46, 40, 44, 48/49/51.
-- **Phase 6 absolute & CI Gate Resolution:** Normalized `.aios/state/PHASE_4_5_6_ABSOLUTE_BAR.md` line endings to LF (`\n`) and regenerated `release/organ-proof-manifest.json` with exact LF sha256 (`adc8ebe389d7...`). `python scripts/build_release_manifest.py --check` and `python scripts/verify_organ_contracts.py` pass 100% cleanly (0 violations).
+- **Phase 1 DONE:** ordinary CI (`release-authority`) runs `verify_organ_contracts.py --require-sha-ancestry`; every green has `last_verified_sha` that is an ancestor of HEAD; `--strict-release` remains for `workflow_dispatch` + `gagos-release-*` tags. Chicken-egg documented in `release/phase6/STRICT_RELEASE_PROCEDURE.md`. Organ 52 live evidence retained.
+- **Phase 3 DONE:** `condition_verdicts` C1–C12 on all 54 organs; `validate_ledger(..., enforce_condition_verdicts=True)` fail-closed; greens keep `known_blockers: []`; C3–C5 restored from history into verdicts. `verify_organ_contracts` **0**.
+- **Phase 5 DONE:** `scripts/verify_organ_twelve_conditions.py` mechanical re-read (CI-wired); `release/phase5/organ-NN.md` one proof per organ; 38 greens survive; no Outside/frozen/Ollama/Docker/browser/23 flips.
+- **Phase 6 DONE (via shortfall):** `release/phase6/organ23-shortfall.md` names **exact failing condition numbers** (chiefly C10 / C9+C10); organ 23 stays yellow. Strict tip equality is procedure-bound to evidence tip `5d48216…`, not fake HEAD stamp.
 
+**Counts:** 38 green / 16 yellow. Tip HEAD: see `git rev-parse HEAD`. Evidence tip: `5d482164707c6c6e62f3da6a37cff79f252f9260`.
 
-**Single next action:** Commit the manifest update and governance formatting fixes to origin/master.
+**Single next action:** Operator review of shortfall + optional Outside-machine / Docker / Ollama / browser / §VIII frozen-spine work; tag `gagos-release-*` at evidence tip when cutting a strict release.
 
-**Tip under evidence:** `5d482164707c6c6e62f3da6a37cff79f252f9260`.
-**Tip:** `96a58b1fd60eec2c964813af271de02d1e66c9f5`.
-
+**Cannot be 54/54 without:** secrets/infra for organs 44 (cloud), 33/35/37/46 (Ollama), 40 (Docker daemon tip-restamp), 20/48/49/51 (browser), 1–5 (§VIII), 23 (gate on all below).
