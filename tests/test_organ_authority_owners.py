@@ -1043,6 +1043,21 @@ def test_organ_13_executor_service_authority_owns_the_live_job_route(
     assert executor_mod._EXECUTOR_SERVICE_AUTHORITY is _EXECUTOR_SERVICE_AUTHORITY
 
 # --------------------------------------------------------------------------- #
+# Organ 17 -- CortexBusAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_17_cortex_bus_is_what_api_lifespan_constructs() -> None:
+    """Organ 17: api.main lifespan constructs CortexBus(=CortexBusAuthority)."""
+    from aios.api import main as api_main
+    from aios.runtime.cortex_bus import CortexBus, CortexBusAuthority
+
+    assert CortexBus is CortexBusAuthority
+    source = inspect.getsource(api_main.lifespan)
+    assert "CortexBus()" in source
+    assert "get_cortex_bus" in inspect.getsource(api_main)
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
