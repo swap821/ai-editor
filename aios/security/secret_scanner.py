@@ -318,6 +318,100 @@ def _is_inside_redacted(pos: int, spans: list[tuple[int, int]]) -> bool:
     return False
 
 
+class SecretScannerAuthority:
+    """Own the secret detection and redaction boundary (Decision A / organ 3).
+
+    Module-level :func:`scan_and_redact` remains the production entrypoint; it
+    delegates to the process singleton :data:`_SECRET_SCANNER`.
+    """
+
+    def scan_and_redact(self, payload: str) -> ScanResult:
+        """Detect and redact secrets in *payload*.
+
+        Runs the named-regex pass first, then an entropy pass over any remaining
+        long tokens, then a sliding-window pass for Base64 secrets that span
+        token boundaries.  Contextual filtering reduces false positives while
+        maintaining detection of real secrets.
+
+        Returns the scrubbed text, whether anything was detected, and the
+        distinct finding labels (e.g. ``("AWS_ACCESS_KEY", "HIGH_ENTROPY")``).
+        """
+        if not payload or not isinstance(payload, str):
+            return ScanResult(scrubbed=payload, detected=False, findings=())
+
+        findings: list[str] = []
+        scrubbed = payload
+
+        # Pass 1 — named credential formats.
+        for name, pattern in _NAMED_PATTERNS:
+
+            def _replace(match: "re.Match[str]", _name: str = name) -> str:
+                # For the broad AWS_SECRET_KEY pattern, require AWS context.
+                if _name == "AWS_SECRET_KEY":
+                    if not _has_aws_context(payload, match.start()):
+                        return match.group(0)
+                findings.append(_name)
+                return f"<REDACTED:{_name}:{_fingerprint(match.group(0))}>"
+
+            scrubbed = pattern.sub(_replace, scrubbed)
+
+        # After Pass 1, record where the redacted markers are so Pass 2 never
+        # re-processes the hash fingerprints inside them.
+        redacted_spans = _redacted_spans(scrubbed)
+
+        # Pass 2 — high-entropy tokens the named patterns did not already redact.
+        def _entropy_replace(match: "re.Match[str]") -> str:
+            # Skip if this match is inside an already-redacted marker.
+            if _is_inside_redacted(match.start(), redacted_spans):
+                return match.group(0)
+            token = match.group(0)
+            if (
+                len(token) >= _credential_like_min_len(token)
+                and shannon_entropy(token) >= _ENTROPY_THRESHOLD
+            ):
+                findings.append("HIGH_ENTROPY")
+                return f"<REDACTED:HIGH_ENTROPY:{_fingerprint(token)}>"
+            return token
+
+        scrubbed = _ENTROPY_TOKEN.sub(_entropy_replace, scrubbed)
+
+        # Pass 3 — sliding-window entropy for Base64 spanning token boundaries.
+        # Refresh the redacted spans after Pass 2 before running Pass 3.
+        redacted_spans = _redacted_spans(scrubbed)
+        slide_matches = _sliding_window_entropy_scan(payload)
+        if slide_matches:
+            # Build a new scrubbed string by processing original payload with
+            # sliding-window matches merged with named-pattern/entropy matches.
+            result_parts: list[str] = []
+            last_idx = 0
+            for start, end, label in slide_matches:
+                if start < last_idx:
+                    continue
+                # Check if this region overlaps with an already-redacted segment.
+                if any(s < end and start < e for s, e in redacted_spans):
+                    continue
+                result_parts.append(scrubbed[last_idx:start])
+                original_region = payload[start:end]
+                findings.append(label)
+                result_parts.append(
+                    f"<REDACTED:{label}:{_fingerprint(original_region)}>"
+                )
+                last_idx = end
+            result_parts.append(scrubbed[last_idx:])
+            scrubbed = "".join(result_parts)
+
+        # De-duplicate findings while preserving first-seen order.
+        unique_findings = tuple(dict.fromkeys(findings))
+        return ScanResult(
+            scrubbed=scrubbed,
+            detected=bool(unique_findings),
+            findings=unique_findings,
+        )
+
+
+_SECRET_SCANNER = SecretScannerAuthority()
+
+
 def scan_and_redact(payload: str) -> ScanResult:
     """Detect and redact secrets in *payload*.
 
@@ -329,85 +423,4 @@ def scan_and_redact(payload: str) -> ScanResult:
     Returns the scrubbed text, whether anything was detected, and the
     distinct finding labels (e.g. ``("AWS_ACCESS_KEY", "HIGH_ENTROPY")``).
     """
-    if not payload or not isinstance(payload, str):
-        return ScanResult(scrubbed=payload, detected=False, findings=())
-
-    findings: list[str] = []
-    scrubbed = payload
-
-    # Pass 1 — named credential formats.
-    for name, pattern in _NAMED_PATTERNS:
-
-        def _replace(match: "re.Match[str]", _name: str = name) -> str:
-            # For the broad AWS_SECRET_KEY pattern, require AWS context.
-            if _name == "AWS_SECRET_KEY":
-                if not _has_aws_context(payload, match.start()):
-                    return match.group(0)
-            findings.append(_name)
-            return f"<REDACTED:{_name}:{_fingerprint(match.group(0))}>"
-
-        scrubbed = pattern.sub(_replace, scrubbed)
-
-    # After Pass 1, record where the redacted markers are so Pass 2 never
-    # re-processes the hash fingerprints inside them.
-    redacted_spans = _redacted_spans(scrubbed)
-
-    # Pass 2 — high-entropy tokens the named patterns did not already redact.
-    def _entropy_replace(match: "re.Match[str]") -> str:
-        # Skip if this match is inside an already-redacted marker.
-        if _is_inside_redacted(match.start(), redacted_spans):
-            return match.group(0)
-        token = match.group(0)
-        if (
-            len(token) >= _credential_like_min_len(token)
-            and shannon_entropy(token) >= _ENTROPY_THRESHOLD
-        ):
-            findings.append("HIGH_ENTROPY")
-            return f"<REDACTED:HIGH_ENTROPY:{_fingerprint(token)}>"
-        return token
-
-    scrubbed = _ENTROPY_TOKEN.sub(_entropy_replace, scrubbed)
-
-    # Pass 3 — sliding-window entropy for Base64 spanning token boundaries.
-    # Refresh the redacted spans after Pass 2 before running Pass 3.
-    redacted_spans = _redacted_spans(scrubbed)
-    slide_matches = _sliding_window_entropy_scan(payload)
-    if slide_matches:
-        # Build a new scrubbed string by processing original payload with
-        # sliding-window matches merged with named-pattern/entropy matches.
-        result_parts: list[str] = []
-        last_idx = 0
-        for start, end, label in slide_matches:
-            if start < last_idx:
-                continue
-            # Check if this region overlaps with an already-redacted segment.
-            if any(s < end and start < e for s, e in redacted_spans):
-                continue
-            result_parts.append(scrubbed[last_idx:start])
-            original_region = payload[start:end]
-            findings.append(label)
-            result_parts.append(f"<REDACTED:{label}:{_fingerprint(original_region)}>")
-            last_idx = end
-        result_parts.append(scrubbed[last_idx:])
-        scrubbed = "".join(result_parts)
-
-    # De-duplicate findings while preserving first-seen order.
-    unique_findings = tuple(dict.fromkeys(findings))
-    return ScanResult(
-        scrubbed=scrubbed,
-        detected=bool(unique_findings),
-        findings=unique_findings,
-    )
-
-
-class SecretScannerAuthority:
-    """Own the secret detection and redaction boundary (Decision A / organ 3).
-
-    Module-level :func:`scan_and_redact` remains the production entrypoint; this
-    class is the named authority owner so attestation resolves to a real class
-    inside this organ's production entrypoints without changing call sites.
-    """
-
-    def scan_and_redact(self, payload: str) -> ScanResult:
-        """Delegate to the module scanner — one cohesive mechanism."""
-        return scan_and_redact(payload)
+    return _SECRET_SCANNER.scan_and_redact(payload)
