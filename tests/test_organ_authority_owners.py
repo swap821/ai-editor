@@ -1218,6 +1218,21 @@ def test_promotion_authority_is_the_live_dependency_factory() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Organ 18 -- MemoryAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_memory_authority_is_the_live_dependency_factory() -> None:
+    """Organ 18: deps.get_memory_authority returns the ledger owner."""
+    from aios.api.deps import get_memory_authority
+    from aios.application.memory.authority import MemoryAuthority
+
+    authority = get_memory_authority()
+    assert type(authority) is MemoryAuthority
+    assert get_memory_authority() is authority
+
+
+# --------------------------------------------------------------------------- #
 # Organ 6 -- EdgeTrustAuthority
 # --------------------------------------------------------------------------- #
 
