@@ -272,12 +272,12 @@ def _request(path: str, method: str = "GET") -> Request:
 
 def test_request_authority_returns_summary(kernel, monkeypatch):
     monkeypatch.setattr(
-        "aios.policy.kernel.edge_security.check_api_token_or_loopback",
-        lambda _r: None,
+        "aios.interfaces.http.edge_security.EdgeTrustAuthority.check_api_token_or_loopback",
+        lambda self, _r: None,
     )
     monkeypatch.setattr(
-        "aios.policy.kernel.edge_security.check_mutation_origin_or_token",
-        lambda _r: None,
+        "aios.interfaces.http.edge_security.EdgeTrustAuthority.check_mutation_origin_or_token",
+        lambda self, _r: None,
     )
 
     summary = kernel.request_authority(_request("/api/v1/execute"))
@@ -290,8 +290,8 @@ def test_request_authority_raises_when_edge_check_fails(kernel, monkeypatch):
     from starlette.responses import JSONResponse
 
     monkeypatch.setattr(
-        "aios.policy.kernel.edge_security.check_api_token_or_loopback",
-        lambda _r: JSONResponse({"detail": "unauthorised"}, status_code=401),
+        "aios.interfaces.http.edge_security.EdgeTrustAuthority.check_api_token_or_loopback",
+        lambda self, _r: JSONResponse({"detail": "unauthorised"}, status_code=401),
     )
 
     with pytest.raises(Exception) as exc_info:
@@ -301,12 +301,12 @@ def test_request_authority_raises_when_edge_check_fails(kernel, monkeypatch):
 
 def test_request_authority_unknown_route_is_fail_closed(kernel, monkeypatch):
     monkeypatch.setattr(
-        "aios.policy.kernel.edge_security.check_api_token_or_loopback",
-        lambda _r: None,
+        "aios.interfaces.http.edge_security.EdgeTrustAuthority.check_api_token_or_loopback",
+        lambda self, _r: None,
     )
     monkeypatch.setattr(
-        "aios.policy.kernel.edge_security.check_mutation_origin_or_token",
-        lambda _r: None,
+        "aios.interfaces.http.edge_security.EdgeTrustAuthority.check_mutation_origin_or_token",
+        lambda self, _r: None,
     )
     summary = kernel.request_authority(_request("/not/in/table", method="POST"))
     assert summary["authority"].authority_class == "RED"

@@ -41,6 +41,25 @@ from aios.domain.local_workforce.contracts import (
 )
 from aios.infrastructure.local_workforce import LocalWorkforceProvenanceStore
 
+_CLERK_PROVENANCE: "ClerkProvenanceAuthority | None" = None
+
+
+def _default_provenance_store() -> LocalWorkforceProvenanceStore:
+    from aios import config
+
+    return LocalWorkforceProvenanceStore(config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH)
+
+
+def _clerk_provenance_authority(
+    store: LocalWorkforceProvenanceStore,
+) -> "ClerkProvenanceAuthority":
+    global _CLERK_PROVENANCE
+    if store.db_path == _default_provenance_store().db_path:
+        if _CLERK_PROVENANCE is None:
+            _CLERK_PROVENANCE = ClerkProvenanceAuthority(store)
+        return _CLERK_PROVENANCE
+    return ClerkProvenanceAuthority(store)
+
 
 @dataclass(frozen=True, slots=True)
 class ClerkJobProvenance:
@@ -89,12 +108,7 @@ class ClerkJobProvenance:
 def get_clerk_job_provenance(
     store: LocalWorkforceProvenanceStore, job_id: str
 ) -> ClerkJobProvenance:
-    return ClerkJobProvenance(
-        job_id=job_id,
-        request=store.get_job_request(job_id),
-        model_calls=store.get_model_calls_for_job(job_id),
-        result=store.get_job_result(job_id),
-    )
+    return _clerk_provenance_authority(store).job_provenance(job_id)
 
 
 class ClerkProvenanceAuthority:
@@ -198,7 +212,12 @@ class ClerkProvenanceAuthority:
         )
 
     def job_provenance(self, job_id: str) -> ClerkJobProvenance:
-        return get_clerk_job_provenance(self.store, job_id)
+        return ClerkJobProvenance(
+            job_id=job_id,
+            request=self.store.get_job_request(job_id),
+            model_calls=self.store.get_model_calls_for_job(job_id),
+            result=self.store.get_job_result(job_id),
+        )
 
 
 __all__ = ["ClerkJobProvenance", "ClerkProvenanceAuthority", "get_clerk_job_provenance"]

@@ -221,6 +221,33 @@ def test_health_reports_unavailable_rather_than_inventing_a_reading() -> None:
     assert "logs" in health and "trace" in health
 
 
+def test_organ_52_tracing_delegates_to_observability_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 52: tracing.new_trace_context reaches ObservabilityAuthority singleton."""
+    import inspect
+
+    from aios.application.observability import authority as obs_auth
+    from aios.operations import tracing
+
+    source = inspect.getsource(tracing.new_trace_context)
+    assert "get_tracing_authority" in source
+
+    calls: list[object] = []
+    original = obs_auth.get_tracing_authority().context_from_headers
+
+    def spy(self: object, headers: object = None) -> object:
+        calls.append(headers)
+        return original(headers or {})
+
+    monkeypatch.setattr(
+        obs_auth.ObservabilityAuthority, "context_from_headers", spy
+    )
+    ctx = tracing.new_trace_context({"x-trace-id": "probe"})
+    assert calls, "new_trace_context must hit ObservabilityAuthority.context_from_headers"
+    assert ctx is not None
+
+
 # --------------------------------------------------------------------------- #
 # Organ 46 -- ConstitutionalLearningAuthority
 # --------------------------------------------------------------------------- #
@@ -621,6 +648,55 @@ def test_the_provenance_authority_records_a_refusal_honestly(tmp_path: Path) -> 
     assert provenance.request is not None
     assert provenance.result is not None
     assert provenance.result.status == "rejected"
+
+
+def test_organ_38_job_provenance_is_reached_after_advisory_job(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 38: run_advisory_job must read back through job_provenance."""
+    from unittest.mock import MagicMock
+
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    store = LocalWorkforceProvenanceStore(tmp_path / "provenance.db")
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    admitted = _admitted_model()
+    registry.list_models.return_value = [admitted]
+    registry.get_model.return_value = admitted
+    llm = MagicMock()
+    llm.complete.return_value = '{"applicable": true, "confidence": 0.9}'
+
+    service = LocalWorkforceService(
+        registry=registry,
+        ollama=llm,
+        model_client_factory=lambda model_id: llm,
+        provenance_store=store,
+    )
+    calls: list[str] = []
+    original = service.provenance_authority.job_provenance
+
+    def spy(job_id: str):
+        calls.append(job_id)
+        return original(job_id)
+
+    monkeypatch.setattr(service.provenance_authority, "job_provenance", spy)
+    request = LocalJobRequest(
+        job_id="organ38-reachability-probe",
+        job_profile=LocalJobProfile.SELECT_SKILL,
+        input_schema_version="1.0",
+        evidence_references=frozenset({"skill-1"}),
+        redacted_payload="Evaluate skill applicability.",
+        token_budget=128,
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=30),
+        required_output_schema={"applicable": "bool", "confidence": "float"},
+    )
+    result = service.run_advisory_job(request)
+
+    assert result.status == "completed"
+    provenance = service.provenance_authority.job_provenance("organ38-reachability-probe")
+    assert provenance.result is not None
+    assert calls == ["organ38-reachability-probe"]
 
 
 # --------------------------------------------------------------------------- #
@@ -1924,6 +2000,35 @@ def test_read_model_projection_authority_is_the_mirror_owner() -> None:
     )
 
     assert type(_READ_MODEL_PROJECTION_AUTHORITY) is ReadModelProjectionAuthority
+
+
+def test_organ_47_mirror_governance_route_reaches_build_governance_surface(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 47: /api/v1/mirror/governance must call the projection owner."""
+    from aios.api.routes import mirror as mirror_routes
+    from aios.application.read_models.governance_projections import (
+        ReadModelProjectionAuthority,
+    )
+
+    calls: list[object] = []
+    original = ReadModelProjectionAuthority.build_governance_surface
+
+    def spy(self: object, **kwargs: object) -> object:
+        calls.append(kwargs)
+        return original(self, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        ReadModelProjectionAuthority,
+        "build_governance_surface",
+        spy,
+    )
+    response = TestClient(app, client=("127.0.0.1", 12345)).get(
+        "/api/v1/mirror/governance"
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert mirror_routes._READ_MODEL_PROJECTION_AUTHORITY is not None
 
 # --------------------------------------------------------------------------- #
 # Organ 54 -- BackupDisasterRecoveryAuthority

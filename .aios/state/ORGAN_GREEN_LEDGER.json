@@ -1182,7 +1182,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN \u2014 projection organ aios/application/read_models/governance_projections.py::build_governance_surface; freshness from source organs; not a journal owner. C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope in same module)."
+      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN \u2014 projection organ aios/application/read_models/governance_projections.py::ReadModelProjectionAuthority.build_governance_surface; freshness from source organs; not a journal owner. C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope in same module)."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

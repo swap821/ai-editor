@@ -256,6 +256,10 @@ class DeliberationCouncilAuthority:
         except DeliberationError:
             return None
 
+
+_DELIBERATION = DeliberationCouncilAuthority()
+
+
 def maybe_deliberate(
     report: KingReport,
     *,
@@ -267,7 +271,7 @@ def maybe_deliberate(
     dissent_exact_model_id: str,
 ) -> Optional[DeliberationRecord]:
     """Compatibility entrypoint for callers outside the council authority."""
-    return DeliberationCouncilAuthority().maybe_deliberate(
+    return _DELIBERATION.maybe_deliberate(
         report,
         mission_id=mission_id,
         king_provider=king_provider,

@@ -149,6 +149,9 @@ class ConstitutionalAmendmentAuthority:
         )
 
 
+_AMENDMENT_AUTHORITY = ConstitutionalAmendmentAuthority()
+
+
 def ratify_amendment(
     proposal: ConstitutionalAmendmentProposalV1,
     *,
@@ -156,7 +159,7 @@ def ratify_amendment(
     operator_id: str,
 ) -> ConstitutionalAmendmentProposalV1:
     """Compatibility entrypoint for the production governance routes."""
-    return ConstitutionalAmendmentAuthority().ratify_amendment(
+    return _AMENDMENT_AUTHORITY.ratify_amendment(
         proposal,
         capability_proof=capability_proof,
         operator_id=operator_id,

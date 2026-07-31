@@ -538,6 +538,13 @@ def test_shipped_ledger_has_all_54_organs_and_zero_violations() -> None:
     )
 
 
+def test_shipped_ledger_na_cites_have_zero_violations() -> None:
+    from aios.application.governance.na_cite_validator import validate_na_cites
+
+    records = load_ledger(LEDGER_PATH)
+    assert validate_na_cites(records, repo_root=REPO_ROOT) == ()
+
+
 def test_shipped_ledger_32_target_organs_are_yellow_with_blockers_or_genuinely_green() -> (
     None
 ):

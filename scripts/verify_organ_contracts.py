@@ -34,6 +34,7 @@ if str(REPO_ROOT) not in sys.path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from aios.application.governance.na_cite_validator import validate_na_cites
     from aios.application.governance.organ_ledger import (
         current_commit_sha,
         load_ledger,
@@ -71,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
             strict_source_commit=args.strict_release,
         )
     )
+    violations.extend(validate_na_cites(records, repo_root=REPO_ROOT))
 
     green = sum(1 for r in records if r.status == "green")
     yellow = sum(1 for r in records if r.status == "yellow")

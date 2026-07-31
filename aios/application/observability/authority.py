@@ -16,15 +16,13 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
+import re
+import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Iterator
-
-from aios.operations.tracing import (
-    TraceContext,
-    bind_trace_context,
-    get_trace_context,
-    new_trace_context,
-)
+from typing import Any, Iterator, Mapping
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +31,83 @@ _LOGGER = logging.getLogger(__name__)
 #: happened just before a crash.
 _LOG_MAX_BYTES = 8 * 1024 * 1024
 _LOG_BACKUP_COUNT = 3
+
+_SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_TRACE: ContextVar["TraceContext | None"] = ContextVar(
+    "gagos_trace_context", default=None
+)
+
+
+@dataclass(frozen=True, slots=True)
+class TraceContext:
+    request_id: str
+    turn_id: str | None = None
+    mission_id: str | None = None
+    action_id: str | None = None
+    worker_id: str | None = None
+    correlation_id: str | None = None
+    causation_id: str | None = None
+
+    def headers(self) -> dict[str, str]:
+        """Return only non-empty trace headers for downstream propagation."""
+        values = {
+            "x-request-id": self.request_id,
+            "x-turn-id": self.turn_id,
+            "x-mission-id": self.mission_id,
+            "x-action-id": self.action_id,
+            "x-worker-id": self.worker_id,
+            "x-correlation-id": self.correlation_id,
+            "x-causation-id": self.causation_id,
+        }
+        return {key: value for key, value in values.items() if value}
+
+    def as_env(self) -> dict[str, str]:
+        """Same non-empty trace values as `headers()`, reshaped as
+        environment-variable names for propagation across a subprocess
+        boundary (e.g. `docker run --env`) rather than an HTTP transport --
+        organ 52's own named gap: a trace id crossing into the isolated
+        executor's spawned per-job container had no propagation mechanism
+        at all before this."""
+        return {
+            f"AIOS_TRACE_{key[2:].upper().replace('-', '_')}": value
+            for key, value in self.headers().items()
+        }
+
+    def with_ids(self, **values: str | None) -> "TraceContext":
+        allowed = {
+            key: _normalize_id(value) if value is not None else None
+            for key, value in values.items()
+            if key
+            in {
+                "turn_id",
+                "mission_id",
+                "action_id",
+                "worker_id",
+                "correlation_id",
+                "causation_id",
+            }
+        }
+        return replace(self, **allowed)
+
+
+def _normalize_id(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized or not _SAFE_ID.fullmatch(normalized):
+        return None
+    return normalized
+
+
+_TRACING_AUTHORITY: "ObservabilityAuthority | None" = None
+
+
+def get_tracing_authority() -> "ObservabilityAuthority":
+    """Process singleton for correlation-id ownership (organ 52)."""
+    global _TRACING_AUTHORITY
+    if _TRACING_AUTHORITY is None:
+        _TRACING_AUTHORITY = ObservabilityAuthority()
+    return _TRACING_AUTHORITY
 
 
 class ObservabilityAuthority:
@@ -50,23 +125,45 @@ class ObservabilityAuthority:
 
     # -- correlation ---------------------------------------------------- #
 
-    def context_from_headers(self, headers: Any) -> TraceContext:
+    def context_from_headers(self, headers: Mapping[str, str] | Any) -> TraceContext:
         """Build a safe context from inbound headers, minting a request id
         when none was supplied. Values that fail validation are dropped, never
         passed through: a trace id is correlation metadata and must never
         become an injection vector."""
-        return new_trace_context(headers)
+        source = {
+            str(key).lower(): str(value) for key, value in (headers or {}).items()
+        }
+        request_id = _normalize_id(source.get("x-request-id")) or str(uuid.uuid4())
+        return TraceContext(
+            request_id=request_id,
+            turn_id=_normalize_id(source.get("x-turn-id")),
+            mission_id=_normalize_id(source.get("x-mission-id")),
+            action_id=_normalize_id(source.get("x-action-id")),
+            worker_id=_normalize_id(source.get("x-worker-id")),
+            correlation_id=_normalize_id(source.get("x-correlation-id")),
+            causation_id=_normalize_id(source.get("x-causation-id")),
+        )
 
     def current_context(self) -> TraceContext:
-        return get_trace_context()
+        current = _TRACE.get()
+        return current if current is not None else self.context_from_headers({})
 
+    @contextmanager
     def bind(self, context: TraceContext) -> Iterator[TraceContext]:
         """Bind `context` for the duration of a block."""
-        return bind_trace_context(context)
+        token = _TRACE.set(context)
+        try:
+            yield context
+        finally:
+            _TRACE.reset(token)
+
+    def set_context(self, context: TraceContext) -> None:
+        """Set context for code that owns the surrounding request lifecycle."""
+        _TRACE.set(context)
 
     def propagation_headers(self) -> dict[str, str]:
         """Headers carrying the current correlation ids across an HTTP hop."""
-        return get_trace_context().headers()
+        return self.current_context().headers()
 
     def propagation_env(self) -> dict[str, str]:
         """The same ids reshaped for a subprocess hop (`docker run --env`).
@@ -74,7 +171,7 @@ class ObservabilityAuthority:
         Deliberately distinct from the job's security-reviewed
         `environment_allowlist`, which this must never bypass or widen.
         """
-        return get_trace_context().as_env()
+        return self.current_context().as_env()
 
     # -- durable state (condition 3) ------------------------------------ #
 
@@ -145,7 +242,7 @@ class ObservabilityAuthority:
         rather than an empty-but-plausible reading.
         """
         report: dict[str, Any] = {
-            "trace": {"request_id": get_trace_context().request_id},
+            "trace": {"request_id": self.current_context().request_id},
             "logs": self.durable_log_status(),
         }
         try:
@@ -160,4 +257,4 @@ class ObservabilityAuthority:
         return report
 
 
-__all__ = ["ObservabilityAuthority"]
+__all__ = ["ObservabilityAuthority", "TraceContext", "get_tracing_authority"]
