@@ -1194,7 +1194,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: the truthful governance read-model aggregation is now owned by the concrete ReadModelProjectionAuthority class in the ledger-listed projection entrypoint, and the live mirror route invokes it for the consolidated sovereignty surface. Verified by tests/test_organ_authority_owners.py and the focused mirror/read-model projection suites. The organ remains yellow: browser-surface verification, live evidence, and exact-tip strict-release attestation have not been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 projections read durable constitution/stop/health/capability/routing/privacy sources. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 projection is read-model; integrity of sources is upstream. C5 FAIL-SAFE: PASS \u2014 missing inputs project unavailable envelopes, not fabricated health. Still yellow honestly: browser-session + tip SHA not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
