@@ -599,7 +599,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Dedicated re-audit 2026-07-29: OperatorTasteModelAuthority still owns the explicit preference API and durable store, and its active_preferences_for_scopes() method now owns the authenticated multi-scope decision: owner isolation, active/non-expired filtering, and project-over-global precedence. The real /api/v1/chat dependency graph resolves that authority; tests/test_authenticated_chat_route.py proves the authority method is called with the authenticated owner and global/project scopes, the project preference is included, the superseded global preference is excluded, and the receipt is persisted before provider output. The prior claim that no production conversational caller threaded active_preferences is stale and withdrawn. Still yellow honestly: no real operator-traffic/live provider evidence or exact-tip strict-release attestation is claimed, and the anonymous compatibility chat path intentionally uses its separate lower-level facts block."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 OperatorPreferenceStore / SemanticFacts persist preferences across restart; OperatorTasteModelAuthority.active_preferences_for_scopes() is the production decision path for authenticated chat. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 preference facts ride SemanticFacts contradiction-aware writes; typed preference decoration store is digest-keyed to the fact it decorates. C5 FAIL-SAFE: PASS \u2014 withdrawn/expired preferences are excluded rather than shown as active. Still yellow honestly: live evidence + exact-tip strict-release (Phases 4\u20135) not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
