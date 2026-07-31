@@ -14,3 +14,5 @@
 **Single next action:** Phase 4 live evidence where Docker/API allows (no secrets).
 
 **Claim language:** Phase 2 absolute (kill-list + mechanical anti-passthrough gate) and Phase 3 absolute (every N/A cited + cite validator). Still not 54/54 green.
+
+**Tip:** `f14b125` (pushed). Focused gates after Host-fix: **96 passed**. Prior full suite was 4269 passed / 3 Host failures — those 3 fixed via EdgeTrustAuthority monkeypatches.
