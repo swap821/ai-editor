@@ -911,7 +911,9 @@ def test_the_dispatcher_authority_escalates_an_unqualified_model_through_the_rea
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_7_policy_kernel_is_the_live_dependency_factory() -> None:
+def test_organ_7_policy_kernel_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 7: deps.get_policy_kernel returns the ledger owner class."""
     from aios.api.deps import get_policy_kernel
     from aios.policy.kernel import PolicyKernel, PolicyKernelAuthority
@@ -921,12 +923,29 @@ def test_organ_7_policy_kernel_is_the_live_dependency_factory() -> None:
     assert type(authority) is PolicyKernelAuthority
     assert get_policy_kernel() is authority
 
+    calls: list[object] = []
+    original = PolicyKernelAuthority.runtime_profile_decisions
+
+    def spy(self: object) -> object:
+        calls.append(self)
+        return original(self)
+
+    monkeypatch.setattr(PolicyKernelAuthority, "runtime_profile_decisions", spy)
+    response = TestClient(app, client=("127.0.0.1", 12345)).get(
+        "/api/v1/system/runtime-profile"
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0] is authority
+
 # --------------------------------------------------------------------------- #
 # Organ 8 -- ActionBrokerAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_8_action_broker_is_the_live_dependency_factory() -> None:
+def test_organ_8_action_broker_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 8: deps.get_action_broker returns the ledger owner class."""
     from aios.api.deps import (
         get_action_broker,
@@ -934,6 +953,8 @@ def test_organ_8_action_broker_is_the_live_dependency_factory() -> None:
         get_policy_kernel,
     )
     from aios.application.action_broker import ActionBroker, ActionBrokerAuthority
+    from aios.domain.actions.envelope import ActionEnvelope, ActionType
+    from aios.domain.identity.models import Principal, PrincipalType
 
     assert ActionBroker is ActionBrokerAuthority
     authority = get_action_broker(
@@ -941,6 +962,31 @@ def test_organ_8_action_broker_is_the_live_dependency_factory() -> None:
         capabilities=get_capability_authority(),
     )
     assert type(authority) is ActionBrokerAuthority
+
+    calls: list[object] = []
+
+    def spy(self: object, envelope: object, *args: object, **kwargs: object) -> object:
+        calls.append(envelope)
+        raise RuntimeError("reachability-probe-stop")
+
+    monkeypatch.setattr(ActionBrokerAuthority, "submit", spy)
+    envelope = ActionEnvelope(
+        route="/api/v1/owner-probe",
+        action_type=ActionType.COMMAND,
+        payload={"command": "echo probe"},
+        principal=Principal(
+            principal_id="operator-probe",
+            principal_type=PrincipalType.OPERATOR,
+            display_name="probe",
+            session_id="owner-probe",
+            authentication_level="operator",
+            authenticated_at=datetime.now(timezone.utc),
+        ),
+        operator_id="operator-probe",
+    )
+    with pytest.raises(RuntimeError, match="reachability-probe-stop"):
+        authority.submit(envelope)
+    assert len(calls) == 1
 
 # --------------------------------------------------------------------------- #
 # Organ 10 -- MissionAuthority
@@ -998,7 +1044,9 @@ def test_organ_11_turn_coordinator_is_reached_by_the_generate_route(
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_12_worker_foundry_is_the_live_dependency_factory() -> None:
+def test_organ_12_worker_foundry_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 12: deps.get_worker_foundry returns the ledger owner class."""
     from aios.api.deps import get_emergency_stop, get_worker_foundry
     from aios.application.workers.foundry import WorkerFoundry, WorkerFoundryAuthority
@@ -1007,6 +1055,17 @@ def test_organ_12_worker_foundry_is_the_live_dependency_factory() -> None:
     authority = get_worker_foundry(emergency_stop=get_emergency_stop())
     assert type(authority) is WorkerFoundryAuthority
     assert get_worker_foundry(emergency_stop=get_emergency_stop()) is authority
+
+    calls: list[object] = []
+    original = WorkerFoundryAuthority.select
+
+    def spy(self: object, strategy: object, contract: object) -> object:
+        calls.append((strategy, contract))
+        return original(self, strategy, contract)
+
+    monkeypatch.setattr(WorkerFoundryAuthority, "select", spy)
+    authority.select("deterministic", object())
+    assert len(calls) == 1
 
 # --------------------------------------------------------------------------- #
 # Organ 14 -- StagedWorkspaceAuthority
@@ -1313,7 +1372,9 @@ def test_golden_mission_runner_reaches_endurance_owner(
 # --------------------------------------------------------------------------- #
 
 
-def test_capability_authority_is_the_live_dependency_factory() -> None:
+def test_capability_authority_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 9: the FastAPI dependency returns the exact ledger owner class.
 
     A green claim that only proves the class exists would satisfy Decision A
@@ -1328,13 +1389,30 @@ def test_capability_authority_is_the_live_dependency_factory() -> None:
     assert type(authority) is CapabilityAuthority
     assert get_capability_authority() is authority
 
+    calls: list[object] = []
+    original = CapabilityAuthority.list_pending
+
+    def spy(self: object) -> object:
+        calls.append(self)
+        return original(self)
+
+    monkeypatch.setattr(CapabilityAuthority, "list_pending", spy)
+    response = TestClient(app, client=("127.0.0.1", 12345)).get(
+        "/api/v1/mirror/governance"
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0] is authority
+
 
 # --------------------------------------------------------------------------- #
 # Organ 15 -- VerificationAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_verification_authority_is_the_live_dependency_factory() -> None:
+def test_verification_authority_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 15: deps.get_verification_authority returns the ledger owner."""
     from aios.api.deps import get_verification_authority
     from aios.application.evidence.verification import VerificationAuthority
@@ -1343,13 +1421,26 @@ def test_verification_authority_is_the_live_dependency_factory() -> None:
     assert type(authority) is VerificationAuthority
     assert get_verification_authority() is authority
 
+    calls: list[str] = []
+    original = VerificationAuthority.list_results_for_mission
+
+    def spy(self: object, mission_id: str) -> object:
+        calls.append(mission_id)
+        return original(self, mission_id)
+
+    monkeypatch.setattr(VerificationAuthority, "list_results_for_mission", spy)
+    authority.list_results_for_mission("owner-probe-mission")
+    assert calls == ["owner-probe-mission"]
+
 
 # --------------------------------------------------------------------------- #
 # Organ 16 -- PromotionAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_promotion_authority_is_the_live_dependency_factory() -> None:
+def test_promotion_authority_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 16: deps.get_promotion_authority returns the ledger owner."""
     from aios.api.deps import get_promotion_authority
     from aios.application.promotion.authority import PromotionAuthority
@@ -1358,13 +1449,26 @@ def test_promotion_authority_is_the_live_dependency_factory() -> None:
     assert type(authority) is PromotionAuthority
     assert get_promotion_authority() is authority
 
+    calls: list[str] = []
+    original = PromotionAuthority.get_promotion
+
+    def spy(self: object, mission_id: str) -> object:
+        calls.append(mission_id)
+        return original(self, mission_id)
+
+    monkeypatch.setattr(PromotionAuthority, "get_promotion", spy)
+    assert authority.get_promotion("owner-probe-mission") is None
+    assert calls == ["owner-probe-mission"]
+
 
 # --------------------------------------------------------------------------- #
 # Organ 18 -- MemoryAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_memory_authority_is_the_live_dependency_factory() -> None:
+def test_memory_authority_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 18: deps.get_memory_authority returns the ledger owner."""
     from aios.api.deps import get_memory_authority
     from aios.application.memory.authority import MemoryAuthority
@@ -1373,13 +1477,30 @@ def test_memory_authority_is_the_live_dependency_factory() -> None:
     assert type(authority) is MemoryAuthority
     assert get_memory_authority() is authority
 
+    calls: list[str] = []
+    original = MemoryAuthority.recall
+
+    def spy(self: object, query: str, *args: object, **kwargs: object) -> object:
+        calls.append(query)
+        return original(self, query, *args, **kwargs)
+
+    monkeypatch.setattr(MemoryAuthority, "recall", spy)
+    response = TestClient(app, client=("127.0.0.1", 12345)).post(
+        "/api/v1/memory/search",
+        json={"query": "owner-probe", "top_k": 1},
+    )
+    assert response.status_code == 200
+    assert calls == ["owner-probe"]
+
 
 # --------------------------------------------------------------------------- #
 # Organ 19 -- EmergencyStopController
 # --------------------------------------------------------------------------- #
 
 
-def test_emergency_stop_controller_is_the_live_dependency_factory() -> None:
+def test_emergency_stop_controller_is_the_live_dependency_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 19: deps.get_emergency_stop returns the ledger owner."""
     from aios.api.deps import get_emergency_stop
     from aios.application.governance.emergency_stop import EmergencyStopController
@@ -1387,6 +1508,21 @@ def test_emergency_stop_controller_is_the_live_dependency_factory() -> None:
     authority = get_emergency_stop()
     assert type(authority) is EmergencyStopController
     assert get_emergency_stop() is authority
+
+    calls: list[object] = []
+    original = EmergencyStopController.state
+
+    def spy(self: object) -> object:
+        calls.append(self)
+        return original(self)
+
+    monkeypatch.setattr(EmergencyStopController, "state", spy)
+    response = TestClient(app, client=("127.0.0.1", 12345)).get(
+        "/api/v1/governance/emergency-stop"
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0] is authority
 
 
 # --------------------------------------------------------------------------- #
@@ -1413,19 +1549,36 @@ def test_edge_trust_authority_is_the_live_api_middleware_owner() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_identity_authority_is_the_real_identity_dependency() -> None:
+def test_identity_authority_is_the_real_identity_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from aios.api.deps import get_identity_service
     from aios.application.identity.service import IdentityAuthority, IdentityService
 
+    authority = get_identity_service()
     assert IdentityService is IdentityAuthority
-    assert type(get_identity_service()) is IdentityAuthority
+    assert type(authority) is IdentityAuthority
+
+    calls: list[object] = []
+    original = IdentityAuthority.is_enrolled
+
+    def spy(self: object) -> object:
+        calls.append(self)
+        return original(self)
+
+    monkeypatch.setattr(IdentityAuthority, "is_enrolled", spy)
+    assert isinstance(authority.is_enrolled(), bool)
+    assert len(calls) == 1
+    assert calls[0] is authority
 
 # --------------------------------------------------------------------------- #
 # Organ 34 -- ProviderHealthBudgetAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_provider_health_budget_authority_is_the_shared_tracker() -> None:
+def test_provider_health_budget_authority_is_the_shared_tracker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from aios.api.deps import get_provider_health
     from aios.application.models.health import (
         ProviderHealthBudgetAuthority,
@@ -1433,33 +1586,79 @@ def test_provider_health_budget_authority_is_the_shared_tracker() -> None:
     )
 
     assert ProviderHealthTracker is ProviderHealthBudgetAuthority
-    assert type(get_provider_health()) is ProviderHealthBudgetAuthority
+    authority = get_provider_health()
+    assert type(authority) is ProviderHealthBudgetAuthority
+
+    calls: list[str] = []
+    original = ProviderHealthBudgetAuthority.has_observations
+
+    def spy(self: object, provider: str) -> object:
+        calls.append(provider)
+        return original(self, provider)
+
+    monkeypatch.setattr(ProviderHealthBudgetAuthority, "has_observations", spy)
+    response = TestClient(app, client=("127.0.0.1", 12345)).get(
+        "/api/v1/mirror/governance"
+    )
+    assert response.status_code == 200
+    assert calls
+    assert authority is get_provider_health()
 
 # --------------------------------------------------------------------------- #
 # Organ 35 -- LocalClerkRuntimeAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_local_clerk_runtime_authority_owns_model_admission() -> None:
+def test_local_clerk_runtime_authority_owns_model_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from unittest.mock import MagicMock
 
     from aios.application.local_workforce.service import LocalWorkforceService
-    from aios.domain.local_workforce.contracts import LocalClerkRuntimeAuthority
+    from aios.domain.local_workforce.contracts import (
+        LocalClerkRuntimeAuthority,
+        LocalJobProfile,
+        LocalJobRequest,
+    )
     from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 
     service = LocalWorkforceService(
         registry=MagicMock(spec=LocalWorkforceRegistry),
         ollama=MagicMock(),
     )
+    authority = service.local_clerk_runtime_authority
+    assert type(authority) is LocalClerkRuntimeAuthority
 
-    assert type(service.local_clerk_runtime_authority) is LocalClerkRuntimeAuthority
+    calls: list[object] = []
+    original = LocalClerkRuntimeAuthority.eligible_models
+
+    def spy(self: object, request: object, models: object) -> object:
+        calls.append(request)
+        return original(self, request, models)
+
+    monkeypatch.setattr(LocalClerkRuntimeAuthority, "eligible_models", spy)
+    request = LocalJobRequest(
+        job_id="owner-runtime-probe",
+        job_profile=LocalJobProfile.SELECT_SKILL,
+        input_schema_version="1.0",
+        evidence_references=frozenset({"skill-1"}),
+        redacted_payload="probe",
+        token_budget=32,
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=30),
+        required_output_schema={"applicable": "bool"},
+    )
+    authority.eligible_models(request, ())
+    assert len(calls) == 1
+    assert calls[0] is request
 
 # --------------------------------------------------------------------------- #
 # Organ 37 -- LocalModelQualificationAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_local_model_qualification_authority_is_the_real_factory() -> None:
+def test_local_model_qualification_authority_is_the_real_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from unittest.mock import MagicMock
 
     from aios.application.local_workforce.service import LocalWorkforceService
@@ -1475,6 +1674,21 @@ def test_local_model_qualification_authority_is_the_real_factory() -> None:
 
     assert QualificationSuite is LocalModelQualificationAuthority
     assert service.qualification_suite_factory is LocalModelQualificationAuthority
+
+    calls: list[object] = []
+    original = LocalModelQualificationAuthority.run
+
+    def spy(self: object) -> object:
+        calls.append(self)
+        raise RuntimeError("reachability-probe-stop")
+
+    monkeypatch.setattr(LocalModelQualificationAuthority, "run", spy)
+    suite = service.qualification_suite_factory(MagicMock())
+    assert type(suite) is LocalModelQualificationAuthority
+    with pytest.raises(RuntimeError, match="reachability-probe-stop"):
+        suite.run()
+    assert len(calls) == 1
+    assert calls[0] is suite
 
 # --------------------------------------------------------------------------- #
 # Organ 39 -- DeliberationCouncilAuthority
@@ -1598,28 +1812,29 @@ def test_release_conformance_authority_is_the_manifest_builder() -> None:
 def test_organ_1_security_gateway_authority_owns_classify_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Organ 1: named owner class exists; classify route reaches gateway.classify."""
+    """Organ 1: classify route reaches SecurityGatewayAuthority via singleton."""
     import aios.security.gateway as gateway
     from aios.api.routes import system as system_routes
     from aios.security.gateway import (
         ClassificationResult,
         SecurityGatewayAuthority,
         Zone,
+        _GATEWAY,
     )
 
     assert inspect.isclass(SecurityGatewayAuthority)
-    authority = SecurityGatewayAuthority()
-    assert authority.classify("echo hello").zone is Zone.GREEN
+    classify_source = inspect.getsource(gateway.classify)
+    assert "_GATEWAY" in classify_source
+    assert "_GATEWAY.classify" in classify_source
 
     calls: list[str] = []
-    original = gateway.classify
+    original = _GATEWAY.classify
 
     def spy(command: str, *args: object, **kwargs: object) -> ClassificationResult:
         calls.append(command)
         return original(command, *args, **kwargs)
 
-    monkeypatch.setattr(gateway, "classify", spy)
-    monkeypatch.setattr(system_routes, "classify", spy)
+    monkeypatch.setattr(_GATEWAY, "classify", spy)
 
     result = system_routes.security_classify(
         system_routes.ClassifyRequest(command="echo hello")
@@ -1631,78 +1846,114 @@ def test_organ_1_security_gateway_authority_owns_classify_route(
 def test_organ_2_scope_lock_authority_owns_files_path_check(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Organ 2: ScopeLockAuthority wraps is_path_in_scope used by files routes."""
+    """Organ 2: files route reaches ScopeLockAuthority via singleton."""
     from aios.api.routes import files as files_routes
     from aios.security import scope_lock
-    from aios.security.scope_lock import ScopeLockAuthority, ScopeResult
+    from aios.security.scope_lock import ScopeLockAuthority, ScopeResult, _SCOPE_LOCK
 
-    authority = ScopeLockAuthority()
-    assert isinstance(authority.is_path_in_scope(str(tmp_path)).in_scope, bool)
+    assert isinstance(ScopeLockAuthority().is_path_in_scope(str(tmp_path)).in_scope, bool)
+    scope_source = inspect.getsource(scope_lock.is_path_in_scope)
+    assert "_SCOPE_LOCK" in scope_source
 
     calls: list[str] = []
-    original = scope_lock.is_path_in_scope
+    original = _SCOPE_LOCK.is_path_in_scope
 
     def spy(path: str, *args: object, **kwargs: object) -> ScopeResult:
         calls.append(str(path))
         return original(path, *args, **kwargs)
 
-    monkeypatch.setattr(scope_lock, "is_path_in_scope", spy)
-    monkeypatch.setattr(files_routes, "is_path_in_scope", spy)
+    monkeypatch.setattr(_SCOPE_LOCK, "is_path_in_scope", spy)
 
     check = files_routes.is_path_in_scope(str(tmp_path))
     assert calls == [str(tmp_path)]
     assert isinstance(check.in_scope, bool)
 
 
-def test_organ_3_secret_scanner_authority_owns_api_binding() -> None:
-    """Organ 3: SecretScannerAuthority.scan_and_redact matches api.main binding."""
+def test_organ_3_secret_scanner_authority_owns_api_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 3: api.main binding reaches SecretScannerAuthority singleton."""
     from aios.api import main as api_main
-    from aios.security.secret_scanner import SecretScannerAuthority, scan_and_redact
+    from aios.security import secret_scanner
+    from aios.security.secret_scanner import SecretScannerAuthority, _SECRET_SCANNER
 
-    assert api_main.scan_and_redact is scan_and_redact
-    authority = SecretScannerAuthority()
-    result = authority.scan_and_redact("no secrets here")
+    scan_source = inspect.getsource(secret_scanner.scan_and_redact)
+    assert "_SECRET_SCANNER" in scan_source
+    assert api_main.scan_and_redact is secret_scanner.scan_and_redact
+
+    calls: list[str] = []
+    original = _SECRET_SCANNER.scan_and_redact
+
+    def spy(payload: str):
+        calls.append(payload)
+        return original(payload)
+
+    monkeypatch.setattr(_SECRET_SCANNER, "scan_and_redact", spy)
+
+    result = api_main.scan_and_redact("no secrets here")
+    assert calls == ["no secrets here"]
     assert result.scrubbed == "no secrets here"
     assert result.detected is False
     assert result.findings == ()
+    assert isinstance(SecretScannerAuthority(), SecretScannerAuthority)
 
 
 def test_organ_4_audit_logger_authority_owns_verify_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Organ 4: AuditLoggerAuthority.verify_chain backs GET audit verify."""
+    """Organ 4: audit verify route reaches AuditLoggerAuthority singleton."""
     from aios.api.routes import system as system_routes
     from aios.security import audit_logger
-    from aios.security.audit_logger import AuditLoggerAuthority, ChainStatus
+    from aios.security.audit_logger import AuditLoggerAuthority, ChainStatus, _AUDIT
 
-    authority = AuditLoggerAuthority()
-    assert isinstance(authority.verify_chain(from_id=1, to_id=None), ChainStatus)
+    verify_source = inspect.getsource(audit_logger.verify_chain)
+    assert "_audit_for" in verify_source or "_AUDIT" in verify_source
+    assert isinstance(AuditLoggerAuthority().verify_chain(from_id=1, to_id=None), ChainStatus)
 
     calls: list[tuple[int, object]] = []
-    original = audit_logger.verify_chain
+    original = _AUDIT.verify_chain
 
-    def spy(*, from_id: int = 1, to_id: int | None = None) -> ChainStatus:
+    def spy(
+        *,
+        from_id: int = 1,
+        to_id: int | None = None,
+        **kwargs: object,
+    ) -> ChainStatus:
         calls.append((from_id, to_id))
-        return original(from_id=from_id, to_id=to_id)
+        return original(from_id=from_id, to_id=to_id, **kwargs)
 
-    monkeypatch.setattr(audit_logger, "verify_chain", spy)
-    monkeypatch.setattr(system_routes, "verify_chain", spy)
+    monkeypatch.setattr(_AUDIT, "verify_chain", spy)
 
     status = system_routes.audit_verify(from_entry=1, to_entry=None)
     assert calls == [(1, None)]
     assert "valid" in status
 
 
-def test_organ_5_injection_shield_authority_is_installed_from_api_lifespan() -> None:
+def test_organ_5_injection_shield_authority_is_installed_from_api_lifespan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Organ 5: lifespan wires InjectionShieldAuthority (=VectorInjectionShield)."""
-    from aios.api import main as api_main
+    from aios import config
+    from aios.security import gateway
     from aios.security.injection_shield import (
         InjectionShieldAuthority,
         VectorInjectionShield,
     )
 
     assert InjectionShieldAuthority is VectorInjectionShield
-    source = inspect.getsource(api_main)
-    assert "VectorInjectionShield" in source or "InjectionShieldAuthority" in source
-    assert "set_injection_shield" in source
-    assert inspect.isclass(InjectionShieldAuthority)
+
+    installed: list[object] = []
+    original = gateway.set_injection_shield
+
+    def spy(shield: object) -> None:
+        installed.append(shield)
+        original(shield)
+
+    monkeypatch.setattr(gateway, "set_injection_shield", spy)
+    monkeypatch.setattr(config, "INJECTION_VECTOR_SHIELD", True)
+
+    with TestClient(app) as _client:
+        pass
+
+    assert len(installed) == 1
+    assert type(installed[0]) is InjectionShieldAuthority

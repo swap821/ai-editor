@@ -207,7 +207,7 @@ def test_semantic_vector_shield_is_wired(
     shield_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When a vector shield is installed, its positives block the turn."""
-    monkeypatch.setattr(gateway, "_injection_shield", _FakeInjectionShield())
+    monkeypatch.setattr(gateway._GATEWAY, "_injection_shield", _FakeInjectionShield())
     blocked = shield_client.post(
         "/api/generate",
         json=_generate("semantic injection vector", "gen-vector"),

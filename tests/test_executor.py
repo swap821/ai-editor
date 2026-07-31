@@ -516,7 +516,7 @@ def test_approved_bare_mkdir_no_longer_escapes_the_sandbox(monkeypatch, tmp_path
     scope_root.mkdir()
     monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
     from aios.security import scope_lock
-    monkeypatch.setattr(scope_lock, "_scope_roots", [scope_root])
+    monkeypatch.setattr(scope_lock._SCOPE_LOCK, "_scope_roots", [scope_root])
 
     executor = Executor(rate_limiter=RateLimiter(), audit_log=RecordingAudit())
     result = executor.execute_approved("mkdir probe_dir")
