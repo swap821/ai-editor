@@ -479,7 +479,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A satisfied 2026-07-28: scripts/build_release_manifest.py now defines the substantive ReleaseConformanceAuthority class and the CLI main() reaches it; focused owner, release, and launcher tests pass. Remains yellow because strict release attestation still depends on all organs being green and exact-tip CI proof."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 release conformance reads ledger+manifest on disk. C4 TAMPER-EVIDENCE: PASS \u2014 manifest hash-pins ledger; stale hashes fail verify_organ_contracts. C5 FAIL-SAFE: PASS \u2014 violations listed explicitly; never silent green. Still yellow honestly: BLOCKED on Phase 6: stays non-green until every other organ is green + strict-release proof. This verdict does not advance organ 23."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
