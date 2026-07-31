@@ -922,6 +922,27 @@ def test_organ_7_policy_kernel_is_the_live_dependency_factory() -> None:
     assert get_policy_kernel() is authority
 
 # --------------------------------------------------------------------------- #
+# Organ 8 -- ActionBrokerAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_8_action_broker_is_the_live_dependency_factory() -> None:
+    """Organ 8: deps.get_action_broker returns the ledger owner class."""
+    from aios.api.deps import (
+        get_action_broker,
+        get_capability_authority,
+        get_policy_kernel,
+    )
+    from aios.application.action_broker import ActionBroker, ActionBrokerAuthority
+
+    assert ActionBroker is ActionBrokerAuthority
+    authority = get_action_broker(
+        kernel=get_policy_kernel(),
+        capabilities=get_capability_authority(),
+    )
+    assert type(authority) is ActionBrokerAuthority
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
