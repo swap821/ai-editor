@@ -1203,6 +1203,21 @@ def test_verification_authority_is_the_live_dependency_factory() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Organ 16 -- PromotionAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_promotion_authority_is_the_live_dependency_factory() -> None:
+    """Organ 16: deps.get_promotion_authority returns the ledger owner."""
+    from aios.api.deps import get_promotion_authority
+    from aios.application.promotion.authority import PromotionAuthority
+
+    authority = get_promotion_authority()
+    assert type(authority) is PromotionAuthority
+    assert get_promotion_authority() is authority
+
+
+# --------------------------------------------------------------------------- #
 # Organ 6 -- EdgeTrustAuthority
 # --------------------------------------------------------------------------- #
 
