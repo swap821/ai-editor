@@ -2,12 +2,12 @@
 
 **Goal:** Finish Phase 2 organ-proof exit — real owner class + reachability/caller proof for every non-frozen organ. Organs 1–5 stay yellow (frozen spine).
 
-**Last completed + verified:** Organ **20** (`LivingMirrorAuthority`) — strengthened reachability: `dispatchLivingMirrorEvent` spies through the singleton owner (vitest 13/13 green).
+**Last completed + verified:** Organ **48** (`TruthfulMirrorAuthority`) — panel load spies `normalizeGovernance` / `normalizeExecutor` / `allUnavailable` on the live singleton path (vitest green).
 
-**Contract state:** 7 green / 47 yellow. `verify_organ_contracts.py` clean with `enforce_owner_attestation`.
+**Contract state:** 7 green / 47 yellow.
 
-**Single next action:** Organ **48** (`TruthfulMirrorAuthority`) panel reachability spy (not construct-in-test).
+**Single next action:** Organ **49** (`ApprovalDecisionSurfaceAuthority`) panel reachability spy.
 
-**Open blockers:** Organs 1–5 need §VIII; 49–51 surface authorities still need panel reachability spies; Outside-machine limits for 44/46.
+**Open blockers:** Organs 1–5 need §VIII; 50–51 still need panel reachability spies; Outside-machine limits for 44/46.
 
-**Active files:** `frontend/src/superbrain/lib/livingMirrorRegistry.test.ts`, `frontend/src/workbench/SovereignStatePanel*`
+**Active files:** `frontend/src/workbench/SovereignStatePanel.organ48.test.jsx`
