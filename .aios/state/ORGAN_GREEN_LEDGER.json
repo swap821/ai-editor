@@ -1238,7 +1238,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A satisfied 2026-07-28: the substantive ApprovalDecisionSurfaceAuthority class in frontend/src/workbench/SovereignStatePanel.jsx owns pending-decision accounting and fact approve/reject actions; the live panel buttons reach it, verified by focused frontend tests. Browser/live UI evidence is still not claimed."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS-PARTIAL \u2014 pending counts from durable facts/council/self-analysis APIs. C4 TAMPER-EVIDENCE: N/A \u2014 UI authority, not a journal. C5 FAIL-SAFE: PASS \u2014 pendingCount does not treat evidence surfaces as approvals. Phase 2 panel spy proves reachability. Still yellow honestly: browser-session + tip SHA not claimed."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
