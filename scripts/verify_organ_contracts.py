@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=REPO_ROOT,
             strict_last_verified=args.strict_release,
             enforce_owner_attestation=True,
+            enforce_phase4_honesty=True,
         )
     )
     violations.extend(

@@ -16,7 +16,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release."
+      "C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release.",
+      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -37,7 +38,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5.",
+      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -58,7 +60,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.",
+      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -79,7 +82,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.",
+      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -100,7 +104,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5.",
+      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -121,7 +126,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (request-scoped; token durability with organ 53 aios/application/security/api_token_authority.py::InstallationConfigurationAuthority). C4: N/A-BY-DESIGN \u2014 edge decisions ephemeral aios/interfaces/http/edge_security.py::EdgeTrustAuthority.check_*; durable rotation owned by organ 53. C5: PASS (fail closed on bad token/origin)."
+      "C3: PASS (request-scoped; token durability with organ 53 aios/application/security/api_token_authority.py::InstallationConfigurationAuthority). C4: N/A-BY-DESIGN \u2014 edge decisions ephemeral aios/interfaces/http/edge_security.py::EdgeTrustAuthority.check_*; durable rotation owned by organ 53. C5: PASS (fail closed on bad token/origin).",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -142,7 +148,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (binds durable autonomy/constitution deps \u2014 aios/policy/kernel.py::PolicyKernelAuthority). C4: N/A-BY-DESIGN \u2014 kernel is not a journal; decisions audited via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (refuses when constitution unwired)."
+      "C3: PASS (binds durable autonomy/constitution deps \u2014 aios/policy/kernel.py::PolicyKernelAuthority). C4: N/A-BY-DESIGN \u2014 kernel is not a journal; decisions audited via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (refuses when constitution unwired).",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -163,7 +170,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (grants via capability stores). C4: PASS (server-issued single-use capability payloads). C5: PASS (PolicyBrokerError fail closed). Remaining: Phase 4-5 live evidence."
+      "C3: PASS (grants via capability stores). C4: PASS (server-issued single-use capability payloads). C5: PASS (PolicyBrokerError fail closed). Remaining: Phase 4-5 live evidence.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -182,9 +190,15 @@
     "integration_tests": [
       "tests/test_e2e_sovereign_flywheel.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_capabilities => exact capability issued, consumed once, replay refused, altered payload refused",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -201,11 +215,17 @@
     "integration_tests": [
       "tests/test_council_orchestrator.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "C3: PASS (mission SQLite durable). C4: PASS (production maintenance MissionAuthority journals MISSION_CREATED via organ-42 aios/application/recovery/authority.py::RecoveryResumptionAuthority). C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_mission => mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "known_blockers": [
+      "C3: PASS (mission SQLite durable). C4: PASS (production maintenance MissionAuthority journals MISSION_CREATED via organ-42 aios/application/recovery/authority.py::RecoveryResumptionAuthority). C5: PASS. Phase 4 absolute: live evidence attached at tip 7b3805118d54 via release/phase4/live-evidence-7b3805118d54.json. Remaining: Phase 5 green flip only after adversarial re-read of all 12 conditions."
+    ],
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -224,7 +244,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (orchestration; durable artifacts in memory/mission stores). C4: N/A-BY-DESIGN \u2014 coordinator is not a journal owner aios/application/turns/turn_coordinator.py::TurnCoordinatorAuthority. C5: PASS."
+      "C3: PASS (orchestration; durable artifacts in memory/mission stores). C4: N/A-BY-DESIGN \u2014 coordinator is not a journal owner aios/application/turns/turn_coordinator.py::TurnCoordinatorAuthority. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -245,7 +266,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (foundry/scheduler registry durable enough for cancel/stop). C4: N/A-BY-DESIGN \u2014 foundry not a hash-chain journal aios/application/workers/foundry.py::WorkerFoundryAuthority; outcomes audited via organ 4 / provenance via organ 38. C5: PASS."
+      "C3: PASS (foundry/scheduler registry durable enough for cancel/stop). C4: N/A-BY-DESIGN \u2014 foundry not a hash-chain journal aios/application/workers/foundry.py::WorkerFoundryAuthority; outcomes audited via organ 4 / provenance via organ 38. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -266,7 +288,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (workspaces on disk; container backend). C4: N/A-BY-DESIGN \u2014 isolation boundary, not a hash chain aios/executor_service.py::ExecutorServiceAuthority; execution audited via organ 4. C5: PASS (unavailable reported honestly)."
+      "C3: PASS (workspaces on disk; container backend). C4: N/A-BY-DESIGN \u2014 isolation boundary, not a hash chain aios/executor_service.py::ExecutorServiceAuthority; execution audited via organ 4. C5: PASS (unavailable reported honestly).",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -287,7 +310,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (staged workspaces on disk). C4: N/A-BY-DESIGN \u2014 integrity via promotion verification / organ 16 aios/application/workspaces/staged.py::StagedWorkspaceAuthority; not organ-4 chain. C5: PASS."
+      "C3: PASS (staged workspaces on disk). C4: N/A-BY-DESIGN \u2014 integrity via promotion verification / organ 16 aios/application/workspaces/staged.py::StagedWorkspaceAuthority; not organ-4 chain. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -306,9 +330,15 @@
     "integration_tests": [
       "tests/test_promotion_authority.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_staging_and_promotion => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -325,9 +355,15 @@
     "integration_tests": [
       "tests/test_council_orchestrator.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_staging_and_promotion (same live run as organ 15) => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -344,11 +380,17 @@
     "integration_tests": [
       "tests/test_release_conformance.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "C3: PASS (SQLite outbox durable). C4: PASS (writer+verifier share aios/runtime/cortex_bus.py::cortex_event_content_digest; adversarial audit chain remains organ 4). C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_cortex => canonical events advanced a durable consumer cursor across restart without duplicate replay",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "known_blockers": [
+      "C3: PASS (SQLite outbox durable). C4: PASS (writer+verifier share aios/runtime/cortex_bus.py::cortex_event_content_digest; adversarial audit chain remains organ 4). C5: PASS. Phase 4 absolute: live evidence attached at tip 7b3805118d54 via release/phase4/live-evidence-7b3805118d54.json. Remaining: Phase 5 green flip only after adversarial re-read of all 12 conditions."
+    ],
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -365,9 +407,15 @@
     "integration_tests": [
       "tests/test_chat.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_memory => unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -384,9 +432,15 @@
     "integration_tests": [
       "tests/test_release_conformance.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; rp._probe_emergency_stop => emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded | TestClient GET /api/v1/governance/emergency-stop => HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -405,7 +459,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for FE authority (process store) \u2014 frontend/src/superbrain/lib/livingMirrorRegistry.ts::LivingMirrorAuthority; backend mirror APIs durable. C4: N/A-BY-DESIGN (UI normalizer \u2014 LivingMirrorAuthority.dispatch). C5: PASS (unknown events ignored without inventing state)."
+      "C3: N/A-BY-DESIGN for FE authority (process store) \u2014 frontend/src/superbrain/lib/livingMirrorRegistry.ts::LivingMirrorAuthority; backend mirror APIs durable. C4: N/A-BY-DESIGN (UI normalizer \u2014 LivingMirrorAuthority.dispatch). C5: PASS (unknown events ignored without inventing state).",
+      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -426,7 +481,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (runtime dirs + ledgers durable). C4: N/A-BY-DESIGN \u2014 KingReport/ledger files via aios/council/council_orchestrator.py::QueenCouncilAuthority; adversarial chain owned by organ 4 / 38. C5: PASS."
+      "C3: PASS (runtime dirs + ledgers durable). C4: N/A-BY-DESIGN \u2014 KingReport/ledger files via aios/council/council_orchestrator.py::QueenCouncilAuthority; adversarial chain owned by organ 4 / 38. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -447,7 +503,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (evaluates durable organs; report ephemeral). C4: N/A-BY-DESIGN \u2014 computed declaration aios/application/governance/v1_declaration.py::ReleaseDeclarationAuthority. C5: PASS (NOT READY when gates fail)."
+      "C3: PASS (evaluates durable organs; report ephemeral). C4: N/A-BY-DESIGN \u2014 computed declaration aios/application/governance/v1_declaration.py::ReleaseDeclarationAuthority. C5: PASS (NOT READY when gates fail).",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -469,7 +526,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 6 residual: stays non-green until every organ below is green and strict-release proof lands. C3/C4/C5: PASS for ledger+manifest mechanics."
+      "Phase 6 residual: stays non-green until every organ below is green and strict-release proof lands. C3/C4/C5: PASS for ledger+manifest mechanics.",
+      "Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -494,7 +552,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -532,7 +591,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -565,7 +625,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN \u2014 stop latch is process/control-plane state aios/application/capabilities/authority.py::EmergencyStopHardWiringAuthority; evidence preservation audited via organ 4. C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 stop latch is process/control-plane state aios/application/capabilities/authority.py::EmergencyStopHardWiringAuthority; evidence preservation audited via organ 4. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -599,7 +660,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (preference stores durable). C4: N/A-BY-DESIGN \u2014 store integrity via preference SQLite aios/application/memory/authorities.py::OperatorTasteModelAuthority; adversarial chain owned by organ 4 / 38. C5: PASS."
+      "C3: PASS (preference stores durable). C4: N/A-BY-DESIGN \u2014 store integrity via preference SQLite aios/application/memory/authorities.py::OperatorTasteModelAuthority; adversarial chain owned by organ 4 / 38. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -629,7 +691,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -662,7 +725,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -692,7 +756,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -721,7 +786,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (context store + receipts). C4: N/A-BY-DESIGN \u2014 receipt durability in aios/application/intelligence/context_compiler.py::RepresentativeContextCompilerAuthority; not organ-38/4 chain owner. C5: PASS."
+      "C3: PASS (context store + receipts). C4: N/A-BY-DESIGN \u2014 receipt durability in aios/application/intelligence/context_compiler.py::RepresentativeContextCompilerAuthority; not organ-38/4 chain owner. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -763,7 +829,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (strict receipt before provider \u2014 aios/application/intelligence/gateway.py::UniversalIntelligenceGatewayAuthority.route). C4: N/A-BY-DESIGN \u2014 receipt digests are gateway artifacts; audit chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS."
+      "C3: PASS (strict receipt before provider \u2014 aios/application/intelligence/gateway.py::UniversalIntelligenceGatewayAuthority.route). C4: N/A-BY-DESIGN \u2014 receipt digests are gateway artifacts; audit chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -792,7 +859,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort."
+      "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort.",
+      "no Ollama \u2014 live local-model / red-team evidence needs live Ollama in CI or self-hosted runner"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -819,7 +887,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN \u2014 ProviderHealthBudgetAuthority is process-local diagnostic circuit state (BudgetGuard convention) aios/application/models/health.py::ProviderHealthBudgetAuthority. C4: N/A-BY-DESIGN (ephemeral circuit \u2014 same symbol). C5: PASS (has_observations gates truthful read-models; never invents measured health)."
+      "C3: N/A-BY-DESIGN \u2014 ProviderHealthBudgetAuthority is process-local diagnostic circuit state (BudgetGuard convention) aios/application/models/health.py::ProviderHealthBudgetAuthority. C4: N/A-BY-DESIGN (ephemeral circuit \u2014 same symbol). C5: PASS (has_observations gates truthful read-models; never invents measured health).",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -841,7 +910,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime."
+      "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime.",
+      "no Ollama \u2014 live local clerk runtime evidence needs live Ollama"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -862,9 +932,15 @@
     "integration_tests": [
       "tests/test_local_workforce_api.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; ClerkDispatcherAuthority.dispatch deterministic/unqual/failing => decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [],
-    "last_verified_sha": "1f52ef89be48985a4434d0c162db8ab365acafd8",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -887,7 +963,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite."
+      "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite.",
+      "no Ollama \u2014 live model qualification suite needs live Ollama"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -916,7 +993,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -947,7 +1025,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (DeliberationStore). C4: N/A-BY-DESIGN \u2014 stored deliberation records aios/council/deliberation_gather.py::DeliberationCouncilAuthority; adversarial chain owned by organ 4 / 38. C5: PASS."
+      "C3: PASS (DeliberationStore). C4: N/A-BY-DESIGN \u2014 stored deliberation records aios/council/deliberation_gather.py::DeliberationCouncilAuthority; adversarial chain owned by organ 4 / 38. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -987,7 +1066,8 @@
       }
     ],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN \u2014 executor isolation + audit via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority; not a hash-chain journal. C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 executor isolation + audit via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority; not a hash-chain journal. C5: PASS.",
+      "no Docker \u2014 Docker Desktop daemon unavailable on this Windows host (npipe dockerDesktopLinuxEngine); historical CI Docker isolation evidence retained, not tip-restamped"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1009,7 +1089,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1044,7 +1125,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1071,7 +1153,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN \u2014 outcome/confidence durability in skill store aios/application/learning/skill_lifecycle.py::SkillLifecycleAuthority; adversarial chain owned by organ 38. C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 outcome/confidence durability in skill store aios/application/learning/skill_lifecycle.py::SkillLifecycleAuthority; adversarial chain owned by organ 38. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1094,7 +1177,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Outside-machine: cloud golden / endurance cohort requires operator-supplied cloud credentials in CI. C3: PASS for in-process ordered step verification owner. C4/C5: N/A until Outside-machine evidence exists."
+      "Outside-machine: cloud golden / endurance cohort requires operator-supplied cloud credentials in CI. C3: PASS for in-process ordered step verification owner. C4/C5: N/A until Outside-machine evidence exists.",
+      "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1128,7 +1212,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1159,7 +1244,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models.",
+      "no Ollama \u2014 live constitutional learning / red-team path needs live Ollama (and/or Outside-machine cloud)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1182,7 +1268,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN \u2014 projection organ aios/application/read_models/governance_projections.py::ReadModelProjectionAuthority.build_governance_surface; freshness from source organs; not a journal owner. C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope in same module)."
+      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN \u2014 projection organ aios/application/read_models/governance_projections.py::ReadModelProjectionAuthority.build_governance_surface; freshness from source organs; not a journal owner. C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope in same module).",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1205,7 +1292,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority (process-local) \u2014 frontend/src/workbench/SovereignStatePanel.jsx::TruthfulMirrorAuthority; reads durable mirror APIs aios/api/routes/mirror.py. C4: N/A-BY-DESIGN (UI normalizer). C5: PASS (allUnavailable path \u2014 TruthfulMirrorAuthority.allUnavailable)."
+      "C3: N/A-BY-DESIGN for UI authority (process-local) \u2014 frontend/src/workbench/SovereignStatePanel.jsx::TruthfulMirrorAuthority; reads durable mirror APIs aios/api/routes/mirror.py. C4: N/A-BY-DESIGN (UI normalizer). C5: PASS (allUnavailable path \u2014 TruthfulMirrorAuthority.allUnavailable).",
+      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1228,7 +1316,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::ApprovalDecisionSurfaceAuthority; counts from durable APIs. C4: N/A-BY-DESIGN (UI surface). C5: PASS."
+      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::ApprovalDecisionSurfaceAuthority; counts from durable APIs. C4: N/A-BY-DESIGN (UI surface). C5: PASS.",
+      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1266,11 +1355,17 @@
       "tests/test_route_wiring.py",
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "C3: PASS (PrivacyAuditTracker SQLite durable). C4: PASS (row digests). C5: PASS (unavailable/tampered). Remaining: Phase 4-5 live evidence / tip SHA."
+    "live_evidence": [
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-x2bnrun5\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
+    "known_blockers": [
+      "C3: PASS (PrivacyAuditTracker SQLite durable). C4: PASS (row digests). C5: PASS (unavailable/tampered). Phase 4 absolute: live evidence attached at tip 7b3805118d54 via release/phase4/live-evidence-7b3805118d54.json. Remaining: Phase 5 green flip only after adversarial re-read of all 12 conditions."
+    ],
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -1291,7 +1386,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::SovereignHeartbeatSurfaceAuthority; badge reads durable stop envelopes. C4: N/A-BY-DESIGN (UI surface). C5: PASS."
+      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::SovereignHeartbeatSurfaceAuthority; badge reads durable stop envelopes. C4: N/A-BY-DESIGN (UI surface). C5: PASS.",
+      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1325,10 +1421,15 @@
         "description": "tests/test_executor_integration.py::test_trace_context_reaches_the_isolated_container (added in PR #166, commit bf81221) asserts AIOS_TRACE_REQUEST_ID/AIOS_TRACE_MISSION_ID env vars are genuinely present inside a real Docker-spawned container (StructuredExecutorClient -> executor_service.py -> DockerRunner -> container), closing the one gap known_blockers named (no live Docker daemon in this dev sandbox). CI run 30280348926 on commit ec6b089d65ad75997f87b5234d34f02dffc3e3b5 (this ledger entry's stamped commit) RE-CONFIRMED it -- ran it twice against a real docker-compose executor topology (initial start + post-restart), both '4 passed, 1 warning' -- ec6b089 did not introduce this test, it only re-proved it; see .github/workflows/ci.yml's release-authority job.",
         "commit_sha": "ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 7b3805118d5423e8940488c4a1cf0acee4c0926a: command=.venv/Scripts/python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a exit=0; artifact=release/phase4/live-evidence-7b3805118d54.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '0de58df2-ed7d-467c-963c-d318f58932f9'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
+        "commit_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
+    "last_verified_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
     "requires_live_evidence": false
   },
   {
@@ -1359,7 +1460,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (token rotation DB durable \u2014 aios/application/security/api_token_authority.py::InstallationConfigurationAuthority). C4: N/A-BY-DESIGN \u2014 rotation store integrity; adversarial audit chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority. C5: PASS."
+      "C3: PASS (token rotation DB durable \u2014 aios/application/security/api_token_authority.py::InstallationConfigurationAuthority). C4: N/A-BY-DESIGN \u2014 rotation store integrity; adversarial audit chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority. C5: PASS.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1382,7 +1484,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
+      "C3: PASS. C4: PASS. C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA.",
+      "Phase 4 absolute residual \u2014 API/SQLite or browser live evidence not yet attached this wave (achievable locally or in CI; not Outside-machine)"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

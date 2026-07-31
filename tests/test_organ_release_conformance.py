@@ -136,6 +136,59 @@ def test_evidence_from_the_evaluated_commit_sha_passes() -> None:
     assert validate_ledger(records, current_sha="1" * 40) == ()
 
 
+def test_phase4_honesty_rejects_silent_organs_without_named_reason() -> None:
+    records = _baseline_records()
+    # placeholder blockers are not precise Phase 4 named reasons
+    violations = validate_ledger(records, enforce_phase4_honesty=True)
+    assert any("no precise named Phase 4 reason" in v for v in violations)
+
+
+def test_phase4_honesty_rejects_live_theater_without_recheckable_marker() -> None:
+    records = _baseline_records()
+    records[0] = records[0].model_copy(
+        update={
+            "known_blockers": (),
+            "live_evidence": (
+                OrganEvidence(
+                    description="we pinky-swear it ran live somehow",
+                    commit_sha="a" * 40,
+                    proof_level="live",
+                ),
+            ),
+        }
+    )
+    for i in range(1, len(records)):
+        records[i] = records[i].model_copy(
+            update={"known_blockers": ("Phase 4 absolute residual — queued",)}
+        )
+    violations = validate_ledger(records, enforce_phase4_honesty=True)
+    assert any("not re-checkable" in v for v in violations)
+
+
+def test_phase4_honesty_accepts_recheckable_live_and_named_residuals() -> None:
+    records = _baseline_records()
+    records[0] = records[0].model_copy(
+        update={
+            "known_blockers": (),
+            "live_evidence": (
+                OrganEvidence(
+                    description=(
+                        "Phase 4 absolute live run command=`scripts/phase4_live_evidence.py` "
+                        "artifact=release/phase4/live-evidence-latest.json exit=0"
+                    ),
+                    commit_sha="b" * 40,
+                    proof_level="live",
+                ),
+            ),
+        }
+    )
+    for i in range(1, len(records)):
+        records[i] = records[i].model_copy(
+            update={"known_blockers": ("Outside-machine — cloud credentials barred",)}
+        )
+    assert validate_ledger(records, enforce_phase4_honesty=True) == ()
+
+
 def test_fixture_labelled_evidence_cannot_satisfy_live_gate() -> None:
     records = _baseline_records()
     records[0] = _make_green(

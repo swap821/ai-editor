@@ -34,6 +34,22 @@ from aios.domain.governance.contracts import OrganRecord
 _FRONTEND_UNAVAILABLE_MARKERS: tuple[str, ...] = ("unavailable",)
 _FRONTEND_ERROR_CLASS_MARKERS: tuple[str, ...] = ("error", "stale", "disconnected")
 
+#: Phase 4 absolute (2026-07-31): live evidence must be re-checkable, and
+#: organs without live evidence must name one precise Outside/Docker/Ollama/
+#: Phase-6/frozen/browser residual — never silence.
+_LIVE_COMMIT_SHA = re.compile(r"\A[0-9a-f]{40}\Z")
+_LIVE_RECHECKABLE = re.compile(
+    r"release/phase4/|TestClient|rp\._probe|https?://|command=`|"
+    r"scripts/phase4_live_evidence\.py|actions/runs/\d+|CI run \d+|"
+    r"docker-compose|test_executor_integration",
+    re.IGNORECASE,
+)
+_PHASE4_NAMED_REASON = re.compile(
+    r"frozen spine|Phase 6 gate|no Ollama|Outside-machine|browser-session|"
+    r"Phase 4 absolute residual|no Docker",
+    re.IGNORECASE,
+)
+
 REQUIRED_ORGAN_COUNT = 54
 
 #: organ_id -> canonical (name, authority_owner). This is the single source
@@ -233,6 +249,7 @@ def validate_ledger(
     repo_root: str | Path | None = None,
     strict_last_verified: bool = False,
     enforce_owner_attestation: bool = False,
+    enforce_phase4_honesty: bool = False,
 ) -> tuple[str, ...]:
     """Return a tuple of truthful violation descriptions; empty means conformant.
 
@@ -259,6 +276,11 @@ def validate_ledger(
     currently yellow or green. Frozen organs 1--5 still cannot claim green
     here (security-spine RED), but after the 2026-07-31 §VIII Deploy their
     Decision A owner classes are attested like every other organ.
+
+    ``enforce_phase4_honesty`` is the Phase 4 absolute boundary: every
+    ``proof_level="live"`` row must carry a full 40-char commit SHA and a
+    re-checkable description, and every organ without live evidence must
+    name one precise Outside/Docker/Ollama/Phase-6/frozen/browser reason.
     """
     violations: list[str] = []
     root = Path(repo_root) if repo_root is not None else None
@@ -336,6 +358,36 @@ def validate_ledger(
                     "own production_entrypoints"
                 )
 
+    if enforce_phase4_honesty:
+        for record in records:
+            live_rows = [
+                evidence
+                for evidence in record.live_evidence
+                if evidence.proof_level == "live"
+            ]
+            for evidence in live_rows:
+                if not _LIVE_COMMIT_SHA.fullmatch(evidence.commit_sha):
+                    violations.append(
+                        f"organ_id {record.organ_id} ({record.name}) has "
+                        f"proof_level='live' evidence with non-40-char commit_sha "
+                        f"{evidence.commit_sha!r}"
+                    )
+                if not _LIVE_RECHECKABLE.search(evidence.description):
+                    violations.append(
+                        f"organ_id {record.organ_id} ({record.name}) has "
+                        "proof_level='live' evidence that is not re-checkable "
+                        "(missing artifact path, TestClient/probe command, or CI URL)"
+                    )
+            if not live_rows:
+                blocker_text = " ".join(record.known_blockers)
+                if not _PHASE4_NAMED_REASON.search(blocker_text):
+                    violations.append(
+                        f"organ_id {record.organ_id} ({record.name}) has no live "
+                        "evidence and no precise named Phase 4 reason "
+                        "(Outside-machine / no Docker / no Ollama / Phase 6 gate / "
+                        "frozen spine / browser-session / Phase 4 absolute residual)"
+                    )
+
     for record in records:
         if record.status != "green":
             continue
@@ -409,6 +461,7 @@ def evaluate_organs(
     current_sha: str | None = None,
     strict_last_verified: bool = False,
     enforce_owner_attestation: bool = True,
+    enforce_phase4_honesty: bool = False,
 ) -> OrganLedgerReport:
     repo = Path(root or Path(__file__).resolve().parents[3]).resolve()
     path = Path(ledger_path) if ledger_path is not None else _default_ledger_path(repo)
@@ -420,6 +473,7 @@ def evaluate_organs(
         repo_root=repo,
         strict_last_verified=strict_last_verified,
         enforce_owner_attestation=enforce_owner_attestation,
+        enforce_phase4_honesty=enforce_phase4_honesty,
     )
     green_count = sum(1 for record in records if record.status == "green")
     yellow_count = sum(1 for record in records if record.status == "yellow")

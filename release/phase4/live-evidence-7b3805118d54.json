@@ -1,0 +1,91 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-07-31T12:31:59+00:00",
+  "tip_sha": "7b3805118d5423e8940488c4a1cf0acee4c0926a",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 9,
+      "name": "Exact Capability Authority",
+      "passed": true,
+      "command": "rp._probe_capabilities",
+      "evidence": "exact capability issued, consumed once, replay refused, altered payload refused"
+    },
+    {
+      "organ_id": 10,
+      "name": "Mission Authority",
+      "passed": true,
+      "command": "rp._probe_mission",
+      "evidence": "mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution"
+    },
+    {
+      "organ_id": 15,
+      "name": "Evidence and Verification Authority (construction)",
+      "passed": true,
+      "command": "rp._probe_staging_and_promotion",
+      "evidence": "disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test"
+    },
+    {
+      "organ_id": 16,
+      "name": "Promotion Authority (construction)",
+      "passed": true,
+      "command": "rp._probe_staging_and_promotion (same live run as organ 15)",
+      "evidence": "disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test"
+    },
+    {
+      "organ_id": 17,
+      "name": "Cortex Observation Bus",
+      "passed": true,
+      "command": "rp._probe_cortex",
+      "evidence": "canonical events advanced a durable consumer cursor across restart without duplicate replay"
+    },
+    {
+      "organ_id": 18,
+      "name": "Memory Authority (construction)",
+      "passed": true,
+      "command": "rp._probe_memory",
+      "evidence": "unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance"
+    },
+    {
+      "organ_id": 19,
+      "name": "Emergency Stop Controller (construction)",
+      "passed": true,
+      "command": "rp._probe_emergency_stop",
+      "evidence": "emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded"
+    },
+    {
+      "organ_id": 36,
+      "name": "Clerical Job Contract and Dispatcher",
+      "passed": true,
+      "command": "ClerkDispatcherAuthority.dispatch deterministic/unqual/failing",
+      "evidence": "decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation"
+    },
+    {
+      "organ_id": 50,
+      "name": "Provenance and Explanation Surface",
+      "passed": true,
+      "command": "PrivacyAuditTracker.record + reopen real SQLite",
+      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-x2bnrun5\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
+    },
+    {
+      "organ_id": 19,
+      "name": "Emergency Stop Controller (construction)",
+      "passed": true,
+      "command": "TestClient GET /api/v1/governance/emergency-stop",
+      "evidence": "HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}"
+    },
+    {
+      "organ_id": 52,
+      "name": "Observability and Health Organ",
+      "passed": true,
+      "command": "ObservabilityAuthority.health + TestClient GET /health",
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '0de58df2-ed7d-467c-963c-d318f58932f9'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
