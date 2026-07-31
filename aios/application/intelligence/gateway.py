@@ -237,73 +237,6 @@ def _redact_stream(chunks: Iterable[Any], policy: SecretPolicy) -> Iterator[str]
             yield final
 
 
-def _stream_compatibility_intelligence_request(
-    *,
-    request_id: str,
-    target: str,
-    model_call: Callable[[], Iterable[str]],
-    secret_policy: SecretPolicy | None = None,
-    emergency_stop: Any | None = None,
-) -> CompatibilityStreamingIntelligenceGatewayResult:
-    """Govern the anonymous compatibility path without inventing authority.
-
-    Anonymous compatibility chat has no truthful operator identity or active
-    constitution digest. It is consequently restricted to the local provider,
-    does not compile or record a representative receipt, and still shares the
-    emergency-stop and output-redaction gates with authenticated chat.
-    """
-    if not str(request_id).strip():
-        raise IntelligenceGatewayError("request_id is required")
-    if target != "local":
-        raise IntelligenceGatewayError(
-            "anonymous compatibility requests must target the local provider"
-        )
-    if not callable(model_call):
-        raise IntelligenceGatewayError("model_call must be callable")
-    if emergency_stop is not None:
-        emergency_stop.assert_operational()
-    policy = secret_policy or SecretPolicy()
-
-    def _redacted_chunks() -> Iterator[str]:
-        yield from _redact_stream(model_call(), policy)
-
-    return CompatibilityStreamingIntelligenceGatewayResult(
-        chunks=_redacted_chunks()
-    )
-
-
-def _complete_compatibility_intelligence_request(
-    *,
-    request_id: str,
-    target: str,
-    model_call: Callable[[], str],
-    secret_policy: SecretPolicy | None = None,
-    emergency_stop: Any | None = None,
-) -> str:
-    """Govern one anonymous, local-only compatibility completion.
-
-    Compatibility callers have no truthful operator identity or constitution
-    digest. This entrance therefore deliberately provides neither a
-    representative-context receipt nor authenticated authority. It still
-    enforces the local-only target, emergency stop, input redaction performed
-    by its adapter, and output redaction before the result can be parsed by a
-    downstream advisory contract.
-    """
-    if not str(request_id).strip():
-        raise IntelligenceGatewayError("request_id is required")
-    if target != "local":
-        raise IntelligenceGatewayError(
-            "anonymous compatibility requests must target the local provider"
-        )
-    if not callable(model_call):
-        raise IntelligenceGatewayError("model_call must be callable")
-    if emergency_stop is not None:
-        emergency_stop.assert_operational()
-    policy = secret_policy or SecretPolicy()
-    decision = policy.inspect_text(model_call())
-    return decision.scrubbed
-
-
 class _StructuredTextRedactor:
     """Boundary-safe redaction window for incremental event text."""
 
@@ -464,249 +397,6 @@ def _record_required_receipt(
     return receipt
 
 
-def _route_intelligence_request(
-    *,
-    request_id: str,
-    operator_identity_digest: str,
-    constitution_digest: str,
-    goal: str,
-    desired_outcome: str,
-    target: CompilationTarget,
-    delegated_authority_summary: str,
-    model_call: Callable[[RepresentativeContextV1], str],
-    explicit_constraints: Sequence[str] = (),
-    current_decisions: Sequence[str] = (),
-    active_preferences: Sequence[OperatorPreferenceV1] = (),
-    project_passport: ProjectPassportV1 | None = None,
-    project_passport_stale: bool = False,
-    relevant_memory_refs: Sequence[str] = (),
-    permitted_tools: Sequence[str] = (),
-    evidence_requirements: Sequence[str] = (),
-    communication_mode: str = "direct",
-    latest_correction: CorrectionRecordV1 | None = None,
-    secret_policy: SecretPolicy | None = None,
-    emergency_stop: Any | None = None,
-    context_store: Any | None = None,
-) -> IntelligenceGatewayResult:
-    """Compile context, invoke the caller's model call, redact the output.
-
-    Pipeline order (matching the brief): identity/constitution validation
-    (bare non-empty checks here -- full constitution-mismatch enforcement at
-    the PolicyKernel decision path is still open, see organ 25's blockers) ->
-    representative-context compilation -> emergency-stop check -> the
-    caller's model call -> output secret redaction. Provider eligibility,
-    budget, and health checks are deliberately not reimplemented here --
-    they already exist (`aios.core.router`, `aios.runtime.budget_guard`) and
-    a caller wires them into how it builds `model_call`, rather than this
-    pipeline re-deciding provider selection.
-
-    `context_store` (organ 31) durably records the compiled context once it
-    has passed every check above -- pass an explicit store (or a test spy)
-    to override the default `RepresentativeContextStore`; the record is
-    best-effort and never blocks the call itself.
-    """
-    policy = secret_policy or SecretPolicy()
-    context = _validate_and_compile(
-        request_id=request_id,
-        operator_identity_digest=operator_identity_digest,
-        constitution_digest=constitution_digest,
-        goal=goal,
-        desired_outcome=desired_outcome,
-        target=target,
-        delegated_authority_summary=delegated_authority_summary,
-        explicit_constraints=explicit_constraints,
-        current_decisions=current_decisions,
-        active_preferences=active_preferences,
-        project_passport=project_passport,
-        project_passport_stale=project_passport_stale,
-        relevant_memory_refs=relevant_memory_refs,
-        permitted_tools=permitted_tools,
-        evidence_requirements=evidence_requirements,
-        communication_mode=communication_mode,
-        latest_correction=latest_correction,
-        policy=policy,
-        emergency_stop=emergency_stop,
-    )
-    _record_context(context, context_store)
-
-    raw_output = model_call(context)
-    decision = policy.inspect_text(raw_output)
-    return IntelligenceGatewayResult(
-        context=context,
-        output=decision.scrubbed,
-        secrets_redacted=decision.detected,
-    )
-
-
-def _stream_intelligence_request(
-    *,
-    request_id: str,
-    operator_identity_digest: str,
-    constitution_digest: str,
-    goal: str,
-    desired_outcome: str,
-    target: CompilationTarget,
-    delegated_authority_summary: str,
-    model_call: Callable[[RepresentativeContextV1], Iterable[str]],
-    explicit_constraints: Sequence[str] = (),
-    current_decisions: Sequence[str] = (),
-    active_preferences: Sequence[OperatorPreferenceV1] = (),
-    project_passport: ProjectPassportV1 | None = None,
-    project_passport_stale: bool = False,
-    relevant_memory_refs: Sequence[str] = (),
-    permitted_tools: Sequence[str] = (),
-    evidence_requirements: Sequence[str] = (),
-    communication_mode: str = "direct",
-    latest_correction: CorrectionRecordV1 | None = None,
-    secret_policy: SecretPolicy | None = None,
-    emergency_stop: Any | None = None,
-    context_store: Any | None = None,
-    receipt_factory: Callable[[RepresentativeContextV1], RepresentativeContextReceiptV1]
-    | None = None,
-    require_context_receipt: bool = False,
-) -> StreamingIntelligenceGatewayResult:
-    """Streaming counterpart to `route_intelligence_request()` for text-chunk
-    model calls (chat's token-by-token reply). Same upfront governance --
-    identity/constitution validation, emergency-stop check, representative-
-    context compilation -- computed eagerly before any chunk is produced, so
-    a refused request never starts a stream at all.
-
-    Output is redacted through `_redact_stream()`, which holds text back just
-    far enough to detect a secret straddling a chunk boundary rather than
-    scanning each chunk in isolation. Chunks were previously redacted
-    independently, which was not a merely theoretical weakness -- an OpenAI
-    `sk-` key, an AWS access key id and a GitHub PAT each passed through IN
-    FULL when split at the wrong offset. See `_redact_stream()` for the
-    mechanism and its one honest, bounded limitation.
-
-    The cost is that chunk boundaries are no longer preserved one-for-one:
-    the delivered text is identical, but it arrives reframed and with a small
-    lag. Streaming remains genuinely incremental -- the full reply is never
-    buffered.
-
-    Organ 32 scope note: this variant covers plain-text chunk streams
-    (chat's shape). The agentic forge's `ToolAgent.run()` yields structured
-    tool-call events (`dict[str, Any]`), a genuinely different shape this
-    variant does not cover -- deliberately not attempted in the same pass,
-    per the operator-confirmed "streaming variant only" scope decision.
-
-    `context_store` (organ 31): same durable, best-effort audit record as
-    `route_intelligence_request()`, written once the context is compiled and
-    before the first chunk is pulled.
-    """
-    policy = secret_policy or SecretPolicy()
-    context = _validate_and_compile(
-        request_id=request_id,
-        operator_identity_digest=operator_identity_digest,
-        constitution_digest=constitution_digest,
-        goal=goal,
-        desired_outcome=desired_outcome,
-        target=target,
-        delegated_authority_summary=delegated_authority_summary,
-        explicit_constraints=explicit_constraints,
-        current_decisions=current_decisions,
-        active_preferences=active_preferences,
-        project_passport=project_passport,
-        project_passport_stale=project_passport_stale,
-        relevant_memory_refs=relevant_memory_refs,
-        permitted_tools=permitted_tools,
-        evidence_requirements=evidence_requirements,
-        communication_mode=communication_mode,
-        latest_correction=latest_correction,
-        policy=policy,
-        emergency_stop=emergency_stop,
-    )
-    receipt = (
-        _record_required_receipt(
-            context,
-            receipt_factory=receipt_factory,
-            store=context_store,
-        )
-        if require_context_receipt
-        else None
-    )
-    if not require_context_receipt:
-        _record_context(context, context_store)
-
-    def _redacted_chunks() -> Iterator[str]:
-        return _redact_stream(model_call(context), policy)
-
-    return StreamingIntelligenceGatewayResult(
-        context=context, chunks=_redacted_chunks(), receipt=receipt
-    )
-
-
-def _stream_structured_intelligence_request(
-    *,
-    request_id: str,
-    operator_identity_digest: str,
-    constitution_digest: str,
-    goal: str,
-    desired_outcome: str,
-    target: CompilationTarget,
-    delegated_authority_summary: str,
-    model_call: Callable[[RepresentativeContextV1], Iterable[Mapping[str, Any]]],
-    explicit_constraints: Sequence[str] = (),
-    current_decisions: Sequence[str] = (),
-    active_preferences: Sequence[OperatorPreferenceV1] = (),
-    project_passport: ProjectPassportV1 | None = None,
-    project_passport_stale: bool = False,
-    relevant_memory_refs: Sequence[str] = (),
-    permitted_tools: Sequence[str] = (),
-    evidence_requirements: Sequence[str] = (),
-    communication_mode: str = "direct",
-    latest_correction: CorrectionRecordV1 | None = None,
-    secret_policy: SecretPolicy | None = None,
-    emergency_stop: Any | None = None,
-    context_store: Any | None = None,
-    receipt_factory: Callable[[RepresentativeContextV1], RepresentativeContextReceiptV1]
-    | None = None,
-    require_context_receipt: bool = False,
-) -> StructuredStreamingIntelligenceGatewayResult:
-    """Govern and redact a structured forge event stream."""
-    policy = secret_policy or SecretPolicy()
-    context = _validate_and_compile(
-        request_id=request_id,
-        operator_identity_digest=operator_identity_digest,
-        constitution_digest=constitution_digest,
-        goal=goal,
-        desired_outcome=desired_outcome,
-        target=target,
-        delegated_authority_summary=delegated_authority_summary,
-        explicit_constraints=explicit_constraints,
-        current_decisions=current_decisions,
-        active_preferences=active_preferences,
-        project_passport=project_passport,
-        project_passport_stale=project_passport_stale,
-        relevant_memory_refs=relevant_memory_refs,
-        permitted_tools=permitted_tools,
-        evidence_requirements=evidence_requirements,
-        communication_mode=communication_mode,
-        latest_correction=latest_correction,
-        policy=policy,
-        emergency_stop=emergency_stop,
-    )
-    receipt = (
-        _record_required_receipt(
-            context,
-            receipt_factory=receipt_factory,
-            store=context_store,
-        )
-        if require_context_receipt
-        else None
-    )
-    if not require_context_receipt:
-        _record_context(context, context_store)
-
-    def _redacted_events() -> Iterator[dict[str, Any]]:
-        raw_events = model_call(context)
-        yield from _redact_structured_stream(raw_events, policy)
-
-    return StructuredStreamingIntelligenceGatewayResult(
-        context=context, events=_redacted_events(), receipt=receipt
-    )
-
-
 class UniversalIntelligenceGatewayAuthority:
     """Own synchronous, plain-text, and structured streaming gateway entrances.
 
@@ -728,28 +418,195 @@ class UniversalIntelligenceGatewayAuthority:
             raise IntelligenceGatewayError("model_call must be callable")
 
     def route(self, **kwargs: Any) -> IntelligenceGatewayResult:
+        """Compile context, invoke the caller's model call, redact the output.
+
+        Pipeline order (matching the brief): identity/constitution validation
+        (bare non-empty checks here -- full constitution-mismatch enforcement at
+        the PolicyKernel decision path is still open, see organ 25's blockers) ->
+        representative-context compilation -> emergency-stop check -> the
+        caller's model call -> output secret redaction. Provider eligibility,
+        budget, and health checks are deliberately not reimplemented here --
+        they already exist (`aios.core.router`, `aios.runtime.budget_guard`) and
+        a caller wires them into how it builds `model_call`, rather than this
+        pipeline re-deciding provider selection.
+
+        `context_store` (organ 31) durably records the compiled context once it
+        has passed every check above -- pass an explicit store (or a test spy)
+        to override the default `RepresentativeContextStore`; the record is
+        best-effort and never blocks the call itself.
+        """
         self._validate_call_contract(kwargs)
-        return _route_intelligence_request(**kwargs)
+        policy = kwargs.get("secret_policy") or SecretPolicy()
+        context = _validate_and_compile(
+            request_id=kwargs["request_id"],
+            operator_identity_digest=kwargs["operator_identity_digest"],
+            constitution_digest=kwargs["constitution_digest"],
+            goal=kwargs["goal"],
+            desired_outcome=kwargs["desired_outcome"],
+            target=kwargs["target"],
+            delegated_authority_summary=kwargs["delegated_authority_summary"],
+            explicit_constraints=kwargs.get("explicit_constraints", ()),
+            current_decisions=kwargs.get("current_decisions", ()),
+            active_preferences=kwargs.get("active_preferences", ()),
+            project_passport=kwargs.get("project_passport"),
+            project_passport_stale=kwargs.get("project_passport_stale", False),
+            relevant_memory_refs=kwargs.get("relevant_memory_refs", ()),
+            permitted_tools=kwargs.get("permitted_tools", ()),
+            evidence_requirements=kwargs.get("evidence_requirements", ()),
+            communication_mode=kwargs.get("communication_mode", "direct"),
+            latest_correction=kwargs.get("latest_correction"),
+            policy=policy,
+            emergency_stop=kwargs.get("emergency_stop"),
+        )
+        _record_context(context, kwargs.get("context_store"))
+
+        raw_output = kwargs["model_call"](context)
+        decision = policy.inspect_text(raw_output)
+        return IntelligenceGatewayResult(
+            context=context,
+            output=decision.scrubbed,
+            secrets_redacted=decision.detected,
+        )
 
     def stream(self, **kwargs: Any) -> StreamingIntelligenceGatewayResult:
+        """Streaming counterpart to `route()` for text-chunk model calls."""
         self._validate_call_contract(kwargs)
-        return _stream_intelligence_request(**kwargs)
+        policy = kwargs.get("secret_policy") or SecretPolicy()
+        context = _validate_and_compile(
+            request_id=kwargs["request_id"],
+            operator_identity_digest=kwargs["operator_identity_digest"],
+            constitution_digest=kwargs["constitution_digest"],
+            goal=kwargs["goal"],
+            desired_outcome=kwargs["desired_outcome"],
+            target=kwargs["target"],
+            delegated_authority_summary=kwargs["delegated_authority_summary"],
+            explicit_constraints=kwargs.get("explicit_constraints", ()),
+            current_decisions=kwargs.get("current_decisions", ()),
+            active_preferences=kwargs.get("active_preferences", ()),
+            project_passport=kwargs.get("project_passport"),
+            project_passport_stale=kwargs.get("project_passport_stale", False),
+            relevant_memory_refs=kwargs.get("relevant_memory_refs", ()),
+            permitted_tools=kwargs.get("permitted_tools", ()),
+            evidence_requirements=kwargs.get("evidence_requirements", ()),
+            communication_mode=kwargs.get("communication_mode", "direct"),
+            latest_correction=kwargs.get("latest_correction"),
+            policy=policy,
+            emergency_stop=kwargs.get("emergency_stop"),
+        )
+        require_context_receipt = kwargs.get("require_context_receipt", False)
+        receipt = (
+            _record_required_receipt(
+                context,
+                receipt_factory=kwargs.get("receipt_factory"),
+                store=kwargs.get("context_store"),
+            )
+            if require_context_receipt
+            else None
+        )
+        if not require_context_receipt:
+            _record_context(context, kwargs.get("context_store"))
+
+        def _redacted_chunks() -> Iterator[str]:
+            return _redact_stream(kwargs["model_call"](context), policy)
+
+        return StreamingIntelligenceGatewayResult(
+            context=context, chunks=_redacted_chunks(), receipt=receipt
+        )
 
     def stream_structured(
         self, **kwargs: Any
     ) -> StructuredStreamingIntelligenceGatewayResult:
+        """Govern and redact a structured forge event stream."""
         self._validate_call_contract(kwargs)
-        return _stream_structured_intelligence_request(**kwargs)
+        policy = kwargs.get("secret_policy") or SecretPolicy()
+        context = _validate_and_compile(
+            request_id=kwargs["request_id"],
+            operator_identity_digest=kwargs["operator_identity_digest"],
+            constitution_digest=kwargs["constitution_digest"],
+            goal=kwargs["goal"],
+            desired_outcome=kwargs["desired_outcome"],
+            target=kwargs["target"],
+            delegated_authority_summary=kwargs["delegated_authority_summary"],
+            explicit_constraints=kwargs.get("explicit_constraints", ()),
+            current_decisions=kwargs.get("current_decisions", ()),
+            active_preferences=kwargs.get("active_preferences", ()),
+            project_passport=kwargs.get("project_passport"),
+            project_passport_stale=kwargs.get("project_passport_stale", False),
+            relevant_memory_refs=kwargs.get("relevant_memory_refs", ()),
+            permitted_tools=kwargs.get("permitted_tools", ()),
+            evidence_requirements=kwargs.get("evidence_requirements", ()),
+            communication_mode=kwargs.get("communication_mode", "direct"),
+            latest_correction=kwargs.get("latest_correction"),
+            policy=policy,
+            emergency_stop=kwargs.get("emergency_stop"),
+        )
+        require_context_receipt = kwargs.get("require_context_receipt", False)
+        receipt = (
+            _record_required_receipt(
+                context,
+                receipt_factory=kwargs.get("receipt_factory"),
+                store=kwargs.get("context_store"),
+            )
+            if require_context_receipt
+            else None
+        )
+        if not require_context_receipt:
+            _record_context(context, kwargs.get("context_store"))
+
+        def _redacted_events() -> Iterator[dict[str, Any]]:
+            raw_events = kwargs["model_call"](context)
+            yield from _redact_structured_stream(raw_events, policy)
+
+        return StructuredStreamingIntelligenceGatewayResult(
+            context=context, events=_redacted_events(), receipt=receipt
+        )
 
     def stream_compatibility(
         self, **kwargs: Any
     ) -> CompatibilityStreamingIntelligenceGatewayResult:
         """Use the bounded local-only anonymous compatibility entrance."""
-        return _stream_compatibility_intelligence_request(**kwargs)
+        request_id = str(kwargs.get("request_id", "")).strip()
+        if not request_id:
+            raise IntelligenceGatewayError("request_id is required")
+        target = kwargs.get("target")
+        if target != "local":
+            raise IntelligenceGatewayError(
+                "anonymous compatibility requests must target the local provider"
+            )
+        model_call = kwargs.get("model_call")
+        if not callable(model_call):
+            raise IntelligenceGatewayError("model_call must be callable")
+        emergency_stop = kwargs.get("emergency_stop")
+        if emergency_stop is not None:
+            emergency_stop.assert_operational()
+        policy = kwargs.get("secret_policy") or SecretPolicy()
+
+        def _redacted_chunks() -> Iterator[str]:
+            yield from _redact_stream(model_call(), policy)
+
+        return CompatibilityStreamingIntelligenceGatewayResult(
+            chunks=_redacted_chunks()
+        )
 
     def complete_compatibility(self, **kwargs: Any) -> str:
         """Use the bounded local-only synchronous compatibility entrance."""
-        return _complete_compatibility_intelligence_request(**kwargs)
+        request_id = str(kwargs.get("request_id", "")).strip()
+        if not request_id:
+            raise IntelligenceGatewayError("request_id is required")
+        target = kwargs.get("target")
+        if target != "local":
+            raise IntelligenceGatewayError(
+                "anonymous compatibility requests must target the local provider"
+            )
+        model_call = kwargs.get("model_call")
+        if not callable(model_call):
+            raise IntelligenceGatewayError("model_call must be callable")
+        emergency_stop = kwargs.get("emergency_stop")
+        if emergency_stop is not None:
+            emergency_stop.assert_operational()
+        policy = kwargs.get("secret_policy") or SecretPolicy()
+        decision = policy.inspect_text(model_call())
+        return decision.scrubbed
 
 
 class CompatibilityAdvisoryCompletionClient:

@@ -30,33 +30,6 @@ DispatchDecision = Literal[
 ]
 
 
-def dispatch_clerical_job(
-    *,
-    deterministic_available: bool,
-    qualification: QualificationResult | None,
-    confidence: float | None = None,
-    confidence_floor: float = 0.6,
-) -> DispatchDecision:
-    """Decide how one clerical job should be handled.
-
-    Order matters: deterministic code wins whenever it is actually capable
-    of answering (checked first, so Granite is never consulted for
-    something a parser can already do exactly); an unqualified or failed-
-    qualification local model always escalates to frontier, regardless of
-    confidence, because a model that has not proven its own reliability
-    cannot be trusted to self-report a high-confidence answer; only a
-    qualified model's own low-confidence result routes to a human instead
-    of silently proceeding or silently escalating.
-    """
-    if deterministic_available:
-        return "deterministic"
-    if qualification is None or not qualification.passed:
-        return "frontier_escalation"
-    if confidence is not None and confidence < confidence_floor:
-        return "human_clarification"
-    return "local_clerk"
-
-
 class ClerkDispatcherAuthority:
     """The one authority over how a clerical job is routed: deterministic
     code, the local clerk, frontier escalation, or human clarification.
@@ -75,12 +48,42 @@ class ClerkDispatcherAuthority:
         confidence: float | None = None,
         confidence_floor: float = 0.6,
     ) -> DispatchDecision:
-        return dispatch_clerical_job(
-            deterministic_available=deterministic_available,
-            qualification=qualification,
-            confidence=confidence,
-            confidence_floor=confidence_floor,
-        )
+        """Decide how one clerical job should be handled.
+
+        Order matters: deterministic code wins whenever it is actually capable
+        of answering (checked first, so Granite is never consulted for
+        something a parser can already do exactly); an unqualified or failed-
+        qualification local model always escalates to frontier, regardless of
+        confidence, because a model that has not proven its own reliability
+        cannot be trusted to self-report a high-confidence answer; only a
+        qualified model's own low-confidence result routes to a human instead
+        of silently proceeding or silently escalating.
+        """
+        if deterministic_available:
+            return "deterministic"
+        if qualification is None or not qualification.passed:
+            return "frontier_escalation"
+        if confidence is not None and confidence < confidence_floor:
+            return "human_clarification"
+        return "local_clerk"
+
+
+_CLERK_DISPATCHER = ClerkDispatcherAuthority()
+
+
+def dispatch_clerical_job(
+    *,
+    deterministic_available: bool,
+    qualification: QualificationResult | None,
+    confidence: float | None = None,
+    confidence_floor: float = 0.6,
+) -> DispatchDecision:
+    return _CLERK_DISPATCHER.dispatch(
+        deterministic_available=deterministic_available,
+        qualification=qualification,
+        confidence=confidence,
+        confidence_floor=confidence_floor,
+    )
 
 
 __all__ = ["ClerkDispatcherAuthority", "DispatchDecision", "dispatch_clerical_job"]
