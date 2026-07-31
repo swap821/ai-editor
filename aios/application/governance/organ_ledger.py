@@ -52,6 +52,27 @@ _PHASE4_NAMED_REASON = re.compile(
 
 REQUIRED_ORGAN_COUNT = 54
 
+#: The 12-condition green contract (artifactplan.md Phase 5). Written
+#: per-organ verdicts must use these keys (C1..C12). Mechanical checks
+#: cover an enforceable subset; prose covers the rest.
+GREEN_CONTRACT_CONDITIONS: Mapping[str, str] = {
+    "C1": "Named authority owner is a real class in production_entrypoints (Decision A)",
+    "C2": "A real API/mission/runtime path invokes the owner (not construct-in-test alone)",
+    "C3": "Durable state survives process restart (or N/A-BY-DESIGN with cite)",
+    "C4": "Tamper-evidence / integrity chain (or N/A-BY-DESIGN with cite)",
+    "C5": "Fail-safe reporting: unavailable rather than a plausible zero",
+    "C6": "Focused tests exist and referenced paths resolve on disk",
+    "C7": "Integration tests exist and referenced paths resolve on disk",
+    "C8": "Frontend error/unavailable/stale coverage when requires_frontend_error_states",
+    "C9": "No residual known_blockers when claiming green",
+    "C10": "Live evidence stamped at a verified commit, or named Outside residual when yellow",
+    "C11": "last_verified_sha records the exact tested commit",
+    "C12": "CI verifies that commit (ancestor of HEAD on ordinary CI; exact tip at release)",
+}
+REQUIRED_CONDITION_VERDICT_KEYS: tuple[str, ...] = tuple(
+    f"C{i}" for i in range(1, 13)
+)
+
 #: organ_id -> canonical (name, authority_owner). This is the single source
 #: of truth for "which 54 organs exist"; a ledger record whose (id, name)
 #: pair does not match this registry is an unknown organ.
@@ -167,6 +188,37 @@ def current_commit_sha(root: str | Path) -> str | None:
     return sha or None
 
 
+def _git_ok(root: Path, *args: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def sha_is_ancestor_of_head(root: str | Path, sha: str) -> bool | None:
+    """Return True/False when git can answer; None when ancestry is unknowable.
+
+    Shallow checkouts (or missing objects) make ancestry unknowable — callers
+    must not treat that as a pass or a failure of the ledger itself.
+    """
+    repo = Path(root)
+    if not _LIVE_COMMIT_SHA.fullmatch(sha):
+        return False
+    if not _git_ok(repo, "rev-parse", "--is-inside-work-tree"):
+        return None
+    if not _git_ok(repo, "cat-file", "-e", f"{sha}^{{commit}}"):
+        return None
+    return _git_ok(repo, "merge-base", "--is-ancestor", sha, "HEAD")
+
+
 def load_ledger(path: str | Path) -> tuple[OrganRecord, ...]:
     """Load and parse the ledger file. Raises on malformed JSON or schema."""
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -248,8 +300,10 @@ def validate_ledger(
     current_sha: str | None = None,
     repo_root: str | Path | None = None,
     strict_last_verified: bool = False,
+    require_sha_ancestry: bool = False,
     enforce_owner_attestation: bool = False,
     enforce_phase4_honesty: bool = False,
+    enforce_condition_verdicts: bool = False,
 ) -> tuple[str, ...]:
     """Return a tuple of truthful violation descriptions; empty means conformant.
 
@@ -270,6 +324,13 @@ def validate_ledger(
     re-verification pass immediately before a tag, not a rule that should
     fire on every unrelated commit touching organs nobody re-verified today.
 
+    ``require_sha_ancestry`` is the ordinary-CI tip-SHA gate (Phase 1): every
+    green organ must record a well-formed ``last_verified_sha`` that is an
+    ancestor of HEAD when git can answer. Exact tip equality remains
+    ``strict_last_verified`` / ``--strict-release`` (chicken-egg: a commit
+    cannot truthfully self-stamp its own SHA; see
+    ``release/phase6/STRICT_RELEASE_PROCEDURE.md``).
+
     ``enforce_owner_attestation`` is the Phase 2 CI/launcher boundary. When
     enabled with ``repo_root``, every organ must define its named owner class
     in its own production entrypoints, regardless of whether the row is
@@ -281,6 +342,10 @@ def validate_ledger(
     ``proof_level="live"`` row must carry a full 40-char commit SHA and a
     re-checkable description, and every organ without live evidence must
     name one precise Outside/Docker/Ollama/Phase-6/frozen/browser reason.
+
+    ``enforce_condition_verdicts`` is the Phase 3 boundary: every organ must
+    carry written C1..C12 verdicts so greens can keep ``known_blockers``
+    empty without wiping the durable per-condition attestations.
     """
     violations: list[str] = []
     root = Path(repo_root) if repo_root is not None else None
@@ -323,6 +388,30 @@ def validate_ledger(
             )
         else:
             owners_seen[record.authority_owner] = record.organ_id
+
+    if enforce_condition_verdicts:
+        for record in records:
+            verdicts = record.condition_verdicts or {}
+            missing_keys = [
+                key
+                for key in REQUIRED_CONDITION_VERDICT_KEYS
+                if key not in verdicts or not str(verdicts.get(key) or "").strip()
+            ]
+            if missing_keys:
+                violations.append(
+                    f"organ_id {record.organ_id} ({record.name}) is missing "
+                    f"written condition_verdicts for {missing_keys} "
+                    "(Phase 3 requires C1..C12 for every organ)"
+                )
+            else:
+                for key in REQUIRED_CONDITION_VERDICT_KEYS:
+                    text = str(verdicts[key]).strip()
+                    if len(text) < 8:
+                        violations.append(
+                            f"organ_id {record.organ_id} ({record.name}) "
+                            f"condition_verdicts[{key!r}] is too short to be a "
+                            "real written verdict"
+                        )
 
     if root is not None:
         for record in records:
@@ -419,6 +508,23 @@ def validate_ledger(
                 "class anywhere in its own production_entrypoints -- a label, "
                 "not a class reference (Decision A)"
             )
+        if require_sha_ancestry:
+            sha = record.last_verified_sha
+            if not sha or not _LIVE_COMMIT_SHA.fullmatch(sha):
+                violations.append(
+                    f"organ_id {record.organ_id} ({record.name}) is green without "
+                    "a well-formed last_verified_sha (Phase 1 ordinary-CI tip gate)"
+                )
+            elif root is not None:
+                ancestry = sha_is_ancestor_of_head(root, sha)
+                if ancestry is False:
+                    violations.append(
+                        f"organ_id {record.organ_id} ({record.name}) is green but "
+                        f"last_verified_sha {sha!r} is not an ancestor of HEAD "
+                        "(Phase 1 ordinary-CI tip gate)"
+                    )
+                # ancestry is None → shallow/missing object: do not fail closed
+                # on unknowable history (same posture as test_ledger_verification_sha).
         if strict_last_verified and record.last_verified_sha != current_sha:
             violations.append(
                 f"organ_id {record.organ_id} ({record.name}) is green but "
@@ -460,8 +566,10 @@ def evaluate_organs(
     ledger_path: str | Path | None = None,
     current_sha: str | None = None,
     strict_last_verified: bool = False,
+    require_sha_ancestry: bool = False,
     enforce_owner_attestation: bool = True,
     enforce_phase4_honesty: bool = False,
+    enforce_condition_verdicts: bool = True,
 ) -> OrganLedgerReport:
     repo = Path(root or Path(__file__).resolve().parents[3]).resolve()
     path = Path(ledger_path) if ledger_path is not None else _default_ledger_path(repo)
@@ -472,8 +580,10 @@ def evaluate_organs(
         current_sha=resolved_sha,
         repo_root=repo,
         strict_last_verified=strict_last_verified,
+        require_sha_ancestry=require_sha_ancestry,
         enforce_owner_attestation=enforce_owner_attestation,
         enforce_phase4_honesty=enforce_phase4_honesty,
+        enforce_condition_verdicts=enforce_condition_verdicts,
     )
     green_count = sum(1 for record in records if record.status == "green")
     yellow_count = sum(1 for record in records if record.status == "yellow")
@@ -587,11 +697,14 @@ def validate_manifest(
 
 __all__ = [
     "CANONICAL_ORGANS",
+    "GREEN_CONTRACT_CONDITIONS",
+    "REQUIRED_CONDITION_VERDICT_KEYS",
     "TARGET_ORGAN_IDS",
     "FROZEN_SECURITY_ORGAN_IDS",
     "REQUIRED_ORGAN_COUNT",
     "OrganLedgerReport",
     "current_commit_sha",
+    "sha_is_ancestor_of_head",
     "load_ledger",
     "validate_ledger",
     "validate_manifest",

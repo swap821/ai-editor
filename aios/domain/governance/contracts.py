@@ -78,6 +78,11 @@ class OrganRecord(BaseModel):
     integration_tests: tuple[str, ...] = Field(default_factory=tuple)
     live_evidence: tuple[OrganEvidence, ...] = Field(default_factory=tuple)
     known_blockers: tuple[str, ...] = Field(default_factory=tuple)
+    #: Written per-condition verdicts for the 12-condition green contract
+    #: (C1..C12). Phase 3 exit requires every organ to carry complete prose
+    #: here so greens can keep ``known_blockers`` empty without wiping the
+    #: durable C3/C4/C5 (and sibling) attestations.
+    condition_verdicts: dict[str, str] = Field(default_factory=dict)
     last_verified_sha: str | None = None
     requires_live_evidence: bool = False
     requires_frontend_error_states: bool = False
