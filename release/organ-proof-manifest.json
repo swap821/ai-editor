@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
-  "created_at": "2026-07-31T09:24:57.896561+00:00",
-  "source_commit_sha": "fc4ee9499fe86b04148b503ef5200f705c02593f",
+  "created_at": "2026-07-31T09:25:27.063573+00:00",
+  "source_commit_sha": "733db08968b733aaeaf8e73f8b44a969d4327dea",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
   "ledger_sha256": "f55f15b8d6149ea4fa9875d8a5d26a808480f701073b5af9d363da18b500d440",
   "organ_summary": {
