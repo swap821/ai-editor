@@ -16,7 +16,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A regression (2026-07-27): authority_owner 'SecurityGatewayAuthority' names no class defined anywhere in this organ's own production_entrypoints -- a label, not a class reference. Was counted green under the pre-Decision-A reading (validate_ledger() only string-matched the field against CANONICAL_ORGANS). Needs a real, reachable owner class (see the organ 42/46/52 template, PR #169) before this organ can be green again."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 classification policy is code-resident; rate-limiter state is process-local by design (not a durable authority store). C4 TAMPER-EVIDENCE: N/A-AS-OWNER-CLASS \u2014 AuditLoggerAuthority (organ 4) owns the tamper-evident ledger that records gated actions; gateway itself is deterministic code, not a mutating journal. C1 class rename BLOCKED (\u00a7VIII / frozen spine). C5 FAIL-SAFE: PASS \u2014 empty/unknown commands classify RED (fail-closed); exceptions fail closed. Still yellow honestly: C1 SecurityGatewayAuthority class rename requires operator \u00a7VIII approval (see ORGANS_1-5_FROZEN_CORE_OWNER_PROPOSAL.md). Phase 2 module reachability proven via /api/v1/security/classify."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
