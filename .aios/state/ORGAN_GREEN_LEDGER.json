@@ -1355,7 +1355,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Dedicated re-audit 2026-07-28: the previously unspecified 'truthful Ollama-absence' behavior is already implemented in the current production paths. OllamaClient.is_available() reports reachability, router_wiring keeps an unavailable local provider out of candidates without raising, LocalWorkforceService.health_check() returns status=unavailable and persists health=unknown without uninstalling the model, and operations doctor reports Ollama local runtime unavailable/degraded. tests/test_llm.py, tests/test_local_workforce_api.py, and tests/test_operations.py prove the absence paths; the token-rotation/security suites remain green (58 focused tests passed, 1 warning). The prior claim that this behavior was not investigated or built is withdrawn. Still yellow honestly: no live external-runtime evidence or exact-tip strict-release attestation is claimed, and the API-token authority itself still has the remaining green-contract conditions open."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 API token rotation / grace-period state is durable (API_TOKEN_ROTATION_DB_PATH). C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 rotation authority owns grace overlap; disk-tamper suite not claimed equal to organ 38/42. C5 FAIL-SAFE: PASS \u2014 Ollama absence reports unavailable/unknown health without uninstalling or inventing a healthy local provider. Still yellow honestly: live evidence + exact-tip SHA (Phases 4\u20135) not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
