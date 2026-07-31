@@ -1014,6 +1014,35 @@ def test_organ_14_staged_workspace_is_reached_by_worker_foundry() -> None:
     assert type(foundry.workspace_manager) is StagedWorkspaceAuthority
 
 # --------------------------------------------------------------------------- #
+# Organ 13 -- ExecutorServiceAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_13_executor_service_authority_owns_the_live_job_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 13: POST /v1/jobs dispatches through ExecutorServiceAuthority."""
+    from aios import executor_service as executor_mod
+    from aios.executor_service import (
+        ExecutorServiceAuthority,
+        _EXECUTOR_SERVICE_AUTHORITY,
+        execute_job,
+    )
+
+    assert type(_EXECUTOR_SERVICE_AUTHORITY) is ExecutorServiceAuthority
+    calls: list[object] = []
+
+    def spy(self: object, job: object, request: object, authorization: object) -> object:
+        calls.append(job)
+        raise RuntimeError("reachability-probe-stop")
+
+    monkeypatch.setattr(ExecutorServiceAuthority, "execute", spy)
+    with pytest.raises(RuntimeError, match="reachability-probe-stop"):
+        execute_job(MagicMock(), MagicMock(), authorization=None)
+    assert len(calls) == 1
+    assert executor_mod._EXECUTOR_SERVICE_AUTHORITY is _EXECUTOR_SERVICE_AUTHORITY
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
