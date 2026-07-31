@@ -121,7 +121,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: the API edge's request-level trust ordering is now owned by the concrete EdgeTrustAuthority class in this organ's production entrypoint; the live FastAPI middleware calls that singleton for CORS, client IP, token, host, session, and CSRF decisions while pure parsing helpers remain shared utilities. Verified by tests/test_organ_authority_owners.py and the focused edge/API/chat/policy suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 edge trust decisions are request-scoped; token rotation durability owned with organ 53. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 no separate edge journal; relies on audit + token-rotation stores. C5 FAIL-SAFE: PASS \u2014 unauthenticated non-loopback is refused; CORS/token failures do not invent access. Still yellow honestly: live/browser evidence + exact-tip SHA (Phases 4\u20135) not claimed."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
