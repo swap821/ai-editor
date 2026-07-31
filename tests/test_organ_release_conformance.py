@@ -304,19 +304,25 @@ def test_phase2_owner_gate_rejects_yellow_without_owner_class(tmp_path) -> None:
     )
 
 
-def test_phase2_owner_gate_allows_frozen_yellow_exception(tmp_path) -> None:
+def test_phase2_owner_gate_requires_frozen_yellow_owner_class(tmp_path) -> None:
+    """After §VIII Deploy, frozen organs still need Decision A class attestation.
+
+    Yellow status no longer exempts organs 1--5 from the class check; green
+    remains separately forbidden for the frozen spine.
+    """
+    entry_file = tmp_path / "gateway.py"
+    entry_file.write_text("def classify():\n    pass\n", encoding="utf-8")
     records = _baseline_records()
-    # Organ 1 is deliberately yellow and points at no mutable owner class: its
-    # production entrypoints are the frozen security spine. The exception must
-    # not turn into a general exemption for non-frozen organs.
+    records[0] = records[0].model_copy(
+        update={"production_entrypoints": ("gateway.py",)}
+    )
     violations = validate_ledger(
         [records[0]], repo_root=tmp_path, enforce_owner_attestation=True
     )
-    assert not any(
+    assert any(
         "organ_id 1" in violation and "Phase 2 owner attestation" in violation
         for violation in violations
     )
-    assert any("missing organ_id 2" in violation for violation in violations)
 
 
 def test_phase2_owner_gate_forbids_frozen_green_claim(tmp_path) -> None:

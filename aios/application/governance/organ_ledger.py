@@ -254,10 +254,11 @@ def validate_ledger(
     fire on every unrelated commit touching organs nobody re-verified today.
 
     ``enforce_owner_attestation`` is the Phase 2 CI/launcher boundary. When
-    enabled with ``repo_root``, every non-frozen organ must define its named
-    owner class in its own production entrypoints, regardless of whether the
-    row is currently yellow or green. Frozen organs 1--5 are explicitly
-    exempt from the class check but are forbidden from claiming green here.
+    enabled with ``repo_root``, every organ must define its named owner class
+    in its own production entrypoints, regardless of whether the row is
+    currently yellow or green. Frozen organs 1--5 still cannot claim green
+    here (security-spine RED), but after the 2026-07-31 §VIII Deploy their
+    Decision A owner classes are attested like every other organ.
     """
     violations: list[str] = []
     root = Path(repo_root) if repo_root is not None else None
@@ -324,7 +325,9 @@ def validate_ledger(
                         "security-spine RED and cannot claim green before controlled "
                         "self-modification approval"
                     )
-                continue
+                # Operator §VIII Approve+Deploy (2026-07-31): owner classes now
+                # exist in aios/security/*. Still forbid green, but require the
+                # same Decision A class attestation as every other organ.
             if not _authority_owner_is_class_reference(record, root):
                 violations.append(
                     f"organ_id {record.organ_id} ({record.name}) has no Phase 2 "

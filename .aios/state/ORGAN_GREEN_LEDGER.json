@@ -16,7 +16,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 classification policy is code-resident; rate-limiter state is process-local by design (not a durable authority store). C4 TAMPER-EVIDENCE: N/A-AS-OWNER-CLASS \u2014 AuditLoggerAuthority (organ 4) owns the tamper-evident ledger that records gated actions; gateway itself is deterministic code, not a mutating journal. C1 class rename BLOCKED (\u00a7VIII / frozen spine). C5 FAIL-SAFE: PASS \u2014 empty/unknown commands classify RED (fail-closed); exceptions fail closed. Still yellow honestly: C1 SecurityGatewayAuthority class rename requires operator \u00a7VIII approval (see ORGANS_1-5_FROZEN_CORE_OWNER_PROPOSAL.md). Phase 2 module reachability proven via /api/v1/security/classify."
+      "Phase 3 condition verdicts \u2014 C3 DURABLE: PASS \u2014 classification policy is code-resident; rate-limiter state is process-local by design (not a durable authority store). C4 TAMPER-EVIDENCE: N/A-BY-DESIGN \u2014 AuditLoggerAuthority (organ 4) owns the tamper-evident ledger that records gated actions; gateway itself is deterministic code, not a mutating journal. C5 FAIL-SAFE: PASS \u2014 empty/unknown commands classify RED (fail-closed). Residual: frozen spine cannot claim green until Phase 4-5 controlled release. Phase 2 C1: SecurityGatewayAuthority deployed 2026-07-31 (\u00a7VIII Approve)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -37,7 +37,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 scope roots are session/config state; path checks are pure against configured roots. C4 TAMPER-EVIDENCE: N/A-AS-OWNER-CLASS \u2014 no mutable journal to chain; C1 class rename BLOCKED (\u00a7VIII). C5 FAIL-SAFE: PASS \u2014 out-of-scope paths are refused, not silently allowed. Still yellow honestly: C1 ScopeLockAuthority class rename requires \u00a7VIII. Phase 2 reachability proven via files routes calling is_path_in_scope."
+      "Phase 3 condition verdicts \u2014 C3 DURABLE: PASS \u2014 scope roots are session/config state; path checks are pure against configured roots. C4 TAMPER-EVIDENCE: N/A-BY-DESIGN \u2014 no mutable journal to chain. C5 FAIL-SAFE: PASS \u2014 out-of-scope paths are refused. Residual: frozen spine cannot claim green until Phase 4-5. Phase 2 C1: ScopeLockAuthority deployed 2026-07-31 (\u00a7VIII Approve)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -58,7 +58,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 scanner is pure functions over text; no durable organ-owned store required for correctness. C4 TAMPER-EVIDENCE: N/A-AS-OWNER-CLASS \u2014 redaction is ephemeral transform; C1 class rename BLOCKED (\u00a7VIII). C5 FAIL-SAFE: PASS \u2014 findings are reported; undetected is explicit empty findings, not a fabricated clean claim beyond what the rules cover. Known residual: filename false-positive documented. Still yellow honestly: C1 SecretScannerAuthority class rename requires \u00a7VIII. Phase 2 reachability: api.main binds scan_and_redact."
+      "Phase 3 condition verdicts \u2014 C3 DURABLE: PASS \u2014 scanner is pure functions over text; no durable organ-owned store required. C4 TAMPER-EVIDENCE: N/A-BY-DESIGN \u2014 redaction is ephemeral transform. C5 FAIL-SAFE: PASS \u2014 findings reported; empty findings is explicit. Residual: frozen spine cannot claim green until Phase 4-5. Phase 2 C1: SecretScannerAuthority deployed 2026-07-31 (\u00a7VIII Approve)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -79,7 +79,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 aios_audit.db SQLite hash-chained ledger is durable across restart. C4 TAMPER-EVIDENCE: PASS \u2014 SHA-256 chain + optional Ed25519; verify_chain detects breaks. Ephemeral signing keys without AIOS_AUDIT_PRIVATE_KEY remain an ops residual (documented). C5 FAIL-SAFE: PASS \u2014 verify failures surface valid=False with reason; metrics alarm on break rather than inventing a healthy chain. Still yellow honestly: C1 AuditLoggerAuthority class rename requires \u00a7VIII. Phase 2 reachability: /api/v1/audit/verify calls verify_chain."
+      "Phase 3 condition verdicts \u2014 C3 DURABLE: PASS \u2014 aios_audit.db SQLite hash-chained ledger is durable across restart. C4 TAMPER-EVIDENCE: PASS \u2014 SHA-256 chain + optional Ed25519; verify_chain detects breaks. Ops residual: ephemeral signing keys without AIOS_AUDIT_PRIVATE_KEY (documented). C5 FAIL-SAFE: PASS \u2014 verify failures surface valid=False. Residual: frozen spine cannot claim green until Phase 4-5. Phase 2 C1: AuditLoggerAuthority deployed 2026-07-31 (\u00a7VIII Approve)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -100,7 +100,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS-PARTIAL \u2014 VectorInjectionShield model/matrix is process-loaded; not a durable event journal. C4 TAMPER-EVIDENCE: N/A-AS-OWNER-CLASS \u2014 similarity scores are ephemeral; C1 rename BLOCKED (\u00a7VIII). VectorInjectionShield class already exists (rename candidate). C5 FAIL-SAFE: PASS-PARTIAL \u2014 is_injection fails open to False on errors by design so regex remains primary; this is documented fail-soft for the second layer, not inventing a clean bill of health for the whole gate. Still yellow honestly: C1 InjectionShieldAuthority rename requires \u00a7VIII. Phase 2: lifespan wires VectorInjectionShield via set_injection_shield."
+      "Phase 3 condition verdicts \u2014 C3 DURABLE: N/A-BY-DESIGN \u2014 InjectionShieldAuthority model/matrix is process-loaded second layer; not a durable event journal. C4 TAMPER-EVIDENCE: N/A-BY-DESIGN \u2014 similarity scores are ephemeral. C5 FAIL-SAFE: PASS-BY-DESIGN \u2014 is_injection fails soft to False on errors so regex remains primary (documented). Residual: frozen spine cannot claim green until Phase 4-5. Phase 2 C1: InjectionShieldAuthority deployed 2026-07-31 (\u00a7VIII Approve; VectorInjectionShield alias)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false

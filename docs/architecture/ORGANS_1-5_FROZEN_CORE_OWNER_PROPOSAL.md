@@ -1,28 +1,25 @@
-# Organs 1-5: frozen security-spine owner classes — PROPOSAL, NOT APPLIED
+# Organs 1-5: frozen security-spine owner classes — DEPLOYED
 
-**Status: Observe → Analyse → Propose complete. Test → Verify → Human Review →
-Approve → Deploy are NOT done and are not this document's job.** Per
-AGENTS.md §VIII ("Any change to core architecture... follows Observe →
-Analyse → Propose → Test → Verify → Human Review → Approve → Deploy.
-Proposing is GREEN; applying is YELLOW/RED"), this document is the Propose
-step only. No file under `aios/security/` has been edited to produce it, and
-none should be edited on the strength of this document alone — that is the
-operator's own call to make, and this repo's own `SCOPE_ROOTS` restriction
-keeps an automated agent structurally unable to make it regardless.
+**Status: Observe → Analyse → Propose → Test → Verify → Human Review →
+Approve → Deploy complete (2026-07-31).** Operator gave §VIII Approve + Deploy
+for additive Decision A owner classes under
+`aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py`.
+Existing module-level functions and `VectorInjectionShield` callers are
+unchanged (aliases / wrappers only). Frozen spine remains forbidden from
+claiming **green** until a later controlled release; class attestation now
+applies to organs 1–5 like every other organ.
 
 ## Why these 5 and not the other 49
 
 Decision A (docs/architecture/GAGOS_54_ORGANS.md, 2026-07-27) requires every
-green organ's `authority_owner` to be a real class defined inside that
-organ's own `production_entrypoints`. Organs 6-54 (49 of 54) now satisfy
-this — mostly by renaming an already-real, already-tested, already-wired
-class or module to the ledger's exact expected name, keeping a
-backward-compat alias so nothing else breaks. That same move is not
-available here: organs 1-5's `production_entrypoints` are exactly
-`aios/security/{gateway,scope_lock,secret_scanner,audit_logger,
-injection_shield}.py` — the security spine AGENTS.md marks FROZEN, Tier
-T4 = RED. Applying the identical fix here is exactly the kind of "change
-to core architecture" §VIII exists to gate.
+organ's `authority_owner` to be a real class defined inside that
+organ's own `production_entrypoints`. Organs 6-54 already satisfied this.
+Organs 1-5 required the same additive rename/alias pattern inside the
+FROZEN security spine (`aios/security/{gateway,scope_lock,secret_scanner,
+audit_logger,injection_shield}.py`). That edit is §VIII-gated (Tier T4 =
+RED for the product agent); this document records the operator Approve +
+Deploy that authorized the coding-agent apply on 2026-07-31. Green claims
+for organs 1-5 remain forbidden until a later controlled release.
 
 ## What already exists (Observe)
 
@@ -123,11 +120,10 @@ five files are FROZEN regardless of mechanism risk, by policy, not by
 technical difficulty. That policy is the actual gate here, not engineering
 judgment about the diff.
 
-## What happens next is the operator's call, not this document's
+## Deploy record (2026-07-31)
 
-Per §VIII, the remaining steps — **Test, Verify, Human Review, Approve,
-Deploy** — are not something this document, or an automated agent, can
-complete. If the operator wants this applied: the smallest, safest place to
-start is organ 5 (pure rename, already a class, smallest diff), and the
-same adversarial-verification-before-commit discipline used for the other
-49 organs this session should apply here too, at minimum.
+Operator Approve + Deploy applied additive owner classes (and
+`InjectionShieldAuthority` rename with `VectorInjectionShield` alias).
+`enforce_owner_attestation` now class-checks organs 1–5; green remains
+forbidden for the frozen spine. Remaining work for organs 1–5 is Phase 4–5
+attestation (live evidence / SHA), not Decision A.
