@@ -1035,7 +1035,8 @@
     "focused_tests": [
       "tests/test_council_orchestrator.py",
       "tests/test_mission_transition_journal.py",
-      "tests/test_maintenance_api.py"
+      "tests/test_maintenance_api.py",
+      "tests/test_mission_journal_tamper_evidence.py"
     ],
     "integration_tests": [
       "tests/test_mission_contract_v1.py",
@@ -1043,7 +1044,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Decision A is now satisfied for both production mission paths: RecoveryResumptionAuthority owns the durable MissionTransitionJournal, the startup recovery hook reads it, CouncilOrchestrator writes its ordered lifecycle, and MaintenanceConvergenceService receives the same authority journal through a real dependency in aios/api/deps.py. The privileged maintenance approval route records APPROVED, and the end-to-end maintenance API proof records the exact ordered success history MISSION_CREATED -> APPROVED -> WORKSPACE_CREATED -> EXECUTION_SUBMITTED -> EXECUTION_COMPLETED -> VERIFIED -> CHECKPOINT_CREATED -> PROMOTION_STARTED -> PROMOTED -> POST_PROMOTION_VERIFIED -> COMPLETED with contiguous sequence numbers and no resume-pending row. Fresh-process SQLite restart proof now runs through tests/test_maintenance_api.py::test_recovery_authority_reads_interrupted_mission_after_process_restart and reports the nonterminal mission with integrity verified. Still yellow honestly: no actual crash/interruption of a running repair or exact-tip CI evidence has been attached; FAILED/ROLLED_BACK escape paths remain covered by focused unit/API assertions rather than a live interruption recovery run."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 MissionTransitionJournal SQLite persists ordered mission transitions; startup recovery + CouncilOrchestrator + MaintenanceConvergenceService share one RecoveryResumptionAuthority journal. C4 TAMPER-EVIDENCE: PASS \u2014 entry_digest + previous_entry_digest chain; edited/deleted/reordered rows raise JournalTamperedError (tests/test_mission_journal_tamper_evidence.py); legacy pre-chain rows reported unverifiable rather than silently trusted. C5 FAIL-SAFE: PASS \u2014 recovery report never raises on a tampered journal and does not invent a clean timeline (tests/test_organ_authority_owners.py). Still yellow honestly: live evidence stamping and exact-tip strict-release attestation (Phases 4\u20135) are not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
