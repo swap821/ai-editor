@@ -158,7 +158,10 @@
     "strict_release_report": "release/phase6/strict-release-report.txt",
     "organ_23": "yellow \u2014 Phase 6 gate; shortfall list below",
     "honest_54_of_54": false,
-    "absolute_met_via": "itemised shortfall document + strict-release report"
+    "absolute_met_via": "itemised shortfall document + strict-release report",
+    "strict_release_at_evidence_tip": "exit 0 (release/phase6/strict-release-report.txt)",
+    "strict_release_post_ledger_commit": "exit 1 expected SHA chicken-egg (release/phase6/strict-release-report-postcommit.txt)",
+    "ledger_commit": "332f45288f30ca2f9828c3abf5847e20f883a2d0"
   },
   "itemised_shortfall": [
     {

@@ -39,3 +39,10 @@ See `release/phase6/strict-release-report.txt`.
 - Live evidence organs (39): [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 26, 27, 28, 29, 30, 31, 32, 34, 36, 38, 39, 40, 41, 42, 43, 45, 47, 50, 52, 53, 54]
 - Named residual yellows (16): [1, 2, 3, 4, 5, 20, 23, 33, 35, 37, 40, 44, 46, 48, 49, 51]
 - All 54 accounted: True
+
+## Strict-release honesty note
+
+- `release/phase6/strict-release-report.txt`: `--strict-release` exit **0** at evidence tip `5d482164707c6c6e62f3da6a37cff79f252f9260` (before the ledger/shortfall commit).
+- After commit `332f45288f30ca2f9828c3abf5847e20f883a2d0`, `--strict-release` fails with last_verified_sha != HEAD — expected chicken-egg (a commit cannot truthfully self-stamp its own SHA). Non-strict `verify_organ_contracts` remains **0** on tip.
+- Absolute Phase 6 is met via this itemised shortfall + the evidence-tip strict report, not via fake 54/54 greens.
+
