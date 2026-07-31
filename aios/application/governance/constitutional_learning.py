@@ -140,9 +140,7 @@ class ConstitutionalLearningAuthority:
         both present and passed -- a missing check is treated exactly like a
         failed one, never silently skipped."""
         seen = {result.check_name: result for result in results}
-        missing = [
-            name for name in ADVERSARIAL_SIMULATION_CHECKS if name not in seen
-        ]
+        missing = [name for name in ADVERSARIAL_SIMULATION_CHECKS if name not in seen]
         if missing:
             raise ConstitutionalLearningError(
                 f"missing required adversarial simulations: {missing}"

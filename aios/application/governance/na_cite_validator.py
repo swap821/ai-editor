@@ -15,9 +15,7 @@ from aios.application.governance.organ_ledger import _default_ledger_path, load_
 from aios.domain.governance.contracts import OrganRecord
 
 _PY_CITE_RE = re.compile(r"([\w./\\-]+\.py)::([\w]+(?:\.[\w*]+)?)")
-_FE_CITE_RE = re.compile(
-    r"(frontend/[\w./\-]+\.(?:tsx?|jsx?))::([\w]+(?:\.[\w]+)?)"
-)
+_FE_CITE_RE = re.compile(r"(frontend/[\w./\-]+\.(?:tsx?|jsx?))::([\w]+(?:\.[\w]+)?)")
 _TS_CLASS_RE = re.compile(r"\b(?:export\s+)?class\s+(\w+)\b")
 _TS_FN_RE = re.compile(r"\b(?:export\s+)?(?:async\s+)?function\s+(\w+)\b")
 _TS_METHOD_RE = re.compile(r"\b(\w+)\s*\([^)]*\)\s*(?::\s*\w+)?\s*\{")
@@ -34,11 +32,7 @@ def _extract_cites_from_blocker(text: str) -> list[tuple[str, str]]:
 
 
 def _python_class_names(tree: ast.Module) -> set[str]:
-    return {
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.ClassDef)
-    }
+    return {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
 
 
 def _python_module_functions(tree: ast.Module) -> set[str]:
