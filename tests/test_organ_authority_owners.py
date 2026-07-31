@@ -982,6 +982,21 @@ def test_organ_11_turn_coordinator_is_reached_by_the_generate_route() -> None:
     assert "turn = TurnCoordinator(" in source
 
 # --------------------------------------------------------------------------- #
+# Organ 12 -- WorkerFoundryAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_12_worker_foundry_is_the_live_dependency_factory() -> None:
+    """Organ 12: deps.get_worker_foundry returns the ledger owner class."""
+    from aios.api.deps import get_emergency_stop, get_worker_foundry
+    from aios.application.workers.foundry import WorkerFoundry, WorkerFoundryAuthority
+
+    assert WorkerFoundry is WorkerFoundryAuthority
+    authority = get_worker_foundry(emergency_stop=get_emergency_stop())
+    assert type(authority) is WorkerFoundryAuthority
+    assert get_worker_foundry(emergency_stop=get_emergency_stop()) is authority
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
