@@ -372,7 +372,9 @@
       "tests/test_chat.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 MemoryAuthority adapters over SQLite/FAISS durable stores. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 facts/corrections have digest paths; memory blob integrity varies by adapter. C5 FAIL-SAFE: PASS \u2014 recall fails soft; quarantined proposals cannot enter recall until approved. Still yellow honestly: already green construction; tip SHA not re-attested."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
