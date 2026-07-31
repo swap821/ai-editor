@@ -53,6 +53,10 @@ class PrivacyAuditTamperedError(RuntimeError):
     """Raised when a durable privacy-audit row no longer matches its digest."""
 
 
+class PrivacyAuditUnavailableError(RuntimeError):
+    """Raised when durable privacy-audit storage cannot be read honestly."""
+
+
 class PrivacyAuditTracker:
     """Bounded privacy-audit history.
 
@@ -157,6 +161,12 @@ class PrivacyAuditTracker:
             )
         return records
 
+    def is_projection_available(self) -> bool:
+        """Whether recent audits can be read honestly from durable storage."""
+        if self._db_path is None:
+            return True
+        return self._db_error is None
+
     def record(self, provider: str, audit: dict[str, Any]) -> None:
         """Append one real audit. Never raises — a write failure is reported
         via ``durable_status()`` rather than crashing a cloud turn."""
@@ -221,9 +231,7 @@ class PrivacyAuditTracker:
                 raise
             except Exception as exc:  # noqa: BLE001
                 self._db_error = str(exc)
-                # Fail soft for callers that only need a projection: empty is
-                # honest when durable storage is unavailable; tamper still raises.
-                return []
+                raise PrivacyAuditUnavailableError(str(exc)) from exc
 
     def durable_status(self) -> dict[str, Any]:
         """Condition 3 / 5: whether privacy audits currently survive a restart."""
@@ -278,4 +286,5 @@ __all__ = [
     "PrivacyAuditRecord",
     "PrivacyAuditTamperedError",
     "PrivacyAuditTracker",
+    "PrivacyAuditUnavailableError",
 ]

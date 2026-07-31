@@ -13,7 +13,10 @@ invents a value.
 
 from __future__ import annotations
 
-from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.application.models.privacy_audit import (
+    PrivacyAuditTracker,
+    PrivacyAuditUnavailableError,
+)
 from aios.domain.read_models.contracts import (
     MetricEnvelope,
     MetricStatus,
@@ -85,10 +88,18 @@ def project_privacy_audits(
     Every redaction-count field is always present in a real audit dict
     (`PrivacyFilter.filter()`'s own fixed shape), so no field here goes
     `UNAVAILABLE` -- a genuinely empty tracker just yields an empty tuple.
+
+    When durable storage was configured but cannot be read, this raises
+    ``PrivacyAuditUnavailableError`` rather than returning an empty tuple that
+    would look like a reassuring zero-history reading.
     """
     source = "privacy_audit_tracker"
     projections = []
-    for record in tracker.recent(limit=limit):
+    try:
+        records = tracker.recent(limit=limit)
+    except PrivacyAuditUnavailableError:
+        raise
+    for record in records:
         audit = record.audit
         projections.append(
             PrivacyAuditProjection(

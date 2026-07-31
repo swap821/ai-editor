@@ -180,6 +180,8 @@ def get_snapshot(
     trail_data = _read_skill_trails(skills, authority)
     trails = trail_data.get("trails", [])
     verified_trails = sum(1 for trail in trails if trail.get("status") == "verified")
+    verified_success_rate = metrics.get("verified_success_rate")
+    average_tool_calls = metrics.get("average_tool_calls")
     phase = "idle"
     active_castes = set()
     events = bus.fetch_since(0, limit=1000)
@@ -213,8 +215,8 @@ def get_snapshot(
             "knowledge": [],  # Can be populated from recent semantic recall
             "boot_facts": {
                 "version": version,
-                "verified_success_rate": metrics.get("verified_success_rate", 0),
-                "average_tool_calls": metrics.get("average_tool_calls", 0),
+                "verified_success_rate": verified_success_rate,
+                "average_tool_calls": average_tool_calls,
                 "trails_total": len(trails),
                 "trails_verified": verified_trails,
                 "nodes_count": None,

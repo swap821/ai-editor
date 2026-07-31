@@ -7,6 +7,7 @@ import weakref
 from typing import Any, ClassVar
 
 from aios import config
+from aios.application.recovery.authority import RecoveryResumptionAuthority
 from aios.domain.missions.mission_contract import MissionContract
 from aios.domain.missions.mission_repository import (
     MissionRecord,
@@ -29,13 +30,21 @@ class MissionAuthority:
         export_dir: Path | None = None,
         workspace_manager: StagedWorkspaceManager | None = None,
         emergency_stop: Any | None = None,
+        recovery_authority: RecoveryResumptionAuthority | None = None,
     ) -> None:
         self.repository = repository
         self.export_dir = export_dir or config.MISSION_EXPORT_DIR
         self.export_dir.mkdir(parents=True, exist_ok=True)
         self.workspace_manager = workspace_manager
         self.emergency_stop = emergency_stop
+        self.recovery_authority = recovery_authority
         self._instances.add(self)
+
+    def _journal_transition(self, mission_id: str, transition: str) -> None:
+        """Best-effort organ-42 journal append when a recovery authority is wired."""
+        if self.recovery_authority is None:
+            return
+        self.recovery_authority.record_transition(mission_id, transition)
 
     def create(
         self,
@@ -45,11 +54,13 @@ class MissionAuthority:
     ) -> MissionRecord:
         """Create the authoritative mission record from a v1 contract."""
         self._assert_operational()
-        return self.repository.create(
+        record = self.repository.create(
             contract,
             state=MissionState.DRAFT,
             runtime_contract_digest=runtime_contract_digest,
         )
+        self._journal_transition(record.mission_id, "MISSION_CREATED")
+        return record
 
     def start_deliberation(self, mission_id: str) -> MissionRecord:
         return self.repository.apply_transition(

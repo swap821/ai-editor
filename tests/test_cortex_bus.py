@@ -13,7 +13,12 @@ import pytest
 
 from aios import config
 from aios.core.events import CanonicalEvent, EventPhase, TrustLevel
-from aios.runtime.cortex_bus import BusEvent, CortexBus
+from aios.runtime.cortex_bus import (
+    BusEvent,
+    CortexBus,
+    CortexBusPayloadTamperedError,
+    cortex_event_content_digest,
+)
 
 
 def _bus(tmp_path: Path) -> CortexBus:
@@ -299,3 +304,56 @@ def test_poll_once_drains_even_without_a_hint(tmp_path: Path) -> None:
     consumer.subscribe(lambda e: None)
     assert consumer.hint_pending() is False
     assert consumer.poll_once() == 1  # drained anyway
+
+
+def test_append_stores_a_content_digest_and_get_event_verifies_it(
+    tmp_path: Path,
+) -> None:
+    bus = _bus(tmp_path)
+    event_id = _append(bus, "turn.completed", "session-1", {"n": 1})
+
+    event = bus.get_event(event_id)
+
+    assert event.event_type == "turn.completed"
+    status = bus.verify_stored_events()
+    assert status.verified == 1
+    assert status.unverifiable_legacy == 0
+
+
+def test_tampered_payload_is_detected_on_read(tmp_path: Path) -> None:
+    import sqlite3
+
+    bus = _bus(tmp_path)
+    event_id = _append(bus, "turn.completed", "session-1", {"n": 1})
+
+    with sqlite3.connect(bus.db_path) as conn:
+        conn.execute(
+            "UPDATE cortex_events SET payload = ? WHERE id = ?",
+            ('{"eventType":"turn.completed","payload":{"n":999}}', event_id),
+        )
+        conn.commit()
+
+    with pytest.raises(CortexBusPayloadTamperedError):
+        bus.get_event(event_id)
+
+
+def test_content_digest_function_is_shared_between_writer_and_verifier(
+    tmp_path: Path,
+) -> None:
+    bus = _bus(tmp_path)
+    event_id = _append(bus, "fact.proposed", "operator", {"k": "v"})
+
+    with sqlite3.connect(bus.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT event_type, signature, payload, content_digest "
+            "FROM cortex_events WHERE id = ?",
+            (event_id,),
+        ).fetchone()
+
+    expected = cortex_event_content_digest(
+        event_type=row["event_type"],
+        signature=row["signature"],
+        payload=row["payload"],
+    )
+    assert row["content_digest"] == expected

@@ -12,6 +12,7 @@ producers or consumers; it is the floor future observers stand on.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import sqlite3
@@ -61,6 +62,41 @@ class ConsumerReplayGap(RuntimeError):
         )
 
 
+class CortexBusPayloadTamperedError(RuntimeError):
+    """A stored outbox row no longer matches its recorded content digest."""
+
+
+@dataclass(frozen=True)
+class CortexBusVerifyStatus:
+    """Outcome of verifying every digest-bearing row in the outbox."""
+
+    verified: int
+    unverifiable_legacy: int
+
+    @property
+    def fully_verified(self) -> bool:
+        return self.unverifiable_legacy == 0
+
+
+def cortex_event_content_digest(
+    *, event_type: str, signature: str, payload: str
+) -> str:
+    """The one place a cortex outbox row digest is computed.
+
+    Deliberately a single function used by both the writer and every read/
+    verify path: organ 17's outbox previously stored JSON without any
+    content binding, so a silently edited ``payload`` column looked valid on
+    read. Deriving both sides here makes that class of mismatch impossible
+    rather than merely undocumented.
+    """
+    material = json.dumps(
+        {"event_type": event_type, "signature": signature, "payload": payload},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 # THE LAW, enforced structurally (not just documented): the bus carries what
 # HAPPENED, never what is PERMITTED. Event types in these authority families
 # are refused at append — fail-closed at the substrate boundary, so no future
@@ -83,6 +119,7 @@ CREATE TABLE IF NOT EXISTS cortex_events (
     event_type    TEXT NOT NULL,
     signature     TEXT NOT NULL,
     payload       TEXT NOT NULL,
+    content_digest TEXT,
     dispatched_at DATETIME
 );
 CREATE INDEX IF NOT EXISTS idx_cortex_pending
@@ -108,12 +145,27 @@ CREATE INDEX IF NOT EXISTS idx_cortex_consumer_failures_status
 """
 
 
-def _row_to_event(row: sqlite3.Row) -> BusEvent:
+def _row_to_event(row: sqlite3.Row, *, verify: bool = True) -> BusEvent:
+    event_type = str(row["event_type"])
+    signature = str(row["signature"])
+    payload_text = str(row["payload"])
+    stored_digest = row["content_digest"]
+    if verify and stored_digest is not None:
+        expected = cortex_event_content_digest(
+            event_type=event_type,
+            signature=signature,
+            payload=payload_text,
+        )
+        if expected != stored_digest:
+            raise CortexBusPayloadTamperedError(
+                f"cortex event {row['id']} payload digest mismatch: "
+                f"stored={stored_digest!r} expected={expected!r}"
+            )
     return BusEvent(
         id=int(row["id"]),
-        event_type=str(row["event_type"]),
-        signature=str(row["signature"]),
-        payload=json.loads(row["payload"]),
+        event_type=event_type,
+        signature=signature,
+        payload=json.loads(payload_text),
     )
 
 
@@ -178,6 +230,14 @@ class CortexBusAuthority:
     def _init(self) -> None:
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            columns = {
+                str(row[1])
+                for row in conn.execute("PRAGMA table_info(cortex_events)").fetchall()
+            }
+            if "content_digest" not in columns:
+                conn.execute(
+                    "ALTER TABLE cortex_events ADD COLUMN content_digest TEXT"
+                )
 
     # ── Producer side ────────────────────────────────────────────────────────
 
@@ -210,11 +270,17 @@ class CortexBusAuthority:
                 "value (ADR §4.1)"
             )
         body = json.dumps(event.to_dict(), ensure_ascii=False)
+        digest = cortex_event_content_digest(
+            event_type=event_type,
+            signature=signature,
+            payload=body,
+        )
         with self._connect() as conn:
             cur = conn.execute(
-                "INSERT INTO cortex_events (event_type, signature, payload) "
-                "VALUES (?, ?, ?)",
-                (event_type, signature, body),
+                "INSERT INTO cortex_events "
+                "(event_type, signature, payload, content_digest) "
+                "VALUES (?, ?, ?, ?)",
+                (event_type, signature, body, digest),
             )
             event_id = int(cur.lastrowid)
             total = int(
@@ -335,7 +401,7 @@ class CortexBusAuthority:
             if earliest is not None and cursor.last_event_id < int(earliest) - 1:
                 raise ConsumerReplayGap(name, cursor.last_event_id, int(earliest))
             rows = conn.execute(
-                "SELECT e.id, e.event_type, e.signature, e.payload "
+                "SELECT e.id, e.event_type, e.signature, e.payload, e.content_digest "
                 "FROM cortex_events AS e "
                 "WHERE e.id > ? AND NOT EXISTS ("
                 "  SELECT 1 FROM cortex_consumer_failures AS f "
@@ -466,7 +532,7 @@ class CortexBusAuthority:
     def peek_pending(self, limit: int = 1000) -> list[BusEvent]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, event_type, signature, payload FROM cortex_events "
+                "SELECT id, event_type, signature, payload, content_digest FROM cortex_events "
                 "WHERE dispatched_at IS NULL ORDER BY id ASC LIMIT ?",
                 (max(1, int(limit)),),
             ).fetchall()
@@ -476,7 +542,7 @@ class CortexBusAuthority:
         """Fetch up to `limit` events that occurred after `event_id`, regardless of dispatch status."""
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, event_type, signature, payload FROM cortex_events "
+                "SELECT id, event_type, signature, payload, content_digest FROM cortex_events "
                 "WHERE id > ? ORDER BY id ASC LIMIT ?",
                 (event_id, max(1, int(limit))),
             ).fetchall()
@@ -489,6 +555,39 @@ class CortexBusAuthority:
                     "SELECT COUNT(*) AS n FROM cortex_events WHERE dispatched_at IS NULL"
                 ).fetchone()["n"]
             )
+
+    def get_event(self, event_id: int, *, verify: bool = True) -> BusEvent:
+        """Read one stored event, optionally verifying its content digest."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, event_type, signature, payload, content_digest "
+                "FROM cortex_events WHERE id = ?",
+                (int(event_id),),
+            ).fetchone()
+        if row is None:
+            raise KeyError(f"cortex event {event_id} not found")
+        return _row_to_event(row, verify=verify)
+
+    def verify_stored_events(self) -> CortexBusVerifyStatus:
+        """Walk the outbox and prove every digest-bearing row still matches.
+
+        Rows written before content digests existed carry ``NULL`` digests and
+        are reported as ``unverifiable_legacy`` rather than silently trusted.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, event_type, signature, payload, content_digest "
+                "FROM cortex_events ORDER BY id ASC"
+            ).fetchall()
+        verified = 0
+        legacy = 0
+        for row in rows:
+            if row["content_digest"] is None:
+                legacy += 1
+                continue
+            _row_to_event(row, verify=True)
+            verified += 1
+        return CortexBusVerifyStatus(verified=verified, unverifiable_legacy=legacy)
 
     def dispatch_pending(self, limit: int = 1000) -> int:
         """Drain undispatched events in append (id) order — preserving per-entity
@@ -571,4 +670,13 @@ def _row_to_cursor(row: sqlite3.Row) -> ConsumerCursor:
 CortexBus = CortexBusAuthority
 
 
-__all__ = ["BusEvent", "ConsumerCursor", "ConsumerReplayGap", "CortexBusAuthority", "CortexBus"]
+__all__ = [
+    "BusEvent",
+    "ConsumerCursor",
+    "ConsumerReplayGap",
+    "CortexBusAuthority",
+    "CortexBus",
+    "CortexBusPayloadTamperedError",
+    "CortexBusVerifyStatus",
+    "cortex_event_content_digest",
+]

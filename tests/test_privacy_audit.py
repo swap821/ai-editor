@@ -11,6 +11,7 @@ from aios.application.models.privacy_audit import (
     PrivacyAuditRecord,
     PrivacyAuditTamperedError,
     PrivacyAuditTracker,
+    PrivacyAuditUnavailableError,
 )
 
 
@@ -114,3 +115,22 @@ def test_process_local_mode_reports_not_durable() -> None:
     status = tracker.durable_status()
     assert status["durable"] is False
     assert status["reason"]
+
+
+def test_durable_load_failure_surfaces_unavailable_not_empty_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = tmp_path / "privacy.db"
+    tracker = PrivacyAuditTracker(database_path=db)
+    tracker.record("gemini", {"redacted_paths": 1})
+
+    def _boom(self, *, limit: int) -> list[PrivacyAuditRecord]:  # noqa: ANN001
+        raise OSError("disk offline")
+
+    monkeypatch.setattr(PrivacyAuditTracker, "_load_verified_rows", _boom)
+
+    broken = PrivacyAuditTracker(database_path=db)
+    assert broken.is_projection_available() is False
+
+    with pytest.raises(PrivacyAuditUnavailableError):
+        broken.recent()

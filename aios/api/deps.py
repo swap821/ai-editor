@@ -1639,6 +1639,7 @@ def get_maintenance_convergence_service(
     mission_service = MissionService(
         SqliteMissionRepository(config.MISSION_STATE_DB),
         workspace_manager=workspace_manager,
+        recovery_authority=get_recovery_resumption_authority(),
     )
     lifecycle_engine = MaintenanceLifecycleEngine()
 

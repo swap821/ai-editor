@@ -474,3 +474,40 @@ def test_privacy_audits_respects_limit_newest_first():
 
     assert len(projections) == 1
     assert projections[0].provider.value == "bedrock"
+
+
+def test_governance_surface_reports_privacy_audits_unavailable_not_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aios.application.models.privacy_audit import (
+        PrivacyAuditTracker,
+        PrivacyAuditUnavailableError,
+    )
+    from aios.application.read_models.governance_projections import (
+        ReadModelProjectionAuthority,
+    )
+    from aios.domain.governance.contracts import EmergencyStopState
+
+    tracker = PrivacyAuditTracker()
+
+    def _unavailable(self, *, limit: int = 10):  # noqa: ANN001, ARG001
+        raise PrivacyAuditUnavailableError("disk offline")
+
+    monkeypatch.setattr(PrivacyAuditTracker, "recent", _unavailable)
+
+    surface = ReadModelProjectionAuthority().build_governance_surface(
+        constitution=None,
+        emergency_stop=type("Stop", (), {"state": lambda self: EmergencyStopState()})(),
+        provider_health=type("Health", (), {"has_observations": lambda *a, **k: False})(),
+        capability_authority=type(
+            "Caps", (), {"list_pending": lambda self: []}
+        )(),
+        development_tracker=type(
+            "Dev", (), {"recent_routing_decisions": lambda self, limit=10: []}
+        )(),
+        privacy_audit_tracker=tracker,
+    )
+
+    assert surface["privacyAudits"] == ()
+    assert surface["privacyAuditsStatus"].status == MetricStatus.UNAVAILABLE
+    assert "privacyAuditsError" in surface

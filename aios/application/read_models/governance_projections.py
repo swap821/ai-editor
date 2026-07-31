@@ -21,6 +21,7 @@ from typing import Any
 
 from aios.application.capabilities.authority import CapabilityAuthority
 from aios.application.models.health import ProviderHealthTracker
+from aios.application.models.privacy_audit import PrivacyAuditUnavailableError
 from aios.application.read_models.provenance_projections import (
     project_privacy_audits,
     project_routing_decisions,
@@ -258,6 +259,17 @@ class ReadModelProjectionAuthority:
         limit: int = 10,
     ) -> dict[str, Any]:
         """Project one coherent surface from the live authoritative inputs."""
+        try:
+            privacy_audits = project_privacy_audits(
+                privacy_audit_tracker, limit=limit
+            )
+            privacy_audits_status = _measured(len(privacy_audits), "privacy_audit_tracker")
+        except PrivacyAuditUnavailableError as exc:
+            privacy_audits = ()
+            privacy_audits_status = _unavailable("privacy_audit_tracker.unavailable")
+            privacy_audits_error = str(exc)
+        else:
+            privacy_audits_error = None
         return {
             "constitution": project_constitution(constitution),
             "emergencyStop": project_emergency_stop(emergency_stop.state()),
@@ -266,8 +278,12 @@ class ReadModelProjectionAuthority:
             "routingDecisions": project_routing_decisions(
                 development_tracker, limit=limit
             ),
-            "privacyAudits": project_privacy_audits(
-                privacy_audit_tracker, limit=limit
+            "privacyAudits": privacy_audits,
+            "privacyAuditsStatus": privacy_audits_status,
+            **(
+                {"privacyAuditsError": privacy_audits_error}
+                if privacy_audits_error is not None
+                else {}
             ),
         }
 
