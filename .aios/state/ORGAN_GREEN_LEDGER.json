@@ -851,7 +851,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: the local clerk's model-admission decision is now owned by the concrete LocalClerkRuntimeAuthority class in the ledger-listed contracts entrypoint, and the real LocalWorkforceService invokes it before dispatch. Verified by tests/test_organ_authority_owners.py and the focused local-workforce/admission/API/provenance suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 admission decisions read durable LocalWorkforceRegistry. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 registry digests; not a separate chain. C5 FAIL-SAFE: PASS \u2014 unqualified/unapproved models escalate/refuse rather than fabricate pass. Still yellow honestly: live Ollama evidence Outside-machine/Phase 4; tip SHA not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
