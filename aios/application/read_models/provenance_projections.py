@@ -5,7 +5,7 @@ was sent / what was removed".
 is a pure read of `development_events.metadata_json`, already durably written
 by `generate_pipeline.py`'s `route_meta()` on every real `/api/generate` turn.
 `PrivacyAuditTracker.recent()` (`aios/application/models/privacy_audit.py`)
-is a pure read of a process-local ring buffer fed by the real
+is a pure read of the durable (SQLite) privacy-audit history fed by the real
 `PrivacyFilter.filter()` audit dict at all 5 real call sites
 (`FailoverChatClient` plus each of the 4 direct cloud clients). Nothing here
 invents a value.

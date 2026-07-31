@@ -123,6 +123,7 @@ HUMAN_STATE_HYPOTHESIS_DB_PATH: Final[Path] = (
 )
 CORRECTION_RECORD_DB_PATH: Final[Path] = DATA_DIR / "aios_correction_records.db"
 OPERATOR_PREFERENCE_DB_PATH: Final[Path] = DATA_DIR / "aios_operator_preferences.db"
+PRIVACY_AUDIT_DB_PATH: Final[Path] = DATA_DIR / "aios_privacy_audits.db"
 REPRESENTATIVE_CONTEXT_DB_PATH: Final[Path] = (
     DATA_DIR / "aios_representative_contexts.db"
 )
@@ -605,6 +606,7 @@ __all__ = [
     "HUMAN_STATE_HYPOTHESIS_DB_PATH",
     "CORRECTION_RECORD_DB_PATH",
     "OPERATOR_PREFERENCE_DB_PATH",
+    "PRIVACY_AUDIT_DB_PATH",
     "REPRESENTATIVE_CONTEXT_DB_PATH",
     "CONSTITUTION_SNAPSHOT_DB_PATH",
     "BACKUP_DIR",

@@ -613,9 +613,12 @@ def get_provider_health() -> ProviderHealthTracker:
 
 
 #: Organ 50: real, in-memory per-process record of PrivacyFilter's per-call
-#: redaction audits -- same in-memory-only convention as _PROVIDER_HEALTH
-#: above (diagnostic data, not authoritative state).
-_PRIVACY_AUDIT_TRACKER = PrivacyAuditTracker()
+#: Organ 50 privacy-audit history -- Phase 3 durable SQLite (survives restart).
+#: Diagnostic surface, still fail-soft on write errors so cloud turns never die
+#: because the audit sink could not flush.
+_PRIVACY_AUDIT_TRACKER = PrivacyAuditTracker(
+    database_path=config.PRIVACY_AUDIT_DB_PATH
+)
 
 
 def get_privacy_audit_tracker() -> PrivacyAuditTracker:

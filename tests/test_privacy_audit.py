@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from aios.application.models.privacy_audit import PrivacyAuditRecord, PrivacyAuditTracker
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+from aios.application.models.privacy_audit import (
+    PrivacyAuditRecord,
+    PrivacyAuditTamperedError,
+    PrivacyAuditTracker,
+)
 
 
 def test_record_and_recent_newest_first():
@@ -63,3 +72,45 @@ def test_privacy_audit_record_has_a_real_timestamp():
     record = PrivacyAuditRecord(provider="gemini", audit={})
     assert record.recorded_at
     assert "T" in record.recorded_at
+
+
+def test_durable_tracker_survives_restart(tmp_path: Path) -> None:
+    """Phase 3 condition 3: privacy audits must not die with the process."""
+    db = tmp_path / "privacy.db"
+    writer = PrivacyAuditTracker(database_path=db, max_records=10)
+    writer.record("gemini", {"redacted_paths": 2})
+    writer.record("bedrock", {"redacted_secrets": 1})
+
+    assert writer.durable_status()["durable"] is True
+
+    reader = PrivacyAuditTracker(database_path=db, max_records=10)
+    records = reader.recent()
+
+    assert [r.provider for r in records] == ["bedrock", "gemini"]
+    assert records[0].audit == {"redacted_secrets": 1}
+    assert reader.verify_durable_chain()["status"] == "verified"
+    assert reader.verify_durable_chain()["verified"] == 2
+
+
+def test_durable_tracker_detects_tampered_row(tmp_path: Path) -> None:
+    """Phase 3 condition 4: silent disk edits must not be trusted."""
+    db = tmp_path / "privacy.db"
+    tracker = PrivacyAuditTracker(database_path=db)
+    tracker.record("gemini", {"redacted_paths": 1})
+
+    with sqlite3.connect(str(db)) as conn:
+        conn.execute(
+            "UPDATE privacy_audits SET audit_json = ? WHERE provider = ?",
+            ('{"redacted_paths": 999}', "gemini"),
+        )
+        conn.commit()
+
+    with pytest.raises(PrivacyAuditTamperedError):
+        PrivacyAuditTracker(database_path=db).recent()
+
+
+def test_process_local_mode_reports_not_durable() -> None:
+    tracker = PrivacyAuditTracker()
+    status = tracker.durable_status()
+    assert status["durable"] is False
+    assert status["reason"]

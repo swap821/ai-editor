@@ -1,15 +1,13 @@
-﻿# GAGOS Phase 2 continuation — 2026-07-31
+﻿# GAGOS Phase 3 — per-organ condition gaps — 2026-07-31
 
-**Goal:** Phase 2 organ-proof exit (real owner + reachability for every non-frozen organ).
+**Goal:** Close / honestly verdict conditions 3 (durable state), 4 (tamper-evidence), and 5 (fail-safe reporting) for yellow organs. Exit: every organ has a written per-condition verdict; nothing unverified without a stated reason. Do **not** flip green here (Phases 4–5).
 
-**Last completed + verified:** Organs **9, 15, 16, 18, 19, 20, 48, 49, 50, 51** now have reachability/caller proofs pushed to master. Decision A class defs already existed for 49/49 non-frozen; `verify_organ_contracts.py` stays clean with `enforce_owner_attestation`.
+**Last completed + verified:** Organ **50** (`ProvenanceExplanationSurfaceAuthority` / privacy-audit half) — PrivacyAuditTracker is now SQLite-durable with content digests; focused pytest green (restart + tamper + legacy process-local mode).
 
-**Contract state:** 7 green / 47 yellow (Phase 2 does not flip green — that is Phases 3–5 attestation).
+**Contract state:** 7 green / 47 yellow (organ 50 stays yellow; C3–C5 closed, live/SHA attestation remain).
 
-**Phase 2 status:** Automateable exit criteria met for non-frozen organs (class + caller proof). Organs **1–5** remain yellow by design until operator §VIII approval of the frozen-spine owner proposal (`docs/architecture/ORGANS_1-5_FROZEN_CORE_OWNER_PROPOSAL.md`).
+**Single next action:** Organ **38** (`ClerkProvenanceAuthority`) — write explicit C3/C4/C5 verdicts against the existing hash-chain store (already implemented); close any remaining gap or record precise remainder.
 
-**Single next action:** Operator decision on organs 1–5 §VIII — OR begin Phase 3 (per-organ condition gaps / tamper-evidence / durable state) on the 16 yellow attestation organs.
+**Open blockers:** Organs 1–5 frozen §VIII; 44 cloud golden cohort Outside-machine; 46 human red-team Outside-machine; Phase 4 live evidence for Docker/API-capable organs.
 
-**Open blockers:** Organs 1–5 frozen; Outside-machine: cloud live evidence, Ollama-in-CI, organ 44 golden cohort, organ 46 human red-team.
-
-**Active files:** `tests/test_organ_authority_owners.py`, `frontend/src/workbench/SovereignStatePanel.organ4*.test.jsx`
+**Active files:** `aios/application/models/privacy_audit.py`, `aios/api/deps.py`, `aios/config.py`, `tests/test_privacy_audit.py`, `.aios/state/ORGAN_GREEN_LEDGER.json`
