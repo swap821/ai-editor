@@ -373,17 +373,192 @@ class RateLimiter:
 #: Process-wide default limiter used when a caller does not supply its own.
 _default_rate_limiter = RateLimiter()
 
-#: Optional embedding-similarity injection shield (the dual-layer's vector half).
-#: ``None`` by default so the gateway stays pure-regex and dependency-light (no
-#: torch); the API installs one at startup when ``config.INJECTION_VECTOR_SHIELD``
-#: is set. Anything truthy must expose ``is_injection(text) -> bool``.
-_injection_shield: object = None
+
+class SecurityGatewayAuthority:
+    """Own fail-closed command classification and rate-limiting (Decision A / organ 1).
+
+    Module-level :func:`classify`, :func:`validate_command`, and
+    :func:`set_injection_shield` remain the production call sites; they delegate
+    to the process singleton :data:`_GATEWAY`. Constructor-injected shield and
+    rate limiter support isolated authority instances for tests and DI.
+    """
+
+    def __init__(
+        self,
+        *,
+        injection_shield: object | None = None,
+        rate_limiter: RateLimiter | None = None,
+    ) -> None:
+        self._injection_shield = injection_shield
+        self._rate_limiter = (
+            rate_limiter if rate_limiter is not None else _default_rate_limiter
+        )
+
+    def classify(
+        self, command: str, *, injection_shield: object = None
+    ) -> ClassificationResult:
+        """Deterministically classify *command* into a security zone (fail-closed).
+
+        Args:
+            command: The action payload (shell command or code) to classify.
+            injection_shield: Optional vector injection shield (``is_injection``);
+                falls back to this authority's bound shield. ``None`` everywhere
+                = regex-only.
+
+        Returns:
+            A :class:`ClassificationResult`. Any internal error yields ``RED``.
+        """
+        try:
+            if not command or not isinstance(command, str) or not command.strip():
+                return ClassificationResult(
+                    Zone.RED, 1.0, "Empty/invalid command (fail-closed)."
+                )
+
+            # C3: Normalize Unicode homoglyphs (e.g., Cyrillic о vs Latin o) before matching
+            command = unicodedata.normalize("NFKC", command)
+            command = _normalize_homoglyphs(command)
+            # Defense: collapse whitespace to prevent bypasses via newlines/tabs
+            command = " ".join(command.split())
+
+            for pat in _INJECTION_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.RED, 1.0, f"Prompt-injection pattern: {pat.pattern}"
+                    )
+
+            # Second injection layer (Blueprint 5.2): an embedding-similarity blocklist
+            # catches paraphrased injections the regex misses. Fail-safe inside the
+            # shield (model error -> False), so the regex layer is never weakened.
+            shield = (
+                injection_shield
+                if injection_shield is not None
+                else self._injection_shield
+            )
+            if shield is not None and shield.is_injection(command):  # type: ignore[attr-defined]
+                return ClassificationResult(
+                    Zone.RED, 1.0, "Semantic prompt-injection (vector blocklist)."
+                )
+
+            scan = scan_and_redact(command)
+            if scan.detected:
+                return ClassificationResult(
+                    Zone.RED,
+                    1.0,
+                    f"Embedded credential(s) detected: {', '.join(scan.findings)}",
+                )
+
+            for pat in _DESTRUCTIVE_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.RED, 1.0, f"Destructive operation: {pat.pattern}"
+                    )
+
+            for pat in _NETWORK_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.RED, 1.0, f"Network egress blocked: {pat.pattern}"
+                    )
+
+            for pat in _ENV_MUTATION_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.RED, 1.0, f"Environment/secret mutation: {pat.pattern}"
+                    )
+
+            for pat in _SHELL_ESCAPE_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.RED, 1.0, f"Shell/interpreter escape blocked: {pat.pattern}"
+                    )
+
+            for pat in _SHELL_COMPOSITION_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.RED, 1.0, f"Shell composition blocked: {pat.pattern}"
+                    )
+
+            scope = command_stays_in_scope(command)
+            if not scope.in_scope:
+                return ClassificationResult(
+                    Zone.RED, 1.0, f"Scope violation: {scope.reason}"
+                )
+
+            for pat in _CAUTION_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.YELLOW,
+                        0.9,
+                        f"Caution operation requires approval: {pat.pattern}",
+                    )
+
+            for pat in _SAFE_PATTERNS:
+                if pat.search(command):
+                    return ClassificationResult(
+                        Zone.GREEN, 1.0, "Known read-only/test command; within scope."
+                    )
+
+            return ClassificationResult(
+                Zone.RED, 1.0, "Unknown command is not on the auto-execute allowlist."
+            )
+        except Exception as exc:  # noqa: BLE001 - fail-closed on any classifier error
+            return ClassificationResult(
+                Zone.RED, 1.0, f"Fail-closed on classifier exception: {exc}"
+            )
+
+    def validate_command(
+        self,
+        command: str,
+        *,
+        session_id: Optional[str] = None,
+        rate_limiter: Optional[RateLimiter] = None,
+    ) -> GatewayDecision:
+        """Classify *command* and resolve it to an actionable gateway decision.
+
+        GREEN -> ALLOW, YELLOW -> REQUIRE_HUMAN (subject to the per-session rate
+        limit, after which the reason explicitly requires re-authorisation), RED ->
+        BLOCK.
+        """
+        limiter = rate_limiter if rate_limiter is not None else self._rate_limiter
+        result = self.classify(command)
+
+        if result.zone is Zone.RED:
+            return GatewayDecision(
+                "BLOCK", Zone.RED, f"[SECURITY BLOCK] {result.reason}"
+            )
+
+        if result.zone is Zone.YELLOW:
+            count = limiter.record(session_id)
+            if count > limiter.max_per_session:
+                return GatewayDecision(
+                    "REQUIRE_HUMAN",
+                    Zone.YELLOW,
+                    f"[RATE LIMIT] {limiter.max_per_session} sensitive actions already used "
+                    f"this session; human re-authorisation required.",
+                )
+            return GatewayDecision(
+                "REQUIRE_HUMAN", Zone.YELLOW, f"[APPROVAL REQUIRED] {result.reason}"
+            )
+
+        return GatewayDecision("ALLOW", Zone.GREEN, "Command passed the security gateway.")
+
+    def set_injection_shield(self, shield: object | None) -> None:
+        """Install (or clear with ``None``) the vector injection shield on this authority."""
+        self._injection_shield = shield
+
+    def reset_sensitive_actions(
+        self, session_id: Optional[str], rate_limiter: Optional[RateLimiter] = None
+    ) -> None:
+        """Reset a session after a genuine human approval/rejection decision."""
+        limiter = rate_limiter if rate_limiter is not None else self._rate_limiter
+        limiter.reset(session_id)
+
+
+_GATEWAY = SecurityGatewayAuthority()
 
 
 def set_injection_shield(shield: object) -> None:
     """Install (or clear with ``None``) the process-wide vector injection shield."""
-    global _injection_shield
-    _injection_shield = shield
+    _GATEWAY.set_injection_shield(shield)
 
 
 def classify(command: str, *, injection_shield: object = None) -> ClassificationResult:
@@ -398,98 +573,7 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
     Returns:
         A :class:`ClassificationResult`. Any internal error yields ``RED``.
     """
-    try:
-        if not command or not isinstance(command, str) or not command.strip():
-            return ClassificationResult(
-                Zone.RED, 1.0, "Empty/invalid command (fail-closed)."
-            )
-
-        # C3: Normalize Unicode homoglyphs (e.g., Cyrillic о vs Latin o) before matching
-        command = unicodedata.normalize("NFKC", command)
-        command = _normalize_homoglyphs(command)
-        # Defense: collapse whitespace to prevent bypasses via newlines/tabs
-        command = " ".join(command.split())
-
-        for pat in _INJECTION_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.RED, 1.0, f"Prompt-injection pattern: {pat.pattern}"
-                )
-
-        # Second injection layer (Blueprint 5.2): an embedding-similarity blocklist
-        # catches paraphrased injections the regex misses. Fail-safe inside the
-        # shield (model error -> False), so the regex layer is never weakened.
-        shield = injection_shield if injection_shield is not None else _injection_shield
-        if shield is not None and shield.is_injection(command):  # type: ignore[attr-defined]
-            return ClassificationResult(
-                Zone.RED, 1.0, "Semantic prompt-injection (vector blocklist)."
-            )
-
-        scan = scan_and_redact(command)
-        if scan.detected:
-            return ClassificationResult(
-                Zone.RED,
-                1.0,
-                f"Embedded credential(s) detected: {', '.join(scan.findings)}",
-            )
-
-        for pat in _DESTRUCTIVE_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.RED, 1.0, f"Destructive operation: {pat.pattern}"
-                )
-
-        for pat in _NETWORK_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.RED, 1.0, f"Network egress blocked: {pat.pattern}"
-                )
-
-        for pat in _ENV_MUTATION_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.RED, 1.0, f"Environment/secret mutation: {pat.pattern}"
-                )
-
-        for pat in _SHELL_ESCAPE_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.RED, 1.0, f"Shell/interpreter escape blocked: {pat.pattern}"
-                )
-
-        for pat in _SHELL_COMPOSITION_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.RED, 1.0, f"Shell composition blocked: {pat.pattern}"
-                )
-
-        scope = command_stays_in_scope(command)
-        if not scope.in_scope:
-            return ClassificationResult(
-                Zone.RED, 1.0, f"Scope violation: {scope.reason}"
-            )
-
-        for pat in _CAUTION_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.YELLOW,
-                    0.9,
-                    f"Caution operation requires approval: {pat.pattern}",
-                )
-
-        for pat in _SAFE_PATTERNS:
-            if pat.search(command):
-                return ClassificationResult(
-                    Zone.GREEN, 1.0, "Known read-only/test command; within scope."
-                )
-
-        return ClassificationResult(
-            Zone.RED, 1.0, "Unknown command is not on the auto-execute allowlist."
-        )
-    except Exception as exc:  # noqa: BLE001 - fail-closed on any classifier error
-        return ClassificationResult(
-            Zone.RED, 1.0, f"Fail-closed on classifier exception: {exc}"
-        )
+    return _GATEWAY.classify(command, injection_shield=injection_shield)
 
 
 def validate_command(
@@ -504,78 +588,13 @@ def validate_command(
     limit, after which the reason explicitly requires re-authorisation), RED ->
     BLOCK.
     """
-    limiter = rate_limiter if rate_limiter is not None else _default_rate_limiter
-    result = classify(command)
-
-    if result.zone is Zone.RED:
-        return GatewayDecision("BLOCK", Zone.RED, f"[SECURITY BLOCK] {result.reason}")
-
-    if result.zone is Zone.YELLOW:
-        count = limiter.record(session_id)
-        if count > limiter.max_per_session:
-            return GatewayDecision(
-                "REQUIRE_HUMAN",
-                Zone.YELLOW,
-                f"[RATE LIMIT] {limiter.max_per_session} sensitive actions already used "
-                f"this session; human re-authorisation required.",
-            )
-        return GatewayDecision(
-            "REQUIRE_HUMAN", Zone.YELLOW, f"[APPROVAL REQUIRED] {result.reason}"
-        )
-
-    return GatewayDecision("ALLOW", Zone.GREEN, "Command passed the security gateway.")
+    return _GATEWAY.validate_command(
+        command, session_id=session_id, rate_limiter=rate_limiter
+    )
 
 
 def reset_sensitive_actions(
     session_id: Optional[str], rate_limiter: Optional[RateLimiter] = None
 ) -> None:
     """Reset a session after a genuine human approval/rejection decision."""
-    limiter = rate_limiter if rate_limiter is not None else _default_rate_limiter
-    limiter.reset(session_id)
-
-
-class SecurityGatewayAuthority:
-    """Own fail-closed command classification and rate-limiting (Decision A / organ 1).
-
-    Module-level :func:`classify`, :func:`validate_command`, and
-    :func:`set_injection_shield` remain the production call sites. This class is
-    the named authority owner; constructor-injected shield removes the
-    parameter-or-global ambiguity for callers that bind an authority instance.
-    """
-
-    def __init__(
-        self,
-        *,
-        injection_shield: object | None = None,
-        rate_limiter: RateLimiter | None = None,
-    ) -> None:
-        self._injection_shield = injection_shield
-        self._rate_limiter = (
-            rate_limiter if rate_limiter is not None else _default_rate_limiter
-        )
-
-    def classify(self, command: str) -> ClassificationResult:
-        return classify(command, injection_shield=self._injection_shield)
-
-    def validate_command(
-        self,
-        command: str,
-        *,
-        session_id: Optional[str] = None,
-        rate_limiter: Optional[RateLimiter] = None,
-    ) -> GatewayDecision:
-        return validate_command(
-            command,
-            session_id=session_id,
-            rate_limiter=rate_limiter
-            if rate_limiter is not None
-            else self._rate_limiter,
-        )
-
-    def set_injection_shield(self, shield: object | None) -> None:
-        """Bind shield on this authority and keep the process-wide install in sync."""
-        self._injection_shield = shield
-        set_injection_shield(shield)
-
-    def reset_sensitive_actions(self, session_id: Optional[str]) -> None:
-        reset_sensitive_actions(session_id, rate_limiter=self._rate_limiter)
+    _GATEWAY.reset_sensitive_actions(session_id, rate_limiter=rate_limiter)
