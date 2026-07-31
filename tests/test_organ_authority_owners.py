@@ -1233,6 +1233,21 @@ def test_memory_authority_is_the_live_dependency_factory() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Organ 19 -- EmergencyStopController
+# --------------------------------------------------------------------------- #
+
+
+def test_emergency_stop_controller_is_the_live_dependency_factory() -> None:
+    """Organ 19: deps.get_emergency_stop returns the ledger owner."""
+    from aios.api.deps import get_emergency_stop
+    from aios.application.governance.emergency_stop import EmergencyStopController
+
+    authority = get_emergency_stop()
+    assert type(authority) is EmergencyStopController
+    assert get_emergency_stop() is authority
+
+
+# --------------------------------------------------------------------------- #
 # Organ 6 -- EdgeTrustAuthority
 # --------------------------------------------------------------------------- #
 
