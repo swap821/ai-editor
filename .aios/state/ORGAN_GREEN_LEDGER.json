@@ -289,7 +289,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: the real StagedWorkspaceManager implementation is now the concrete StagedWorkspaceAuthority class in this organ's production entrypoint; the legacy StagedWorkspaceManager import is only a compatibility alias. Existing workspace constructors reach this exact class, verified by tests/test_organ_authority_owners.py and the focused staged-workspace suite. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 staged workspaces on disk under DATA_DIR. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 workspace content integrity via promotion verification, not a separate journal. C5 FAIL-SAFE: PASS \u2014 missing roots/enrolment refuse rather than inventing a stage. Still yellow honestly: exact-tip SHA + live evidence not claimed."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
