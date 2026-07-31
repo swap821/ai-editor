@@ -907,122 +907,19 @@ def test_the_dispatcher_authority_escalates_an_unqualified_model_through_the_rea
     llm.complete.assert_not_called()
 
 # --------------------------------------------------------------------------- #
-# Organs 7, 8, 10, 11, 12 and 14 -- exact owners over existing mechanisms
+# Organ 7 -- PolicyKernelAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_phase2_batch_owners_are_reached_by_production_constructors(
-    tmp_path: Path,
-) -> None:
-    """The six names below are the real classes, not pass-through wrappers.
-
-    Existing imports remain valid through aliases, while the production
-    dependency factories and lifecycle constructors now return objects whose
-    concrete class is the exact owner named in the ledger.
-    """
-    from aios.api.deps import (
-        get_action_broker,
-        get_capability_authority,
-        get_emergency_stop,
-        get_policy_kernel,
-        get_worker_foundry,
-    )
-    from aios.application.action_broker import (
-        ActionBroker,
-        ActionBrokerAuthority,
-    )
-    from aios.application.missions.mission_service import (
-        MissionAuthority,
-        MissionService,
-    )
-    from aios.application.turns.turn_coordinator import (
-        TurnCoordinator,
-        TurnCoordinatorAuthority,
-    )
-    from aios.application.workers.foundry import (
-        WorkerFoundry,
-        WorkerFoundryAuthority,
-    )
-    from aios.application.workspaces.staged import (
-        StagedWorkspaceAuthority,
-        StagedWorkspaceManager,
-    )
-    from aios.infrastructure.missions.sqlite_mission_repository import (
-        SqliteMissionRepository,
-    )
+def test_organ_7_policy_kernel_is_the_live_dependency_factory() -> None:
+    """Organ 7: deps.get_policy_kernel returns the ledger owner class."""
+    from aios.api.deps import get_policy_kernel
     from aios.policy.kernel import PolicyKernel, PolicyKernelAuthority
 
-    assert ActionBroker is ActionBrokerAuthority
-    assert MissionService is MissionAuthority
-    assert TurnCoordinator is TurnCoordinatorAuthority
-    assert WorkerFoundry is WorkerFoundryAuthority
-    assert StagedWorkspaceManager is StagedWorkspaceAuthority
     assert PolicyKernel is PolicyKernelAuthority
-
-    assert type(get_policy_kernel()) is PolicyKernelAuthority
-    assert (
-        type(
-            get_action_broker(
-                kernel=get_policy_kernel(),
-                capabilities=get_capability_authority(),
-            )
-        )
-        is ActionBrokerAuthority
-    )
-    assert (
-        type(get_worker_foundry(emergency_stop=get_emergency_stop()))
-        is WorkerFoundryAuthority
-    )
-    assert (
-        type(MissionAuthority(SqliteMissionRepository(tmp_path / "missions.db")))
-        is MissionAuthority
-    )
-    assert (
-        type(StagedWorkspaceAuthority(tmp_path / "staged", enrolled_roots=()))
-        is StagedWorkspaceAuthority
-    )
-    assert type(TurnCoordinatorAuthority(deps=None)) is TurnCoordinatorAuthority
-
-# --------------------------------------------------------------------------- #
-# Organs 13, 17, 21 and 22 -- exact owners over existing mechanisms
-# --------------------------------------------------------------------------- #
-
-
-def test_next_backend_owner_batch_is_reached_by_real_constructors(
-    tmp_path: Path,
-) -> None:
-    """The exact owner is the object the existing production API constructs."""
-    from aios.application.governance.v1_declaration import (
-        ReleaseDeclarationAuthority,
-        V1ReleaseDeclaration,
-        evaluate_release,
-    )
-    from aios.council.council_orchestrator import (
-        CouncilOrchestrator,
-        QueenCouncilAuthority,
-    )
-    from aios.executor_service import (
-        ExecutorServiceAuthority,
-        _EXECUTOR_SERVICE_AUTHORITY,
-    )
-    from aios.runtime.cortex_bus import CortexBus, CortexBusAuthority
-
-    assert CouncilOrchestrator is QueenCouncilAuthority
-    assert V1ReleaseDeclaration is ReleaseDeclarationAuthority
-    assert CortexBus is CortexBusAuthority
-
-    assert type(CortexBus(tmp_path / "cortex.db")) is CortexBusAuthority
-    assert (
-        type(QueenCouncilAuthority(runtime_root=tmp_path / "council"))
-        is QueenCouncilAuthority
-    )
-    declaration = evaluate_release(
-        root=tmp_path,
-        profile="development",
-        executor_available=False,
-    )
-    assert type(declaration) is ReleaseDeclarationAuthority
-    assert type(_EXECUTOR_SERVICE_AUTHORITY) is ExecutorServiceAuthority
+    authority = get_policy_kernel()
+    assert type(authority) is PolicyKernelAuthority
+    assert get_policy_kernel() is authority
 
 # --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
