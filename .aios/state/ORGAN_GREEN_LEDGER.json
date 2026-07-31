@@ -1335,7 +1335,9 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 rotating durable logs under DATA_DIR/logs; correlation headers. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 log files rotatable; not a hash chain (audit is organ 4). C5 FAIL-SAFE: PASS \u2014 metrics unavailable rather than plausible zero. Already green with live evidence historically. Still yellow honestly: exact-tip strict-release re-stamp not claimed this tip."
+    ],
     "last_verified_sha": "ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
     "requires_live_evidence": false
   },
