@@ -398,3 +398,16 @@ def scan_and_redact(payload: str) -> ScanResult:
         detected=bool(unique_findings),
         findings=unique_findings,
     )
+
+
+class SecretScannerAuthority:
+    """Own the secret detection and redaction boundary (Decision A / organ 3).
+
+    Module-level :func:`scan_and_redact` remains the production entrypoint; this
+    class is the named authority owner so attestation resolves to a real class
+    inside this organ's production entrypoints without changing call sites.
+    """
+
+    def scan_and_redact(self, payload: str) -> ScanResult:
+        """Delegate to the module scanner — one cohesive mechanism."""
+        return scan_and_redact(payload)
