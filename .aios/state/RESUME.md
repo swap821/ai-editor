@@ -10,3 +10,4 @@
 **Single next action:** Operator review of `release/phase6/organ23-shortfall.md`; optional Outside-machine / Docker / Ollama / browser / §VIII frozen-spine work to shrink the 16 yellows.
 
 **Tip under evidence:** `5d482164707c6c6e62f3da6a37cff79f252f9260`.
+**Ledger/shortfall tip:** `6a1a3e42cb4d0e881b621b867e66a5a7e63004d1`.
