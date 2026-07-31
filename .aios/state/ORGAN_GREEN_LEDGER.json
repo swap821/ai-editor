@@ -268,7 +268,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: the authenticated executor dispatch mechanism is now owned by the concrete ExecutorServiceAuthority class in this organ's production entrypoint; the FastAPI job route reaches the singleton authority, with the old function retained only as the HTTP compatibility entrypoint. Verified by tests/test_organ_authority_owners.py and the focused executor-service/conformance suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 executor service + workspaces on disk; default container backend. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 execution audited; workspace isolation is the integrity boundary. C5 FAIL-SAFE: PASS \u2014 host backend is explicit loud escape hatch; failures report rather than silent ok. Still yellow honestly: Docker live re-stamp + exact-tip SHA not claimed here."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
