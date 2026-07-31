@@ -1083,7 +1083,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 2 owner requirement completed 2026-07-28: skill outcome recording, confidence demotion, and human revocation are now owned by the concrete SkillLifecycleAuthority class in the ledger-listed skill lifecycle entrypoint, and all four real LearningService reuse paths invoke it. Verified by tests/test_organ_authority_owners.py and the focused lifecycle/learning/heartbeat/flywheel suites. The organ remains yellow: no live evidence or exact-tip strict-release attestation has been claimed, and the remaining green-contract conditions are not yet complete."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 skill lifecycle via learning repositories durable. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 outcome/confidence records; demotion durable. C5 FAIL-SAFE: PASS \u2014 human revocation + demotion; no silent eternal verified skill. Still yellow honestly: live evidence + tip SHA not claimed."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
