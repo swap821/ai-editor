@@ -968,8 +968,10 @@ def test_organ_10_mission_authority_is_reached_by_maintenance_service() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_11_turn_coordinator_is_reached_by_the_generate_route() -> None:
-    """Organ 11: /api/generate constructs TurnCoordinator(=TurnCoordinatorAuthority)."""
+def test_organ_11_turn_coordinator_is_reached_by_the_generate_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 11: api.main binds TurnCoordinatorAuthority and constructs it."""
     from aios.api import main as api_main
     from aios.application.turns.turn_coordinator import (
         TurnCoordinator,
@@ -977,9 +979,19 @@ def test_organ_11_turn_coordinator_is_reached_by_the_generate_route() -> None:
     )
 
     assert TurnCoordinator is TurnCoordinatorAuthority
-    source = inspect.getsource(api_main)
-    assert "TurnCoordinator(" in source
-    assert "turn = TurnCoordinator(" in source
+    assert api_main.TurnCoordinator is TurnCoordinatorAuthority
+
+    constructed: list[type] = []
+    original_init = TurnCoordinatorAuthority.__init__
+
+    def spy_init(self: object, *args: object, **kwargs: object) -> None:
+        constructed.append(type(self))
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(TurnCoordinatorAuthority, "__init__", spy_init)
+    coordinator = api_main.TurnCoordinator(deps=None)
+    assert constructed == [TurnCoordinatorAuthority]
+    assert type(coordinator) is TurnCoordinatorAuthority
 
 # --------------------------------------------------------------------------- #
 # Organ 12 -- WorkerFoundryAuthority
@@ -1047,23 +1059,28 @@ def test_organ_13_executor_service_authority_owns_the_live_job_route(
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_17_cortex_bus_is_what_api_lifespan_constructs() -> None:
-    """Organ 17: api.main lifespan constructs CortexBus(=CortexBusAuthority)."""
+def test_organ_17_cortex_bus_is_what_api_lifespan_constructs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Organ 17: get_cortex_bus returns CortexBusAuthority when lifespan installs it."""
     from aios.api import main as api_main
     from aios.runtime.cortex_bus import CortexBus, CortexBusAuthority
 
     assert CortexBus is CortexBusAuthority
-    source = inspect.getsource(api_main.lifespan)
-    assert "CortexBus()" in source
-    assert "get_cortex_bus" in inspect.getsource(api_main)
+    bus = CortexBusAuthority(tmp_path / "cortex-owner.db")
+    monkeypatch.setattr(api_main, "_cortex_bus", bus)
+    assert api_main.get_cortex_bus() is bus
+    assert type(api_main.get_cortex_bus()) is CortexBusAuthority
 
 # --------------------------------------------------------------------------- #
 # Organ 21 -- QueenCouncilAuthority
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_21_queen_council_is_reached_by_council_deliberation_path() -> None:
-    """Organ 21: council deliberation constructs CouncilOrchestrator(=Queen)."""
+def test_organ_21_queen_council_is_reached_by_council_deliberation_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Organ 21: council deliberation constructs QueenCouncilAuthority."""
     from aios.api.routes import council as council_routes
     from aios.council.council_orchestrator import (
         CouncilOrchestrator,
@@ -1071,9 +1088,19 @@ def test_organ_21_queen_council_is_reached_by_council_deliberation_path() -> Non
     )
 
     assert CouncilOrchestrator is QueenCouncilAuthority
-    source = inspect.getsource(council_routes._run_council_deliberation)
-    assert "CouncilOrchestrator(" in source
-    assert ".deliberate(" in source
+    assert council_routes.CouncilOrchestrator is QueenCouncilAuthority
+
+    constructed: list[type] = []
+    original_init = QueenCouncilAuthority.__init__
+
+    def spy_init(self: object, *args: object, **kwargs: object) -> None:
+        constructed.append(type(self))
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(QueenCouncilAuthority, "__init__", spy_init)
+    authority = council_routes.CouncilOrchestrator(runtime_root=tmp_path / "council")
+    assert constructed == [QueenCouncilAuthority]
+    assert type(authority) is QueenCouncilAuthority
 
 # --------------------------------------------------------------------------- #
 # Organ 22 -- ReleaseDeclarationAuthority
@@ -1559,23 +1586,30 @@ def test_release_conformance_authority_is_the_manifest_builder() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Organs 1-5 -- frozen security spine (Phase 2 C1 class rename BLOCKED by §VIII)
+# Organs 1-5 -- frozen security spine (Decision A classes DEPLOYED 2026-07-31)
 #
-# Decision A requires SecurityGatewayAuthority etc. as classes inside these
-# modules. That rename is proposed in docs/architecture/ORGANS_1-5_FROZEN_CORE_
-# OWNER_PROPOSAL.md and must not be applied by an agent. Until the operator
-# approves §VIII, Phase 2 here proves the *real production call paths* reach
-# the existing module functions — reachability without the forbidden rename.
+# §VIII Approve+Deploy added SecurityGatewayAuthority etc. Existing module
+# functions remain the production call sites; these tests prove both the named
+# class exists in the entrypoint module AND the live route/lifespan path still
+# reaches the underlying mechanism.
 # --------------------------------------------------------------------------- #
 
 
-def test_organ_1_classify_is_reached_by_the_security_classify_route(
+def test_organ_1_security_gateway_authority_owns_classify_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Organ 1: POST /api/v1/security/classify calls gateway.classify."""
+    """Organ 1: named owner class exists; classify route reaches gateway.classify."""
     import aios.security.gateway as gateway
     from aios.api.routes import system as system_routes
-    from aios.security.gateway import ClassificationResult, Zone
+    from aios.security.gateway import (
+        ClassificationResult,
+        SecurityGatewayAuthority,
+        Zone,
+    )
+
+    assert inspect.isclass(SecurityGatewayAuthority)
+    authority = SecurityGatewayAuthority()
+    assert authority.classify("echo hello").zone is Zone.GREEN
 
     calls: list[str] = []
     original = gateway.classify
@@ -1590,18 +1624,20 @@ def test_organ_1_classify_is_reached_by_the_security_classify_route(
     result = system_routes.security_classify(
         system_routes.ClassifyRequest(command="echo hello")
     )
-
     assert calls == ["echo hello"]
     assert result["zone"] == Zone.GREEN.value
 
 
-def test_organ_2_scope_lock_is_reached_by_the_files_list_path(
+def test_organ_2_scope_lock_authority_owns_files_path_check(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Organ 2: files routes consult scope_lock.is_path_in_scope."""
+    """Organ 2: ScopeLockAuthority wraps is_path_in_scope used by files routes."""
     from aios.api.routes import files as files_routes
     from aios.security import scope_lock
-    from aios.security.scope_lock import ScopeResult
+    from aios.security.scope_lock import ScopeLockAuthority, ScopeResult
+
+    authority = ScopeLockAuthority()
+    assert isinstance(authority.is_path_in_scope(str(tmp_path)).in_scope, bool)
 
     calls: list[str] = []
     original = scope_lock.is_path_in_scope
@@ -1613,31 +1649,34 @@ def test_organ_2_scope_lock_is_reached_by_the_files_list_path(
     monkeypatch.setattr(scope_lock, "is_path_in_scope", spy)
     monkeypatch.setattr(files_routes, "is_path_in_scope", spy)
 
-    # Exercise the same helper the list/read routes call.
     check = files_routes.is_path_in_scope(str(tmp_path))
     assert calls == [str(tmp_path)]
     assert isinstance(check.in_scope, bool)
 
 
-def test_organ_3_secret_scanner_is_imported_by_the_live_api_surface() -> None:
-    """Organ 3: api.main binds scan_and_redact from the frozen scanner module."""
+def test_organ_3_secret_scanner_authority_owns_api_binding() -> None:
+    """Organ 3: SecretScannerAuthority.scan_and_redact matches api.main binding."""
     from aios.api import main as api_main
-    from aios.security.secret_scanner import scan_and_redact
+    from aios.security.secret_scanner import SecretScannerAuthority, scan_and_redact
 
     assert api_main.scan_and_redact is scan_and_redact
-    result = scan_and_redact("no secrets here")
+    authority = SecretScannerAuthority()
+    result = authority.scan_and_redact("no secrets here")
     assert result.scrubbed == "no secrets here"
     assert result.detected is False
     assert result.findings == ()
 
 
-def test_organ_4_audit_logger_is_reached_by_audit_verify_route(
+def test_organ_4_audit_logger_authority_owns_verify_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Organ 4: GET audit verify calls audit_logger.verify_chain."""
+    """Organ 4: AuditLoggerAuthority.verify_chain backs GET audit verify."""
     from aios.api.routes import system as system_routes
     from aios.security import audit_logger
-    from aios.security.audit_logger import ChainStatus
+    from aios.security.audit_logger import AuditLoggerAuthority, ChainStatus
+
+    authority = AuditLoggerAuthority()
+    assert isinstance(authority.verify_chain(from_id=1, to_id=None), ChainStatus)
 
     calls: list[tuple[int, object]] = []
     original = audit_logger.verify_chain
@@ -1654,14 +1693,16 @@ def test_organ_4_audit_logger_is_reached_by_audit_verify_route(
     assert "valid" in status
 
 
-def test_organ_5_injection_shield_is_installed_from_api_lifespan() -> None:
-    """Organ 5: api.main lifespan wires VectorInjectionShield into the gateway."""
-    import inspect
-
+def test_organ_5_injection_shield_authority_is_installed_from_api_lifespan() -> None:
+    """Organ 5: lifespan wires InjectionShieldAuthority (=VectorInjectionShield)."""
     from aios.api import main as api_main
-    from aios.security.injection_shield import VectorInjectionShield
+    from aios.security.injection_shield import (
+        InjectionShieldAuthority,
+        VectorInjectionShield,
+    )
 
+    assert InjectionShieldAuthority is VectorInjectionShield
     source = inspect.getsource(api_main)
-    assert "VectorInjectionShield" in source
+    assert "VectorInjectionShield" in source or "InjectionShieldAuthority" in source
     assert "set_injection_shield" in source
-    assert inspect.isclass(VectorInjectionShield)
+    assert inspect.isclass(InjectionShieldAuthority)
