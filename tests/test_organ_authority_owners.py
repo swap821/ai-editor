@@ -1167,6 +1167,27 @@ def test_golden_mission_runner_reaches_endurance_owner(
     assert calls == [("owner-probe", "model-probe", "run-probe")]
 
 # --------------------------------------------------------------------------- #
+# Organ 9 -- CapabilityAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_capability_authority_is_the_live_dependency_factory() -> None:
+    """Organ 9: the FastAPI dependency returns the exact ledger owner class.
+
+    A green claim that only proves the class exists would satisfy Decision A
+    while leaving condition 2 (a real runtime path invokes it) unchecked.
+    ``get_capability_authority`` is the production singleton every privileged
+    route binds — proving its concrete type is reachability, not existence.
+    """
+    from aios.api.deps import get_capability_authority
+    from aios.application.capabilities.authority import CapabilityAuthority
+
+    authority = get_capability_authority()
+    assert type(authority) is CapabilityAuthority
+    assert get_capability_authority() is authority
+
+
+# --------------------------------------------------------------------------- #
 # Organ 6 -- EdgeTrustAuthority
 # --------------------------------------------------------------------------- #
 
