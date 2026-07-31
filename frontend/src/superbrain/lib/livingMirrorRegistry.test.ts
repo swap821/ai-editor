@@ -180,7 +180,7 @@ describe('Living Mirror reaction registry', () => {
     );
   });
 
-  it('routes the public registry API through the LivingMirrorAuthority owner', () => {
+  it('routes the public registry API through the LivingMirrorAuthority owner (Organ 20)', () => {
     const authority = getLivingMirrorAuthority();
     expect(authority).toBeInstanceOf(LivingMirrorAuthority);
     expect(registeredMirrorEventTypes()).toEqual(authority.registeredEventTypes());

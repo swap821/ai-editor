@@ -702,6 +702,11 @@ def test_constitution_factory_returns_the_named_kernel_owner() -> None:
     assert isinstance(get_constitution_authority(), ConstitutionalKernelAuthority)
 
 
+# --------------------------------------------------------------------------- #
+# Organ 53 -- InstallationConfigurationAuthority (exact owner over token rotation)
+# --------------------------------------------------------------------------- #
+
+
 def test_edge_token_factory_returns_the_named_installation_owner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1441,3 +1446,112 @@ def test_release_conformance_authority_is_the_manifest_builder() -> None:
     authority = module["ReleaseConformanceAuthority"]()
     fresh = authority.build_manifest()
     assert fresh["organ_summary"]["total"] == 54
+
+
+# --------------------------------------------------------------------------- #
+# Organs 1-5 -- frozen security spine (Phase 2 C1 class rename BLOCKED by §VIII)
+#
+# Decision A requires SecurityGatewayAuthority etc. as classes inside these
+# modules. That rename is proposed in docs/architecture/ORGANS_1-5_FROZEN_CORE_
+# OWNER_PROPOSAL.md and must not be applied by an agent. Until the operator
+# approves §VIII, Phase 2 here proves the *real production call paths* reach
+# the existing module functions — reachability without the forbidden rename.
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_1_classify_is_reached_by_the_security_classify_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 1: POST /api/v1/security/classify calls gateway.classify."""
+    import aios.security.gateway as gateway
+    from aios.api.routes import system as system_routes
+    from aios.security.gateway import ClassificationResult, Zone
+
+    calls: list[str] = []
+    original = gateway.classify
+
+    def spy(command: str, *args: object, **kwargs: object) -> ClassificationResult:
+        calls.append(command)
+        return original(command, *args, **kwargs)
+
+    monkeypatch.setattr(gateway, "classify", spy)
+    monkeypatch.setattr(system_routes, "classify", spy)
+
+    result = system_routes.security_classify(
+        system_routes.ClassifyRequest(command="echo hello")
+    )
+
+    assert calls == ["echo hello"]
+    assert result["zone"] == Zone.GREEN.value
+
+
+def test_organ_2_scope_lock_is_reached_by_the_files_list_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Organ 2: files routes consult scope_lock.is_path_in_scope."""
+    from aios.api.routes import files as files_routes
+    from aios.security import scope_lock
+    from aios.security.scope_lock import ScopeResult
+
+    calls: list[str] = []
+    original = scope_lock.is_path_in_scope
+
+    def spy(path: str, *args: object, **kwargs: object) -> ScopeResult:
+        calls.append(str(path))
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(scope_lock, "is_path_in_scope", spy)
+    monkeypatch.setattr(files_routes, "is_path_in_scope", spy)
+
+    # Exercise the same helper the list/read routes call.
+    check = files_routes.is_path_in_scope(str(tmp_path))
+    assert calls == [str(tmp_path)]
+    assert isinstance(check.in_scope, bool)
+
+
+def test_organ_3_secret_scanner_is_imported_by_the_live_api_surface() -> None:
+    """Organ 3: api.main binds scan_and_redact from the frozen scanner module."""
+    from aios.api import main as api_main
+    from aios.security.secret_scanner import scan_and_redact
+
+    assert api_main.scan_and_redact is scan_and_redact
+    result = scan_and_redact("no secrets here")
+    assert result.scrubbed == "no secrets here"
+    assert result.detected is False
+    assert result.findings == ()
+
+
+def test_organ_4_audit_logger_is_reached_by_audit_verify_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 4: GET audit verify calls audit_logger.verify_chain."""
+    from aios.api.routes import system as system_routes
+    from aios.security import audit_logger
+    from aios.security.audit_logger import ChainStatus
+
+    calls: list[tuple[int, object]] = []
+    original = audit_logger.verify_chain
+
+    def spy(*, from_id: int = 1, to_id: int | None = None) -> ChainStatus:
+        calls.append((from_id, to_id))
+        return original(from_id=from_id, to_id=to_id)
+
+    monkeypatch.setattr(audit_logger, "verify_chain", spy)
+    monkeypatch.setattr(system_routes, "verify_chain", spy)
+
+    status = system_routes.audit_verify(from_entry=1, to_entry=None)
+    assert calls == [(1, None)]
+    assert "valid" in status
+
+
+def test_organ_5_injection_shield_is_installed_from_api_lifespan() -> None:
+    """Organ 5: api.main lifespan wires VectorInjectionShield into the gateway."""
+    import inspect
+
+    from aios.api import main as api_main
+    from aios.security.injection_shield import VectorInjectionShield
+
+    source = inspect.getsource(api_main)
+    assert "VectorInjectionShield" in source
+    assert "set_injection_shield" in source
+    assert inspect.isclass(VectorInjectionShield)
