@@ -184,5 +184,15 @@ describe('Living Mirror reaction registry', () => {
     const authority = getLivingMirrorAuthority();
     expect(authority).toBeInstanceOf(LivingMirrorAuthority);
     expect(registeredMirrorEventTypes()).toEqual(authority.registeredEventTypes());
+
+    // Reachability, not existence: the public dispatch export must call into
+    // the singleton owner. Constructing LivingMirrorAuthority in a test would
+    // not prove the live registry path.
+    const spy = vi.spyOn(authority, 'dispatch');
+    const ignored = event(91, 'future.authority_event', { status: 'running' });
+    expect(dispatchLivingMirrorEvent(ignored)).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(ignored);
+    spy.mockRestore();
   });
 });
