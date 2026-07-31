@@ -42,8 +42,12 @@ _CURATED_INJECTIONS: tuple[str, ...] = (
 )
 
 
-class VectorInjectionShield:
-    """Embedding-similarity blocklist for prompt injection (dual-layer w/ regex)."""
+class InjectionShieldAuthority:
+    """Own the embedding-similarity prompt-injection boundary (dual-layer w/ regex).
+
+    Decision A / organ 5: this is the ledger ``authority_owner``. The historical
+    name ``VectorInjectionShield`` remains as a backward-compatible alias.
+    """
 
     def __init__(
         self,
@@ -89,3 +93,8 @@ class VectorInjectionShield:
             return bool(float(np.max(sims)) >= self.threshold)
         except Exception:  # noqa: BLE001 - fail-safe: the regex layer still applies
             return False
+
+
+#: Backward-compatible alias — production callers and tests may still construct
+#: ``VectorInjectionShield``; it is the same class as ``InjectionShieldAuthority``.
+VectorInjectionShield = InjectionShieldAuthority
