@@ -16,7 +16,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN). C4: N/A-BY-DESIGN (organ 4 owns audit chain). C5: PASS (fail-closed RED). Residual: frozen spine cannot claim green until Phase 4-5 controlled release."
+      "C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -37,7 +37,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (config/session scope roots). C4: N/A-BY-DESIGN (no mutable journal). C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -58,7 +58,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (pure transform). C4: N/A-BY-DESIGN (ephemeral redaction). C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -100,7 +100,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN (process-loaded second layer). C4: N/A-BY-DESIGN (ephemeral scores). C5: PASS-BY-DESIGN (fail-soft to regex primary). Residual: frozen spine cannot claim green until Phase 4-5."
+      "C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -121,7 +121,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (request-scoped; token durability with organ 53). C4: N/A-BY-DESIGN (edge decisions ephemeral; durable token rotation owned by organ 53). C5: PASS (fail closed on bad token/origin)."
+      "C3: PASS (request-scoped; token durability with organ 53 aios/application/security/api_token_authority.py::InstallationConfigurationAuthority). C4: N/A-BY-DESIGN \u2014 edge decisions ephemeral aios/interfaces/http/edge_security.py::EdgeTrustAuthority.check_*; durable rotation owned by organ 53. C5: PASS (fail closed on bad token/origin)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -142,7 +142,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (binds durable autonomy/constitution deps). C4: N/A-BY-DESIGN (kernel is not a journal; policy decisions audited via organ 4). C5: PASS (refuses when constitution unwired)."
+      "C3: PASS (binds durable autonomy/constitution deps \u2014 aios/policy/kernel.py::PolicyKernelAuthority). C4: N/A-BY-DESIGN \u2014 kernel is not a journal; decisions audited via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (refuses when constitution unwired)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -203,7 +203,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (mission SQLite durable). C4: PASS (production maintenance MissionAuthority journals MISSION_CREATED via organ-42 RecoveryResumptionAuthority). C5: PASS."
+      "C3: PASS (mission SQLite durable). C4: PASS (production maintenance MissionAuthority journals MISSION_CREATED via organ-42 aios/application/recovery/authority.py::RecoveryResumptionAuthority). C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -224,7 +224,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (orchestration; durable artifacts in memory/mission stores). C4: N/A-BY-DESIGN (coordinator is not a journal owner). C5: PASS."
+      "C3: PASS (orchestration; durable artifacts in memory/mission stores). C4: N/A-BY-DESIGN \u2014 coordinator is not a journal owner aios/application/turns/turn_coordinator.py::TurnCoordinatorAuthority. C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -245,7 +245,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (foundry/scheduler registry durable enough for cancel/stop). C4: N/A-BY-DESIGN (foundry not a hash-chain journal; outcomes audited via organ 4 / provenance via organ 38). C5: PASS."
+      "C3: PASS (foundry/scheduler registry durable enough for cancel/stop). C4: N/A-BY-DESIGN \u2014 foundry not a hash-chain journal aios/application/workers/foundry.py::WorkerFoundryAuthority; outcomes audited via organ 4 / provenance via organ 38. C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -266,7 +266,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (workspaces on disk; container backend). C4: N/A-BY-DESIGN (isolation boundary, not a hash chain; execution audited via organ 4). C5: PASS (unavailable reported honestly)."
+      "C3: PASS (workspaces on disk; container backend). C4: N/A-BY-DESIGN \u2014 isolation boundary, not a hash chain aios/executor_service.py::ExecutorServiceAuthority; execution audited via organ 4. C5: PASS (unavailable reported honestly)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -287,7 +287,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (staged workspaces on disk). C4: N/A-BY-DESIGN (integrity via promotion verification / organ 16; not organ-4 chain). C5: PASS."
+      "C3: PASS (staged workspaces on disk). C4: N/A-BY-DESIGN \u2014 integrity via promotion verification / organ 16 aios/application/workspaces/staged.py::StagedWorkspaceAuthority; not organ-4 chain. C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -346,7 +346,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (SQLite outbox durable). C4: PASS (writer+verifier share cortex_event_content_digest; mismatch raises CortexBusPayloadTamperedError; adversarial audit chain remains organ 4). C5: PASS."
+      "C3: PASS (SQLite outbox durable). C4: PASS (writer+verifier share aios/runtime/cortex_bus.py::cortex_event_content_digest; adversarial audit chain remains organ 4). C5: PASS. Remaining: Phase 4-5 live evidence / tip SHA."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -405,7 +405,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for FE authority (process store); backend mirror APIs durable. C4: N/A-BY-DESIGN (UI normalizer). C5: PASS (unknown events ignored without inventing state)."
+      "C3: N/A-BY-DESIGN for FE authority (process store) \u2014 frontend/src/superbrain/lib/livingMirrorRegistry.ts::LivingMirrorAuthority; backend mirror APIs durable. C4: N/A-BY-DESIGN (UI normalizer \u2014 LivingMirrorAuthority.dispatch). C5: PASS (unknown events ignored without inventing state)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -426,7 +426,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (runtime dirs + ledgers durable). C4: N/A-BY-DESIGN (KingReport/ledger files; adversarial chain owned by organ 4 / organ 38). C5: PASS."
+      "C3: PASS (runtime dirs + ledgers durable). C4: N/A-BY-DESIGN \u2014 KingReport/ledger files via aios/council/council_orchestrator.py::QueenCouncilAuthority; adversarial chain owned by organ 4 / 38. C5: PASS."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -447,7 +447,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (evaluates durable organs; report ephemeral). C4: N/A-BY-DESIGN (computed declaration). C5: PASS (NOT READY when gates fail)."
+      "C3: PASS (evaluates durable organs; report ephemeral). C4: N/A-BY-DESIGN \u2014 computed declaration aios/application/governance/v1_declaration.py::ReleaseDeclarationAuthority. C5: PASS (NOT READY when gates fail)."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
@@ -565,7 +565,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN (stop latch is process/control-plane state; evidence preservation audited via organ 4). C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 stop latch is process/control-plane state aios/application/capabilities/authority.py::EmergencyStopHardWiringAuthority; evidence preservation audited via organ 4. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -599,7 +599,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (preference stores durable). C4: N/A-BY-DESIGN (store integrity via preference SQLite; adversarial chain owned by organ 4 / organ 38). C5: PASS."
+      "C3: PASS (preference stores durable). C4: N/A-BY-DESIGN \u2014 store integrity via preference SQLite aios/application/memory/authorities.py::OperatorTasteModelAuthority; adversarial chain owned by organ 4 / 38. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -721,7 +721,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (context store + receipts). C4: N/A-BY-DESIGN (receipt durability in context store; not organ-38/4 chain owner). C5: PASS."
+      "C3: PASS (context store + receipts). C4: N/A-BY-DESIGN \u2014 receipt durability in aios/application/intelligence/context_compiler.py::RepresentativeContextCompilerAuthority; not organ-38/4 chain owner. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -763,7 +763,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (strict receipt before provider). C4: N/A-BY-DESIGN (receipt digests are gateway artifacts; audit chain owned by organ 4). C5: PASS."
+      "C3: PASS (strict receipt before provider \u2014 aios/application/intelligence/gateway.py::UniversalIntelligenceGatewayAuthority.route). C4: N/A-BY-DESIGN \u2014 receipt digests are gateway artifacts; audit chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -792,7 +792,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN (passport fields in registry store; adversarial chain owned by organ 4 / organ 38). C5: PASS. Outside-machine residual: live Ollama qualification cohort."
+      "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -819,7 +819,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN \u2014 ProviderHealthBudgetAuthority is process-local diagnostic circuit state (documented; matches BudgetGuard convention). C4: N/A-BY-DESIGN (ephemeral circuit). C5: PASS (has_observations gates truthful read-models; never invents measured health)."
+      "C3: N/A-BY-DESIGN \u2014 ProviderHealthBudgetAuthority is process-local diagnostic circuit state (BudgetGuard convention) aios/application/models/health.py::ProviderHealthBudgetAuthority. C4: N/A-BY-DESIGN (ephemeral circuit \u2014 same symbol). C5: PASS (has_observations gates truthful read-models; never invents measured health)."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -841,7 +841,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN (runtime admission over registry; not a journal owner). C5: PASS. Outside-machine residual: live Ollama runtime."
+      "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -887,7 +887,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN (qualification suite writes registry evidence; adversarial chain owned by organ 38). C5: PASS. Outside-machine residual: live Ollama qualification suite."
+      "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -947,7 +947,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (DeliberationStore). C4: N/A-BY-DESIGN (stored deliberation records; adversarial chain owned by organ 4 / organ 38). C5: PASS."
+      "C3: PASS (DeliberationStore). C4: N/A-BY-DESIGN \u2014 stored deliberation records aios/council/deliberation_gather.py::DeliberationCouncilAuthority; adversarial chain owned by organ 4 / 38. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -987,7 +987,7 @@
       }
     ],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN (executor isolation + audit via organ 4; not a hash-chain journal). C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 executor isolation + audit via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority; not a hash-chain journal. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1071,7 +1071,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN (outcome/confidence durability in skill store; adversarial chain owned by organ 38). C5: PASS."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 outcome/confidence durability in skill store aios/application/learning/skill_lifecycle.py::SkillLifecycleAuthority; adversarial chain owned by organ 38. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1159,7 +1159,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN (learning outcomes durable in learning stores; adversarial chain owned by organ 4). C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models."
+      "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1182,7 +1182,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN (projection organ; freshness from source organs; not a journal owner). C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope)."
+      "C3: PASS (reads durable sources). C4: N/A-BY-DESIGN \u2014 projection organ aios/application/read_models/governance_projections.py::build_governance_surface; freshness from source organs; not a journal owner. C5: PASS (unavailable rather than zeros; privacyAuditsStatus UNAVAILABLE envelope in same module)."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
@@ -1197,14 +1197,15 @@
       "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
-      "tests/test_mirror.py"
+      "tests/test_mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.organ48.test.jsx"
     ],
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority (process-local); reads durable mirror APIs. C4: N/A-BY-DESIGN. C5: PASS (allUnavailable path)."
+      "C3: N/A-BY-DESIGN for UI authority (process-local) \u2014 frontend/src/workbench/SovereignStatePanel.jsx::TruthfulMirrorAuthority; reads durable mirror APIs aios/api/routes/mirror.py. C4: N/A-BY-DESIGN (UI normalizer). C5: PASS (allUnavailable path \u2014 TruthfulMirrorAuthority.allUnavailable)."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1219,14 +1220,15 @@
       "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
-      "tests/test_mirror.py"
+      "tests/test_mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.organ49.test.jsx"
     ],
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority; counts from durable APIs. C4: N/A-BY-DESIGN. C5: PASS."
+      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::ApprovalDecisionSurfaceAuthority; counts from durable APIs. C4: N/A-BY-DESIGN (UI surface). C5: PASS."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1256,7 +1258,8 @@
       "tests/test_bedrock.py",
       "tests/test_openai_compat.py",
       "tests/test_anthropic_direct.py",
-      "tests/test_failover.py"
+      "tests/test_failover.py",
+      "frontend/src/workbench/SovereignStatePanel.organ50.test.jsx"
     ],
     "integration_tests": [
       "tests/test_mirror.py",
@@ -1280,14 +1283,15 @@
       "frontend/src/workbench/SovereignStatePanel.jsx"
     ],
     "focused_tests": [
-      "tests/test_mirror.py"
+      "tests/test_mirror.py",
+      "frontend/src/workbench/SovereignStatePanel.organ51.test.jsx"
     ],
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority; badge reads durable stop envelopes. C4: N/A-BY-DESIGN. C5: PASS."
+      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::SovereignHeartbeatSurfaceAuthority; badge reads durable stop envelopes. C4: N/A-BY-DESIGN (UI surface). C5: PASS."
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
     "requires_live_evidence": false
@@ -1355,7 +1359,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (token rotation DB durable). C4: N/A-BY-DESIGN (rotation store integrity; adversarial audit chain owned by organ 4). C5: PASS."
+      "C3: PASS (token rotation DB durable \u2014 aios/application/security/api_token_authority.py::InstallationConfigurationAuthority). C4: N/A-BY-DESIGN \u2014 rotation store integrity; adversarial audit chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority. C5: PASS."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false

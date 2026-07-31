@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SovereignStatePanel, { ApprovalDecisionSurfaceAuthority } from './SovereignStatePanel';
+import { approveFactProposal, rejectFactProposal } from '../superbrain/lib/aiosAdapter';
 
 vi.mock('../superbrain/lib/aiosAdapter', () => ({
-  approveFactProposal: vi.fn(),
-  fetchPendingFacts: vi.fn().mockResolvedValue([{ id: 'fact-1' }]),
-  rejectFactProposal: vi.fn(),
+  approveFactProposal: vi.fn().mockResolvedValue('approved'),
+  fetchPendingFacts: vi.fn().mockResolvedValue([
+    { id: 'fact-1', subject: 's', predicate: 'p', object: 'o' },
+  ]),
+  rejectFactProposal: vi.fn().mockResolvedValue(true),
 }));
 
 function jsonOk(body) {
@@ -46,7 +49,30 @@ describe('Phase 2 organ 49 ApprovalDecisionSurfaceAuthority reachability', () =>
     });
 
     const lastArgs = pendingCount.mock.calls.at(-1)?.[0];
-    expect(lastArgs.facts).toEqual([{ id: 'fact-1' }]);
+    expect(lastArgs.facts).toEqual([
+      { id: 'fact-1', subject: 's', predicate: 'p', object: 'o' },
+    ]);
     expect(lastArgs.curriculum).toEqual([{ fingerprint: 'skill-1' }]);
+  });
+
+  it('Approve and Reject clicks reach ApprovalDecisionSurfaceAuthority methods', async () => {
+    const approveFact = vi.spyOn(ApprovalDecisionSurfaceAuthority.prototype, 'approveFact');
+    const rejectFact = vi.spyOn(ApprovalDecisionSurfaceAuthority.prototype, 'rejectFact');
+
+    render(<SovereignStatePanel />);
+
+    const approveBtn = await screen.findByRole('button', { name: 'Approve' });
+    fireEvent.click(approveBtn);
+    await waitFor(() => {
+      expect(approveFact).toHaveBeenCalledWith('fact-1');
+      expect(approveFactProposal).toHaveBeenCalled();
+    });
+
+    const rejectBtn = await screen.findByRole('button', { name: 'Reject' });
+    fireEvent.click(rejectBtn);
+    await waitFor(() => {
+      expect(rejectFact).toHaveBeenCalledWith('fact-1');
+      expect(rejectFactProposal).toHaveBeenCalled();
+    });
   });
 });

@@ -302,6 +302,42 @@ def test_the_authority_permits_naming_a_weakness_without_proposing_surrender() -
     )
 
 
+def test_organ_46_propose_lesson_module_function_delegates_to_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 46: propose_lesson is not a parallel implementation."""
+    from aios.application.governance import constitutional_learning
+
+    lesson_source = inspect.getsource(constitutional_learning.propose_lesson)
+    assert "_CONSTITUTIONAL_LEARNING" in lesson_source
+
+    calls: list[dict[str, object]] = []
+
+    def spy(self: object, **kwargs: object) -> object:
+        calls.append(kwargs)
+        raise RuntimeError("reachability-probe-stop")
+
+    monkeypatch.setattr(
+        constitutional_learning.ConstitutionalLearningAuthority,
+        "propose_lesson",
+        spy,
+    )
+    with pytest.raises(RuntimeError, match="reachability-probe-stop"):
+        constitutional_learning.propose_lesson(
+            lesson_id="organ46-reachability-probe",
+            problem_class="approval_friction",
+            evidence_refs=("event-1",),
+            observed_harm="operators repeatedly re-approve the same low-risk action",
+            current_rule="every YELLOW action requires fresh approval",
+            proposed_improvement=(
+                "add a bounded, revocable pre-authorization window for a narrow "
+                "named action class"
+            ),
+            confidence=0.7,
+        )
+    assert len(calls) == 1
+
+
 # --------------------------------------------------------------------------- #
 # Organ 27 -- OperatorTasteModelAuthority
 # --------------------------------------------------------------------------- #
@@ -770,6 +806,41 @@ def test_the_universal_gateway_authority_owns_both_call_entrances() -> None:
     assert store.save.call_count == 2
 
 
+def test_organ_32_route_intelligence_request_delegates_to_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 32: route_intelligence_request is not a parallel implementation."""
+    from aios.application.intelligence import gateway
+
+    route_source = inspect.getsource(gateway.route_intelligence_request)
+    assert "_UNIVERSAL_GATEWAY_AUTHORITY" in route_source
+
+    calls: list[dict[str, object]] = []
+
+    def spy(self: object, **kwargs: object) -> object:
+        calls.append(kwargs)
+        raise RuntimeError("reachability-probe-stop")
+
+    monkeypatch.setattr(
+        gateway.UniversalIntelligenceGatewayAuthority,
+        "route",
+        spy,
+    )
+    with pytest.raises(RuntimeError, match="reachability-probe-stop"):
+        gateway.route_intelligence_request(
+            request_id="organ32-reachability-probe",
+            operator_identity_digest="a" * 64,
+            constitution_digest="b" * 64,
+            goal="probe the gateway owner",
+            desired_outcome="a governed result",
+            target="local",
+            delegated_authority_summary="human operator decides",
+            model_call=lambda _context: "unused",
+            context_store=MagicMock(),
+        )
+    assert len(calls) == 1
+
+
 # --------------------------------------------------------------------------- #
 # Organ 30 -- HumanStateInterpreterAuthority
 # --------------------------------------------------------------------------- #
@@ -905,6 +976,31 @@ def test_the_dispatcher_authority_escalates_an_unqualified_model_through_the_rea
     assert result.failure_reason == "Dispatched to frontier_escalation"
     registry.get_qualification.assert_called_once_with(admitted.model_id)
     llm.complete.assert_not_called()
+
+
+def test_organ_36_dispatch_clerical_job_delegates_to_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 36: dispatch_clerical_job is not a parallel implementation."""
+    from aios.application.local_workforce import dispatcher
+
+    dispatch_source = inspect.getsource(dispatcher.dispatch_clerical_job)
+    assert "_CLERK_DISPATCHER" in dispatch_source
+
+    calls: list[dict[str, object]] = []
+
+    def spy(self: object, **kwargs: object) -> object:
+        calls.append(kwargs)
+        raise RuntimeError("reachability-probe-stop")
+
+    monkeypatch.setattr(dispatcher.ClerkDispatcherAuthority, "dispatch", spy)
+    with pytest.raises(RuntimeError, match="reachability-probe-stop"):
+        dispatcher.dispatch_clerical_job(
+            deterministic_available=True,
+            qualification=None,
+        )
+    assert len(calls) == 1
+
 
 # --------------------------------------------------------------------------- #
 # Organ 7 -- PolicyKernelAuthority
@@ -1543,6 +1639,66 @@ def test_edge_trust_authority_is_the_live_api_middleware_owner() -> None:
     ]
     assert authority.check_api_token_or_loopback.__self__ is authority
     assert authority.check_mutation_origin_or_token.__self__ is authority
+
+
+def test_organ_6_edge_trust_middleware_reaches_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 6: api.main middleware reaches EdgeTrustAuthority, not a twin."""
+    from aios.interfaces.http import edge_security
+
+    token_source = inspect.getsource(edge_security.check_api_token_or_loopback)
+    assert "_EDGE_TRUST_AUTHORITY" in token_source
+
+    calls: list[object] = []
+    original = edge_security.EdgeTrustAuthority.check_api_token_or_loopback
+
+    def spy(self: object, request: object) -> object:
+        calls.append(request)
+        return original(self, request)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        edge_security.EdgeTrustAuthority,
+        "check_api_token_or_loopback",
+        spy,
+    )
+    response = TestClient(app, client=("127.0.0.1", 12345)).get(
+        "/api/v1/system/runtime-profile"
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+
+
+def test_organ_6_policy_kernel_delegates_api_token_check_to_edge_trust(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Organ 6: PolicyKernelAuthority.check_api_token_or_loopback delegates."""
+    from aios.api.deps import get_policy_kernel
+    from aios.interfaces.http import edge_security
+
+    calls: list[object] = []
+    original = edge_security.EdgeTrustAuthority.check_api_token_or_loopback
+
+    def spy(self: object, request: object) -> object:
+        calls.append(request)
+        return original(self, request)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        edge_security.EdgeTrustAuthority,
+        "check_api_token_or_loopback",
+        spy,
+    )
+
+    request = MagicMock()
+    request.url.path = "/api/probe"
+    request.method = "GET"
+    request.headers = {"host": "localhost:8000"}
+    request.client = MagicMock()
+    request.client.host = "127.0.0.1"
+
+    assert get_policy_kernel().check_api_token_or_loopback(request) is None
+    assert len(calls) == 1
+
 
 # --------------------------------------------------------------------------- #
 # Organ 24 -- IdentityAuthority
