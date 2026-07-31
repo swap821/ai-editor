@@ -929,14 +929,18 @@ class PolicyKernelAuthority:
         return None
 
     def check_api_token_or_loopback(self, request: Request) -> Optional[JSONResponse]:
-        """Delegate to the HTTP edge token/origin check."""
-        return edge_security.check_api_token_or_loopback(request)
+        """Delegate to organ-6 EdgeTrustAuthority (not a parallel module twin)."""
+        return edge_security.get_edge_trust_authority().check_api_token_or_loopback(
+            request
+        )
 
     def check_mutation_origin_or_token(
         self, request: Request
     ) -> Optional[JSONResponse]:
-        """Delegate to the HTTP edge CSRF/mutation check."""
-        return edge_security.check_mutation_origin_or_token(request)
+        """Delegate to organ-6 EdgeTrustAuthority (not a parallel module twin)."""
+        return edge_security.get_edge_trust_authority().check_mutation_origin_or_token(
+            request
+        )
 
     def request_authority(self, request: Request) -> dict[str, Any]:
         """Run request-level checks and return an authority summary.
