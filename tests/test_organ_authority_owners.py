@@ -997,6 +997,23 @@ def test_organ_12_worker_foundry_is_the_live_dependency_factory() -> None:
     assert get_worker_foundry(emergency_stop=get_emergency_stop()) is authority
 
 # --------------------------------------------------------------------------- #
+# Organ 14 -- StagedWorkspaceAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_14_staged_workspace_is_reached_by_worker_foundry() -> None:
+    """Organ 14: production WorkerFoundry holds StagedWorkspaceAuthority."""
+    from aios.api.deps import get_emergency_stop, get_worker_foundry
+    from aios.application.workspaces.staged import (
+        StagedWorkspaceAuthority,
+        StagedWorkspaceManager,
+    )
+
+    assert StagedWorkspaceManager is StagedWorkspaceAuthority
+    foundry = get_worker_foundry(emergency_stop=get_emergency_stop())
+    assert type(foundry.workspace_manager) is StagedWorkspaceAuthority
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
