@@ -284,67 +284,6 @@ def _get_signing_state(db_path: Path) -> _SigningState:
     return _signing_cache[cache_key]
 
 
-def rotate_audit_key(db_path: Path = config.AUDIT_DB_PATH) -> int:
-    """Rotate the audit signing key: deactivate old key, create new one.
-
-    After rotation, old entries are still verifiable (old key stays in the
-    ``audit_keys`` table with ``active=0``), but new entries are signed with
-    the fresh key.
-
-    Returns:
-        The *key_id* of the newly created signing key.
-
-    Raises:
-        AuditError: If cryptography is unavailable or rotation fails.
-    """
-    if not _ED25519_AVAILABLE:
-        raise AuditError("Ed25519 cryptography unavailable — cannot rotate keys.")
-
-    cache_key = str(db_path)
-    _ensure_initialized(db_path)
-    conn = _connect(db_path)
-    try:
-        # Deactivate current key in DB
-        state = _get_signing_state(db_path)
-        if state.key_id is not None:
-            conn.execute(
-                "UPDATE audit_keys SET active = 0 WHERE key_id = ?", (state.key_id,)
-            )
-
-        # Generate fresh key pair
-        new_private_key = Ed25519PrivateKey.generate()
-        new_public_key = new_private_key.public_key()
-        public_key_hex = new_public_key.public_bytes_raw().hex()
-
-        cur = conn.execute(
-            "INSERT INTO audit_keys (public_key_hex, created_at, active) "
-            "VALUES (?, ?, 1)",
-            (public_key_hex, datetime.now(timezone.utc).isoformat()),
-        )
-        conn.commit()
-        new_key_id = int(cur.lastrowid)
-
-        # Update cache
-        state.private_key = new_private_key
-        state.public_key = new_public_key
-        state.key_id = new_key_id
-        _signing_cache[cache_key] = state
-
-        logger.info(
-            "Rotated audit signing key: new key_id=%d (pubkey=%s...%s).",
-            new_key_id,
-            public_key_hex[:8],
-            public_key_hex[-8:],
-        )
-        return new_key_id
-    except AuditError:
-        raise
-    except Exception as exc:
-        raise AuditError(f"Audit key rotation failed: {exc}") from exc
-    finally:
-        conn.close()
-
-
 # --------------------------------------------------------------------------- #
 # Canonical JSON for signature payload
 # --------------------------------------------------------------------------- #
@@ -463,42 +402,6 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def init_audit_db(db_path: Path = config.AUDIT_DB_PATH) -> None:
-    """Create the ledger table, keys table, and indexes if absent (idempotent)."""
-    conn = _connect(db_path)
-    try:
-        conn.executescript(_AUDIT_SCHEMA)
-        # ALTER-if-missing: add hash_version to a pre-Phase-3 ledger (existing rows
-        # are legacy v1; new appends write v2). CREATE TABLE IF NOT EXISTS never
-        # adds a column to an existing table.
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(tamper_audit_trail)")}
-        if "hash_version" not in cols:
-            conn.execute(
-                "ALTER TABLE tamper_audit_trail "
-                "ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1"
-            )
-        # ALTER-if-missing: add the Ed25519 columns to a PRE-SIGNATURE ledger.
-        # Without this, log_action's INSERT fail-closes on the missing `signature`
-        # column, bricking EVERY guarded write on an old DB. Strengthen-only:
-        # legacy rows keep NULL signatures, which verify_chain already treats as
-        # unsigned-legacy (no guard is relaxed).
-        if "signature" not in cols:
-            conn.execute("ALTER TABLE tamper_audit_trail ADD COLUMN signature TEXT")
-        if "key_id" not in cols:
-            conn.execute("ALTER TABLE tamper_audit_trail ADD COLUMN key_id TEXT")
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def _ensure_initialized(db_path: Path) -> None:
-    """Ensure the schema exists for *db_path*, at most once per process path."""
-    key = str(db_path)
-    if key not in _initialized:
-        init_audit_db(db_path)
-        _initialized.add(key)
-
-
 # --------------------------------------------------------------------------- #
 # Hash chain
 # --------------------------------------------------------------------------- #
@@ -548,329 +451,6 @@ def compute_entry_hash(
 def _zone_str(zone: Union[Zone, str]) -> str:
     """Normalise a zone (enum or string) to its canonical string value."""
     return zone.value if isinstance(zone, Zone) else str(zone)
-
-
-# --------------------------------------------------------------------------- #
-# Core API: append
-# --------------------------------------------------------------------------- #
-
-
-def log_action(
-    actor: str,
-    payload: str,
-    zone: Union[Zone, str] = Zone.YELLOW,
-    *,
-    db_path: Path = config.AUDIT_DB_PATH,
-    redact_secrets: bool = True,
-) -> AuditEntry:
-    """Append one action to the tamper-evident ledger and return its entry.
-
-    The entry is signed with the current Ed25519 signing key (if available)
-    providing non-repudiation in addition to the hash-chain integrity guarantee.
-
-    Args:
-        actor: Component or human identity performing the action.
-        payload: Serialised action description.
-        zone: Security zone (``Zone`` enum or ``'GREEN'|'YELLOW'|'RED'``).
-        db_path: Ledger database to append to.
-        redact_secrets: When True (default), scrub credentials from *payload*
-            before hashing and storage.
-
-    Returns:
-        The :class:`AuditEntry` that was written (includes signature when
-        Ed25519 is enabled).
-
-    Raises:
-        AuditError: On an invalid zone or any storage failure (fail-closed).
-    """
-    zone_str = _zone_str(zone)
-    if zone_str not in (Zone.GREEN.value, Zone.YELLOW.value, Zone.RED.value):
-        raise AuditError(f"Invalid security zone: {zone_str!r}")
-
-    stored_payload = payload
-    redacted = False
-    if redact_secrets:
-        scan = scan_and_redact(payload)
-        stored_payload, redacted = scan.scrubbed, scan.detected
-
-    try:
-        with _append_lock:
-            _ensure_initialized(db_path)
-            # Initialise signing state (reads env var, caches key)
-            sign_state = _get_signing_state(db_path)
-            conn = _connect(db_path)
-            try:
-                # Cross-process chain lock: no other writer can read the same
-                # head and append a sibling link until this transaction commits.
-                conn.execute("BEGIN IMMEDIATE")
-                row = conn.execute(
-                    "SELECT current_hash FROM tamper_audit_trail "
-                    "ORDER BY entry_id DESC LIMIT 1"
-                ).fetchone()
-                previous_hash = (
-                    row["current_hash"] if row else config.AUDIT_GENESIS_HASH
-                )
-                timestamp = datetime.now(timezone.utc).isoformat()
-                current_hash = compute_entry_hash(
-                    previous_hash, timestamp, actor, stored_payload, zone_str
-                )
-
-                # Ed25519 sign the entry (defense in depth atop hash chain)
-                signature: Optional[str] = None
-                key_id: Optional[int] = None
-                if sign_state.enabled and sign_state.private_key is not None:
-                    signature = _sign_entry(
-                        sign_state.private_key,
-                        previous_hash,
-                        timestamp,
-                        actor,
-                        stored_payload,
-                        zone_str,
-                        current_hash,
-                    )
-                    key_id = sign_state.key_id
-
-                cur = conn.execute(
-                    "INSERT INTO tamper_audit_trail "
-                    "(timestamp, actor, action_payload, security_zone, "
-                    " current_hash, previous_hash, signature, key_id, hash_version) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        timestamp,
-                        actor,
-                        stored_payload,
-                        zone_str,
-                        current_hash,
-                        previous_hash,
-                        signature,
-                        key_id,
-                        _CHAIN_HASH_VERSION,
-                    ),
-                )
-                entry_id = int(cur.lastrowid)
-
-                # Phase 3: re-pin the signed tip-anchor to this new tip, in the SAME
-                # transaction, so a later tail-truncation (deleting the latest
-                # entries without re-signing the anchor) is detectable by verify_chain.
-                anchor_sig: Optional[str] = None
-                if sign_state.enabled and sign_state.private_key is not None:
-                    anchor_sig = _sign_tip_anchor(
-                        sign_state.private_key, entry_id, current_hash
-                    )
-                conn.execute(
-                    "INSERT INTO audit_tip_anchor "
-                    "(anchor_id, tip_entry_id, tip_hash, signature, key_id, updated_at) "
-                    "VALUES (1, ?, ?, ?, ?, ?) "
-                    "ON CONFLICT(anchor_id) DO UPDATE SET "
-                    "tip_entry_id=excluded.tip_entry_id, tip_hash=excluded.tip_hash, "
-                    "signature=excluded.signature, key_id=excluded.key_id, "
-                    "updated_at=excluded.updated_at",
-                    (entry_id, current_hash, anchor_sig, key_id, timestamp),
-                )
-                conn.commit()
-                return AuditEntry(
-                    entry_id=entry_id,
-                    current_hash=current_hash,
-                    previous_hash=previous_hash,
-                    redacted=redacted,
-                    signature=signature,
-                    key_id=key_id,
-                )
-            finally:
-                conn.close()
-    except AuditError:
-        raise
-    except Exception as exc:  # noqa: BLE001 - fail-closed: any failure is fatal
-        raise AuditError(f"Audit write failed (fail-closed): {exc}") from exc
-
-
-# --------------------------------------------------------------------------- #
-# Core API: verify
-# --------------------------------------------------------------------------- #
-
-
-def verify_chain(
-    *,
-    from_id: int = 1,
-    to_id: Optional[int] = None,
-    db_path: Path = config.AUDIT_DB_PATH,
-    verify_signatures: bool = True,
-) -> ChainStatus:
-    """Verify the hash chain and Ed25519 signatures over ``[from_id, to_id]``.
-
-    Performs a single O(n) pass that checks:
-
-    1. **Hash-chain integrity**: each entry's ``previous_hash`` links to the
-       preceding entry's ``current_hash``; the genesis hash anchors the chain.
-    2. **Payload integrity**: each entry's ``current_hash`` re-computes to the
-       same value (detects tampering with actor, payload, zone, or timestamp).
-    3. **Ed25519 signatures**: each signed entry's signature validates against
-       the public key stored in ``audit_keys`` (detects forgery by insiders
-       with database write access).
-
-    Args:
-        from_id: First entry ID to verify (inclusive). Use ``<= 1`` for full
-            chain anchored at genesis.
-        to_id: Last entry ID to verify (inclusive). ``None`` = tip of chain.
-        db_path: Ledger database to read from.
-        verify_signatures: When True (default), verify Ed25519 signatures.
-            Set False to check only the hash chain (faster for bulk scans).
-
-    Returns:
-        A :class:`ChainStatus`. On failure, ``broken_at`` is the entry id of
-        the first broken link and ``reason`` describes the failure mode.
-        ``invalid_signatures`` lists entry IDs with bad signatures.
-    """
-    _ensure_initialized(db_path)
-    conn = _connect(db_path)
-    try:
-        # Load all public keys for signature verification
-        pub_keys: dict[int, Ed25519PublicKey] = {}
-        if verify_signatures and _ED25519_AVAILABLE:
-            for row in conn.execute("SELECT key_id, public_key_hex FROM audit_keys"):
-                try:
-                    pk_bytes = bytes.fromhex(row["public_key_hex"])
-                    pub_keys[int(row["key_id"])] = Ed25519PublicKey.from_public_bytes(
-                        pk_bytes
-                    )
-                except Exception:  # noqa: BLE001
-                    logger.warning(
-                        "Could not load audit public key key_id=%s", row["key_id"]
-                    )
-
-        if to_id is None:
-            rows = conn.execute(
-                "SELECT * FROM tamper_audit_trail WHERE entry_id >= ? "
-                "ORDER BY entry_id ASC",
-                (from_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM tamper_audit_trail WHERE entry_id >= ? AND entry_id <= ? "
-                "ORDER BY entry_id ASC",
-                (from_id, to_id),
-            ).fetchall()
-    finally:
-        conn.close()
-
-    if from_id <= 1:
-        previous_hash = config.AUDIT_GENESIS_HASH
-    elif rows:
-        previous_hash = rows[0]["previous_hash"]
-    else:
-        previous_hash = config.AUDIT_GENESIS_HASH
-
-    invalid_sigs: list[int] = []
-    unsigned_count = 0
-
-    for entry in rows:
-        eid = int(entry["entry_id"])
-
-        # --- 1. Hash-chain linkage check ---
-        if entry["previous_hash"] != previous_hash:
-            return ChainStatus(
-                valid=False,
-                total_entries=len(rows),
-                broken_at=eid,
-                reason="Chain linkage broken (previous_hash mismatch).",
-                head_hash=previous_hash if eid == int(rows[0]["entry_id"]) else None,
-                signature_valid=len(invalid_sigs) == 0,
-                invalid_signatures=tuple(invalid_sigs),
-                unsigned_entries=unsigned_count,
-            )
-
-        # --- 2. Payload integrity check (recompute under the entry's OWN version) ---
-        try:
-            entry_version = int(entry["hash_version"])
-        except (IndexError, KeyError, TypeError):
-            entry_version = 1  # pre-migration row defaults to the legacy preimage
-        computed = compute_entry_hash(
-            previous_hash,
-            entry["timestamp"],
-            entry["actor"],
-            entry["action_payload"],
-            entry["security_zone"],
-            version=entry_version,
-        )
-        if computed != entry["current_hash"]:
-            return ChainStatus(
-                valid=False,
-                total_entries=len(rows),
-                broken_at=eid,
-                reason="Payload tampering detected (hash mismatch).",
-                head_hash=None,
-                signature_valid=len(invalid_sigs) == 0,
-                invalid_signatures=tuple(invalid_sigs),
-                unsigned_entries=unsigned_count,
-            )
-
-        # --- 3. Ed25519 signature verification ---
-        sig_hex = entry["signature"]
-        entry_key_id = entry["key_id"]
-        if sig_hex and verify_signatures and _ED25519_AVAILABLE:
-            # Migrated ledgers (ALTER-added key_id TEXT column) read key_id
-            # back as a STRING while pub_keys is int-keyed — coerce exactly
-            # like the tip-anchor check does (int(anchor["key_id"])), or every
-            # honestly-signed entry on a migrated ledger reads as "key
-            # unknown". Unparseable ids stay unknown → suspicious (the
-            # fail-closed posture is unchanged). §VIII operator-approved
-            # 2026-07-02; reproduced in tests/test_audit_recovery.py.
-            try:
-                entry_key = int(entry_key_id) if entry_key_id is not None else None
-            except (TypeError, ValueError):
-                entry_key = None
-            pk = pub_keys.get(entry_key) if entry_key is not None else None
-            if pk is not None:
-                sig_valid = _verify_entry_signature(
-                    pk,
-                    sig_hex,
-                    entry["previous_hash"],
-                    entry["timestamp"],
-                    entry["actor"],
-                    entry["action_payload"],
-                    entry["security_zone"],
-                    entry["current_hash"],
-                )
-                if not sig_valid:
-                    invalid_sigs.append(eid)
-            else:
-                # Signature present but key unknown (key deleted?) — suspicious
-                invalid_sigs.append(eid)
-        elif not sig_hex:
-            unsigned_count += 1
-
-        previous_hash = entry["current_hash"]
-
-    # --- 4. Tip-anchor check (Phase 3): detect tail-truncation on a verify-to-tip. ---
-    tip_anchor_valid: Optional[bool] = None
-    if to_id is None:
-        tip_anchor_valid = _check_tip_anchor(db_path, pub_keys, verify_signatures)
-        if tip_anchor_valid is False:
-            return ChainStatus(
-                valid=False,
-                total_entries=len(rows),
-                broken_at=None,
-                reason="Tail truncation or tip-anchor tamper detected.",
-                head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
-                signature_valid=len(invalid_sigs) == 0,
-                invalid_signatures=tuple(invalid_sigs),
-                unsigned_entries=unsigned_count,
-                tip_anchor_valid=False,
-            )
-
-    chain_valid = len(invalid_sigs) == 0
-    return ChainStatus(
-        valid=chain_valid,
-        total_entries=len(rows),
-        # A failed status must always NAME its failure mode — valid=False with
-        # reason=None is an alarm that explains nothing (§VIII 2026-07-02).
-        reason=None if chain_valid else "Invalid Ed25519 signatures detected.",
-        head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
-        signature_valid=chain_valid,
-        invalid_signatures=tuple(invalid_sigs),
-        unsigned_entries=unsigned_count,
-        tip_anchor_valid=tip_anchor_valid,
-    )
 
 
 def _check_tip_anchor(
@@ -934,51 +514,555 @@ def _check_tip_anchor(
     return True
 
 
-# --------------------------------------------------------------------------- #
-# External trust anchor
-# --------------------------------------------------------------------------- #
+
+class AuditLoggerAuthority:
+    """Own the tamper-evident audit ledger (Decision A / organ 4).
+
+    Module-level append/verify helpers remain the production API; they delegate
+    to :data:`_AUDIT` or a path-scoped instance when tests pass a custom
+    ``db_path``.
+    """
+
+    def __init__(self, *, db_path: Path = config.AUDIT_DB_PATH) -> None:
+        self.db_path = db_path
+
+    def rotate_audit_key(self) -> int:
+        if not _ED25519_AVAILABLE:
+            raise AuditError("Ed25519 cryptography unavailable — cannot rotate keys.")
+
+        cache_key = str(self.db_path)
+        _ensure_initialized(self.db_path)
+        conn = _connect(self.db_path)
+        try:
+            # Deactivate current key in DB
+            state = _get_signing_state(self.db_path)
+            if state.key_id is not None:
+                conn.execute(
+                    "UPDATE audit_keys SET active = 0 WHERE key_id = ?", (state.key_id,)
+                )
+
+            # Generate fresh key pair
+            new_private_key = Ed25519PrivateKey.generate()
+            new_public_key = new_private_key.public_key()
+            public_key_hex = new_public_key.public_bytes_raw().hex()
+
+            cur = conn.execute(
+                "INSERT INTO audit_keys (public_key_hex, created_at, active) "
+                "VALUES (?, ?, 1)",
+                (public_key_hex, datetime.now(timezone.utc).isoformat()),
+            )
+            conn.commit()
+            new_key_id = int(cur.lastrowid)
+
+            # Update cache
+            state.private_key = new_private_key
+            state.public_key = new_public_key
+            state.key_id = new_key_id
+            _signing_cache[cache_key] = state
+
+            logger.info(
+                "Rotated audit signing key: new key_id=%d (pubkey=%s...%s).",
+                new_key_id,
+                public_key_hex[:8],
+                public_key_hex[-8:],
+            )
+            return new_key_id
+        except AuditError:
+            raise
+        except Exception as exc:
+            raise AuditError(f"Audit key rotation failed: {exc}") from exc
+        finally:
+            conn.close()
+
+    def init_audit_db(self) -> None:
+        conn = _connect(self.db_path)
+        try:
+            conn.executescript(_AUDIT_SCHEMA)
+            # ALTER-if-missing: add hash_version to a pre-Phase-3 ledger (existing rows
+            # are legacy v1; new appends write v2). CREATE TABLE IF NOT EXISTS never
+            # adds a column to an existing table.
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(tamper_audit_trail)")}
+            if "hash_version" not in cols:
+                conn.execute(
+                    "ALTER TABLE tamper_audit_trail "
+                    "ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1"
+                )
+            # ALTER-if-missing: add the Ed25519 columns to a PRE-SIGNATURE ledger.
+            # Without this, log_action's INSERT fail-closes on the missing `signature`
+            # column, bricking EVERY guarded write on an old DB. Strengthen-only:
+            # legacy rows keep NULL signatures, which verify_chain already treats as
+            # unsigned-legacy (no guard is relaxed).
+            if "signature" not in cols:
+                conn.execute("ALTER TABLE tamper_audit_trail ADD COLUMN signature TEXT")
+            if "key_id" not in cols:
+                conn.execute("ALTER TABLE tamper_audit_trail ADD COLUMN key_id TEXT")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def log_action(
+        self,
+        actor: str,
+        payload: str,
+        zone: Union[Zone, str] = Zone.YELLOW,
+        *,
+        redact_secrets: bool = True,
+    ) -> AuditEntry:
+        zone_str = _zone_str(zone)
+        if zone_str not in (Zone.GREEN.value, Zone.YELLOW.value, Zone.RED.value):
+            raise AuditError(f"Invalid security zone: {zone_str!r}")
+
+        stored_payload = payload
+        redacted = False
+        if redact_secrets:
+            scan = scan_and_redact(payload)
+            stored_payload, redacted = scan.scrubbed, scan.detected
+
+        try:
+            with _append_lock:
+                _ensure_initialized(self.db_path)
+                # Initialise signing state (reads env var, caches key)
+                sign_state = _get_signing_state(self.db_path)
+                conn = _connect(self.db_path)
+                try:
+                    # Cross-process chain lock: no other writer can read the same
+                    # head and append a sibling link until this transaction commits.
+                    conn.execute("BEGIN IMMEDIATE")
+                    row = conn.execute(
+                        "SELECT current_hash FROM tamper_audit_trail "
+                        "ORDER BY entry_id DESC LIMIT 1"
+                    ).fetchone()
+                    previous_hash = (
+                        row["current_hash"] if row else config.AUDIT_GENESIS_HASH
+                    )
+                    timestamp = datetime.now(timezone.utc).isoformat()
+                    current_hash = compute_entry_hash(
+                        previous_hash, timestamp, actor, stored_payload, zone_str
+                    )
+
+                    # Ed25519 sign the entry (defense in depth atop hash chain)
+                    signature: Optional[str] = None
+                    key_id: Optional[int] = None
+                    if sign_state.enabled and sign_state.private_key is not None:
+                        signature = _sign_entry(
+                            sign_state.private_key,
+                            previous_hash,
+                            timestamp,
+                            actor,
+                            stored_payload,
+                            zone_str,
+                            current_hash,
+                        )
+                        key_id = sign_state.key_id
+
+                    cur = conn.execute(
+                        "INSERT INTO tamper_audit_trail "
+                        "(timestamp, actor, action_payload, security_zone, "
+                        " current_hash, previous_hash, signature, key_id, hash_version) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            timestamp,
+                            actor,
+                            stored_payload,
+                            zone_str,
+                            current_hash,
+                            previous_hash,
+                            signature,
+                            key_id,
+                            _CHAIN_HASH_VERSION,
+                        ),
+                    )
+                    entry_id = int(cur.lastrowid)
+
+                    # Phase 3: re-pin the signed tip-anchor to this new tip, in the SAME
+                    # transaction, so a later tail-truncation (deleting the latest
+                    # entries without re-signing the anchor) is detectable by verify_chain.
+                    anchor_sig: Optional[str] = None
+                    if sign_state.enabled and sign_state.private_key is not None:
+                        anchor_sig = _sign_tip_anchor(
+                            sign_state.private_key, entry_id, current_hash
+                        )
+                    conn.execute(
+                        "INSERT INTO audit_tip_anchor "
+                        "(anchor_id, tip_entry_id, tip_hash, signature, key_id, updated_at) "
+                        "VALUES (1, ?, ?, ?, ?, ?) "
+                        "ON CONFLICT(anchor_id) DO UPDATE SET "
+                        "tip_entry_id=excluded.tip_entry_id, tip_hash=excluded.tip_hash, "
+                        "signature=excluded.signature, key_id=excluded.key_id, "
+                        "updated_at=excluded.updated_at",
+                        (entry_id, current_hash, anchor_sig, key_id, timestamp),
+                    )
+                    conn.commit()
+                    return AuditEntry(
+                        entry_id=entry_id,
+                        current_hash=current_hash,
+                        previous_hash=previous_hash,
+                        redacted=redacted,
+                        signature=signature,
+                        key_id=key_id,
+                    )
+                finally:
+                    conn.close()
+        except AuditError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - fail-closed: any failure is fatal
+            raise AuditError(f"Audit write failed (fail-closed): {exc}") from exc
+
+    def verify_chain(
+        self,
+        *,
+        from_id: int = 1,
+        to_id: Optional[int] = None,
+        verify_signatures: bool = True,
+    ) -> ChainStatus:
+        _ensure_initialized(self.db_path)
+        conn = _connect(self.db_path)
+        try:
+            # Load all public keys for signature verification
+            pub_keys: dict[int, Ed25519PublicKey] = {}
+            if verify_signatures and _ED25519_AVAILABLE:
+                for row in conn.execute("SELECT key_id, public_key_hex FROM audit_keys"):
+                    try:
+                        pk_bytes = bytes.fromhex(row["public_key_hex"])
+                        pub_keys[int(row["key_id"])] = Ed25519PublicKey.from_public_bytes(
+                            pk_bytes
+                        )
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "Could not load audit public key key_id=%s", row["key_id"]
+                        )
+
+            if to_id is None:
+                rows = conn.execute(
+                    "SELECT * FROM tamper_audit_trail WHERE entry_id >= ? "
+                    "ORDER BY entry_id ASC",
+                    (from_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM tamper_audit_trail WHERE entry_id >= ? AND entry_id <= ? "
+                    "ORDER BY entry_id ASC",
+                    (from_id, to_id),
+                ).fetchall()
+        finally:
+            conn.close()
+
+        if from_id <= 1:
+            previous_hash = config.AUDIT_GENESIS_HASH
+        elif rows:
+            previous_hash = rows[0]["previous_hash"]
+        else:
+            previous_hash = config.AUDIT_GENESIS_HASH
+
+        invalid_sigs: list[int] = []
+        unsigned_count = 0
+
+        for entry in rows:
+            eid = int(entry["entry_id"])
+
+            # --- 1. Hash-chain linkage check ---
+            if entry["previous_hash"] != previous_hash:
+                return ChainStatus(
+                    valid=False,
+                    total_entries=len(rows),
+                    broken_at=eid,
+                    reason="Chain linkage broken (previous_hash mismatch).",
+                    head_hash=previous_hash if eid == int(rows[0]["entry_id"]) else None,
+                    signature_valid=len(invalid_sigs) == 0,
+                    invalid_signatures=tuple(invalid_sigs),
+                    unsigned_entries=unsigned_count,
+                )
+
+            # --- 2. Payload integrity check (recompute under the entry's OWN version) ---
+            try:
+                entry_version = int(entry["hash_version"])
+            except (IndexError, KeyError, TypeError):
+                entry_version = 1  # pre-migration row defaults to the legacy preimage
+            computed = compute_entry_hash(
+                previous_hash,
+                entry["timestamp"],
+                entry["actor"],
+                entry["action_payload"],
+                entry["security_zone"],
+                version=entry_version,
+            )
+            if computed != entry["current_hash"]:
+                return ChainStatus(
+                    valid=False,
+                    total_entries=len(rows),
+                    broken_at=eid,
+                    reason="Payload tampering detected (hash mismatch).",
+                    head_hash=None,
+                    signature_valid=len(invalid_sigs) == 0,
+                    invalid_signatures=tuple(invalid_sigs),
+                    unsigned_entries=unsigned_count,
+                )
+
+            # --- 3. Ed25519 signature verification ---
+            sig_hex = entry["signature"]
+            entry_key_id = entry["key_id"]
+            if sig_hex and verify_signatures and _ED25519_AVAILABLE:
+                # Migrated ledgers (ALTER-added key_id TEXT column) read key_id
+                # back as a STRING while pub_keys is int-keyed — coerce exactly
+                # like the tip-anchor check does (int(anchor["key_id"])), or every
+                # honestly-signed entry on a migrated ledger reads as "key
+                # unknown". Unparseable ids stay unknown → suspicious (the
+                # fail-closed posture is unchanged). §VIII operator-approved
+                # 2026-07-02; reproduced in tests/test_audit_recovery.py.
+                try:
+                    entry_key = int(entry_key_id) if entry_key_id is not None else None
+                except (TypeError, ValueError):
+                    entry_key = None
+                pk = pub_keys.get(entry_key) if entry_key is not None else None
+                if pk is not None:
+                    sig_valid = _verify_entry_signature(
+                        pk,
+                        sig_hex,
+                        entry["previous_hash"],
+                        entry["timestamp"],
+                        entry["actor"],
+                        entry["action_payload"],
+                        entry["security_zone"],
+                        entry["current_hash"],
+                    )
+                    if not sig_valid:
+                        invalid_sigs.append(eid)
+                else:
+                    # Signature present but key unknown (key deleted?) — suspicious
+                    invalid_sigs.append(eid)
+            elif not sig_hex:
+                unsigned_count += 1
+
+            previous_hash = entry["current_hash"]
+
+        # --- 4. Tip-anchor check (Phase 3): detect tail-truncation on a verify-to-tip. ---
+        tip_anchor_valid: Optional[bool] = None
+        if to_id is None:
+            tip_anchor_valid = _check_tip_anchor(self.db_path, pub_keys, verify_signatures)
+            if tip_anchor_valid is False:
+                return ChainStatus(
+                    valid=False,
+                    total_entries=len(rows),
+                    broken_at=None,
+                    reason="Tail truncation or tip-anchor tamper detected.",
+                    head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
+                    signature_valid=len(invalid_sigs) == 0,
+                    invalid_signatures=tuple(invalid_sigs),
+                    unsigned_entries=unsigned_count,
+                    tip_anchor_valid=False,
+                )
+
+        chain_valid = len(invalid_sigs) == 0
+        return ChainStatus(
+            valid=chain_valid,
+            total_entries=len(rows),
+            # A failed status must always NAME its failure mode — valid=False with
+            # reason=None is an alarm that explains nothing (§VIII 2026-07-02).
+            reason=None if chain_valid else "Invalid Ed25519 signatures detected.",
+            head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
+            signature_valid=chain_valid,
+            invalid_signatures=tuple(invalid_sigs),
+            unsigned_entries=unsigned_count,
+            tip_anchor_valid=tip_anchor_valid,
+        )
+
+    def get_anchor(self) -> dict[str, Optional[Union[str, int]]]:
+        _ensure_initialized(self.db_path)
+        conn = _connect(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT entry_id, current_hash, signature, key_id, timestamp "
+                "FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1"
+            ).fetchone()
+        finally:
+            conn.close()
+
+        if row is None:
+            return {
+                "head_hash": config.AUDIT_GENESIS_HASH,
+                "signature": None,
+                "key_id": None,
+                "entry_id": None,
+                "timestamp": None,
+            }
+        return {
+            "head_hash": row["current_hash"],
+            "signature": row["signature"],
+            "key_id": row["key_id"],
+            "entry_id": row["entry_id"],
+            "timestamp": row["timestamp"],
+        }
+
+    def list_recent_entries(
+        self,
+        limit: int = 50,
+        *,
+        zone: Optional[Union[Zone, str]] = None,
+    ) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 500))
+        _ensure_initialized(self.db_path)
+        conn = _connect(self.db_path)
+        try:
+            if zone is not None:
+                rows = conn.execute(
+                    "SELECT entry_id, timestamp, actor, action_payload, security_zone "
+                    "FROM tamper_audit_trail WHERE security_zone = ? "
+                    "ORDER BY entry_id DESC LIMIT ?",
+                    (_zone_str(zone), limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT entry_id, timestamp, actor, action_payload, security_zone "
+                    "FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        finally:
+            conn.close()
+        return [
+            {
+                "entryId": row["entry_id"],
+                "timestamp": row["timestamp"],
+                "actor": row["actor"],
+                "payload": row["action_payload"],
+                "zone": row["security_zone"],
+            }
+            for row in rows
+        ]
+
+    def retroactively_sign_unsinged_entries(self) -> int:
+        if not _ED25519_AVAILABLE:
+            logger.warning("Ed25519 unavailable — cannot retroactively sign entries.")
+            return 0
+
+        _ensure_initialized(self.db_path)
+        sign_state = _get_signing_state(self.db_path)
+        if not sign_state.enabled or sign_state.private_key is None:
+            logger.warning("Signing not enabled — cannot retroactively sign entries.")
+            return 0
+
+        conn = _connect(self.db_path)
+        signed_count = 0
+        try:
+            rows = conn.execute(
+                "SELECT entry_id, previous_hash, timestamp, actor, action_payload, "
+                "       security_zone, current_hash "
+                "FROM tamper_audit_trail WHERE signature IS NULL "
+                "ORDER BY entry_id ASC"
+            ).fetchall()
+
+            for entry in rows:
+                signature = _sign_entry(
+                    sign_state.private_key,
+                    entry["previous_hash"],
+                    entry["timestamp"],
+                    entry["actor"],
+                    entry["action_payload"],
+                    entry["security_zone"],
+                    entry["current_hash"],
+                )
+                conn.execute(
+                    "UPDATE tamper_audit_trail SET signature = ?, key_id = ? "
+                    "WHERE entry_id = ?",
+                    (signature, sign_state.key_id, entry["entry_id"]),
+                )
+                signed_count += 1
+
+            conn.commit()
+            if signed_count:
+                logger.info(
+                    "Retroactively signed %d unsigned audit entries with key_id=%d.",
+                    signed_count,
+                    sign_state.key_id,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Retroactive signing failed: %s", exc)
+        finally:
+            conn.close()
+
+        return signed_count
+
+    def get_active_public_key(self) -> Optional[dict[str, Union[str, int]]]:
+        if not _ED25519_AVAILABLE:
+            return None
+
+        _ensure_initialized(self.db_path)
+        conn = _connect(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT key_id, public_key_hex, created_at FROM audit_keys "
+                "WHERE active = 1 ORDER BY key_id DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "key_id": int(row["key_id"]),
+                "public_key_hex": row["public_key_hex"],
+                "created_at": row["created_at"],
+            }
+        finally:
+            conn.close()
+
+
+_AUDIT = AuditLoggerAuthority()
+
+
+def _audit_for(db_path: Path) -> AuditLoggerAuthority:
+    """Return the process singleton or a path-scoped authority for custom DBs."""
+    if db_path == _AUDIT.db_path:
+        return _AUDIT
+    return AuditLoggerAuthority(db_path=db_path)
+
+
+def _ensure_initialized(db_path: Path) -> None:
+    """Ensure the schema exists for *db_path*, at most once per process path."""
+    key = str(db_path)
+    if key not in _initialized:
+        _audit_for(db_path).init_audit_db()
+        _initialized.add(key)
+
+
+def init_audit_db(db_path: Path = config.AUDIT_DB_PATH) -> None:
+    """Create the ledger table, keys table, and indexes if absent (idempotent)."""
+    _audit_for(db_path).init_audit_db()
+
+
+def rotate_audit_key(db_path: Path = config.AUDIT_DB_PATH) -> int:
+    """Rotate the audit signing key: deactivate old key, create new one."""
+    return _audit_for(db_path).rotate_audit_key()
+
+
+def log_action(
+    actor: str,
+    payload: str,
+    zone: Union[Zone, str] = Zone.YELLOW,
+    *,
+    db_path: Path = config.AUDIT_DB_PATH,
+    redact_secrets: bool = True,
+) -> AuditEntry:
+    """Append one action to the tamper-evident ledger and return its entry."""
+    return _audit_for(db_path).log_action(
+        actor, payload, zone, redact_secrets=redact_secrets
+    )
+
+
+def verify_chain(
+    *,
+    from_id: int = 1,
+    to_id: Optional[int] = None,
+    db_path: Path = config.AUDIT_DB_PATH,
+    verify_signatures: bool = True,
+) -> ChainStatus:
+    """Verify the hash chain and Ed25519 signatures over ``[from_id, to_id]``."""
+    return _audit_for(db_path).verify_chain(
+        from_id=from_id, to_id=to_id, verify_signatures=verify_signatures
+    )
 
 
 def get_anchor(
     db_path: Path = config.AUDIT_DB_PATH,
 ) -> dict[str, Optional[Union[str, int]]]:
-    """Return the latest signed hash for external trust-anchor publication.
-
-    The returned dictionary contains the latest entry's hash and signature,
-    which can be periodically published to an external system (blockchain,
-    Certificate Transparency log, immutable blob store, etc.) to create an
-    off-system tamper-evidence check. Even without external publication, the
-    Ed25519 signature provides non-repudiation.
-
-    Returns:
-        ``{"head_hash": str|None, "signature": str|None, "key_id": int|None,
-        "entry_id": int|None, "timestamp": str|None}``
-    """
-    _ensure_initialized(db_path)
-    conn = _connect(db_path)
-    try:
-        row = conn.execute(
-            "SELECT entry_id, current_hash, signature, key_id, timestamp "
-            "FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1"
-        ).fetchone()
-    finally:
-        conn.close()
-
-    if row is None:
-        return {
-            "head_hash": config.AUDIT_GENESIS_HASH,
-            "signature": None,
-            "key_id": None,
-            "entry_id": None,
-            "timestamp": None,
-        }
-    return {
-        "head_hash": row["current_hash"],
-        "signature": row["signature"],
-        "key_id": row["key_id"],
-        "entry_id": row["entry_id"],
-        "timestamp": row["timestamp"],
-    }
+    """Return the latest signed hash for external trust-anchor publication."""
+    return _audit_for(db_path).get_anchor()
 
 
 def list_recent_entries(
@@ -987,154 +1071,22 @@ def list_recent_entries(
     zone: Optional[Union[Zone, str]] = None,
     db_path: Path = config.AUDIT_DB_PATH,
 ) -> list[dict[str, Any]]:
-    """Return the most recent ledger entries, newest first.
-
-    Read-only view for operator-facing audit surfaces (e.g. a security-audit
-    UI panel). Payloads were already secret-scrubbed at write time
-    (:func:`log_action`'s ``redact_secrets``), so nothing further is redacted
-    here.
-
-    Args:
-        limit: Maximum number of entries to return (clamped to [1, 500]).
-        zone: Optional security-zone filter (``'GREEN'|'YELLOW'|'RED'``).
-        db_path: Ledger database to read from.
-    """
-    limit = max(1, min(int(limit), 500))
-    _ensure_initialized(db_path)
-    conn = _connect(db_path)
-    try:
-        if zone is not None:
-            rows = conn.execute(
-                "SELECT entry_id, timestamp, actor, action_payload, security_zone "
-                "FROM tamper_audit_trail WHERE security_zone = ? "
-                "ORDER BY entry_id DESC LIMIT ?",
-                (_zone_str(zone), limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT entry_id, timestamp, actor, action_payload, security_zone "
-                "FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-    finally:
-        conn.close()
-    return [
-        {
-            "entryId": row["entry_id"],
-            "timestamp": row["timestamp"],
-            "actor": row["actor"],
-            "payload": row["action_payload"],
-            "zone": row["security_zone"],
-        }
-        for row in rows
-    ]
+    """Return the most recent ledger entries, newest first."""
+    return _audit_for(db_path).list_recent_entries(limit=limit, zone=zone)
 
 
 def retroactively_sign_unsinged_entries(
     db_path: Path = config.AUDIT_DB_PATH,
 ) -> int:
-    """Sign all unsigned (legacy) entries with the current signing key.
-
-    This migration helper allows an existing hash-only audit trail to be
-    upgraded to signed entries. Each unsigned entry is signed in place.
-
-    .. warning::
-
-        Retroactive signing attests to the entry's content *at the time of
-        signing*, not at the time of creation. For maximum trust, sign entries
-        at creation time via :func:`log_action`.
-
-    Args:
-        db_path: Ledger database to update.
-
-    Returns:
-        Number of entries retroactively signed.
-    """
-    if not _ED25519_AVAILABLE:
-        logger.warning("Ed25519 unavailable — cannot retroactively sign entries.")
-        return 0
-
-    _ensure_initialized(db_path)
-    sign_state = _get_signing_state(db_path)
-    if not sign_state.enabled or sign_state.private_key is None:
-        logger.warning("Signing not enabled — cannot retroactively sign entries.")
-        return 0
-
-    conn = _connect(db_path)
-    signed_count = 0
-    try:
-        rows = conn.execute(
-            "SELECT entry_id, previous_hash, timestamp, actor, action_payload, "
-            "       security_zone, current_hash "
-            "FROM tamper_audit_trail WHERE signature IS NULL "
-            "ORDER BY entry_id ASC"
-        ).fetchall()
-
-        for entry in rows:
-            signature = _sign_entry(
-                sign_state.private_key,
-                entry["previous_hash"],
-                entry["timestamp"],
-                entry["actor"],
-                entry["action_payload"],
-                entry["security_zone"],
-                entry["current_hash"],
-            )
-            conn.execute(
-                "UPDATE tamper_audit_trail SET signature = ?, key_id = ? "
-                "WHERE entry_id = ?",
-                (signature, sign_state.key_id, entry["entry_id"]),
-            )
-            signed_count += 1
-
-        conn.commit()
-        if signed_count:
-            logger.info(
-                "Retroactively signed %d unsigned audit entries with key_id=%d.",
-                signed_count,
-                sign_state.key_id,
-            )
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Retroactive signing failed: %s", exc)
-    finally:
-        conn.close()
-
-    return signed_count
-
-
-# --------------------------------------------------------------------------- #
-# Public-key export
-# --------------------------------------------------------------------------- #
+    """Sign all unsigned (legacy) entries with the current signing key."""
+    return _audit_for(db_path).retroactively_sign_unsinged_entries()
 
 
 def get_active_public_key(
     db_path: Path = config.AUDIT_DB_PATH,
 ) -> Optional[dict[str, Union[str, int]]]:
-    """Return the currently active signing key's public key metadata.
-
-    Returns:
-        ``{"key_id": int, "public_key_hex": str, "created_at": str}``
-        or ``None`` if Ed25519 is unavailable.
-    """
-    if not _ED25519_AVAILABLE:
-        return None
-
-    _ensure_initialized(db_path)
-    conn = _connect(db_path)
-    try:
-        row = conn.execute(
-            "SELECT key_id, public_key_hex, created_at FROM audit_keys "
-            "WHERE active = 1 ORDER BY key_id DESC LIMIT 1"
-        ).fetchone()
-        if row is None:
-            return None
-        return {
-            "key_id": int(row["key_id"]),
-            "public_key_hex": row["public_key_hex"],
-            "created_at": row["created_at"],
-        }
-    finally:
-        conn.close()
+    """Return the currently active signing key's public key metadata."""
+    return _audit_for(db_path).get_active_public_key()
 
 
 __all__ = [
@@ -1152,54 +1104,3 @@ __all__ = [
     "rotate_audit_key",
     "verify_chain",
 ]
-
-
-class AuditLoggerAuthority:
-    """Own the tamper-evident audit ledger (Decision A / organ 4).
-
-    Module-level append/verify helpers remain the production API. This class is
-    the named authority owner that consolidates write + verify on one object,
-    matching the organ-42 shape without changing existing call sites.
-    """
-
-    def __init__(self, *, db_path: Path = config.AUDIT_DB_PATH) -> None:
-        self.db_path = db_path
-
-    def log_action(
-        self,
-        actor: str,
-        payload: str,
-        zone: Union[Zone, str] = Zone.YELLOW,
-        *,
-        redact_secrets: bool = True,
-    ) -> AuditEntry:
-        return log_action(
-            actor,
-            payload,
-            zone,
-            db_path=self.db_path,
-            redact_secrets=redact_secrets,
-        )
-
-    def verify_chain(
-        self,
-        *,
-        from_id: int = 1,
-        to_id: int | None = None,
-    ) -> ChainStatus:
-        return verify_chain(from_id=from_id, to_id=to_id, db_path=self.db_path)
-
-    def rotate_audit_key(self) -> int:
-        return rotate_audit_key(db_path=self.db_path)
-
-    def get_anchor(self) -> object:
-        return get_anchor(db_path=self.db_path)
-
-    def list_recent_entries(self, *, limit: int = 50) -> object:
-        return list_recent_entries(limit=limit, db_path=self.db_path)
-
-    def retroactively_sign_unsinged_entries(self) -> int:
-        return retroactively_sign_unsinged_entries(db_path=self.db_path)
-
-    def get_active_public_key(self) -> object:
-        return get_active_public_key(db_path=self.db_path)
