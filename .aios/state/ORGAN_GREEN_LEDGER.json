@@ -999,7 +999,7 @@
       }
     ],
     "known_blockers": [
-      "Decision A satisfied 2026-07-28: IsolatedExecutorLiveAuthority now owns the truthful authenticated health projection in the ledger-listed executor read-model entrypoint, and the live mirror executor route calls it directly. tests/test_organ_authority_owners.py spies on that route and proves the named owner receives the production client. Existing CI-backed Docker evidence remains recorded, but this local change does not create new live evidence or flip status."
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 executor workspaces + service; projection via IsolatedExecutorLiveAuthority. C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 isolation/restart proven in CI historically. C5 FAIL-SAFE: PASS \u2014 mirror projection reports configured/unavailable truthfully. Still yellow honestly: new live Docker re-stamp + tip SHA not claimed this tip."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false
