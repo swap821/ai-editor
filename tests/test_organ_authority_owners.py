@@ -1058,6 +1058,24 @@ def test_organ_17_cortex_bus_is_what_api_lifespan_constructs() -> None:
     assert "get_cortex_bus" in inspect.getsource(api_main)
 
 # --------------------------------------------------------------------------- #
+# Organ 21 -- QueenCouncilAuthority
+# --------------------------------------------------------------------------- #
+
+
+def test_organ_21_queen_council_is_reached_by_council_deliberation_path() -> None:
+    """Organ 21: council deliberation constructs CouncilOrchestrator(=Queen)."""
+    from aios.api.routes import council as council_routes
+    from aios.council.council_orchestrator import (
+        CouncilOrchestrator,
+        QueenCouncilAuthority,
+    )
+
+    assert CouncilOrchestrator is QueenCouncilAuthority
+    source = inspect.getsource(council_routes._run_council_deliberation)
+    assert "CouncilOrchestrator(" in source
+    assert ".deliberate(" in source
+
+# --------------------------------------------------------------------------- #
 # Organs 26, 40, 43 and 44 -- the remaining Python owner caller proofs
 # --------------------------------------------------------------------------- #
 
