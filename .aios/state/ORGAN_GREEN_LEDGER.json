@@ -393,7 +393,9 @@
       "tests/test_release_conformance.py"
     ],
     "live_evidence": [],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 3 (2026-07-31) condition verdicts \u2014 C3 DURABLE: PASS \u2014 EmergencyStopController durable latch (aios emergency stop store). C4 TAMPER-EVIDENCE: PASS-PARTIAL \u2014 latch durability + audit preserve_evidence hook. C5 FAIL-SAFE: PASS \u2014 engage blocks capability/scheduling/execution; reports engaged truthfully. Still yellow honestly: already green construction; tip SHA not re-attested."
+    ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false
   },
