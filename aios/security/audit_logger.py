@@ -1140,6 +1140,7 @@ def get_active_public_key(
 __all__ = [
     "AuditEntry",
     "AuditError",
+    "AuditLoggerAuthority",
     "ChainStatus",
     "compute_entry_hash",
     "get_active_public_key",
@@ -1151,3 +1152,54 @@ __all__ = [
     "rotate_audit_key",
     "verify_chain",
 ]
+
+
+class AuditLoggerAuthority:
+    """Own the tamper-evident audit ledger (Decision A / organ 4).
+
+    Module-level append/verify helpers remain the production API. This class is
+    the named authority owner that consolidates write + verify on one object,
+    matching the organ-42 shape without changing existing call sites.
+    """
+
+    def __init__(self, *, db_path: Path = config.AUDIT_DB_PATH) -> None:
+        self.db_path = db_path
+
+    def log_action(
+        self,
+        actor: str,
+        payload: str,
+        zone: Union[Zone, str] = Zone.YELLOW,
+        *,
+        redact_secrets: bool = True,
+    ) -> AuditEntry:
+        return log_action(
+            actor,
+            payload,
+            zone,
+            db_path=self.db_path,
+            redact_secrets=redact_secrets,
+        )
+
+    def verify_chain(
+        self,
+        *,
+        from_id: int = 1,
+        to_id: int | None = None,
+    ) -> ChainStatus:
+        return verify_chain(from_id=from_id, to_id=to_id, db_path=self.db_path)
+
+    def rotate_audit_key(self) -> int:
+        return rotate_audit_key(db_path=self.db_path)
+
+    def get_anchor(self) -> object:
+        return get_anchor(db_path=self.db_path)
+
+    def list_recent_entries(self, *, limit: int = 50) -> object:
+        return list_recent_entries(limit=limit, db_path=self.db_path)
+
+    def retroactively_sign_unsinged_entries(self) -> int:
+        return retroactively_sign_unsinged_entries(db_path=self.db_path)
+
+    def get_active_public_key(self) -> object:
+        return get_active_public_key(db_path=self.db_path)
