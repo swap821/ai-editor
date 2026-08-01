@@ -2,12 +2,13 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `96a58b1fd60eec2c964813af271de02d1e66c9f5`
-**Generated:** 2026-07-31T15:31:44+00:00
+**Evaluated tip:** `0295141c1969be1f70ced5de144fd7c83edb46fc`
+**Generated:** 2026-08-01T16:40:02+00:00
 
 ## Mechanical failures (enforceable subset)
 
 - **residual**: no Ollama — live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner
+- **residual**: C4: N/A-BY-DESIGN — passport fields are not a journal; aios/security/audit_logger.py::AuditLoggerAuthority and aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority own the integrity chain
 
 ## Written verdict keys that are not PASS/N/A
 

@@ -16,7 +16,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "C3: N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
@@ -51,7 +52,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "C4: N/A-BY-DESIGN \u2014 aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
@@ -86,7 +88,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "C4: N/A-BY-DESIGN \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
@@ -156,7 +159,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "C3: N/A-BY-DESIGN \u2014 aios/security/injection_shield.py::InjectionShieldAuthority"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
@@ -1385,7 +1389,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner"
+      "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner",
+      "C4: N/A-BY-DESIGN \u2014 passport fields are not a journal; aios/security/audit_logger.py::AuditLoggerAuthority and aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority own the integrity chain"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -1466,7 +1471,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "no Ollama \u2014 live local clerk runtime evidence needs live Ollama"
+      "no Ollama \u2014 live local clerk runtime evidence needs live Ollama",
+      "C4: N/A-BY-DESIGN \u2014 runtime admission is not a journal; aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -1551,7 +1557,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "no Ollama \u2014 live model qualification suite needs live Ollama"
+      "no Ollama \u2014 live model qualification suite needs live Ollama",
+      "C4: N/A-BY-DESIGN \u2014 qualification evidence is not the adversarial journal; aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -1876,7 +1883,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence"
+      "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence",
+      "C4: N/A-BY-DESIGN \u2014 endurance produces evidence rather than a journal; tools/golden_mission_runner.py::GoldenMissionEnduranceAuthority"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -1973,7 +1981,8 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design"
+      "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design",
+      "C4: N/A-BY-DESIGN \u2014 learning outcomes are not the adversarial journal; aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,

@@ -705,12 +705,13 @@ def test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest() -> N
     assert "no contract violations" in result.stdout
 
 
-def test_verify_organ_contracts_strict_release_accepts_exact_tip_green_evidence() -> None:
-    """Strict release is self-consistent when every green organ is tip-stamped.
+def test_verify_organ_contracts_strict_release_rejects_ordinary_non_evidence_tip() -> None:
+    """Strict release stays closed on ordinary commits between evidence tips.
 
-    Organ 23 still remains yellow because the ledger has named residuals; that
-    release-conformance shortfall is a separate condition from stale green SHA
-    detection.
+    The release procedure requires a separately prepared evidence/tag tip. The
+    ordinary CI gate is ``--require-sha-ancestry``; accepting the current
+    commit here would require falsifying green-organ attestations or a
+    self-referential manifest.
     """
     import subprocess
     import sys
@@ -726,8 +727,9 @@ def test_verify_organ_contracts_strict_release_accepts_exact_tip_green_evidence(
         text=True,
         timeout=30,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "no contract violations" in result.stdout
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "does not match the evaluated commit" in output
 
 
 # --- CLI wiring -----------------------------------------------------------

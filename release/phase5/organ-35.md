@@ -2,12 +2,13 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `96a58b1fd60eec2c964813af271de02d1e66c9f5`
-**Generated:** 2026-07-31T15:31:44+00:00
+**Evaluated tip:** `0295141c1969be1f70ced5de144fd7c83edb46fc`
+**Generated:** 2026-08-01T16:40:02+00:00
 
 ## Mechanical failures (enforceable subset)
 
 - **residual**: no Ollama — live local clerk runtime evidence needs live Ollama
+- **residual**: C4: N/A-BY-DESIGN — runtime admission is not a journal; aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority
 
 ## Written verdict keys that are not PASS/N/A
 
