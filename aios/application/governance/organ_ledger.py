@@ -69,9 +69,7 @@ GREEN_CONTRACT_CONDITIONS: Mapping[str, str] = {
     "C11": "last_verified_sha records the exact tested commit",
     "C12": "CI verifies that commit (ancestor of HEAD on ordinary CI; exact tip at release)",
 }
-REQUIRED_CONDITION_VERDICT_KEYS: tuple[str, ...] = tuple(
-    f"C{i}" for i in range(1, 13)
-)
+REQUIRED_CONDITION_VERDICT_KEYS: tuple[str, ...] = tuple(f"C{i}" for i in range(1, 13))
 
 #: organ_id -> canonical (name, authority_owner). This is the single source
 #: of truth for "which 54 organs exist"; a ledger record whose (id, name)

@@ -705,7 +705,9 @@ def test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest() -> N
     assert "no contract violations" in result.stdout
 
 
-def test_verify_organ_contracts_strict_release_rejects_ordinary_non_evidence_tip() -> None:
+def test_verify_organ_contracts_strict_release_rejects_ordinary_non_evidence_tip() -> (
+    None
+):
     """Strict release stays closed on ordinary commits between evidence tips.
 
     The release procedure requires a separately prepared evidence/tag tip. The
