@@ -123,31 +123,15 @@ def test_recorded_shas_are_reachable_from_head_when_the_objects_exist() -> None:
 
 
 def test_the_unrecorded_green_organs_do_not_grow() -> None:
-    """A ratchet, not a rule.
+    """Phase 1 ratchet: every green organ must record last_verified_sha.
 
-    12 of the 38 green organs record no `last_verified_sha` at all, so
-    condition 11 does not hold for them. Asserting that every green organ must
-    record one would fail on the existing ledger, and deciding whether those 12
-    should be recorded or un-greened is an operator call about what "green"
-    means -- not something a test should force.
-
-    What a test CAN do is stop the gap widening: a NEW green organ arriving
-    without a recorded commit fails here, while the existing backlog is left
-    visible and untouched.
+    The historical backlog of 12 unrecorded greens was closed when Phase 4/5
+    tip-stamped live evidence. New greens without a SHA fail here.
     """
     green = [organ for organ in _organs() if organ["status"] == "green"]
     unrecorded = sorted(o["organ_id"] for o in green if not o.get("last_verified_sha"))
 
-    #: The known backlog as of this test being written. Lower it when organs
-    #: are genuinely verified; never raise it to make a new flip pass.
-    known_backlog = [24, 26, 34, 35, 37, 39, 40, 41, 43, 45, 47, 54]
-
-    new_offenders = [oid for oid in unrecorded if oid not in known_backlog]
-
-    assert not new_offenders, (
+    assert not unrecorded, (
         "these organs are green but record no verified commit, so condition 11 "
-        f"cannot hold for them: {new_offenders}"
-    )
-    assert len(unrecorded) <= len(known_backlog), (
-        f"the unrecorded-green backlog grew: {unrecorded}"
+        f"cannot hold for them: {unrecorded}"
     )

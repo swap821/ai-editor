@@ -164,9 +164,14 @@ jobs:
         # tracked-file hash is exactly the bug class that shipped silently
         # before this step existed (see scripts/build_release_manifest.py's
         # own docstring for the real incident that motivated it).
+        #
+        # Phase 1 ordinary-CI tip gate: --require-sha-ancestry. Exact tip
+        # equality (--strict-release) remains the release-tag / workflow_dispatch
+        # job below; a commit cannot truthfully self-stamp its own SHA.
         run: |
           python scripts/build_release_manifest.py --check
-          python scripts/verify_organ_contracts.py
+          python scripts/verify_organ_contracts.py --require-sha-ancestry
+          python scripts/verify_organ_twelve_conditions.py
 
       - name: Ruff check and format gate
         run: |
@@ -356,16 +361,14 @@ jobs:
             license-report.json
 
   release-strict-gate:
-    # Organ 23's own job (Release Conformance), not every ordinary commit's:
-    # `--strict-release` requires every green organ's `last_verified_sha` to
-    # equal the exact commit under test, which most commits legitimately
-    # don't re-stamp (see verify_organ_contracts.py's own docstring). Wiring
-    # this into the push/pull_request triggers above would fail on every
-    # commit that doesn't re-verify every green organ today -- exactly the
-    # rule this job exists NOT to be. Manual `workflow_dispatch` instead:
-    # run this deliberately, immediately before cutting a real release, so a
-    # stale `last_verified_sha` is caught by CI rather than trusted by eye.
-    if: github.event_name == 'workflow_dispatch'
+    # Organ 23's release-tagging gate. Exact tip equality for green
+    # last_verified_sha + manifest source_commit_sha. Chicken-egg: a commit
+    # cannot self-stamp its own SHA — run this at an evidence tip (or after
+    # the tip-alignment procedure in release/phase6/STRICT_RELEASE_PROCEDURE.md).
+    # Ordinary push/PR CI uses --require-sha-ancestry above instead.
+    # Also runs on gagos-release-* tags so a tagged evidence tip is teeth, not
+    # only manual workflow_dispatch.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/gagos-release-')
     runs-on: ubuntu-latest
     permissions:
       contents: read

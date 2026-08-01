@@ -16,11 +16,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release.",
-      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 SecurityGatewayAuthority class defined in production_entrypoints ['aios/security/gateway.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_security.py', 'tests/adversarial/test_gateway_bypass.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 classification policy is code-resident; rate-limiter state is process-local by design (not a durable authority store)",
+      "C4": "N/A-BY-DESIGN \u2014 AuditLoggerAuthority (organ 4) owns the tamper-evident ledger that records gated actions; gateway itself is deterministic code, not a mutating journal",
+      "C5": "PASS \u2014 empty/unknown commands classify RED (fail-closed)",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_security.py', 'tests/adversarial/test_gateway_bypass.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_gateway_bypass.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/secur",
+      "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+      "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 2,
@@ -38,11 +51,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5.",
-      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ScopeLockAuthority class defined in production_entrypoints ['aios/security/scope_lock.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_security.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 scope roots are session/config state; path checks are pure against configured roots",
+      "C4": "N/A-BY-DESIGN \u2014 no mutable journal to chain",
+      "C5": "PASS \u2014 out-of-scope paths are refused",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_security.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_sandbox_escape.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope",
+      "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+      "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 3,
@@ -60,11 +86,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.",
-      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 SecretScannerAuthority class defined in production_entrypoints ['aios/security/secret_scanner.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_security.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 scanner is pure functions over text; no durable organ-owned store required",
+      "C4": "N/A-BY-DESIGN \u2014 redaction is ephemeral transform",
+      "C5": "PASS \u2014 findings reported; empty findings is explicit",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_security.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_secret_detection.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen",
+      "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+      "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 4,
@@ -82,11 +121,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.",
-      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 AuditLoggerAuthority class defined in production_entrypoints ['aios/security/audit_logger.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_audit.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 aios_audit.db SQLite hash-chained ledger is durable across restart",
+      "C4": "PASS \u2014 SHA-256 chain + optional Ed25519; verify_chain detects breaks. Ops",
+      "C5": "PASS \u2014 verify failures surface valid=False",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_audit.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_audit_integrity.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine can",
+      "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+      "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 5,
@@ -104,11 +156,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5.",
-      "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release required before green/live claim"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 InjectionShieldAuthority class defined in production_entrypoints ['aios/security/injection_shield.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_generate_input_shield.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "N/A-BY-DESIGN \u2014 InjectionShieldAuthority model/matrix is process-loaded second layer; not a durable event journal",
+      "C4": "N/A-BY-DESIGN \u2014 similarity scores are ephemeral",
+      "C5": "PASS-BY-DESIGN \u2014 is_injection fails soft to False on errors so regex remains primary (documented)",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_generate_input_shield.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_chat_input_shield.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-B",
+      "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+      "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 6,
@@ -129,16 +194,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; EdgeTrustAuthority + rp._probe_edge => owner=EdgeTrustAuthority; spoofed origin, host, and wildcard CORS requests were refused before mutation",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; EdgeTrustAuthority + rp._probe_edge => owner=EdgeTrustAuthority; spoofed origin, host, and wildcard CORS requests were refused before mutation",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 EdgeTrustAuthority class defined in production_entrypoints ['aios/interfaces/http/edge_security.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_edge_security.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 edge trust decisions are request-scoped; token rotation durability owned with organ 53",
+      "C4": "PASS-PARTIAL \u2014 no separate edge journal; relies on audit + token-rotation stores",
+      "C5": "PASS \u2014 unauthenticated non-loopback is refused; CORS/token failures do not invent access",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_edge_security.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 7,
@@ -159,16 +233,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 PolicyKernelAuthority class defined in production_entrypoints ['aios/policy/kernel.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_policy_kernel.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 policy kernel binds rate limiter + autonomy ledger; constitution authority shared",
+      "C4": "PASS-PARTIAL \u2014 policy decisions audit-logged; kernel is not itself a hash chain",
+      "C5": "PASS \u2014 emergency stop / capability refuse paths fail closed",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_policy_kernel.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_route_registry_conformance.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 8,
@@ -189,16 +272,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_mutation_authority => 95 mutating route declarations resolved through PolicyKernel; unknown mutation failed RED through ActionBroker",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_mutation_authority => 95 mutating route declarations resolved through PolicyKernel; unknown mutation failed RED through ActionBroker",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ActionBrokerAuthority class defined in production_entrypoints ['aios/application/action_broker.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_action_broker.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 action broker persists grants via capability authority stores",
+      "C4": "PASS \u2014 capability payloads are server-issued, single-use, payload-bound",
+      "C5": "PASS \u2014 missing/invalid grants refuse rather than forge approval",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_action_broker.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_release_conformance.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 9,
@@ -224,16 +316,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_capabilities => exact capability issued, consumed once, replay refused, altered payload refused",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_capabilities => exact capability issued, consumed once, replay refused, altered payload refused",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 CapabilityAuthority class defined in production_entrypoints ['aios/application/capabilities/authority.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_exact_capabilities.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 CapabilityAuthority / CapabilityStore SQLite durable (incl. constitution_digest column)",
+      "C4": "PASS \u2014 consume recomputes constitution digest; mismatch refuses",
+      "C5": "PASS \u2014 IdentityDegraded / CapabilityError fail closed",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_exact_capabilities.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 10,
@@ -259,16 +360,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_mission => mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_mission => mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 MissionAuthority class defined in production_entrypoints ['aios/application/missions/mission_service.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mission_contract_v1.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 mission SQLite durable via MissionAuthority / mission store",
+      "C4": "PASS (production maintenance MissionAuthority journals MISSION_CREATED via organ-42 aios/application/recovery/authority.py::RecoveryResumptionAuthority)",
+      "C5": "PASS \u2014 mission failures report honestly; no fabricated mission success",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_mission_contract_v1.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_council_orchestrator.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 11,
@@ -289,16 +399,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_turn_coordinator => deterministic mode selection and canonical turn event stream verified",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_turn_coordinator => deterministic mode selection and canonical turn event stream verified",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 TurnCoordinatorAuthority class defined in production_entrypoints ['aios/application/turns/turn_coordinator.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_turn_coordinator.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 turn coordinator is orchestration; durable turn artifacts live in memory/mission stores it drives",
+      "C4": "PASS-PARTIAL \u2014 not a standalone hash chain",
+      "C5": "PASS \u2014 approval pauses preserve plan rather than inventing continuation",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_turn_coordinator.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_chat.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 12,
@@ -319,16 +438,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; WorkerFoundryAuthority.select deterministic => WorkerFoundryAuthority constructed; missing_principal=None; missing_lifecycle=None; select(deterministic)=DeterministicWorkerStrategy",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; WorkerFoundryAuthority.select deterministic => WorkerFoundryAuthority constructed; missing_principal=None; missing_lifecycle=None; select(deterministic)=DeterministicWorkerStrategy",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 WorkerFoundryAuthority class defined in production_entrypoints ['aios/application/workers/foundry.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_worker_foundry.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 worker foundry + scheduler registry durable enough for cancel/stop hooks",
+      "C4": "PASS-PARTIAL \u2014 worker outcomes audited; not organ-38-grade chain",
+      "C5": "PASS \u2014 emergency stop cancels queued/active workers rather than reporting phantom success",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_worker_foundry.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_council_orchestrator.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 13,
@@ -349,16 +477,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ExecutorServiceAuthority class defined in production_entrypoints ['aios/executor_service.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_executor_service.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 executor service + workspaces on disk; default container backend",
+      "C4": "PASS-PARTIAL \u2014 execution audited; workspace isolation is the integrity boundary",
+      "C5": "PASS \u2014 host backend is explicit loud escape hatch; failures report rather than silent ok",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_executor_service.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_release_conformance.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 14,
@@ -379,16 +516,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=8359569b1a264fc791490c2f480db44a mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-scdlt4_c\\staged-root\\8359569b1a264fc791490c2f480db44a baseline=6fc358b543368ecf\u2026",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=0b5e7a5430954decbddd8d1f724aef53 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-6vagoe9o\\staged-root\\0b5e7a5430954decbddd8d1f724aef53 baseline=6fc358b543368ecf\u2026",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 StagedWorkspaceAuthority class defined in production_entrypoints ['aios/application/workspaces/staged.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_staged_workspaces.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 staged workspaces on disk under DATA_DIR",
+      "C4": "PASS-PARTIAL \u2014 workspace content integrity via promotion verification, not a separate journal",
+      "C5": "PASS \u2014 missing roots/enrolment refuse rather than inventing a stage",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_staged_workspaces.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_council_orchestrator.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 15,
@@ -414,16 +560,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_staging_and_promotion => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_staging_and_promotion => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 VerificationAuthority class defined in production_entrypoints ['aios/application/evidence/verification.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_verification_strength.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 VerificationAuthority can persist results to SQLite with integrity_proof",
+      "C4": "PASS \u2014 payload_digest + integrity_proof on durable results",
+      "C5": "PASS \u2014 missing plans/results do not invent STRONG",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_verification_strength.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_promotion_authority.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 16,
@@ -449,16 +604,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_staging_and_promotion (same live run as organ 15) => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_staging_and_promotion (same live run as organ 15) => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 PromotionAuthority class defined in production_entrypoints ['aios/application/promotion/authority.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_promotion_authority.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 PromotionAuthority durable operational DB + staged workspaces",
+      "C4": "PASS \u2014 verification coupling + checkpoint validation (organ 41)",
+      "C5": "PASS \u2014 forged checkpoint targets refuse",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_promotion_authority.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_council_orchestrator.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 17,
@@ -484,16 +648,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_cortex => canonical events advanced a durable consumer cursor across restart without duplicate replay",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_cortex => canonical events advanced a durable consumer cursor across restart without duplicate replay",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 CortexBusAuthority class defined in production_entrypoints ['aios/runtime/cortex_bus.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_cortex_bus.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 SQLite cortex outbox durable across restart",
+      "C4": "PASS (writer+verifier share aios/runtime/cortex_bus.py::cortex_event_content_digest; adversarial audit chain remains organ 4)",
+      "C5": "PASS \u2014 cortex bus reports unavailable/failed rather than inventing events",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_cortex_bus.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_release_conformance.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 18,
@@ -519,16 +692,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_memory => unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_memory => unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 MemoryAuthority class defined in production_entrypoints ['aios/application/memory/authority.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_memory_authority.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 MemoryAuthority adapters over SQLite/FAISS durable stores",
+      "C4": "PASS-PARTIAL \u2014 facts/corrections have digest paths; memory blob integrity varies by adapter",
+      "C5": "PASS \u2014 recall fails soft; quarantined proposals cannot enter recall until approved",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_memory_authority.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_chat.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 19,
@@ -554,16 +736,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_emergency_stop => emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded | TestClient GET /api/v1/governance/emergency-stop => HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_emergency_stop => emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded | TestClient GET /api/v1/governance/emergency-stop => HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 EmergencyStopController class defined in production_entrypoints ['aios/application/governance/emergency_stop.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_governance.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 EmergencyStopController durable latch (aios emergency stop store)",
+      "C4": "PASS-PARTIAL \u2014 latch durability + audit preserve_evidence hook",
+      "C5": "PASS \u2014 engage blocks capability/scheduling/execution; reports engaged truthfully",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_governance.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_release_conformance.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 20,
@@ -581,11 +772,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for FE authority (process store) \u2014 frontend/src/superbrain/lib/livingMirrorRegistry.ts::LivingMirrorAuthority; backend mirror APIs durable. C4: N/A-BY-DESIGN (UI normalizer \u2014 LivingMirrorAuthority.dispatch). C5: PASS (unknown events ignored without inventing state).",
       "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 LivingMirrorAuthority class defined in production_entrypoints ['frontend/src/superbrain/lib/livingMirrorRegistry.ts'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['frontend/src/superbrain/lib/livingMirrorRegistry.test.ts'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS-PARTIAL \u2014 mirror read-model is backend-durable; LivingMirrorAuthority itself is frontend process state over SSE",
+      "C4": "N/A \u2014 reaction registry is not a hash chain; integrity is backend audit/mirror",
+      "C5": "PASS \u2014 unknown events ignored; incomplete events announced rather than applied as healthy",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['frontend/src/superbrain/lib/livingMirrorRegistry.test.ts']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/superbrain/lib/aiosMirror.test.ts']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+      "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 21,
@@ -606,16 +810,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime) => QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-scdlt4_c\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime) => QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-6vagoe9o\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 QueenCouncilAuthority class defined in production_entrypoints ['aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_council_orchestrator.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 council runtime dirs + mission ledgers durable",
+      "C4": "PASS-PARTIAL \u2014 KingReport/ledger files; not organ-38 chain",
+      "C5": "PASS \u2014 protected-foundation preflight denies; failed verification revises rather than fake-approve",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_council_orchestrator.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 22,
@@ -636,16 +849,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; evaluate_release(repo) live => evaluate_release ready=False version=1.0.0-prototype gate_count=17 failures=['exact_capabilities', 'edge_trust_boundary', 'mutation_authority', 'mission_lifecycle', 'isolated_executor', 'executor_runtime_available', 'staged_workspaces', 'verification_and_recovery', 'promotion_authority', 'turn_coordinator', 'cortex_consumer_cursors', 'truthful_mirror', 'memory_provenance', 'emergency_stop_controller', 'production_profile_fail_closed']",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; evaluate_release(repo) live => evaluate_release ready=False version=1.0.0-prototype gate_count=17 failures=['exact_capabilities', 'edge_trust_boundary', 'mutation_authority', 'mission_lifecycle', 'isolated_executor', 'executor_runtime_available', 'staged_workspaces', 'verification_and_recovery', 'promotion_authority', 'turn_coordinator', 'cortex_consumer_cursors', 'truthful_mirror', 'memory_provenance', 'emergency_stop_controller', 'production_profile_fail_closed']",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ReleaseDeclarationAuthority class defined in production_entrypoints ['aios/application/governance/v1_declaration.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_v1_declaration.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 release declaration evaluates repo/profile state (ephemeral report) over durable organs",
+      "C4": "N/A \u2014 declaration is a computed snapshot, not a journal",
+      "C5": "PASS \u2014 missing executor/profile conditions report not-ready rather than inventing v1 ready",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_v1_declaration.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_launcher.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 23,
@@ -664,11 +886,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (cloud, frozen-spine, browser-session, and human-red-team residuals remain; local Docker and Ollama evidence is available where recorded.).",
-      "Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green"
+      "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green"
     ],
     "last_verified_sha": null,
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ReleaseConformanceAuthority class defined in production_entrypoints ['scripts/build_release_manifest.py', 'tests/test_organ_release_conformance.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_release_conformance.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 release conformance reads ledger+manifest on disk",
+      "C4": "PASS \u2014 manifest hash-pins ledger; stale hashes fail verify_organ_contracts",
+      "C5": "PASS \u2014 violations listed explicitly; never silent green",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_release_conformance.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_organ_release_conformance.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (Outside-machine / no Docker / no Ollama / frozen spine / browser-session residuals remain).', 'Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (Outside-machine / no Docker / n",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 24,
@@ -693,16 +928,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 IdentityAuthority class defined in production_entrypoints ['aios/domain/identity/models.py', 'aios/application/identity/service.py', 'aios/infrastructure/identity/sqlite_store.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitution_snapshot.py', 'tests/test_exact_capabilities.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 identity/session SQLite durable",
+      "C4": "PASS \u2014 credential digests; sessions server-side",
+      "C5": "PASS \u2014 degraded identity 503; no fabricated principal",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_constitution_snapshot.py', 'tests/test_exact_capabilities.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_action_guard.py', 'tests/test_human_sovereign_identity.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 25,
@@ -740,16 +984,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ConstitutionalKernelAuthority class defined in production_entrypoints ['aios/application/governance/constitution_authority.py', 'aios/infrastructure/governance/constitution_snapshot_store.py', 'aios/domain/governance/constitution.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitution_authority.py', 'tests/test_constitution_snapshot.py', 'tests/test_constitution_snapshot_store.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 ConstitutionSnapshotStore durable chain is the single authority; IdentityService/CapabilityAuthority/PolicyKernel consume ConstitutionAuthority rather than a rebuilt v1 snapshot",
+      "C4": "PASS \u2014 amendment activation uses compare-and-swap digest-protected snapshots (GovernanceAmendmentStore + snapshot digests)",
+      "C5": "PASS \u2014 constitution_digest mismatch refuses capability consume; degraded identity returns 503 rather than a fabricated principal",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_constitution_authority.py', 'tests/test_constitution_snapshot.py', 'tests/test_constitution_snapshot_store.py', 'tests/test_policy_kernel.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_organ25_constitution_e2e.py', 'tests/test_governance_amendment_api.py', 'tests/test_exact_capabilities.py', 'tests/test_mirror.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 26,
@@ -782,16 +1035,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 EmergencyStopHardWiringAuthority class defined in production_entrypoints ['aios/runtime/intelligence_gateway.py', 'aios/application/learning/service.py', 'aios/application/maintenance/service.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_emergency_stop_boundaries.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 emergency stop hard-wiring consolidates assert_operational at capability/learning boundaries",
+      "C4": "PASS-PARTIAL \u2014 relies on organ 19 durable latch + audit",
+      "C5": "PASS \u2014 missing assert_operational on a supplied dependency fails closed",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_emergency_stop_boundaries.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_governance.py', 'tests/test_maintenance_api.py', 'tests/test_council_origination.py', 'tests/test_routes_gaps.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 27,
@@ -825,16 +1087,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=221184",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=221184",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 OperatorTasteModelAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_operator_preferences_api.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 OperatorPreferenceStore / SemanticFacts persist preferences across restart; OperatorTasteModelAuthority.active_preferences_for_scopes() is the production decision path for authenticated chat",
+      "C4": "PASS-PARTIAL \u2014 preference facts ride SemanticFacts contradiction-aware writes; typed preference decoration store is digest-keyed to the fact it decorates",
+      "C5": "PASS \u2014 withdrawn/expired preferences are excluded rather than shown as active",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_operator_preferences_api.py', 'tests/test_organ_authority_owners.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_personalization.py', 'tests/test_operator_preferences_api.py', 'tests/test_authenticated_chat_route.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 28,
@@ -864,16 +1135,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ProjectUnderstandingAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 ProjectPassportStore is append-only SQLite history; active-project pointer survives restart",
+      "C4": "PASS \u2014 passport rows are digest-verified on read (RecordTamperedError)",
+      "C5": "PASS \u2014 stale/unverified passports are rejected rather than silently accepted",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_organ_authority_owners.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_project_passport.py', 'tests/test_authenticated_chat_route.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 29,
@@ -906,16 +1186,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 CorrectionLineageAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 CorrectionRecordStore append-only SQLite; authenticated correction events persist",
+      "C4": "PASS \u2014 digest-verified correction records; compensating transaction on failure",
+      "C5": "PASS \u2014 lineage reads newest-first verified projections; does not invent corrections",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_organ_authority_owners.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_alignment.py', 'tests/test_memory.py', 'tests/test_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 30,
@@ -945,16 +1234,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 HumanStateInterpreterAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/application/turns/conversation_pipeline.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 human_state_corrections is append-only SQLite (migration 0014), not mutating hypothesis rows",
+      "C4": "PASS \u2014 digest-verified correction stream; live regression raises RecordTamperedError on SQL edit",
+      "C5": "PASS \u2014 classifier/evidence paths report measured state; corrections cannot silently overwrite history",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_human_representation_store.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_conversation_pipeline.py', 'tests/test_api_main_gaps.py', 'tests/test_chat_human_state_correction.py', 'frontend/src/superbrain/lib/aiosAdapter.humanState.test.ts']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 31,
@@ -983,16 +1281,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; RepresentativeContextCompilerAuthority.compile => compiled context_digest=e45187cf313fcf00\u2026 privacy=local request_id=req-p4-31",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; RepresentativeContextCompilerAuthority.compile => compiled context_digest=e45187cf313fcf00\u2026 privacy=local request_id=req-p4-31",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 RepresentativeContextCompilerAuthority class defined in production_entrypoints ['aios/domain/intelligence/representative_context.py', 'aios/application/intelligence/context_compiler.py', 'aios/application/intelligence/gateway.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_representative_context_compiler.py', 'tests/test_representative_context_store.py', 'tests/test_authenticated_chat_representation.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 RepresentativeContextStore + receipts persist compiled context before provider iteration",
+      "C4": "PASS-PARTIAL \u2014 receipts/contexts are durable and identity/constitution-bound; adversarial disk-tamper suite not claimed as complete as organ 38/42",
+      "C5": "PASS \u2014 anonymous chat stays on compatibility path rather than inventing an authenticated context",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_representative_context_compiler.py', 'tests/test_representative_context_store.py', 'tests/test_authenticated_chat_representation.py', 'tests/test_authenticated_chat_route.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_intelligence_gateway.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 32,
@@ -1034,21 +1341,30 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 UniversalIntelligenceGatewayAuthority class defined in production_entrypoints ['aios/application/intelligence/gateway.py', 'aios/council/gateway_reasoning.py', 'aios/application/intelligence/authenticated_chat.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_intelligence_gateway.py', 'tests/test_council_gateway_reasoning.py', 'tests/test_authenticated_chat_route.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 authenticated gateway persists a strict receipt before provider iteration",
+      "C4": "PASS-PARTIAL \u2014 receipt/context binding is durable; full hash-chain parity with organ 38 not claimed",
+      "C5": "PASS \u2014 emergency stop + output redaction; anonymous compatibility entrance is explicit and local-forced, not silently privileged",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_intelligence_gateway.py', 'tests/test_council_gateway_reasoning.py', 'tests/test_authenticated_chat_route.py', 'tests/test_authenticated_chat_representation.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/architecture/test_intelligence_boundary.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -1067,16 +1383,26 @@
       "tests/test_local_workforce_api.py",
       "tests/test_runtime_intelligence_gateway.py"
     ],
-    "live_evidence": [
-      {
-        "description": "Live local-clerk cohort on tip 92d871616ce630ff398cc18e5f9f16e2849713e9; artifact=release/phase4/local-clerk-candidate-cohort-92d871616ce6.json; LocalWorkforceService discovered qwen2.5-coder:7b, recorded operator approval and r15-v2 qualification, persisted the passport, and returned admission_status=approved.",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
-      }
+    "live_evidence": [],
+    "known_blockers": [
+      "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner"
     ],
-    "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": null,
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 LocalWorkforceRegistry SQLite persists admission/role/qualification/passport fields across restart (passport route projects same digest after reopen)",
+      "C4": "PASS-PARTIAL \u2014 passport digest projection from durable registry fields; dedicated SQL-tamper suite not claimed equal to organ 38",
+      "C5": "PASS \u2014 unregistered models return None rather than a fabricated passport",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_local_workforce_api.py', 'tests/test_runtime_intelligence_gateway.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort.', 'no Ollama \u2014 live local-model / red-team evidence needs live Ollama in CI or self-hosted runner']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthor",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 34,
@@ -1103,21 +1429,30 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-07-31T13:17:38+00:00'",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-08-01T05:54:04+00:00'",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ProviderHealthBudgetAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/health.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_model_passport_and_health.py', 'tests/test_failover.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS-PARTIAL \u2014 ProviderHealthTracker is process-local by documented convention (diagnostic circuit state)",
+      "C4": "N/A \u2014 in-memory breaker; not a durable journal",
+      "C5": "PASS \u2014 open circuits skipped; unavailable rather than forced success",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_model_passport_and_health.py', 'tests/test_failover.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_runtime_gaps.py', 'tests/test_route_wiring.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 35,
     "name": "Local Clerk Runtime",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LocalClerkRuntimeAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/contracts.py"
@@ -1129,16 +1464,26 @@
     "integration_tests": [
       "tests/domain/test_local_workforce_qualifier.py"
     ],
-    "live_evidence": [
-      {
-        "description": "Live local-clerk production-path probe on tip 92d871616ce630ff398cc18e5f9f16e2849713e9; artifact=release/phase4/local-clerk-candidate-cohort-92d871616ce6.json; admitted qwen2.5-coder:7b completed a real classify advisory job with schema_valid=true and evidence_references_preserved=true; request, model call, result, and one hash-linked provenance record survived SQLite reopen.",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
-      }
+    "live_evidence": [],
+    "known_blockers": [
+      "no Ollama \u2014 live local clerk runtime evidence needs live Ollama"
     ],
-    "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": null,
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 LocalClerkRuntimeAuthority class defined in production_entrypoints ['aios/domain/local_workforce/contracts.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/domain/test_local_workforce_qualifier.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 admission decisions read durable LocalWorkforceRegistry",
+      "C4": "PASS-PARTIAL \u2014 registry digests; not a separate chain",
+      "C5": "PASS \u2014 unqualified/unapproved models escalate/refuse rather than fabricate pass",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_local_clerk_dispatcher.py', 'tests/domain/test_local_workforce_qualifier.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/domain/test_local_workforce_qualifier.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime.', 'no Ollama \u2014 live local clerk runtime evidence needs live Ollama']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 36,
@@ -1166,21 +1511,30 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ClerkDispatcherAuthority.dispatch deterministic/unqual/failing => decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ClerkDispatcherAuthority.dispatch deterministic/unqual/failing => decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ClerkDispatcherAuthority class defined in production_entrypoints ['aios/application/local_workforce/dispatcher.py', 'aios/application/local_workforce/service.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 dispatcher + registry durable",
+      "C4": "PASS-PARTIAL \u2014 provenance handoff to organ 38 chain",
+      "C5": "PASS \u2014 unqualified models escalate; no fabricated local success",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_local_clerk_dispatcher.py', 'tests/test_organ_authority_owners.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_local_workforce_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 37,
     "name": "Local Model Qualification and Health",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LocalModelQualificationAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/qualifier.py",
@@ -1195,16 +1549,26 @@
     "integration_tests": [
       "tests/test_r15_runtime_proof.py"
     ],
-    "live_evidence": [
-      {
-        "description": "Live r15-v2 qualification cohort on tip 92d871616ce630ff398cc18e5f9f16e2849713e9; artifact=release/phase4/local-clerk-candidate-cohort-92d871616ce6.json; gemma3:4b, qwen2.5:3b, and qwen2.5-coder:7b passed all 20 checks. qwen2.5-coder:3b, llama3.2:3b, qwen3.5:2b, and qwen3.5:0.8b remain explicit failed candidates with their failing test IDs recorded.",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
-      }
+    "live_evidence": [],
+    "known_blockers": [
+      "no Ollama \u2014 live model qualification suite needs live Ollama"
     ],
-    "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": null,
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 LocalModelQualificationAuthority class defined in production_entrypoints ['aios/domain/local_workforce/qualifier.py', 'aios/application/local_workforce/qualification_evidence.py', 'aios/domain/local_workforce/registry.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/test_local_workforce_qualification_evidence.py', 'tests/domain/test_local_workforce_qualifier.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 qualification evidence persisted in registry",
+      "C4": "PASS-PARTIAL \u2014 evidence digests stored; suite correctness proven both directions historically",
+      "C5": "PASS \u2014 failing suite does not mint approval",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_local_clerk_dispatcher.py', 'tests/test_local_workforce_qualification_evidence.py', 'tests/domain/test_local_workforce_qualifier.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_r15_runtime_proof.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite.', 'no Ollama \u2014 live model qualification suite needs live Ollama']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforc",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 38,
@@ -1233,16 +1597,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ClerkProvenanceAuthority class defined in production_entrypoints ['aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py', 'aios/infrastructure/local_workforce/sqlite_store.py', 'aios/application/local_workforce/provenance.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_workforce_provenance.py', 'tests/test_local_workforce_service_provenance.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 LocalWorkforceProvenanceStore SQLite chain persists across restart; production LocalWorkforceService.run_advisory_job() writes through ClerkProvenanceAuthority",
+      "C4": "PASS \u2014 store-owned hash chain (previous_record_digest + record_digest from one _digest); deleted/reordered/edited rows raise ProvenanceChainBrokenError/RecordTamperedError (tests/test_clerk_provenance_chain.py). Writer and verifier share the same digest function (the original organ-38 link mismatch is closed)",
+      "C5": "PASS \u2014 mid-crash reconstruction and refusal paths report honest incomplete state rather than fabricating a completed job",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_local_workforce_provenance.py', 'tests/test_local_workforce_service_provenance.py', 'tests/test_organ_authority_owners.py', 'tests/test_clerk_provenance_chain.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_launcher.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 39,
@@ -1273,21 +1646,30 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; DeliberationCouncilAuthority via QueenCouncilAuthority => DeliberationCouncilAuthority wired on QueenCouncilAuthority; maybe_deliberate(no dissent)=None",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; DeliberationCouncilAuthority via QueenCouncilAuthority => DeliberationCouncilAuthority wired on QueenCouncilAuthority; maybe_deliberate(no dissent)=None",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 DeliberationCouncilAuthority class defined in production_entrypoints ['aios/domain/intelligence/deliberation.py', 'aios/application/intelligence/deliberation.py', 'aios/council/deliberation_gather.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_deliberation.py', 'tests/test_deliberation_gather.py', 'tests/test_deliberation_store.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 DeliberationStore durable records",
+      "C4": "PASS-PARTIAL \u2014 stored deliberation records; not organ-38-grade chain",
+      "C5": "PASS \u2014 deliberation failure cannot fail the primary mission (best-effort side call)",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_deliberation.py', 'tests/test_deliberation_gather.py', 'tests/test_deliberation_store.py', 'tests/test_council_gateway_reasoning.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_council_orchestrator.py', 'tests/test_council_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 40,
     "name": "Isolated Workspace and Executor (live proof)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
@@ -1316,16 +1698,27 @@
         "description": "CI run https://github.com/swap821/ai-editor/actions/runs/29989936411 (commit 697d925fa6c2151c4c59c2372ae98f411d5e74b2): the release-authority job's real docker-compose Executor Service container was RESTARTED in place (`docker compose restart executor` + `up -d --wait`, on the real GitHub Actions Docker daemon -- this local sandbox has none) and tests/test_executor_integration.py was re-run against it via a fresh `docker compose run`, genuinely passing all 3 tests post-restart -- the same real isolation proof (uid=65534, network=blocked, outside=blocked) as the original pre-restart run, now proven to survive a real container restart, not just a cold start. A first attempt at this same proof (run 29988647828, commit 51306512f09dee23ce54de6ff1bb39e0f7c155fb) genuinely FAILED and was root-caused, not glossed over: the restart step omitted re-exporting AIOS_DOCKER_SOCKET_GID, so the follow-up `docker compose up --wait` detected config drift against docker-compose.yml's silent `${AIOS_DOCKER_SOCKET_GID:-999}` fallback and recreated the container with the wrong docker-socket group, breaking its ability to spawn per-job containers -- fixed by exporting the same real GID the original start step already computes.",
         "commit_sha": "697d925fa6c2151c4c59c2372ae98f411d5e74b2",
         "proof_level": "live"
-      },
-      {
-        "description": "Current-tip Docker Desktop live proof on 92d871616ce630ff398cc18e5f9f16e2849713e9: release/phase4/organ40-live-proof-92d871616ce6.json; tests/test_executor_integration.py passed 4 tests before and after docker compose executor restart, with real isolation, trace, timeout, and missing-service assertions.",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
-    "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "known_blockers": [
+      "no Docker \u2014 Docker Desktop daemon unavailable on this Windows host; historical CI Docker isolation evidence retained, not tip-restamped"
+    ],
+    "last_verified_sha": null,
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 IsolatedExecutorLiveAuthority class defined in production_entrypoints ['aios/application/executor/service.py', 'aios/application/governance/runtime_proof.py', 'aios/application/read_models/executor_projections.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_executor_service.py', 'tests/test_executor_client.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 executor workspaces + service; projection via IsolatedExecutorLiveAuthority",
+      "C4": "PASS-PARTIAL \u2014 isolation/restart proven in CI historically",
+      "C5": "PASS \u2014 mirror projection reports configured/unavailable truthfully",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_executor_service.py', 'tests/test_executor_client.py', 'tests/test_mirror.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_executor_integration.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['no Docker \u2014 Docker Desktop daemon unavailable on this Windows host (npipe dockerDesktopLinuxEngine); historical CI Docker isolation evidence retained, not tip-restamped']",
+      "C10": "PASS \u2014 live evidence present at commit db0441144db9c7612d9be31cbb7e1a576ccf08d2",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 41,
@@ -1347,16 +1740,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; PromotionRollbackLiveAuthority + rp._probe_staging_and_promotion => checkpoint_id_is_valid ok/bad/empty=True/False/False; staging_promo=disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; PromotionRollbackLiveAuthority + rp._probe_staging_and_promotion => checkpoint_id_is_valid ok/bad/empty=True/False/False; staging_promo=disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 PromotionRollbackLiveAuthority class defined in production_entrypoints ['aios/application/promotion/authority.py', 'aios/domain/promotion/contracts.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_promotion_authority.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 checkpoints on filesystem; PromotionAuthority durable DB",
+      "C4": "PASS \u2014 checkpoint_id validation refuse forged targets",
+      "C5": "PASS \u2014 promotion failure restores rather than leaving silent partial",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_promotion_authority.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_maintenance_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 42,
@@ -1391,16 +1793,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 RecoveryResumptionAuthority class defined in production_entrypoints ['aios/api/routes/council.py', 'aios/api/routes/maintenance.py', 'aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_council_orchestrator.py', 'tests/test_mission_transition_journal.py', 'tests/test_maintenance_api.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 MissionTransitionJournal SQLite persists ordered mission transitions; startup recovery + CouncilOrchestrator + MaintenanceConvergenceService share one RecoveryResumptionAuthority journal",
+      "C4": "PASS \u2014 entry_digest + previous_entry_digest chain; edited/deleted/reordered rows raise JournalTamperedError (tests/test_mission_journal_tamper_evidence.py); legacy pre-chain rows reported unverifiable rather than silently trusted",
+      "C5": "PASS \u2014 recovery report never raises on a tampered journal and does not invent a clean timeline (tests/test_organ_authority_owners.py)",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_council_orchestrator.py', 'tests/test_mission_transition_journal.py', 'tests/test_maintenance_api.py', 'tests/test_mission_journal_tamper_evidence.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_mission_contract_v1.py', 'tests/test_maintenance_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 43,
@@ -1427,16 +1838,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 SkillLifecycleAuthority class defined in production_entrypoints ['aios/domain/learning/skill_contracts.py', 'aios/domain/learning/repository.py', 'aios/application/learning/skill_lifecycle.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_skill_lifecycle.py', 'tests/test_learning_application.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 skill lifecycle via learning repositories durable",
+      "C4": "PASS-PARTIAL \u2014 outcome/confidence records; demotion durable",
+      "C5": "PASS \u2014 human revocation + demotion; no silent eternal verified skill",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_skill_lifecycle.py', 'tests/test_learning_application.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/domain/test_skill_library.py', 'tests/test_learning_application.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 44,
@@ -1456,11 +1876,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Outside-machine: cloud golden / endurance cohort requires operator-supplied cloud credentials in CI. C3: PASS for in-process ordered step verification owner. C4/C5: N/A until Outside-machine evidence exists.",
       "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence"
     ],
     "last_verified_sha": null,
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 GoldenMissionEnduranceAuthority class defined in production_entrypoints ['tools/golden_mission_runner.py', 'tools/endurance_tester.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS-PARTIAL \u2014 GoldenMissionEnduranceAuthority owns ordered step verification in-process",
+      "C4": "N/A \u2014 endurance runner is an evidence producer, not a journal",
+      "C5": "PASS \u2014 runner does not invent cloud success without real providers",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['Outside-machine: cloud golden / endurance cohort requires operator-supplied cloud credentials in CI. C3: PASS for in-process ordered step verification owner. C4/C5: N/A until Outside-machine evidence exists.', 'Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: Outside-machine: cloud golden / endurance cohort requires operator-supplied cloud credentials in CI. C3: PASS for in-process ordered step verification owner. C4/C5: N/A until Outsi",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 45,
@@ -1494,16 +1927,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ConstitutionalAmendmentAuthority class defined in production_entrypoints ['aios/domain/governance/amendments.py', 'aios/domain/governance/constitution.py', 'aios/application/governance/amendment_authority.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitutional_amendment.py', 'tests/test_constitution_snapshot_store.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 amendment history + constitution snapshots durable",
+      "C4": "PASS \u2014 digest-protected activation/rollback compare-and-swap",
+      "C5": "PASS \u2014 ratification requires exact capability; refuse otherwise",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_constitutional_amendment.py', 'tests/test_constitution_snapshot_store.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_constitution_snapshot.py', 'tests/test_governance_amendment_store.py', 'tests/test_governance_amendment_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 46,
@@ -1529,19 +1971,26 @@
       "tests/test_governance_amendment_store.py",
       "tests/test_governance_lesson_api.py"
     ],
-    "live_evidence": [
-      {
-        "description": "Local live organ-46 simulation run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: all nine real production-mechanism checks passed against a disposable proposal; artifact=release/phase4/organ46-local-simulation-92d871616ce6.json. This is not human red-team evidence and does not close that residual.",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
-      }
-    ],
+    "live_evidence": [],
     "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models.",
-      "Outside-machine / human-red-team residual \u2014 local Ollama is available and the clerk qualification suite passed for five candidates, but constitutional learning still lacks a human red-team or equivalent live external cohort."
+      "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design"
     ],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": null,
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ConstitutionalLearningAuthority class defined in production_entrypoints ['aios/domain/governance/learning.py', 'aios/application/governance/constitutional_learning.py', 'aios/application/governance/adversarial_simulations.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 constitutional learning proposals/outcomes persist through governance stores used by the learning authority routes",
+      "C4": "PASS-PARTIAL \u2014 screening refuses unsafe proposals; automated adversarial simulation probes are real mechanism checks, not a substitute for human red-team",
+      "C5": "PASS \u2014 screen_proposal returns check breakdown / refuses rather than approving by silence",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_constitutional_amendment.py', 'tests/test_governance_amendment_store.py', 'tests/test_governance_lesson_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models.', 'no Ollama \u2014 live constitutional learning / red-team path needs live Ollama (and/or Outside-machine cloud)']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chai",
+      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
+      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+    }
   },
   {
     "organ_id": 47,
@@ -1564,16 +2013,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ReadModelProjectionAuthority class defined in production_entrypoints ['aios/domain/read_models/contracts.py', 'aios/application/read_models/governance_projections.py', 'aios/api/routes/mirror.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_read_model_projections.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 projections read durable constitution/stop/health/capability/routing/privacy sources",
+      "C4": "PASS-PARTIAL \u2014 projection is read-model; integrity of sources is upstream",
+      "C5": "PASS \u2014 missing inputs project unavailable envelopes, not fabricated health",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_read_model_projections.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_mirror.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 48,
@@ -1593,11 +2051,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority (process-local) \u2014 frontend/src/workbench/SovereignStatePanel.jsx::TruthfulMirrorAuthority; reads durable mirror APIs aios/api/routes/mirror.py. C4: N/A-BY-DESIGN (UI normalizer). C5: PASS (allUnavailable path \u2014 TruthfulMirrorAuthority.allUnavailable).",
       "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 TruthfulMirrorAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ48.test.jsx'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS-PARTIAL \u2014 panel reads durable mirror APIs; UI process-local",
+      "C4": "N/A \u2014 UI normalizer, not a journal",
+      "C5": "PASS \u2014 allUnavailable sets offline rather than painting healthy empty state. Phase 2 panel spy proves reachability",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ48.test.jsx']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "C11": "PASS \u2014 last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
+      "C12": "PASS \u2014 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 49,
@@ -1617,11 +2088,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::ApprovalDecisionSurfaceAuthority; counts from durable APIs. C4: N/A-BY-DESIGN (UI surface). C5: PASS.",
       "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ApprovalDecisionSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ49.test.jsx'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS-PARTIAL \u2014 pending counts from durable facts/council/self-analysis APIs",
+      "C4": "N/A \u2014 UI authority, not a journal",
+      "C5": "PASS \u2014 pendingCount does not treat evidence surfaces as approvals. Phase 2 panel spy proves reachability",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ49.test.jsx']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "C11": "PASS \u2014 last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
+      "C12": "PASS \u2014 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 50,
@@ -1666,16 +2150,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-scdlt4_c\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-6vagoe9o\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ProvenanceExplanationSurfaceAuthority class defined in production_entrypoints ['aios/memory/development.py', 'aios/application/models/privacy_audit.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_brain_growth.py', 'tests/test_read_model_projections.py', 'tests/test_privacy_audit.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 PrivacyAuditTracker now persists to aios_privacy_audits.db (config.PRIVACY_AUDIT_DB_PATH); restart-survival proven by tests/test_privacy_audit.py::test_durable_tracker_survives_restart; production singleton in aios/api/deps.py wires the durable path",
+      "C4": "PASS \u2014 each durable row carries a content digest; silent SQL edits raise PrivacyAuditTamperedError (test_durable_tracker_detects_tampered_row)",
+      "C5": "PASS \u2014 durable_status()/verify_durable_chain() report unavailable/tampered rather than inventing an empty reassuring history; record() never raises into cloud turns",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_brain_growth.py', 'tests/test_read_model_projections.py', 'tests/test_privacy_audit.py', 'tests/test_gemini.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_mirror.py', 'tests/test_route_wiring.py', 'frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 51,
@@ -1695,11 +2188,24 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::SovereignHeartbeatSurfaceAuthority; badge reads durable stop envelopes. C4: N/A-BY-DESIGN (UI surface). C5: PASS.",
       "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
     ],
     "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
-    "requires_live_evidence": false
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 SovereignHeartbeatSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ51.test.jsx'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS-PARTIAL \u2014 badge reads durable emergency-stop envelopes via mirror",
+      "C4": "N/A \u2014 UI authority",
+      "C5": "PASS \u2014 loading/unknown -> unavailable/reconnecting; never silent clear. Phase 2 panel spy proves reachability",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ51.test.jsx']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "FAIL \u2014 yellow with named residual(s): ['browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "C11": "PASS \u2014 last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
+      "C12": "PASS \u2014 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 52,
@@ -1740,16 +2246,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '8e060e00-13cc-4a1a-a8b4-361b94066dfb'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'f4732d19-68eb-47f1-b64a-9fe52ebb43e1'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 ObservabilityAuthority class defined in production_entrypoints ['aios/api/main.py', 'aios/council/queen_service.py', 'aios/operations/tracing.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_operations.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 rotating durable logs under DATA_DIR/logs; correlation headers",
+      "C4": "PASS-PARTIAL \u2014 log files rotatable; not a hash chain (audit is organ 4)",
+      "C5": "PASS \u2014 metrics unavailable rather than plausible zero. Already green with live evidence historically",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_operations.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_logging.py', 'tests/test_queen_service.py', 'tests/test_executor_service.py', 'tests/test_executor_client.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 53,
@@ -1782,16 +2297,25 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='5e3908e3fefba918981e4ab8c13fd279078832f778035731d1e34ebbfc9dcf1f', current_issued_at=1785503859.7066412, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1785503919.7066412); reopen_configured=True db_bytes=8192",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='fab04cde8547cc0fecbf20db02a8364d99bb7c8057c8cc32ee137f404d62b57f', current_issued_at=1785563646.926781, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1785563706.926781); reopen_configured=True db_bytes=8192",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 InstallationConfigurationAuthority class defined in production_entrypoints ['aios/domain/security/api_token.py', 'aios/infrastructure/security/api_token_store.py', 'aios/application/security/api_token_authority.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_api_token_authority.py', 'tests/test_llm.py', 'tests/test_local_workforce_api.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 API token rotation / grace-period state is durable (API_TOKEN_ROTATION_DB_PATH)",
+      "C4": "PASS-PARTIAL \u2014 rotation authority owns grace overlap; disk-tamper suite not claimed equal to organ 38/42",
+      "C5": "PASS \u2014 Ollama absence reports unavailable/unknown health without uninstalling or inventing a healthy local provider",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_api_token_authority.py', 'tests/test_llm.py', 'tests/test_local_workforce_api.py', 'tests/test_operations.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_edge_security.py', 'tests/test_security_api.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   },
   {
     "organ_id": 54,
@@ -1814,15 +2338,24 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
-        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-    "requires_live_evidence": false
+    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "requires_live_evidence": false,
+    "condition_verdicts": {
+      "C1": "PASS \u2014 BackupDisasterRecoveryAuthority class defined in production_entrypoints ['aios/operations/recovery.py', 'aios/operations/doctor.py', 'aios/__main__.py'] (Decision A / enforce_owner_attestation)",
+      "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_restore_invalidation.py'] (Phase 2 caller / anti-passthrough suite)",
+      "C3": "PASS \u2014 backup archives + restore staging on disk",
+      "C4": "PASS \u2014 archive hash verification before install",
+      "C5": "PASS \u2014 post-restore invalidates stale sessions/capabilities; refuses unsafe paths",
+      "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_restore_invalidation.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_operations.py']",
+      "C8": "N/A \u2014 requires_frontend_error_states is false",
+      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C11": "PASS \u2014 last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
+      "C12": "PASS \u2014 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+    }
   }
 ]

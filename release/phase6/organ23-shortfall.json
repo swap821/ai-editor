@@ -1,305 +1,223 @@
 {
-  "schema": "phase6-organ23-shortfall-v1",
-  "generated_at": "2026-08-01T07:47:52+00:00",
-  "evaluated_at_commit": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-  "evidence_tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
-  "verdict": "NOT 54/54 \u2014 itemised shortfall (Outside-machine and other named residuals remain)",
-  "counts": {
-    "total": 54,
-    "green": 42,
-    "yellow": 12,
-    "with_live_evidence": 43
-  },
-  "phase4_absolute": {
-    "live_evidence_organs": [
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12,
-      13,
-      14,
-      15,
-      16,
-      17,
-      18,
-      19,
-      21,
-      22,
-      24,
-      25,
-      26,
-      27,
-      28,
-      29,
-      30,
-      31,
-      32,
-      33,
-      34,
-      35,
-      36,
-      37,
-      38,
-      39,
-      40,
-      41,
-      42,
-      43,
-      45,
-      46,
-      47,
-      50,
-      52,
-      53,
-      54
-    ],
-    "named_residual_organs": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      20,
-      23,
-      44,
-      46,
-      48,
-      49,
-      51
-    ],
-    "residual_without_this_wave_live": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      20,
-      23,
-      44,
-      48,
-      49,
-      51
-    ],
-    "all_54_accounted": true
-  },
-  "phase5_absolute": {
-    "flipped_green_this_wave": [
-      6,
-      7,
-      8,
-      10,
-      11,
-      12,
-      13,
-      14,
-      17,
-      21,
-      22,
-      24,
-      25,
-      26,
-      27,
-      28,
-      29,
-      30,
-      31,
-      32,
-      33,
-      34,
-      35,
-      37,
-      38,
-      39,
-      40,
-      41,
-      42,
-      43,
-      45,
-      47,
-      50,
-      53,
-      54
-    ],
-    "prior_green": [
-      9,
-      15,
-      16,
-      18,
-      19,
-      36,
-      52
-    ],
-    "green_total": 42,
-    "yellow_total": 12,
-    "never_flipped": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      20,
-      23,
-      44,
-      46,
-      48,
-      49,
-      51
-    ]
-  },
-  "phase6_absolute": {
-    "manifest": "release/organ-proof-manifest.json (script-generated)",
-    "strict_release_report": "release/phase6/strict-release-report.txt",
-    "organ_23": "yellow \u2014 Phase 6 gate; shortfall list below",
-    "honest_54_of_54": false,
-    "absolute_met_via": "itemised shortfall document + strict-release report"
-  },
-  "itemised_shortfall": [
+  "tip_sha": "96a58b1fd60eec2c964813af271de02d1e66c9f5",
+  "green": 38,
+  "yellow": 16,
+  "live_evidence_organs": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    21,
+    22,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    34,
+    36,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    45,
+    47,
+    50,
+    52,
+    53,
+    54
+  ],
+  "shortfall": [
     {
       "organ_id": 1,
       "name": "Security Gateway",
-      "status": "yellow",
-      "failing_condition_or_residual": "frozen spine",
-      "known_blockers": [
-        "C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release.",
-        "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "residual": "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 2,
       "name": "Scope Lock",
-      "status": "yellow",
-      "failing_condition_or_residual": "frozen spine",
-      "known_blockers": [
-        "C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5.",
-        "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "residual": "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 3,
       "name": "Secret Scanner",
-      "status": "yellow",
-      "failing_condition_or_residual": "frozen spine",
-      "known_blockers": [
-        "C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.",
-        "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "residual": "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 4,
       "name": "Tamper-Evident Audit Logger",
-      "status": "yellow",
-      "failing_condition_or_residual": "frozen spine",
-      "known_blockers": [
-        "C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.",
-        "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "residual": "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 5,
       "name": "Prompt Injection Shield",
-      "status": "yellow",
-      "failing_condition_or_residual": "frozen spine",
-      "known_blockers": [
-        "C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5.",
-        "frozen spine \u2014 \u00a7VIII controlled release required before green/live claim"
+      "residual": "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 20,
       "name": "Living Mirror Reaction Registry (construction)",
-      "status": "yellow",
-      "failing_condition_or_residual": "browser-session",
-      "known_blockers": [
-        "C3: N/A-BY-DESIGN for FE authority (process store) \u2014 frontend/src/superbrain/lib/livingMirrorRegistry.ts::LivingMirrorAuthority; backend mirror APIs durable. C4: N/A-BY-DESIGN (UI normalizer \u2014 LivingMirrorAuthority.dispatch). C5: PASS (unknown events ignored without inventing state).",
-        "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+      "residual": "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 23,
       "name": "Release Conformance Organ",
-      "status": "yellow",
-      "failing_condition_or_residual": "Phase 6 gate",
-      "known_blockers": [
-        "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (cloud, frozen-spine, browser-session, and human-red-team residuals remain; local Docker and Ollama evidence is available where recorded.).",
-        "Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green"
+      "residual": "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green",
+      "failing_conditions": [
+        "C9",
+        "C10",
+        "C11",
+        "C12"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": null
+      "note": "Phase 6 gate"
+    },
+    {
+      "organ_id": 33,
+      "name": "Model Registry and Capability Passport",
+      "residual": "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner",
+      "failing_conditions": [
+        "C10",
+        "C9",
+        "C11",
+        "C12"
+      ],
+      "note": "N/A Outside / infrastructure ceiling"
+    },
+    {
+      "organ_id": 35,
+      "name": "Local Clerk Runtime",
+      "residual": "no Ollama \u2014 live local clerk runtime evidence needs live Ollama",
+      "failing_conditions": [
+        "C10",
+        "C9",
+        "C11",
+        "C12"
+      ],
+      "note": "N/A Outside / infrastructure ceiling"
+    },
+    {
+      "organ_id": 37,
+      "name": "Local Model Qualification and Health",
+      "residual": "no Ollama \u2014 live model qualification suite needs live Ollama",
+      "failing_conditions": [
+        "C10",
+        "C9",
+        "C11",
+        "C12"
+      ],
+      "note": "N/A Outside / infrastructure ceiling"
+    },
+    {
+      "organ_id": 40,
+      "name": "Isolated Workspace and Executor (live proof)",
+      "residual": "no Docker \u2014 Docker Desktop daemon unavailable on this Windows host; historical CI Docker isolation evidence retained, not tip-restamped",
+      "failing_conditions": [
+        "C10",
+        "C9",
+        "C11",
+        "C12"
+      ],
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 44,
       "name": "Golden Mission and Endurance Evaluation",
-      "status": "yellow",
-      "failing_condition_or_residual": "Outside-machine",
-      "known_blockers": [
-        "Outside-machine: cloud golden / endurance cohort requires operator-supplied cloud credentials in CI. C3: PASS for in-process ordered step verification owner. C4/C5: N/A until Outside-machine evidence exists.",
-        "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence"
+      "residual": "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence",
+      "failing_conditions": [
+        "C10",
+        "C9",
+        "C11",
+        "C12"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": null
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 46,
       "name": "Constitutional Learning Organ",
-      "status": "yellow",
-      "failing_condition_or_residual": "Outside-machine",
-      "known_blockers": [
-        "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models.",
-        "Outside-machine / human-red-team residual \u2014 local Ollama is available and the clerk qualification suite passed for five candidates, but constitutional learning still lacks a human red-team or equivalent live external cohort."
+      "residual": "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design",
+      "failing_conditions": [
+        "C10",
+        "C9",
+        "C11",
+        "C12"
       ],
-      "has_live_evidence": true,
-      "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 48,
       "name": "Truthful Living Mirror (full truthful UI)",
-      "status": "yellow",
-      "failing_condition_or_residual": "browser-session",
-      "known_blockers": [
-        "C3: N/A-BY-DESIGN for UI authority (process-local) \u2014 frontend/src/workbench/SovereignStatePanel.jsx::TruthfulMirrorAuthority; reads durable mirror APIs aios/api/routes/mirror.py. C4: N/A-BY-DESIGN (UI normalizer). C5: PASS (allUnavailable path \u2014 TruthfulMirrorAuthority.allUnavailable).",
-        "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+      "residual": "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 49,
       "name": "Approval and Decision Surface",
-      "status": "yellow",
-      "failing_condition_or_residual": "browser-session",
-      "known_blockers": [
-        "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::ApprovalDecisionSurfaceAuthority; counts from durable APIs. C4: N/A-BY-DESIGN (UI surface). C5: PASS.",
-        "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+      "residual": "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09"
+      "note": "N/A Outside / infrastructure ceiling"
     },
     {
       "organ_id": 51,
       "name": "Sovereign Control and Heartbeat Surface",
-      "status": "yellow",
-      "failing_condition_or_residual": "browser-session",
-      "known_blockers": [
-        "C3: N/A-BY-DESIGN for UI authority \u2014 frontend/src/workbench/SovereignStatePanel.jsx::SovereignHeartbeatSurfaceAuthority; badge reads durable stop envelopes. C4: N/A-BY-DESIGN (UI surface). C5: PASS.",
-        "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+      "residual": "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "failing_conditions": [
+        "C10",
+        "C9"
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09"
+      "note": "N/A Outside / infrastructure ceiling"
     }
-  ]
+  ],
+  "all_green": false
 }
