@@ -44,16 +44,10 @@ from aios.application.governance import (
 from aios.application.identity.service import IdentityService
 from aios.application.models.health import ProviderHealthTracker
 from aios.application.models.privacy_audit import PrivacyAuditTracker
-from aios.application.memory.adapters import (
-    AdvisoryPheromoneAdapter,
-    EpisodicMemoryAdapter,
-    LegacySemanticMemoryAdapter,
-    MemoryConsolidationAdapter,
-    MistakeMemoryAdapter,
-    DevelopmentHistoryAdapter,
-    SemanticFactsAdapter,
-    SkillMemoryAdapter,
-    WorkingMemoryAdapter,
+from aios.application.memory.bootstrap import (
+    build_council_memory_scope,
+    build_memory_authority,
+    sync_pheromone_adapter,
 )
 from aios.core.autonomy import AutonomyLedger
 from aios.core.alignment import AlignmentInterpreter
@@ -72,13 +66,9 @@ from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
-from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
-from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
-from aios.memory.working import WorkingMemory
-from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.application.governance.constitution_authority import (
     ConstitutionAuthority,
     get_constitution_authority as _get_constitution_authority,
@@ -288,89 +278,36 @@ def get_swarm_pattern_memory() -> SwarmPatternMemory:
 
 def _sync_pheromone_adapter(authority: MemoryAuthority) -> None:
     """Keep the advisory adapter aligned with the live configured store."""
-    if not config.PHEROMONE_ENABLED:
-        authority.pheromone_adapter = None
-        return
-    current = getattr(authority.pheromone_adapter, "store", None)
-    configured_path = str(config.PHEROMONE_DB)
-    if (
-        isinstance(authority.pheromone_adapter, AdvisoryPheromoneAdapter)
-        and current is not None
-        and str(getattr(current, "_db_path", "")) == configured_path
-        and getattr(current, "_lambda", None) == config.PHEROMONE_LAMBDA_DECAY
-        and getattr(current, "_floor", None) == config.PHEROMONE_FLOOR
-    ):
-        return
-    from aios.memory.pheromones import PheromoneStore
-
-    authority.pheromone_adapter = AdvisoryPheromoneAdapter(
-        PheromoneStore(
-            db_path=config.PHEROMONE_DB,
-            lambda_decay=config.PHEROMONE_LAMBDA_DECAY,
-            floor=config.PHEROMONE_FLOOR,
-        )
-    )
+    sync_pheromone_adapter(authority)
 
 
 def get_memory_authority() -> MemoryAuthority:
-    """Provide the process-wide provenance and promotion authority for memory."""
+    """Provide the process-wide provenance and promotion authority for memory.
+
+    Construction is delegated to the authority-owned composition root in
+    :mod:`aios.application.memory.bootstrap`; the API layer holds only the
+    process-wide singleton and constructs no physical store itself (R11).
+    """
     global _memory_authority
     if _memory_authority is not None:
-        _sync_pheromone_adapter(_memory_authority)
+        sync_pheromone_adapter(_memory_authority)
         return _memory_authority
     with _memory_authority_lock:
         if _memory_authority is None:
-            adapters = {
-                "working": WorkingMemoryAdapter(WorkingMemory()),
-                "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
-                "semantic": LegacySemanticMemoryAdapter(
-                    SemanticMemory(config.MEMORY_DB_PATH)
-                ),
-                "facts": SemanticFactsAdapter(SemanticFacts()),
-                "skills": SkillMemoryAdapter(SkillMemory()),
-                "lessons": MistakeMemoryAdapter(MistakeMemory()),
-                "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
-            }
-            _memory_authority = MemoryAuthority(
-                store=MemoryAuthorityStore(config.MEMORY_DB_PATH),
-                adapters=adapters,
-            )
-            consolidation = MemoryConsolidationAdapter(
-                MemoryConsolidator(
-                    semantic=adapters["semantic"].store,
-                    mistakes=adapters["lessons"].store,
-                    facts=adapters["facts"].store,
-                    memory_authority=_memory_authority,
-                )
-            )
-            _memory_authority.register_adapter("consolidation", consolidation)
-            _sync_pheromone_adapter(_memory_authority)
-            consolidation.bind_authority(_memory_authority)
+            _memory_authority = build_memory_authority()
     return _memory_authority
 
 
 def get_council_memory_scope(
     runtime_root: str | Path,
 ) -> tuple[CouncilState, CouncilMemory, MemoryAuthority]:
-    """Build the mission-local Council memory scope from the canonical authority.
+    """Provide the mission-local Council memory scope from the canonical authority.
 
     Council evidence is isolated per runtime root, so it must not be attached to
-    the process-wide registry.  The copied authority keeps every shared adapter
-    intact while the scoped Council adapter owns the exact mission-local store.
-    This composition root is the only API-layer owner of the physical Council
-    state construction; routes receive the already-bound scope.
+    the process-wide registry.  Construction is delegated to the authority-owned
+    composition root; routes receive the already-bound scope.
     """
-    from aios.application.memory.adapters import CouncilMemoryAdapter
-    from aios.council.council_memory import CouncilMemory
-    from aios.council.council_state import CouncilState
-
-    root = Path(runtime_root)
-    council_state = CouncilState(db_path=root / "council_state.db")
-    council_memory = CouncilMemory(state=council_state)
-    authority = get_memory_authority().with_adapter(
-        "council", CouncilMemoryAdapter(council_memory)
-    )
-    return council_state, council_memory, authority
+    return build_council_memory_scope(get_memory_authority(), runtime_root)
 
 
 def _authority_store(name: str, expected_type: type[Any]) -> Any:
