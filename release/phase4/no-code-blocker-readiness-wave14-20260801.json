@@ -1,0 +1,34 @@
+{
+  "schema": "no-code-blocker-readiness-v1",
+  "generated_at": "2026-08-01T12:20:45.2360402Z",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "browser": {
+    "frontend_127_status": 200,
+    "frontend_localhost_status": 200,
+    "backend_8000": "connection_refused",
+    "npx_in_normal_shell": true,
+    "agent_browser_present": false,
+    "dedicated_recorder": "needs_setup",
+    "operator_attestation": false,
+    "live_ui_evidence_promoted": false
+  },
+  "human_authority": {
+    "sovereign_enrollment_performed": false,
+    "operator_login_performed": false,
+    "frozen_security_spine_approval": "pending",
+    "reason": "requires the human operator; no credentials or approval were fabricated"
+  },
+  "cloud": {
+    "AWS_BEARER_TOKEN_BEDROCK_present": false,
+    "AIOS_GEMINI_PROJECT_present": false,
+    "GOOGLE_APPLICATION_CREDENTIALS_present": false,
+    "values_read": false,
+    "golden_cohort_run": false
+  },
+  "organ46": {
+    "automated_nine_simulations_passed": true,
+    "human_red_team_claimed": false,
+    "artifact": "release/phase4/organ46-local-simulation-92d871616ce6.json"
+  },
+  "conclusion": "No-code evidence is partly ready, but browser setup, human authority, cloud cohort, and human red-team remain open"
+}

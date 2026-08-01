@@ -11,7 +11,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 LEDGER = REPO / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
 OUT = REPO / "release" / "phase6"
-EVIDENCE_TIP = "5d482164707c6c6e62f3da6a37cff79f252f9260"
+EVIDENCE_TIP_FALLBACK = "5d482164707c6c6e62f3da6a37cff79f252f9260"
 
 
 def main() -> int:
@@ -59,6 +59,14 @@ def main() -> int:
             }
         )
 
+    evidence_tips = {
+        e.get("commit_sha")
+        for organ in ledger
+        for e in (organ.get("live_evidence") or [])
+        if e.get("proof_level") == "live" and e.get("commit_sha")
+    }
+    evidence_tip = sha if sha in evidence_tips else EVIDENCE_TIP_FALLBACK
+
     residual_only = sorted(
         oid for oid in (o["organ_id"] for o in named) if oid not in live_ids
     )
@@ -71,7 +79,7 @@ def main() -> int:
         .replace(microsecond=0)
         .isoformat(),
         "evaluated_at_commit": sha,
-        "evidence_tip_sha": EVIDENCE_TIP,
+        "evidence_tip_sha": evidence_tip,
         "verdict": (
             "NOT 54/54 — itemised shortfall "
             "(Outside-machine and other named residuals remain)"
@@ -119,13 +127,16 @@ def main() -> int:
                 45,
                 47,
                 50,
+                33,
+                35,
+                37,
                 53,
                 54,
             ],
             "prior_green": [9, 15, 16, 18, 19, 36, 52],
             "green_total": len(green),
             "yellow_total": len(yellow),
-            "never_flipped": [1, 2, 3, 4, 5, 20, 23, 33, 35, 37, 40, 44, 46, 48, 49, 51],
+            "never_flipped": [1, 2, 3, 4, 5, 20, 23, 40, 44, 46, 48, 49, 51],
         },
         "phase6_absolute": {
             "manifest": "release/organ-proof-manifest.json (script-generated)",
@@ -146,7 +157,7 @@ def main() -> int:
         "**Verdict:** NOT 54/54. Absolute Phase 6 met via itemised shortfall "
         "(not fake greens).",
         f"**Evaluated at:** `{sha}`",
-        f"**Live-evidence tip:** `{EVIDENCE_TIP}`",
+        f"**Live-evidence tip:** `{evidence_tip}`",
         f"**Counts:** {len(green)} green / {len(yellow)} yellow / 54 total; "
         f"live evidence on {len(live_ids)} organs.",
         "",

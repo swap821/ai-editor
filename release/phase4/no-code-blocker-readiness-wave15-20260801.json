@@ -1,0 +1,38 @@
+{
+  "schema": "no-code-blocker-readiness-v2",
+  "generated_at": "2026-08-01T12:49:09.6184532Z",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "runtime": {
+    "frontend_127_status": 200,
+    "frontend_localhost_status": 200,
+    "backend_health_status": 200,
+    "bootstrap_authenticated_status": 200,
+    "bootstrap_configuration": "AIOS_DATA_DIR set and a random 48-character API token held only by the API process; token not persisted"
+  },
+  "browser": {
+    "npx_in_normal_shell": true,
+    "agent_browser_present": false,
+    "dedicated_recorder": "needs_setup",
+    "operator_attestation": false,
+    "live_ui_evidence_promoted": false
+  },
+  "human_authority": {
+    "sovereign_enrollment_performed": false,
+    "operator_login_performed": false,
+    "frozen_security_spine_approval": "pending",
+    "reason": "requires the human operator; no credentials or approval were fabricated"
+  },
+  "cloud": {
+    "AWS_BEARER_TOKEN_BEDROCK_present": false,
+    "AIOS_GEMINI_PROJECT_present": false,
+    "GOOGLE_APPLICATION_CREDENTIALS_present": false,
+    "values_read": false,
+    "golden_cohort_run": false
+  },
+  "organ46": {
+    "automated_nine_simulations_passed": true,
+    "human_red_team_claimed": false,
+    "artifact": "release/phase4/organ46-local-simulation-92d871616ce6.json"
+  },
+  "conclusion": "Automatable local runtime readiness is proven; dedicated browser setup, human authority, frozen-core approval, cloud cohort credentials, and human red-team evidence remain open."
+}

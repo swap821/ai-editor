@@ -1,0 +1,18 @@
+{
+  "schema": "local-clerk-candidate-attempt-v1",
+  "attempted_at": "2026-08-01T10:43:51.495078+00:00",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "model": "granite4:3b",
+  "source_url": "https://ollama.com/library/granite4:3b",
+  "official_library_size_gb": 2.1,
+  "status": "pull_timeout",
+  "pull_bound_seconds": 600,
+  "qualification_run": false,
+  "retained": false,
+  "cleanup": {
+    "manifest_and_unshared_blobs_removed": true,
+    "removed_blob_count": 4,
+    "model_registered_after_cleanup": false
+  },
+  "interpretation": "The official candidate never completed download, so it has no qualification result and is not a clerk recommendation."
+}

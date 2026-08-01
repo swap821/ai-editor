@@ -1,0 +1,34 @@
+{
+  "schema": "browser-evidence-auth-boundary-v1",
+  "captured_at": "2026-08-01T10:43:51.495078+00:00",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "frontend": {
+    "url": "http://localhost:5173/",
+    "http_status": 200,
+    "headed": true,
+    "browser": "Chrome/150.0.7871.187",
+    "screenshot": "release/phase4/browser-runtime-wave10/localhost-approval.png"
+  },
+  "backend": {
+    "url": "http://localhost:8000/health",
+    "health_status": 200,
+    "router_cloud_tasks": [],
+    "session_created": true,
+    "csrf_proof_cookie_present": true,
+    "operator_id_present": false
+  },
+  "action_probe": {
+    "endpoint": "POST /api/generate",
+    "status": 401,
+    "detail": "authenticated operator session required",
+    "proposal_file_created": false,
+    "approval_clicked": false
+  },
+  "prior_wrong_origin_probe": {
+    "origin": "http://127.0.0.1:5173",
+    "status": 403,
+    "detail": "Mutation requires a bearer token or a valid session, exact Origin, and session-bound CSRF proof"
+  },
+  "promoted_to_organ_evidence": false,
+  "interpretation": "The canonical localhost origin fixes the origin/CSRF mismatch, but the supervised action remains blocked until the real Human Sovereign operator is enrolled and authenticated. No credential or secret was fabricated or persisted."
+}

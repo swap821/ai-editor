@@ -1,0 +1,59 @@
+{
+  "schema": "browser-evidence-live-v1",
+  "captured_at": "2026-08-01T09:44:46.034568+00:00",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "url": "http://127.0.0.1:5173/",
+  "frontend_http_status": 200,
+  "backend": {
+    "url": "http://127.0.0.1:8000/health",
+    "health_status": 200,
+    "startup_flags": {
+      "host": "127.0.0.1",
+      "port": 8000,
+      "offline_mode": false,
+      "earned_autonomy": true,
+      "router_cloud_tasks": [
+        "reasoning",
+        "coding"
+      ],
+      "token_set": false
+    }
+  },
+  "browser": {
+    "headed": true,
+    "engine": "Chrome/150.0.7871.187",
+    "connection": "Playwright over CDP to an isolated visible Chrome profile",
+    "devtools_port": 9225,
+    "profile": "C:\\tmp\\aios-headed-browser-wave9-20260801"
+  },
+  "measured_ui_observations": [
+    "Control plane online",
+    "Directive phase idle",
+    "Active missions 0",
+    "Active workers 0",
+    "Models participating 0",
+    "Approval none reported",
+    "Sovereign spine connected",
+    "Governance reports No Council missions recorded",
+    "Operations reports no active hiring proposals, local workers, or missions",
+    "History reports no operational events"
+  ],
+  "screenshots": [
+    "release/phase4/browser-runtime-wave9/live-living-mind.png",
+    "release/phase4/browser-runtime-wave9/live-missions.png",
+    "release/phase4/browser-runtime-wave9/live-self-analysis.png",
+    "release/phase4/browser-runtime-wave9/live-sovereign-state.png",
+    "release/phase4/browser-runtime-wave9/live-knowledge-memory.png",
+    "release/phase4/browser-runtime-wave9/live-policy-control.png",
+    "release/phase4/browser-runtime-wave9/live-services-runtime.png",
+    "release/phase4/browser-runtime-wave9/live-debugger-alignment.png",
+    "release/phase4/browser-runtime-wave9/live-security-audit.png",
+    "release/phase4/browser-runtime-wave9/live-governance.png",
+    "release/phase4/browser-runtime-wave9/live-operations.png",
+    "release/phase4/browser-runtime-wave9/live-history.png"
+  ],
+  "operator_attestation": false,
+  "mission_and_approval_exercised": false,
+  "promoted_to_organ_evidence": false,
+  "interpretation": "This is genuine headed-browser runtime evidence that the live frontend renders measured control-plane state and fail-safe empty states. It does not prove human operator review, approval interaction, mission execution, or the cross-provider endurance requirement; the affected organs remain yellow."
+}

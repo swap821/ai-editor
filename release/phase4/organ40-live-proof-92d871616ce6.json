@@ -1,0 +1,39 @@
+{
+  "schema": "phase4-organ40-live-proof-v1",
+  "generated_at": "2026-08-01T12:40:18.5875708+05:30",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "all_passed": true,
+  "runner": {
+    "host": "Windows Docker Desktop",
+    "socket_group": "0",
+    "control_plane_image": "aios-aios:executor-proof@sha256:6e4bfa38ef9c62cc0136701bcb1ce7e8ac01970b48ded73330b069903a24a92c",
+    "executor_image": "aios-executor:local@sha256:a857b737b3acd4c4050a5ecd46a4cddfaca94fd0134ebaae5a27dca0e851c1a7",
+    "daemon_workspace_root": "C:\\Users\\kumar\\ai-editor\\data\\executor-workspaces",
+    "remote_workspace_root": "/workspace/jobs"
+  },
+  "command": "docker run --rm --network aios_aios-net --user 65534:65534 aios-aios:executor-proof python -m pytest -q -o addopts= tests/test_executor_integration.py",
+  "checks": [
+    {
+      "phase": "before_restart",
+      "executor_health": "healthy",
+      "exit_code": 0,
+      "pytest_summary": "4 passed, 1 warning in 3.30s"
+    },
+    {
+      "phase": "after_restart",
+      "restart": "docker compose restart executor; docker compose up -d --wait executor",
+      "executor_health": "healthy",
+      "exit_code": 0,
+      "pytest_summary": "4 passed, 1 warning in 3.23s"
+    }
+  ],
+  "proofs": [
+    {
+      "organ_id": 40,
+      "name": "Isolated Workspace and Executor (current-tip live proof)",
+      "passed": true,
+      "command": "tests/test_executor_integration.py before and after docker compose executor restart",
+      "evidence": "Current-tip control-plane proof image ran all 4 integration checks successfully before restart and again after restart. The real Docker-backed executor proved uid=65534, network=blocked, outside=blocked, bounded output truncation, trace propagation, timeout refusal, and missing-service refusal. Both runs exited 0; executor health was healthy after each startup. The Docker socket was available only to the private executor container; the control-plane proof container had no socket mount."
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "local-clerk-candidate-attempt-v1",
+  "generated_at": "2026-08-01T08:31:00+00:00",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "model": "qwen3:1.7b",
+  "official_source": "https://ollama.com/library/qwen3:1.7b",
+  "official_library_size_gb": 1.4,
+  "qualification_result": "failed",
+  "elapsed_seconds": 37.25,
+  "failed_test_ids": [
+    "json_validity",
+    "extraction",
+    "repeated_run_reliability"
+  ],
+  "schema_validity": 0.824,
+  "admitted": false,
+  "retained_on_disk": false,
+  "removed_with_ollama_rm": true,
+  "installed_models_after_removal": [
+    "qwen2.5:3b",
+    "gemma3:4b",
+    "qwen2.5:7b",
+    "qwen2.5-coder:7b",
+    "nomic-embed-text:latest",
+    "llama3.1:8b"
+  ],
+  "note": "The official page identified a fit candidate; r15-v2 evidence, not size, rejected it."
+}

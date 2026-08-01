@@ -1,0 +1,24 @@
+{
+  "schema": "local-clerk-candidate-attempt-v1",
+  "generated_at": "2026-08-01T08:11:26+00:00",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "model": "ministral-3:3b",
+  "official_source": "https://ollama.com/library/ministral-3:3b",
+  "official_library_size_gb": 3.0,
+  "hardware_fit_reason": "edge-oriented 3B candidate for a 16 GB RAM / 4 GB VRAM laptop",
+  "pull_bound_seconds": 600,
+  "pull_result": "timeout",
+  "qualification_result": "not_run_model_never_registered",
+  "admitted": false,
+  "retained_on_disk": false,
+  "partial_storage_removed": true,
+  "installed_models_after_attempt": [
+    "qwen2.5:3b",
+    "gemma3:4b",
+    "qwen2.5:7b",
+    "qwen2.5-coder:7b",
+    "nomic-embed-text:latest",
+    "llama3.1:8b"
+  ],
+  "note": "Official metadata is candidate discovery only; no r15-v2 pass exists for this model."
+}

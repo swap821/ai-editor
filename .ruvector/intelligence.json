@@ -1,0 +1,64 @@
+{
+  "patterns": {
+    "edit:unknown|browser-session": {
+      "state": "edit:unknown",
+      "action": "browser-session",
+      "q_value": 0.45,
+      "visits": 1,
+      "last_update": 1785575451
+    }
+  },
+  "memories": [],
+  "trajectories": [
+    {
+      "id": "traj_1785575412741_rigiiujvm",
+      "context": "artifactplan-wave7: Capture operator-facing GAGOS UI evidence after pre-creating the durable RVF directory.",
+      "agent": "browser-session",
+      "file": null,
+      "steps": [],
+      "startTime": 1785575412741,
+      "endTime": 1785575451381,
+      "quality": 0,
+      "success": false
+    }
+  ],
+  "errors": {},
+  "file_sequences": [],
+  "agents": {},
+  "edges": [],
+  "stats": {
+    "total_patterns": 1,
+    "total_memories": 0,
+    "total_trajectories": 0,
+    "total_errors": 0,
+    "session_count": 0,
+    "last_session": 0
+  },
+  "embeddingProvenance": null,
+  "activeTrajectories": {
+    "traj_1785571795131_upybo1xrm": {
+      "id": "traj_1785571795131_upybo1xrm",
+      "context": "artifactplan-wave-20260801: Collect durable operator-surface evidence for the local GAGOS frontend and its current root route.",
+      "agent": "browser-session",
+      "file": null,
+      "steps": [],
+      "startTime": 1785571795131
+    },
+    "traj_1785573139474_wm19u3r40": {
+      "id": "traj_1785573139474_wm19u3r40",
+      "context": "artifactplan-wave3-20260801: Collect durable operator-surface evidence for GAGOS UI organs 20, 48, 49, and 51 from the live local frontend.",
+      "agent": "browser-session",
+      "file": null,
+      "steps": [],
+      "startTime": 1785573139474
+    },
+    "traj_1785573509435_ow1euzpqv": {
+      "id": "traj_1785573509435_ow1euzpqv",
+      "context": "artifactplan-wave4-20260801: Collect durable operator-surface evidence for GAGOS UI organs 20, 48, 49, and 51 from the live local frontend.",
+      "agent": "browser-session",
+      "file": null,
+      "steps": [],
+      "startTime": 1785573509435
+    }
+  }
+}

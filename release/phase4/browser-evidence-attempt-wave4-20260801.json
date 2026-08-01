@@ -1,0 +1,22 @@
+{
+  "schema": "browser-evidence-attempt-v1",
+  "generated_at": "2026-08-01T08:39:26+00:00",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "url": "http://127.0.0.1:5173/",
+  "frontend_http_status": 200,
+  "affected_organs": [
+    20,
+    48,
+    49,
+    51
+  ],
+  "session_id": "artifactplan-wave4-20260801",
+  "rvf_path": "C:\\tmp\\aios-browser-wave4-20260801\\artifactplan-wave4-20260801.rvf",
+  "repo_npx_shim_test": "11.13.0",
+  "recorder_success": false,
+  "recorder_error": "browser open failed",
+  "recorder_detail": "command not found: npx",
+  "repo_shim_effective": false,
+  "live_evidence_promoted": false,
+  "diagnosis": "The MCP browser recorder runs in an isolated runtime that does not inherit the repository or Windows Node PATH."
+}

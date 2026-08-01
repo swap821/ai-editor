@@ -1,0 +1,45 @@
+{
+  "schema": "no-code-blocker-readiness-v4",
+  "generated_at": "2026-08-01T15:22:26.7461187Z",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "runtime": {
+    "frontend_127_status": 200,
+    "backend_health_status": 200,
+    "onboarding_state_unauthenticated_status": 401,
+    "authentication_boundary": "protected onboarding route correctly rejects unauthenticated access",
+    "docker_available": true
+  },
+  "browser": {
+    "npx_in_normal_shell": true,
+    "agent_browser_present": false,
+    "dedicated_recorder": "needs_setup",
+    "operator_attestation": false,
+    "live_ui_evidence_promoted": false
+  },
+  "human_authority": {
+    "sovereign_enrollment_performed": false,
+    "operator_login_performed": false,
+    "frozen_security_spine_approval": "pending",
+    "reason": "requires the human operator; no credentials or approval were fabricated"
+  },
+  "cloud": {
+    "AWS_BEARER_TOKEN_BEDROCK_present": false,
+    "AIOS_GEMINI_PROJECT_present": false,
+    "GOOGLE_APPLICATION_CREDENTIALS_present": false,
+    "values_read": false,
+    "golden_cohort_run": false
+  },
+  "organ46": {
+    "automated_nine_simulations_passed": true,
+    "human_red_team_claimed": false,
+    "artifact": "release/phase4/organ46-local-simulation-92d871616ce6.json"
+  },
+  "local_clerks": {
+    "qualified_options": 12,
+    "unqualified_models_removed": true,
+    "latest_failed_candidate": "gemma3n:e2b",
+    "latest_aborted_download": "granite4:1b",
+    "inventory": "release/phase4/local-clerk-inventory-20260801.json"
+  },
+  "conclusion": "Runtime/API and automated evidence are refreshed. Operator enrollment/login, browser recorder setup, frozen-core approval, cloud credentials plus two-provider cohort, and human red-team evidence remain open and are not safely automatable by this agent."
+}

@@ -1,15 +1,13 @@
-# Phases 4–6 absolute — closed via shortfall & CI gate resolution — 2026-07-31
+# AI-OS Builder Resume
 
-**Goal:** Solve GitHub CI release-authority manifest gate failure and maintain Phases 4, 5, and 6 conformance.
+**Goal:** Compare `artifactplan.md` Phases 1-6 with the codebase, close only provable gaps, maintain a hardware-fit local clerk shortlist, and keep Organ 44 evidence truthful.
 
-**Last completed + verified:**
-- **Phase 4 absolute:** live evidence for **38** organs on tip `5d482164707c6c6e62f3da6a37cff79f252f9260` via `scripts/phase4_live_evidence.py` → `release/phase4/live-evidence-5d482164707c.json`. Remaining **16** yellows hold precise named residuals (frozen / no Docker / no Ollama / Outside-machine / Phase 6 / browser-session). `verify_organ_contracts` **0**. No silent gaps.
-- **Phase 5 absolute:** flipped **31** organs green after evidence + tip SHA + Decision A + empty blockers (adversarial re-read). Totals: **38 green / 16 yellow**. Never flipped: 1–5, 20, 23, 33/35/37/46, 40, 44, 48/49/51.
-- **Phase 6 absolute & CI Gate Resolution:** Normalized `.aios/state/PHASE_4_5_6_ABSOLUTE_BAR.md` line endings to LF (`\n`) and regenerated `release/organ-proof-manifest.json` with exact LF sha256 (`adc8ebe389d7...`). `python scripts/build_release_manifest.py --check` and `python scripts/verify_organ_contracts.py` pass 100% cleanly (0 violations).
+**Last completed + verified:** Organ 44 provider readiness was rechecked. The project virtualenv had no pip and no `google-genai`; bundled `ensurepip` restored pip, `google-genai 2.16.0` was installed, and a process-local Google Vertex check constructed Gemini and discovered 25 models using existing gcloud ADC. OpenAI routing is implemented and the OpenAI provider classification regression is fixed and focused-tested. The newly pulled `granite3-moe:1b` failed r15-v2 (`schema_validity 0.882`, `prompt_injection`, `structure_validation`) and was removed. The ledger remains honestly **42 green / 12 yellow** at tip `92d871616ce630ff398cc18e5f9f16e2849713e9`; Organ 44 has zero live evidence and no two-provider mission cohort.
 
+**Single next action:** Run focused provider/release gates, inspect the final diff, then stage and commit the intended work and push it from `master`; do not claim Organ 44 green until a freshly rotated OpenAI credential is available to the backend process and 12 governed missions across Google and OpenAI are recorded.
 
-**Single next action:** Commit the manifest update and governance formatting fixes to origin/master.
+**Open blockers/approvals:** The API key shown in chat/screenshot is compromised and must be revoked; no key was used or persisted by Codex. A fresh `AIOS_OPENAI_API_KEY` must be set only in the backend process. Google requires `AIOS_GEMINI_PROJECT` in the backend process (ADC and SDK now verified). The two-provider 12-mission cohort and operator attestation are still absent. Human Sovereign enrollment/authentication and live UI evidence, browser recorder setup approval, frozen security-spine approval, human red-team, and Organ 23 dependency closure remain external or permission-gated.
 
-**Tip under evidence:** `5d482164707c6c6e62f3da6a37cff79f252f9260`.
-**Tip:** `96a58b1fd60eec2c964813af271de02d1e66c9f5`.
+**Active files:** `.aios/state/ORGAN_GREEN_LEDGER.json`, `.aios/state/RESUME.md`, `.aios/memory/experiences.jsonl`, `.aios/memory/mistakes.jsonl`, `aios/core/failover.py`, `tests/test_failover.py`, `release/phase4/local-clerk-inventory-20260801.json`, `release/phase4/local-clerk-candidate-cohort-granite3-moe-wave30-20260801.json`, `release/phase4/organ44-provider-readiness-wave31-20260801.json`, `release/phase4/organ44-provider-readiness-wave32-20260801.json`, `release/organ-proof-manifest.json`, `release/phase6/`.
 
+**Notes:** Twelve measured clerk passes remain admitted; failed candidates are removed from disk. Current qualified shortlist includes Qwen 2.5 1.5B/3B/7B, Phi-4-mini 3.8B, Gemma 3 4B, Qwen 2.5 Coder 7B, Llama 3.1 8B, Granite 3.3 2B, Gemma 2 2B, Nemotron Mini 4B, Granite 4 3B, and Granite 4.1 3B. Run one model at a time; prefer 2B-4B defaults on this 16 GB / 4 GB-VRAM laptop. Browser recorder setup requires explicit operator approval.

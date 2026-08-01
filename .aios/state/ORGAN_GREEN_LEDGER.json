@@ -129,10 +129,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; EdgeTrustAuthority + rp._probe_edge => owner=EdgeTrustAuthority; spoofed origin, host, and wildcard CORS requests were refused before mutation",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; EdgeTrustAuthority + rp._probe_edge => owner=EdgeTrustAuthority; spoofed origin, host, and wildcard CORS requests were refused before mutation",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -154,10 +159,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -179,10 +189,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_mutation_authority => 95 mutating route declarations resolved through PolicyKernel; unknown mutation failed RED through ActionBroker",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_mutation_authority => 95 mutating route declarations resolved through PolicyKernel; unknown mutation failed RED through ActionBroker",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -209,10 +224,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_capabilities => exact capability issued, consumed once, replay refused, altered payload refused",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_capabilities => exact capability issued, consumed once, replay refused, altered payload refused",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -239,10 +259,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_mission => mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_mission => mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -264,10 +289,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_turn_coordinator => deterministic mode selection and canonical turn event stream verified",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_turn_coordinator => deterministic mode selection and canonical turn event stream verified",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -289,10 +319,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; WorkerFoundryAuthority.select deterministic => WorkerFoundryAuthority constructed; missing_principal=None; missing_lifecycle=None; select(deterministic)=DeterministicWorkerStrategy",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; WorkerFoundryAuthority.select deterministic => WorkerFoundryAuthority constructed; missing_principal=None; missing_lifecycle=None; select(deterministic)=DeterministicWorkerStrategy",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -314,10 +349,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -339,10 +379,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=8359569b1a264fc791490c2f480db44a mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-scdlt4_c\\staged-root\\8359569b1a264fc791490c2f480db44a baseline=6fc358b543368ecf\u2026",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=0b5e7a5430954decbddd8d1f724aef53 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-6vagoe9o\\staged-root\\0b5e7a5430954decbddd8d1f724aef53 baseline=6fc358b543368ecf\u2026",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -369,10 +414,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_staging_and_promotion => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_staging_and_promotion => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -399,10 +449,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_staging_and_promotion (same live run as organ 15) => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_staging_and_promotion (same live run as organ 15) => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -429,10 +484,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_cortex => canonical events advanced a durable consumer cursor across restart without duplicate replay",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_cortex => canonical events advanced a durable consumer cursor across restart without duplicate replay",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -459,10 +519,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_memory => unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_memory => unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -489,10 +554,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; rp._probe_emergency_stop => emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded | TestClient GET /api/v1/governance/emergency-stop => HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; rp._probe_emergency_stop => emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded | TestClient GET /api/v1/governance/emergency-stop => HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -536,10 +606,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime) => QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-scdlt4_c\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime) => QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-6vagoe9o\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -561,10 +636,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; evaluate_release(repo) live => evaluate_release ready=False version=1.0.0-prototype gate_count=17 failures=['exact_capabilities', 'edge_trust_boundary', 'mutation_authority', 'mission_lifecycle', 'isolated_executor', 'executor_runtime_available', 'staged_workspaces', 'verification_and_recovery', 'promotion_authority', 'turn_coordinator', 'cortex_consumer_cursors', 'truthful_mirror', 'memory_provenance', 'emergency_stop_controller', 'production_profile_fail_closed']",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; evaluate_release(repo) live => evaluate_release ready=False version=1.0.0-prototype gate_count=17 failures=['exact_capabilities', 'edge_trust_boundary', 'mutation_authority', 'mission_lifecycle', 'isolated_executor', 'executor_runtime_available', 'staged_workspaces', 'verification_and_recovery', 'promotion_authority', 'turn_coordinator', 'cortex_consumer_cursors', 'truthful_mirror', 'memory_provenance', 'emergency_stop_controller', 'production_profile_fail_closed']",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -584,7 +664,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (Outside-machine / no Docker / no Ollama / frozen spine / browser-session residuals remain).",
+      "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (cloud, frozen-spine, browser-session, and human-red-team residuals remain; local Docker and Ollama evidence is available where recorded.).",
       "Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green"
     ],
     "last_verified_sha": null,
@@ -613,10 +693,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -655,10 +740,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -692,10 +782,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -730,10 +825,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=221184",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=221184",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -764,10 +864,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -801,10 +906,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -835,10 +945,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -868,10 +983,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; RepresentativeContextCompilerAuthority.compile => compiled context_digest=e45187cf313fcf00\u2026 privacy=local request_id=req-p4-31",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; RepresentativeContextCompilerAuthority.compile => compiled context_digest=e45187cf313fcf00\u2026 privacy=local request_id=req-p4-31",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -914,16 +1034,21 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -942,12 +1067,15 @@
       "tests/test_local_workforce_api.py",
       "tests/test_runtime_intelligence_gateway.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort.",
-      "no Ollama \u2014 live local-model / red-team evidence needs live Ollama in CI or self-hosted runner"
+    "live_evidence": [
+      {
+        "description": "Live local-clerk cohort on tip 92d871616ce630ff398cc18e5f9f16e2849713e9; artifact=release/phase4/local-clerk-candidate-cohort-92d871616ce6.json; LocalWorkforceService discovered qwen2.5-coder:7b, recorded operator approval and r15-v2 qualification, persisted the passport, and returned admission_status=approved.",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -975,16 +1103,21 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-07-31T13:17:38+00:00'",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-08-01T05:54:04+00:00'",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
     "organ_id": 35,
     "name": "Local Clerk Runtime",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LocalClerkRuntimeAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/contracts.py"
@@ -996,12 +1129,15 @@
     "integration_tests": [
       "tests/domain/test_local_workforce_qualifier.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime.",
-      "no Ollama \u2014 live local clerk runtime evidence needs live Ollama"
+    "live_evidence": [
+      {
+        "description": "Live local-clerk production-path probe on tip 92d871616ce630ff398cc18e5f9f16e2849713e9; artifact=release/phase4/local-clerk-candidate-cohort-92d871616ce6.json; admitted qwen2.5-coder:7b completed a real classify advisory job with schema_valid=true and evidence_references_preserved=true; request, model call, result, and one hash-linked provenance record survived SQLite reopen.",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1030,16 +1166,21 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ClerkDispatcherAuthority.dispatch deterministic/unqual/failing => decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ClerkDispatcherAuthority.dispatch deterministic/unqual/failing => decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
     "organ_id": 37,
     "name": "Local Model Qualification and Health",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LocalModelQualificationAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/qualifier.py",
@@ -1054,12 +1195,15 @@
     "integration_tests": [
       "tests/test_r15_runtime_proof.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite.",
-      "no Ollama \u2014 live model qualification suite needs live Ollama"
+    "live_evidence": [
+      {
+        "description": "Live r15-v2 qualification cohort on tip 92d871616ce630ff398cc18e5f9f16e2849713e9; artifact=release/phase4/local-clerk-candidate-cohort-92d871616ce6.json; gemma3:4b, qwen2.5:3b, and qwen2.5-coder:7b passed all 20 checks. qwen2.5-coder:3b, llama3.2:3b, qwen3.5:2b, and qwen3.5:0.8b remain explicit failed candidates with their failing test IDs recorded.",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1089,10 +1233,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1124,16 +1273,21 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; DeliberationCouncilAuthority via QueenCouncilAuthority => DeliberationCouncilAuthority wired on QueenCouncilAuthority; maybe_deliberate(no dissent)=None",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; DeliberationCouncilAuthority via QueenCouncilAuthority => DeliberationCouncilAuthority wired on QueenCouncilAuthority; maybe_deliberate(no dissent)=None",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
     "organ_id": 40,
     "name": "Isolated Workspace and Executor (live proof)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
@@ -1162,13 +1316,15 @@
         "description": "CI run https://github.com/swap821/ai-editor/actions/runs/29989936411 (commit 697d925fa6c2151c4c59c2372ae98f411d5e74b2): the release-authority job's real docker-compose Executor Service container was RESTARTED in place (`docker compose restart executor` + `up -d --wait`, on the real GitHub Actions Docker daemon -- this local sandbox has none) and tests/test_executor_integration.py was re-run against it via a fresh `docker compose run`, genuinely passing all 3 tests post-restart -- the same real isolation proof (uid=65534, network=blocked, outside=blocked) as the original pre-restart run, now proven to survive a real container restart, not just a cold start. A first attempt at this same proof (run 29988647828, commit 51306512f09dee23ce54de6ff1bb39e0f7c155fb) genuinely FAILED and was root-caused, not glossed over: the restart step omitted re-exporting AIOS_DOCKER_SOCKET_GID, so the follow-up `docker compose up --wait` detected config drift against docker-compose.yml's silent `${AIOS_DOCKER_SOCKET_GID:-999}` fallback and recreated the container with the wrong docker-socket group, breaking its ability to spawn per-job containers -- fixed by exporting the same real GID the original start step already computes.",
         "commit_sha": "697d925fa6c2151c4c59c2372ae98f411d5e74b2",
         "proof_level": "live"
+      },
+      {
+        "description": "Current-tip Docker Desktop live proof on 92d871616ce630ff398cc18e5f9f16e2849713e9: release/phase4/organ40-live-proof-92d871616ce6.json; tests/test_executor_integration.py passed 4 tests before and after docker compose executor restart, with real isolation, trace, timeout, and missing-service assertions.",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "C3: PASS. C4: N/A-BY-DESIGN \u2014 executor isolation + audit via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority; not a hash-chain journal. C5: PASS.",
-      "no Docker \u2014 Docker Desktop daemon unavailable on this Windows host (npipe dockerDesktopLinuxEngine); historical CI Docker isolation evidence retained, not tip-restamped"
-    ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1191,10 +1347,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; PromotionRollbackLiveAuthority + rp._probe_staging_and_promotion => checkpoint_id_is_valid ok/bad/empty=True/False/False; staging_promo=disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; PromotionRollbackLiveAuthority + rp._probe_staging_and_promotion => checkpoint_id_is_valid ok/bad/empty=True/False/False; staging_promo=disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1230,10 +1391,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1261,10 +1427,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1323,10 +1494,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1353,12 +1529,18 @@
       "tests/test_governance_amendment_store.py",
       "tests/test_governance_lesson_api.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "Local live organ-46 simulation run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: all nine real production-mechanism checks passed against a disposable proposal; artifact=release/phase4/organ46-local-simulation-92d871616ce6.json. This is not human red-team evidence and does not close that residual.",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
       "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models.",
-      "no Ollama \u2014 live constitutional learning / red-team path needs live Ollama (and/or Outside-machine cloud)"
+      "Outside-machine / human-red-team residual \u2014 local Ollama is available and the clerk qualification suite passed for five candidates, but constitutional learning still lacks a human red-team or equivalent live external cohort."
     ],
-    "last_verified_sha": null,
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1382,10 +1564,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1479,10 +1666,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-scdlt4_c\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-6vagoe9o\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1548,10 +1740,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '8e060e00-13cc-4a1a-a8b4-361b94066dfb'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'f4732d19-68eb-47f1-b64a-9fe52ebb43e1'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1585,10 +1782,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='5e3908e3fefba918981e4ab8c13fd279078832f778035731d1e34ebbfc9dcf1f', current_issued_at=1785503859.7066412, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1785503919.7066412); reopen_configured=True db_bytes=8192",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='fab04cde8547cc0fecbf20db02a8364d99bb7c8057c8cc32ee137f404d62b57f', current_issued_at=1785563646.926781, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1785563706.926781); reopen_configured=True db_bytes=8192",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   },
   {
@@ -1612,10 +1814,15 @@
         "description": "Phase 4 absolute live run on tip 5d482164707c6c6e62f3da6a37cff79f252f9260: command=C:\\Users\\kumar\\OneDrive\\Documents\\GitHub\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5d482164707c6c6e62f3da6a37cff79f252f9260 exit=0; artifact=release/phase4/live-evidence-5d482164707c.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
         "commit_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
         "proof_level": "live"
+      },
+      {
+        "description": "Phase 4 absolute live run on tip 92d871616ce630ff398cc18e5f9f16e2849713e9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 92d871616ce630ff398cc18e5f9f16e2849713e9 exit=0; artifact=release/phase4/live-evidence-92d871616ce6.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
+        "commit_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+    "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
     "requires_live_evidence": false
   }
 ]

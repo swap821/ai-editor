@@ -1,0 +1,46 @@
+{
+  "schema": "organ44-provider-readiness-v1",
+  "generated_at": "2026-08-01T15:59:09.5302019Z",
+  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "purpose": "Bounded provider-readiness evidence; no generation cohort claimed",
+  "google": {
+    "gcloud_present": true,
+    "gcloud_project_configured": true,
+    "adc_token_present": true,
+    "backend_project_env_present_in_probe": true,
+    "google_genai_sdk_installed": true,
+    "google_genai_version": "2.16.0",
+    "client_constructed": true,
+    "model_discovery_count": 25,
+    "generation_attempted": false,
+    "readiness": "ready_for_bounded_generation_probe"
+  },
+  "openai": {
+    "client_code_present": true,
+    "router_registration_present": true,
+    "failover_cloud_classification_fixed": true,
+    "focused_regression_tests_passed": true,
+    "api_key_present_in_codex_process": false,
+    "generation_attempted": false,
+    "readiness": "blocked_by_rotated_operator_key_not_available_to_this_process"
+  },
+  "environment": {
+    "backend_dotenv_loaded": false,
+    "credentials_persisted_by_codex": false,
+    "exposed_user_key_used": false
+  },
+  "organ44": {
+    "ledger_status": "yellow",
+    "live_evidence_count": 0,
+    "required_governed_missions": 12,
+    "completed_governed_missions": 0,
+    "distinct_real_cloud_providers_proven": 1,
+    "two_provider_cohort_proven": false,
+    "blocker": "Google is ready for a bounded generation probe; OpenAI code is wired but a fresh operator key is not available to this process; no 12-mission two-provider evidence exists."
+  },
+  "required_operator_actions": [
+    "Revoke the key exposed in chat/screenshot and create a replacement.",
+    "Launch the backend with AIOS_GEMINI_PROJECT set from gcloud and the replacement AIOS_OPENAI_API_KEY set only in the backend process.",
+    "Run and record 12 governed missions across Google Vertex Gemini and OpenAI, then obtain the required operator attestation."
+  ]
+}

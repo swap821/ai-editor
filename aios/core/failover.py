@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 #: Provider names that are considered *cloud* providers.  Only one is tried per
 #: turn; if it fails the failover falls back to a local provider.
 _CLOUD_PROVIDERS: frozenset[str] = frozenset(
-    {"bedrock", "gemini", "aws", "google", "vertex"}
+    {"bedrock", "gemini", "openai", "aws", "google", "vertex"}
 )
 
 #: Provider names that are considered *local* providers.

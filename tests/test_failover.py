@@ -12,6 +12,7 @@ from aios.core.stream_protocol import StreamFinished
 def test_provider_classification():
     assert _is_cloud_provider("bedrock") is True
     assert _is_cloud_provider("gemini") is True
+    assert _is_cloud_provider("openai") is True
     assert _is_cloud_provider("ollama") is False
 
     assert _is_local_provider("ollama") is True

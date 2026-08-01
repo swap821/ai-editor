@@ -1,0 +1,16 @@
+# Fast local organ-40 proof image.
+#
+# The normal Dockerfile intentionally rebuilds the complete production image,
+# including its large dependency layer. For a current-tip local isolation
+# proof, reuse the already-built dependency image and overlay only the source
+# trees under test. This image is evidence tooling, not the production release
+# image; CI still uses Dockerfile.
+FROM aios-aios:latest
+
+USER root
+COPY aios /app/aios
+COPY tests /app/tests
+RUN chown -R 65534:65534 /app/aios /app/tests
+USER 65534
+
+WORKDIR /app

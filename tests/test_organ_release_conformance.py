@@ -705,13 +705,13 @@ def test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest() -> N
     assert "no contract violations" in result.stdout
 
 
-def test_verify_organ_contracts_strict_release_reports_organs_not_yet_release_grade() -> (
-    None
-):
-    """Documents the real, current state rather than asserting a target:
-    every green organ missing last_verified_sha shows up here by name, and
-    this test's own job is only to prove the strict flag actually surfaces
-    them -- not to require the list be empty (that is Organ 23's job)."""
+def test_verify_organ_contracts_strict_release_accepts_exact_tip_green_evidence() -> None:
+    """Strict release is self-consistent when every green organ is tip-stamped.
+
+    Organ 23 still remains yellow because the ledger has named residuals; that
+    release-conformance shortfall is a separate condition from stale green SHA
+    detection.
+    """
     import subprocess
     import sys
 
@@ -726,8 +726,8 @@ def test_verify_organ_contracts_strict_release_reports_organs_not_yet_release_gr
         text=True,
         timeout=30,
     )
-    assert result.returncode == 1
-    assert "last_verified_sha" in result.stderr
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "no contract violations" in result.stdout
 
 
 # --- CLI wiring -----------------------------------------------------------

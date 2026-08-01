@@ -1,14 +1,14 @@
 {
   "schema": "phase6-organ23-shortfall-v1",
-  "generated_at": "2026-07-31T13:18:42+00:00",
-  "evaluated_at_commit": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-  "evidence_tip_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
+  "generated_at": "2026-08-01T07:47:52+00:00",
+  "evaluated_at_commit": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "evidence_tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
   "verdict": "NOT 54/54 \u2014 itemised shortfall (Outside-machine and other named residuals remain)",
   "counts": {
     "total": 54,
-    "green": 38,
-    "yellow": 16,
-    "with_live_evidence": 39
+    "green": 42,
+    "yellow": 12,
+    "with_live_evidence": 43
   },
   "phase4_absolute": {
     "live_evidence_organs": [
@@ -37,8 +37,11 @@
       30,
       31,
       32,
+      33,
       34,
+      35,
       36,
+      37,
       38,
       39,
       40,
@@ -46,6 +49,7 @@
       42,
       43,
       45,
+      46,
       47,
       50,
       52,
@@ -60,10 +64,6 @@
       5,
       20,
       23,
-      33,
-      35,
-      37,
-      40,
       44,
       46,
       48,
@@ -78,11 +78,7 @@
       5,
       20,
       23,
-      33,
-      35,
-      37,
       44,
-      46,
       48,
       49,
       51
@@ -111,9 +107,13 @@
       30,
       31,
       32,
+      33,
       34,
+      35,
+      37,
       38,
       39,
+      40,
       41,
       42,
       43,
@@ -132,8 +132,8 @@
       36,
       52
     ],
-    "green_total": 38,
-    "yellow_total": 16,
+    "green_total": 42,
+    "yellow_total": 12,
     "never_flipped": [
       1,
       2,
@@ -142,10 +142,6 @@
       5,
       20,
       23,
-      33,
-      35,
-      37,
-      40,
       44,
       46,
       48,
@@ -158,10 +154,7 @@
     "strict_release_report": "release/phase6/strict-release-report.txt",
     "organ_23": "yellow \u2014 Phase 6 gate; shortfall list below",
     "honest_54_of_54": false,
-    "absolute_met_via": "itemised shortfall document + strict-release report",
-    "strict_release_at_evidence_tip": "exit 0 (release/phase6/strict-release-report.txt)",
-    "strict_release_post_ledger_commit": "exit 1 expected SHA chicken-egg (release/phase6/strict-release-report-postcommit.txt)",
-    "ledger_commit": "332f45288f30ca2f9828c3abf5847e20f883a2d0"
+    "absolute_met_via": "itemised shortfall document + strict-release report"
   },
   "itemised_shortfall": [
     {
@@ -240,60 +233,12 @@
       "organ_id": 23,
       "name": "Release Conformance Organ",
       "status": "yellow",
-      "failing_condition_or_residual": "frozen spine",
+      "failing_condition_or_residual": "Phase 6 gate",
       "known_blockers": [
-        "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (Outside-machine / no Docker / no Ollama / frozen spine / browser-session residuals remain).",
+        "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (cloud, frozen-spine, browser-session, and human-red-team residuals remain; local Docker and Ollama evidence is available where recorded.).",
         "Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green"
       ],
       "has_live_evidence": false,
-      "last_verified_sha": null
-    },
-    {
-      "organ_id": 33,
-      "name": "Model Registry and Capability Passport",
-      "status": "yellow",
-      "failing_condition_or_residual": "no Ollama",
-      "known_blockers": [
-        "C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort.",
-        "no Ollama \u2014 live local-model / red-team evidence needs live Ollama in CI or self-hosted runner"
-      ],
-      "has_live_evidence": false,
-      "last_verified_sha": null
-    },
-    {
-      "organ_id": 35,
-      "name": "Local Clerk Runtime",
-      "status": "yellow",
-      "failing_condition_or_residual": "no Ollama",
-      "known_blockers": [
-        "C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime.",
-        "no Ollama \u2014 live local clerk runtime evidence needs live Ollama"
-      ],
-      "has_live_evidence": false,
-      "last_verified_sha": null
-    },
-    {
-      "organ_id": 37,
-      "name": "Local Model Qualification and Health",
-      "status": "yellow",
-      "failing_condition_or_residual": "no Ollama",
-      "known_blockers": [
-        "C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite.",
-        "no Ollama \u2014 live model qualification suite needs live Ollama"
-      ],
-      "has_live_evidence": false,
-      "last_verified_sha": null
-    },
-    {
-      "organ_id": 40,
-      "name": "Isolated Workspace and Executor (live proof)",
-      "status": "yellow",
-      "failing_condition_or_residual": "no Docker",
-      "known_blockers": [
-        "C3: PASS. C4: N/A-BY-DESIGN \u2014 executor isolation + audit via organ 4 aios/security/audit_logger.py::AuditLoggerAuthority; not a hash-chain journal. C5: PASS.",
-        "no Docker \u2014 Docker Desktop daemon unavailable on this Windows host (npipe dockerDesktopLinuxEngine); historical CI Docker isolation evidence retained, not tip-restamped"
-      ],
-      "has_live_evidence": true,
       "last_verified_sha": null
     },
     {
@@ -312,13 +257,13 @@
       "organ_id": 46,
       "name": "Constitutional Learning Organ",
       "status": "yellow",
-      "failing_condition_or_residual": "no Ollama",
+      "failing_condition_or_residual": "Outside-machine",
       "known_blockers": [
         "C3: PASS. C4: N/A-BY-DESIGN \u2014 learning outcomes durable in learning stores aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority; adversarial chain owned by organ 4. C5: PASS. Outside-machine residual: adversarial simulation cohort / human red-team may need live models.",
-        "no Ollama \u2014 live constitutional learning / red-team path needs live Ollama (and/or Outside-machine cloud)"
+        "Outside-machine / human-red-team residual \u2014 local Ollama is available and the clerk qualification suite passed for five candidates, but constitutional learning still lacks a human red-team or equivalent live external cohort."
       ],
-      "has_live_evidence": false,
-      "last_verified_sha": null
+      "has_live_evidence": true,
+      "last_verified_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9"
     },
     {
       "organ_id": 48,
