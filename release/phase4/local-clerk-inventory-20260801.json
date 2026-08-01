@@ -1,7 +1,7 @@
 {
   "schema": "local-clerk-inventory-v1",
-  "generated_at": "2026-08-01T15:59:09.7226267Z",
-  "tip_sha": "92d871616ce630ff398cc18e5f9f16e2849713e9",
+  "generated_at": "2026-08-01T16:57:20.4453282Z",
+  "tip_sha": "4bee2e987b56d208d61e882fc4abb3d5cf0195ef",
   "machine": "Swapnil",
   "admitted_clerks": [
     "qwen2.5:1.5b",
@@ -18,6 +18,10 @@
     "granite4.1:3b"
   ],
   "installed_after_cleanup": [
+    "granite4.1:3b",
+    "granite4:3b",
+    "nemotron-mini:4b",
+    "gemma2:2b",
     "granite3.3:2b",
     "qwen2.5:1.5b",
     "phi4-mini:3.8b",
@@ -26,11 +30,7 @@
     "qwen2.5:7b",
     "qwen2.5-coder:7b",
     "nomic-embed-text:latest",
-    "llama3.1:8b",
-    "gemma2:2b",
-    "nemotron-mini:4b",
-    "granite4:3b",
-    "granite4.1:3b"
+    "llama3.1:8b"
   ],
   "retained_non_clerk_support": [
     "nomic-embed-text:latest"
@@ -60,14 +60,15 @@
     "gemma3:1b": "r15-v2 failed: schema_validity=0.647, unsupported_claim_rate=1, authority_mutation_attempts=1, tool_requests_accepted=1, summarisation, missing_information, prompt_injection, structure_validation, context_completeness; removed from local disk",
     "gemma3n:e2b": "r15-v2 failed: schema_validity 0.824, json_validity, extraction, and summarisation; removed from local disk",
     "granite3.1-moe:1b": "r15-v2 failed: schema_validity 0.882, missing_information, and context_output_limits; official 1.4 GB model removed from local disk",
-    "granite3-moe:1b": "r15-v2 failed: schema_validity 0.882, prompt_injection, and structure_validation; official 821 MB model removed from local disk"
+    "granite3-moe:1b": "r15-v2 failed: schema_validity 0.882, prompt_injection, and structure_validation; official 821 MB model removed from local disk",
+    "smollm2:1.7b-instruct-q5_1": "r15-v2 failed: missing_information (schema_validity=0.941); removed from local disk"
   },
   "aborted_unqualified_downloads": {
     "qwen3:4b": "historical wave attempt: official 2.5 GB pull exceeded the 10-minute bound before registration; a later wave-17 retry completed, failed the r15-v2 contract, and was removed",
     "ministral-3:3b": "historical pull timed out, but a later bounded retry completed; r15-v2 then failed context_output_limits and the model was removed",
     "granite4:1b": "official 3.3 GB pull exceeded the 15-minute bound; model registered after timeout but had no qualification run and was removed"
   },
-  "disk_free_bytes_after_cleanup": 14679035904,
+  "disk_free_bytes_after_cleanup": 22955012096,
   "admission_rule": "Only models with a complete reproducible r15-v2 pass are admitted as clerks; vendor pages and downloads alone never qualify a model.",
   "candidate_attempt_artifacts": [
     "release\\phase4\\local-clerk-ministral-attempt-20260801.json",
