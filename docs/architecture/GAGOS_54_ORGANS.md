@@ -492,6 +492,21 @@ degrading the identity store only blocks the resolution of a NEW `Principal`
 
 ## Yellow organs (47)
 
+**Superseded (2026-08-02):** this heading and the table below are a dated
+snapshot from immediately after Decision A regressed 33 organs
+(2026-07-27), before Phases 2 through 6 of the proof plan flipped most of
+them back to green with real evidence. Most rows already carry their own
+inline "Phase-2 re-audit"/"Phase 2 update" narrowing note recording that
+re-verification, but the table's own **(47)** count and each row's
+**yellow** status were never updated in place — per this doc's own
+append-only convention (dated evidence is never silently rewritten), that
+correction lives in a new section instead: see
+"[Current reconciled state (2026-08-02)](#current-reconciled-state-2026-08-02)"
+at the end of this document for the accurate current 38 green / 16 yellow
+split, sourced directly from `.aios/state/ORGAN_GREEN_LEDGER.json` and
+`release/phase6/organ23-shortfall.md`. Read every row below as history,
+not current status.
+
 The original 16 (Slices 26-40 completion target, minus organs 52 and 36
 flipped green in Phase 1/2, 2026-07-28 — see above) plus 33 regressed
 under Decision A (2026-07-27) — see the green-organ sections above.
@@ -548,8 +563,6 @@ under Decision A (2026-07-27) — see the green-organ sections above.
 
 ## How this ledger is enforced
 
-## How this ledger is enforced
-
 ```
 python -m aios.launcher organ-check --json
 python -m aios.launcher organ-check --strict
@@ -565,3 +578,99 @@ security-spine organ claiming green, a `green` organ that requires live
 evidence but has none, live evidence labelled `fixture` where `live` is
 required, and live evidence stamped with any commit other than the one under
 evaluation.
+
+## Current reconciled state (2026-08-02)
+
+This section is the authoritative summary of the ledger's current status,
+appended after a full hands-on re-audit of all 38 green organs (every
+`condition_verdicts` claim checked against real code and real test runs,
+not narrative). It exists because the historical tables above stop tracking
+status changes partway through Phase 2 — each organ's own inline note is
+kept up to date, but the section headings/counts around them ("Yellow
+organs (47)", the Phase 1/2 tables) are dated snapshots, per this doc's
+own append-only convention. Machine-readable source of truth remains
+`.aios/state/ORGAN_GREEN_LEDGER.json`; the itemized non-green breakdown is
+`release/phase6/organ23-shortfall.md`.
+
+**Counts: 38 green / 16 yellow / 54 total.** Evaluated at commit
+`b5ef592864363ca9882277801cde92bff90b15d7`; `python
+scripts/verify_organ_contracts.py` and `--require-sha-ancestry` both pass
+with zero contract violations.
+
+### Green (38)
+
+| # | Organ | Authority owner | Production entrypoint(s) |
+|---|-------|------------------|---------------------------|
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `aios/interfaces/http/edge_security.py` |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | `aios/policy/kernel.py` |
+| 8 | Action Broker | `ActionBrokerAuthority` | `aios/application/action_broker.py` |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | `aios/application/capabilities/authority.py` |
+| 10 | Mission Authority | `MissionAuthority` | `aios/application/missions/mission_service.py` |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `aios/application/turns/turn_coordinator.py` |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `aios/application/workers/foundry.py` |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `aios/executor_service.py` |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `aios/application/workspaces/staged.py` |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `aios/application/evidence/verification.py` |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | `aios/application/promotion/authority.py` |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `aios/runtime/cortex_bus.py` |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `aios/application/memory/authority.py` |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `aios/application/governance/emergency_stop.py` |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `aios/council/council_orchestrator.py` |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `aios/application/governance/v1_declaration.py` |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `aios/domain/identity/models.py`, `aios/application/identity/service.py`, `aios/infrastructure/identity/sqlite_store.py` |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `aios/application/governance/constitution_authority.py` (+ 11 more, see ledger) |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `aios/runtime/intelligence_gateway.py`, `aios/application/learning/service.py`, `aios/application/maintenance/service.py` (+ 5 more) |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py`, `aios/infrastructure/memory/human_representation_store.py` (+ 6 more) |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py`, `aios/infrastructure/memory/human_representation_store.py` (+ 4 more) |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py`, `aios/infrastructure/memory/human_representation_store.py` (+ 4 more) |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `aios/domain/memory/human_representation.py`, `aios/application/memory/human_representation.py`, `aios/application/turns/conversation_pipeline.py` (+ 2 more) |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `aios/domain/intelligence/representative_context.py`, `aios/application/intelligence/context_compiler.py`, `aios/application/intelligence/gateway.py` (+ 2 more) |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `aios/application/intelligence/gateway.py`, `aios/council/gateway_reasoning.py`, `aios/application/intelligence/authenticated_chat.py` (+ 8 more) |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `aios/domain/models/contracts.py`, `aios/application/models/health.py`, `aios/core/failover.py` (+ 2 more) |
+| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `aios/application/local_workforce/dispatcher.py`, `aios/application/local_workforce/service.py` |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `aios/infrastructure/local_workforce/sqlite_store.py`, `aios/application/local_workforce/provenance.py` (+ 4 more) |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `aios/domain/intelligence/deliberation.py`, `aios/application/intelligence/deliberation.py`, `aios/council/deliberation_gather.py` (+ 4 more) |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `aios/application/promotion/authority.py`, `aios/domain/promotion/contracts.py` |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `aios/application/recovery/authority.py` (+ 10 more, see ledger) |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `aios/domain/learning/skill_contracts.py`, `aios/domain/learning/repository.py`, `aios/application/learning/skill_lifecycle.py` |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `aios/domain/governance/amendments.py` (+ 10 more, see ledger) |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `aios/domain/read_models/contracts.py`, `aios/application/read_models/governance_projections.py`, `aios/api/routes/mirror.py` |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `aios/memory/development.py`, `aios/application/models/privacy_audit.py`, `aios/core/failover.py` (+ 7 more) |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `aios/api/main.py`, `aios/council/queen_service.py`, `aios/operations/tracing.py` (+ 4 more) |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `aios/domain/security/api_token.py`, `aios/infrastructure/security/api_token_store.py`, `aios/application/security/api_token_authority.py` (+ 6 more) |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `aios/operations/recovery.py`, `aios/operations/doctor.py`, `aios/__main__.py` |
+
+### Yellow (16) — exact residual, from `release/phase6/organ23-shortfall.md`
+
+| # | Organ | Authority owner | Residual |
+|---|-------|------------------|----------|
+| 1 | Security Gateway | `SecurityGatewayAuthority` | frozen spine — section VIII controlled release required before green/live claim |
+| 2 | Scope Lock | `ScopeLockAuthority` | frozen spine — section VIII controlled release required before green/live claim |
+| 3 | Secret Scanner | `SecretScannerAuthority` | frozen spine — section VIII controlled release required before green/live claim |
+| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | frozen spine — section VIII controlled release required before green/live claim |
+| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | frozen spine — section VIII controlled release required before green/live claim |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless) |
+| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
+| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | no Ollama — live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner |
+| 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | no Ollama — live local clerk runtime evidence needs live Ollama |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | no Ollama — live model qualification suite needs live Ollama |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | no Docker — Docker Desktop daemon unavailable on this Windows host; historical CI Docker isolation evidence retained, not tip-restamped |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Outside-machine — cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | no Ollama — live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless) |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless) |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless) |
+
+None of the 16 are yellow because of a hidden defect found in this
+re-audit — every one blocks on a genuinely outside-machine residual
+(frozen security spine pending its own §VIII controlled release, no
+Ollama/Docker on this host, UI evidence that requires an operator
+browser session, or cloud credentials this session is barred from
+supplying). The one real defect this re-audit did find was narrow and
+non-status-affecting: organs 16 and 41 both cited
+`checkpoint_id_is_valid()` (a trivial format validator) as their `C4`
+tamper-evidence proof in `condition_verdicts`, when the real proof is
+`tests/test_promotion_authority.py::test_apply_or_smoke_failure_restores_exact_bytes_via_real_checkpoint_authority`,
+which drives the actual production `CheckpointAuthority`-backed adapters
+through a genuine filesystem round trip. Both citations were corrected in
+the ledger; neither organ's green status changed.
