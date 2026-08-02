@@ -61,6 +61,74 @@ jobs:
       - name: Backend matrix gate
         run: echo "Backend tests passed on all platforms"
 
+  local-clerk-live:
+    # Organs 35 and 37 have carried "no Ollama — live local clerk runtime
+    # evidence needs live Ollama" for the whole campaign. Every proof for them
+    # so far runs on fixtures: r15_runtime_proof's qualification probe drives a
+    # canned client returning hand-written JSON, which proves the plumbing and
+    # nothing about a real model.
+    #
+    # This job is the local-clerk twin of the executor topology in
+    # release-authority: a real daemon, a real model, the real 16-case suite.
+    #
+    # Deliberately a SEPARATE job rather than a step in release-authority, so
+    # pulling a model never lengthens the release gate's critical path.
+    #
+    # It does NOT require the model to pass qualification. A small CI-sized
+    # model may well fail, and demanding a pass would create pressure to pick a
+    # model that flatters the suite or to loosen the suite until something
+    # passes. A model that fails and is therefore escalated away from the local
+    # clerk is the safety rule working on real evidence.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start a real Ollama daemon
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          # Poll rather than sleep: the daemon is ready when it answers, and a
+          # fixed sleep either wastes time or races on a slow runner.
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+              echo "ollama ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:11434/api/tags >/dev/null
+
+      - name: Pull the clerk model
+        run: |
+          docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}"
+          docker exec ollama ollama list
+        env:
+          AIOS_OLLAMA_MODEL: qwen2.5:0.5b
+
+      - name: Prove the live local clerk runtime and qualification suite
+        env:
+          AIOS_OLLAMA_INTEGRATION: "1"
+          AIOS_OLLAMA_MODEL: qwen2.5:0.5b
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          python -m pytest -q -o addopts= -rs \
+            tests/test_local_clerk_integration.py
+
+      - name: Report Ollama state
+        if: ${{ always() }}
+        run: |
+          docker logs --tail=40 ollama || true
+          docker rm -f ollama || true
+
   frontend-tests:
     runs-on: ubuntu-latest
     defaults:
