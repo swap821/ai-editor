@@ -88,14 +88,35 @@ class TestExecutionUnavailable(RuntimeError):
     """
 
 
+#: vitest reports a test file PATH as its classname, relative to the frontend
+#: package root, while the ledger records it repo-relative.
+_FRONTEND_ROOT = "frontend"
+_JS_TEST_SUFFIXES = (".tsx", ".ts", ".jsx", ".js", ".mts", ".mjs")
+
+
 def _classname_to_path(classname: str, root: Path) -> str | None:
     """Map a JUnit ``classname`` back to the test file that produced it.
 
-    pytest emits a dotted module path (``tests.test_foo``) and appends the
-    class name for tests inside a class (``tests.test_foo.TestBar``). Walking
-    the prefix from longest to shortest resolves both without guessing which
-    trailing segments are classes.
+    Two runners, two conventions:
+
+    * pytest emits a dotted module path (``tests.test_foo``) and appends the
+      class name for tests inside a class (``tests.test_foo.TestBar``). Walking
+      the prefix from longest to shortest resolves both without guessing which
+      trailing segments are classes.
+    * vitest emits a real path (``src/workbench/Foo.test.tsx``) relative to the
+      frontend package, whereas the ledger records it repo-relative
+      (``frontend/src/workbench/Foo.test.tsx``). Splitting that on "." would
+      produce nonsense, so it is matched as a path first.
     """
+    if classname.endswith(_JS_TEST_SUFFIXES):
+        direct = Path(classname)
+        if (root / direct).exists():
+            return direct.as_posix()
+        prefixed = Path(_FRONTEND_ROOT) / classname
+        if (root / prefixed).exists():
+            return prefixed.as_posix()
+        return None
+
     parts = classname.split(".")
     while parts:
         candidate = Path(*parts).with_suffix(".py")
@@ -227,25 +248,30 @@ def _suite_outcome(
         return [(condition, f"no {label} listed")]
 
     for path in paths:
-        if not path.endswith(".py"):
-            # Frontend suites need vitest; the release-authority job is
-            # Python-only. Unexecuted is reported as unverified, never as
-            # passing -- fail-closed unless the operator consciously allows it.
-            if frontend_ok:
-                unverified.append(f"{path} (vitest, not runnable here)")
-            else:
-                failures.append(
-                    (
-                        condition,
-                        f"{label} not executed here (needs vitest): {path} "
-                        "-- pass --frontend-junit or --allow-unexecuted-frontend",
-                    )
-                )
-            continue
-
+        # Look the suite up FIRST, whatever runner produced it. Checking the
+        # extension before consulting `results` discarded real vitest outcomes
+        # that --frontend-junit had already supplied and parsed: the report was
+        # read, 115 frontend files resolved, and then thrown away because the
+        # path did not end in ".py". A gate that ignores evidence it holds is
+        # no better than one that never asked for it.
         outcome = results.get(path)
         if outcome is None:
-            failures.append((condition, f"{label} did not run: {path}"))
+            if not path.endswith(".py"):
+                # Frontend suite with no report supplied. Unexecuted is
+                # reported as unverified, never as passing -- fail-closed
+                # unless the operator consciously allows it.
+                if frontend_ok:
+                    unverified.append(f"{path} (vitest, no report supplied)")
+                else:
+                    failures.append(
+                        (
+                            condition,
+                            f"{label} not executed here (needs vitest): {path} "
+                            "-- pass --frontend-junit or --allow-unexecuted-frontend",
+                        )
+                    )
+            else:
+                failures.append((condition, f"{label} did not run: {path}"))
             continue
         if outcome["failed"]:
             names = ", ".join(outcome["failed_names"])

@@ -776,7 +776,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+      "browser-session \u2014 the Council Runtime 'Sovereign State' operator check (commit 5c64cd54ca52) covered organs 48/49/51 only. This organ's surface is frontend/src/superbrain/lib/livingMirrorRegistry.ts (the superbrain living mirror), which was NOT on screen and remains unobserved."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
@@ -2045,7 +2045,7 @@
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2058,11 +2058,15 @@
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+    "live_evidence": [
+      {
+        "description": "Operator browser session at http://localhost:5173 (Council Runtime -> Sovereign State) against a tip-current backend started for this check, NOT the 15h-stale process already on :8000. Verified in a real browser, confirmed by the operator: the Sovereign State panel rendered every field as a real measured value or an honest 'unavailable', never a guessed default. Corroborating measurements captured from the live DOM: 10 recorded gemini routing decisions with an unmeasured privacy classification rendered tone=warn, never the pre-fix tone=ok (greenLeak=false); Isolated Executor reported configured=no with reachable=unavailable rather than claiming an unreachability it never measured; Provider Health reported '0 observed' with no never-called provider presented as healthy.",
+        "commit_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
+    "known_blockers": [],
+    "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 TruthfulMirrorAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
@@ -2082,7 +2086,7 @@
   {
     "organ_id": 49,
     "name": "Approval and Decision Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ApprovalDecisionSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2095,11 +2099,15 @@
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+    "live_evidence": [
+      {
+        "description": "Operator browser session at http://localhost:5173 (Council Runtime -> Sovereign State) against a tip-current backend started for this check, NOT the 15h-stale process already on :8000. Verified in a real browser, confirmed by the operator: the Pending Approvals section enumerated capabilities awaiting consumption read-only ('0 pending', no bearer token exposed). Corroborating measurements captured from the live DOM: 10 recorded gemini routing decisions with an unmeasured privacy classification rendered tone=warn, never the pre-fix tone=ok (greenLeak=false); Isolated Executor reported configured=no with reachable=unavailable rather than claiming an unreachability it never measured; Provider Health reported '0 observed' with no never-called provider presented as healthy.",
+        "commit_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
+    "known_blockers": [],
+    "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ApprovalDecisionSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
@@ -2182,7 +2190,7 @@
   {
     "organ_id": 51,
     "name": "Sovereign Control and Heartbeat Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "SovereignHeartbeatSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2195,11 +2203,15 @@
     "integration_tests": [
       "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)"
+    "live_evidence": [
+      {
+        "description": "Operator browser session at http://localhost:5173 (Council Runtime -> Sovereign State) against a tip-current backend started for this check, NOT the 15h-stale process already on :8000. Verified in a real browser, confirmed by the operator: Constitution & Emergency Stop reported OPERATIONAL from the live read-model surface. Corroborating measurements captured from the live DOM: 10 recorded gemini routing decisions with an unmeasured privacy classification rendered tone=warn, never the pre-fix tone=ok (greenLeak=false); Isolated Executor reported configured=no with reachable=unavailable rather than claiming an unreachability it never measured; Provider Health reported '0 observed' with no never-called provider presented as healthy.",
+        "commit_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "01f151fcba59f4b6170aab8fd28308788d345e09",
+    "known_blockers": [],
+    "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SovereignHeartbeatSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",

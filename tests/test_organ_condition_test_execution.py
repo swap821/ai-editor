@@ -248,6 +248,43 @@ def test_an_unrunnable_frontend_suite_is_unverified_not_passed() -> None:
     assert "not executed here" in failures[0][1]
 
 
+def test_a_frontend_suite_with_real_results_counts_as_proven() -> None:
+    """The regression that made organs 48/49/51 fail their own gate.
+
+    `--frontend-junit` supplied real vitest outcomes and the parser resolved
+    them, but the extension check ran BEFORE the lookup, so every frontend
+    result was discarded unread. A gate that ignores evidence it is already
+    holding is no better than one that never asked for it.
+    """
+    failures = v12._suite_outcome(
+        ["frontend/src/workbench/CouncilDashboard.sovereign.test.tsx"],
+        {
+            "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx": _outcome(
+                passed=8
+            )
+        },
+        "C7",
+        "integration_tests",
+        True,
+    )
+
+    assert failures == []
+
+
+def test_a_failing_frontend_suite_still_fails() -> None:
+    """Consuming vitest results must not make them softer than pytest ones."""
+    failures = v12._suite_outcome(
+        ["frontend/src/x.test.tsx"],
+        {"frontend/src/x.test.tsx": _outcome(passed=3, failed=1, failed_names=["a"])},
+        "C7",
+        "integration_tests",
+        True,
+    )
+
+    assert [c for c, _ in failures] == ["C7"]
+    assert "FAILED" in failures[0][1]
+
+
 def test_frontend_suites_are_unverified_when_explicitly_allowed() -> None:
     """Allowed, but only alongside a suite that actually proved something --
     see the all-unverified case below."""
