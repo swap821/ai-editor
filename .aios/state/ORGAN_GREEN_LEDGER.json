@@ -793,7 +793,7 @@
   {
     "organ_id": 20,
     "name": "Living Mirror Reaction Registry (construction)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LivingMirrorAuthority",
     "production_entrypoints": [
       "frontend/src/superbrain/lib/livingMirrorRegistry.ts"
@@ -804,11 +804,15 @@
     "integration_tests": [
       "frontend/src/superbrain/lib/aiosMirror.test.ts"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "browser-session \u2014 the Council Runtime 'Sovereign State' operator check (commit 5c64cd54ca52) covered organs 48/49/51 only. This organ's surface is frontend/src/superbrain/lib/livingMirrorRegistry.ts (the superbrain living mirror), which was NOT on screen and remains unobserved."
+    "live_evidence": [
+      {
+        "description": "Operator browser session at http://localhost:5173 (Living Mind view) against a tip-current backend on :8010, tip 14856c23e08b8b745c0d4ec4406f401d92fc05f0. The production path was genuinely connected, not mocked: the browser held GET /api/v1/mirror/stream?last_event_id=79, so LivingMirrorAuthority had consumed 79 real durable cortex-journal events via SSE through aiosMirror.ts -> dispatchLivingMirrorEvent. Operator-confirmed: the mirror stays still at idle, and the boot line reports '[UNKNOWN nodes]' rather than inventing a lattice count. Measured from the live DOM alongside: the aria-live announcement region was byte-identical across three samples spanning 10s of idle ('Control plane online.'), which is this organ's own claim -- ambient animation is absent so idle beauty cannot claim backend activity. Refusal paths are covered by 13 tests in frontend/src/superbrain/lib/livingMirrorRegistry.test.ts, including 'ignores unknown event families without mutating the read model'.",
+        "commit_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
+    "known_blockers": [],
+    "last_verified_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LivingMirrorAuthority class defined in production_entrypoints ['frontend/src/superbrain/lib/livingMirrorRegistry.ts'] (Decision A / enforce_owner_attestation)",
