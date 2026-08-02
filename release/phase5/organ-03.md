@@ -1,17 +1,18 @@
 # Phase 5 proof — Organ 3: Secret Scanner
 
-**Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `5b74ffb24b3b3820676e7f8bc6e1bc06466456e0`
-**Generated:** 2026-08-02T11:04:58+00:00
+**Status under re-read:** `yellow`
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `562a417fac91fb3404b1fc6a90232bc8721bbe02`
+**Generated:** 2026-08-02T12:10:19+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **residual**: frozen spine — section VIII controlled release required before green/live claim
+- **residual**: C4: N/A-BY-DESIGN — aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact
 
 ## Written verdict keys that are not PASS/N/A
 
-(none — written verdicts PASS/N/A)
+C9
 
 ## Notes
 
