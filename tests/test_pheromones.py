@@ -38,7 +38,9 @@ def test_authority_rejects_a_non_advisory_pheromone_adapter(
 
     deps._sync_pheromone_adapter(authority)
 
-    assert isinstance(authority.pheromone_adapter, deps.AdvisoryPheromoneAdapter)
+    from aios.application.memory.adapters import AdvisoryPheromoneAdapter
+
+    assert isinstance(authority.pheromone_adapter, AdvisoryPheromoneAdapter)
 
 
 def test_deposit_and_query(tmp_path: Path) -> None:

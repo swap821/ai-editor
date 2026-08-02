@@ -22,8 +22,14 @@ _LEGACY_TYPES = frozenset(
 # The explicit manifest makes that debt visible and fails CI when a new
 # production bypass is introduced. R11 removes entries as each seam migrates
 # behind MemoryAuthority adapters.
+#
+# `aios/application/memory/bootstrap.py` is the intentional final resting
+# place (N/A-BY-DESIGN): it is the authority-owned composition root, the one
+# place a physical store may be constructed, inside the authority's own
+# package. The API layer (`aios/api/deps.py`) constructs no store since the
+# R11 seam closure.
 _KNOWN_COMPATIBILITY_SEAMS = {
-    "aios/api/deps.py",
+    "aios/application/memory/bootstrap.py",
 }
 
 
