@@ -413,7 +413,16 @@ jobs:
           AIOS_PROFILE: production
         run: |
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          # 0777 on purpose. The container drops to uid 65534 (nobody) -- that
+          # unprivileged uid is precisely the isolation property this step
+          # exists to prove -- while this directory is created by the runner
+          # user, so at the default 0755 the container cannot write its report
+          # and pytest dies in sessionfinish with EACCES. The container's uid is
+          # the guardrail and must not move; this host-side scratch directory is
+          # ephemeral, gitignored, and holds only a JUnit XML, so it is the
+          # correct thing to relax.
           mkdir -p executor-junit
+          chmod 777 executor-junit
           # Organ 40's ONLY integration suite is this one, and it gates on
           # AIOS_EXECUTOR_INTEGRATION -- so in the twelve-condition gate's own
           # pytest run all 4 tests skip, and C7 correctly reports that nothing
