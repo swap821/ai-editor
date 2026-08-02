@@ -1,13 +1,13 @@
 # Phase 5 proof — Organ 40: Isolated Workspace and Executor (live proof)
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `14856c23e08b8b745c0d4ec4406f401d92fc05f0`
-**Generated:** 2026-08-02T15:02:51+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `3b413945d1638c80b645e2f5a4aeab642ef7b1f5`
+**Generated:** 2026-08-02T16:26:09+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: no Docker — Docker Desktop daemon unavailable on this Windows host; historical CI Docker isolation evidence retained, not tip-restamped
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 

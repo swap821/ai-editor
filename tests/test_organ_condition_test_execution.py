@@ -248,6 +248,53 @@ def test_an_unrunnable_frontend_suite_is_unverified_not_passed() -> None:
     assert "not executed here" in failures[0][1]
 
 
+def test_an_env_gated_suite_counts_when_its_real_run_is_merged(tmp_path: Path) -> None:
+    """Organ 40's only integration suite gates on AIOS_EXECUTOR_INTEGRATION, so
+    the gate's own pytest run skips all of it. The containerized run in CI now
+    emits JUnit that is merged in via --extra-junit, which is what lets C7 be
+    satisfied by the run that actually happened rather than by relaxing the
+    all-skipped rule.
+    """
+    root = Path(__file__).resolve().parents[1]
+    report = _junit(
+        tmp_path,
+        [
+            ("tests.test_executor_integration", f"test_case_{i}", "pass")
+            for i in range(4)
+        ],
+    )
+
+    merged = v12._parse_junit(report, root)
+
+    assert merged["tests/test_executor_integration.py"]["passed"] == 4
+    assert (
+        v12._suite_outcome(
+            ["tests/test_executor_integration.py"],
+            merged,
+            "C7",
+            "integration_tests",
+            False,
+        )
+        == []
+    )
+
+
+def test_an_env_gated_suite_still_fails_when_no_real_run_is_merged() -> None:
+    """The other half. Without the merged report the suite is all-skipped, and
+    an organ whose ONLY integration suite is env-gated must still fail -- the
+    fix must not become a blanket exemption for env-gated suites."""
+    failures = v12._suite_outcome(
+        ["tests/test_executor_integration.py"],
+        {"tests/test_executor_integration.py": _outcome(passed=0, skipped=4)},
+        "C7",
+        "integration_tests",
+        False,
+    )
+
+    assert [c for c, _ in failures] == ["C7"]
+    assert "proved anything" in failures[0][1]
+
+
 def test_a_frontend_suite_with_real_results_counts_as_proven() -> None:
     """The regression that made organs 48/49/51 fail their own gate.
 

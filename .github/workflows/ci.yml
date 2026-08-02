@@ -277,12 +277,14 @@ jobs:
         # report does not cover: unverified is recorded honestly, never as
         # passing. A condition still fails when NONE of its suites proved
         # anything, so this cannot become a blanket free pass.
+        #
+        # The twelve-condition gate itself now runs AFTER the executor
+        # topology, further down -- see "Verify the twelve-condition green
+        # contract". These two fail fast here, before any Docker build, which
+        # is what this step was for.
         run: |
           python scripts/build_release_manifest.py --check
           python scripts/verify_organ_contracts.py --require-sha-ancestry
-          python scripts/verify_organ_twelve_conditions.py \
-            --allow-unexecuted-frontend \
-            --frontend-junit frontend-junit/vitest-junit.xml
 
       - name: Ruff check and format gate
         run: |
@@ -411,9 +413,33 @@ jobs:
           AIOS_PROFILE: production
         run: |
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          # 0777 on purpose. The container drops to uid 65534 (nobody) -- that
+          # unprivileged uid is precisely the isolation property this step
+          # exists to prove -- while this directory is created by the runner
+          # user, so at the default 0755 the container cannot write its report
+          # and pytest dies in sessionfinish with EACCES. The container's uid is
+          # the guardrail and must not move; this host-side scratch directory is
+          # ephemeral, gitignored, and holds only a JUnit XML, so it is the
+          # correct thing to relax.
+          mkdir -p executor-junit
+          chmod 777 executor-junit
+          # Organ 40's ONLY integration suite is this one, and it gates on
+          # AIOS_EXECUTOR_INTEGRATION -- so in the twelve-condition gate's own
+          # pytest run all 4 tests skip, and C7 correctly reports that nothing
+          # was proven. Emitting JUnit from INSIDE the container and mounting
+          # it out is what lets the gate see the run that actually happened,
+          # rather than lowering the bar for an organ that genuinely passes.
+          #
+          # This is the post-restart run deliberately: it is the stronger of
+          # the two, proving isolation survives `docker compose restart`.
           docker compose run --rm --no-deps --use-aliases --build \
-            -e AIOS_EXECUTOR_INTEGRATION=1 aios \
-            python -m pytest -q -o addopts= tests/test_executor_integration.py
+            -e AIOS_EXECUTOR_INTEGRATION=1 \
+            -v "$(pwd)/executor-junit:/app/executor-junit" \
+            aios \
+            python -m pytest -q -o addopts= \
+              --junit-xml=/app/executor-junit/executor-junit.xml \
+              tests/test_executor_integration.py
+          ls -la executor-junit/
 
       - name: Report private Executor Service state after restart
         if: ${{ always() }}
@@ -425,6 +451,31 @@ jobs:
         run: |
           docker compose ps
           docker compose logs --no-color --tail=80 executor
+
+      - name: Verify the twelve-condition green contract
+        # Runs HERE, not with the manifest checks above, because it needs
+        # evidence that only exists once the executor topology has run:
+        #
+        #   --frontend-junit  real vitest outcomes (organs 48/49/51, whose
+        #                     integration suites are frontend-only)
+        #   --extra-junit     the containerized run of
+        #                     tests/test_executor_integration.py, which gates
+        #                     on AIOS_EXECUTOR_INTEGRATION. Organ 40's ONLY
+        #                     integration suite is that file, so without this
+        #                     it is all-skipped here and C7 correctly reports
+        #                     that nothing was proven.
+        #
+        # Both paths are now fail-closed: passing a report that does not exist,
+        # or one resolving no known test files, exits non-zero rather than
+        # quietly proceeding as if it had been supplied.
+        env:
+          AIOS_VERIFICATION_AUTHORITY_KEY: "ci-verification-authority-key-32-bytes-long!"
+          AIOS_PROMOTION_AUTHORITY_KEY: "ci-promotion-authority-key-32-bytes-long!!"
+        run: |
+          python scripts/verify_organ_twelve_conditions.py \
+            --allow-unexecuted-frontend \
+            --frontend-junit frontend-junit/vitest-junit.xml \
+            --extra-junit executor-junit/executor-junit.xml
 
       - name: Run strict GAGOS v1 runtime proof matrix
         env:
