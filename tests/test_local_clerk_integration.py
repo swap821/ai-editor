@@ -58,22 +58,34 @@ _MODEL = os.getenv("AIOS_OLLAMA_MODEL", "qwen2.5:0.5b")
 
 @pytest.fixture(scope="module")
 def live_client() -> OllamaClient:
+    """A client proven to be talking to a real, populated daemon.
+
+    `list_models()` NEVER raises -- discovery collapses to
+    ``{"available": False, "models": []}`` -- and that dict is TRUTHY. So a
+    bare `assert client.list_models()` passes with the daemon down, which is
+    precisely how a "live" suite ends up proving nothing. Both fields are
+    therefore asserted explicitly.
+    """
     client = OllamaClient(model=_MODEL)
-    try:
-        models = client.list_models()
-    except Exception as exc:  # noqa: BLE001 - an unreachable daemon is a real failure here
-        pytest.fail(f"live Ollama unreachable at {client.host}: {exc}")
-    assert models, f"live Ollama at {client.host} has no models installed"
+    discovery = client.list_models()
+
+    assert discovery.get("available") is True, (
+        f"live Ollama did not answer at {client.host}: {discovery}"
+    )
+    assert discovery.get("models"), (
+        f"live Ollama at {client.host} answered but has no models installed"
+    )
     return client
 
 
 def test_the_local_runtime_is_actually_reachable(live_client: OllamaClient) -> None:
     """Organ 35's floor. Everything below is meaningless if this is a fixture."""
-    models = live_client.list_models()
+    discovery = live_client.list_models()
 
-    assert models
-    assert any(_MODEL.split(":")[0] in str(m) for m in models), (
-        f"expected {_MODEL} among live models, got {models}"
+    assert discovery["available"] is True
+    installed = discovery["models"]
+    assert any(name.startswith(_MODEL.split(":")[0]) for name in installed), (
+        f"expected {_MODEL} among live models, got {installed}"
     )
 
 
