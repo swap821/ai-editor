@@ -168,10 +168,22 @@ jobs:
         # Phase 1 ordinary-CI tip gate: --require-sha-ancestry. Exact tip
         # equality (--strict-release) remains the release-tag / workflow_dispatch
         # job below; a commit cannot truthfully self-stamp its own SHA.
+        #
+        # C6/C7/C9 now EXECUTE the tests each green organ cites, instead of
+        # passing when the file merely exists on disk (and, for C9, when
+        # `known_blockers` merely happened to be empty -- the contract's own
+        # forbidden anti-pattern). That costs this job real minutes; a release
+        # gate that certifies suites it never ran is not worth its runtime.
+        #
+        # --allow-unexecuted-frontend: this job is Python-only, and organs 30
+        # and 50 cite vitest suites. Those suites DID pass -- `frontend-tests`
+        # is a required `needs:` dependency of this job, on this same commit --
+        # they just cannot be re-run here. The flag records that gap honestly
+        # rather than reporting them as verified.
         run: |
           python scripts/build_release_manifest.py --check
           python scripts/verify_organ_contracts.py --require-sha-ancestry
-          python scripts/verify_organ_twelve_conditions.py
+          python scripts/verify_organ_twelve_conditions.py --allow-unexecuted-frontend
 
       - name: Ruff check and format gate
         run: |
