@@ -1,18 +1,17 @@
 # Phase 5 proof — Organ 5: Prompt Injection Shield
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `5c64cd54ca528121935c010f151ea0e2219ce95c`
-**Generated:** 2026-08-02T10:02:56+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `5b74ffb24b3b3820676e7f8bc6e1bc06466456e0`
+**Generated:** 2026-08-02T11:04:58+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: frozen spine — section VIII controlled release required before green/live claim
-- **residual**: C3: N/A-BY-DESIGN — aios/security/injection_shield.py::InjectionShieldAuthority
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C9
+(none — written verdicts PASS/N/A)
 
 ## Notes
 
