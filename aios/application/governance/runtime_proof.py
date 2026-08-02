@@ -147,8 +147,14 @@ def _proof(name: str, callback, *, proof_level: str = "fixture") -> RuntimeProof
         return RuntimeProof(
             name=name,
             passed=False,
+            # A probe that raised never reached the thing it claims to prove.
+            # Stamping a FAILED probe "live" would assert it touched real
+            # infrastructure while doing precisely the opposite -- and this is
+            # the common case off CI, where no executor container exists.
+            # "unavailable" matches the vocabulary the rest of the system
+            # already uses for "could not tell", as opposed to "measured".
+            proof_level="unavailable" if proof_level == "live" else proof_level,
             evidence=f"probe failed: {type(exc).__name__}: {str(exc)[:240]}",
-            proof_level=proof_level,
         )
     return RuntimeProof(
         name=name,
@@ -185,12 +191,29 @@ def run_runtime_proofs(root: str | Path | None = None) -> RuntimeProofReport:
             "mission_lifecycle", lambda: _probe_mission(scratch)
         )
 
-        executor = _proof("isolated_executor", lambda: _probe_executor(scratch))
+        # The only two proofs in this matrix that leave the process. Everything
+        # else exercises real production classes against real SQLite, which is
+        # genuine but in-process -- calling that "live" too would take the
+        # count from 0/16 to 16/16 overnight and hollow the distinction out on
+        # the day it was introduced.
+        #
+        # This one earns it: a real StructuredExecutorClient makes an HTTP call
+        # to the executor SERVICE, which spawns a real container, and the job
+        # inside asserts uid, network isolation and escape containment. Off CI
+        # there is no such service, so the probe raises and `_proof` degrades
+        # the level to "unavailable" rather than claiming a live run happened.
+        executor = _proof(
+            "isolated_executor", lambda: _probe_executor(scratch), proof_level="live"
+        )
         results["isolated_executor"] = executor
         results["executor_runtime_available"] = RuntimeProof(
             name="executor_runtime_available",
             passed=executor.passed,
             evidence=executor.evidence,
+            # Mirrored, never hardcoded: this proof is derived entirely from
+            # the one above, so it must not claim a stronger level than the
+            # probe it is derived from actually achieved.
+            proof_level=executor.proof_level,
         )
 
         staging = _proof(
