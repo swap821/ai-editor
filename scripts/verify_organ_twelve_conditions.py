@@ -487,6 +487,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Vitest JUnit XML, so frontend-referenced organs can be verified too.",
     )
     parser.add_argument(
+        "--extra-junit",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="PATH",
+        help=(
+            "Additional JUnit XML to merge, repeatable. For suites this gate's "
+            "own pytest run cannot execute -- notably "
+            "tests/test_executor_integration.py, which gates on "
+            "AIOS_EXECUTOR_INTEGRATION and only runs inside the executor "
+            "container. Without it those suites are all-skipped here, and an "
+            "organ whose ONLY integration suite is env-gated (organ 40) can "
+            "never satisfy C7."
+        ),
+    )
+    parser.add_argument(
         "--allow-unexecuted-frontend",
         action="store_true",
         help=(
@@ -526,8 +542,27 @@ def main(argv: list[str] | None = None) -> int:
             results = _run_pytest(
                 sorted(referenced), REPO_ROOT, PHASE5_DIR / "junit-organ-tests.xml"
             )
-        if args.frontend_junit and args.frontend_junit.exists():
-            results.update(_parse_junit(args.frontend_junit, REPO_ROOT))
+        # A supplied-but-missing report is a hard failure, not a shrug. The
+        # previous `and .exists()` meant a failed artifact download silently
+        # produced a gate run with no frontend evidence -- while
+        # `frontend_ok` stayed True because the FLAG was passed, so those
+        # suites were waved through as allowed-unverified. That is the same
+        # "verification passes while the thing it verifies is absent" shape
+        # this gate exists to stop.
+        for extra in [args.frontend_junit, *args.extra_junit]:
+            if extra is None:
+                continue
+            if not extra.exists():
+                raise TestExecutionUnavailable(
+                    f"JUnit report was passed but does not exist: {extra}"
+                )
+            merged = _parse_junit(extra, REPO_ROOT)
+            if not merged:
+                raise TestExecutionUnavailable(
+                    f"JUnit report resolved no known test files: {extra}"
+                )
+            results.update(merged)
+            print(f"merged {len(merged)} file result(s) from {extra}")
     except TestExecutionUnavailable as exc:
         # Fail closed. An unrunnable suite must never read as a passing one.
         print(f"C6/C7/C9 cannot be verified: {exc}", file=sys.stderr)

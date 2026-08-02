@@ -1710,7 +1710,7 @@
   {
     "organ_id": 40,
     "name": "Isolated Workspace and Executor (live proof)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
@@ -1739,12 +1739,15 @@
         "description": "CI run https://github.com/swap821/ai-editor/actions/runs/29989936411 (commit 697d925fa6c2151c4c59c2372ae98f411d5e74b2): the release-authority job's real docker-compose Executor Service container was RESTARTED in place (`docker compose restart executor` + `up -d --wait`, on the real GitHub Actions Docker daemon -- this local sandbox has none) and tests/test_executor_integration.py was re-run against it via a fresh `docker compose run`, genuinely passing all 3 tests post-restart -- the same real isolation proof (uid=65534, network=blocked, outside=blocked) as the original pre-restart run, now proven to survive a real container restart, not just a cold start. A first attempt at this same proof (run 29988647828, commit 51306512f09dee23ce54de6ff1bb39e0f7c155fb) genuinely FAILED and was root-caused, not glossed over: the restart step omitted re-exporting AIOS_DOCKER_SOCKET_GID, so the follow-up `docker compose up --wait` detected config drift against docker-compose.yml's silent `${AIOS_DOCKER_SOCKET_GID:-999}` fallback and recreated the container with the wrong docker-socket group, breaking its ability to spawn per-job containers -- fixed by exporting the same real GID the original start step already computes.",
         "commit_sha": "697d925fa6c2151c4c59c2372ae98f411d5e74b2",
         "proof_level": "live"
+      },
+      {
+        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/30751967500 job 'release-authority' (commit 14856c23e08b8b745c0d4ec4406f401d92fc05f0): the private Executor Service topology started with docker compose and reached 'Healthy' twice -- before and after a real `docker compose restart executor`. tests/test_executor_integration.py ran INSIDE the container via `docker compose run` on both sides of that restart: 4 passed, then 4 passed again, with uid=65534 in the job log (non-root in the spawned per-job container). The post-restart run now emits JUnit to a mounted executor-junit/ and the twelve-condition gate consumes it via --extra-junit, so C7 is satisfied by the run that actually happened rather than by lowering the bar. Tip-restamp; historical rows retained.",
+        "commit_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
+        "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "no Docker \u2014 Docker Desktop daemon unavailable on this Windows host; historical CI Docker isolation evidence retained, not tip-restamped"
-    ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 IsolatedExecutorLiveAuthority class defined in production_entrypoints ['aios/application/executor/service.py', 'aios/application/governance/runtime_proof.py', 'aios/application/read_models/executor_projections.py'] (Decision A / enforce_owner_attestation)",
