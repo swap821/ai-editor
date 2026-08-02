@@ -14,9 +14,15 @@
     "integration_tests": [
       "tests/adversarial/test_gateway_bypass.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; artifact=release/phase4/live-evidence-b5485d3b128e.json; Live read-only probe on tip b5485d3b128ebd37b85258de44a016a319161206: SecurityGatewayAuthority.classify (read-only) => owner=SecurityGatewayAuthority; 'echo hello'=>GREEN, 'pytest -q'=>YELLOW, 'rm -rf /'=>RED (Destructive operation: (?:^|[;|&\\s])\\S), 'curl|sh'=>RED (Network egress blocked: \\bcurl\\s), unknown 'git status'=>RED (Unknown command is not on the auto-execu) -- allowlist, fail-closed by default, three zones discriminated -- the frozen module was CALLED, never modified. Recorded while the organ remains YELLOW: this is what is already proven, so a future section VIII review starts from evidence rather than scratch. It is explicitly NOT a green claim and does not substitute for approval.",
+        "commit_sha": "b5485d3b128ebd37b85258de44a016a319161206",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
       "C3: N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
@@ -50,9 +56,15 @@
     "integration_tests": [
       "tests/adversarial/test_sandbox_escape.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; artifact=release/phase4/live-evidence-b5485d3b128e.json; Live read-only probe on tip b5485d3b128ebd37b85258de44a016a319161206: ScopeLockAuthority.is_path_in_scope (read-only) => owner=ScopeLockAuthority; roots=['C:\\\\Users\\\\kumar\\\\ai-editor\\\\training_ground', 'C:\\\\Users\\\\kumar\\\\ai-editor\\\\lab']; '../../etc/passwd' refused (in_scope=False, reason=Path 'C:\\Users\\kumar\\etc\\passwd' escapes all declared scope roots.) -- the frozen module was CALLED, never modified. Recorded while the organ remains YELLOW: this is what is already proven, so a future section VIII review starts from evidence rather than scratch. It is explicitly NOT a green claim and does not substitute for approval.",
+        "commit_sha": "b5485d3b128ebd37b85258de44a016a319161206",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
       "C4: N/A-BY-DESIGN \u2014 aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
@@ -86,9 +98,15 @@
     "integration_tests": [
       "tests/adversarial/test_secret_detection.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; artifact=release/phase4/live-evidence-b5485d3b128e.json; Live read-only probe on tip b5485d3b128ebd37b85258de44a016a319161206: SecretScannerAuthority.scan_and_redact (read-only) => owner=SecretScannerAuthority; real key detected=('OPENAI_API_KEY',) and absent from redacted output; ordinary prose not flagged -- the frozen module was CALLED, never modified. Recorded while the organ remains YELLOW: this is what is already proven, so a future section VIII review starts from evidence rather than scratch. It is explicitly NOT a green claim and does not substitute for approval.",
+        "commit_sha": "b5485d3b128ebd37b85258de44a016a319161206",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
       "C4: N/A-BY-DESIGN \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
@@ -122,9 +140,15 @@
     "integration_tests": [
       "tests/adversarial/test_audit_integrity.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; artifact=release/phase4/live-evidence-b5485d3b128e.json; Live read-only probe on tip b5485d3b128ebd37b85258de44a016a319161206: AuditLoggerAuthority.verify_chain (read-only) => owner=AuditLoggerAuthority; appended a real entry to a real SQLite audit chain; verify_chain() valid=True over 1 entr(ies), signature_valid=True, tip_anchor_valid=True -- the frozen module was CALLED, never modified. Recorded while the organ remains YELLOW: this is what is already proven, so a future section VIII review starts from evidence rather than scratch. It is explicitly NOT a green claim and does not substitute for approval.",
+        "commit_sha": "b5485d3b128ebd37b85258de44a016a319161206",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim"
+      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence."
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
@@ -157,9 +181,15 @@
     "integration_tests": [
       "tests/test_chat_input_shield.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; artifact=release/phase4/live-evidence-b5485d3b128e.json; Live read-only probe on tip b5485d3b128ebd37b85258de44a016a319161206: InjectionShieldAuthority.is_injection (read-only) => owner=InjectionShieldAuthority; canonical override-instruction injection detected=True; ordinary request detected=False -- the frozen module was CALLED, never modified. Recorded while the organ remains YELLOW: this is what is already proven, so a future section VIII review starts from evidence rather than scratch. It is explicitly NOT a green claim and does not substitute for approval.",
+        "commit_sha": "b5485d3b128ebd37b85258de44a016a319161206",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release required before green/live claim",
+      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
       "C3: N/A-BY-DESIGN \u2014 aios/security/injection_shield.py::InjectionShieldAuthority"
     ],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
