@@ -168,6 +168,22 @@ jobs:
         # this makes the floors an actual CI gate, not an honor-system dial.
         run: npm run test:coverage
 
+      - name: Emit a JUnit report for the organ green-contract gate
+        # Organs 48/49/51 cite ONLY frontend integration suites. The
+        # twelve-condition gate runs in the Python-only release-authority job,
+        # so without this their C7 has nothing it can verify -- and reporting
+        # an unrunnable suite as passing is the fabrication that gate exists to
+        # stop. Publishing the real vitest outcomes lets those suites count as
+        # what they are: executed and passed, on this same commit.
+        run: npx vitest run --reporter=junit --outputFile=vitest-junit.xml
+
+      - name: Upload frontend test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-junit
+          path: frontend/vitest-junit.xml
+          retention-days: 7
+
       - name: Production build
         run: npm run build
 
@@ -225,6 +241,15 @@ jobs:
             tests/test_deployment_hardening.py \
             tests/test_organ_release_conformance.py
 
+      - name: Download frontend test results
+        # Produced by frontend-tests, which is a required `needs:` dependency,
+        # so this is the same commit's real vitest outcomes -- not a stale or
+        # unrelated run.
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-junit
+          path: frontend-junit
+
       - name: Verify organ ledger and release manifest contracts
         # PR 0 (green-contract enforcement): fails fast, before any Docker
         # build below, the moment a green claim or the release manifest
@@ -243,15 +268,21 @@ jobs:
         # forbidden anti-pattern). That costs this job real minutes; a release
         # gate that certifies suites it never ran is not worth its runtime.
         #
-        # --allow-unexecuted-frontend: this job is Python-only, and organs 30
-        # and 50 cite vitest suites. Those suites DID pass -- `frontend-tests`
-        # is a required `needs:` dependency of this job, on this same commit --
-        # they just cannot be re-run here. The flag records that gap honestly
-        # rather than reporting them as verified.
+        # --frontend-junit: the REAL vitest outcomes from the frontend-tests
+        # job on this same commit, downloaded above. Frontend suites therefore
+        # count as executed-and-passed rather than being waved through, which
+        # matters for organs 48/49/51 whose integration suites are frontend-only.
+        #
+        # --allow-unexecuted-frontend stays as the fallback for any suite the
+        # report does not cover: unverified is recorded honestly, never as
+        # passing. A condition still fails when NONE of its suites proved
+        # anything, so this cannot become a blanket free pass.
         run: |
           python scripts/build_release_manifest.py --check
           python scripts/verify_organ_contracts.py --require-sha-ancestry
-          python scripts/verify_organ_twelve_conditions.py --allow-unexecuted-frontend
+          python scripts/verify_organ_twelve_conditions.py \
+            --allow-unexecuted-frontend \
+            --frontend-junit frontend-junit/vitest-junit.xml
 
       - name: Ruff check and format gate
         run: |

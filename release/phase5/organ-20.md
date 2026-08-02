@@ -2,12 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `4bee2e987b56d208d61e882fc4abb3d5cf0195ef`
-**Generated:** 2026-08-01T17:01:32+00:00
+**Evaluated tip:** `5c64cd54ca528121935c010f151ea0e2219ce95c`
+**Generated:** 2026-08-02T10:02:58+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)
+- **residual**: browser-session — the Council Runtime 'Sovereign State' operator check (commit 5c64cd54ca52) covered organs 48/49/51 only. This organ's surface is frontend/src/superbrain/lib/livingMirrorRegistry.ts (the superbrain living mirror), which was NOT on screen and remains unobserved.
 
 ## Written verdict keys that are not PASS/N/A
 
