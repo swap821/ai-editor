@@ -2,12 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `562a417fac91fb3404b1fc6a90232bc8721bbe02`
-**Generated:** 2026-08-02T12:10:19+00:00
+**Evaluated tip:** `14856c23e08b8b745c0d4ec4406f401d92fc05f0`
+**Generated:** 2026-08-02T15:02:46+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: frozen spine — section VIII controlled release required before green/live claim
+- **residual**: frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.
 - **residual**: C4: N/A-BY-DESIGN — aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope
 
 ## Written verdict keys that are not PASS/N/A
