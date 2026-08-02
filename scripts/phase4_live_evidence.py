@@ -1369,8 +1369,16 @@ def main(argv: list[str] | None = None) -> int:
         }
         out_path = OUT_DIR / f"live-evidence-{tip[:12]}.json"
         payload = json.dumps(report, indent=2) + "\n"
-        out_path.write_text(payload, encoding="utf-8")
-        (OUT_DIR / "live-evidence-latest.json").write_text(payload, encoding="utf-8")
+        # newline="\n" is required, not cosmetic. `.gitattributes` pins
+        # `release/**/*.json text eol=lf`, and build_release_manifest.py
+        # sha256s the bytes on disk. Writing with the platform default gives
+        # CRLF on Windows, so the manifest records a hash of bytes git will
+        # never store -- and every Linux/macOS checkout then reports the pin as
+        # stale. That is the exact cross-platform drift b5ef5928 fixed once.
+        out_path.write_text(payload, encoding="utf-8", newline="\n")
+        (OUT_DIR / "live-evidence-latest.json").write_text(
+            payload, encoding="utf-8", newline="\n"
+        )
         print(
             json.dumps(
                 {
