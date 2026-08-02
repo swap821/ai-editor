@@ -24,8 +24,14 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "verify_organ_twelve_conditions.py"
-_spec = importlib.util.spec_from_file_location("verify_organ_twelve_conditions", _SCRIPT)
+_SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "scripts"
+    / "verify_organ_twelve_conditions.py"
+)
+_spec = importlib.util.spec_from_file_location(
+    "verify_organ_twelve_conditions", _SCRIPT
+)
 v12 = importlib.util.module_from_spec(_spec)
 assert _spec.loader is not None
 _spec.loader.exec_module(v12)
@@ -44,7 +50,9 @@ def _junit(tmp_path: Path, cases: list[tuple[str, str, str]]) -> Path:
         body.append(
             f"<testcase classname='{classname}' name='{name}' time='0.01'>{inner}</testcase>"
         )
-    xml = f"<testsuites><testsuite name='pytest'>{''.join(body)}</testsuite></testsuites>"
+    xml = (
+        f"<testsuites><testsuite name='pytest'>{''.join(body)}</testsuite></testsuites>"
+    )
     path = tmp_path / "junit.xml"
     path.write_text(xml, encoding="utf-8")
     return path
@@ -101,7 +109,9 @@ def test_failures_and_errors_both_count_as_failed(tmp_path: Path) -> None:
         ],
     )
 
-    parsed = v12._parse_junit(report, root)["tests/test_organ_condition_test_execution.py"]
+    parsed = v12._parse_junit(report, root)[
+        "tests/test_organ_condition_test_execution.py"
+    ]
 
     assert parsed["passed"] == 1
     assert parsed["failed"] == 2, "an <error> must count as failed, not as passed"
@@ -113,7 +123,9 @@ def test_failure_names_are_reported_for_diagnosis(tmp_path: Path) -> None:
     cls = "tests.test_organ_condition_test_execution"
     report = _junit(tmp_path, [(cls, "test_refuses_bad_input", "fail")])
 
-    parsed = v12._parse_junit(report, root)["tests/test_organ_condition_test_execution.py"]
+    parsed = v12._parse_junit(report, root)[
+        "tests/test_organ_condition_test_execution.py"
+    ]
 
     assert "test_refuses_bad_input" in parsed["failed_names"]
 
@@ -139,7 +151,9 @@ def test_failure_path_names_are_recognised(tmp_path: Path, name: str) -> None:
     cls = "tests.test_organ_condition_test_execution"
     parsed = v12._parse_junit(_junit(tmp_path, [(cls, name, "pass")]), root)
 
-    assert parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 1
+    assert (
+        parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 1
+    )
 
 
 def test_a_plain_happy_path_name_is_not_counted_as_adversarial(tmp_path: Path) -> None:
@@ -147,9 +161,13 @@ def test_a_plain_happy_path_name_is_not_counted_as_adversarial(tmp_path: Path) -
     would mean nothing again."""
     root = Path(__file__).resolve().parents[1]
     cls = "tests.test_organ_condition_test_execution"
-    parsed = v12._parse_junit(_junit(tmp_path, [(cls, "test_creates_a_record", "pass")]), root)
+    parsed = v12._parse_junit(
+        _junit(tmp_path, [(cls, "test_creates_a_record", "pass")]), root
+    )
 
-    assert parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 0
+    assert (
+        parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 0
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -196,11 +214,19 @@ def test_a_suite_that_never_ran_fails_rather_than_passing_silently() -> None:
     assert "did not run" in failures[0][1]
 
 
-def test_a_suite_with_no_passing_tests_fails() -> None:
-    """A file that exists and collects nothing is exactly the hole the old
-    on-disk check left open."""
+def test_a_suite_that_collects_nothing_at_all_fails() -> None:
+    """A file that exists, runs, and yields no testcase whatsoever is exactly
+    the hole the old on-disk check left open.
+
+    Distinct from the all-SKIPPED case below: skipping is a deliberate
+    "does not apply here" signal, while collecting nothing is an empty claim.
+    """
     failures = v12._suite_outcome(
-        ["tests/a.py"], {"tests/a.py": _outcome(passed=0, skipped=3)}, "C6", "focused_tests", False
+        ["tests/a.py"],
+        {"tests/a.py": _outcome(passed=0, skipped=0)},
+        "C6",
+        "focused_tests",
+        False,
     )
     assert [c for c, _ in failures] == ["C6"]
     assert "collected no passing tests" in failures[0][1]
@@ -222,8 +248,121 @@ def test_an_unrunnable_frontend_suite_is_unverified_not_passed() -> None:
     assert "not executed here" in failures[0][1]
 
 
-def test_frontend_suites_pass_only_when_explicitly_allowed_or_supplied() -> None:
+def test_frontend_suites_are_unverified_when_explicitly_allowed() -> None:
+    """Allowed, but only alongside a suite that actually proved something --
+    see the all-unverified case below."""
+    failures = v12._suite_outcome(
+        ["frontend/src/x.test.tsx", "tests/a.py"],
+        {"tests/a.py": _outcome(passed=3)},
+        "C6",
+        "focused_tests",
+        True,
+    )
+    assert failures == []
+
+
+# --------------------------------------------------------------------------- #
+# Env-gated suites: unverified, not failed -- and not a free pass either
+# --------------------------------------------------------------------------- #
+
+
+def test_an_all_skipped_suite_does_not_fail_when_a_sibling_proved_something() -> None:
+    """`tests/test_executor_integration.py` gates itself on an env var and
+    runs later in the same CI job inside the container. Failing organ 52 here
+    would report a passing organ as broken -- and push whoever hits it toward
+    weakening the gate."""
+    failures = v12._suite_outcome(
+        ["tests/real.py", "tests/gated.py"],
+        {
+            "tests/real.py": _outcome(passed=7),
+            "tests/gated.py": _outcome(passed=0, skipped=4),
+        },
+        "C7",
+        "integration_tests",
+        False,
+    )
+    assert failures == []
+
+
+def test_an_organ_whose_suites_all_skip_still_fails() -> None:
+    """ "Nothing was proven" must never read as "verified". Without this, an
+    organ could satisfy the condition entirely with env-gated suites that
+    never run anywhere."""
+    failures = v12._suite_outcome(
+        ["tests/gated.py"],
+        {"tests/gated.py": _outcome(passed=0, skipped=4)},
+        "C7",
+        "integration_tests",
+        False,
+    )
+    assert [c for c, _ in failures] == ["C7"]
+    assert "proved anything" in failures[0][1]
+
+
+def test_a_real_failure_still_fails_even_beside_a_passing_sibling() -> None:
+    """The skip allowance must never soften an actual red test."""
+    failures = v12._suite_outcome(
+        ["tests/real.py", "tests/broken.py"],
+        {
+            "tests/real.py": _outcome(passed=7),
+            "tests/broken.py": _outcome(passed=1, failed=1, failed_names=["test_x"]),
+        },
+        "C7",
+        "integration_tests",
+        False,
+    )
+    assert [c for c, _ in failures] == ["C7"]
+    assert "FAILED" in failures[0][1]
+
+
+# --------------------------------------------------------------------------- #
+# C9 vocabulary — widened after the first real run misjudged organ 11
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "test_no_handler_raises",
+        "test_chat_without_transcript_emits_error",
+        "test_unregistered_mode_falls_back_to_conversation",
+        "test_chat_omits_facts_block_when_dormant",
+    ],
+)
+def test_organ_11_style_names_are_recognised_as_failure_paths(
+    tmp_path: Path, name: str
+) -> None:
+    """These are organ 11's real test names. The first CI run reported it as
+    having no failure-path coverage at all, which was this vocabulary's gap,
+    not the organ's -- `_not_` does not match `_no_`, and raise/error were
+    missing entirely."""
+    root = Path(__file__).resolve().parents[1]
+    cls = "tests.test_organ_condition_test_execution"
+    parsed = v12._parse_junit(_junit(tmp_path, [(cls, name, "pass")]), root)
+
     assert (
-        v12._suite_outcome(["frontend/src/x.test.tsx"], {}, "C6", "focused_tests", True)
-        == []
+        parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 1
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "test_classify_mode",
+        "test_register_and_coordinate_conversation",
+        "test_turn_context_is_frozen_and_has_metadata",
+    ],
+)
+def test_widening_did_not_make_every_name_adversarial(
+    tmp_path: Path, name: str
+) -> None:
+    """The widened vocabulary matches 40.1% of the corpus, up from 31.3%. If it
+    matched everything, C9 would silently stop meaning anything -- which is the
+    failure mode this whole change exists to remove."""
+    root = Path(__file__).resolve().parents[1]
+    cls = "tests.test_organ_condition_test_execution"
+    parsed = v12._parse_junit(_junit(tmp_path, [(cls, name, "pass")]), root)
+
+    assert (
+        parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 0
     )

@@ -66,7 +66,17 @@ _ADVERSARIAL_NAME = re.compile(
     r"refus|reject|denie|denied|blocked|invalid|tamper|unavailable|expired"
     r"|revoked|revoke|bypass|escape|spoof|unauthor|forbidden|mismatch|stale"
     r"|never|cannot|_not_|fails|failure|refused|malformed|corrupt|replay"
-    r"|out_of_order|missing|empty|too_long|oversized|conflict|409|403|422",
+    r"|out_of_order|missing|empty|too_long|oversized|conflict|409|403|422"
+    # Added after the first real CI run, which flagged organ 11 as having NO
+    # failure-path test while its suites contained `test_no_handler_raises`,
+    # `test_chat_without_transcript_emits_error` and
+    # `test_unregistered_mode_falls_back_to_conversation`. That was a gap in
+    # THIS vocabulary, not in the organ: `_not_` does not match `_no_`, and
+    # raise/error were simply absent. Widening moves corpus coverage from
+    # 31.3% to 40.1% of test names -- still discriminating, so C9 keeps
+    # meaning something rather than matching everything.
+    r"|raise|error|without|unregistered|omit|fallback|falls_back|_no_"
+    r"|refuse|survives|detect",
     re.I,
 )
 
@@ -195,8 +205,24 @@ def _failing_conditions_from_verdicts(verdicts: dict[str, str]) -> list[str]:
 def _suite_outcome(
     paths, results: dict[str, dict], condition: str, label: str, frontend_ok: bool
 ) -> list[tuple[str, str]]:
-    """Require every listed test file to have actually run and passed."""
+    """Require this organ's suites to have actually run and passed.
+
+    A real test FAILURE always fails the condition. Beyond that the rule is
+    "at least one suite genuinely proved something, and nothing broke":
+
+    * A suite that only SKIPPED is unverified here, not failed. Skipping is a
+      deliberate declaration that the suite does not apply in this context --
+      `tests/test_executor_integration.py` gates itself on
+      AIOS_EXECUTOR_INTEGRATION and runs later in this same CI job, inside the
+      container. Failing it here would report a passing organ as broken and
+      push whoever hits it toward weakening the gate.
+    * An organ whose suites ALL end up unverified still fails: nothing was
+      proven, and "nothing was proven" must never read as "verified".
+    """
     failures: list[tuple[str, str]] = []
+    unverified: list[str] = []
+    proven = 0
+
     if not paths:
         return [(condition, f"no {label} listed")]
 
@@ -205,7 +231,9 @@ def _suite_outcome(
             # Frontend suites need vitest; the release-authority job is
             # Python-only. Unexecuted is reported as unverified, never as
             # passing -- fail-closed unless the operator consciously allows it.
-            if not frontend_ok:
+            if frontend_ok:
+                unverified.append(f"{path} (vitest, not runnable here)")
+            else:
                 failures.append(
                     (
                         condition,
@@ -226,9 +254,24 @@ def _suite_outcome(
             )
             continue
         if outcome["passed"] == 0:
-            # A file that exists, runs, and asserts nothing is exactly the
-            # hole the old existence check left open.
-            failures.append((condition, f"{label} collected no passing tests: {path}"))
+            if outcome["skipped"]:
+                unverified.append(f"{path} (all {outcome['skipped']} skipped)")
+            else:
+                # A file that exists, runs, and asserts nothing is exactly the
+                # hole the old existence check left open.
+                failures.append(
+                    (condition, f"{label} collected no passing tests: {path}")
+                )
+            continue
+        proven += 1
+
+    if not failures and proven == 0:
+        failures.append(
+            (
+                condition,
+                f"no {label} proved anything here (unverified: {', '.join(unverified)})",
+            )
+        )
     return failures
 
 
