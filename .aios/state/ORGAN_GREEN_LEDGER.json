@@ -1423,8 +1423,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner",
-      "C4: N/A-BY-DESIGN \u2014 passport fields are not a journal; aios/security/audit_logger.py::AuditLoggerAuthority and aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority own the integrity chain"
+      "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -1432,13 +1431,13 @@
       "C1": "PASS \u2014 ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
       "C3": "PASS \u2014 LocalWorkforceRegistry SQLite persists admission/role/qualification/passport fields across restart (passport route projects same digest after reopen)",
-      "C4": "PASS-PARTIAL \u2014 passport digest projection from durable registry fields; dedicated SQL-tamper suite not claimed equal to organ 38",
+      "C4": "N/A-BY-DESIGN \u2014 passport fields are not a journal; aios/security/audit_logger.py::AuditLoggerAuthority and aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority own the integrity chain. Passport digest projection from durable registry fields; dedicated SQL-tamper suite not claimed equal to organ 38.",
       "C5": "PASS \u2014 unregistered models return None rather than a fabricated passport",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_local_workforce_api.py', 'tests/test_runtime_intelligence_gateway.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort.', 'no Ollama \u2014 live local-model / red-team evidence needs live Ollama in CI or self-hosted runner']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthor",
+      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority",
       "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
       "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
     }
@@ -1491,7 +1490,7 @@
   {
     "organ_id": 35,
     "name": "Local Clerk Runtime",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LocalClerkRuntimeAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/contracts.py"
@@ -1501,28 +1500,32 @@
       "tests/domain/test_local_workforce_qualifier.py"
     ],
     "integration_tests": [
-      "tests/domain/test_local_workforce_qualifier.py"
+      "tests/domain/test_local_workforce_qualifier.py",
+      "tests/test_local_clerk_integration.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "no Ollama \u2014 live local clerk runtime evidence needs live Ollama",
-      "C4: N/A-BY-DESIGN \u2014 runtime admission is not a journal; aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority"
+    "live_evidence": [
+      {
+        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/30775008822 job 'local-clerk-live' (commit 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a): a real Ollama daemon started in CI ('ollama ready after 2s'), qwen2.5:0.5b was pulled (id a8b0c5157701, 397 MB) and tests/test_local_clerk_integration.py ran against it -- 6 passed, 0 skipped, in 55.65s. For organ 35 the live verdict is fed to the real dispatch_clerical_job: test_the_dispatcher_honours_the_live_verdict asserts the routing decision follows the live qualification result, and test_deterministic_code_still_wins_over_a_live_model asserts deterministic routing is not displaced by a live model. The suite cannot pass vacuously: its module fixture asserts list_models() returns available=True AND a non-empty model list, because that call never raises and returns a TRUTHY {'available': False, 'models': []} when the daemon is down -- a bare truthiness check would have 'proved' this with no Ollama at all. Reproduce: AIOS_OLLAMA_INTEGRATION=1 python -m pytest -rs tests/test_local_clerk_integration.py",
+        "commit_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalClerkRuntimeAuthority class defined in production_entrypoints ['aios/domain/local_workforce/contracts.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/domain/test_local_workforce_qualifier.py'] (Phase 2 caller / anti-passthrough suite)",
       "C3": "PASS \u2014 admission decisions read durable LocalWorkforceRegistry",
-      "C4": "PASS-PARTIAL \u2014 registry digests; not a separate chain",
+      "C4": "N/A-BY-DESIGN \u2014 runtime admission is not a journal; aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority. Registry digests only; not a separate chain.",
       "C5": "PASS \u2014 unqualified/unapproved models escalate/refuse rather than fabricate pass",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_local_clerk_dispatcher.py', 'tests/domain/test_local_workforce_qualifier.py']",
-      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/domain/test_local_workforce_qualifier.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/domain/test_local_workforce_qualifier.py in the gate's own run, and tests/test_local_clerk_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5: PASS. Outside-machine residual: live Ollama runtime.', 'no Ollama \u2014 live local clerk runtime evidence needs live Ollama']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (reads durable registry). C4: N/A-BY-DESIGN \u2014 runtime admission over registry aios/domain/local_workforce/contracts.py::LocalClerkRuntimeAuthority; not a journal owner. C5",
-      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
-      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+      "C9": "PASS \u2014 no residual known_blockers. The live suite carries the failure-path direction explicitly: test_deterministic_code_still_wins_over_a_live_model asserts a live model does NOT displace deterministic routing.",
+      "C10": "PASS \u2014 proof_level=live evidence from the local-clerk-live job at 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a (real daemon, real model, 6 passed / 0 skipped).",
+      "C11": "PASS \u2014 last_verified_sha 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a recorded at the commit whose CI run carries the live evidence.",
+      "C12": "PASS \u2014 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a is master's tip and an ancestor of HEAD."
     }
   },
   {
@@ -1574,7 +1577,7 @@
   {
     "organ_id": 37,
     "name": "Local Model Qualification and Health",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LocalModelQualificationAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/qualifier.py",
@@ -1587,28 +1590,32 @@
       "tests/domain/test_local_workforce_qualifier.py"
     ],
     "integration_tests": [
-      "tests/test_r15_runtime_proof.py"
+      "tests/test_r15_runtime_proof.py",
+      "tests/test_local_clerk_integration.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "no Ollama \u2014 live model qualification suite needs live Ollama",
-      "C4: N/A-BY-DESIGN \u2014 qualification evidence is not the adversarial journal; aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority"
+    "live_evidence": [
+      {
+        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/30775008822 job 'local-clerk-live' (commit 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a): a real Ollama daemon started in CI ('ollama ready after 2s'), qwen2.5:0.5b was pulled (id a8b0c5157701, 397 MB) and tests/test_local_clerk_integration.py ran against it -- 6 passed, 0 skipped, in 55.65s. For organ 37 the proof runs the organ's own declared authority_owner, LocalModelQualificationAuthority, against the live model: test_the_qualification_suite_runs_against_a_live_model asserts the result carries QUALIFICATION_SUITE_VERSION and real per-case results with attempts >= 1, and test_the_live_verdict_is_recorded_as_evidence asserts the serialised payload carries that case evidence. The suite does NOT require the model to pass qualification -- a small CI model may honestly fail, and demanding a pass would create pressure to pick a model that flatters the suite. The suite cannot pass vacuously: its module fixture asserts list_models() returns available=True AND a non-empty model list, because that call never raises and returns a TRUTHY {'available': False, 'models': []} when the daemon is down -- a bare truthiness check would have 'proved' this with no Ollama at all. Reproduce: AIOS_OLLAMA_INTEGRATION=1 python -m pytest -rs tests/test_local_clerk_integration.py",
+        "commit_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalModelQualificationAuthority class defined in production_entrypoints ['aios/domain/local_workforce/qualifier.py', 'aios/application/local_workforce/qualification_evidence.py', 'aios/domain/local_workforce/registry.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/test_local_workforce_qualification_evidence.py', 'tests/domain/test_local_workforce_qualifier.py'] (Phase 2 caller / anti-passthrough suite)",
       "C3": "PASS \u2014 qualification evidence persisted in registry",
-      "C4": "PASS-PARTIAL \u2014 evidence digests stored; suite correctness proven both directions historically",
+      "C4": "N/A-BY-DESIGN \u2014 qualification evidence is not the adversarial journal; aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. Evidence digests stored; suite correctness proven both directions historically.",
       "C5": "PASS \u2014 failing suite does not mint approval",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_local_clerk_dispatcher.py', 'tests/test_local_workforce_qualification_evidence.py', 'tests/domain/test_local_workforce_qualifier.py']",
-      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_r15_runtime_proof.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/test_r15_runtime_proof.py in the gate's own run, and tests/test_local_clerk_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority. C5: PASS. Outside-machine residual: live Ollama qualification suite.', 'no Ollama \u2014 live model qualification suite needs live Ollama']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (qualification evidence in registry). C4: N/A-BY-DESIGN \u2014 qualification suite writes registry evidence; adversarial chain owned by organ 38 aios/application/local_workforc",
-      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
-      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+      "C9": "PASS \u2014 no residual known_blockers. Failure-path coverage is real rather than nominal: the qualification suite is asserted to produce an honest verdict, pass or fail, and the dispatcher escalates away from the local clerk when the live model does not qualify.",
+      "C10": "PASS \u2014 proof_level=live evidence from the local-clerk-live job at 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a (real daemon, real model, 6 passed / 0 skipped).",
+      "C11": "PASS \u2014 last_verified_sha 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a recorded at the commit whose CI run carries the live evidence.",
+      "C12": "PASS \u2014 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a is master's tip and an ancestor of HEAD."
     }
   },
   {
@@ -1920,8 +1927,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence",
-      "C4: N/A-BY-DESIGN \u2014 endurance produces evidence rather than a journal; tools/golden_mission_runner.py::GoldenMissionEnduranceAuthority"
+      "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -1929,7 +1935,7 @@
       "C1": "PASS \u2014 GoldenMissionEnduranceAuthority class defined in production_entrypoints ['tools/golden_mission_runner.py', 'tools/endurance_tester.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py'] (Phase 2 caller / anti-passthrough suite)",
       "C3": "PASS-PARTIAL \u2014 GoldenMissionEnduranceAuthority owns ordered step verification in-process",
-      "C4": "N/A \u2014 endurance runner is an evidence producer, not a journal",
+      "C4": "N/A-BY-DESIGN \u2014 endurance produces evidence rather than a journal; tools/golden_mission_runner.py::GoldenMissionEnduranceAuthority. The endurance runner is an evidence producer, not a journal.",
       "C5": "PASS \u2014 runner does not invent cloud success without real providers",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
@@ -2018,8 +2024,7 @@
     ],
     "live_evidence": [],
     "known_blockers": [
-      "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design",
-      "C4: N/A-BY-DESIGN \u2014 learning outcomes are not the adversarial journal; aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority"
+      "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
@@ -2027,7 +2032,7 @@
       "C1": "PASS \u2014 ConstitutionalLearningAuthority class defined in production_entrypoints ['aios/domain/governance/learning.py', 'aios/application/governance/constitutional_learning.py', 'aios/application/governance/adversarial_simulations.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py'] (Phase 2 caller / anti-passthrough suite)",
       "C3": "PASS \u2014 constitutional learning proposals/outcomes persist through governance stores used by the learning authority routes",
-      "C4": "PASS-PARTIAL \u2014 screening refuses unsafe proposals; automated adversarial simulation probes are real mechanism checks, not a substitute for human red-team",
+      "C4": "N/A-BY-DESIGN \u2014 learning outcomes are not the adversarial journal; aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority. Screening refuses unsafe proposals; automated adversarial simulation probes are real mechanism checks, not a substitute for human red-team.",
       "C5": "PASS \u2014 screen_proposal returns check breakdown / refuses rather than approving by silence",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_constitutional_amendment.py', 'tests/test_governance_amendment_store.py', 'tests/test_governance_lesson_api.py']",

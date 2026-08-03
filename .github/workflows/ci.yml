@@ -120,8 +120,22 @@ jobs:
           AIOS_OLLAMA_MODEL: qwen2.5:0.5b
           OLLAMA_HOST: http://127.0.0.1:11434
         run: |
+          # Emit JUnit for the same reason organ 40's executor suite does: this
+          # file gates on AIOS_OLLAMA_INTEGRATION, so in the twelve-condition
+          # gate's own pytest run it is all-skipped and C7 correctly reports
+          # that nothing was proven. Organs 35 and 37 declare it as their
+          # integration suite, so the gate has to see THIS run -- the one with
+          # a real Ollama daemon behind it -- rather than have the bar lowered.
           python -m pytest -q -o addopts= -rs \
+            --junit-xml=clerk-junit.xml \
             tests/test_local_clerk_integration.py
+
+      - name: Upload live local clerk test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: clerk-junit
+          path: clerk-junit.xml
+          retention-days: 7
 
       - name: Report Ollama state
         if: ${{ always() }}
@@ -198,7 +212,7 @@ jobs:
     # This job is intentionally separate from the platform matrix: it checks
     # the shipped topology and architecture invariants once on Linux, where
     # the production container toolchain is available.
-    needs: [backend-tests, frontend-tests]
+    needs: [backend-tests, frontend-tests, local-clerk-live]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -249,6 +263,18 @@ jobs:
         with:
           name: frontend-junit
           path: frontend-junit
+
+      - name: Download live local clerk test results
+        # Same contract as the frontend artifact above: local-clerk-live is a
+        # required `needs:` dependency, so this is this commit's real run
+        # against a real Ollama daemon. Organs 35 and 37 declare
+        # tests/test_local_clerk_integration.py as their integration suite and
+        # it is env-gated, so without this the gate sees it all-skipped and C7
+        # fails -- correctly.
+        uses: actions/download-artifact@v4
+        with:
+          name: clerk-junit
+          path: clerk-junit
 
       - name: Verify organ ledger and release manifest contracts
         # PR 0 (green-contract enforcement): fails fast, before any Docker
@@ -528,7 +554,8 @@ jobs:
           python scripts/verify_organ_twelve_conditions.py \
             --allow-unexecuted-frontend \
             --frontend-junit frontend-junit/vitest-junit.xml \
-            --extra-junit executor-junit/executor-junit.xml
+            --extra-junit executor-junit/executor-junit.xml \
+            --extra-junit clerk-junit/clerk-junit.xml
 
       - name: Run strict GAGOS v1 runtime proof matrix
         env:
