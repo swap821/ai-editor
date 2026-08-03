@@ -8,4 +8,8 @@
 .aios/state/*.md text eol=lf
 docs/architecture/GAGOS_54_ORGANS.md text eol=lf
 release/**/*.json text eol=lf
+# The phase5 proof docs are generated, not hand-written, so without this a
+# Windows run of verify_organ_twelve_conditions.py restates all 54 of them in
+# CRLF and the real change disappears into the noise.
+release/**/*.md text eol=lf
 

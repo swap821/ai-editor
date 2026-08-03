@@ -450,3 +450,27 @@ def test_widening_did_not_make_every_name_adversarial(
     assert (
         parsed["tests/test_organ_condition_test_execution.py"]["adversarial_total"] == 0
     )
+
+
+def test_phase5_proof_docs_are_written_with_lf_newlines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows' default newline translation rewrote all 54 tracked phase5 proof
+    docs in CRLF on every local run, so the one line that actually changed
+    disappeared into an all-lines-changed diff. The same writer also rewrites
+    the sha256-pinned ledger under --demote, where CRLF pins a hash that an LF
+    checkout cannot reproduce -- the exact drift .gitattributes exists to stop."""
+    monkeypatch.setattr(v12, "PHASE5_DIR", tmp_path / "phase5")
+
+    path = v12._write_proof(
+        40,
+        "Isolated Workspace and Executor (live proof)",
+        "green",
+        mechanical=[("C7", "no integration_tests proved anything here")],
+        verdict_fails=[],
+        tip="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+    )
+
+    raw = path.read_bytes()
+    assert b"\n" in raw, "proof doc should not be empty"
+    assert b"\r\n" not in raw, "phase5 proof docs must be LF on every platform"

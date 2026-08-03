@@ -190,3 +190,34 @@ def test_convergence_ledger_uses_truthful_status_taxonomy() -> None:
     assert "PromotionAuthority | **VERIFIED**" in ledger
     assert "EmergencyStopController | **VERIFIED**" in ledger
     assert "Isolated Executor Service | **VERIFIED**" in ledger
+
+
+def test_restart_resilience_step_proves_a_restart_not_a_cold_start() -> None:
+    """This step used to be `docker compose restart executor` followed by
+    `docker compose up -d --wait executor`, with a comment asserting that
+    exporting AIOS_DOCKER_SOCKET_GID kept the resolved config identical so `up`
+    would only wait. It did not. Runs 29989936411, 30751967500 and 30756711677
+    all log `Recreate` / `Recreated` right after the restart, and then report
+    `CREATED 16 seconds ago` for a container that was ~110s old -- so the
+    post-restart suite exercised a brand-new container and a cold start was
+    being reported as restart resilience for over a week.
+
+    Pin the shape that makes that impossible rather than trusting the comment.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    step = workflow.split('- name: "Restart private Executor Service', maxsplit=1)[
+        1
+    ].split(
+        "- name: Prove private Executor Service isolation survives a restart",
+        maxsplit=1,
+    )[0]
+
+    assert "docker compose restart executor" in step
+    # The whole defect: anything that re-runs `up` here can silently recreate
+    # the container and downgrade this proof back into a cold start.
+    assert "docker compose up" not in step
+    # The container must be the SAME one on the other side of the restart.
+    assert "State.Health.Status" in step
+    assert "REPLACED, not restarted" in step
