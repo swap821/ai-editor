@@ -128,7 +128,8 @@ jobs:
           # a real Ollama daemon behind it -- rather than have the bar lowered.
           python -m pytest -q -o addopts= -rs \
             --junit-xml=clerk-junit.xml \
-            tests/test_local_clerk_integration.py
+            tests/test_local_clerk_integration.py \
+            tests/test_model_passport_live_integration.py
 
       - name: Upload live local clerk test results
         uses: actions/upload-artifact@v4
