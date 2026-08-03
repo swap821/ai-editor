@@ -322,6 +322,172 @@ _NA_DISCHARGEABLE = frozenset({"C3", "C4"})
 _PROOF_CONDITIONS = ("C3", "C4", "C5")
 
 
+#: The four shapes a live-evidence row can take. Everything a green organ
+#: claims as "live" must be one of these -- see _evidence_reference_failures.
+_PHASE4_ARTIFACT_RE = re.compile(r"release/phase4/live-evidence-[\w.\-]+\.json")
+_CI_RUN_RE = re.compile(r"actions/runs/(\d+)")
+#: Human-witnessed evidence (an operator driving a real browser) cannot be
+#: re-derived by a script. It is a legitimate kind of proof and the ledger has
+#: four such rows, but it must be DECLARED rather than inferred -- otherwise it
+#: is indistinguishable from prose, which is how `_LIVE_RECHECKABLE` came to
+#: accept any string containing "https://".
+_OPERATOR_ATTESTED = "OPERATOR-ATTESTED"
+
+
+def _github_run_verifier(root: Path):
+    """Resolve a cited CI run against the GitHub API.
+
+    Checks the three things a fabricated or mis-cited run would fail: that the
+    run exists at all, that it actually SUCCEEDED, and that its head_sha is the
+    commit the evidence row claims. The last one is the subtle one -- citing a
+    real green run from a different commit is exactly how a row ends up
+    describing work the named commit never contained.
+    """
+
+    def verify(run_id: str, expected_sha: str) -> str | None:
+        proc = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{{owner}}/{{repo}}/actions/runs/{run_id}",
+                "-q",
+                '.conclusion + " " + .head_sha',
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            return f"could not be resolved ({proc.stderr.strip()[:100]})"
+        parts = proc.stdout.split()
+        if len(parts) != 2:
+            return f"unexpected API response {proc.stdout.strip()[:60]!r}"
+        conclusion, head_sha = parts
+        if conclusion != "success":
+            return f"conclusion is {conclusion!r}, not success"
+        if head_sha != expected_sha:
+            return f"ran at {head_sha[:12]} but the evidence claims {expected_sha[:12]}"
+        return None
+
+    return verify
+
+
+def _evidence_reference_failures(
+    record,
+    root: Path,
+    results: dict[str, dict],
+    *,
+    run_verifier=None,
+) -> tuple[list[tuple[str, str]], int]:
+    """Live evidence must be CHECKABLE, not merely look checkable.
+
+    ``_LIVE_RECHECKABLE`` only asked whether the description contained a
+    substring like ``https://`` or ``docker-compose``. It never opened the
+    artifact, never confirmed the cited run existed, and never checked that
+    what was cited said anything about THIS organ. Fifty-nine rows of prose
+    were load-bearing on the author's good faith alone.
+
+    Every ``proof_level="live"`` row must now resolve as one of:
+
+    * a ``release/phase4/live-evidence-*.json`` artifact that exists, carries a
+      proof record FOR THIS ORGAN, records it as passed, and whose ``tip_sha``
+      matches the row's ``commit_sha``;
+    * a ``tests/foo.py::test_bar`` node that ran and passed in this gate run;
+    * an ``actions/runs/<id>`` CI run, verified when a verifier is supplied;
+    * an explicitly declared ``OPERATOR-ATTESTED`` human observation.
+
+    Returns (failures, operator_attested_count). The count is reported rather
+    than hidden: how much of the ledger rests on human attestation is exactly
+    the kind of thing that should be visible on every run.
+    """
+    failures: list[tuple[str, str]] = []
+    attested = 0
+
+    for evidence in record.live_evidence:
+        if evidence.proof_level != "live":
+            continue
+        desc = evidence.description
+        artifacts = _PHASE4_ARTIFACT_RE.findall(desc)
+        runs = _CI_RUN_RE.findall(desc)
+        nodes = _CONDITION_PROOF_RE.findall(desc)
+        operator = _OPERATOR_ATTESTED in desc
+
+        if not (artifacts or runs or nodes or operator):
+            failures.append(
+                (
+                    "C10",
+                    "live evidence resolves to nothing checkable -- cite a "
+                    "release/phase4 artifact, a tests/foo.py::test_bar node, an "
+                    f"actions/runs/<id> URL, or declare {_OPERATOR_ATTESTED}",
+                )
+            )
+            continue
+
+        if operator:
+            attested += 1
+
+        for ref in artifacts:
+            path = root / ref
+            if not path.exists():
+                failures.append(("C10", f"cited artifact does not exist: {ref}"))
+                continue
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                failures.append(("C10", f"cited artifact unreadable: {ref} ({exc})"))
+                continue
+            proofs = {
+                p.get("organ_id"): p
+                for p in payload.get("proofs", [])
+                if isinstance(p, dict)
+            }
+            proof = proofs.get(record.organ_id)
+            if proof is None:
+                failures.append(
+                    (
+                        "C10",
+                        f"{ref} carries no proof record for organ "
+                        f"{record.organ_id} -- it proves someone else's claim",
+                    )
+                )
+                continue
+            if not proof.get("passed"):
+                failures.append(
+                    ("C10", f"{ref} records organ {record.organ_id} as NOT passed")
+                )
+            tip = payload.get("tip_sha")
+            if tip != evidence.commit_sha:
+                failures.append(
+                    (
+                        "C10",
+                        f"{ref} was generated at {str(tip)[:12]} but the evidence "
+                        f"claims {evidence.commit_sha[:12]}",
+                    )
+                )
+
+        for path, test_name in nodes:
+            outcome = results.get(path)
+            if outcome is None:
+                failures.append(
+                    (
+                        "C10",
+                        f"cited test {path}::{test_name} did not execute in this run",
+                    )
+                )
+            elif test_name not in outcome.get("passed_names", ()):
+                failures.append(
+                    ("C10", f"cited test {path}::{test_name} did not run and pass")
+                )
+
+        if run_verifier is not None:
+            for run_id in runs:
+                problem = run_verifier(run_id, evidence.commit_sha)
+                if problem:
+                    failures.append(("C10", f"CI run {run_id}: {problem}"))
+
+    return failures, attested
+
+
 def _condition_proof_failures(
     record, results: dict[str, dict]
 ) -> list[tuple[str, str]]:
@@ -481,6 +647,12 @@ def _mechanical_checks(
                 failures.append(
                     ("C10", f"live evidence commit_sha malformed: {e.commit_sha!r}")
                 )
+        # Every live row must resolve to something a machine can open. The
+        # run_verifier is left off here: network checks belong to the explicit
+        # --verify-evidence-runs path, so a local run degrades to the offline
+        # subset rather than silently passing rows it never resolved.
+        evidence_failures, _ = _evidence_reference_failures(record, root, results)
+        failures.extend(evidence_failures)
     # C11
     sha = record.last_verified_sha
     if not sha or not _SHA.fullmatch(sha):
@@ -602,6 +774,17 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Treat frontend suites this Python-only job cannot run as not-failing. "
             "Records the gap honestly; never claims those tests passed."
+        ),
+    )
+    parser.add_argument(
+        "--verify-evidence-runs",
+        action="store_true",
+        help=(
+            "Resolve every cited actions/runs/<id> against the GitHub API and "
+            "require it to exist, to have succeeded, and to have run at the "
+            "commit the evidence claims. Needs network and an authenticated "
+            "gh; off by default so a local run degrades to the offline subset "
+            "honestly rather than reporting rows it never resolved."
         ),
     )
     parser.add_argument(
@@ -807,6 +990,37 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
     # the true number is printed every run rather than hidden, and the day the
     # budget reaches zero the --enforce-condition-proofs flag can become the
     # permanent default.
+    # ---- live-evidence reference report ------------------------------------
+    #
+    # How much of the ledger rests on human attestation rather than on
+    # something a machine can re-open is exactly the kind of number that should
+    # be visible on every run instead of buried in prose.
+    attested_total = 0
+    run_failures: list[str] = []
+    verifier = _github_run_verifier(REPO_ROOT) if args.verify_evidence_runs else None
+    for record in records:
+        if record.status != "green":
+            continue
+        failures_, attested_ = _evidence_reference_failures(
+            record, REPO_ROOT, results, run_verifier=verifier
+        )
+        attested_total += attested_
+        if verifier is not None:
+            run_failures.extend(
+                f"organ {record.organ_id}: {why}"
+                for cond, why in failures_
+                if why.startswith("CI run ")
+            )
+    print(f"live evidence rows resting on operator attestation: {attested_total}")
+    if args.verify_evidence_runs:
+        print(
+            f"cited CI runs verified against the GitHub API; problems: {len(run_failures)}"
+        )
+        for msg in run_failures:
+            print(f"  - {msg}", file=sys.stderr)
+        if run_failures:
+            return 1
+
     budget_path = REPO_ROOT / ".aios" / "state" / "condition_proof_budget.json"
     gap_count = len(proof_gaps)
     print(f"C3/C4/C5 greens without a mechanical proof: {gap_count}")
