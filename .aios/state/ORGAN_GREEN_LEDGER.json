@@ -1419,7 +1419,8 @@
     ],
     "integration_tests": [
       "tests/test_local_workforce_api.py",
-      "tests/test_runtime_intelligence_gateway.py"
+      "tests/test_runtime_intelligence_gateway.py",
+      "tests/test_model_passport_live_integration.py"
     ],
     "live_evidence": [],
     "known_blockers": [
