@@ -1,0 +1,10 @@
+{
+  "greens_without_condition_proofs": 46,
+  "measured_at_commit": "becada8dc5d4e980ad8701ca75ba8fcd77837ecf",
+  "note": "High-water mark for the C3/C4/C5 mechanical-proof migration. Until 2026-08-03 the ONLY check on C3 (durable state survives process restart), C4 (tamper-evidence / integrity chain) and C5 (fail-safe reporting: unavailable rather than a plausible zero) was that the written verdict was at least 8 characters long. All 46 greens fail the real bar today, 132 of 135 gaps being 'no referent named at all', so enforcing it outright would demote the entire green ledger at a stroke -- an operator decision, not a gate decision. This number may only go DOWN. Lower it as organs earn real proofs; never raise it to make a failing gate pass. When it reaches 0, --enforce-condition-proofs becomes the permanent default and this file can be deleted.",
+  "how_to_discharge": {
+    "C3": "name a test as 'tests/foo.py::test_bar' in the C3 verdict (it must run and pass in the gate's own run), or discharge with 'N/A-BY-DESIGN - path::symbol' whose cite resolves",
+    "C4": "same as C3 -- both are defined as '... (or N/A-BY-DESIGN with cite)'",
+    "C5": "must be positively proven with a named test; C5's definition carries no N/A-BY-DESIGN clause, and inventing one would be the exact failure mode this gate exists to catch"
+  }
+}

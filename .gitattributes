@@ -5,6 +5,10 @@
 # only stores/checks out the committed LF bytes -- even though the git
 # object itself is unchanged.
 .aios/state/ORGAN_GREEN_LEDGER.json text eol=lf
+# condition_proof_budget.json is read by a gate and diffed on every
+# migration step, so it gets the same LF pin rather than picking up
+# CRLF from whichever platform last lowered it.
+.aios/state/*.json text eol=lf
 .aios/state/*.md text eol=lf
 docs/architecture/GAGOS_54_ORGANS.md text eol=lf
 release/**/*.json text eol=lf
