@@ -1,4 +1,4 @@
-"""Mechanical gate: every N/A-BY-DESIGN blocker cite must resolve."""
+"""Mechanical gate: every N/A-BY-DESIGN cite must resolve, wherever it lives."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from pathlib import Path
 
 from aios.application.governance.na_cite_validator import (
     _extract_cites_from_blocker,
+    na_cite_sources,
     validate_na_cites,
     validate_shipped_na_cites,
 )
@@ -100,12 +101,47 @@ def test_shipped_ledger_na_cites_have_zero_violations() -> None:
 
 
 def test_shipped_ledger_na_cite_count_is_nonzero() -> None:
-    """Sanity: the gate is exercising real cites, not an empty ledger."""
+    """Sanity: the gate is exercising real cites, not an empty ledger.
+
+    This used to count ``known_blockers`` only, which quietly made the canary
+    self-defeating. C9 forbids a green organ from keeping any known_blockers,
+    so every correct promotion deleted cites from the only population being
+    counted. The count sat at exactly the floor of 10, meaning the next
+    promotion would have tripped the guard for doing the right thing -- and the
+    obvious "fix" of lowering the floor would have quietly retired a real gate.
+
+    Counting both populations measures what the docstring always claimed, and
+    it no longer shrinks under success: a by-design N/A lives in
+    condition_verdicts, which survives promotion.
+    """
     records = load_ledger(LEDGER_PATH)
     cite_count = sum(
-        len(_extract_cites_from_blocker(blocker))
+        len(_extract_cites_from_blocker(text))
         for record in records
-        for blocker in record.known_blockers
-        if "N/A-BY-DESIGN" in blocker
+        for _origin, text in na_cite_sources(record)
     )
-    assert cite_count >= 10
+    assert cite_count >= 10, cite_count
+
+
+def test_condition_verdict_cites_are_validated_not_just_blockers() -> None:
+    """A by-design N/A in condition_verdicts must resolve like any other cite.
+
+    These were invisible to the gate entirely, which is how organ 33 carried a
+    truncated ``audit_logger.py::AuditLoggerAuthor`` for as long as it did. A
+    green organ keeps its C4 N/A-BY-DESIGN verdict forever, so this is the
+    population that matters most.
+    """
+    record = OrganRecord(
+        organ_id=1,
+        name="Test",
+        status="green",
+        authority_owner="NobodyAuthority",
+        known_blockers=(),
+        condition_verdicts={"C4": "N/A-BY-DESIGN — aios/ghost.py::NotAThing"},
+    )
+
+    violations = validate_na_cites([record], repo_root=REPO_ROOT)
+
+    assert len(violations) == 1, violations
+    assert "condition_verdicts[C4]" in violations[0]
+    assert "aios/ghost.py::NotAThing" in violations[0]

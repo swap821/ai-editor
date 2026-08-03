@@ -1,8 +1,12 @@
 """Validate N/A-BY-DESIGN code cites in the organ ledger.
 
-Phase 3 absolute: every yellow ``N/A-BY-DESIGN`` blocker must carry a
-resolvable ``path::symbol`` cite.  This module is the mechanical gate that
-prevents silent regression to hand-wavy blockers or broken symbol paths.
+Phase 3 absolute: every ``N/A-BY-DESIGN`` claim must carry a resolvable
+``path::symbol`` cite.  This module is the mechanical gate that prevents
+silent regression to hand-wavy claims or broken symbol paths.
+
+Claims are read from both ``known_blockers`` and ``condition_verdicts`` -- see
+:func:`na_cite_sources` for why reading only the former was a hole in one
+direction and a self-starving guard in the other.
 """
 
 from __future__ import annotations
@@ -122,6 +126,40 @@ def _resolve_frontend_symbol(file_path: Path, symbol: str) -> str | None:
     return f"symbol {symbol!r} not found in {file_path}"
 
 
+def na_cite_sources(record: OrganRecord) -> list[tuple[str, str]]:
+    """Every N/A-BY-DESIGN-bearing string on one organ, tagged with its origin.
+
+    Cites used to be read out of ``known_blockers`` alone, which was wrong in
+    two directions at once.
+
+    It left the N/A-BY-DESIGN verdicts written into ``condition_verdicts``
+    entirely unvalidated -- 15 of them carrying 17 cites, none ever resolved,
+    so a green organ could assert "C4 does not apply, see this symbol" against
+    a symbol that no longer existed.
+
+    And because C9 forbids a green organ from keeping any ``known_blockers``,
+    the only validated population was one that shrinks every time an organ is
+    correctly promoted. The count sat at exactly the floor of 10, so the next
+    promotion would have tripped a canary whose stated job is to prove the gate
+    is "exercising real cites" -- doing the right thing starved the guard.
+
+    A permanent by-design N/A is a *verdict*, not a blocker: C4 is defined as
+    "Tamper-evidence / integrity chain (or N/A-BY-DESIGN with cite)". So it
+    belongs in condition_verdicts, where it survives promotion, and both places
+    are read here.
+    """
+    sources: list[tuple[str, str]] = []
+    for blocker in record.known_blockers:
+        if "N/A-BY-DESIGN" in blocker:
+            sources.append(("known_blockers", blocker))
+    verdicts = record.condition_verdicts or {}
+    for key in sorted(verdicts):
+        text = str(verdicts[key])
+        if "N/A-BY-DESIGN" in text:
+            sources.append((f"condition_verdicts[{key}]", text))
+    return sources
+
+
 def validate_na_cites(
     records: tuple[OrganRecord, ...] | list[OrganRecord],
     *,
@@ -132,15 +170,14 @@ def validate_na_cites(
     violations: list[str] = []
 
     for record in records:
-        for blocker in record.known_blockers:
-            if "N/A-BY-DESIGN" not in blocker:
-                continue
-            for rel_path, symbol in _extract_cites_from_blocker(blocker):
+        for origin, text in na_cite_sources(record):
+            for rel_path, symbol in _extract_cites_from_blocker(text):
                 file_path = root / rel_path
                 if not file_path.exists():
                     violations.append(
-                        f"organ_id {record.organ_id} ({record.name}) N/A-BY-DESIGN "
-                        f"cite {rel_path}::{symbol} — file does not exist"
+                        f"organ_id {record.organ_id} ({record.name}) {origin} "
+                        f"N/A-BY-DESIGN cite {rel_path}::{symbol} — "
+                        "file does not exist"
                     )
                     continue
                 if rel_path.endswith(".py"):
@@ -149,8 +186,8 @@ def validate_na_cites(
                     issue = _resolve_frontend_symbol(file_path, symbol)
                 if issue is not None:
                     violations.append(
-                        f"organ_id {record.organ_id} ({record.name}) N/A-BY-DESIGN "
-                        f"cite {rel_path}::{symbol} — {issue}"
+                        f"organ_id {record.organ_id} ({record.name}) {origin} "
+                        f"N/A-BY-DESIGN cite {rel_path}::{symbol} — {issue}"
                     )
 
     return tuple(violations)
@@ -164,6 +201,7 @@ def validate_shipped_na_cites(repo_root: str | Path | None = None) -> tuple[str,
 
 
 __all__ = [
+    "na_cite_sources",
     "validate_na_cites",
     "validate_shipped_na_cites",
     "_extract_cites_from_blocker",
