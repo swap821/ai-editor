@@ -147,6 +147,11 @@ def _parse_junit(xml_path: Path, root: Path) -> dict[str, dict]:
                 "adversarial_total": 0,
                 "adversarial_failed": 0,
                 "failed_names": [],
+                # Per-test names, not just counts. C3/C4/C5 name a SPECIFIC
+                # test as their proof, so file-level "0 failures" is not
+                # enough -- a verdict could cite a test that does not exist,
+                # or that was skipped, and the file would still look clean.
+                "passed_names": set(),
             },
         )
         name = case.get("name", "")
@@ -161,6 +166,7 @@ def _parse_junit(xml_path: Path, root: Path) -> dict[str, dict]:
             bucket["skipped"] += 1
         else:
             bucket["passed"] += 1
+            bucket["passed_names"].add(name)
 
         if path.startswith(_ADVERSARIAL_DIR) or _ADVERSARIAL_NAME.search(name):
             bucket["adversarial_total"] += 1
@@ -298,6 +304,89 @@ def _suite_outcome(
                 f"no {label} proved anything here (unverified: {', '.join(unverified)})",
             )
         )
+    return failures
+
+
+#: A condition proof: an exact test that must have executed and PASSED, written
+#: `tests/foo.py::test_bar` inside the condition's own written verdict.
+_CONDITION_PROOF_RE = re.compile(
+    r"((?:tests|frontend)/[\w./\-]+\.(?:py|tsx?|jsx?))::([\w\[\]\-]+)"
+)
+
+#: C3 and C4 are defined as "... (or N/A-BY-DESIGN with cite)", so they may be
+#: discharged by a resolvable code cite instead of a test. C5 -- "Fail-safe
+#: reporting: unavailable rather than a plausible zero" -- carries no such
+#: clause, so it must be positively proven. Inventing an escape hatch the
+#: contract does not grant would be the whole failure mode in miniature.
+_NA_DISCHARGEABLE = frozenset({"C3", "C4"})
+_PROOF_CONDITIONS = ("C3", "C4", "C5")
+
+
+def _condition_proof_failures(
+    record, results: dict[str, dict]
+) -> list[tuple[str, str]]:
+    """C3/C4/C5 must point at something real, not merely read well.
+
+    These three were the ledger's weakest link: the only mechanical check on
+    them was ``len(text) >= 8``. C3 ("durable state survives process restart"),
+    C4 ("tamper-evidence / integrity chain") and C5 ("fail-safe reporting:
+    unavailable rather than a plausible zero") are precisely the conditions a
+    hostile reviewer cares about, and precisely the ones nothing enforced.
+
+    The bar here is the same one C6/C7 already apply, so it is proven
+    machinery rather than a new idea: name a test, and that exact test must
+    have RUN and PASSED in this very gate invocation. A file-level "no
+    failures" would not do -- a verdict could cite a test that does not exist,
+    or one that skipped, and the file would still look clean.
+    """
+    failures: list[tuple[str, str]] = []
+    verdicts = record.condition_verdicts or {}
+
+    for cond in _PROOF_CONDITIONS:
+        text = str(verdicts.get(cond) or "")
+
+        if cond in _NA_DISCHARGEABLE and "N/A-BY-DESIGN" in text:
+            # The cite itself is resolved by na_cite_validator, which reads
+            # condition_verdicts as well as known_blockers. Here we only
+            # require that one is actually present -- "N/A-BY-DESIGN" with no
+            # cite is an assertion, not a discharge.
+            from aios.application.governance.na_cite_validator import (
+                _extract_cites_from_blocker,
+            )
+
+            if not _extract_cites_from_blocker(text):
+                failures.append(
+                    (cond, "N/A-BY-DESIGN carries no path::symbol cite to resolve")
+                )
+            continue
+
+        refs = _CONDITION_PROOF_RE.findall(text)
+        if not refs:
+            failures.append(
+                (
+                    cond,
+                    "no executable proof named -- cite a test as "
+                    "'tests/foo.py::test_bar'"
+                    + (
+                        " or discharge with 'N/A-BY-DESIGN — path::symbol'"
+                        if cond in _NA_DISCHARGEABLE
+                        else " (C5 has no N/A-BY-DESIGN clause)"
+                    ),
+                )
+            )
+            continue
+
+        for path, test_name in refs:
+            outcome = results.get(path)
+            if outcome is None:
+                failures.append(
+                    (cond, f"proof {path}::{test_name} did not execute in this run")
+                )
+            elif test_name not in outcome.get("passed_names", ()):
+                failures.append(
+                    (cond, f"proof {path}::{test_name} did not run and pass")
+                )
+
     return failures
 
 
@@ -515,6 +604,18 @@ def main(argv: list[str] | None = None) -> int:
             "Records the gap honestly; never claims those tests passed."
         ),
     )
+    parser.add_argument(
+        "--enforce-condition-proofs",
+        action="store_true",
+        help=(
+            "Make a missing C3/C4/C5 mechanical proof a hard failure rather "
+            "than a ratcheted budget. This is the end state: every green organ "
+            "names a test that ran and passed (or, for C3/C4 only, discharges "
+            "with an N/A-BY-DESIGN cite that resolves). Off by default only "
+            "because turning it on today would demote ~45 greens at once, "
+            "which is an operator decision."
+        ),
+    )
     args = parser.parse_args(argv)
 
     tip = current_commit_sha(REPO_ROOT)
@@ -581,8 +682,16 @@ def main(argv: list[str] | None = None) -> int:
 
     green_failures: list[str] = []
     demoted: list[int] = []
+    # C3/C4/C5 proof inventory, tracked separately from green_failures so the
+    # ratchet below can report the true gap without demoting 45 organs on the
+    # day the check lands. See the budget block after this loop.
+    proof_gaps: dict[int, list[tuple[str, str]]] = {}
 
     for record in records:
+        if record.status == "green":
+            gaps = _condition_proof_failures(record, results)
+            if gaps:
+                proof_gaps[record.organ_id] = gaps
         mechanical = (
             _mechanical_checks(
                 record,
@@ -682,6 +791,53 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         print(f"demoted organs: {demoted}")
 
     print(f"phase5 proofs written under {PHASE5_DIR.as_posix()}")
+
+    # ---- C3/C4/C5 mechanical-proof ratchet ---------------------------------
+    #
+    # Until this landed, the ONLY check on C3 (durable state survives restart),
+    # C4 (tamper-evidence chain) and C5 (fail-safe reporting) was that the
+    # written verdict was >= 8 characters. Those are the three conditions a
+    # hostile reviewer cares about most, and they were the three nothing
+    # enforced.
+    #
+    # Enforcing them outright on day one would demote ~45 greens at a stroke,
+    # which is an operator decision, not a gate decision. So this follows the
+    # precedent already set by "Enforce monotonic frontend warning budget":
+    # record the current gap and refuse to let it GROW. Progress is one-way,
+    # the true number is printed every run rather than hidden, and the day the
+    # budget reaches zero the --enforce-condition-proofs flag can become the
+    # permanent default.
+    budget_path = REPO_ROOT / ".aios" / "state" / "condition_proof_budget.json"
+    gap_count = len(proof_gaps)
+    print(f"C3/C4/C5 greens without a mechanical proof: {gap_count}")
+    if proof_gaps:
+        shown = sorted(proof_gaps)[:5]
+        for oid in shown:
+            reasons = "; ".join(f"{c}: {r}" for c, r in proof_gaps[oid][:1])
+            print(f"    organ {oid}: {reasons}")
+        if len(proof_gaps) > len(shown):
+            print(f"    ... and {len(proof_gaps) - len(shown)} more")
+
+    if args.enforce_condition_proofs:
+        if proof_gaps:
+            for oid in sorted(proof_gaps):
+                for cond, reason in proof_gaps[oid]:
+                    print(f"  - organ {oid} {cond}: {reason}", file=sys.stderr)
+            return 1
+    elif budget_path.exists():
+        budget = json.loads(budget_path.read_text(encoding="utf-8"))
+        allowed = int(budget.get("greens_without_condition_proofs", 0))
+        if gap_count > allowed:
+            print(
+                f"C3/C4/C5 proof budget REGRESSED: {gap_count} > {allowed}. "
+                "A green organ lost its mechanical proof, or a new green "
+                "landed without one. The budget may only go down; update "
+                f"{budget_path.as_posix()} deliberately, never to make a "
+                "failure go away.",
+                file=sys.stderr,
+            )
+            return 1
+
     print(f"green mechanical failures: {len(green_failures)}")
     if green_failures and not args.demote:
         for msg in green_failures:
