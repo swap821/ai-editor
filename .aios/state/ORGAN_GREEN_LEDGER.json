@@ -1402,7 +1402,7 @@
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -1422,11 +1422,15 @@
       "tests/test_runtime_intelligence_gateway.py",
       "tests/test_model_passport_live_integration.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "no Ollama \u2014 live local-model / passport qualification evidence needs live Ollama in CI or self-hosted runner"
+    "live_evidence": [
+      {
+        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/30791776080 job 'local-clerk-live' (commit 90830647e40c2f29b45b042e00b935d632d1d8f4, master): a real Ollama daemon started ('ollama ready after 2s'), qwen2.5:0.5b was pulled (id a8b0c5157701, 397 MB) and tests/test_model_passport_live_integration.py ran against it -- the job went 6 passed -> 10 passed when this suite landed, and the gate merged 2 file result(s) from clerk-junit. The suite drives organ 33's own authority_owner: reconcile() discovers the real installed model (not a seeded row), LocalWorkforceService.qualify() runs the real qualification suite against it, and ModelPassportAuthority.passport_for() is asserted to be a faithful readback of THAT run. It cannot pass vacuously in three ways, each a real hole closed during development: (1) qualify() returns 'rejected' for a failed health check and a refused hardware admission as well as a genuinely failed suite, so the fixture requires the 'qualification' key plus non-empty per-case results -- else a daemon that answered discovery but could not serve the model would report 'live proof' having run zero cases; (2) the fixture asserts list_models() returns available=True AND a non-empty list, since that call never raises and returns a TRUTHY {'available': False, 'models': []} when the daemon is down; (3) the roles test asserts the REFUSAL (UnsupportedJobProfileClaim on claiming all 13 profiles) rather than a subset relation trivially true on an empty set. Both branches were verified locally on real models: qwen2.5:1.5b failed 19/20 and projected 'revoked' with suite_version and last_qualified_at NULL; qwen2.5:7b passed 20/20 and projected 'admitted' with r15-v2, a real timestamp and a 64-hex passport_digest. Reproduce: AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b python -m pytest -rs tests/test_model_passport_live_integration.py",
+        "commit_sha": "90830647e40c2f29b45b042e00b935d632d1d8f4",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "90830647e40c2f29b45b042e00b935d632d1d8f4",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
@@ -1435,12 +1439,12 @@
       "C4": "N/A-BY-DESIGN \u2014 passport fields are not a journal; aios/security/audit_logger.py::AuditLoggerAuthority and aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority own the integrity chain. Passport digest projection from durable registry fields; dedicated SQL-tamper suite not claimed equal to organ 38.",
       "C5": "PASS \u2014 unregistered models return None rather than a fabricated passport",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py']",
-      "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_local_workforce_api.py', 'tests/test_runtime_intelligence_gateway.py']",
+      "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/test_local_workforce_api.py and tests/test_runtime_intelligence_gateway.py in the gate's own run, and tests/test_model_passport_live_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority / organ 38. C5: PASS. Outside-machine residual: live Ollama qualification cohort.', 'no Ollama \u2014 live local-model / red-team evidence needs live Ollama in CI or self-hosted runner']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (registry SQLite durable). C4: N/A-BY-DESIGN \u2014 passport fields in model registry store; adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority",
-      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
-      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+      "C9": "PASS \u2014 no residual known_blockers. Failure-path coverage is real rather than nominal: the live suite asserts the REFUSAL path in two directions -- a model that fails qualification must project admission_status='revoked' with suite_version and last_qualified_at NULL, and a claim on profiles the live evidence does not back must raise UnsupportedJobProfileClaim.",
+      "C10": "PASS \u2014 proof_level=live evidence from the local-clerk-live job at 90830647e40c2f29b45b042e00b935d632d1d8f4 (real daemon, real qwen2.5:0.5b, passport projected from a real qualification run).",
+      "C11": "PASS \u2014 last_verified_sha 90830647e40c2f29b45b042e00b935d632d1d8f4 recorded at the master commit whose CI run carries the live evidence.",
+      "C12": "PASS \u2014 90830647e40c2f29b45b042e00b935d632d1d8f4 is a master commit and an ancestor of HEAD."
     }
   },
   {
