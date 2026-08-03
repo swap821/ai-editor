@@ -374,11 +374,32 @@ jobs:
       # test_executor_integration.py itself), so it cannot restart a sibling
       # container from inside a test -- this can only be proven from the
       # runner, which is exactly what this CI job (and no local sandbox
-      # without Docker) can do. `docker compose restart` intentionally
-      # doesn't recreate the container or its published port; `up -d --wait`
-      # re-applies the same startup healthcheck gate the first "Start"
-      # step already used, so this step doesn't return until the executor is
-      # genuinely healthy again, not just "restarted".
+      # without Docker) can do.
+      #
+      # This step used to be `docker compose restart executor` followed by
+      # `docker compose up -d --wait executor`, with a comment asserting that
+      # exporting AIOS_DOCKER_SOCKET_GID kept the resolved config identical so
+      # `up` "only waits, never recreates". THAT WAS FALSE, and the job logs
+      # said so plainly in every run that ever executed it:
+      #
+      #   Container aios-executor-1  Restarting     <- the real restart
+      #   Container aios-executor-1  Started
+      #   Container aios-executor-1  Recreate       <- up threw it away
+      #   Container aios-executor-1  Recreated
+      #   Container aios-executor-1  Healthy
+      #   aios-executor-1 ... CREATED 16 seconds ago
+      #
+      # (runs 29989936411, 30751967500, 30756711677 -- the original container
+      # was ~110s old by then). So the post-restart suite was exercising a
+      # BRAND-NEW container, which is what the pre-restart suite already
+      # proved. The socket-GID fix that comment describes was a real bug fix,
+      # but it fixed the wrong GID *after* the recreate; it never stopped the
+      # recreate itself.
+      #
+      # So: no `up` here at all. Restart, then poll the ORIGINAL container's
+      # health by container id, and assert the id is unchanged afterwards. If
+      # anything recreates the container the id lookup fails and this step
+      # fails loudly, instead of quietly downgrading into a cold-start test.
       - name: "Restart private Executor Service (organ 40: restart resilience)"
         env:
           AIOS_API_TOKEN: "ci-production-token-012345678901234567890123"
@@ -387,21 +408,53 @@ jobs:
           AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
           AIOS_PROFILE: production
         run: |
-          # Must match the "Start" step's own env setup exactly: AIOS_DOCKER_
-          # SOCKET_GID is a real ROOT CAUSE this pass caught (not guessed) --
-          # a first attempt omitted it here, so `up -d --wait` below resolved
-          # the compose file's `group_add: ["${AIOS_DOCKER_SOCKET_GID:-999}"]`
-          # to the empty-default 999 (not this runner's real socket GID),
-          # detected that as config drift versus the running container, and
-          # RECREATED it with the wrong docker-socket group -- breaking the
-          # executor's ability to spawn per-job containers entirely (every
-          # job then failed with a permission error, not a real restart-
-          # resilience failure). `export`ing the same real value here keeps
-          # the resolved config identical, so `up` only waits, never recreates.
+          # Still matches the "Start" step's env exactly. AIOS_DOCKER_SOCKET_GID
+          # remains required because docker-compose.yml resolves
+          # `group_add: ["${AIOS_DOCKER_SOCKET_GID:-999}"]`, and any command
+          # here that re-resolves the service config must not silently fall
+          # back to 999.
           export AIOS_DOCKER_SOCKET_GID="$(stat -c '%g' /var/run/docker.sock)"
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+
+          before="$(docker compose ps -q executor)"
+          if [ -z "$before" ]; then
+            echo "no executor container is running before the restart"
+            exit 1
+          fi
+          echo "executor container before restart: $before"
+
           docker compose restart executor
-          docker compose up -d --wait executor
+
+          # Poll the ORIGINAL container by id. If it was replaced rather than
+          # restarted, `docker inspect` on this id stops resolving and we time
+          # out and fail -- which is the point.
+          deadline=$((SECONDS + 120))
+          while true; do
+            current="$(docker compose ps -q executor 2>/dev/null || true)"
+            if [ -n "$current" ] && [ "$current" != "$before" ]; then
+              echo "executor was REPLACED, not restarted: $before -> $current"
+              echo "a cold start does not prove restart resilience"
+              exit 1
+            fi
+            status="$(docker inspect --format '{{.State.Health.Status}}' "$before" 2>/dev/null || echo missing)"
+            if [ "$status" = "healthy" ]; then
+              break
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "restarted executor never became healthy (last status: $status)"
+              docker compose logs --no-color --tail=120 executor
+              exit 1
+            fi
+            sleep 2
+          done
+
+          after="$(docker compose ps -q executor)"
+          if [ "$before" != "$after" ]; then
+            echo "executor was REPLACED, not restarted: $before -> $after"
+            echo "a cold start does not prove restart resilience"
+            exit 1
+          fi
+          echo "same container survived the restart and is healthy: $after"
           docker compose ps
 
       - name: Prove private Executor Service isolation survives a restart

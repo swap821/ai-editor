@@ -453,7 +453,12 @@ def _write_proof(
   residuals are never flipped green by this script.
 - Green survival requires empty mechanical failures AND complete C1..C12 written verdicts.
 """
-    path.write_text(body, encoding="utf-8")
+    # newline="\n" on every write below: without it a Windows run rewrites all
+    # 54 tracked proof docs with CRLF, producing an all-lines-changed diff that
+    # buries whatever actually changed. The ledger write further down is worse
+    # than noise -- its bytes are sha256-pinned by release/organ-proof-manifest
+    # .json, so a CRLF copy pins a hash that an LF checkout cannot reproduce.
+    path.write_text(body, encoding="utf-8", newline="\n")
     return path
 
 
@@ -665,11 +670,14 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
 {chr(10).join("- " + g for g in green_failures) if green_failures else "- (none)"}
 """,
         encoding="utf-8",
+        newline="\n",
     )
 
     if args.demote and demoted:
         LEDGER_PATH.write_text(
-            json.dumps(ledger_rows, indent=2) + "\n", encoding="utf-8"
+            json.dumps(ledger_rows, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
         )
         print(f"demoted organs: {demoted}")
 
