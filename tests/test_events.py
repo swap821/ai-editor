@@ -1,4 +1,12 @@
-from aios.core.events import Event, EventPhase, EventType, event_for_sse, CanonicalEvent, CanonicalEventType, TrustLevel
+from aios.core.events import (
+    Event,
+    EventPhase,
+    EventType,
+    event_for_sse,
+    CanonicalEvent,
+    CanonicalEventType,
+    TrustLevel,
+)
 
 
 def test_event_round_trips_json() -> None:
@@ -51,6 +59,29 @@ def test_real_human_approval_stays_reflex() -> None:
     assert event.phase == EventPhase.REFLEX
 
 
+def test_skill_mastery_is_wonder_not_the_narrative_fallback() -> None:
+    # skill.mastered is the frontier-to-local learning loop closing, so it must
+    # carry KNOWLEDGE_ACQUIRED/WONDER like earned_autonomy -- growth, not the
+    # NARRATIVE green settle of a turn ending.
+    #
+    # Until 2026-08-04 the key was missing from _SSE_TO_COGNITION entirely, and
+    # the SYNTHESIS fallback stamped it NARRATIVE. That is the hazard this case
+    # guards: an unmapped event name does not fail loudly, it silently receives a
+    # plausible WRONG phase, and the body reacts to mastery as an ordinary close.
+    event = event_for_sse(
+        "skill.mastered", {"skill": "run the suite", "level": 2}, turn_id="t", seq=1
+    )
+    assert event.type == EventType.KNOWLEDGE_ACQUIRED
+    assert event.phase == EventPhase.WONDER
+    assert event.to_sse_payload()["cognition_type"] == "knowledge-acquired"
+
+    # The fallback still exists and is still silent -- pinned here so the next
+    # reader sees the cost of leaving a name unmapped rather than discovering it.
+    unmapped = event_for_sse("not.a.real.event", {}, turn_id="t", seq=2)
+    assert unmapped.type == EventType.SYNTHESIS
+    assert unmapped.phase == EventPhase.NARRATIVE
+
+
 def test_canonical_event_round_trips_json() -> None:
     event = CanonicalEvent(
         event_type=CanonicalEventType.PLAN_CREATED,
@@ -61,7 +92,7 @@ def test_canonical_event_round_trips_json() -> None:
         session_id="session-1",
         sequence=1,
         turn_id="turn-1",
-        payload={"plan": "details"}
+        payload={"plan": "details"},
     )
     assert CanonicalEvent.from_json(event.to_json()) == event
 
@@ -77,9 +108,9 @@ def test_canonical_event_sse_payload_compatibility() -> None:
         sequence=42,
         turn_id="turn-1",
     )
-    
+
     payload = event.to_sse_payload()
-    
+
     assert payload["schemaVersion"] == "1.0"
     assert payload["eventId"] == event.event_id
     assert payload["seq"] == 42
@@ -127,6 +158,7 @@ def test_canonical_event_to_dict_uses_camel_case() -> None:
 
 def test_canonical_event_validation_raises_on_missing_required_fields() -> None:
     import pytest
+
     with pytest.raises(ValueError, match="event_type is required"):
         CanonicalEvent(
             event_type="",
@@ -154,4 +186,3 @@ def test_canonical_event_validation_raises_on_missing_required_fields() -> None:
             source="spawner",
             session_id="",
         )
-

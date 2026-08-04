@@ -66,6 +66,13 @@ _SSE_TO_COGNITION: dict[str, EventType] = {
     "human_required": EventType.APPROVAL_REQUIRED,
     "route": EventType.ROUTE,
     "turn.started": EventType.DIRECTIVE,
+    # Curriculum mastery is the climax of the frontier-to-local learning loop, so
+    # it belongs in the WONDER phase alongside earned_autonomy -- growth, not the
+    # NARRATIVE green settle of a turn ending. Until 2026-08-04 this key was
+    # absent, and the `.get(..., SYNTHESIS)` fallback below silently stamped it
+    # NARRATIVE: the body treated mastering a skill as an ordinary turn close.
+    # An unmapped name does not fail loudly, it gets a plausible wrong phase.
+    "skill.mastered": EventType.KNOWLEDGE_ACQUIRED,
     "step": EventType.KNOWLEDGE_ACQUIRED,
     "swarm_plan": EventType.AGENT_DISPATCH,
     "text_chunk": EventType.SYNTHESIS,
