@@ -3,6 +3,15 @@ import { useState, useEffect } from 'react';
 /**
  * VoiceCommandHandler provides continuous listening mode using the Web Speech API.
  * It is a non-UI component that emits spoken transcripts to an 'onCommand' callback.
+ *
+ * NOT MOUNTED ANYWHERE as of 2026-08-04. The shipped voice path is the mic button
+ * in `frontend/src/workbench/GagosChrome.jsx`, which owns SpeechRecognition and
+ * calls `sendVoiceTurn`. This component was previously mounted by SuperbrainApp
+ * with `isListening` pinned to false, so it never ran. It is kept because it is
+ * a working, tested generic wrapper worth reusing if a second surface ever needs
+ * one -- but it is unreferenced today, and its passing tests prove only that the
+ * component works in isolation, NOT that voice input works in the product.
+ * Do not cite this file or its tests as evidence of a shipped voice feature.
  */
 export default function VoiceCommandHandler({ onCommand, isListening, language = 'en-US' }) {
   const [error, setError] = useState(null);

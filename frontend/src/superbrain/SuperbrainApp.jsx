@@ -7,6 +7,15 @@
  * live in <GagosChrome/>, a crisp 2D product layer DOM-sibling to the canvas.
  * GagosChrome drives turns through the same adapter and cognition bus the being
  * already listens to, so the organism still arrives, listens and reacts.
+ *
+ * VOICE (2026-08-04): this shell used to also mount <VoiceCommandHandler/> with
+ * `isListening` hardcoded to false and an `onCommand` that only console.logged.
+ * It could never activate, and it duplicated the real voice path, which lives in
+ * <GagosChrome/>: a mic button backed by SpeechRecognition and wired to
+ * sendVoiceTurn (see GagosChrome.voice.test.tsx). Removed rather than wired up,
+ * because a second listener on the same shell would have raced the real one for
+ * the microphone. Constitutional law X -- the interface must not present state
+ * or affordances that do not originate from real backend state.
  */
 import { lazy, Suspense, useCallback, useState, useEffect } from 'react';
 import BootSequence from '@/components/ui/BootSequence';
@@ -22,7 +31,6 @@ import MemoryBrowser from '../workbench/MemoryBrowser';
 import SettingsPanel from '../workbench/SettingsPanel';
 import StigmergyPanel from '../workbench/StigmergyPanel';
 import VultureFeed from '../workbench/VultureFeed';
-import VoiceCommandHandler from '../components/VoiceCommandHandler';
 import MobileHUD from '../components/MobileHUD';
 import PanelLauncher from '../workbench/PanelLauncher';
 import ProductSpaces from '../workbench/ProductSpaces';
@@ -44,7 +52,6 @@ export default function SuperbrainApp() {
   const [vultureOpen, setVultureOpen] = useState(false);
   const [ecosystemOpen, setEcosystemOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [isListening] = useState(false);
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
 
@@ -53,11 +60,6 @@ export default function SuperbrainApp() {
     return () => {
       stopMirrorClient();
     };
-  }, []);
-
-  const handleVoiceCommand = useCallback((transcript) => {
-    console.log('[Voice Command Received]', transcript);
-    // Ideally this would dispatch to the cognition bus or intent router
   }, []);
 
   return (
@@ -121,11 +123,6 @@ export default function SuperbrainApp() {
           )}
         </div>
       </MobileHUD>
-
-      <VoiceCommandHandler
-        isListening={isListening}
-        onCommand={handleVoiceCommand}
-      />
 
       <PanelLauncher
         panels={[
