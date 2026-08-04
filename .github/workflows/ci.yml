@@ -309,7 +309,17 @@ jobs:
         # topology, further down -- see "Verify the twelve-condition green
         # contract". These two fail fast here, before any Docker build, which
         # is what this step was for.
+        #
+        # build_organ_ledger_doc.py --check runs FIRST and is a different guard
+        # from the manifest check below it. The manifest pins a hash of
+        # GAGOS_54_ORGANS.md, which proves the file has not changed since it was
+        # blessed -- it says nothing about whether the file is TRUE. That is how
+        # the doc sat at 38 green / 16 yellow for two days after the ledger moved
+        # to 46/8, with this step passing the whole time. This check compares the
+        # doc's generated status region against the ledger itself, so prose that
+        # merely agrees with its own old hash now fails.
         run: |
+          python scripts/build_organ_ledger_doc.py --check
           python scripts/build_release_manifest.py --check
           python scripts/verify_organ_contracts.py --require-sha-ancestry
 
@@ -321,6 +331,7 @@ jobs:
             aios/executor_service.py aios/launcher.py \
             scripts/security_scan.py scripts/generate_sbom.py \
             scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
+            scripts/build_organ_ledger_doc.py tests/test_organ_ledger_doc.py \
             tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
@@ -331,6 +342,7 @@ jobs:
           ruff format --check \
             scripts/security_scan.py scripts/generate_sbom.py \
             scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
+            scripts/build_organ_ledger_doc.py tests/test_organ_ledger_doc.py \
             tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
