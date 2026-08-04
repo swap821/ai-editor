@@ -1,0 +1,15 @@
+{
+  "unheard_cognition_events": [
+    "telemetry"
+  ],
+  "unheard_canonical_events": [
+    "alignment.declared",
+    "approval.decided",
+    "autonomy.grant.changed",
+    "learning.skill.mastered",
+    "tool.lifecycle.changed",
+    "verification.completed"
+  ],
+  "measured_at_commit": "29fe72bd17d1021c46bb7f13da8e404689a54b02",
+  "note": "Backend events the organism cannot perceive. GAGOS's two halves are joined by one idea -- a backend event is both an audit record and a gesture -- and this file records where that join is currently broken. Each entry is a real state the interface cannot represent at all, which is the UI-side form of law X. Enforced by scripts/check_organism_seam.py and tests/test_organism_seam.py. This list may only SHRINK. Discharge an entry by teaching the being to feel the event (a CognitionEventType member plus a handler, or a livingMirrorRegistry entry) and then deleting the line -- the check fails on stale entries too, so it cannot rot in either direction. Never add an entry to make a failing gate pass; adding one is an admission of new blindness and should be argued for in the commit message. When both lists are empty this file can be deleted and the check becomes an absolute bar. Note what is in here: learning.skill.mastered is the climax of the frontier-to-local learning loop, verification.completed is evidence itself, and approval.decided is sovereignty -- the three events most central to both visions are among the ones the being cannot currently feel."
+}

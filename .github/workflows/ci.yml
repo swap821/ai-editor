@@ -318,8 +318,16 @@ jobs:
         # to 46/8, with this step passing the whole time. This check compares the
         # doc's generated status region against the ledger itself, so prose that
         # merely agrees with its own old hash now fails.
+        #
+        # check_organism_seam.py guards the OTHER hand-maintained seam: the
+        # backend event vocabulary (aios/core/events.py) against the organism's
+        # (cognitionBus.ts + livingMirrorRegistry.ts). A backend event with no
+        # frontend counterpart is a real state the interface cannot represent at
+        # all -- the UI-side form of law X. It ratchets against a named budget in
+        # .aios/state/organism_seam_budget.json that may only shrink.
         run: |
           python scripts/build_organ_ledger_doc.py --check
+          python scripts/check_organism_seam.py --check
           python scripts/build_release_manifest.py --check
           python scripts/verify_organ_contracts.py --require-sha-ancestry
 
@@ -332,6 +340,7 @@ jobs:
             scripts/security_scan.py scripts/generate_sbom.py \
             scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
             scripts/build_organ_ledger_doc.py tests/test_organ_ledger_doc.py \
+            scripts/check_organism_seam.py tests/test_organism_seam.py \
             tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
@@ -343,6 +352,7 @@ jobs:
             scripts/security_scan.py scripts/generate_sbom.py \
             scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
             scripts/build_organ_ledger_doc.py tests/test_organ_ledger_doc.py \
+            scripts/check_organism_seam.py tests/test_organism_seam.py \
             tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
