@@ -2,7 +2,7 @@
 # The executor owns the Docker socket but does not run the control-plane ML,
 # retrieval, or frontend stack; keep that larger dependency closure out of the
 # privileged service image.
-cryptography==49.0.0
+cryptography==50.0.0
 fastapi==0.141.1
 python-dotenv==1.2.2
 uvicorn==0.52.0
