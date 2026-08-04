@@ -3,6 +3,22 @@
 **Captured:** 2026-07-12  
 **Method:** direct code inspection + gate runs  
 
+> **Currency banner (2026-08-04).** The measurements below are a dated
+> Slice 0 baseline and are **not** re-verified at tip; they are kept
+> verbatim per this repo's append-only evidence convention. Two known
+> corrections since capture:
+>
+> 1. **App shell path was wrong.** The table said
+>    `frontend/src/SuperbrainApp.jsx`; no such file has existed. The real
+>    shell is `frontend/src/superbrain/SuperbrainApp.jsx`, lazy-mounted
+>    from `frontend/src/main.jsx:17`. Corrected in the table below.
+> 2. **Coverage numbers are stale.** "92% backend / ~39-46% frontend" was
+>    true on 2026-07-12 and has not been re-measured here. Do not cite
+>    these figures as current; read the CI run instead.
+>
+> Machine-readable organ status is `.aios/state/ORGAN_GREEN_LEDGER.json`,
+> never this file.
+
 ## Backend Runtime
 
 | Layer | Entry Point | Key Responsibility |
@@ -23,7 +39,7 @@
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
 | Entry | `frontend/index.html` + `main.jsx` | boot GAGOS |
-| App shell | `frontend/src/SuperbrainApp.jsx` | top-level GAGOS chrome |
+| App shell | `frontend/src/superbrain/SuperbrainApp.jsx` | top-level GAGOS chrome (corrected 2026-08-04, see banner) |
 | Product superbrain | `frontend/src/superbrain/` | **ported from lab; do not hand-edit** |
 | Chrome | `frontend/src/workbench/GagosChrome.{jsx,css}` | product-safe chrome |
 | Design tokens | `frontend/src/styles/tokens.css` | canonical palette |

@@ -502,10 +502,17 @@ re-verification, but the table's own **(47)** count and each row's
 append-only convention (dated evidence is never silently rewritten), that
 correction lives in a new section instead: see
 "[Current reconciled state (2026-08-02)](#current-reconciled-state-2026-08-02)"
-at the end of this document for the accurate current 38 green / 16 yellow
-split, sourced directly from `.aios/state/ORGAN_GREEN_LEDGER.json` and
+at the end of this document for the 38 green / 16 yellow split as of
+2026-08-02, sourced directly from `.aios/state/ORGAN_GREEN_LEDGER.json` and
 `release/phase6/organ23-shortfall.md`. Read every row below as history,
 not current status.
+
+**That 38/16 figure is itself now history.** The machine ledger reports
+**46 green / 8 yellow** at master tip; see
+"[Prose-to-ledger reconciliation (appended 2026-08-04)](#prose-to-ledger-reconciliation-appended-2026-08-04)"
+at the very end of this document, which is the current section. Note that
+`release/phase6/organ23-shortfall.md` is also pinned at the older 38/16
+snapshot and carries its own currency banner.
 
 The original 16 (Slices 26-40 completion target, minus organs 52 and 36
 flipped green in Phase 1/2, 2026-07-28 — see above) plus 33 regressed
@@ -674,3 +681,69 @@ tamper-evidence proof in `condition_verdicts`, when the real proof is
 which drives the actual production `CheckpointAuthority`-backed adapters
 through a genuine filesystem round trip. Both citations were corrected in
 the ledger; neither organ's green status changed.
+
+---
+
+## Prose-to-ledger reconciliation (appended 2026-08-04)
+
+**This section changes no organ's status. It corrects this document, which
+had fallen eight organs behind the machine ledger it is supposed to
+narrate.**
+
+### The drift
+
+`.aios/state/ORGAN_GREEN_LEDGER.json` at `fe6f1661` (master tip) reports:
+
+| | machine ledger | this document, before this section |
+|---|---|---|
+| green | **46** | 38 (§ above, line ~595) |
+| yellow | **8** | 16 (§ "Yellow (16)" table above) |
+| yellow ids | **1, 2, 3, 4, 5, 23, 44, 46** | 1–5, 20, 23, 33, 35, 37, 40, 44, 46, 48, 49, 51 |
+
+Eight organs are recorded green in the machine ledger while the "Yellow (16)"
+table above still lists them yellow, in several cases with a residual reason
+(*"no Ollama"*, *"browser-session"*) that the ledger's own evidence says was
+subsequently satisfied:
+
+| # | Organ | Stale reason in the table above | `last_verified_sha` recorded in the JSON ledger |
+|---|-------|--------------------------------|--------------------------------------------------|
+| 20 | Living Mirror Reaction Registry | browser-session | `14856c23` |
+| 33 | Model Registry and Capability Passport | no Ollama | `90830647` |
+| 35 | Local Clerk Runtime | no Ollama | `4cd9f155` |
+| 37 | Local Model Qualification and Health | no Ollama | `4cd9f155` |
+| 40 | Isolated Workspace and Executor (live proof) | no Docker | `14856c23` |
+| 48 | Truthful Living Mirror (full truthful UI) | browser-session | `5c64cd54` |
+| 49 | Approval and Decision Surface | browser-session | `5c64cd54` |
+| 51 | Sovereign Control and Heartbeat Surface | browser-session | `5c64cd54` |
+
+The remaining 8 yellows are unchanged and unchallenged: organs 1–5 (frozen
+security spine, pending its own §VIII controlled release), 23 (release
+conformance, gated on every below-organ), 44 (paid-cloud endurance cohort)
+and 46 (constitutional learning / human red-team).
+
+### Why it happened, and the standing rule
+
+PRs #185, #186 and #187 (2026-08-02→03) updated
+`.aios/state/ORGAN_GREEN_LEDGER.json` and left this document untouched; its
+last content commit is `158d1824`. The failure is exactly the one this
+document's §"Machine-readable source of truth" line already anticipates — the
+prose is a narration, not an authority, and it decayed.
+
+**The machine ledger is the only status authority.** When they disagree, the
+JSON wins and this document is the defect. Any PR that moves an organ's
+`status` must append here in the same change.
+
+### Scope of this section — read this before citing it
+
+This is a **reconciliation, not a re-audit**. What was actually checked to
+write it: the `status` field of all 54 rows in the JSON ledger, and the
+`last_verified_sha` / `live_evidence` fields of the eight organs tabulated
+above, read directly from the file at master tip.
+
+What was **not** checked here, and is not claimed: that those eight organs'
+evidence is sound, that their `condition_verdicts` hold, or that the SHAs
+above are ancestors of tip. Those are `scripts/verify_organ_contracts.py
+--require-sha-ancestry`'s job in CI, and this section deliberately does not
+restate its verdict as if independently confirmed. The last independent
+hands-on re-audit recorded in this document remains the 38-green pass above;
+the eight flips have not been re-audited by hand since.

@@ -1,5 +1,21 @@
 # R16 Product Truth Audit
 
+> **Correction (2026-08-04).** One entry in this inventory was wrong at the
+> time of writing and is corrected in place below; the rest of the audit is
+> left verbatim as dated evidence.
+>
+> - **`voice` was marked `[-]` Not Implemented. It is implemented.**
+>   `aios/api/routes/voice.py` ships three real endpoints
+>   (`POST /api/v1/voice/transcribe`, `POST /api/v1/voice/speak`,
+>   `GET /api/v1/voice/models`) backed by `aios/core/voice.py`
+>   (faster-whisper STT, piper TTS), behind `enforce_action_boundary`, with
+>   coverage in `tests/test_voice_routes.py`, `tests/test_voice_core.py` and
+>   `tests/test_voice.py`. It is `[O]` Optional but Tested: both
+>   `AIOS_VOICE_STT` and `AIOS_VOICE_TTS` default to `False`
+>   (`aios/config.py:464-465`) and the endpoints return `501` when disabled.
+>   The *frontend* voice path is a separate matter and is genuinely inert —
+>   see the note in section 1.
+
 ## Objective
 Establish an exact inventory of the GAGOS R15 architecture to baseline for R16 productization. This document maps every public feature claim to a reachable product path and executable evidence.
 
@@ -33,7 +49,14 @@ Establish an exact inventory of the GAGOS R15 architecture to baseline for R16 p
 - `sovereignty`: `[P]` Immutable human-operator controls.
 - `system`: `[P]` Telemetry and health.
 - `v10`: `[A]` Backwards-compatibility adapters.
-- `voice`: `[-]` R16 aspirational feature.
+- `voice`: `[O]` Local STT (faster-whisper) + TTS (piper). Off by default
+  (`AIOS_VOICE_STT` / `AIOS_VOICE_TTS`), `501` when disabled. *Corrected
+  2026-08-04 — previously mismarked `[-]` Not Implemented; see banner.*
+  **Frontend caveat:** the backend is real but the browser path is not wired.
+  `frontend/src/superbrain/SuperbrainApp.jsx:47` pins `isListening` to `false`
+  and its `handleVoiceCommand` only `console.log`s the transcript, so the
+  mounted `VoiceCommandHandler` is inert; a second, separate voice
+  implementation lives in `frontend/src/workbench/GagosChrome`.
 
 ## 2. Memory Stores (`aios/memory/`)
 - `semantic`, `episodic`, `working`: `[P]` Core memory triad.

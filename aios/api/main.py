@@ -213,8 +213,10 @@ from aios.security.secret_scanner import scan_and_redact
 # ── Cortex bus W2 — singletons (None when CORTEX_BUS is off) ─────────────────
 # The bus and its dispatcher are module-level so the lifespan can start/stop
 # them and the generate endpoint can append to them without FastAPI Depends.
-# Both are None when config.CORTEX_BUS is False (the default) — zero overhead
-# on the hot path when the feature is off.
+# Both are None when config.CORTEX_BUS is False — zero overhead on the hot path
+# when the feature is off. Note the default is ON (aios/config.py: AIOS_CORTEX_BUS
+# defaults True), so the normal path constructs them; set AIOS_CORTEX_BUS=0 to opt
+# out. This comment claimed the opposite until 2026-08-04.
 _cortex_bus: Optional[CortexBus] = None
 _cortex_dispatcher: Optional[CortexBusDispatcher] = None
 _self_model_handler: Optional[SelfModelHandler] = None
@@ -289,9 +291,10 @@ async def lifespan(app: FastAPI):
                 "Vector injection shield failed to load; regex layer remains active",
                 exc_info=exc,
             )
-    # Cortex bus W2: start the drainer ONLY when opted in.  The bus default is
-    # OFF (config.CORTEX_BUS=False) — this block is completely skipped in the
-    # common case, so behavior is byte-identical to W1 when the flag is unset.
+    # Cortex bus W2: start the drainer only when the flag is set.  The bus
+    # default is ON (config.CORTEX_BUS=True), so this block runs in the common
+    # case; set AIOS_CORTEX_BUS=0 to skip it and get W1-identical behavior.
+    # This comment claimed the default was OFF until 2026-08-04.
     global _cortex_bus, _cortex_dispatcher, _self_model_handler
     if config.CORTEX_BUS:
         try:
