@@ -758,10 +758,13 @@ AIOS_SCOPE_ROOTS=training_ground;lab
 AIOS_LLM_MODEL=granite3.2:2b
 OLLAMA_HOST=http://127.0.0.1:11434
 
-# Cloud-eligible task classes
+# Cloud-eligible task classes. Cloud egress is OFF by default: this ships
+# empty, so nothing leaves the machine until you name a class here. Opting in
+# still requires real provider credentials.
 AIOS_ROUTER_CLOUD_TASKS=reasoning,coding
 
-# Hard local-only posture
+# Hard local-only posture. Same as the shipped default; set it explicitly to
+# override a value inherited from the environment or an older .env.
 AIOS_ROUTER_CLOUD_TASKS=""
 
 # Worker limits
@@ -769,8 +772,8 @@ AIOS_SWARM_MAX_WORKERS=4
 AIOS_COUNCIL_MAX_CONCURRENT_WORKERS=4
 
 # Swarm cloud burst is a separate egress control from AIOS_ROUTER_CLOUD_TASKS
-# above -- it defaults to enabled and must also be turned off for a hard
-# local-only posture.
+# above and is NOT covered by it. Also off by default (it defaulted to enabled
+# until 2026-08-04); set it true only to allow swarm subtasks to burst to cloud.
 AIOS_SWARM_CLOUD_BURST=false
 
 # Execution boundary

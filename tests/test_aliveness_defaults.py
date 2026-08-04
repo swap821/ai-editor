@@ -46,10 +46,11 @@ def test_wonder_phase_organs_default_awake() -> None:
     assert config.COUNCIL_REASONING is True
     # council origination: chat -> council mission pipeline
     assert config.COUNCIL_ORIGINATION is True
-    # cloud burst: swarm subtasks can burst to cloud providers
-    assert config.SWARM_CLOUD_BURST_ENABLED is True
     # cortex bus: cold-path dispatcher for non-authority observations
     assert config.CORTEX_BUS is True
+    # NOTE: swarm cloud burst was asserted awake here until 2026-08-04. It moved
+    # to test_boundary_crossing_arms_stay_opt_in below — it is an egress path,
+    # not an aliveness organ, and the two sets have different defaults by design.
 
 
 def test_boundary_crossing_arms_stay_opt_in() -> None:
@@ -58,3 +59,8 @@ def test_boundary_crossing_arms_stay_opt_in() -> None:
     assert config.CRAG_CLOUD is False
     assert config.CRAG_WEBSEARCH is False
     assert config.CRAG_LLM_JUDGE is False
+    # The two router-level egress paths cross the same boundary and are opt-in
+    # for the same reason (2026-08-04). They are independent switches: locking
+    # down one must not be mistaken for closing the other.
+    assert config.ROUTER_CLOUD_TASKS == ()
+    assert config.SWARM_CLOUD_BURST_ENABLED is False

@@ -222,8 +222,9 @@ Generated 2026-07-07 by a 10-area Sonnet inventory sweep + completeness critic, 
 - **risk if skipped:** Blocks Phase B (the sovereign work-loop) from ever being safely autonomous — an unattended task could route reasoning/coding to cloud under the operator's interactive policy, the exact failure the plan's guardrail spine forbids ('autonomous LLM calls are local-only').
 
 ### 35. SWARM_CLOUD_BURST_ENABLED defaults True with no autonomous-context override
-- **status:** not-started · **effort:** S
-- **what:** aios/config.py:204 `SWARM_CLOUD_BURST_ENABLED = _env_bool("AIOS_SWARM_CLOUD_BURST", True)`, consumed in aios/agents/swarm.py:301 and aios/api/main.py:1952. There is no mechanism to force it off specifically for a future daemon/autonomous caller — this depends on the origin-scoping plumbing (previous item) existing first. Named explicitly in the plan (Phase C2): 'SWARM_CLOUD_BURST -> flip local for the daemon (it is True today).'
+- **status:** half-done (2026-08-04) · **effort:** S
+- **what:** `SWARM_CLOUD_BURST_ENABLED` now defaults **False** (`aios/config.py`), so the global posture is closed and the "it is True today" premise below no longer holds. Consumed in `aios/agents/swarm.py` and `aios/application/turns/generate_pipeline.py`. **Still open:** there is no mechanism to force it off *specifically* for a future daemon/autonomous caller while an interactive operator has it on — that remains blocked on the origin-scoping plumbing (previous item). The flip half of Phase C2 ('SWARM_CLOUD_BURST -> flip local for the daemon') is done globally; the origin-scoped half is not.
+- **original note (superseded):** aios/config.py:204 `SWARM_CLOUD_BURST_ENABLED = _env_bool("AIOS_SWARM_CLOUD_BURST", True)` — there is no mechanism to force it off specifically for a future daemon/autonomous caller.
 - **unblocks:** Phase C2 flag decisions; depends on origin-scoped routing item above
 - **risk if skipped:** A swarm task kicked off by the future autonomous loop can burst to cloud even if reasoning/coding cloud egress is otherwise locked down for autonomous origin.
 

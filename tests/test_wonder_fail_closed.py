@@ -57,19 +57,24 @@ class TestCouncilReasoningFailClosed:
 
 
 class TestCloudBurstFailClosed:
-    """Cloud burst does nothing without cloud credentials configured."""
+    """Cloud burst is off by default, and inert even when switched on."""
 
-    def test_cloud_burst_flag_is_on(self) -> None:
-        assert config.SWARM_CLOUD_BURST_ENABLED is True
+    def test_cloud_burst_flag_is_off(self) -> None:
+        # Flipped 2026-08-04: this asserted True until the egress defaults were
+        # closed. Burst is an opt-in egress path, not a wonder organ.
+        assert config.SWARM_CLOUD_BURST_ENABLED is False
 
     def test_no_cloud_client_without_credentials(self) -> None:
-        assert config.SWARM_CLOUD_BURST_ENABLED is True
-        # The burst only fires when BOTH the flag is on AND a cloud client
-        # is constructed — which requires BEDROCK_ENABLED or GEMINI_ENABLED
-        # (themselves dependent on AWS/GCP credentials). Without credentials,
-        # cloud_client remains None and burst is a no-op.
-        with patch.object(config, "BEDROCK_ENABLED", False), \
+        # The second guard, which held even while the flag defaulted on: the
+        # burst only fires when BOTH the flag is set AND a cloud client is
+        # constructed — which requires BEDROCK_ENABLED or GEMINI_ENABLED
+        # (themselves dependent on AWS/GCP credentials). Asserted here with the
+        # flag forced ON, so this proves the credential guard independently
+        # rather than passing for free on the new default.
+        with patch.object(config, "SWARM_CLOUD_BURST_ENABLED", True), \
+             patch.object(config, "BEDROCK_ENABLED", False), \
              patch.object(config, "GEMINI_ENABLED", False):
+            assert config.SWARM_CLOUD_BURST_ENABLED
             assert not config.BEDROCK_ENABLED
             assert not config.GEMINI_ENABLED
 

@@ -5,6 +5,20 @@
 **Evidence tip (green last_verified_sha):** `5d482164707c6c6e62f3da6a37cff79f252f9260`
 **Counts:** 38 green / 16 yellow / 54 total; live evidence on 39 organs.
 
+> **Currency banner (2026-08-04) — this artifact is a dated snapshot, not
+> current status.** It is pinned at HEAD `96a58b1f` and is kept verbatim as
+> release evidence. `.aios/state/ORGAN_GREEN_LEDGER.json` at master tip now
+> reports **46 green / 8 yellow**; eight organs listed non-green below —
+> **20, 33, 35, 37, 40, 48, 49, 51** — are recorded green in the machine
+> ledger. The itemised residuals that remain live are organs **1–5, 23, 44
+> and 46** only.
+>
+> Organ 23's verdict below (**NOT 54/54**) is unaffected: it stays yellow
+> while any below-organ is non-green, and eight still are. Regenerate this
+> artifact from the machine ledger before citing its table in a release
+> decision. See "Prose-to-ledger reconciliation (appended 2026-08-04)" in
+> `docs/architecture/GAGOS_54_ORGANS.md`.
+
 ## Why not 54/54
 
 Outside-machine / Ollama / Docker / browser-session / frozen-spine residuals remain. Organ 23 stays yellow until every below-organ is honestly green.

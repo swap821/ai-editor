@@ -284,8 +284,11 @@ coverage gate). Live/E2E proof lives in untracked `training_ground/` scripts out
 genuine single source of truth: 60+ `AIOS_*` flags via typed accessors, `.env` auto-loaded on import,
 `DATA_DIR` created at import time, every subsystem reading its tunables here and wired into FastAPI
 via `Depends(...)` so tests swap fakes. The privacy gate is deterministic and unspoofable by a
-model: the shipped interactive config keeps `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`, while
-`AIOS_ROUTER_CLOUD_TASKS=""` forces `auto` local-only; unknown task names are silently dropped, and
+model: as of 2026-08-04 cloud egress is off by default — `AIOS_ROUTER_CLOUD_TASKS` ships empty
+(it shipped `reasoning,coding` until then), so `auto` is local-only until the operator opts in per
+task class; setting `AIOS_ROUTER_CLOUD_TASKS=""` is identical to the default and still forces
+local-only over an inherited env. `AIOS_SWARM_CLOUD_BURST` is a second, independent egress switch
+and is now also off by default. Unknown task names are silently dropped, and
 the hybrid LLM picker can re-order but never escape the allowed set. Secret hygiene is
 layered and real (keys never persisted; the executor strips `*KEY*`/`*TOKEN*`/`*SECRET*`/`*BEARER*`/
 etc. from every child env). The token-gated API hard-requires a ≥32-char token before it will boot

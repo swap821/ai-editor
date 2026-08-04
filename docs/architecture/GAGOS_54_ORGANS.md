@@ -502,10 +502,17 @@ re-verification, but the table's own **(47)** count and each row's
 append-only convention (dated evidence is never silently rewritten), that
 correction lives in a new section instead: see
 "[Current reconciled state (2026-08-02)](#current-reconciled-state-2026-08-02)"
-at the end of this document for the accurate current 38 green / 16 yellow
-split, sourced directly from `.aios/state/ORGAN_GREEN_LEDGER.json` and
+at the end of this document for the 38 green / 16 yellow split as of
+2026-08-02, sourced directly from `.aios/state/ORGAN_GREEN_LEDGER.json` and
 `release/phase6/organ23-shortfall.md`. Read every row below as history,
 not current status.
+
+**That 38/16 figure is itself now history.** The machine ledger reports
+**46 green / 8 yellow** at master tip; see
+"[Prose-to-ledger reconciliation (appended 2026-08-04)](#prose-to-ledger-reconciliation-appended-2026-08-04)"
+at the very end of this document, which is the current section. Note that
+`release/phase6/organ23-shortfall.md` is also pinned at the older 38/16
+snapshot and carries its own currency banner.
 
 The original 16 (Slices 26-40 completion target, minus organs 52 and 36
 flipped green in Phase 1/2, 2026-07-28 — see above) plus 33 regressed
@@ -674,3 +681,156 @@ tamper-evidence proof in `condition_verdicts`, when the real proof is
 which drives the actual production `CheckpointAuthority`-backed adapters
 through a genuine filesystem round trip. Both citations were corrected in
 the ledger; neither organ's green status changed.
+
+---
+
+## Prose-to-ledger reconciliation (appended 2026-08-04)
+
+**This section changes no organ's status. It corrects this document, which
+had fallen eight organs behind the machine ledger it is supposed to
+narrate.**
+
+### The drift
+
+`.aios/state/ORGAN_GREEN_LEDGER.json` at `fe6f1661` (master tip) reports:
+
+| | machine ledger | this document, before this section |
+|---|---|---|
+| green | **46** | 38 (§ above, line ~595) |
+| yellow | **8** | 16 (§ "Yellow (16)" table above) |
+| yellow ids | **1, 2, 3, 4, 5, 23, 44, 46** | 1–5, 20, 23, 33, 35, 37, 40, 44, 46, 48, 49, 51 |
+
+Eight organs are recorded green in the machine ledger while the "Yellow (16)"
+table above still lists them yellow, in several cases with a residual reason
+(*"no Ollama"*, *"browser-session"*) that the ledger's own evidence says was
+subsequently satisfied:
+
+| # | Organ | Stale reason in the table above | `last_verified_sha` recorded in the JSON ledger |
+|---|-------|--------------------------------|--------------------------------------------------|
+| 20 | Living Mirror Reaction Registry | browser-session | `14856c23` |
+| 33 | Model Registry and Capability Passport | no Ollama | `90830647` |
+| 35 | Local Clerk Runtime | no Ollama | `4cd9f155` |
+| 37 | Local Model Qualification and Health | no Ollama | `4cd9f155` |
+| 40 | Isolated Workspace and Executor (live proof) | no Docker | `14856c23` |
+| 48 | Truthful Living Mirror (full truthful UI) | browser-session | `5c64cd54` |
+| 49 | Approval and Decision Surface | browser-session | `5c64cd54` |
+| 51 | Sovereign Control and Heartbeat Surface | browser-session | `5c64cd54` |
+
+The remaining 8 yellows are unchanged and unchallenged: organs 1–5 (frozen
+security spine, pending its own §VIII controlled release), 23 (release
+conformance, gated on every below-organ), 44 (paid-cloud endurance cohort)
+and 46 (constitutional learning / human red-team).
+
+### Why it happened, and the standing rule
+
+PRs #185, #186 and #187 (2026-08-02→03) updated
+`.aios/state/ORGAN_GREEN_LEDGER.json` and left this document untouched; its
+last content commit is `158d1824`. The failure is exactly the one this
+document's §"Machine-readable source of truth" line already anticipates — the
+prose is a narration, not an authority, and it decayed.
+
+**The machine ledger is the only status authority.** When they disagree, the
+JSON wins and this document is the defect. Any PR that moves an organ's
+`status` must append here in the same change.
+
+### Scope of this section — read this before citing it
+
+This is a **reconciliation, not a re-audit**. What was actually checked to
+write it: the `status` field of all 54 rows in the JSON ledger, and the
+`last_verified_sha` / `live_evidence` fields of the eight organs tabulated
+above, read directly from the file at master tip.
+
+What was **not** checked here, and is not claimed: that those eight organs'
+evidence is sound, that their `condition_verdicts` hold, or that the SHAs
+above are ancestors of tip. Those are `scripts/verify_organ_contracts.py
+--require-sha-ancestry`'s job in CI, and this section deliberately does not
+restate its verdict as if independently confirmed. The last independent
+hands-on re-audit recorded in this document remains the 38-green pass above;
+the eight flips have not been re-audited by hand since.
+
+---
+
+<!-- BEGIN GENERATED: CURRENT ORGAN STATUS -- do not hand-edit -->
+
+## Current organ status (generated)
+
+**This section is generated by `scripts/build_organ_ledger_doc.py` from
+`.aios/state/ORGAN_GREEN_LEDGER.json`. Do not hand-edit it.** Everything
+above it is dated, hand-written history and is preserved verbatim; only
+this region tracks current truth. If you moved an organ's status, run the
+script (then `build_release_manifest.py`) rather than editing here.
+
+- **Counts:** 46 green / 8 yellow / 54 total
+- **Source ledger sha256:** `ac38380ced0eb3fcfcecc8efcf705da6d7a50d70dc823e7b556f3302204f2887`
+
+Status, owner, evidence SHA and residuals below are copied mechanically
+from the ledger. This section asserts only that it faithfully reflects
+the JSON -- not that the underlying evidence is sound. That judgement
+belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
+re-audits recorded above.
+
+### Green (46)
+
+| # | Organ | Authority owner | Evidence SHA | Proof |
+|---|-------|------------------|--------------|-------|
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `5d482164707c` | live |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | `5d482164707c` | live |
+| 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | `5d482164707c` | live |
+| 10 | Mission Authority | `MissionAuthority` | `5d482164707c` | live |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `5d482164707c` | live |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `5d482164707c` | live |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `5d482164707c` | live |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `5d482164707c` | live |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5d482164707c` | live |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | `5d482164707c` | live |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `5d482164707c` | live |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `5d482164707c` | live |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `5d482164707c` | live |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `14856c23e08b` | live |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `5d482164707c` | live |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `5d482164707c` | live |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `5d482164707c` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `5d482164707c` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `5d482164707c` | live |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `5d482164707c` | live |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `5d482164707c` | live |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `5d482164707c` | live |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `5d482164707c` | live |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `5d482164707c` | live |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `5d482164707c` | live |
+| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `90830647e40c` | live |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `5d482164707c` | live |
+| 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
+| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `5d482164707c` | live |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `4cd9f1550cf1` | live |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `5d482164707c` | live |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `5d482164707c` | live |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | `14856c23e08b` | live |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `5d482164707c` | live |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5d482164707c` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5d482164707c` | live |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5d482164707c` | live |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `5c64cd54ca52` | live |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | `5c64cd54ca52` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `5d482164707c` | live |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | `5c64cd54ca52` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `5d482164707c` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
+
+### Yellow (8) — exact residual, from the ledger's own `known_blockers`
+
+| # | Organ | Authority owner | Residual |
+|---|-------|------------------|----------|
+| 1 | Security Gateway | `SecurityGatewayAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C3: N/A-BY-DESIGN — aios/security/gateway.py::RateLimiter |
+| 2 | Scope Lock | `ScopeLockAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C4: N/A-BY-DESIGN — aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope |
+| 3 | Secret Scanner | `SecretScannerAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C4: N/A-BY-DESIGN — aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact |
+| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence. |
+| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C3: N/A-BY-DESIGN — aios/security/injection_shield.py::InjectionShieldAuthority |
+| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Outside-machine — cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | no Ollama — live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design |
+
+<!-- END GENERATED: CURRENT ORGAN STATUS -->
