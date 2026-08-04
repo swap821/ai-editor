@@ -33,6 +33,14 @@ _DEFAULT_ROOTS = (
 )
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("private-key", re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----")),
+    # The §VIII spine-release signing key. If this ever lands in a tracked file
+    # the frozen-organ control is void: any agent with write access could then
+    # forge an operator approval. The key is Ed25519 raw hex (64 chars), so an
+    # assignment of 64 hex characters to this name is the shape to catch.
+    (
+        "spine-release-signing-key",
+        re.compile(r"AIOS_SPINE_RELEASE_KEY\s*[=:]\s*['\"]?[0-9a-fA-F]{64}"),
+    ),
     ("aws-access-key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("github-token", re.compile(r"\b(?:ghp|github_pat|glpat)_[A-Za-z0-9_\-]{20,}\b")),
     ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9_\-]{20,}\b")),
