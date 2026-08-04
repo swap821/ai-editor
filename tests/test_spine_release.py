@@ -12,7 +12,10 @@ correct on friendly input is not evidence of anything.
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -206,6 +209,103 @@ def test_garbage_signature_and_key_are_verification_failures_not_crashes():
     )
     assert verify_signature(att, "not-hex") is False
     assert verify_signature(att, "ab" * 32) is False
+
+
+# --------------------------------------------------------------------------- #
+# The signing tool must not be able to leak what it never holds
+# --------------------------------------------------------------------------- #
+
+
+def test_keygen_creates_no_private_key_material():
+    """The original keygen printed the private key to stdout.
+
+    In an agent-driven repository that is a leak: whoever runs the command
+    captures stdout, and the one secret the whole mechanism depends on lands in
+    an agent's context. The fix is not a warning -- it is that the tool no longer
+    generates key material at all, so there is nothing to leak.
+
+    Tested behaviourally. A source-grep is the obvious approach and it is wrong
+    here: the tool legitimately CONTAINS the text of a key-generation recipe,
+    because it prints one for the operator to run elsewhere. What matters is that
+    running keygen emits no key and writes nothing.
+    """
+    import re
+    import subprocess
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "spine_release_attest.py"),
+            "keygen",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0
+    combined = result.stdout + result.stderr
+
+    # An Ed25519 key is 64 hex characters. No such run may appear in the output,
+    # whatever else the command says.
+    assert not re.search(r"\b[0-9a-fA-F]{64}\b", combined), (
+        "keygen emitted something shaped like a key"
+    )
+    assert "does NOT generate" in result.stdout
+    assert "no agent attached" in result.stdout
+
+    # And it must not have installed anything as a side effect.
+    assert not (REPO_ROOT / PUBKEY_RELPATH).exists()
+
+
+def test_sign_refuses_when_stdout_is_captured(tmp_path):
+    """Non-TTY stdout means the output is being captured -- refuse before signing.
+
+    This is the guard that would have caught the original mistake: an agent
+    running `sign` gets a pipe, not a terminal.
+    """
+    import subprocess
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "spine_release_attest.py"),
+            "sign",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,  # <- this is exactly the condition under test
+        text=True,
+        timeout=60,
+        env={**os.environ, "AIOS_SPINE_RELEASE_KEY": "00" * 32},
+    )
+    assert result.returncode == 2
+    assert "not a terminal" in result.stderr
+    assert "rotate it" in result.stderr
+
+
+def test_sign_has_no_yes_flag_to_bypass_the_confirmation():
+    """--yes existed in the first version and would have defeated the TTY guard."""
+    source = (REPO_ROOT / "scripts" / "spine_release_attest.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"--yes"' not in source
+
+
+def test_install_pubkey_rejects_anything_that_is_not_a_public_key(
+    tmp_path, monkeypatch
+):
+    """A malformed key would make every signature fail verification.
+
+    That failure reads as "the operator never approved" rather than "the key is
+    broken", so it must be caught at install time.
+    """
+    import scripts.spine_release_attest as tool
+
+    monkeypatch.setattr(tool, "REPO_ROOT", tmp_path)
+    for bad in ("not-hex", "ab", "ff" * 64):
+        args = argparse.Namespace(key=bad)
+        assert tool.cmd_install_pubkey(args) == 2
+    assert not (tmp_path / PUBKEY_RELPATH).exists()
 
 
 # --------------------------------------------------------------------------- #
