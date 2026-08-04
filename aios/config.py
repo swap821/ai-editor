@@ -235,7 +235,14 @@ NARRATIVE_SELF_ENABLED: Final[bool] = _env_bool("AIOS_NARRATIVE_SELF", True)
 SWARM_MAX_WORKERS: Final[int] = _env_int("AIOS_SWARM_MAX_WORKERS", 4)
 SWARM_WORKER_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_WORKER_CONCURRENCY", 1)
 SWARM_REDUNDANCY: Final[int] = _env_int("AIOS_SWARM_REDUNDANCY", 1)
-SWARM_CLOUD_BURST_ENABLED: Final[bool] = _env_bool("AIOS_SWARM_CLOUD_BURST", True)
+# Second, independent egress path: swarm subtasks bursting to a cloud provider.
+# OFF by default as of 2026-08-04 (was True). It is deliberately separate from
+# AIOS_ROUTER_CLOUD_TASKS, which means an operator who correctly locks down the
+# router could still egress here — the exact hole named in
+# .aios/state/GAGOS_REMAINING_INVENTORY.md and planned as Phase C2
+# ("SWARM_CLOUD_BURST -> flip local for the daemon"). Both switches now start
+# closed, so locking down one no longer leaves the other open.
+SWARM_CLOUD_BURST_ENABLED: Final[bool] = _env_bool("AIOS_SWARM_CLOUD_BURST", False)
 SWARM_WORKER_BACKEND: Final[str] = _env_str("AIOS_SWARM_WORKER_BACKEND", "auto")
 SWARM_PHEROMONE_FIDELITY: Final[str] = _env_str("AIOS_SWARM_PHEROMONE_FIDELITY", "fast")
 SWARM_CONFLICT_STRATEGY: Final[str] = _env_str("AIOS_SWARM_CONFLICT_STRATEGY", "merge")
@@ -359,14 +366,25 @@ def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     )
 
 
-# The organism's source LLMs are local+cloud BY NATURE (operator decision,
-# 2026-06-29): the HIGH-LEVEL tasks (reasoning, coding) — where small local models
-# hit their ceiling — route to cloud by default; everything else stays local. The
-# privacy boundary still holds one layer down: cloud is only ever *eligible* when a
-# cloud provider is actually configured (see router_wiring._build_providers), so a
-# fresh install with no cloud creds runs fully local regardless. Override or disable
-# the set with AIOS_ROUTER_CLOUD_TASKS (e.g. "" forces local-only).
-_ROUTER_CLOUD_TASKS_DEFAULT: Final[tuple[str, ...]] = ("reasoning", "coding")
+# Cloud egress is OFF by default: no task class leaves the machine until the
+# operator names one (operator decision, 2026-08-04).
+#
+# This REVERSES the 2026-06-29 decision that shipped ("reasoning", "coding") —
+# the organism's source LLMs as local+cloud by nature, high-level tasks routed
+# to cloud where small local models hit their ceiling. That reasoning was sound
+# about *capability* and wrong about *consent*: it only held while no cloud
+# provider was configured. The layer-down guarantee (cloud is eligible only when
+# a provider is actually built — see router_wiring._build_providers) protects a
+# fresh install with no creds, but the moment an operator adds Bedrock or Gemini
+# credentials for one purpose, reasoning and coding content became cloud-eligible
+# with no further consent step. "Local-first" has to mean local until told
+# otherwise, not local until credentialed.
+#
+# Opt in per task class with AIOS_ROUTER_CLOUD_TASKS (e.g. "reasoning,coding"
+# restores the old behavior; valid names in _VALID_ROUTER_TASKS). The capability
+# argument is unchanged — a 7B local model does hit a ceiling on hard reasoning —
+# so expect to set this deliberately for heavy work.
+_ROUTER_CLOUD_TASKS_DEFAULT: Final[tuple[str, ...]] = ()
 ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks(
     "AIOS_ROUTER_CLOUD_TASKS", _ROUTER_CLOUD_TASKS_DEFAULT
 )

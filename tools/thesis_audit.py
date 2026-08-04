@@ -42,6 +42,8 @@ CANONICAL_CLOUD_DOCS: frozenset[str] = frozenset(
 
 SWARM_EGRESS_DOCS: frozenset[str] = frozenset({"README.md", "AGENTS.md"})
 
+# Wording that is stale when the shipped default is NON-empty (cloud-by-default).
+# Kept for the case where an operator restores a non-empty default.
 STALE_LOCAL_ONLY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"empty\s+by\s+default\s*=\s*local-only", re.IGNORECASE),
     re.compile(r"local-only\s+by\s+default", re.IGNORECASE),
@@ -49,6 +51,24 @@ STALE_LOCAL_ONLY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"cloud\s+is\s+opt-in,\s+not\s+default", re.IGNORECASE),
     re.compile(r"cloud\s+route\s+requires\s+per-task-class\s+operator\s+opt-in", re.IGNORECASE),
     re.compile(r"default\s+empty\s+`?ROUTER_CLOUD_TASKS`?", re.IGNORECASE),
+)
+
+# The mirror image, stale when the shipped default IS empty (the 2026-08-04
+# default). Without this the audit only ever caught drift in one direction: it
+# would have happily let every doc keep claiming "ships as reasoning,coding"
+# after the default went local-only, which is the same class of untruth the
+# tool exists to catch.
+STALE_CLOUD_DEFAULT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"ships?\s+as\s+`?reasoning,\s*coding`?", re.IGNORECASE),
+    re.compile(r"shipped\s+default\s+is\s+`?reasoning,\s*coding`?", re.IGNORECASE),
+    # Hyphenated only, on purpose. The spaced form "... to cloud by default"
+    # also appears inside correct NEGATED sentences ("sends no task class to
+    # cloud by default"), so matching it flagged accurate docs as stale.
+    re.compile(r"cloud-by-default", re.IGNORECASE),
+    re.compile(r"hybrid\s+by\s+default", re.IGNORECASE),
+    re.compile(
+        r"AIOS_SWARM_CLOUD_BURST[^\n]{0,40}\bis\s+true\s+by\s+default", re.IGNORECASE
+    ),
 )
 
 
@@ -144,6 +164,25 @@ def _cloud_tasks_literal(cloud_tasks_default: Sequence[str]) -> str:
     return ",".join(cloud_tasks_default)
 
 
+def _states_local_only_default(text: str) -> bool:
+    """True when *text* actually says cloud egress is off by default.
+
+    Used only when the shipped default is empty, where the plain containment
+    check on the default literal degenerates to `"" in text`.
+    """
+    lowered = text.lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "local-only by default",
+            "off by default",
+            "empty by default",
+            "cloud is opt-in",
+            "no task class leaves",
+        )
+    )
+
+
 def _has_local_only_override(text: str) -> bool:
     compact = _compact(text)
     return (
@@ -161,24 +200,44 @@ def audit_cloud_routing_docs(
 ) -> list[Finding]:
     """Return findings for stale cloud-routing claims in *docs*."""
     expected = _cloud_tasks_literal(cloud_tasks_default)
+    cloud_is_default = bool(cloud_tasks_default)
+    stale_patterns = (
+        STALE_LOCAL_ONLY_PATTERNS if cloud_is_default else STALE_CLOUD_DEFAULT_PATTERNS
+    )
     findings: list[Finding] = []
     for path, text in docs.items():
-        for pattern in STALE_LOCAL_ONLY_PATTERNS:
+        for pattern in stale_patterns:
             if pattern.search(text):
                 findings.append(
                     Finding(
                         path=path,
                         code="router-cloud-default-drift",
                         message=(
-                            "stale local-only/default opt-in wording conflicts "
-                            f"with config default {expected!r}"
+                            "stale cloud-default wording conflicts with config "
+                            f"default {expected!r}"
                         ),
                     )
                 )
                 break
 
         if path in CANONICAL_CLOUD_DOCS:
-            if expected not in _compact(text):
+            # An empty default makes `expected` the empty string, which is a
+            # substring of everything -- the containment check below would pass
+            # vacuously. Require the docs to state the local-only default in
+            # words instead, so "names the current default" stays a real bar.
+            if not cloud_is_default:
+                if not _states_local_only_default(text):
+                    findings.append(
+                        Finding(
+                            path=path,
+                            code="router-cloud-default-missing",
+                            message=(
+                                "document must state that cloud egress is off by "
+                                "default (empty AIOS_ROUTER_CLOUD_TASKS)"
+                            ),
+                        )
+                    )
+            elif expected not in _compact(text):
                 findings.append(
                     Finding(
                         path=path,

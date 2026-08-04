@@ -200,10 +200,35 @@ def test_kernel_list_runtime_profiles(kernel):
 # Runtime profile overrides env-driven config expectations
 # --------------------------------------------------------------------------- #
 
-def test_operator_profile_matches_default_config_cloud_tasks():
-    """The operator profile mirrors the shipped default cloud-task eligibility."""
-    profile = profiles.RUNTIME_PROFILES["operator"]
-    assert set(profile.router_cloud_tasks) == set(config.ROUTER_CLOUD_TASKS)
+def test_default_profile_matches_default_config_cloud_tasks():
+    """The DEFAULT profile mirrors the shipped default cloud-task eligibility.
+
+    Rewritten 2026-08-04. This previously pinned the *operator* profile to the
+    config default, which held only while that default was ("reasoning",
+    "coding"). Now that config ships local-only, the meaningful invariant is
+    that the profile you get without choosing one agrees with the config you
+    get without setting one — otherwise the two layers could disagree about
+    what "default" means and egress would depend on which one was consulted.
+    """
+    profile = profiles.RUNTIME_PROFILES[profiles.default_profile_name()]
+    assert set(profile.router_cloud_tasks) == set(config.ROUTER_CLOUD_TASKS) == set()
+    assert profile.swarm_cloud_burst is config.SWARM_CLOUD_BURST_ENABLED is False
+
+
+def test_cloud_enabled_profiles_are_opt_in_by_name():
+    """Profiles that DO permit egress are reachable only by naming them.
+
+    `operator` and `autonomous` still carry cloud task classes; that is their
+    purpose. The guarantee is that neither is the default, so no install routes
+    anything off-machine without an explicit AIOS_RUNTIME_PROFILE or a persisted
+    active-profile choice.
+    """
+    assert profiles.default_profile_name() == "local-first"
+    for name in ("operator", "autonomous"):
+        assert profiles.RUNTIME_PROFILES[name].router_cloud_tasks, (
+            f"{name} is expected to permit cloud tasks"
+        )
+        assert name != profiles.default_profile_name()
 
 
 # --------------------------------------------------------------------------- #

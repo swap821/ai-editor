@@ -13,9 +13,10 @@ Tests verify that sensitive data never reaches cloud providers:
   P6: Router cloud-task policy enforcement
   P7: Scope-root privacy boundaries
 
-The shipped router can make reasoning/coding cloud-eligible by default, but the
-router's gate is deterministic: a model can never route a task outside
-AIOS_ROUTER_CLOUD_TASKS, and setting AIOS_ROUTER_CLOUD_TASKS="" forces local-only.
+The shipped router sends no task class to cloud by default (2026-08-04). The
+gate is deterministic in both directions: a model can never route a task outside
+AIOS_ROUTER_CLOUD_TASKS, and with the set empty nothing is eligible at all.
+Opting in is per task class, e.g. AIOS_ROUTER_CLOUD_TASKS=reasoning,coding.
 """
 from __future__ import annotations
 
@@ -164,18 +165,37 @@ class TestFileContentRedaction:
 class TestRouterCloudPolicy:
     """TC-SEC-512 through TC-SEC-517: Router privacy gate enforcement."""
 
-    def test_router_cloud_tasks_default_is_hybrid(self):
-        """TC-SEC-512: the SHIPPED default routes the HIGH-LEVEL tasks (reasoning,
-        coding) to cloud — local for the everyday, cloud to fill local's limits.
+    def test_router_cloud_tasks_default_is_local_only(self):
+        """TC-SEC-512: the SHIPPED default sends NO task class to cloud.
 
-        This is a deliberate operator decision (2026-06-29): the organism's source
-        LLMs are local+cloud by nature. The privacy guarantee is preserved a layer
-        down — cloud is only ever *eligible* when a cloud provider is actually
-        configured (see test_cloud_requires_configured_provider); with no creds the
-        router falls soft to local. The operator can still override/disable the set
-        via AIOS_ROUTER_CLOUD_TASKS."""
-        assert config._ROUTER_CLOUD_TASKS_DEFAULT == ("reasoning", "coding"), \
-            "shipped default must route reasoning+coding to cloud (hybrid by nature)"
+        Reversed on 2026-08-04 by operator decision. This case previously asserted
+        the opposite — that the shipped default routed reasoning+coding to cloud,
+        a deliberate 2026-06-29 decision ("the organism's source LLMs are local+
+        cloud by nature") whose privacy argument rested entirely on the layer-down
+        guarantee in test_cloud_requires_configured_provider: with no creds the
+        router falls soft to local.
+
+        That guarantee is real but it is a guarantee about *credentials*, not about
+        *consent*. It expires the moment an operator configures Bedrock or Gemini
+        for any purpose, at which point reasoning and coding content became
+        cloud-eligible with no further opt-in. The default now starts closed, so
+        this case asserts the empty set; opting in is per task class via
+        AIOS_ROUTER_CLOUD_TASKS.
+
+        The history is kept here on purpose: a security case that silently flips to
+        match whatever the code does is not evidence of anything."""
+        assert config._ROUTER_CLOUD_TASKS_DEFAULT == (), \
+            "shipped default must send no task class to cloud (opt-in egress)"
+
+    def test_swarm_cloud_burst_default_is_off(self):
+        """TC-SEC-512c: the second egress path must also start closed.
+
+        Swarm cloud burst is independent of AIOS_ROUTER_CLOUD_TASKS, so an operator
+        who locks down the router alone could still egress through a swarm subtask.
+        Both switches now default off; this case exists so the two cannot drift
+        apart again."""
+        assert config.SWARM_CLOUD_BURST_ENABLED is False, \
+            "swarm cloud burst is a separate egress path and must be opt-in"
 
     def test_cloud_requires_configured_provider(self):
         """TC-SEC-512b: the real privacy guarantee — even with cloud tasks enabled,

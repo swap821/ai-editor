@@ -112,8 +112,11 @@ Each its own reviewed PR with `pytest tests/test_security.py tests/test_audit.py
   refs; `SnapshotManager` raises on existing `.git`.
 - **1.6 Origin-scoped routing across BOTH cloud paths** (L) — `origin: interactive|autonomous` into
   `router_wiring._router_policy()` **AND** `IntelligenceGateway._cloud_allowed()`; autonomous-origin
-  traffic must be forced local-only even though the interactive shipped config keeps
-  `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`; `SWARM_CLOUD_BURST` off for the daemon.
+  traffic must be forced local-only regardless of the interactive operator's own opt-in.
+  **Still required after 2026-08-04**, though the baseline moved in its favour: both
+  `AIOS_ROUTER_CLOUD_TASKS` and `AIOS_SWARM_CLOUD_BURST` now ship closed, so the gap is no
+  longer "the shipped config leaks" but "an interactive operator who opts in also opts the
+  daemon in". Origin scoping is what separates those two.
 - **1.7 Concurrency + cost + latent-security** (M) — atomic exclusive-create for the request_id approval
   decision (#26, race today); wire real per-token cost estimation so `BudgetGuard` dials can actually fire
   (#27, dead controls today); sign+enforce boot attestation; wire the audit-anchor publisher; key rotation.
