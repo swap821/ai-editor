@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from aios.application.governance import spine_release
 from aios.domain.governance.contracts import OrganRecord
 
 #: Keyword markers a frontend-facing organ's own tests must demonstrate when
@@ -426,9 +427,30 @@ def validate_ledger(
                         )
 
     if root is not None and enforce_owner_attestation:
+        # §VIII approval channel. Until 2026-08-04 this check forbade a frozen
+        # organ from being green UNCONDITIONALLY -- no evidence, approval or
+        # artifact could satisfy it, which is why the operator's own §VIII
+        # Approve+Deploy on 2026-07-31 left organs 1-5 yellow: the human act
+        # happened and the code had no way to receive it.
+        #
+        # The gate is not weakened here, it is given an input only a human can
+        # produce. spine_release.approved_organ_ids() returns a non-empty set
+        # ONLY for a committed public key plus an artifact whose Ed25519
+        # signature covers {organ_ids, commit_sha, evidence_digest} for the
+        # evidence present right now, at an ancestor commit. It fails closed on
+        # every other path. An agent can write all of this code and still not
+        # satisfy it, because the private key never exists in the repository.
+        spine_approved = spine_release.approved_organ_ids(
+            root,
+            records,
+            current_sha=current_sha,
+            is_ancestor=lambda sha: _git_ok(
+                root, "merge-base", "--is-ancestor", sha, "HEAD"
+            ),
+        )
         for record in records:
             if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
-                if record.status == "green":
+                if record.status == "green" and record.organ_id not in spine_approved:
                     violations.append(
                         f"organ_id {record.organ_id} ({record.name}) is frozen "
                         "security-spine RED and cannot claim green before controlled "
