@@ -152,6 +152,13 @@ const core: Record<string, ReactionSpec> = {
     announcement: () => 'Operator approval required.',
     react: ({ payload }) => publish({ type: 'approval-required', label: 'OPERATOR APPROVAL REQUIRED', detail: text(payload, 'summary', 'text') || 'Review the exact capability request.', intensity: 1, source: 'mirror', data: payload }),
   },
+  // NO KNOWN BACKEND EMITTER (checked 2026-08-04). Nothing in aios/ emits
+  // 'approval.resolved'; the enum carries CanonicalEventType.APPROVAL_DECIDED
+  // ("approval.decided") and no production code uses it. The live approval path
+  // is 'human_required' -> 'approval.required' above. Kept rather than deleted
+  // because a registry row is inert lookup, not an executed path, and removing
+  // it buys no capability -- but do not read this entry as evidence that the
+  // being reacts to an approval being decided. It does not, today.
   'approval.resolved': {
     announcement: (p) => `Approval ${text(p, 'decision', 'status') || 'resolved'}.`,
     react: ({ payload }) => publish({ type: 'approval-resolved', label: 'APPROVAL RESOLVED', detail: text(payload, 'decision', 'status') || 'resolved', intensity: 0.6, source: 'mirror', data: payload }),
@@ -234,6 +241,15 @@ const core: Record<string, ReactionSpec> = {
       publish({ type: 'verify', label: verdict === 'pass' ? 'VERIFY PASS' : 'VERIFY FAIL', detail: text(payload, 'target'), intensity: verdict === 'pass' ? 0.75 : 0.95, source: 'mirror', data: payload });
     },
   },
+  // NO KNOWN BACKEND EMITTER for either of the two dotted verification rows
+  // (checked 2026-08-04): nothing in aios/ emits 'verification.passed' or
+  // 'verification.failed'. The enum has CanonicalEventType.VERIFICATION_COMPLETED
+  // ("verification.completed") and no production code uses it. The live path is
+  // 'verify_result' below. Kept because livingMirrorRegistry.test.ts uses
+  // 'verification.passed' as the fixture for its registry-mechanism test (the
+  // one asserting registered reactions are exposed and 'authority.grant' is
+  // not), so these rows are load-bearing for the suite even though no event
+  // reaches them in production.
   'verification.passed': {
     announcement: () => 'Verification passed; evidence is available.',
     react: ({ payload }) => publish({ type: 'verify', label: 'VERIFY PASS', detail: text(payload, 'target'), intensity: 0.75, source: 'mirror', data: payload }),
@@ -245,6 +261,18 @@ const core: Record<string, ReactionSpec> = {
   'earned_autonomy': {
     announcement: () => 'A previously verified action class was reused.',
     react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'AUTONOMOUS ACTION', detail: `earned trust applied · ${text(payload, 'command', 'filepath') || 'a write'}`.slice(0, 140), intensity: 1, source: 'mirror' }),
+  },
+  // The backend has announced curriculum mastery since the B5 growth work --
+  // aios/application/turns/generate_pipeline.py yields it "so the body's lattice
+  // can harden", gated behind the STRONG promotion floor so a weak green can
+  // never make the body celebrate growth that did not happen. Nothing in
+  // frontend/src referenced the name until 2026-08-04: the backend was
+  // announcing to no one. Highest intensity, matching earned_autonomy, because
+  // this is the frontier-to-local learning loop actually closing.
+  'skill.mastered': {
+    requiredFields: ['skill'],
+    announcement: (p) => `Skill mastered: ${text(p, 'skill')}.`,
+    react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'SKILL MASTERED', detail: `${text(payload, 'skill')}${text(payload, 'level') ? ` · level ${text(payload, 'level')}` : ''}`.slice(0, 140), intensity: 1, source: 'mirror', data: payload }),
   },
   'swarm_plan': {
     react: ({ payload }) => startSwarmPlan(Array.isArray(payload.plan) ? payload.plan.map(String) : []),

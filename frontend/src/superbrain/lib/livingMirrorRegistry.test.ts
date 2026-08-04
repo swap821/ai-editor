@@ -116,6 +116,32 @@ describe('Living Mirror reaction registry', () => {
     expect(registeredMirrorEventTypes()).not.toContain('authority.grant');
   });
 
+  it('feels curriculum mastery, which the backend has always announced to no one', () => {
+    // aios/application/turns/generate_pipeline.py yields skill.mastered "so the
+    // body's lattice can harden", and until 2026-08-04 the string `mastered`
+    // appeared nowhere in frontend/src. The backend was announcing growth into
+    // a void. This asserts the reaction, not merely the registration.
+    dispatchLivingMirrorEvent(event(7, 'skill.mastered', { skill: 'run the suite', level: 2 }));
+
+    expect(registeredMirrorEventTypes()).toContain('skill.mastered');
+    expect(publishCognition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'knowledge-acquired',
+        label: 'SKILL MASTERED',
+        detail: expect.stringContaining('run the suite'),
+        intensity: 1,
+      }),
+    );
+    expect(useMirrorStore.getState().lastAnnouncement).toContain('run the suite');
+  });
+
+  it('ignores a mastery frame with no skill name rather than celebrating nothing', () => {
+    // requiredFields guards the honest-dormancy rule: a malformed frame must not
+    // produce a celebration the evidence does not support.
+    dispatchLivingMirrorEvent(event(8, 'skill.mastered', { level: 3 }));
+    expect(publishCognition).not.toHaveBeenCalled();
+  });
+
   it('registers the real worker-lifecycle canonical events found on the backend', () => {
     const registered = registeredMirrorEventTypes();
     for (const eventType of [
