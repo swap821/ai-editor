@@ -172,13 +172,32 @@ cited test passing. The block was never an evidence gap — it was a missing
 approval channel, which is why the operator's own §VIII Approve+Deploy on
 2026-07-31 (recorded at `organ_ledger.py:437`) left the organs yellow.
 
-**Recommended sequence:**
+**Recommended sequence — corrected 2026-08-05.**
 
-1. Operator signs a first attestation, discharging the frozen-spine residual.
-2. C9/C10 are then re-derived honestly against the new state — as a reviewable
-   change, separate from this one.
-3. Operator signs a second attestation over the corrected verdicts. **That is the
-   real approval**; the first only unblocks the correction.
+An earlier version of this document proposed signing first, then re-deriving
+C9/C10, then signing again. **That does not work**, and the correction is worth
+recording because the reasoning behind the mistake was superficially careful.
 
-This costs one extra command and leaves no step in which the agent edited the
-evidence that authorises the approval.
+The digest covers each organ's `status` — the very field an approval authorises a
+change to. A signature taken over the pre-approval (yellow) state therefore stops
+verifying the instant the status is flipped to green. The approval invalidates
+itself the moment it is acted on. Verified by computing both digests; now pinned
+by `test_signing_the_pre_approval_state_does_not_authorise_green`, and the
+signing CLI refuses outright rather than producing a useless signature.
+
+The correct order is one signature, over the final state:
+
+1. **Propose** — the ledger is prepared in its post-approval form: organs 1–5 set
+   green, the §VIII blocker discharged, C9/C10 re-derived honestly. Uncommitted.
+2. **Human Review** — the operator reads *that diff*, alongside this document.
+   This is where the "agent edited the evidence" concern is actually addressed:
+   not by the agent refusing to prepare the change, but by the operator seeing
+   precisely what they are approving before they approve it. AGENTS.md §VIII is
+   explicit that *"Proposing is GREEN"* — preparing the proposal is the agent's
+   job; ratifying it is not.
+3. **Approve** — the operator signs over exactly that state.
+4. **Deploy** — ledger and attestation are committed together, so what was signed
+   and what ships are the same bytes.
+
+The earlier two-signature scheme was an artifact of the wrong ordering, not a
+safeguard. It is not needed.
