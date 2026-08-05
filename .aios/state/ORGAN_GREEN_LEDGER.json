@@ -12,7 +12,8 @@
       "tests/adversarial/test_gateway_bypass.py"
     ],
     "integration_tests": [
-      "tests/adversarial/test_gateway_bypass.py"
+      "tests/adversarial/test_gateway_bypass.py",
+      "tests/test_spine_invariants.py"
     ],
     "live_evidence": [
       {
@@ -51,7 +52,8 @@
       "tests/test_security.py"
     ],
     "integration_tests": [
-      "tests/adversarial/test_sandbox_escape.py"
+      "tests/adversarial/test_sandbox_escape.py",
+      "tests/test_spine_invariants.py"
     ],
     "live_evidence": [
       {
@@ -90,7 +92,8 @@
       "tests/test_security.py"
     ],
     "integration_tests": [
-      "tests/adversarial/test_secret_detection.py"
+      "tests/adversarial/test_secret_detection.py",
+      "tests/test_spine_invariants.py"
     ],
     "live_evidence": [
       {
@@ -168,7 +171,8 @@
       "tests/test_generate_input_shield.py"
     ],
     "integration_tests": [
-      "tests/test_chat_input_shield.py"
+      "tests/test_chat_input_shield.py",
+      "tests/test_spine_invariants.py"
     ],
     "live_evidence": [
       {
