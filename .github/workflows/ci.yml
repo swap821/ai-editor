@@ -27,6 +27,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history, for the same reason release-authority already asks for
+          # it. This suite runs tests/test_organ_release_conformance.py, which
+          # shells out to verify_organ_contracts.py, which resolves the §VIII
+          # spine-release attestation. That check requires the signed commit to
+          # be an ancestor of HEAD -- anti-replay -- and `git merge-base
+          # --is-ancestor` cannot answer that in a depth-1 clone. It fails
+          # CLOSED, which is correct for a security control and which made a
+          # valid operator signature look like an unapproved green spine.
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
