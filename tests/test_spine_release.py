@@ -88,9 +88,45 @@ def test_no_attestation_means_frozen_organs_still_cannot_be_green(tmp_path):
     assert approved_organ_ids(tmp_path, _records(), current_sha=SHA) == frozenset()
 
 
-def test_real_repo_has_no_attestation_so_counts_are_unchanged():
-    """Building the channel must not itself move any organ."""
-    assert approved_organ_ids(REPO_ROOT, _records(), current_sha=None) == frozenset()
+def test_the_repos_own_attestation_is_valid_and_covers_only_the_frozen_spine():
+    """The live attestation must verify, and must not reach past organs 1-5.
+
+    This replaces test_real_repo_has_no_attestation_so_counts_are_unchanged,
+    which asserted the repo had NO attestation. That was true while the channel
+    was unused and became false the moment the operator signed -- the third
+    assertion in this feature whose premise was "nobody has used this yet".
+    The default-behaviour case it was really protecting is
+    test_no_attestation_means_frozen_organs_still_cannot_be_green above, which
+    uses a clean tmp_path and is independent of repository state.
+
+    An unsigned checkout is still fine here: absence is asserted to fail closed,
+    not to be a violation.
+    """
+    from aios.application.governance.spine_release import (
+        load_attestation,
+        load_public_key,
+        verify_signature,
+    )
+
+    attestation = load_attestation(REPO_ROOT)
+    if attestation is None:
+        assert (
+            approved_organ_ids(REPO_ROOT, _records(), current_sha=None) == frozenset()
+        )
+        return
+
+    public_key = load_public_key(REPO_ROOT)
+    assert public_key, "an attestation exists with no public key to verify it against"
+    assert verify_signature(attestation, public_key), (
+        "the committed attestation does not verify against the committed public key"
+    )
+    assert set(attestation.organ_ids) <= set(FROZEN_SECURITY_ORGAN_IDS), (
+        "the attestation claims organs outside the frozen security spine: "
+        f"{sorted(set(attestation.organ_ids) - set(FROZEN_SECURITY_ORGAN_IDS))}"
+    )
+    assert approved_organ_ids(REPO_ROOT, _records(), current_sha=None) == frozenset(
+        attestation.organ_ids
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -141,14 +177,25 @@ def test_signing_the_pre_approval_state_does_not_authorise_green(tmp_path):
     ceremony, so it is documented here as a test rather than as folklore.
     """
     operator, operator_pub = _keypair()
-    records = _records()
+
+    # Build the yellow state explicitly rather than assuming the repo's ledger
+    # still has organs 1-5 yellow. It does not, since the operator signed -- and
+    # relying on that was what broke this test the first time it ran for real.
+    yellow = []
+    for record in _records():
+        if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+            record = record.__class__(**{**vars(record), "status": "yellow"})
+        yellow.append(record)
 
     # Signed over the yellow state...
-    _install(tmp_path, operator_pub, _signed(operator, records, [1, 2, 3, 4, 5]))
+    _install(tmp_path, operator_pub, _signed(operator, yellow, [1, 2, 3, 4, 5]))
+    assert approved_organ_ids(tmp_path, yellow, current_sha=SHA) == frozenset(
+        FROZEN_SECURITY_ORGAN_IDS
+    )
 
-    # ...then acted on.
+    # ...then acted on: the digest covers `status`, so the approval evaporates.
     flipped = []
-    for record in records:
+    for record in yellow:
         if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
             record = record.__class__(**{**vars(record), "status": "green"})
         flipped.append(record)

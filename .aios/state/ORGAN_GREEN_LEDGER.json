@@ -2,7 +2,7 @@
   {
     "organ_id": 1,
     "name": "Security Gateway",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "SecurityGatewayAuthority",
     "production_entrypoints": [
       "aios/security/gateway.py"
@@ -21,23 +21,20 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
-      "C3: N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SecurityGatewayAuthority class defined in production_entrypoints ['aios/security/gateway.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_security.py', 'tests/adversarial/test_gateway_bypass.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 classification policy is code-resident; rate-limiter state is process-local by design (not a durable authority store)",
-      "C4": "N/A-BY-DESIGN \u2014 AuditLoggerAuthority (organ 4) owns the tamper-evident ledger that records gated actions; gateway itself is deterministic code, not a mutating journal",
-      "C5": "PASS \u2014 empty/unknown commands classify RED (fail-closed)",
+      "C3": "PASS \u2014 classification policy is code-resident; rate-limiter state is process-local by design (not a durable authority store). N/A-BY-DESIGN referent: aios/security/gateway.py::RateLimiter",
+      "C4": "N/A-BY-DESIGN \u2014 the tamper-evident ledger that records gated actions is owned by organ 4, not by the gateway, which is a deterministic pure classifier with no journal of its own. Referent: aios/security/audit_logger.py::AuditLoggerAuthority",
+      "C5": "PASS \u2014 fail-closed proven by tests/test_security.py::test_fail_closed_on_internal_exception (a raising sub-check must yield RED, never GREEN) and by tests/test_spine_invariants.py::test_any_internal_error_yields_red_for_every_input, which holds that across a generated corpus rather than one command.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_security.py', 'tests/adversarial/test_gateway_bypass.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_gateway_bypass.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/security/audit_logger.py::AuditLoggerAuthority.log_action. C5: PASS (fail-closed RED \u2014 SecurityGatewayAuthority.classify). Residual: frozen spine cannot claim green until Phase 4-5 controlled release.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (code-resident policy; rate-limiter process-local N/A-BY-DESIGN \u2014 aios/security/gateway.py::RateLimiter). C4: N/A-BY-DESIGN \u2014 adversarial chain owned by organ 4 aios/secur",
+      "C9": "PASS \u2014 no residual known_blockers. The \u00a7VIII controlled-release residual was discharged by operator attestation (.aios/state/spine_release_attestation.json), verified against the committed public key. Failure-path coverage is real rather than nominal: empty/invalid input AND any internal classifier exception both resolve RED, held across a generated adversarial corpus. Mutation-proven: scripts/spine_mutation_probe.py breaks this organ's fail-closed behaviour in memory and the checks catch it (6/6, release/spine-release/mutation-probe-evidence.json).",
+      "C10": "PASS \u2014 proof_level=live read-only probe at b5485d3b128ebd37b85258de44a016a319161206 (release/phase4/live-evidence-b5485d3b128e.json), reproducible via `python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; plus generated-input invariants (tests/test_spine_invariants.py) and mutation evidence (release/spine-release/mutation-probe-evidence.json). NOT behaviour under load, NOT production hostile-user evidence, and NOT an independent third-party audit.",
       "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     }
@@ -45,7 +42,7 @@
   {
     "organ_id": 2,
     "name": "Scope Lock",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ScopeLockAuthority",
     "production_entrypoints": [
       "aios/security/scope_lock.py"
@@ -63,23 +60,20 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
-      "C4: N/A-BY-DESIGN \u2014 aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ScopeLockAuthority class defined in production_entrypoints ['aios/security/scope_lock.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_security.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 scope roots are session/config state; path checks are pure against configured roots",
-      "C4": "N/A-BY-DESIGN \u2014 no mutable journal to chain",
-      "C5": "PASS \u2014 out-of-scope paths are refused",
+      "C3": "N/A-BY-DESIGN \u2014 this organ owns no durable store. Scope roots are process/config state resolved per call, and path checks are pure against them, so there is nothing to survive a restart. Referent: aios/security/scope_lock.py::ScopeLockAuthority",
+      "C4": "N/A-BY-DESIGN \u2014 no mutable journal to chain. N/A-BY-DESIGN referent: aios/security/scope_lock.py::ScopeLockAuthority",
+      "C5": "PASS \u2014 refusal proven by tests/test_security.py::test_scope_absolute_path_out_of_scope_is_red and tests/test_spine_invariants.py::test_no_generated_path_ever_resolves_outside_the_scope_roots.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_security.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_sandbox_escape.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope. C5: PASS (out-of-scope refused). Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (config/session scope roots \u2014 aios/security/scope_lock.py::ScopeLockAuthority.set_scope_roots). C4: N/A-BY-DESIGN \u2014 no mutable journal; pure path check aios/security/scope",
+      "C9": "PASS \u2014 no residual known_blockers. The \u00a7VIII controlled-release residual was discharged by operator attestation (.aios/state/spine_release_attestation.json), verified against the committed public key. Failure-path coverage is real rather than nominal: out-of-scope and unresolvable paths are refused; no generated path is in-scope while resolving outside the roots. Mutation-proven: scripts/spine_mutation_probe.py breaks this organ's fail-closed behaviour in memory and the checks catch it (6/6, release/spine-release/mutation-probe-evidence.json).",
+      "C10": "PASS \u2014 proof_level=live read-only probe at b5485d3b128ebd37b85258de44a016a319161206 (release/phase4/live-evidence-b5485d3b128e.json), reproducible via `python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; plus generated-input invariants (tests/test_spine_invariants.py) and mutation evidence (release/spine-release/mutation-probe-evidence.json). NOT behaviour under load, NOT production hostile-user evidence, and NOT an independent third-party audit.",
       "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     }
@@ -87,7 +81,7 @@
   {
     "organ_id": 3,
     "name": "Secret Scanner",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "SecretScannerAuthority",
     "production_entrypoints": [
       "aios/security/secret_scanner.py"
@@ -105,23 +99,20 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
-      "C4: N/A-BY-DESIGN \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SecretScannerAuthority class defined in production_entrypoints ['aios/security/secret_scanner.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_security.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 scanner is pure functions over text; no durable organ-owned store required",
-      "C4": "N/A-BY-DESIGN \u2014 redaction is ephemeral transform",
-      "C5": "PASS \u2014 findings reported; empty findings is explicit",
+      "C3": "N/A-BY-DESIGN \u2014 this organ owns no durable store. The scanner is pure functions over text and the redaction is an ephemeral transform. Referent: aios/security/secret_scanner.py::SecretScannerAuthority",
+      "C4": "N/A-BY-DESIGN \u2014 redaction is ephemeral transform. N/A-BY-DESIGN referent: aios/security/secret_scanner.py::SecretScannerAuthority",
+      "C5": "PASS \u2014 explicit non-detection proven by tests/test_security.py::test_plain_english_is_not_flagged_as_secret and consistency across generated input by tests/test_spine_invariants.py::test_scan_result_is_never_self_contradictory.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_security.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_secret_detection.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (pure transform \u2014 aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact). C4: N/A-BY-DESIGN \u2014 ephemeral redaction; no journal. C5: PASS. Residual: frozen",
+      "C9": "PASS \u2014 no residual known_blockers. The \u00a7VIII controlled-release residual was discharged by operator attestation (.aios/state/spine_release_attestation.json), verified against the committed public key. Failure-path coverage is real rather than nominal: empty/invalid payloads return an explicit detected=False, and detected/findings never contradict across generated input. Mutation-proven: scripts/spine_mutation_probe.py breaks this organ's fail-closed behaviour in memory and the checks catch it (6/6, release/spine-release/mutation-probe-evidence.json).",
+      "C10": "PASS \u2014 proof_level=live read-only probe at b5485d3b128ebd37b85258de44a016a319161206 (release/phase4/live-evidence-b5485d3b128e.json), reproducible via `python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; plus generated-input invariants (tests/test_spine_invariants.py) and mutation evidence (release/spine-release/mutation-probe-evidence.json). NOT behaviour under load, NOT production hostile-user evidence, and NOT an independent third-party audit.",
       "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     }
@@ -129,7 +120,7 @@
   {
     "organ_id": 4,
     "name": "Tamper-Evident Audit Logger",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "AuditLoggerAuthority",
     "production_entrypoints": [
       "aios/security/audit_logger.py"
@@ -147,22 +138,20 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence."
-    ],
+    "known_blockers": [],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 AuditLoggerAuthority class defined in production_entrypoints ['aios/security/audit_logger.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_audit.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 aios_audit.db SQLite hash-chained ledger is durable across restart",
-      "C4": "PASS \u2014 SHA-256 chain + optional Ed25519; verify_chain detects breaks. Ops",
-      "C5": "PASS \u2014 verify failures surface valid=False",
+      "C3": "PASS \u2014 the hash-chained ledger is persisted to aios_audit.db and is readable by an INDEPENDENT sqlite3 connection, proven by tests/test_audit.py::test_secret_is_redacted_before_persistence, which opens its own connection to the file and reads the stored row back. That is durability to disk; it is not a full process-restart harness, and is not claimed as one.",
+      "C4": "PASS \u2014 SHA-256 chain from a genesis hash with per-entry linkage, proven by tests/test_audit.py::test_chain_links_from_genesis_and_verifies, and tamper-evidence proven by tests/test_audit.py::test_tampering_breaks_chain_at_offending_entry, which asserts verification breaks at the offending entry rather than reading clean.",
+      "C5": "PASS \u2014 verification failure surfaces rather than reads clean, proven by tests/test_audit.py::test_tampering_breaks_chain_at_offending_entry.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_audit.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/adversarial/test_audit_integrity.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: PASS (aios_audit.db durable). C4: PASS (hash chain + optional Ed25519). Ops residual: set AIOS_AUDIT_PRIVATE_KEY for non-ephemeral signing. C5: PASS. Residual: frozen spine can",
+      "C9": "PASS \u2014 no residual known_blockers. The \u00a7VIII controlled-release residual was discharged by operator attestation (.aios/state/spine_release_attestation.json), verified against the committed public key. Failure-path coverage is real rather than nominal: chain breaks surface valid=False with a precise broken_at. Mutation-proven: scripts/spine_mutation_probe.py breaks this organ's fail-closed behaviour in memory and the checks catch it (6/6, release/spine-release/mutation-probe-evidence.json).",
+      "C10": "PASS \u2014 proof_level=live read-only probe at b5485d3b128ebd37b85258de44a016a319161206 (release/phase4/live-evidence-b5485d3b128e.json), reproducible via `python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; plus generated-input invariants (tests/test_spine_invariants.py) and mutation evidence (release/spine-release/mutation-probe-evidence.json). NOT behaviour under load, NOT production hostile-user evidence, and NOT an independent third-party audit.",
       "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     }
@@ -170,7 +159,7 @@
   {
     "organ_id": 5,
     "name": "Prompt Injection Shield",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "InjectionShieldAuthority",
     "production_entrypoints": [
       "aios/security/injection_shield.py"
@@ -188,23 +177,20 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "frozen spine \u2014 section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.",
-      "C3: N/A-BY-DESIGN \u2014 aios/security/injection_shield.py::InjectionShieldAuthority"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 InjectionShieldAuthority class defined in production_entrypoints ['aios/security/injection_shield.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_generate_input_shield.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "N/A-BY-DESIGN \u2014 InjectionShieldAuthority model/matrix is process-loaded second layer; not a durable event journal",
-      "C4": "N/A-BY-DESIGN \u2014 similarity scores are ephemeral",
-      "C5": "PASS-BY-DESIGN \u2014 is_injection fails soft to False on errors so regex remains primary (documented)",
+      "C3": "N/A-BY-DESIGN \u2014 the model/matrix is a process-loaded second layer, not a durable event journal. Referent: aios/security/injection_shield.py::InjectionShieldAuthority",
+      "C4": "N/A-BY-DESIGN \u2014 similarity scores are ephemeral; this organ maintains no integrity chain. Referent: aios/security/injection_shield.py::InjectionShieldAuthority",
+      "C5": "PASS-BY-DESIGN \u2014 fail-SOFT, proven by tests/test_security.py::test_vector_shield_is_fail_safe_on_embedder_error and across generated input by tests/test_spine_invariants.py::test_shield_never_raises_and_is_fail_soft_on_any_input. NOTE this organ's C5 passes on a DIFFERENT rule than organs 1-3: failing closed here would let a model outage block every command while adding no security, since regex remains authoritative.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_generate_input_shield.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_chat_input_shield.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-BY-DESIGN (fail-soft to regex primary on gateway). Residual: frozen spine cannot claim green until Phase 4-5.', 'frozen spine \u2014 \u00a7VIII controlled release required before green/live claim']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: C3: N/A-BY-DESIGN \u2014 process-loaded second layer aios/security/injection_shield.py::InjectionShieldAuthority. C4: N/A-BY-DESIGN \u2014 ephemeral similarity scores; no journal. C5: PASS-B",
+      "C9": "PASS \u2014 no residual known_blockers. The \u00a7VIII controlled-release residual was discharged by operator attestation (.aios/state/spine_release_attestation.json), verified against the committed public key. Failure-path coverage is real rather than nominal: documented fail-SOFT: is_injection returns False on ANY error so the regex layer stays authoritative. Mutation-proven: scripts/spine_mutation_probe.py breaks this organ's fail-closed behaviour in memory and the checks catch it (6/6, release/spine-release/mutation-probe-evidence.json).",
+      "C10": "PASS \u2014 proof_level=live read-only probe at b5485d3b128ebd37b85258de44a016a319161206 (release/phase4/live-evidence-b5485d3b128e.json), reproducible via `python scripts/phase4_live_evidence.py --tip b5485d3b128ebd37b85258de44a016a319161206`; plus generated-input invariants (tests/test_spine_invariants.py) and mutation evidence (release/spine-release/mutation-probe-evidence.json). NOT behaviour under load, NOT production hostile-user evidence, and NOT an independent third-party audit.",
       "C11": "PASS \u2014 last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS \u2014 f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     }
