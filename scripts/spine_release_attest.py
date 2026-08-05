@@ -222,6 +222,23 @@ def cmd_sign(args: argparse.Namespace) -> int:
     print("the digest changes and the approval stops verifying -- by design.")
     print()
 
+    # The ordering trap. The digest covers `status`, which is the field the
+    # approval exists to change, so a signature taken over the pre-approval state
+    # stops verifying the moment it is acted on. The ledger must already be in
+    # its post-approval form when this runs.
+    not_green = sorted(
+        r.organ_id for r in records if r.organ_id in organ_ids and r.status != "green"
+    )
+    if not_green:
+        print(f"REFUSING: organ(s) {not_green} are not green in the ledger yet.")
+        print()
+        print("Signing now would produce a signature that stops verifying the")
+        print("instant the status is flipped, because the digest covers `status`.")
+        print("The ledger must be prepared in its FINAL form first -- that is the")
+        print("Propose step of §VIII -- and you sign over exactly what will be")
+        print("committed. Review that diff, then run this again.")
+        return 2
+
     # No --yes escape hatch. It existed in the first version and would have
     # defeated the TTY guard above for anyone who reached for it in a script.
     reply = input("Type the word approve to sign, anything else to abort: ").strip()

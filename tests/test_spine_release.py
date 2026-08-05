@@ -94,6 +94,69 @@ def test_real_repo_has_no_attestation_so_counts_are_unchanged():
 
 
 # --------------------------------------------------------------------------- #
+# The legitimate path. This suite had twelve tests attacking the door and none
+# opening it, which is how the ordering bug below survived to the point where the
+# operator was about to waste a signing ceremony on it.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_legitimate_path_actually_opens_the_door(tmp_path):
+    """A real approval, walked end to end, must make the frozen organs green.
+
+    The order matters and is the whole lesson: the ledger is prepared in its
+    POST-approval form first (status green, the §VIII blocker discharged), and
+    the operator signs over THAT. Signing the pre-approval state produces a
+    signature that stops verifying the instant it is acted on, because the digest
+    covers `status` -- the very field the approval authorises a change to.
+    """
+    operator, operator_pub = _keypair()
+
+    final = []
+    for record in _records():
+        if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+            record = record.__class__(
+                **{**vars(record), "status": "green", "known_blockers": []}
+            )
+        final.append(record)
+
+    _install(tmp_path, operator_pub, _signed(operator, final, [1, 2, 3, 4, 5]))
+
+    assert approved_organ_ids(tmp_path, final, current_sha=SHA) == frozenset(
+        FROZEN_SECURITY_ORGAN_IDS
+    )
+
+    violations = validate_ledger(
+        final, repo_root=tmp_path, enforce_owner_attestation=True, current_sha=SHA
+    )
+    frozen = [v for v in violations if "frozen" in v and "cannot claim green" in v]
+    assert frozen == [], f"a valid approval still blocked the spine: {frozen}"
+
+
+def test_signing_the_pre_approval_state_does_not_authorise_green(tmp_path):
+    """The bug this suite missed, pinned so it cannot come back as a surprise.
+
+    Sign while the organs are still yellow, then flip them green: the digest no
+    longer matches and the approval evaporates. This is correct behaviour -- an
+    approval covers a specific state -- but it is a trap for whoever runs the
+    ceremony, so it is documented here as a test rather than as folklore.
+    """
+    operator, operator_pub = _keypair()
+    records = _records()
+
+    # Signed over the yellow state...
+    _install(tmp_path, operator_pub, _signed(operator, records, [1, 2, 3, 4, 5]))
+
+    # ...then acted on.
+    flipped = []
+    for record in records:
+        if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+            record = record.__class__(**{**vars(record), "status": "green"})
+        flipped.append(record)
+
+    assert approved_organ_ids(tmp_path, flipped, current_sha=SHA) == frozenset()
+
+
+# --------------------------------------------------------------------------- #
 # Attacks
 # --------------------------------------------------------------------------- #
 
