@@ -489,7 +489,7 @@ def _evidence_reference_failures(
 
 
 def _condition_proof_failures(
-    record, results: dict[str, dict]
+    record, results: dict[str, dict], *, require_execution: bool = True
 ) -> list[tuple[str, str]]:
     """C3/C4/C5 must point at something real, not merely read well.
 
@@ -504,6 +504,17 @@ def _condition_proof_failures(
     have RUN and PASSED in this very gate invocation. A file-level "no
     failures" would not do -- a verdict could cite a test that does not exist,
     or one that skipped, and the file would still look clean.
+
+    ``require_execution`` (default True) is the real gate's behaviour and is
+    unchanged: a named proof must have RUN and PASSED in this invocation.
+
+    Set it False to ask the narrower question "does this verdict name a referent
+    at all", independent of any test run. Only the monotonic budget in
+    ``tests/test_condition_proof_ratchet.py`` wants that, and it is a separate
+    parameter rather than an inference from ``results == {}`` on purpose: an
+    empty results mapping from a REAL gate run means nothing passed, which must
+    stay a failure. Conflating the two is what broke the ratchet -- see
+    ``test_condition_proof_ratchet`` for the arithmetic.
     """
     failures: list[tuple[str, str]] = []
     verdicts = record.condition_verdicts or {}
@@ -540,6 +551,10 @@ def _condition_proof_failures(
                     ),
                 )
             )
+            continue
+
+        if not require_execution:
+            # A referent is named; that is the whole question in this mode.
             continue
 
         for path, test_name in refs:

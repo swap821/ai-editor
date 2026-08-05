@@ -41,16 +41,28 @@ _spec.loader.exec_module(v12)
 
 
 def _live_gap() -> dict[int, list[tuple[str, str]]]:
-    """Greens with at least one unproven C3/C4/C5, ignoring test outcomes.
+    """Greens with at least one C3/C4/C5 that names no referent at all.
 
-    Passing ``results={}`` isolates "did this verdict name a referent at all"
-    from "did that referent pass", so this test needs no pytest run of its own.
-    A verdict that names a test still counts as a gap in the gate's real run if
-    the test did not pass -- so this is a LOWER bound, which is the safe
-    direction for a ratchet.
+    ``require_execution=False`` asks only "did this verdict name a referent",
+    independent of any test run, so this test needs no pytest run of its own. A
+    verdict that names a test still counts as a gap in the gate's REAL run if
+    that test did not pass -- so this is a LOWER bound, the safe direction for a
+    ratchet.
+
+    That was always the stated intent. Until 2026-08-05 it passed ``results={}``
+    instead, and the predicate scored a named-but-unexecuted proof as a failure.
+    Since C5 has no N/A-BY-DESIGN clause, every organ must cite a test and every
+    citation scored "did not execute" -- so no organ could ever be gap-free,
+    ``len(gap)`` was identically the green count, and the ratchet's assertion
+    reduced to ``greens <= 46``. It was a green-count cap wearing a proof
+    ratchet's clothes, passing by the coincidence that 46 == 46, and no amount of
+    proof work could ever move it. See test_the_measure_can_reach_zero below.
     """
     records = [r for r in load_ledger(LEDGER_PATH) if r.status == "green"]
-    gaps = {r.organ_id: v12._condition_proof_failures(r, {}) for r in records}
+    gaps = {
+        r.organ_id: v12._condition_proof_failures(r, {}, require_execution=False)
+        for r in records
+    }
     return {k: v for k, v in gaps.items() if v}
 
 
@@ -163,3 +175,97 @@ def test_a_named_proof_that_passed_satisfies_the_condition() -> None:
     }
 
     assert v12._condition_proof_failures(record, results) == []
+
+
+# --------------------------------------------------------------------------- #
+# The 2026-08-05 convergence fix. A ratchet that cannot reach zero is not a
+# ratchet -- it is a cap on the thing it happens to be counting.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_measure_can_reach_zero() -> None:
+    """An organ that names every referent must be gap-free.
+
+    This is THE assertion that proves the fix is real. Before it, no organ in the
+    repository could ever be gap-free under the ratchet's own measurement: C5 has
+    no N/A-BY-DESIGN clause, so every organ had to cite a test, and every citation
+    scored "did not execute in this run" because the ratchet supplies no results.
+    The live gap was therefore identically the green count, forever.
+    """
+    record = OrganRecord(
+        organ_id=1,
+        name="Fully proven",
+        status="green",
+        authority_owner="NobodyAuthority",
+        condition_verdicts={
+            "C3": "PASS — tests/test_thing.py::test_survives_restart",
+            "C4": "N/A-BY-DESIGN — aios/security/gateway.py::RateLimiter",
+            "C5": "PASS — tests/test_thing.py::test_reports_unavailable",
+        },
+    )
+    assert v12._condition_proof_failures(record, {}, require_execution=False) == []
+
+
+def test_a_well_proven_new_green_does_not_raise_the_live_gap() -> None:
+    """The behaviour the ratchet was supposed to have all along.
+
+    Adding a green organ that carries real referents must not consume budget.
+    Under the old measurement it consumed one unit regardless of proof quality,
+    which is why proof work could never lower the number and any new green broke
+    the gate.
+    """
+    proven = OrganRecord(
+        organ_id=54,  # OrganRecord validates 1..54; this row is synthetic
+        name="Newly proven",
+        status="green",
+        authority_owner="NobodyAuthority",
+        condition_verdicts={
+            "C3": "PASS — tests/test_thing.py::test_survives_restart",
+            "C4": "N/A-BY-DESIGN — aios/security/gateway.py::RateLimiter",
+            "C5": "PASS — tests/test_thing.py::test_reports_unavailable",
+        },
+    )
+    before = len(_live_gap())
+    gaps = v12._condition_proof_failures(proven, {}, require_execution=False)
+    assert gaps == []
+    assert before == len(_live_gap()), "measuring must not mutate the live gap"
+
+
+def test_the_ratchet_still_bites_on_a_missing_referent() -> None:
+    """Loosening the execution check must not loosen the naming check."""
+    record = OrganRecord(
+        organ_id=1,
+        name="Prose only",
+        status="green",
+        authority_owner="NobodyAuthority",
+        condition_verdicts={
+            "C3": "PASS — durable state survives restart",
+            "C4": "N/A-BY-DESIGN — no journal to chain",
+            "C5": "PASS — reports unavailable rather than a plausible zero",
+        },
+    )
+    failures = v12._condition_proof_failures(record, {}, require_execution=False)
+    failed = {cond for cond, _ in failures}
+    assert failed == {"C3", "C4", "C5"}, failures
+
+
+def test_the_real_gate_is_unchanged_and_still_requires_execution() -> None:
+    """require_execution defaults True, so verify_organ_contracts is untouched.
+
+    A verdict naming a test that did not run must still fail the real gate. If
+    this ever passes, the fix leaked into the gate it was supposed to leave alone.
+    """
+    record = OrganRecord(
+        organ_id=1,
+        name="Cited but unrun",
+        status="green",
+        authority_owner="NobodyAuthority",
+        condition_verdicts={
+            "C3": "PASS — tests/test_thing.py::test_survives_restart",
+            "C4": "N/A-BY-DESIGN — aios/security/gateway.py::RateLimiter",
+            "C5": "PASS — tests/test_thing.py::test_reports_unavailable",
+        },
+    )
+    failures = v12._condition_proof_failures(record, {})
+    assert {cond for cond, _ in failures} == {"C3", "C5"}
+    assert all("did not execute" in why for _, why in failures), failures
