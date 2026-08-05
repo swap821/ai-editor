@@ -145,6 +145,68 @@ the agent proposing it. The correction is the operator's to authorise separately
 
 ---
 
+## Adversarial evidence added 2026-08-05
+
+The analysis above rested on a read-only probe and unit tests written by the same
+party as the code. That is the weakest footing for exactly these organs, and it
+was the stated reason to leave them yellow. Two mechanical strengtheners now
+exist, neither of which depends on anyone's judgement.
+
+### Generated-input invariants — `tests/test_spine_invariants.py`
+
+A deterministic seeded generator (`SEED = 20260805`) builds an adversarial corpus
+— blanks, control bytes, unicode normalisation, quoting, shell separators,
+traversal forms, oversized payloads — and asserts invariants across thousands of
+cases rather than a handful of chosen examples:
+
+* `classify` never raises, on any input (a raising classifier fails OPEN at its caller)
+* blank/control-only input is never GREEN
+* destructive commands stay RED under case, padding, quoting and repetition
+* an injected internal error yields RED for **every** input in the corpus, not
+  just the one command the existing unit test covers
+* no generated path is ever reported in-scope while resolving outside the roots
+* `ScanResult.detected` and `.findings` never contradict each other
+* the injection shield never raises and stays fail-soft under a broken embedder
+
+**One real finding.** `is_path_in_scope("")` is refused by the explicit guard, but
+`" "` is truthy, reaches the resolver, and on Windows resolves to the scope root —
+so it is accepted. That is an inconsistency, not an escape: the containment
+invariant holds, because the resolved path *is* inside the root. Recorded as a
+documented behaviour in `test_empty_path_is_refused_and_whitespace_only_cannot_escape`
+rather than asserted away.
+
+### Mutation probe — `scripts/spine_mutation_probe.py`
+
+The direct answer to *"your tests were written by the party that wrote the code"*.
+Six targeted AST mutations break the spine's fail-closed behaviour on purpose, in
+memory, and the checks must catch each one. **6 of 6 caught**; artifact at
+`release/spine-release/mutation-probe-evidence.json`; wired into CI.
+
+Nothing is ever written to `aios/security/*` — the spine is RED to modify, and
+that is asserted behaviourally by hashing the five modules before and after a
+full run.
+
+Two things the probe found about itself, both fixed and pinned by tests:
+
+* Its first version scored a perfect **4/4 while running no detector at all** —
+  every mutant died in the loader because `@dataclass` resolves
+  `sys.modules[cls.__module__]` and the throwaway module was never registered.
+  A load failure is now scored as a **survivor**, never as "caught".
+* Its first catalogue targeted mutations by occurrence index, and index 6
+  intended the destructive-operation branch but actually hit network-egress,
+  producing a survivor that was really a mis-aimed mutation. Targeting is now by
+  the branch's human-readable reason string.
+
+It also found two genuine holes in the detector set — the prompt-injection and
+scope-violation branches could be flipped to GREEN with nothing noticing. Both
+now have detectors. That is the probe working.
+
+One surviving mutation is recorded as **inert with evidence**: deleting the
+empty-input guard entirely still yields RED via an independent scope check
+(`"Scope violation: Empty command (fail-closed)."`). Two unrelated paths refuse
+empty input. A survivor is never deleted from the catalogue — it is caught or it
+is documented.
+
 ## What is genuinely NOT proven, and will not be by this approval
 
 Stated so the approval is not read as more than it is:
