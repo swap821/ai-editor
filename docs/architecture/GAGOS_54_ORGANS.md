@@ -760,8 +760,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 46 green / 8 yellow / 54 total
-- **Source ledger sha256:** `ac38380ced0eb3fcfcecc8efcf705da6d7a50d70dc823e7b556f3302204f2887`
+- **Counts:** 51 green / 3 yellow / 54 total
+- **Source ledger sha256:** `5f8d8e11597d932c6e5e97e7ce60b63c35d0045dfaf3c363c372867305cddbc2`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -769,10 +769,15 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (46)
+### Green (51)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
+| 1 | Security Gateway | `SecurityGatewayAuthority` | `f3cb6122fb8d` | live |
+| 2 | Scope Lock | `ScopeLockAuthority` | `f3cb6122fb8d` | live |
+| 3 | Secret Scanner | `SecretScannerAuthority` | `f3cb6122fb8d` | live |
+| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `f3cb6122fb8d` | live |
+| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `f3cb6122fb8d` | live |
 | 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `5d482164707c` | live |
 | 7 | Policy Kernel | `PolicyKernelAuthority` | `5d482164707c` | live |
 | 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
@@ -820,15 +825,10 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (8) — exact residual, from the ledger's own `known_blockers`
+### Yellow (3) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 1 | Security Gateway | `SecurityGatewayAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C3: N/A-BY-DESIGN — aios/security/gateway.py::RateLimiter |
-| 2 | Scope Lock | `ScopeLockAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C4: N/A-BY-DESIGN — aios/security/scope_lock.py::ScopeLockAuthority.is_path_in_scope |
-| 3 | Secret Scanner | `SecretScannerAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C4: N/A-BY-DESIGN — aios/security/secret_scanner.py::SecretScannerAuthority.scan_and_redact |
-| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence. |
-| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | frozen spine — section VIII controlled release, completed by an AUTHORIZED HUMAN, is required before green. Enforced in code by organ_ledger.FROZEN_SECURITY_ORGAN_IDS, not merely recorded here. Live read-only probe evidence IS now attached at the tip below; the sole outstanding item is the human approval, which is not delegable to the agent that produced the evidence.<br>C3: N/A-BY-DESIGN — aios/security/injection_shield.py::InjectionShieldAuthority |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Outside-machine — cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | no Ollama — live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design |

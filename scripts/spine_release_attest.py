@@ -152,7 +152,13 @@ def cmd_install_pubkey(args: argparse.Namespace) -> int:
 
     pub_path = REPO_ROOT / PUBKEY_RELPATH
     pub_path.parent.mkdir(parents=True, exist_ok=True)
-    pub_path.write_text(key + "\n", encoding="utf-8")
+    # newline="\n" throughout this file: .gitattributes declares eol=lf for
+    # .aios/state/* precisely because these bytes are hash-pinned, and Python's
+    # default text mode writes CRLF on Windows. A CRLF working tree against an
+    # LF committed file makes release/organ-proof-manifest.json record a hash
+    # that only exists on the author's disk -- which is exactly how CI failed
+    # on PR #197 while every local check passed.
+    pub_path.write_text(key + "\n", encoding="utf-8", newline="\n")
     print(f"public key written to {PUBKEY_RELPATH.as_posix()} -- commit this file")
     print("Signing must still happen in a terminal with no agent attached.")
     return 0
@@ -280,6 +286,7 @@ def cmd_sign(args: argparse.Namespace) -> int:
         )
         + "\n",
         encoding="utf-8",
+        newline="\n",  # see the note in cmd_install_pubkey
     )
     print(f"wrote {ATTESTATION_RELPATH.as_posix()}")
     print("Commit it, then run: python scripts/verify_organ_contracts.py")
