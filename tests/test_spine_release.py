@@ -450,3 +450,45 @@ def test_ledger_violations_still_block_an_unapproved_green_spine(tmp_path):
         v for v in violations if "frozen" in v and "cannot claim green" in v
     ]
     assert len(frozen_violations) == len(FROZEN_SECURITY_ORGAN_IDS)
+
+
+def test_hash_pinned_state_files_use_lf_so_the_manifest_hash_is_portable():
+    """CRLF in a hash-pinned file records a hash that exists only on one machine.
+
+    PR #197 passed every local check and failed CI on all three platforms: the
+    ledger was written with Python's default text mode on Windows (CRLF), git
+    stores it as LF per .gitattributes, and release/organ-proof-manifest.json
+    therefore recorded the hash of bytes that existed nowhere but the author's
+    disk. .gitattributes already declared `eol=lf` for exactly this reason --
+    the tooling just did not honour it.
+
+    Asserted on the working tree, because that is what the manifest hashes.
+    """
+    for rel in (
+        ".aios/state/ORGAN_GREEN_LEDGER.json",
+        ".aios/state/spine_release_attestation.json",
+        "release/organ-proof-manifest.json",
+    ):
+        path = REPO_ROOT / rel
+        if not path.exists():
+            continue
+        raw = path.read_bytes()
+        assert b"\r\n" not in raw, (
+            f"{rel} contains CRLF. .gitattributes declares eol=lf for it because "
+            "its bytes are hash-pinned; a CRLF working tree makes the recorded "
+            "hash unreproducible anywhere else."
+        )
+
+
+def test_the_signing_tool_writes_lf():
+    """The tool that produced the CRLF attestation must not do it again."""
+    source = (REPO_ROOT / "scripts" / "spine_release_attest.py").read_text(
+        encoding="utf-8"
+    )
+    body = source.split('"""', 2)[-1]
+    writes = body.count("write_text(")
+    newlines = body.count(r'newline="\n"')
+    assert writes and newlines >= writes, (
+        f"{writes} write_text call(s) but only {newlines} explicit LF newline "
+        "argument(s); every write to a hash-pinned path must pin LF explicitly"
+    )
