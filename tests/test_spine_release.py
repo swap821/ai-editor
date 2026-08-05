@@ -232,6 +232,13 @@ def test_keygen_creates_no_private_key_material():
     import re
     import subprocess
 
+    # Snapshot rather than assert-absent. The first version of this test asserted
+    # the pubkey file did not exist afterwards, which silently depended on no key
+    # ever being installed -- it broke the moment the operator installed a real
+    # one. The property is that keygen CHANGES NOTHING, not that the repo is bare.
+    pubkey_path = REPO_ROOT / PUBKEY_RELPATH
+    before = pubkey_path.read_bytes() if pubkey_path.exists() else None
+
     result = subprocess.run(
         [
             sys.executable,
@@ -254,8 +261,9 @@ def test_keygen_creates_no_private_key_material():
     assert "does NOT generate" in result.stdout
     assert "no agent attached" in result.stdout
 
-    # And it must not have installed anything as a side effect.
-    assert not (REPO_ROOT / PUBKEY_RELPATH).exists()
+    # And it must not have written or altered key material as a side effect.
+    after = pubkey_path.read_bytes() if pubkey_path.exists() else None
+    assert after == before, "keygen touched the public key file"
 
 
 def test_sign_refuses_when_stdout_is_captured(tmp_path):
