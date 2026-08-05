@@ -1,0 +1,65 @@
+{
+  "mutations_total": 6,
+  "mutations_caught": 6,
+  "survivors": [],
+  "results": [
+    {
+      "mutation": "gateway: empty-input branch returns GREEN",
+      "module": "aios/security/gateway.py",
+      "attacks": "C5 fail-closed on empty/invalid input",
+      "caught_by": [
+        "empty input must be RED"
+      ],
+      "survived": false,
+      "note": ""
+    },
+    {
+      "mutation": "gateway: destructive-operation branch returns GREEN",
+      "module": "aios/security/gateway.py",
+      "attacks": "RED classification of destructive operations",
+      "caught_by": [
+        "destructive command must be RED"
+      ],
+      "survived": false,
+      "note": ""
+    },
+    {
+      "mutation": "gateway: prompt-injection branch returns GREEN",
+      "module": "aios/security/gateway.py",
+      "attacks": "RED classification of prompt-injection patterns",
+      "caught_by": [
+        "prompt injection must be RED"
+      ],
+      "survived": false,
+      "note": ""
+    },
+    {
+      "mutation": "gateway: scope-violation branch returns GREEN",
+      "module": "aios/security/gateway.py",
+      "attacks": "RED classification of out-of-scope commands",
+      "caught_by": [
+        "out-of-scope path must be RED"
+      ],
+      "survived": false,
+      "note": ""
+    },
+    {
+      "mutation": "gateway: empty-input guard deleted entirely",
+      "module": "aios/security/gateway.py",
+      "attacks": "C5 fail-closed on empty/invalid input (defence in depth)",
+      "caught_by": [],
+      "survived": false,
+      "note": "INERT \u2014 Genuine defence in depth, verified: with the primary guard removed, classify('') still returns RED via the independent scope check -- reason 'Scope violation: Empty command (fail-closed).'. Two unrelated paths refuse empty input, so removing one cannot change the verdict. This survivor is good news about the code, not a hole in the checks."
+    },
+    {
+      "mutation": "scope_lock: empty-path guard deleted",
+      "module": "aios/security/scope_lock.py",
+      "attacks": "C5 fail-closed path refusal",
+      "caught_by": [
+        "empty path must be refused"
+      ],
+      "survived": false,
+      "note": ""
+    }
+  ]
+}
