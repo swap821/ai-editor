@@ -37,6 +37,21 @@ attack:
   so approval covers the evidence that was actually reviewed, not merely the
   organ number.
 
+Shallow clones fail CLOSED
+--------------------------
+The ancestry check is anti-replay: an approval given at one commit must not
+authorise a later, different one. ``git merge-base --is-ancestor`` cannot answer
+that in a depth-1 clone, and this module treats "cannot verify" as "not
+approved" rather than waving it through.
+
+That is the right default for a security control and it has a sharp edge: a
+shallow checkout produces exactly the same violation text as an unsigned tree --
+"cannot claim green before controlled self-modification approval" -- so a valid
+operator signature can look like a missing one. It cost a CI cycle on PR #197.
+Any job that verifies organ contracts needs ``fetch-depth: 0``; the workflow's
+release-authority and release-strict-gate jobs already did, and backend-tests
+now does too.
+
 The honest limit
 ----------------
 This control holds only while the private key stays out of agent reach. If it is

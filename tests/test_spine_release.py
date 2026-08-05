@@ -274,6 +274,29 @@ def test_replay_at_a_later_unrelated_commit_is_refused(tmp_path):
     ) == frozenset({1})
 
 
+def test_a_shallow_clone_fails_closed_rather_than_approving(tmp_path):
+    """ "Cannot verify ancestry" must mean "not approved", never "allowed".
+
+    This is what a depth-1 checkout looks like to the verifier: git cannot
+    answer merge-base --is-ancestor, so is_ancestor reports False. Refusing is
+    correct for a security control -- but it produces the SAME violation text as
+    an unsigned tree, so a valid signature reads as a missing one. That cost a CI
+    cycle on PR #197, and the fix is fetch-depth: 0 on any job that verifies
+    organ contracts, not a weakening here.
+    """
+    operator, operator_pub = _keypair()
+    records = _records()
+    _install(tmp_path, operator_pub, _signed(operator, records, [1], sha=SHA))
+
+    # Signature valid, digest current, but HEAD differs and git cannot answer.
+    assert (
+        approved_organ_ids(
+            tmp_path, records, current_sha="c" * 40, is_ancestor=lambda _sha: False
+        )
+        == frozenset()
+    )
+
+
 def test_editing_the_digest_in_the_artifact_breaks_the_signature(tmp_path):
     operator, operator_pub = _keypair()
     records = _records()
