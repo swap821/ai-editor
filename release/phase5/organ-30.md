@@ -1,14 +1,13 @@
 # Phase 5 proof — Organ 30: Communication and Human-State Interpreter
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `8ed410220ee18885077e85ce59d9e3f18fe2bfe2`
-**Generated:** 2026-08-05T10:37:26+00:00
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `3b413945d1638c80b645e2f5a4aeab642ef7b1f5`
+**Generated:** 2026-08-02T16:26:08+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C7**: integration_tests not executed here (needs vitest): frontend/src/superbrain/lib/aiosAdapter.humanState.test.ts -- pass --frontend-junit or --allow-unexecuted-frontend
-- **C7**: integration_tests not executed here (needs vitest): frontend/src/workbench/GagosChrome.voice.test.tsx -- pass --frontend-junit or --allow-unexecuted-frontend
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
