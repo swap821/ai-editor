@@ -488,6 +488,31 @@ def _evidence_reference_failures(
     return failures, attested
 
 
+def _referenced_test_files(records) -> set[str]:
+    """Every on-disk .py file any GREEN organ needs run in this gate.
+
+    Two sources, both real citations: ``focused_tests``/``integration_tests``
+    (C6/C7/C9's evidence) and any ``tests/foo.py::test_bar`` named inside a
+    ``condition_verdicts`` string (C3/C4/C5's evidence). A test can be the
+    latter without ever being the former -- e.g. organs 1-5 cite
+    ``tests/test_spine_invariants.py`` for C5 while their focused/integration
+    lists point elsewhere entirely -- and omitting that source left a real,
+    passing proof indistinguishable from one that was never run at all.
+    """
+    referenced: set[str] = set()
+    for record in records:
+        if record.status != "green":
+            continue
+        for path in (*record.focused_tests, *record.integration_tests):
+            if path.endswith(".py") and (REPO_ROOT / path).exists():
+                referenced.add(path)
+        for text in (record.condition_verdicts or {}).values():
+            for path, _test_name in _CONDITION_PROOF_RE.findall(str(text or "")):
+                if path.endswith(".py") and (REPO_ROOT / path).exists():
+                    referenced.add(path)
+    return referenced
+
+
 def _condition_proof_failures(
     record, results: dict[str, dict], *, require_execution: bool = True
 ) -> list[tuple[str, str]]:
@@ -821,16 +846,11 @@ def main(argv: list[str] | None = None) -> int:
     ledger_rows = json.loads(LEDGER_PATH.read_text(encoding="utf-8"))
     by_id = {int(r["organ_id"]): r for r in ledger_rows}
 
-    # C6/C7/C9 need real outcomes. Collect every Python test file any GREEN
-    # organ relies on and run them once -- the suites overlap heavily between
-    # organs, so per-organ runs would repeat the same files many times over.
-    referenced: set[str] = set()
-    for record in records:
-        if record.status != "green":
-            continue
-        for path in (*record.focused_tests, *record.integration_tests):
-            if path.endswith(".py") and (REPO_ROOT / path).exists():
-                referenced.add(path)
+    # C6/C7/C9 need real outcomes, and so do C3/C4/C5's named proofs -- see
+    # _referenced_test_files's docstring for why both sources matter. The
+    # suites overlap heavily between organs, so per-organ runs would repeat
+    # the same files many times over; run the union once instead.
+    referenced = _referenced_test_files(records)
 
     results: dict[str, dict] = {}
     try:
