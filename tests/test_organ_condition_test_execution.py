@@ -452,6 +452,59 @@ def test_widening_did_not_make_every_name_adversarial(
     )
 
 
+# --------------------------------------------------------------------------- #
+# Collecting which test files this gate must actually run
+# --------------------------------------------------------------------------- #
+
+
+def test_a_test_cited_only_in_a_condition_verdict_is_still_collected() -> None:
+    """Organs 1-5's real regression: C5 cited tests/test_spine_invariants.py
+    while focused_tests/integration_tests pointed elsewhere entirely, so the
+    gate never ran it and a real, passing proof read as "did not execute in
+    this run". A cited-but-never-run test must be collected from
+    condition_verdicts too, not only from the two named-suite lists."""
+    from aios.domain.governance.contracts import OrganRecord
+
+    record = OrganRecord(
+        organ_id=1,
+        name="Test",
+        status="green",
+        authority_owner="NobodyAuthority",
+        focused_tests=["tests/test_organ_condition_test_execution.py"],
+        condition_verdicts={
+            "C5": (
+                "PASS — proven by tests/test_condition_proof_ratchet.py::test_something"
+            ),
+        },
+    )
+
+    referenced = v12._referenced_test_files([record])
+
+    assert referenced == {
+        "tests/test_organ_condition_test_execution.py",
+        "tests/test_condition_proof_ratchet.py",
+    }
+
+
+def test_a_yellow_organs_cited_tests_are_not_collected() -> None:
+    from aios.domain.governance.contracts import OrganRecord
+
+    record = OrganRecord(
+        organ_id=1,
+        name="Test",
+        status="yellow",
+        authority_owner="NobodyAuthority",
+        focused_tests=["tests/test_organ_condition_test_execution.py"],
+        condition_verdicts={
+            "C5": (
+                "PASS — proven by tests/test_condition_proof_ratchet.py::test_something"
+            ),
+        },
+    )
+
+    assert v12._referenced_test_files([record]) == set()
+
+
 def test_phase5_proof_docs_are_written_with_lf_newlines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
