@@ -2010,16 +2010,26 @@
     ],
     "focused_tests": [
       "tests/test_constitutional_learning.py",
-      "tests/test_adversarial_simulations.py"
+      "tests/test_adversarial_simulations.py",
+      "tests/test_governance_red_team_corpus.py"
     ],
     "integration_tests": [
       "tests/test_constitutional_amendment.py",
       "tests/test_governance_amendment_store.py",
       "tests/test_governance_lesson_api.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python -m pytest -q tests/test_governance_red_team_corpus.py`; artifact=release/organ-46/2026-08-08-red-team-campaign.md; Multi-agent adversarial red-team campaign against this organ's screening layer: 27 agents, 6 attack classes, 19 candidates, each routed to an independent refutation agent (one candidate returned confirmed:false and was dropped) => 16 CONFIRMED bypasses of the textual risk screen. Two highest-severity findings reproduced mechanically by hand before any fix: (1) an authority-reduction sentence in rollback_plan passed all 9 checks while the identical sentence in proposed_diff failed -- _check_authority_escalation read 3 of 6 free-text fields; (2) the same English sentence in 4 encodings (Cyrillic homoglyph, zero-width space, NFKD+combining mark, full-width) each walked the raw `marker in text.lower()` guard that correctly refused its plain-ASCII form. A 17th finding on amendment_authority._touches_foundation_law -- the guard that makes foundation laws unamendable, which runs INSIDE ratify_amendment -- was found during hand-reproduction and had the same weakness. All remediated via aios/application/governance/text_screening.py (normalisation + mixed-script detection) plus 6 semantic marker families and one ordered-pair rule; 71 regression cases pin them closed. Recorded while the organ remains YELLOW and is explicitly NOT a green claim: the campaign proved this organ's screen was walkable, the fix is one day old, and the marker layer remains evadable by paraphrase in principle. The structural control was never in reach of any finding -- ratify_amendment still requires a real already-consumed human capability.",
+        "commit_sha": "5ecad32e3c47573721e49268ad97bab798ed8f55",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "no Ollama \u2014 live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design"
+      "no Ollama \u2014 live constitutional learning path needs live Ollama and/or Outside-machine cloud",
+      "2026-08-08 agent red-team campaign confirmed 16 bypasses of this organ's screening layer (see release/organ-46/2026-08-08-red-team-campaign.md); all remediated and pinned by tests/test_governance_red_team_corpus.py, but the fix is not yet aged through a CI cycle or re-attacked",
+      "marker screening remains evadable by paraphrase in principle; closing that properly needs the approval mechanism expressed as typed data rather than prose \u2014 an architectural decision reserved for the operator",
+      "independent human red-team still absent by design"
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
