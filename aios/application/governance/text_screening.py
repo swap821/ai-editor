@@ -366,8 +366,33 @@ def obfuscated_tokens(text: str) -> tuple[str, ...]:
             letters = [char for char in word if char.isalpha()]
             if not letters:
                 continue
-            ascii_letters = [char for char in letters if char.isascii()]
-            if ascii_letters and len(ascii_letters) != len(letters):
+            # Fold KNOWN confusables before asking whether the word mixes
+            # representable and unrepresentable letters. Without this, any
+            # mapped letter that does not NFKD-decompose still counts as
+            # non-ASCII here and the word is refused even though the screen
+            # can spell it perfectly well.
+            #
+            # The third red-team campaign found that as a false positive on
+            # ordinary Polish: "Paweł" and "Łódź" contain U+0142, which IS in
+            # _CONFUSABLES (-> "l") but has no decomposition, so a legitimate
+            # amendment naming a Polish operator or city was refused -- and
+            # refused by _touches_foundation_law, which sits inside
+            # ratify_amendment, so a valid capability could not save it.
+            #
+            # Security is unchanged: a letter the map cannot fold is still
+            # non-ASCII after folding and is still refused. This narrows the
+            # rule to exactly its intent -- letters this screen CANNOT
+            # represent, not letters that merely started out non-ASCII.
+            # A word with no ASCII letters at all is ordinary multilingual
+            # text -- Russian, Greek, Armenian -- and is never the signature.
+            # This is decided on the ORIGINAL letters, because folding turns
+            # some Cyrillic into ASCII and would otherwise make every Russian
+            # word look like a mixed one.
+            if not any(char.isascii() for char in letters):
+                continue
+            folded = [_CONFUSABLES.get(char, char) for char in letters]
+            ascii_letters = [char for char in folded if char.isascii()]
+            if ascii_letters and len(ascii_letters) != len(folded):
                 offenders.append(word)
                 continue
             scripts = {script for script in map(_script_of, letters) if script}

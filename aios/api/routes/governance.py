@@ -44,7 +44,10 @@ from aios.application.governance.constitution_authority import ConstitutionAutho
 from aios.infrastructure.governance.constitution_snapshot_store import (
     ConcurrentActivationError,
 )
-from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
+from aios.infrastructure.governance.sqlite_store import (
+    GovernanceAmendmentStore,
+    ProposalIdReuseError,
+)
 
 
 router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
@@ -200,7 +203,14 @@ def propose_amendment_route(
         expected_benefits=body.expected_benefits,
         new_risks=body.new_risks,
     )
-    store.save_proposal(proposal)
+    # Proposal-id reuse would shadow an already-ratified amendment's "current"
+    # view and permanently block its rollback -- reachable with an ordinary
+    # authenticated call and no forgery (third red-team campaign). 409 rather
+    # than 500: the request is well-formed, it conflicts with existing state.
+    try:
+        store.save_proposal(proposal)
+    except ProposalIdReuseError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return proposal.as_dict()
 
 
@@ -567,7 +577,10 @@ def draft_amendment_from_lesson_route(
     except ConstitutionalLearningError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.save_lesson(updated_lesson)
-    store.save_proposal(proposal)
+    try:
+        store.save_proposal(proposal)
+    except ProposalIdReuseError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"lesson": updated_lesson.as_dict(), "proposal": proposal.as_dict()}
 
 

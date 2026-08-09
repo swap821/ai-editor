@@ -54,6 +54,15 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+class ProposalIdReuseError(RuntimeError):
+    """Raised when a new proposal would shadow an already-ratified id.
+
+    Not a validation nicety: the append-only history is the record a human
+    reads to decide what is in force, and a shadowed "current" view makes that
+    record lie without any forgery being involved.
+    """
+
+
 class GovernanceAmendmentStore:
     """Durable, append-only history for `ConstitutionalAmendmentProposalV1`
     and `GovernanceLessonV1`. Each `save_*` call adds one new revision row;
@@ -71,16 +80,53 @@ class GovernanceAmendmentStore:
         conn.row_factory = sqlite3.Row
         return conn
 
+    #: Statuses a proposal cannot come back from. Once an amendment has been
+    #: ratified by a real operator capability, its id is spoken for.
+    _TERMINAL_STATUSES = frozenset({"ratified", "activated", "rolled_back"})
+
     def save_proposal(self, proposal: ConstitutionalAmendmentProposalV1) -> int:
         payload = proposal.model_dump(mode="json")
         digest = _digest(payload)
         with closing(self._connect()) as conn:
             row = conn.execute(
-                "SELECT COALESCE(MAX(revision), 0) FROM "
-                "governance_amendment_proposals WHERE proposal_id = ?",
-                (proposal.proposal_id,),
+                "SELECT COALESCE(MAX(revision), 0), "
+                "(SELECT status FROM governance_amendment_proposals "
+                " WHERE proposal_id = ? ORDER BY revision DESC LIMIT 1) "
+                "FROM governance_amendment_proposals WHERE proposal_id = ?",
+                (proposal.proposal_id, proposal.proposal_id),
             ).fetchone()
             revision = int(row[0]) + 1
+            current_status = row[1]
+
+            # Proposal-id reuse. The third red-team campaign reached this with
+            # an ordinary authenticated call and no forgery: re-POSTing
+            # /amendments/propose under the id of an ALREADY-ACTIVATED
+            # amendment appended a fresh "proposed" revision, which silently
+            # became the "current" view. The genuine activation was still in
+            # the history, but every reader saw `proposed`, and rollback of the
+            # real change was permanently blocked with "proposal has not been
+            # ratified".
+            #
+            # It never reached ratified or activated without a capability, so
+            # the authorisation invariant held. What it corrupted was the
+            # store's own account of what is in force -- which is worse in a
+            # different way, because the record is what a human reads before
+            # deciding anything.
+            #
+            # Enforced here rather than in the route because the store is where
+            # every writer converges, and because this is exactly the
+            # independent check the campaign observed the persistence layer did
+            # not have.
+            if (
+                current_status in self._TERMINAL_STATUSES
+                and proposal.status not in self._TERMINAL_STATUSES
+            ):
+                raise ProposalIdReuseError(
+                    f"proposal id {proposal.proposal_id!r} is already "
+                    f"{current_status!r}; refusing to append a "
+                    f"{proposal.status!r} revision that would shadow it. Use a "
+                    "new proposal id."
+                )
             conn.execute(
                 """
                 INSERT INTO governance_amendment_proposals (
@@ -120,7 +166,6 @@ class GovernanceAmendmentStore:
                     _utc_now(),
                     digest,
                 ),
-
             )
             conn.commit()
         return revision
@@ -210,8 +255,16 @@ class GovernanceAmendmentStore:
 
 def _proposal_from_row(row: sqlite3.Row) -> ConstitutionalAmendmentProposalV1:
     keys = row.keys() if hasattr(row, "keys") else ()
-    activated_snapshot_digest = row["activated_snapshot_digest"] if "activated_snapshot_digest" in keys else None
-    predecessor_snapshot_digest = row["predecessor_snapshot_digest"] if "predecessor_snapshot_digest" in keys else None
+    activated_snapshot_digest = (
+        row["activated_snapshot_digest"]
+        if "activated_snapshot_digest" in keys
+        else None
+    )
+    predecessor_snapshot_digest = (
+        row["predecessor_snapshot_digest"]
+        if "predecessor_snapshot_digest" in keys
+        else None
+    )
     record = ConstitutionalAmendmentProposalV1(
         proposal_id=row["proposal_id"],
         target_articles=tuple(json.loads(row["target_articles_json"])),
@@ -237,7 +290,6 @@ def _proposal_from_row(row: sqlite3.Row) -> ConstitutionalAmendmentProposalV1:
     )
     _verify(record, row["record_digest"])
     return record
-
 
 
 def _lesson_from_row(row: sqlite3.Row) -> GovernanceLessonV1:
@@ -269,4 +321,8 @@ def _verify(
         )
 
 
-__all__ = ["GovernanceAmendmentStore", "RecordTamperedError"]
+__all__ = [
+    "GovernanceAmendmentStore",
+    "ProposalIdReuseError",
+    "RecordTamperedError",
+]

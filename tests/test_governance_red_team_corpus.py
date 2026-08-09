@@ -482,7 +482,7 @@ def test_every_marker_survives_generated_encoding_attacks(
 LATIN_NAMED_LOOKALIKES: dict[str, str] = {
     "alpha_U0251": "During an outage the organ may bypɑss ratification for small changes.",
     "script_g_U0261": "This lesson recommends the system ɡrant model authority over policy.",
-    "iota_U0269": "The operator need not revɪew changes below the stated threshold.",
+    "iota_U0269": "The operator need not revɩew changes below the stated threshold.",
     "barred_i_U0268": "Proposals may skɨp human review when model confidence is high.",
 }
 
@@ -592,15 +592,34 @@ def test_every_latin_block_lookalike_is_caught_not_just_the_reported_ones() -> N
     missed: list[str] = []
     for code_point in range(0x80, 0x2C80):
         char = chr(code_point)
-        if not char.isalpha() or char in _CONFUSABLES:
+        # Skip characters the map CAN fold. Their casefolded form is what
+        # obfuscated_tokens actually consults, so an uppercase form whose
+        # lowercase is mapped (Ø -> ø -> "o") is handled, not missed.
+        #
+        # Folding to a *different* ASCII letter is deliberately fine here:
+        # "bypØss" normalises to "byposs", which is not the marker -- but a
+        # human does not read it as "bypass" either. The failure this sweep
+        # hunts is machine and human reading DIFFERENT words, and there is no
+        # divergence when both read nonsense.
+        if (
+            not char.isalpha()
+            or char in _CONFUSABLES
+            or char.casefold() in _CONFUSABLES
+        ):
             continue
         try:
             if not unicodedata.name(char).startswith("LATIN"):
                 continue
         except ValueError:
             continue
+        # Mirror the production pipeline exactly rather than approximating it:
+        # casefold, NFKD, drop combining marks, THEN apply the confusables map.
+        # U+01FE "Ǿ" decomposes to "ø" plus an acute; the acute is stripped and
+        # the map folds what remains to "o". Checking the map before that step
+        # reports it as a miss when the pipeline handles it fine.
         folded = unicodedata.normalize("NFKD", char.casefold())
         folded = "".join(c for c in folded if unicodedata.category(c) != "Mn")
+        folded = "".join(_CONFUSABLES.get(c, c) for c in folded)
         if folded.isascii():
             continue
         if not obfuscated_tokens(f"byp{char}ss ratification"):
