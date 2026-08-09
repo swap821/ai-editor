@@ -147,7 +147,25 @@ class RollbackEngine:
 
         if external:
             self._git_dir.parent.mkdir(parents=True, exist_ok=True)
-            repo = Repo.init(self.repo_dir, separate_git_dir=str(self._git_dir))
+            # GitPython 3.1.58 (the fix for GHSA-9rj7-rf2p-w77r and four sibling
+            # advisories) added ``--separate-git-dir`` to its blocked-option list,
+            # because a caller that derives the value from untrusted input lets an
+            # attacker choose where the git database is written.
+            #
+            # That is not this call site, and the distinction is the whole reason
+            # this is safe rather than a re-opening of the CVE the bump closes.
+            # ``_git_dir`` has exactly three sources, all code-supplied: the
+            # ``config.ROLLBACK_DIR`` constant, a path derived from the already
+            # scope-validated ``repo_dir``, or the explicit ``git_dir`` argument.
+            # The only caller in the codebase that passes ``git_dir``
+            # (``runtime/snapshots.py``) builds it from its own ``runtime_root``
+            # and then *refuses* unless the workspace's ``.git`` pointer already
+            # resolves to that same path. No request or user input reaches here.
+            repo = Repo.init(
+                self.repo_dir,
+                separate_git_dir=str(self._git_dir),
+                allow_unsafe_options=True,
+            )
         else:
             repo = Repo.init(self.repo_dir)
         # Keep the work-tree byte-for-byte unchanged while establishing the
