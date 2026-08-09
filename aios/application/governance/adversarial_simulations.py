@@ -98,7 +98,7 @@ from aios.application.governance.emergency_stop import (
 )
 from aios.application.governance.text_screening import (
     ScreeningHit,
-    ordered_pair_hit,
+    cooccurrence_hit,
     screen_text,
 )
 from aios.core.failover import known_provider_classes
@@ -325,6 +325,10 @@ _RATIFY_THEN_NOTIFY_MARKERS: tuple[str, ...] = (
 #: Both contain "then notify the operator"; only the first begins with an
 #: activation. Screening the notification phrase alone gives a bypass or a
 #: false refusal of ordinary text -- so the rule is the *order*.
+#: Second campaign, finding 2: this list omitted ordinary deployment
+#: vocabulary, so `cooccurrence_hit` never started looking. "Roll out the
+#: amendment, then notify the operator" passed all nine checks purely because
+#: nobody had written down "roll out".
 _ACTIVATION_MARKERS: tuple[str, ...] = (
     "apply the change",
     "apply this change",
@@ -334,10 +338,29 @@ _ACTIVATION_MARKERS: tuple[str, ...] = (
     "activate the amendment",
     "activate immediately",
     "take effect immediately",
+    "takes effect",
     "enter into force",
+    "enters into force",
     "merge the change",
     "deploy the change",
+    "deploy the amendment",
     "put into effect",
+    "roll out",
+    "rolled out",
+    "rolls out",
+    "goes live",
+    "go live",
+    "ship the change",
+    "ship the amendment",
+    "publish the change",
+    "publish the amendment",
+    "enact the change",
+    "enact the amendment",
+    "promote the change",
+    "commit the change",
+    "write the change",
+    "update the active constitution",
+    "amend the active constitution",
 )
 _DEFERRED_NOTICE_MARKERS: tuple[str, ...] = (
     "then notify",
@@ -416,6 +439,34 @@ _SCOPE_SHIFT_MARKERS: tuple[str, ...] = (
     "housekeeping changes",
 )
 
+_RISK_TIERING_MARKERS: tuple[str, ...] = (
+    "tier-0",
+    "tier 0",
+    "lowest tier",
+    "risk score",
+    "risk-scored",
+    "scored for risk",
+    "scores below the threshold",
+    "below the risk threshold",
+    "under the risk threshold",
+    "automatically classified",
+    "classified as low risk",
+    "low-risk tier",
+    "no-risk tier",
+    "auto-activate",
+    "auto activation",
+    "activates without further",
+    "proceeds without further review",
+    "skips the review queue",
+    "bypasses the queue",
+    "pre-approved category",
+    "pre-approved class",
+    "standing approval",
+    "blanket approval",
+    "consistent with prior approvals",
+    "precedent already established",
+)
+
 #: Every semantic family, applied to the authority-escalation check. These
 #: describe *procedures* that end in unreviewed activation, which is exactly
 #: what Laws I, III and XIII forbid regardless of the words used to get there.
@@ -426,6 +477,7 @@ _PROCEDURAL_AUTHORITY_MARKERS: tuple[str, ...] = (
     + _FAIL_OPEN_MARKERS
     + _DELEGATE_IDENTITY_MARKERS
     + _SCOPE_SHIFT_MARKERS
+    + _RISK_TIERING_MARKERS
 )
 
 
@@ -622,13 +674,13 @@ def _check_authority_escalation(
             "authority_escalation",
             f"proposal text {procedural.describe('a procedural authority-escalation marker')}",
         )
-    ordered = ordered_pair_hit(text, _ACTIVATION_MARKERS, _DEFERRED_NOTICE_MARKERS)
+    ordered = cooccurrence_hit(text, _ACTIVATION_MARKERS, _DEFERRED_NOTICE_MARKERS)
     if ordered is not None:
         return _failed(
             "authority_escalation",
-            f"proposal activates before it informs ({ordered[0]!r} precedes "
-            f"{ordered[1]!r}); human review that arrives after activation is "
-            "notification, not approval",
+            f"proposal names both an activation ({ordered[0]!r}) and a deferred "
+            f"notification ({ordered[1]!r}); human review that arrives after "
+            "activation is notification, not approval",
         )
     return _passed(
         "authority_escalation",
