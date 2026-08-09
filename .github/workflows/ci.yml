@@ -361,6 +361,7 @@ jobs:
             scripts/check_organism_seam.py tests/test_organism_seam.py \
             scripts/spine_mutation_probe.py tests/test_spine_mutation_probe.py \
             tests/test_spine_invariants.py \
+            tests/test_governance_red_team_corpus.py \
             tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \
@@ -375,6 +376,7 @@ jobs:
             scripts/check_organism_seam.py tests/test_organism_seam.py \
             scripts/spine_mutation_probe.py tests/test_spine_mutation_probe.py \
             tests/test_spine_invariants.py \
+            tests/test_governance_red_team_corpus.py \
             tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
             tests/test_launcher.py \
             tests/test_governance.py tests/test_v1_declaration.py \

@@ -761,7 +761,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 3 yellow / 54 total
-- **Source ledger sha256:** `f3b63292e5c597e267f3df021fc9d81c4a5ba00191af3b7659ba36af9a8f3076`
+- **Source ledger sha256:** `0566d9c46418a13830006aaebd1c9273ddfb65b37f4e35305a003b768d272014`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -831,6 +831,6 @@ re-audits recorded above.
 |---|-------|------------------|----------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Outside-machine — cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence |
-| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | no Ollama — live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | no Ollama — live constitutional learning path needs live Ollama and/or Outside-machine cloud<br>2026-08-08 agent red-team campaign confirmed 16 bypasses of this organ's screening layer (see release/organ-46/2026-08-08-red-team-campaign.md); all remediated and pinned by tests/test_governance_red_team_corpus.py, but the fix is not yet aged through a CI cycle or re-attacked<br>marker screening remains evadable by paraphrase in principle; closing that properly needs the approval mechanism expressed as typed data rather than prose — an architectural decision reserved for the operator<br>independent human red-team still absent by design |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->

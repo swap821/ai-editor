@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from aios.application.governance.text_screening import screen_text
 from aios.domain.governance.amendments import (
     CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION,
     ConstitutionalAmendmentProposalV1,
@@ -98,13 +99,29 @@ def simulate_amendment(
 
 
 def _touches_foundation_law(proposal: ConstitutionalAmendmentProposalV1) -> bool:
-    haystack = " ".join((proposal.proposed_diff, *proposal.target_articles)).lower()
-    law_id_markers = tuple(f"law_{i}" for i in range(1, 7)) + tuple(
-        f"law {i}" for i in range(1, 7)
+    """Does *proposal* modify one of the six unamendable foundation laws?
+
+    Screened through `text_screening`, not raw `.lower()` substring matching.
+    This guard is not a pre-screen -- it runs inside `ratify_amendment`, so
+    evading it is what turns "unamendable in v1" into "amendable by anyone who
+    types a Cyrillic 'a'". Measured before the fix: `no model self-approval`
+    with U+0430 substituted, plus a zero-width space in the article name, was
+    not detected. `screen_text` also refuses mixed-script words outright, so
+    an unenumerated homoglyph fails closed rather than passing silently.
+
+    Field scope is deliberately narrow -- what the proposal *changes*
+    (`target_articles`, `proposed_diff`, `migration_plan`), not why it wants
+    to (`motivation`) or how to undo it (`rollback_plan`). A pro-sovereignty
+    proposal that merely cites a foundation law as its reason should not be
+    unratifiable, and a rollback plan naming the law it restores is normal.
+    Text smuggled into those fields is caught by the authority-reduction
+    screen in `constitutional_learning`, which reads every field.
+    """
+    haystack = " ".join(
+        (proposal.proposed_diff, proposal.migration_plan, *proposal.target_articles)
     )
-    if any(marker in haystack for marker in law_id_markers):
-        return True
-    return any(law.lower() in haystack for law in FOUNDATION_LAWS)
+    law_id_markers = tuple(f"law {index}" for index in range(1, 7))
+    return screen_text(haystack, law_id_markers + tuple(FOUNDATION_LAWS)) is not None
 
 
 class ConstitutionalAmendmentAuthority:

@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from aios.application.governance.amendment_authority import propose_amendment
+from aios.application.governance.text_screening import screen_text
 from aios.domain.governance.amendments import ConstitutionalAmendmentProposalV1
 from aios.domain.governance.learning import (
     ADVERSARIAL_SIMULATION_CHECKS,
@@ -41,9 +42,15 @@ class ConstitutionalLearningError(RuntimeError):
 #: human authority or oversight. A keyword screen is a floor beneath human
 #: review, not a substitute for it -- real review still happens at
 #: ratification (Slice 37), which this screen cannot bypass either way.
+#:
+#: Matched through `text_screening.screen_text`, which folds homoglyphs,
+#: zero-width characters, combining marks, compatibility forms, leetspeak and
+#: punctuation before comparing, and refuses mixed-script words outright. The
+#: separate "auto-approve"/"auto approve" and "self-approve"/"self approve"
+#: entries this list used to carry are gone: they normalise to one token
+#: sequence now, so the duplicates were doing nothing.
 _AUTHORITY_REDUCTION_MARKERS: tuple[str, ...] = (
     "auto-approve",
-    "auto approve",
     "without human",
     "skip human",
     "remove human approval",
@@ -55,7 +62,6 @@ _AUTHORITY_REDUCTION_MARKERS: tuple[str, ...] = (
     "eliminate approval",
     "without operator",
     "self-approve",
-    "self approve",
 )
 
 
@@ -106,15 +112,19 @@ class ConstitutionalLearningAuthority:
     def assert_never_reduces_human_authority(self, text: str) -> None:
         """The one rule this whole organ exists to serve: GAGOS may learn that
         its sovereignty mechanisms are weak, but may never itself propose
-        reducing human authority to fix that."""
-        lowered = text.lower()
-        hit = next(
-            (marker for marker in _AUTHORITY_REDUCTION_MARKERS if marker in lowered),
-            None,
-        )
+        reducing human authority to fix that.
+
+        Screened through `text_screening.screen_text`, not raw substring
+        matching. The 2026-08-08 red-team campaign walked the old raw version
+        with four separate one-line encodings of the same English sentence
+        (Cyrillic homoglyphs, a zero-width space, a combining mark, full-width
+        forms) -- a human reviewer read "the model can approve its own
+        amendments without human confirmation" and this guard read nothing.
+        """
+        hit = screen_text(text, _AUTHORITY_REDUCTION_MARKERS)
         if hit is not None:
             raise ConstitutionalLearningError(
-                f"proposed text contains an authority-reduction marker ({hit!r}); "
+                f"proposed text {hit.describe('an authority-reduction marker')}; "
                 "a governance lesson may never propose reducing human authority"
             )
 
@@ -186,8 +196,20 @@ class ConstitutionalLearningAuthority:
             raise ConstitutionalLearningError(
                 f"cannot draft an amendment from a lesson in status {lesson.status!r}"
             )
-        self.assert_never_reduces_human_authority(lesson.proposed_improvement)
-        self.assert_never_reduces_human_authority(proposed_diff)
+        # Every free-text field, not just the two that describe the change.
+        # The red-team campaign's highest-severity finding was a sentence
+        # placed in `rollback_plan` -- a field this guard did not read -- that
+        # granted the learning organ standing permission to skip human review.
+        # Identical text in `proposed_diff` was refused. A screen that can be
+        # defeated by moving a sentence one field to the right is not a screen.
+        for field in (
+            lesson.proposed_improvement,
+            lesson.observed_harm,
+            proposed_diff,
+            migration_plan,
+            rollback_plan,
+        ):
+            self.assert_never_reduces_human_authority(field)
 
         proposal = propose_amendment(
             proposal_id=proposal_id,
