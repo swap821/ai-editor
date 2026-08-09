@@ -141,6 +141,17 @@ class ConstitutionalAmendmentAuthority:
             raise AmendmentError(
                 f"cannot ratify a proposal in status {proposal.status!r}"
             )
+        if proposal.approval_model != "human_capability_required":
+            # Unreachable through the schema today -- `approval_model` is a
+            # single-member Literal, so Pydantic refuses any other value at
+            # construction. Checked anyway, because the day someone widens that
+            # vocabulary this must fail closed rather than silently accept the
+            # new member. A type that is enforced in one place and assumed in
+            # another is how the assumption gets lost.
+            raise AmendmentError(
+                f"unsupported approval model {proposal.approval_model!r}; "
+                "ratification requires a human capability"
+            )
         if _touches_foundation_law(proposal):
             raise AmendmentError("foundation-law modifications are not amendable in v1")
         if (

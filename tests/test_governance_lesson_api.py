@@ -161,7 +161,8 @@ def test_check_simulations_runs_all_nine_for_real_and_is_ready_for_a_clean_propo
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["ready"] is True
+    assert body["advisory_screen_passed"] is True
+    assert body["ready"] is True  # retained for existing consumers
     assert body["reason"] == ""
     checked_names = {r["check_name"] for r in body["results"]}
     assert checked_names == set(ADVERSARIAL_SIMULATION_CHECKS)
@@ -188,13 +189,74 @@ def test_check_simulations_catches_a_risky_proposal_a_caller_never_disclosed(
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["ready"] is False
+    assert body["advisory_screen_passed"] is False
+    assert body["ready"] is False  # retained for existing consumers
     assert "provider_lock_in" in body["reason"]
     results_by_name = {r["check_name"]: r for r in body["results"]}
     assert results_by_name["provider_lock_in"]["passed"] is False
     assert results_by_name["reduced_human_reversibility"]["passed"] is False
     # Checks unrelated to this proposal's risky language still pass.
     assert results_by_name["capability_replay"]["passed"] is True
+
+
+def test_a_passing_screen_ships_its_own_limits_so_nobody_reads_it_as_safe(
+    client,
+) -> None:
+    """The only realised harm from 24 confirmed screening bypasses across two
+    adversarial campaigns was this exact response saying "ready" about a
+    proposal a competent reviewer would refuse.
+
+    None of the 24 moved a proposal toward activation -- this route gates
+    nothing. But a human reading a bare `ready: true` reasonably infers that
+    nine adversarial checks vouched for the proposal, and they did not: they
+    found no *known* marker, in prose that can be rewritten to carry the same
+    meaning past any marker list. The response has to say so where a reviewer
+    will see it, which is here and not in a docstring.
+    """
+    _draft_amendment(
+        client,
+        proposal_id="amend-limits",
+        proposed_diff="raise router_max_cost for the batch task class",
+    )
+
+    resp = client.post(
+        "/api/v1/governance/lessons/check-simulations",
+        json={"proposal_id": "amend-limits"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["advisory_screen_passed"] is True
+
+    limits = " ".join(body["screen_limits"]).lower()
+    # Says what it is, and what it is not.
+    assert "advisory" in limits
+    assert "not a safety verdict" in limits
+    assert "evadable by paraphrase" in limits
+    # Points at the control that actually decides.
+    assert "ratification requires" in limits
+    # Does not overclaim the half that did hold.
+    assert "live-probe" in limits
+
+
+def test_a_failing_screen_ships_the_same_limits(client) -> None:
+    """A refusal is not more trustworthy than a pass -- both are the same
+    evadable screen, and a reviewer must not read `false` as authoritative
+    either."""
+    _draft_amendment(
+        client,
+        proposal_id="amend-limits-fail",
+        proposed_diff="remove ollama and require openai only for all requests",
+    )
+
+    resp = client.post(
+        "/api/v1/governance/lessons/check-simulations",
+        json={"proposal_id": "amend-limits-fail"},
+    )
+
+    body = resp.json()
+    assert body["advisory_screen_passed"] is False
+    assert body["screen_limits"], "limits must ship on failure too"
 
 
 def test_check_simulations_unknown_proposal_is_404(client) -> None:

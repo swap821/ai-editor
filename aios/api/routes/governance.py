@@ -432,6 +432,17 @@ def rollback_amendment_route(
 # (`run_adversarial_simulations`) -- a caller can no longer assert a
 # passing result it never earned; `require_all_simulations_pass` still
 # refuses on any missing or failed check exactly like before.
+#
+# `check-simulations` GATES NOTHING. It returns a report. That is easy to
+# misread from the outside -- it runs the organ's named checks and answers
+# with a boolean -- so it is worth stating plainly: the only control that
+# decides whether a constitutional change happens is the capability check in
+# `ratify_amendment_route`, and it does not consult this result.
+#
+# The distinction is not academic. Two adversarial campaigns produced 24
+# confirmed bypasses of the textual screening here, and the entire realised
+# impact of all 24 was a false passing badge shown to a human. Which is a real
+# harm, and why the response now carries `screen_limits` -- see below.
 # --------------------------------------------------------------------------- #
 
 
@@ -461,6 +472,34 @@ class CheckSimulationsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     proposal_id: str = Field(min_length=1, max_length=200)
+
+
+#: Shipped verbatim in every `check-simulations` response.
+#:
+#: Two adversarial campaigns (2026-08-08, 2026-08-09; 49 agents) produced 24
+#: confirmed bypasses of the textual half of these checks. Every one of them
+#: produced exactly this: a passing badge on a proposal a competent reviewer
+#: would refuse. None moved a proposal one step toward activation, because
+#: this route decides nothing -- `ratify_amendment_route` does, and it wants a
+#: real consumed capability.
+#:
+#: So the harm this field exists to prevent is precise: a human reading
+#: "ready: true" and inferring that nine adversarial checks vouched for the
+#: proposal. They did not. They found no *known* marker, in text that can be
+#: rewritten to carry the same meaning past any marker list. Saying so in the
+#: payload is the only place a reviewer will actually see it.
+_SCREEN_LIMITS: tuple[str, ...] = (
+    "This is an advisory triage signal, not a safety verdict.",
+    "The textual half of each check is keyword screening over prose. It is "
+    "evadable by paraphrase and by encoding, and has been evaded in practice "
+    "-- see release/organ-46/2026-08-09-second-red-team-campaign.md.",
+    "A passing result means no known marker was found. It does not mean the "
+    "proposal is safe, and it never means the proposal may be ratified.",
+    "The live-probe half of each check is a real mechanism test and was not "
+    "defeated by either campaign.",
+    "Ratification requires a real, already-consumed operator capability and is "
+    "enforced independently of this result.",
+)
 
 
 @router.post("/api/v1/governance/lessons/propose")
@@ -560,8 +599,20 @@ def check_lesson_simulations_route(
         else:
             failed = [r.check_name for r in results if not r.passed]
             reason = f"failed adversarial simulations: {failed}"
-        return {"ready": False, "reason": reason, "results": results_payload}
-    return {"ready": True, "reason": "", "results": results_payload}
+        return {
+            "advisory_screen_passed": False,
+            "ready": False,
+            "screen_limits": _SCREEN_LIMITS,
+            "reason": reason,
+            "results": results_payload,
+        }
+    return {
+        "advisory_screen_passed": True,
+        "ready": True,
+        "screen_limits": _SCREEN_LIMITS,
+        "reason": "",
+        "results": results_payload,
+    }
 
 
 __all__ = ["router"]
