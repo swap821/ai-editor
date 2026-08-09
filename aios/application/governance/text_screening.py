@@ -219,9 +219,9 @@ class ScreeningHit:
         """
         if self.kind == "obfuscation":
             return (
-                f"contains a mixed-script word ({self.detail!r}); characters "
-                "from two scripts inside one word is a homoglyph signature, "
-                "not ordinary multilingual text"
+                f"contains an unrepresentable word ({self.detail!r}); mixing "
+                "ASCII and non-ASCII letters inside one word is a homoglyph "
+                "signature, not ordinary multilingual text"
             )
         return f"contains {marker_noun} ({self.detail!r})"
 
@@ -241,57 +241,148 @@ def _script_of(char: str) -> str | None:
         return "UNNAMED"
 
 
-def _strip_invisibles_and_marks(text: str) -> str:
-    """Remove format characters, then decompose and drop combining marks.
+#: Categories with no visible glyph: format controls (ZWSP, ZWNJ, ZWJ, BOM,
+#: soft hyphen, the tag block), C0/C1 controls (CR, LF, TAB), private-use and
+#: surrogates. What to DO with them is the subtle part -- see below.
+_INVISIBLE_CATEGORIES = frozenset({"Cf", "Cc", "Co", "Cs"})
 
-    Order matters. Format characters (Cf: ZWSP, ZWNJ, ZWJ, BOM, soft hyphen,
-    the tag block) are *deleted* so the letters they were inserted between
-    rejoin into a word. Combining marks are dropped after NFKD so that
-    "a" + U+0301 and the precomposed "á" reduce identically.
+
+def _strip_invisibles_and_marks(text: str, *, invisibles_as_space: bool) -> str:
+    """Decompose *text* and drop combining marks, reading invisibles two ways.
+
+    Invisible characters cannot be handled correctly by a single rule, and the
+    second red-team campaign proved it by exploiting both directions:
+
+    * Deleting them lets ``self<CR><LF>approve`` collapse to ``selfapprove`` --
+      one token, so the two-token marker ``self approve`` stops matching.
+    * Spacing them lets ``appr<ZWSP>ove`` split into ``appr ove`` -- two tokens,
+      so the one-token marker ``approve`` stops matching.
+
+    Either rule alone is a bypass. Guessing which reading the attacker intended
+    is the mistake. This produces both, and `screen_text` refuses if either one
+    hits -- which is cheap, and fail-closed by construction.
+
+    Combining marks are dropped after NFKD so "a" + U+0301 and the precomposed
+    "á" reduce identically.
     """
-    without_format = "".join(
-        char
+    replacement = " " if invisibles_as_space else ""
+    rebuilt = "".join(
+        replacement if unicodedata.category(char) in _INVISIBLE_CATEGORIES else char
         for char in text
-        if unicodedata.category(char) not in {"Cf", "Cc", "Co", "Cs"}
     )
-    decomposed = unicodedata.normalize("NFKD", without_format)
+    decomposed = unicodedata.normalize("NFKD", rebuilt)
     return "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
 
 
 @lru_cache(maxsize=4096)
-def normalise_for_screening(text: str) -> str:
+def normalise_for_screening(text: str, invisibles_as_space: bool = False) -> str:
     """Fold *text* to the canonical form the marker lists are matched against.
 
-    Returns a space-delimited token string: lowercase ASCII words separated
-    by single spaces, with every punctuation and spacing difference erased.
-    Two texts that a human would read as the same sentence normalise to the
-    same string.
+    Returns a space-delimited token string: lowercase ASCII words separated by
+    single spaces, with every punctuation and spacing difference erased.
+
+    Note the failure mode this deliberately no longer relies on. The final step
+    maps anything outside ``[0-9a-z]`` to a space, so an unmappable letter
+    *splits the word it sits in* -- ``bypɑss`` becomes ``byp ss``, and the
+    marker is destroyed rather than matched. That is a fail-OPEN transform.
+    It is why `obfuscated_tokens` must catch such characters independently,
+    before this function's output is ever consulted. Normalisation cannot be
+    made complete; refusing what it cannot represent is what makes it safe.
     """
-    stripped = _strip_invisibles_and_marks(text)
+    stripped = _strip_invisibles_and_marks(
+        text, invisibles_as_space=invisibles_as_space
+    )
     folded = "".join(_CONFUSABLES.get(char, char) for char in stripped.casefold())
     de_leet = _LEET_IN_WORD.sub(lambda m: _LEET[m.group(1)], folded)
     return " ".join(_NON_WORD.sub(" ", de_leet).split())
 
 
-def obfuscated_tokens(text: str) -> tuple[str, ...]:
-    """Words in *text* that mix Latin letters with another script.
+_ALNUM_RUN = re.compile(r"[^\W_]+", re.UNICODE)
 
-    The generic homoglyph signature. Independent of `_CONFUSABLES`: it fires
-    on any script-mixing word, including ones built from confusables nobody
-    has enumerated yet. A word written wholly in one non-Latin script is not
-    flagged -- that is multilingual text, not an attack.
+
+def _splits_under_normalisation(word: str) -> bool:
+    """True when normalising *word* breaks one run of letters into several.
+
+    The direct signature of the fail-open mechanism, independent of *which*
+    character caused it. Found by the generalisation sweep in the regression
+    corpus, which is the only reason it exists: the ASCII-mixing rule above
+    closed 328 of the 330 Latin-named lookalikes and silently left two.
+
+    ``Ŀ``/``ŀ`` (U+013F/U+0140, L WITH MIDDLE DOT) decompose under NFKD to
+    ``L`` + U+00B7 MIDDLE DOT. The dot is punctuation, not a combining mark, so
+    it survives the mark-strip and is then treated as a separator -- ``bypŀss``
+    becomes ``bypl ss``. Every letter left behind is ASCII, so nothing above
+    fires, and the marker is destroyed exactly as before.
+
+    Only runs containing at least one ASCII letter are checked. A wholly
+    non-Latin word legitimately loses characters it has no ASCII spelling for
+    (``языке`` -> ``k e``), and flagging that would refuse ordinary Russian
+    rather than an attack. The signature is an intruder inside an otherwise
+    ASCII word.
     """
-    cleaned = _strip_invisibles_and_marks(text)
+    for run in _ALNUM_RUN.findall(word):
+        if not any(char.isascii() and char.isalpha() for char in run):
+            continue
+        if len(normalise_for_screening(run).split()) > 1:
+            return True
+    return False
+
+
+def obfuscated_tokens(text: str) -> tuple[str, ...]:
+    """Words in *text* whose spelling this screen cannot faithfully represent.
+
+    The generic defence -- the one that has to hold when `_CONFUSABLES` is
+    incomplete, which it permanently is. Two independent signatures:
+
+    **1. ASCII letters mixed with non-ASCII letters inside one word.** This is
+    the rule that carries the weight. ``bypɑss`` (U+0251 LATIN SMALL LETTER
+    ALPHA) and ``ɡrant`` (U+0261 LATIN SMALL LETTER SCRIPT G) are visually
+    identical to ``bypass`` and ``grant``, absent from `_CONFUSABLES``, and --
+    this is what the first version got wrong -- Unicode *names* them "LATIN
+    SMALL LETTER ...". They are IPA Extensions. A script-name check sees one
+    script and waves them through, which is how the second red-team campaign
+    walked the entire organ end to end.
+
+    Mixing representable and unrepresentable letters inside one word has no
+    legitimate reading, so it is refused without consulting any marker list.
+    Checked *before* confusable folding, against the casefolded/NFKD form:
+
+    * ``café`` -> ``cafe`` and ``Straße`` -> ``strasse`` are pure ASCII: clean.
+    * ``комментарий`` is wholly non-ASCII: clean. Ordinary multilingual text is
+      single-representation; the signature is the *mixing*, not the foreignness.
+    * ``mоdel`` (Cyrillic о) and ``bypɑss`` (Latin-named alpha) both mix, and
+      the second is caught without anyone having enumerated U+0251.
+
+    **2. Two different scripts inside one word** -- the original rule, kept
+    because it still catches an all-non-ASCII word built from two scripts.
+
+    Both invisible-character readings are examined, so a word cannot hide by
+    being split or merged by a zero-width or control character.
+    """
     offenders: list[str] = []
-    for word in re.split(r"[\s ]+", cleaned):
-        scripts = {
-            script
-            for script in (_script_of(char) for char in word)
-            if script is not None
-        }
-        if len(scripts) > 1 and "LATIN" in scripts:
+    for as_space in (False, True):
+        cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)
+        for word in cleaned.casefold().split():
+            letters = [char for char in word if char.isalpha()]
+            if not letters:
+                continue
+            ascii_letters = [char for char in letters if char.isascii()]
+            if ascii_letters and len(ascii_letters) != len(letters):
+                offenders.append(word)
+                continue
+            scripts = {script for script in map(_script_of, letters) if script}
+            if len(scripts) > 1 and "LATIN" in scripts:
+                offenders.append(word)
+
+    # Checked against the RAW words, not the cleaned ones. The split this looks
+    # for is performed by NFKD inside `_strip_invisibles_and_marks`, so by the
+    # time a word reaches the loop above the evidence has already been consumed:
+    # `bypŀss` arrives as `bypl·ss`, whose alphanumeric runs are `bypl` and `ss`,
+    # each of which normalises cleanly. Ask the original.
+    for word in text.split():
+        if _splits_under_normalisation(word):
             offenders.append(word)
-    return tuple(offenders)
+    return tuple(dict.fromkeys(offenders))
 
 
 @lru_cache(maxsize=4096)
@@ -299,43 +390,74 @@ def _marker_tokens(marker: str) -> str:
     return f" {normalise_for_screening(marker)} "
 
 
+def _haystacks(text: str) -> tuple[str, ...]:
+    """Both invisible-character readings of *text*, space-padded for matching.
+
+    Deduplicated: for text containing no invisible characters -- the normal
+    case -- both readings are identical and only one is searched.
+    """
+    readings = {
+        f" {normalise_for_screening(text, as_space)} " for as_space in (False, True)
+    }
+    return tuple(readings)
+
+
 def marker_hit(text: str, markers: tuple[str, ...]) -> str | None:
     """First marker in *markers* present in *text*, or None.
 
-    Matches on whole-word boundaries: the marker "self approve" does not fire
-    inside "myself approves". Returns the marker as written in the source
-    list so error messages name the rule, never the attacker's text.
+    Matches on whole-word boundaries, so the marker "self approve" does not
+    fire inside "myself approves". Returns the marker as written in the source
+    list, so error messages name the rule and never echo the attacker's text.
+
+    Searches both invisible-character readings: ``self<CR><LF>approve`` and
+    ``appr<ZWSP>ove`` are each a bypass of one reading and caught by the other.
     """
-    haystack = f" {normalise_for_screening(text)} "
+    haystacks = _haystacks(text)
     return next(
-        (marker for marker in markers if _marker_tokens(marker) in haystack), None
+        (
+            marker
+            for marker in markers
+            if any(_marker_tokens(marker) in hay for hay in haystacks)
+        ),
+        None,
     )
 
 
-def ordered_pair_hit(
-    text: str, earlier: tuple[str, ...], later: tuple[str, ...]
+def cooccurrence_hit(
+    text: str, activation: tuple[str, ...], deferred: tuple[str, ...]
 ) -> tuple[str, str] | None:
-    """First (earlier, later) marker pair that appears in *that order*.
+    """First (activation, deferred-notice) marker pair present in *text*.
 
-    Some attacks are only visible as a sequence. "Apply the change, then
-    notify the operator" reduces human authority to a receipt; "revert the
-    change, then notify the operator" is a correct rollback plan. The
-    distinguishing signal is not either phrase -- it is that an *activation*
-    precedes the notification.
+    Order-independent, and that is the whole point of this revision.
 
-    A flat marker list cannot express that, and the version of this screen
-    that tried produced either a bypass or a refusal of ordinary text.
+    The previous version required the activation marker to appear *earlier in
+    the string* than the notification marker, on the theory that "apply the
+    change, then notify the operator" is an attack while "revert the change,
+    then notify the operator" is a correct rollback plan. The second red-team
+    campaign destroyed that premise with ordinary English:
+
+        "Notify the operator, but only after you apply the change."
+        "Step 2: Notify the operator.  Step 1: Apply the change."
+
+    Both describe activation-before-notification while placing the notification
+    phrase first. Textual order and described order are independent in English,
+    and matching on string position while claiming to detect sequence was a
+    screen that looked smarter than it was.
+
+    So the signal is now mere co-occurrence: an amendment proposal that names
+    both an activation and a deferred notification is refused regardless of
+    arrangement. This over-refuses text like "apply the change once the
+    operator approves, then notify the team" -- deliberately. Re-wording a
+    legitimate proposal costs a minute; the miss costs the constitution, and
+    the campaign showed the miss is easy to arrange and hard to see.
     """
-    haystack = f" {normalise_for_screening(text)} "
-    for first in earlier:
-        start = haystack.find(_marker_tokens(first))
-        if start < 0:
-            continue
-        tail = haystack[start:]
-        for second in later:
-            if _marker_tokens(second) in tail:
-                return first, second
-    return None
+    hit_activation = marker_hit(text, activation)
+    if hit_activation is None:
+        return None
+    hit_deferred = marker_hit(text, deferred)
+    if hit_deferred is None:
+        return None
+    return hit_activation, hit_deferred
 
 
 def screen_text(text: str, markers: tuple[str, ...]) -> ScreeningHit | None:
@@ -358,9 +480,9 @@ def screen_text(text: str, markers: tuple[str, ...]) -> ScreeningHit | None:
 
 __all__ = [
     "ScreeningHit",
+    "cooccurrence_hit",
     "marker_hit",
     "normalise_for_screening",
     "obfuscated_tokens",
-    "ordered_pair_hit",
     "screen_text",
 ]
