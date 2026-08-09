@@ -53,6 +53,29 @@ class ConstitutionalAmendmentProposalV1(BaseModel):
     rollback_plan: str = Field(min_length=1)
     proposed_by: str = Field(min_length=1, max_length=200)
     proposer_type: Literal["model", "human", "worker"]
+
+    #: WHO may ratify this amendment -- as typed data, not as prose.
+    #:
+    #: Two adversarial campaigns (49 agents, 24 confirmed findings) established
+    #: that keyword screening over `proposed_diff` cannot decide whether a
+    #: proposal reduces human authority. Paraphrase is unbounded; every round of
+    #: hardening closed the shapes it found and left the rest. Attacks like
+    #: "ratification is deemed complete if the operator does not respond within
+    #: 72 hours" contain no marker in any encoding, and there is no marker list
+    #: that ends that game.
+    #:
+    #: So the approval model stops being something a sentence can assert. It is
+    #: a closed vocabulary with exactly one member in v1, and `extra="forbid"`
+    #: plus `frozen=True` mean a proposal can neither invent a value nor mutate
+    #: this one after construction. A proposal whose *prose* describes timeout
+    #: approval, tiered auto-activation, or a delegate approver is now simply
+    #: wrong about itself: the runtime reads this field, never the prose.
+    #:
+    #: Widening this vocabulary is a schema change -- code, review, a diff
+    #: somebody has to sign off on. That is the entire point. It converts "who
+    #: ratifies" from something a model can write into something only a human
+    #: can ship, which is Law XIII expressed as a type instead of a sentence.
+    approval_model: Literal["human_capability_required"] = "human_capability_required"
     status: Literal[
         "proposed",
         "critiqued",
@@ -69,7 +92,6 @@ class ConstitutionalAmendmentProposalV1(BaseModel):
     activated_snapshot_digest: str | None = None
     predecessor_snapshot_digest: str | None = None
     created_at: str = Field(default_factory=_utc_now)
-
 
     def as_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
