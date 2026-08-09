@@ -403,3 +403,77 @@ def test_the_approval_model_cannot_be_mutated_after_construction() -> None:
     )
     with pytest.raises(ValidationError):
         proposal.approval_model = "timeout_auto_ratification"  # type: ignore[misc]
+
+
+# --------------------------------------------------------------------------- #
+# What the constitution actually contains.
+#
+# This exists because the model asserted, in commit ac8736c6's message, in PR
+# #204's description, and in this repo's own ledger, that organ 46's C4 wording
+# was changeable only by constitutional amendment under Law XIII. That was
+# false, and it was committed before anyone checked.
+#
+# The error was not cosmetic. Acting on it would have routed a self-graded
+# ledger edit through `ratify_amendment`, producing a genuine audit record
+# asserting a ratification that never had that meaning -- ceremony standing in
+# for a control, which is precisely what organ 46 exists to detect.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_twelve_condition_contract_is_not_constitutional_content() -> None:
+    """The constitution is foundation laws, policies, scope roots and frozen
+    paths. It is not the organ ledger, and it is not C1-C12.
+
+    Anything that governs which mechanism may change a given rule has to be
+    checkable, or the next confident-sounding sentence about it goes unchecked
+    too.
+    """
+    from aios.domain.governance.constitution import build_constitution_snapshot
+
+    snapshot = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
+    blob = str(snapshot.model_dump())
+
+    for absent in ("C1", "C4", "C12", "red-team", "red team", "N/A-BY-DESIGN"):
+        assert absent not in blob, (
+            f"{absent!r} appears in the constitution snapshot; if the "
+            "twelve-condition contract has genuinely become constitutional "
+            "content, the amendment path claims in the ledger need revisiting "
+            "-- but as of this test being written it had not"
+        )
+
+    assert set(snapshot.model_dump()) == {
+        "constitution_id",
+        "version",
+        "foundation_laws",
+        "policy_references",
+        "scope_roots",
+        "frozen_paths",
+        "provider_policy_digest",
+        "autonomy_policy_digest",
+        "created_at",
+        "ratified_by_operator_id",
+        "previous_snapshot_digest",
+        "snapshot_digest",
+    }
+
+
+def test_organ_46_condition_verdicts_live_in_the_ledger_not_the_constitution() -> None:
+    """States the thing the model got wrong, in the place a future session will
+    look: C4's text for organ 46 is a ledger string, and the ledger is changed
+    by an operator decision, not by `ratify_amendment`."""
+    import json
+
+    ledger = json.loads(
+        (REPO_ROOT / ".aios/state/ORGAN_GREEN_LEDGER.json").read_text(encoding="utf-8")
+    )
+    records = ledger["organs"] if isinstance(ledger, dict) else ledger
+    organ_46 = next(r for r in records if r["organ_id"] == 46)
+
+    assert "C4" in organ_46["condition_verdicts"]
+    assert "red-team" in organ_46["condition_verdicts"]["C4"]
+
+    # And the ledger must not re-assert the corrected claim.
+    blockers = " ".join(organ_46["known_blockers"])
+    assert "Changing it is a constitutional amendment" not in blockers, (
+        "the corrected false claim has been reintroduced"
+    )
