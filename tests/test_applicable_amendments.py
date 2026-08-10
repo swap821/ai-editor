@@ -55,6 +55,7 @@ from aios.application.governance.amendment_authority import (
 from aios.domain.governance.amendments import CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
 from aios.domain.governance.constitution import (
     ConstitutionChangeV1,
+    changes_digest,
     apply_constitution_changes,
     build_constitution_snapshot,
 )
@@ -337,3 +338,104 @@ def test_applying_changes_still_requires_a_real_capability() -> None:
             capability_proof=_capability(consumed_at=None),
             operator_id=OPERATOR,
         )
+
+
+# --------------------------------------------------------------------------- #
+# Binding the capability to the change set.
+#
+# Found by hand an hour after writing the feature, before the fourth campaign
+# ran. The direction guard lived at ratification and activation trusted it:
+#
+#     ratified with : add aios/api/
+#     frozen BEFORE : ('aios/security/',)
+#     frozen AFTER  : ()
+#
+# A ratified proposal is a frozen model, but `model_copy(update=...)` returns a
+# NEW frozen model that keeps status="ratified" and carries anything. So a
+# capability spent on "freeze the api layer" could activate "unfreeze the
+# security spine". A guard enforced at one boundary and assumed at the next is
+# not a guard.
+# --------------------------------------------------------------------------- #
+
+
+def test_ratification_records_a_digest_of_what_was_approved() -> None:
+    proposal = _ratified(
+        (
+            ConstitutionChangeV1(
+                target="frozen_paths", operation="add", value="aios/api/"
+            ),
+        )
+    )
+    assert proposal.ratified_changes_digest
+    assert proposal.ratified_changes_digest == changes_digest(proposal.changes)
+
+
+@pytest.mark.parametrize(
+    "swapped_to",
+    [
+        # The severe one: a permitted-direction ratification laundering an
+        # unfreeze of the security spine.
+        ("frozen_paths", "remove", "aios/security/"),
+        # And the subtle one: still a PERMITTED direction, but not the change
+        # the operator reviewed. Direction-checking alone would allow this.
+        ("frozen_paths", "add", "C:/anything-at-all"),
+        ("scope_roots", "remove", "C:/some-other-root"),
+    ],
+)
+def test_changes_swapped_after_ratification_are_refused(
+    swapped_to: tuple[str, str, str],
+) -> None:
+    target, operation, value = swapped_to
+    ratified = _ratified(
+        (
+            ConstitutionChangeV1(
+                target="frozen_paths", operation="add", value="aios/api/"
+            ),
+        )
+    )
+    tampered = ratified.model_copy(
+        update={
+            "changes": (
+                ConstitutionChangeV1(
+                    target=target,  # type: ignore[arg-type]
+                    operation=operation,  # type: ignore[arg-type]
+                    value=value,
+                ),
+            )
+        }
+    )
+    assert tampered.status == "ratified"  # the swap survives the status check
+
+    before = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
+    with pytest.raises(AmendmentError, match="do not match what was ratified"):
+        activate_amendment(tampered, previous_snapshot=before)
+
+
+def test_a_proposal_never_ratified_by_the_authority_cannot_activate() -> None:
+    """Hand-building a `status="ratified"` object skips ratify_amendment and so
+    has no ratified-changes digest. Activation refuses rather than treating a
+    missing digest as "nothing to check"."""
+    forged = _proposal(
+        (
+            ConstitutionChangeV1(
+                target="frozen_paths", operation="add", value="aios/api/"
+            ),
+        )
+    ).model_copy(update={"status": "ratified", "ratified_by_operator_id": OPERATOR})
+    before = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
+    with pytest.raises(AmendmentError, match="missing its ratified-changes digest"):
+        activate_amendment(forged, previous_snapshot=before)
+
+
+def test_the_legitimate_activation_still_works_after_all_that() -> None:
+    """The guards must not have closed the door entirely."""
+    before = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
+    proposal = _ratified(
+        (
+            ConstitutionChangeV1(
+                target="frozen_paths", operation="add", value="aios/api/"
+            ),
+        )
+    )
+    _, after = activate_amendment(proposal, previous_snapshot=before)
+    assert "aios/api/" in after.frozen_paths

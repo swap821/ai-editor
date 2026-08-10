@@ -35,6 +35,7 @@ from contextlib import closing
 from pathlib import Path
 
 from aios.domain.governance.amendments import ConstitutionalAmendmentProposalV1
+from aios.domain.governance.constitution import ConstitutionChangeV1
 from aios.domain.governance.learning import GovernanceLessonV1
 from aios.infrastructure.storage.migrations import apply_migrations
 
@@ -137,8 +138,9 @@ class GovernanceAmendmentStore:
                     status, critiques_json, simulation_notes_json,
                     ratified_by_operator_id, ratification_capability_digest,
                     activated_snapshot_digest, predecessor_snapshot_digest,
-                    created_at, recorded_at, record_digest
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at, recorded_at, record_digest,
+                    changes_json, ratified_changes_digest
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     proposal.proposal_id,
@@ -165,6 +167,8 @@ class GovernanceAmendmentStore:
                     proposal.created_at,
                     _utc_now(),
                     digest,
+                    json.dumps([c.model_dump(mode="json") for c in proposal.changes]),
+                    proposal.ratified_changes_digest,
                 ),
             )
             conn.commit()
@@ -265,7 +269,18 @@ def _proposal_from_row(row: sqlite3.Row) -> ConstitutionalAmendmentProposalV1:
         if "predecessor_snapshot_digest" in keys
         else None
     )
+    # Added by migration 0024. Absent on rows written before it, and absent
+    # must read as "no typed changes" rather than being invented -- a proposal
+    # that predates applicable amendments genuinely had none.
+    changes_json = row["changes_json"] if "changes_json" in keys else None
+    ratified_changes_digest = (
+        row["ratified_changes_digest"] if "ratified_changes_digest" in keys else None
+    )
     record = ConstitutionalAmendmentProposalV1(
+        changes=tuple(
+            ConstitutionChangeV1(**item) for item in json.loads(changes_json or "[]")
+        ),
+        ratified_changes_digest=ratified_changes_digest,
         proposal_id=row["proposal_id"],
         target_articles=tuple(json.loads(row["target_articles_json"])),
         proposed_diff=row["proposed_diff"],
