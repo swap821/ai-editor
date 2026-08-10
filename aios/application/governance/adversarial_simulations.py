@@ -439,13 +439,23 @@ _SCOPE_SHIFT_MARKERS: tuple[str, ...] = (
     "housekeeping changes",
 )
 
+#: Risk-tiering: let a machine score the proposal, then let the score decide.
+#:
+#: Every marker here names the OUTCOME -- something activating without review.
+#: The earlier version also carried the mechanism ("risk score", "risk-scored",
+#: "scored for risk"), and the third red-team campaign showed why that was
+#: wrong: an amendment that ADDS a human-approval gate for risk-scored router
+#: actions was refused, because it necessarily says "risk score" while doing
+#: the opposite of what this family screens for.
+#:
+#: Keyword screening cannot read direction. It can be kept off vocabulary that
+#: a defence and an attack both have to use. The attack sentence the campaign
+#: found -- "a proposal that scores 1 is Tier-0 and auto-activates" -- is still
+#: refused, because it names the outcome as well as the mechanism.
 _RISK_TIERING_MARKERS: tuple[str, ...] = (
     "tier-0",
     "tier 0",
     "lowest tier",
-    "risk score",
-    "risk-scored",
-    "scored for risk",
     "scores below the threshold",
     "below the risk threshold",
     "under the risk threshold",

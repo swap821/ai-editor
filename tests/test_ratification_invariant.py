@@ -46,12 +46,19 @@ RATIFYING_STATUSES = frozenset({"ratified", "activated"})
 
 #: The two functions permitted to write those statuses, and why each is safe.
 #:
+#: These are QUALIFIED names -- the full scope path, not a bare function name.
+#: The third red-team campaign defeated the bare-name version with a helper
+#: nested inside another function that happened to share the name.
+#:
 #: `ratify_amendment` -- refuses unless `capability_proof.consumed_at` is set,
 #:   the action_type is the exact ratify action, and the operator matches.
 #: `activate_amendment` -- refuses unless `proposal.status == "ratified"`,
 #:   which only `ratify_amendment` can produce.
 SANCTIONED_WRITERS = {
-    ("aios/application/governance/amendment_authority.py", "ratify_amendment"),
+    (
+        "aios/application/governance/amendment_authority.py",
+        "ConstitutionalAmendmentAuthority.ratify_amendment",
+    ),
     ("aios/application/governance/amendment_authority.py", "activate_amendment"),
 }
 
@@ -60,20 +67,38 @@ def _python_files() -> list[pathlib.Path]:
     return sorted(path for path in AIOS.rglob("*.py") if path.is_file())
 
 
-def _enclosing_function(tree: ast.Module, target: ast.AST) -> str | None:
-    """Name of the innermost function containing *target*, or None."""
-    best: tuple[int, str] | None = None
+def _qualified_name(tree: ast.Module, target: ast.AST) -> str | None:
+    """Dotted path of every scope containing *target*, innermost last.
+
+    Returns e.g. "ratify_amendment" for a module-level function,
+    "ConstitutionalAmendmentAuthority.ratify_amendment" for a method, and
+    "_MigrationHelpers._rebuild_legacy_rows.ratify_amendment" for a function
+    nested inside one.
+
+    The earlier version returned only the innermost BARE name, and the third
+    red-team campaign broke the proof with it: a helper named
+    `ratify_amendment` nested inside `_MigrationHelpers._rebuild_legacy_rows`,
+    performing no capability check whatsoever, matched SANCTIONED_WRITERS
+    purely because `ast.FunctionDef.name == "ratify_amendment"` at any nesting
+    depth anywhere in the file. The invariant test reported zero offenders.
+
+    A proof that authorises by bare name authorises by spelling. Qualifying
+    the path means a sanctioned entry names one specific function and nothing
+    that merely shares its name.
+    """
+    scopes: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
         end = getattr(node, "end_lineno", None)
         if end is None:
             continue
         if node.lineno <= target.lineno <= end:
-            depth = node.lineno
-            if best is None or depth > best[0]:
-                best = (depth, node.name)
-    return best[1] if best else None
+            scopes.append((node.lineno, node.name))
+    if not scopes:
+        return None
+    scopes.sort()
+    return ".".join(name for _, name in scopes)
 
 
 def _status_writes() -> list[tuple[str, str | None, int, str]]:
@@ -101,7 +126,7 @@ def _status_writes() -> list[tuple[str, str | None, int, str]]:
                     found.append(
                         (
                             rel,
-                            _enclosing_function(tree, node.value),
+                            _qualified_name(tree, node.value),
                             node.value.lineno,
                             node.value.value,
                         )
@@ -118,7 +143,7 @@ def _status_writes() -> list[tuple[str, str | None, int, str]]:
                         found.append(
                             (
                                 rel,
-                                _enclosing_function(tree, value),
+                                _qualified_name(tree, value),
                                 value.lineno,
                                 value.value,
                             )
@@ -476,4 +501,61 @@ def test_organ_46_condition_verdicts_live_in_the_ledger_not_the_constitution() -
     blockers = " ".join(organ_46["known_blockers"])
     assert "Changing it is a constitutional amendment" not in blockers, (
         "the corrected false claim has been reintroduced"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# THIRD CAMPAIGN (2026-08-09, 21 agents). 7 confirmed findings, and -- the
+# headline -- ZERO that reach ratified or activated without a real consumed
+# human capability. The authorisation invariant held.
+#
+# The findings pinned below are the ones that do not break that invariant but
+# are real defects anyway: a proof that authorised by spelling, a store that
+# let its own record be made to lie, and two screens that refused honest text.
+# --------------------------------------------------------------------------- #
+
+
+def test_a_nested_impostor_sharing_a_sanctioned_name_is_not_sanctioned() -> None:
+    """Finding 3, the high one, and it was against the proof itself.
+
+    `SANCTIONED_WRITERS` matched on a BARE function name at any nesting depth,
+    so a helper called `ratify_amendment` defined inside another function --
+    performing no capability check at all -- was authorised purely because it
+    shared the spelling. The invariant test reported zero offenders.
+
+    Sanctioning is by qualified path now. This constructs the campaign's exact
+    shape and requires the scan to attribute it to its full scope rather than
+    to the sanctioned entry.
+    """
+    source = (
+        "class _MigrationHelpers:\n"
+        "    def _rebuild_legacy_rows(self, rows):\n"
+        "        def ratify_amendment(p):\n"
+        '            return p.model_copy(update={"status": "ratified"})\n'
+        "        return [ratify_amendment(r) for r in rows]\n"
+    )
+    tree = ast.parse(source)
+    target = next(
+        value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Dict)
+        for key, value in zip(node.keys, node.values)
+        if isinstance(key, ast.Constant) and key.value == "status"
+    )
+    qualified = _qualified_name(tree, target)
+    assert qualified == "_MigrationHelpers._rebuild_legacy_rows.ratify_amendment"
+    assert ("aios/application/governance/amendment_authority.py", qualified) not in (
+        SANCTIONED_WRITERS
+    ), "a nested impostor is being sanctioned by name again"
+
+
+def test_sanctioned_writers_are_qualified_not_bare_names() -> None:
+    """Guards the shape of the allowlist itself.
+
+    A future edit that shortens an entry back to a bare name silently restores
+    the finding, because everything would still pass.
+    """
+    assert any("." in func for _, func in SANCTIONED_WRITERS), (
+        "no sanctioned entry is qualified; the allowlist has regressed to "
+        "bare-name matching, which the third campaign defeated"
     )
