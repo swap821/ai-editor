@@ -154,6 +154,23 @@ class ConstitutionalAmendmentAuthority:
             )
         if _touches_foundation_law(proposal):
             raise AmendmentError("foundation-law modifications are not amendable in v1")
+        forbidden = [
+            change
+            for change in proposal.changes
+            if not change.describes_a_permitted_direction()
+        ]
+        if forbidden:
+            # Checked at RATIFICATION, not only at activation, so the operator
+            # cannot spend a real capability on something that will be refused
+            # later. `frozen_paths` currently holds `aios/security/`; the
+            # direction this refuses is precisely the one that would unfreeze
+            # the security spine.
+            first = forbidden[0]
+            raise AmendmentError(
+                f"amendment change {first.operation!r} on {first.target!r} "
+                "reduces protection and is not applicable in v1; only adding a "
+                "frozen path or removing a scope root can be applied"
+            )
         if (
             getattr(capability_proof, "action_type", None)
             != CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
@@ -231,6 +248,7 @@ def activate_amendment(
     new_snapshot = build_constitution_snapshot(
         ratified_by_operator_id=proposal.ratified_by_operator_id,
         previous_snapshot=previous_snapshot,
+        changes=proposal.changes,
     )
     activated_proposal = proposal.model_copy(
         update={
