@@ -23,7 +23,7 @@
     "@react-three/postprocessing": "^3.0.4",
     "lucide-react": "^1.29.0",
     "monaco-editor": "^0.56.0",
-    "motion": "^12.43.0",
+    "motion": "^13.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-resizable-panels": "^4.12.2",
