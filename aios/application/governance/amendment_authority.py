@@ -26,6 +26,7 @@ from aios.domain.governance.amendments import (
 )
 from aios.domain.governance.constitution import (
     FOUNDATION_LAWS,
+    changes_digest,
     ConstitutionSnapshotV1,
     build_constitution_snapshot,
 )
@@ -190,6 +191,7 @@ class ConstitutionalAmendmentAuthority:
                 "status": "ratified",
                 "ratified_by_operator_id": operator_id,
                 "ratification_capability_digest": capability_proof.token_digest,
+                "ratified_changes_digest": changes_digest(proposal.changes),
             }
         )
 
@@ -245,6 +247,33 @@ def activate_amendment(
         )
     if proposal.ratified_by_operator_id is None:
         raise AmendmentError("ratified proposal is missing its ratifying operator")
+
+    # Re-verify at THIS boundary rather than trusting the one before it.
+    # `ratify_amendment` checks direction, but a ratified proposal can be
+    # `model_copy(update={"changes": ...})`-ed into a new frozen model that
+    # keeps status="ratified" and carries something else entirely. Checking
+    # only at ratification meant a capability spent on "add aios/api/" could
+    # activate "remove aios/security/" -- unfreezing the security spine.
+    if proposal.ratified_changes_digest is None:
+        raise AmendmentError(
+            "ratified proposal is missing its ratified-changes digest; it was "
+            "not produced by ratify_amendment"
+        )
+    if changes_digest(proposal.changes) != proposal.ratified_changes_digest:
+        raise AmendmentError(
+            "proposal changes do not match what was ratified; the change set "
+            "was altered after the operator's capability was consumed"
+        )
+    forbidden = [
+        change
+        for change in proposal.changes
+        if not change.describes_a_permitted_direction()
+    ]
+    if forbidden:
+        raise AmendmentError(
+            f"amendment change {forbidden[0].operation!r} on "
+            f"{forbidden[0].target!r} reduces protection and is not applicable"
+        )
     new_snapshot = build_constitution_snapshot(
         ratified_by_operator_id=proposal.ratified_by_operator_id,
         previous_snapshot=previous_snapshot,

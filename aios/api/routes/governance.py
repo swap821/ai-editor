@@ -35,6 +35,7 @@ from aios.application.governance.constitutional_learning import (
 )
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance import EmergencyStopRequest
+from aios.domain.governance.constitution import ConstitutionChangeV1
 from aios.domain.governance.learning import (
     ADVERSARIAL_SIMULATION_CHECKS,
     GovernanceEventClass,
@@ -151,6 +152,18 @@ class ProposeAmendmentRequest(BaseModel):
     threat_model: tuple[str, ...] = ()
     expected_benefits: tuple[str, ...] = ()
     new_risks: tuple[str, ...] = ()
+    #: The typed change set this amendment applies. Without this field the
+    #: whole applicable-amendment mechanism was unreachable: `extra="forbid"`
+    #: meant no client could supply one, so every amendment created through
+    #: the real API still activated as a content no-op -- the exact defect the
+    #: mechanism was built to fix, surviving in production because the domain
+    #: was wired and the route was not. Found by the fourth red-team campaign,
+    #: reported independently by four separate lenses.
+    #:
+    #: Safe to accept from any proposer: proposing is not authority. The typed
+    #: set is screened for direction at ratification, bound to the operator's
+    #: capability by `ratified_changes_digest`, and re-verified at activation.
+    changes: tuple[ConstitutionChangeV1, ...] = ()
 
 
 class CritiqueAmendmentRequest(BaseModel):
@@ -202,6 +215,7 @@ def propose_amendment_route(
         threat_model=body.threat_model,
         expected_benefits=body.expected_benefits,
         new_risks=body.new_risks,
+        changes=body.changes,
     )
     # Proposal-id reuse would shadow an already-ratified amendment's "current"
     # view and permanently block its rollback -- reachable with an ordinary
