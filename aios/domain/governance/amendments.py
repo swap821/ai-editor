@@ -16,6 +16,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aios.domain.governance.constitution import ConstitutionChangeV1
+
 #: The one action type a capability must be bound to before it can satisfy
 #: `ratify_amendment`. Deliberately not added to `aios.domain.actions.
 #: envelope.ActionType` in this slice -- that enum feeds the full HTTP/
@@ -76,6 +78,19 @@ class ConstitutionalAmendmentProposalV1(BaseModel):
     #: ratifies" from something a model can write into something only a human
     #: can ship, which is Law XIII expressed as a type instead of a sentence.
     approval_model: Literal["human_capability_required"] = "human_capability_required"
+
+    #: WHAT this amendment changes -- as typed, applicable data.
+    #:
+    #: `proposed_diff` is prose, and prose cannot be applied. Until this field
+    #: existed, activating a ratified amendment produced a snapshot identical
+    #: to its predecessor apart from the version counter: three red-team
+    #: campaigns hardened a road to a destination that was not there.
+    #:
+    #: Empty is legitimate and means exactly what it says -- a documentation or
+    #: wording amendment that changes no constitutional value. It is not a
+    #: silent no-op any more, because `activate_amendment` reports how many
+    #: changes it applied and the tests assert the distinction.
+    changes: tuple[ConstitutionChangeV1, ...] = ()
     status: Literal[
         "proposed",
         "critiqued",
