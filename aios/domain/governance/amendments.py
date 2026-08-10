@@ -104,6 +104,11 @@ class ConstitutionalAmendmentProposalV1(BaseModel):
     simulation_notes: tuple[str, ...] = ()
     ratified_by_operator_id: str | None = None
     ratification_capability_digest: str | None = None
+    #: Digest of `changes` at the moment of ratification. Activation refuses
+    #: unless the changes still hash to this, so the operator's capability is
+    #: bound to the exact change set they approved rather than to the proposal
+    #: id alone.
+    ratified_changes_digest: str | None = None
     activated_snapshot_digest: str | None = None
     predecessor_snapshot_digest: str | None = None
     created_at: str = Field(default_factory=_utc_now)

@@ -180,6 +180,29 @@ def _autonomy_policy_digest(constitution: "Constitution") -> str:
     )
 
 
+def changes_digest(changes: tuple[ConstitutionChangeV1, ...]) -> str:
+    """Canonical digest of a typed change set.
+
+    Exists so a ratification can be BOUND to the changes it approved.
+    Direction-checking at ratification alone was not enough: a ratified
+    proposal is a frozen pydantic model, but `model_copy(update=...)` produces
+    a new one that keeps `status="ratified"` while carrying different changes.
+    Activation then applied what was swapped in rather than what a human
+    reviewed -- measured, before this existed:
+
+        ratified with : add aios/api/
+        frozen BEFORE : ('aios/security/',)
+        frozen AFTER  : ()
+
+    A guard enforced at one boundary and assumed at the next is not a guard.
+    """
+    payload = [
+        {"target": c.target, "operation": c.operation, "value": c.value}
+        for c in changes
+    ]
+    return _canonical_digest({"changes": payload})
+
+
 def apply_constitution_changes(
     *,
     scope_roots: tuple[str, ...],
