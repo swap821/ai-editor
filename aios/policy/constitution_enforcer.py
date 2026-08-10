@@ -8,7 +8,7 @@ not downgrade security-gateway RED decisions or auto-approve YELLOW work.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 from aios.core import router
 from aios.policy.constitution import (
@@ -20,6 +20,9 @@ from aios.runtime.budget_guard import BudgetGuard
 from aios.runtime.castes import caste_contract_issues, caste_from_contract
 from aios.runtime.contracts import MissionContract, RiskLevel
 from aios.security import gateway
+
+if TYPE_CHECKING:
+    from aios.domain.governance.constitution import ConstitutionSnapshotV1
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,7 @@ class ConstitutionEnforcer:
         *,
         constitution: Constitution | None = None,
         budget_guard: BudgetGuard | None = None,
+        snapshot: "ConstitutionSnapshotV1 | None" = None,
     ) -> None:
         self.constitution = (
             constitution if constitution is not None else build_constitution()
@@ -51,12 +55,40 @@ class ConstitutionEnforcer:
             if budget_guard is not None
             else BudgetGuard(mode=self.constitution.resource_mode)
         )
+        #: Frozen prefixes contributed by a ratified constitutional amendment.
+        #:
+        #: This module's docstring has always claimed it "turns the
+        #: constitution snapshot into enforcement decisions". It did not: every
+        #: check read the live config-derived `Constitution`, so a ratified,
+        #: activated amendment adding a frozen path changed the recorded
+        #: constitution and changed nothing about what was actually enforced.
+        #: The snapshot was a record, not a control. Found by the fourth
+        #: red-team campaign.
+        #:
+        #: Applied as a UNION with the live config, never a replacement, which
+        #: is what keeps this a strengthen-only adapter as the docstring
+        #: promises: a snapshot can add a frozen prefix and can never drop one.
+        #: That holds even if the amendment vocabulary is later widened to
+        #: express removals -- two independent layers would have to fail.
+        self.amended_frozen_paths: tuple[str, ...] = (
+            tuple(snapshot.frozen_paths) if snapshot is not None else ()
+        )
+
+    def _is_frozen(self, normalized: str) -> bool:
+        """Frozen per live config OR per a ratified amendment."""
+        if self.constitution.is_frozen_path(normalized):
+            return True
+        for prefix in self.amended_frozen_paths:
+            frozen = prefix.rstrip("/")
+            if normalized == frozen or normalized.startswith(f"{frozen}/"):
+                return True
+        return False
 
     def check_file_edit(
         self, path: str, *, actor: str = "worker"
     ) -> EnforcementDecision:
         normalized = normalize_repo_path(path)
-        if self.constitution.is_frozen_path(normalized):
+        if self._is_frozen(normalized):
             return EnforcementDecision(
                 allowed=False,
                 risk="RED",

@@ -44,8 +44,39 @@ class RecordTamperedError(RuntimeError):
     """Raised when a stored record's digest no longer matches its content."""
 
 
+#: Fields added to a record model AFTER rows were already on disk, with the
+#: value that means "this row predates the field".
+#:
+#: Omitted from the digest when they hold exactly that value, and included
+#: otherwise. Without this, adding a field to
+#: `ConstitutionalAmendmentProposalV1` silently invalidates every existing
+#: row: `_verify` recomputes from `model_dump()`, the new key appears in the
+#: payload, the hash moves, and a correct row is reported as tampered.
+#:
+#: That is not hypothetical -- migration 0024 shipped exactly that regression,
+#: and a legacy proposal became permanently unreadable with
+#: `RecordTamperedError`, the tamper alarm firing on the store's own schema
+#: change. Detected by the fourth red-team campaign.
+#:
+#: Only DEFAULT values are skipped, so this weakens nothing. A row carrying a
+#: real change set hashes with it; blanking `changes_json` on disk moves the
+#: recomputed hash away from the stored one and is still caught.
+_DIGEST_DEFAULTS_ADDED_LATER: dict[str, object] = {
+    "changes": [],
+    "ratified_changes_digest": None,
+}
+
+
 def _digest(payload: dict[str, object]) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    canonical = {
+        key: value
+        for key, value in payload.items()
+        if not (
+            key in _DIGEST_DEFAULTS_ADDED_LATER
+            and value == _DIGEST_DEFAULTS_ADDED_LATER[key]
+        )
+    }
+    encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
