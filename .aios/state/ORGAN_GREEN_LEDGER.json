@@ -1920,9 +1920,18 @@
     "integration_tests": [
       "tests/test_e2e_sovereign_flywheel.py"
     ],
-    "live_evidence": [],
+    "live_evidence": [
+      {
+        "description": "command=`python tools/golden_mission_runner.py run --model gemini.gemini-2.5-flash`; artifact=release/organ-44/2026-08-11-first-live-cloud-cohort.md; FIRST LIVE CLOUD GOLDEN COHORT. Five missions, eight steps, ~14 minutes of real Google Gemini (Vertex AI, gemini-2.5-flash) calls through the real HTTP API with a real operator session and the real 428 capability protocol. RESULT 0/5, with three distinct failure modes (error / verified_failure / rejected) -- differentiated verdicts rather than one systemic fault, i.e. the evaluator is evaluating. This satisfies C5 ('runner does not invent cloud success without real providers') under load rather than by assertion. It does NOT establish that the system passes its golden missions; it establishes the opposite, honestly. Recorded while the organ remains YELLOW and is explicitly NOT a green claim.",
+        "commit_sha": "da5071c544dc0cd944a5caa6ae5505a313ce7e52",
+        "proof_level": "live"
+      }
+    ],
     "known_blockers": [
-      "Outside-machine \u2014 cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence"
+      "Outside-machine \u2014 the golden cohort now RUNS live against Google Gemini via Vertex (2026-08-11, 5 missions, 8 steps, ~14 min of real calls) and scores 0/5. Credentials were never the blocker: Gemini needed only AIOS_GEMINI_PROJECT, the runner could not authenticate to its own API at all (403 on every turn), and the model id lacked the router's 'gemini.' prefix so it fell through to Bedrock and reported a misleading 'AWS Bedrock is not configured'. All three fixed. See release/organ-44/2026-08-11-first-live-cloud-cohort.md.",
+      "Outside-machine \u2014 0/5 golden missions pass on gemini-2.5-flash, with three distinct failure modes (error / verified_failure / rejected). Whether the cause is the model, the mission definitions, the verifier's strictness or the agent loop is NOT established. Green would assert the evaluation organ functions -- it now does -- but a reader would infer the missions pass, and they do not.",
+      "Outside-machine \u2014 endurance (tools/endurance_tester.py) has not been run and still carries the same authentication defect that was just fixed for the golden runner.",
+      "Outside-machine \u2014 this is a laptop run, not CI. No cloud credentials exist in CI, and AWS Bedrock remains entirely absent from this machine."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": false,
