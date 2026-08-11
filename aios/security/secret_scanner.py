@@ -251,6 +251,66 @@ def _has_aws_context(payload: str, position: int, radius: int = 100) -> bool:
     return any(kw in context for kw in aws_keywords)
 
 
+#: Characters that may appear in a filesystem path segment. Deliberately
+#: EXCLUDES the base64-only characters ``+`` and ``=``, so a padded blob is
+#: never mistaken for a path.
+_PATH_SEGMENT = re.compile(r"^[A-Za-z0-9_.@-]+$")
+
+
+def _is_filesystem_path(token: str) -> bool:
+    """True when *token* is a filesystem path rather than a credential.
+
+    Why this is needed
+    ------------------
+    ``/`` is in the base64 alphabet, so a long path is indistinguishable from an
+    encoded blob by entropy alone. Pass 2 has no context gate and no
+    false-positive guard, so it redacted this:
+
+        token   '/workspace/jobs/training_ground/test_calculator'
+        len 47  entropy 4.145  threshold 4.0  -> REDACTED
+
+    The cost was not cosmetic. That path appears inside pytest's own
+    ``ImportError while importing test module '...'`` message, so an agent
+    reading its test output was told an import failed and never told WHICH
+    module. Organ 44's golden cohort lost a mission to it: the agent could not
+    fix what it could not see.
+
+    Why this does not weaken the scanner
+    ------------------------------------
+    Every segment is checked INDEPENDENTLY against the same credential test the
+    caller applies to whole tokens. A secret embedded in a path -- an AWS access
+    key id under ``/tmp/``, a 40-character secret key under ``/home/u/.aws/`` --
+    has a high-entropy segment and is still redacted. Only the AGGREGATE path is
+    exempt, and only when every one of its parts is individually innocuous.
+
+    Those two shapes are described here rather than spelled out: ``scripts/
+    security_scan.py`` rejects credential-shaped literals anywhere in tracked
+    production source, comments included, and it is right to. The executable
+    versions live in ``tests/test_secret_scanner_paths.py``, under the ``tests/``
+    tree that scan deliberately excludes -- which is the only place a real
+    credential shape belongs, and where it is checked rather than merely claimed.
+
+    Base64-only characters (``+``, ``=``) are excluded from a valid segment, so
+    padded blobs containing ``/`` cannot pose as paths.
+    """
+    if "/" not in token and "\\" not in token:
+        return False
+    segments = [seg for seg in token.replace("\\", "/").split("/") if seg]
+    if len(segments) < 2:
+        return False
+    for segment in segments:
+        if not _PATH_SEGMENT.match(segment):
+            return False
+        # A single segment long and random enough to be a credential keeps its
+        # redaction even when it sits inside an otherwise ordinary path.
+        if (
+            len(segment) >= _credential_like_min_len(segment)
+            and shannon_entropy(segment) >= _ENTROPY_THRESHOLD
+        ):
+            return False
+    return True
+
+
 def _is_false_positive_base64(token: str) -> bool:
     """Heuristic to exclude common non-secret base64-looking strings."""
     # CSS data URIs, SVG path data, etc.
@@ -365,6 +425,11 @@ class SecretScannerAuthority:
             if _is_inside_redacted(match.start(), redacted_spans):
                 return match.group(0)
             token = match.group(0)
+            # A filesystem path is not a credential. Checked here because Pass 2
+            # has no context gate -- unlike Pass 3, which requires
+            # _has_secret_context before redacting.
+            if _is_filesystem_path(token):
+                return token
             if (
                 len(token) >= _credential_like_min_len(token)
                 and shannon_entropy(token) >= _ENTROPY_THRESHOLD
