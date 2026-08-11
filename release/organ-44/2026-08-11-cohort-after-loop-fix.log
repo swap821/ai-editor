@@ -1,0 +1,64 @@
+
+============================================================
+[golden] repeat 1/1
+============================================================
+
+[golden] mission=tdd-workflow: Full TDD cycle: write failing test, implement, verify green
+  step 1/2: Create training_ground/test_calculator.py with pytest tests for a Calculator cla...
+    PASS: got=verified_failure expected=verified_failure
+  step 2/2: Create training_ground/calculator.py with the Calculator class implementing add,...
+    FAIL: got=error expected=verified_success
+      why: {'text': 'Agent loop detected: the model repeated the same action(s) without making progress. Stopped for safety. Try rephrasing your request.', 'phase': 'narrative', 'seq': 16, 'turn_id': '96cdd2a7-bf7a-4cd7-99af-78b8a3c73c25', 'timestamp': '2026-08-11T07:17:18.825129+00:00', 'cognition_type': 'syn
+      evidence: [VERIFY FAIL] 0 passed, 5 failed (exit 1) (strength=NONE)
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+___________________________ TestCalculator.test_add ____________________________
+
+  [FAILED] 2/2 steps in 207.3s
+
+[golden] mission=iterative-refinement: Build, test, find a bug, fix it — the debugging loop
+  step 1/2: Create training_ground/sorted_insert.py with a function sorted_insert(sorted_lis...
+    PASS: got=verified_success expected=verified_success
+  step 2/2: Edit training_ground/test_sorted_insert.py to add a test that verifies sorted_in...
+    FAIL: got=error expected=verified_success
+      why: {'text': 'Agent loop detected: the model repeated the same action(s) without making progress. Stopped for safety. Try rephrasing your request.', 'phase': 'narrative', 'seq': 14, 'turn_id': 'c17ba442-fa1e-4255-9528-02cf88007ecd', 'timestamp': '2026-08-11T07:19:07.591463+00:00', 'cognition_type': 'syn
+  [FAILED] 2/2 steps in 106.6s
+
+[golden] mission=multi-module: Build two cooperating modules with integration test
+  step 1/2: Create training_ground/validator.py with a function validate_email(email) that r...
+    FAIL: got=verified_failure expected=verified_success
+      evidence: [VERIFY FAIL] 5 passed, 2 failed (exit 1) (strength=NONE)
+...F..F                                                                  [100%]
+=================================== FAILURES ===================================
+__________________ test_invalid_emails_empty_local_or_domain ___________________
+
+      evidence: [VERIFY FAIL] 5 passed, 2 failed (exit 1) (strength=NONE)
+...F..F                                                                  [100%]
+=================================== FAILURES ===================================
+__________________ test_invalid_emails_empty_local_or_domain ___________________
+
+  [FAILED] 1/2 steps in 146.3s
+
+[golden] mission=error-handling: Build robust error-handling code with comprehensive tests
+  step 1/1: Create training_ground/safe_json.py with functions safe_parse(text) that returns...
+    FAIL: got=verified_failure expected=verified_success
+      evidence: [VERIFY FAIL] 6 passed, 1 failed (exit 1) (strength=NONE)
+.....F.                                                                  [100%]
+=================================== FAILURES ===================================
+___________________________ test_safe_get_empty_path ___________________________
+
+      evidence: [VERIFY FAIL] 6 passed, 1 failed (exit 1) (strength=NONE)
+.....F.                                                                  [100%]
+=================================== FAILURES ===================================
+___________________________ test_safe_get_empty_path ___________________________
+
+  [FAILED] 1/1 steps in 140.7s
+
+[golden] mission=data-pipeline: Build a data transformation pipeline end-to-end
+  step 1/2: Create training_ground/pipeline.py with a Pipeline class that has add_step(fn) t...
+    PASS: got=verified_success expected=verified_success
+  step 2/2: Edit training_ground/pipeline.py to add error handling: if any step raises an ex...
+    PASS: got=verified_success expected=verified_success
+  [PASSED] 2/2 steps in 169.6s
+
+[golden] FINAL: 1/5 mission runs passed (20%)

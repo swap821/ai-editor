@@ -1,0 +1,70 @@
+
+============================================================
+[golden] repeat 1/1
+============================================================
+
+[golden] mission=tdd-workflow: Full TDD cycle: write failing test, implement, verify green
+  step 1/2: Create training_ground/test_calculator.py with pytest tests for a Calculator cla...
+    PASS: got=verified_failure expected=verified_failure
+  step 2/2: Create training_ground/calculator.py with the Calculator class implementing add,...
+    FAIL: got=error expected=verified_success
+      why: {'text': 'Agent loop detected: the model repeated the same action(s) without making progress. Stopped for safety. Try rephrasing your request.', 'phase': 'narrative', 'seq': 14, 'turn_id': '60109c19-ba42-40c6-acaf-4b28a85d2d15', 'timestamp': '2026-08-11T06:37:23.450334+00:00', 'cognition_type': 'syn
+  [FAILED] 2/2 steps in 164.9s
+
+[golden] mission=iterative-refinement: Build, test, find a bug, fix it — the debugging loop
+  step 1/2: Create training_ground/sorted_insert.py with a function sorted_insert(sorted_lis...
+    PASS: got=verified_success expected=verified_success
+  step 2/2: Edit training_ground/test_sorted_insert.py to add a test that verifies sorted_in...
+    FAIL: got=unverified expected=verified_success
+  [FAILED] 2/2 steps in 118.1s
+
+[golden] mission=multi-module: Build two cooperating modules with integration test
+  step 1/2: Create training_ground/validator.py with a function validate_email(email) that r...
+    FAIL: got=unverified expected=verified_success
+  [FAILED] 1/2 steps in 40.7s
+
+[golden] mission=error-handling: Build robust error-handling code with comprehensive tests
+  step 1/1: Create training_ground/safe_json.py with functions safe_parse(text) that returns...
+    FAIL: got=verified_failure expected=verified_success
+      evidence: [VERIFY FAIL] 7 passed, 2 failed (exit 1) (strength=NONE)
+st_index():
+        data = {"users": ["Alice", "Bob"]}
+        value = safe_get(data, "users.0")
+>       assert value == "Alice"
+E       AssertionError: assert None == 'Alice'
+
+training_ground/test_safe_json.py:41: AssertionError
+============
+      evidence: [VERIFY FAIL] 7 passed, 2 failed (exit 1) (strength=NONE)
+st_index():
+        data = {"users": ["Alice", "Bob"]}
+        value = safe_get(data, "users.0")
+>       assert value == "Alice"
+E       AssertionError: assert None == 'Alice'
+
+training_ground/test_safe_json.py:41: AssertionError
+============
+  [FAILED] 1/1 steps in 153.7s
+
+[golden] mission=data-pipeline: Build a data transformation pipeline end-to-end
+  step 1/2: Create training_ground/pipeline.py with a Pipeline class that has add_step(fn) t...
+    FAIL: got=verified_failure expected=verified_success
+      evidence: [VERIFY FAIL] 4 passed, 1 failed (exit 1) (strength=NONE)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = [1, None, 2, 3]
+
+>   pipeline.add_step(lambda x: [i * 2 for i in x] if isinstance(x, list) else x)
+                                 ^^^^^
+E   TypeError: unsupported operand type(s) for *: 
+      evidence: [VERIFY FAIL] 4 passed, 1 failed (exit 1) (strength=NONE)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = [1, None, 2, 3]
+
+>   pipeline.add_step(lambda x: [i * 2 for i in x] if isinstance(x, list) else x)
+                                 ^^^^^
+E   TypeError: unsupported operand type(s) for *: 
+  [FAILED] 1/2 steps in 106.1s
+
+[golden] FINAL: 0/5 mission runs passed (0%)

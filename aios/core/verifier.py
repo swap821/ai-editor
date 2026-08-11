@@ -31,6 +31,20 @@ _PASSED = re.compile(r"(\d+)\s+passed", re.IGNORECASE)
 _FAILED = re.compile(r"(\d+)\s+(?:failed|error|errors)", re.IGNORECASE)
 
 
+#: How much of a FAILING run's output to carry back to the caller.
+#:
+#: Was 500, shared with the passing path. pytest prints the useful part last --
+#: the "short test summary info" block with one `FAILED path::test - reason`
+#: line per failure, then the counts line -- and 500 characters routinely cuts
+#: into it. The model could then be told THAT two tests failed without being
+#: told WHICH, which leaves it nothing to act on but a retry.
+#:
+#: Organ 44's cohort produced exactly that shape: "7 passed, 2 failed" and
+#: "4 passed, 1 failed" -- near misses where the agent had no way to see what
+#: to fix. A passing run has nothing to diagnose, so its budget is unchanged.
+_FAILURE_SUMMARY_CHARS = 4000
+
+
 @dataclass(frozen=True)
 class VerifierResult:
     """Structured verdict from verifying an execution."""
@@ -150,7 +164,7 @@ class Verifier:
         lesson = self._maybe_reflect(command, output)
         return VerifierResult(
             passed=False,
-            summary=output[-500:] or "verification failed",
+            summary=output[-_FAILURE_SUMMARY_CHARS:] or "verification failed",
             confidence_delta=delta,
             passed_count=passed_count,
             failed_count=failed_count,

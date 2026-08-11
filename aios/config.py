@@ -285,7 +285,20 @@ APPROVED_EXECUTION_BACKEND: Final[str] = (
     _env_str("AIOS_APPROVED_EXECUTION_BACKEND", "container").strip().lower()
 )
 CONTAINER_RUNTIME: Final[str] = _env_str("AIOS_CONTAINER_RUNTIME", "docker")
-CONTAINER_IMAGE: Final[str] = _env_str("AIOS_CONTAINER_IMAGE", "aios-executor:local")
+#: Image for the DISPOSABLE workload container that verification jobs run in.
+#:
+#: Defaulted to `aios-executor:local` until 2026-08-11, which meant every
+#: verification job ran inside the privileged image that owns the Docker
+#: socket. That image is deliberately minimal and has no test runner, so the
+#: container whose job is running tests could not run them -- organ 44's first
+#: working golden cohort failed 4 of 5 missions on `pip install pytest` being
+#: refused by the approval allowlist.
+#:
+#: Pointing this at its own image keeps test tooling in the thing that gets
+#: destroyed after each job, instead of widening the dependency surface of the
+#: process that can create containers. Build it with
+#: `docker compose build worker`.
+CONTAINER_IMAGE: Final[str] = _env_str("AIOS_CONTAINER_IMAGE", "aios-worker:local")
 CONTAINER_MEMORY_MB: Final[int] = _env_int("AIOS_CONTAINER_MEMORY_MB", 1024)
 CONTAINER_CPUS: Final[float] = _env_float("AIOS_CONTAINER_CPUS", 1.0)
 CONTAINER_PIDS_LIMIT: Final[int] = _env_int("AIOS_CONTAINER_PIDS_LIMIT", 128)
