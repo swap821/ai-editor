@@ -1,0 +1,15 @@
+# Runtime lock for the DISPOSABLE workload container (aios-worker:local).
+#
+# Separate from requirements-executor.txt on purpose. The executor service
+# holds the Docker socket; this image holds nothing and is thrown away after
+# each job. Test tooling belongs here, where a compromise costs a scratch
+# container, and not in the privileged image, where it widens the dependency
+# closure of the process that can create containers.
+#
+# Kept deliberately small: a workload container that accumulates dependencies
+# stops being a sandbox and starts being an environment.
+# Pinned to the same version requirements.txt uses, so a job verified in
+# the container behaves the same as one verified on the host. A workload
+# image on a different pytest would make verification results depend on
+# where they ran.
+pytest==9.1.1

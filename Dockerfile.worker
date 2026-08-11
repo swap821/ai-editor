@@ -1,0 +1,50 @@
+# Disposable workload container for verification runs.
+#
+# Why this exists as its own image
+# --------------------------------
+# `AIOS_CONTAINER_IMAGE` used to default to `aios-executor:local`, so the
+# privileged executor image -- the one that owns the Docker socket -- was also
+# the image every verification job ran inside. That image is deliberately
+# minimal (see requirements-executor.txt: "keep that larger dependency closure
+# out of the privileged service image"), and it therefore had no test runner.
+#
+# The consequence was measured, not theorised. Organ 44's first working golden
+# cohort failed 4 of 5 missions identically:
+#
+#     why: command outside allowlist: ['pip install pytest']
+#     evidence: [VERIFY FAIL] 0 passed, 0 failed (exit 1)
+#
+# The model diagnosed it correctly and tried to install pytest; the approval
+# allowlist refused, exactly as it should. The container whose whole job is
+# running tests had no way to run tests.
+#
+# The tempting one-line fix was to add pytest to the executor's requirements.
+# That trades a real isolation property for convenience: it widens the
+# dependency surface of the process holding the Docker socket. This image is
+# the other answer -- test tooling lives in the thing that gets destroyed after
+# every job, and the privileged service stays as small as its own comment says
+# it should be.
+#
+# Deliberately absent: docker.io/docker-cli and the `aios` package. A workload
+# container has no business talking to a container runtime or importing the
+# control plane.
+
+FROM python:3.12-slim
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+COPY requirements-worker.txt /tmp/requirements-worker.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-worker.txt
+
+# Jobs are mounted here by the executor.
+WORKDIR /workspace
+
+# Same unprivileged uid as the executor service. A workload container must
+# never run as root even though it is disposable -- the mounted workspace is
+# host-visible.
+RUN mkdir -p /workspace && chown -R 65534:65534 /workspace
+USER 65534:65534
+
+ENTRYPOINT []
