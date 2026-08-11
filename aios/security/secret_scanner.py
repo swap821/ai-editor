@@ -278,10 +278,17 @@ def _is_filesystem_path(token: str) -> bool:
     Why this does not weaken the scanner
     ------------------------------------
     Every segment is checked INDEPENDENTLY against the same credential test the
-    caller applies to whole tokens. A secret embedded in a path --
-    ``/tmp/AKIAIOSFODNN7EXAMPLE`` or ``/home/u/.aws/<40-char key>`` -- has a
-    high-entropy segment and is still redacted. Only the AGGREGATE path is
+    caller applies to whole tokens. A secret embedded in a path -- an AWS access
+    key id under ``/tmp/``, a 40-character secret key under ``/home/u/.aws/`` --
+    has a high-entropy segment and is still redacted. Only the AGGREGATE path is
     exempt, and only when every one of its parts is individually innocuous.
+
+    Those two shapes are described here rather than spelled out: ``scripts/
+    security_scan.py`` rejects credential-shaped literals anywhere in tracked
+    production source, comments included, and it is right to. The executable
+    versions live in ``tests/test_secret_scanner_paths.py``, under the ``tests/``
+    tree that scan deliberately excludes -- which is the only place a real
+    credential shape belongs, and where it is checked rather than merely claimed.
 
     Base64-only characters (``+``, ``=``) are excluded from a valid segment, so
     padded blobs containing ``/`` cannot pose as paths.
