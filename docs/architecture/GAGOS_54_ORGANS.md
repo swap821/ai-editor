@@ -760,8 +760,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 51 green / 3 yellow / 54 total
-- **Source ledger sha256:** `f98146c22419d7ffeb180e5b02d323e627849726036c4dc6f23f88e4175cdca0`
+- **Counts:** 52 green / 2 yellow / 54 total
+- **Source ledger sha256:** `e9681bea591f54e5f95509c403cbcffddd15bdb0f5e83431decca3064e48597d`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -769,7 +769,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (51)
+### Green (52)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -816,6 +816,7 @@ re-audits recorded above.
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5d482164707c` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5d482164707c` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5d482164707c` | live |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | `3dc7323d74cc` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |
 | 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `5c64cd54ca52` | live |
 | 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | `5c64cd54ca52` | live |
@@ -825,12 +826,11 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (3) — exact residual, from the ledger's own `known_blockers`
+### Yellow (2) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Outside-machine — cloud-provider credentials barred; cannot invent cloud golden-cohort live evidence |
-| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | no Ollama — live constitutional learning path needs live Ollama and/or Outside-machine cloud<br>C4 WORDING IS THE GATE, and the mechanism for changing it is an OPERATOR DECISION ON THE LEDGER — not a constitutional amendment. Correcting a false claim recorded here on 2026-08-09 (commit ac8736c6), which said changing this text was a constitutional amendment ratifiable under Law XIII via organ 45. It is not. Verified: ConstitutionSnapshotV1 contains foundation_laws, policy_references, scope_roots, frozen_paths and the policy digests, and contains no C1-C12 and no red-team clause. The twelve-condition contract lives in scripts/verify_organ_twelve_conditions.py, and this organ's C4 verdict is a string in this ledger authored by the model. Running it through ratify_amendment would have used the constitutional-amendment control to lend borrowed legitimacy to a self-graded ledger edit, and would have produced an audit record asserting something untrue about what was ratified.<br>The C4 caveat itself remains TRUE and is not the thing to delete: agent campaigns are not a human red-team. What changed on 2026-08-09 is what a green claim would ASSERT — the ratification invariant (tests/test_ratification_invariant.py, exhaustive AST enumeration, non-vacuity demonstrated) rather than the soundness of the screening layer, which is now correctly scoped as advisory triage and says so in its own API response. Whether that reframing justifies green is an operator decision; the model proposing it is the model arguing its own grade. See release/organ-46/2026-08-09-green-decision-memo.md.<br>SETTLED, do not re-litigate: marker screening over prose is the wrong control, not an under-tuned one (two campaigns, 24 confirmed bypasses, the second finding more severe defects in the fix than the first found in the original). The screening layer is now correctly scoped as advisory triage and says so in its own API response; the organ's green claim should rest on the exhaustively-proven ratification invariant instead. See release/organ-46/2026-08-09-second-red-team-campaign.md and tests/test_ratification_invariant.py.<br>independent human red-team still absent by design |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->

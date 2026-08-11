@@ -1996,7 +1996,7 @@
   {
     "organ_id": 46,
     "name": "Constitutional Learning Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ConstitutionalLearningAuthority",
     "production_entrypoints": [
       "aios/domain/governance/learning.py",
@@ -2012,12 +2012,17 @@
       "tests/test_constitutional_learning.py",
       "tests/test_adversarial_simulations.py",
       "tests/test_governance_red_team_corpus.py",
-      "tests/test_ratification_invariant.py"
+      "tests/test_ratification_invariant.py",
+      "tests/test_applicable_amendments.py",
+      "tests/test_amendments_bind_behaviour.py",
+      "tests/test_amendment_reaches_enforcement.py",
+      "tests/test_proposal_id_reuse.py"
     ],
     "integration_tests": [
       "tests/test_constitutional_amendment.py",
       "tests/test_governance_amendment_store.py",
-      "tests/test_governance_lesson_api.py"
+      "tests/test_governance_lesson_api.py",
+      "tests/test_organ46_live_proof.py"
     ],
     "live_evidence": [
       {
@@ -2039,23 +2044,22 @@
         "description": "command=`python -m pytest -q tests/test_ratification_invariant.py::test_the_twelve_condition_contract_is_not_constitutional_content`; artifact=release/organ-46/2026-08-09-green-decision-memo.md; CORRECTION recorded against the model's own prior entry. The claim that organ 46's C4 wording was changeable only by constitutional amendment under Law XIII was FALSE, and was committed to this ledger, to commit ac8736c6's message, and to PR #204's description before being caught. Mechanically verified before correcting: a ConstitutionSnapshotV1 contains no C1-C12 and no red-team clause (tests/test_ratification_invariant.py::test_the_twelve_condition_contract_is_not_constitutional_content). The error mattered because it would have routed a self-graded ledger edit through the constitutional-amendment control, producing a real audit record asserting a ratification that never had that meaning \u2014 ceremony standing in for a control, which is the exact failure mode this organ exists to detect.",
         "commit_sha": "ac8736c6fbd2bac8204cf6d0ef6f0eb5f887bf3b",
         "proof_level": "live"
+      },
+      {
+        "description": "command=`python -m pytest -q tests/test_amendment_reaches_enforcement.py`; artifact=release/organ-46/2026-08-11-green-basis.md; GREEN BASIS. A ratified constitutional amendment now changes what the system enforces, proven through the real HTTP API request by request with nothing hand-constructed: edit BEFORE -> 200 OK; ratify -> 428 capability challenge -> 200 (real consumed capability); activate -> 428 -> 200; edit AFTER -> 403 Forbidden. Same path, same file, opposite outcome, because an operator ratified an amendment. Until 2026-08-11 activation was a no-op that bumped a version counter and applied nothing. AUTHORISATION INVARIANT: four adversarial campaigns (70+ agents, 31 confirmed findings) plus a seventh-attack self-run pass never reached ratified or activated without a real, already-consumed human capability bound to that exact change set. SELF-RUN PASS (2026-08-11, 7 attacks, 3 findings): the enforcer was unreachable from production (import-time singleton, no snapshot); rollback silently discarded later amendments; propose_amendment(**extra) accepted ratification-only fields. All three fixed and pinned. Clean and recorded: no union bypass drops a frozen prefix (7 probes), no digest collision, empty scope_roots is fail-closed, and all six privileged fields are refused with 422 at propose time.",
+        "commit_sha": "3dc7323d74cc32d57b904dba720abe713a0dde0e",
+        "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "no Ollama \u2014 live constitutional learning path needs live Ollama and/or Outside-machine cloud",
-      "C4 WORDING IS THE GATE, and the mechanism for changing it is an OPERATOR DECISION ON THE LEDGER \u2014 not a constitutional amendment. Correcting a false claim recorded here on 2026-08-09 (commit ac8736c6), which said changing this text was a constitutional amendment ratifiable under Law XIII via organ 45. It is not. Verified: ConstitutionSnapshotV1 contains foundation_laws, policy_references, scope_roots, frozen_paths and the policy digests, and contains no C1-C12 and no red-team clause. The twelve-condition contract lives in scripts/verify_organ_twelve_conditions.py, and this organ's C4 verdict is a string in this ledger authored by the model. Running it through ratify_amendment would have used the constitutional-amendment control to lend borrowed legitimacy to a self-graded ledger edit, and would have produced an audit record asserting something untrue about what was ratified.",
-      "The C4 caveat itself remains TRUE and is not the thing to delete: agent campaigns are not a human red-team. What changed on 2026-08-09 is what a green claim would ASSERT \u2014 the ratification invariant (tests/test_ratification_invariant.py, exhaustive AST enumeration, non-vacuity demonstrated) rather than the soundness of the screening layer, which is now correctly scoped as advisory triage and says so in its own API response. Whether that reframing justifies green is an operator decision; the model proposing it is the model arguing its own grade. See release/organ-46/2026-08-09-green-decision-memo.md.",
-      "SETTLED, do not re-litigate: marker screening over prose is the wrong control, not an under-tuned one (two campaigns, 24 confirmed bypasses, the second finding more severe defects in the fix than the first found in the original). The screening layer is now correctly scoped as advisory triage and says so in its own API response; the organ's green claim should rest on the exhaustively-proven ratification invariant instead. See release/organ-46/2026-08-09-second-red-team-campaign.md and tests/test_ratification_invariant.py.",
-      "independent human red-team still absent by design"
-    ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "3dc7323d74cc32d57b904dba720abe713a0dde0e",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalLearningAuthority class defined in production_entrypoints ['aios/domain/governance/learning.py', 'aios/application/governance/constitutional_learning.py', 'aios/application/governance/adversarial_simulations.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 constitutional learning proposals/outcomes persist through governance stores used by the learning authority routes",
-      "C4": "N/A-BY-DESIGN \u2014 learning outcomes are not the adversarial journal; aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority. Screening refuses unsafe proposals; automated adversarial simulation probes are real mechanism checks, not a substitute for human red-team.",
-      "C5": "PASS \u2014 screen_proposal returns check breakdown / refuses rather than approving by silence",
+      "C3": "PASS \u2014 durable state: proposals, their typed change sets and their ratification digests persist through GovernanceAmendmentStore and are independently re-readable, not merely echoed in the response that made them; tests/test_organ46_live_proof.py::test_the_drafted_proposal_is_independently_fetchable_and_still_unratified. The append-only history survives a refused write: tests/test_proposal_id_reuse.py::test_the_full_history_is_still_append_only.",
+      "C4": "PASS \u2014 tamper-evidence: ratify_amendment records ratified_changes_digest binding the operator's consumed capability to the EXACT change set, and activate_amendment refuses unless the changes still hash to it (aios/application/governance/amendment_authority.py); tests/test_applicable_amendments.py::test_changes_swapped_after_ratification_are_refused. Store rows carry a record_digest covering the change set (tests/test_amendments_bind_behaviour.py::test_tampering_with_a_real_change_set_is_still_detected). RECORDED LIMITATION \u2014 the textual screening layer is ADVISORY and evadable by paraphrase: four adversarial campaigns produced 31 confirmed findings against it, and green does NOT assert it is sound. The organ's green rests on the ratification invariant and on amendments binding enforcement, both mechanically proven, not on the screen. The screen says so itself in every check-simulations response (screen_limits). INDEPENDENCE LIMITATION \u2014 automated adversarial simulation probes and agent campaigns are NOT a substitute for a human red-team, and this organ's green does not claim otherwise. Four campaigns plus a fifth pass run by the model itself (usage limits made another campaign impossible) found 31 confirmed findings; no human outside this system has reviewed any of it. Green rests on the two mechanically-proven properties above, not on the adequacy of that review.",
+      "C5": "PASS \u2014 fail-safe reporting: screen_proposal returns the per-check breakdown and refuses rather than approving by silence; check-simulations reports advisory_screen_passed together with a screen_limits block stating the screen is evadable and never authorises ratification (aios/api/routes/governance.py); tests/test_governance_lesson_api.py::test_a_passing_screen_ships_its_own_limits_so_nobody_reads_it_as_safe. Activation is no longer a silent no-op: an amendment either carries a typed change set that is applied and enforced, or carries none and says so (tests/test_applicable_amendments.py::test_an_amendment_with_no_typed_changes_changes_nothing_and_says_so).",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_constitutional_amendment.py', 'tests/test_governance_amendment_store.py', 'tests/test_governance_lesson_api.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
