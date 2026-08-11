@@ -761,7 +761,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 52 green / 2 yellow / 54 total
-- **Source ledger sha256:** `dddae0f59b9c3323ae874ab9e8c6bef30c8e984140fa1491b218ae7d4f1837e9`
+- **Source ledger sha256:** `48f1d73919fd36ee342918efa6c1770ef4c7bebac052e39fdd8e87bbf687688e`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -831,6 +831,6 @@ re-audits recorded above.
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Outside-machine — the golden cohort now RUNS live against Google Gemini via Vertex (2026-08-11, 5 missions, 8 steps, ~14 min of real calls) and scores 0/5. Credentials were never the blocker: Gemini needed only AIOS_GEMINI_PROJECT, the runner could not authenticate to its own API at all (403 on every turn), and the model id lacked the router's 'gemini.' prefix so it fell through to Bedrock and reported a misleading 'AWS Bedrock is not configured'. All three fixed. See release/organ-44/2026-08-11-first-live-cloud-cohort.md.<br>Outside-machine — 0/5 golden missions pass on gemini-2.5-flash, with three distinct failure modes (error / verified_failure / rejected). Whether the cause is the model, the mission definitions, the verifier's strictness or the agent loop is NOT established. Green would assert the evaluation organ functions -- it now does -- but a reader would infer the missions pass, and they do not.<br>Outside-machine — endurance (tools/endurance_tester.py) has not been run and still carries the same authentication defect that was just fixed for the golden runner.<br>Outside-machine — this is a laptop run, not CI. No cloud credentials exist in CI, and AWS Bedrock remains entirely absent from this machine. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | MEASURED 0/5. The golden cohort now runs live against Google Gemini (Vertex, gemini-2.5-flash) with a real operator session and a real disposable pytest sandbox, and scores 0/5 missions — 2 of 8 steps pass, 2 are near misses (7-of-9 and 4-of-5 assertions), 3 fail by omitting the test file, 1 hits the loop detector. This is the honest number, recorded not engineered; nothing in the missions or the verifier was loosened. Green would read as 'the missions pass'. They do not. See release/organ-44/2026-08-11-first-real-measurement.md.<br>Outside-machine — this is a laptop run. CI has neither cloud credentials nor the aios-worker/aios-executor images.<br>Outside-machine — endurance (tools/endurance_tester.py) has not been run and still carries the authentication defect that was fixed for the golden runner. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->

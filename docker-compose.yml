@@ -45,6 +45,17 @@ services:
       retries: 3
       start_period: 5s
 
+  # Disposable workload container for verification jobs. Built, never run as a
+  # service -- the executor starts it per job and throws it away. Test tooling
+  # lives here rather than in the socket-holding executor image.
+  worker:
+    image: aios-worker:local
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    profiles: ["build-only"]
+    command: ["true"]
+
   executor:
     image: aios-executor:local
     build:
