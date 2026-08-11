@@ -128,6 +128,53 @@ def test_release_authority_runs_strict_runtime_proof_matrix() -> None:
     assert '"$(pwd)/frontend:/app/frontend:ro"' in workflow
 
 
+def test_ci_builds_the_workload_image_the_runtime_defaults_to() -> None:
+    """CI must build whatever image verification jobs actually launch.
+
+    `AIOS_CONTAINER_IMAGE` defaulted to `aios-executor:local` until 2026-08-11.
+    CI never built it on purpose -- `docker compose up --build executor` built
+    it as a side effect of starting the executor service. Repointing the default
+    at `aios-worker:local` therefore broke the release-authority job on master:
+    the worker sits behind compose's `build-only` profile, `up executor` skips
+    it, and every job died with the image missing. Three isolation proofs failed
+    with `status == 'failed'` and no mention of an image anywhere.
+
+    Nothing connected the two facts, because the dependency was accidental. This
+    test makes it explicit: whatever image the runtime defaults to, CI has to
+    build it by name, so the next repoint fails in review instead of on master.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    from aios import config
+
+    image = config.CONTAINER_IMAGE
+    assert f"image: {image}" in compose, (
+        f"the runtime launches {image!r} but no compose service declares it, "
+        "so nothing in the repo can build it"
+    )
+
+    service = next(
+        (
+            name
+            for name in ("worker", "executor")
+            if f"  {name}:\n    image: {image}" in compose
+        ),
+        None,
+    )
+    assert service is not None, (
+        f"{image!r} is declared in docker-compose.yml but not by a service this "
+        "test knows how to check -- extend the test rather than dropping the rule"
+    )
+    assert f"build {service}" in workflow or f"--wait {service}" in workflow, (
+        f"CI never builds {image!r} (compose service {service!r}), so every "
+        "verification job will fail with the image missing -- exactly the "
+        "regression that took the release-authority job down on master"
+    )
+
+
 def test_release_source_scan_is_clean() -> None:
     assert scan() == ()
 
