@@ -261,14 +261,48 @@ class GoldenMissionEnduranceAuthority:
             expected = step["expect"]
             step_passed = result["outcome"] == expected
 
-            steps_results.append({
+            # Persist WHY, not only WHAT.
+            #
+            # `run_prompt` already returns the diagnosis -- the `error` payload
+            # for a stream error, the `reason` an approval was refused, and the
+            # [VERIFY ...] evidence lines -- and this record used to keep only
+            # outcome/expected/passed and drop the rest.
+            #
+            # The cost was concrete: the first live cloud cohort scored 0/5
+            # across three different failure modes and the audit record could
+            # not say why any of them happened. A score you cannot debug is not
+            # a measurement, and an evaluation organ that discards its own
+            # diagnostics cannot be trusted to evaluate.
+            step_record: dict[str, Any] = {
                 "step": step_idx,
                 "outcome": result["outcome"],
                 "expected": expected,
                 "passed": step_passed,
-            })
+            }
+            if result.get("error") is not None:
+                step_record["error"] = result["error"]
+            if result.get("reason"):
+                step_record["reason"] = result["reason"]
+            if result.get("evidence"):
+                # The verifier's own verdict lines are the primary evidence for
+                # a verified_failure: they distinguish "the model wrote nothing"
+                # from "the model wrote code and its tests failed".
+                step_record["evidence"] = list(result["evidence"])
+            if result.get("approvals"):
+                step_record["approvals"] = list(result["approvals"])
+            steps_results.append(step_record)
+
             status = "PASS" if step_passed else "FAIL"
             print(f"    {status}: got={result['outcome']} expected={expected}")
+            # Surface the reason at the console too. A run that prints only
+            # "FAIL: got=error" sends the reader to the audit file for
+            # something the runner already knew.
+            detail = result.get("reason") or result.get("error")
+            if not step_passed and detail:
+                print(f"      why: {str(detail)[:300]}")
+            if not step_passed and result.get("evidence"):
+                for line in list(result["evidence"])[-2:]:
+                    print(f"      evidence: {str(line)[:300]}")
 
             if not step_passed:
                 mission_passed = False
