@@ -55,6 +55,12 @@ services:
       dockerfile: Dockerfile.worker
     profiles: ["build-only"]
     command: ["true"]
+    # Inert: the build-only profile means this is never started as a service,
+    # and the executor launches the image per job instead. Declared anyway so
+    # `test_all_compose_services_have_restart_policy` keeps holding for EVERY
+    # service -- an exemption carved for a build-only entry today is an
+    # exemption a real service inherits tomorrow.
+    restart: "on-failure"
 
   executor:
     image: aios-executor:local

@@ -778,6 +778,11 @@ class ToolAgent:
         self._tool_call_history: list[tuple[str, str]] = []
         #: How many consecutive identical calls before we consider it a loop.
         self._repeated_tool_threshold = 3
+        #: Last verifier output seen this run. A verdict that DIFFERS from the
+        #: previous one is progress even when the command was identical --
+        #: "2 failed" becoming "1 failed" means the edit in between did
+        #: something.
+        self._last_verify_output: str | None = None
         #: Enable validated ReAct prose recovery for local models.
         self._enable_react_recovery = True
         #: The (mistake_id, lesson_summary) the Verifier recorded on the MOST
@@ -792,14 +797,27 @@ class ToolAgent:
     def _detect_agent_loop(self, tool_calls: list[dict[str, Any]]) -> bool:
         """Detect if the agent is stuck in a repetitive loop.
 
-        Returns True when:
+        Returns True when, SINCE THE LAST OBSERVED PROGRESS:
           * The last N tool calls are identical (stuck repeating one action)
           * The last 4 calls form an A->B->A->B alternating pattern
             (oscillating between two actions with no progress)
 
-        These patterns indicate the model is not making progress and
-        continuing the loop would waste resources or potentially cause
-        harm (e.g., repeated file reads, repeated failed commands).
+        The "since the last observed progress" clause is the whole point and
+        it used to be missing. `_tool_call_history` was cleared only at the
+        start of `run()`, so the patterns were evaluated over the entire turn.
+
+        Edit -> test -> edit -> test IS A->B->A->B. The canonical debugging
+        loop was therefore indistinguishable from spinning, and the agent was
+        stopped at precisely the moment it began iterating toward a fix.
+        Measured: organ 44's golden cohort lost a mission to
+        "Agent loop detected" while doing exactly that, and two more stalled as
+        near misses (7-of-9 and 4-of-5 assertions passing) that an agent
+        permitted to re-test might have closed.
+
+        `note_progress()` clears the window when something actually changed --
+        a file was written, or a verifier returned a different verdict. Genuine
+        no-progress spinning still trips at the same threshold, because nothing
+        clears the window for it.
         """
         current = [
             (
@@ -830,6 +848,23 @@ class ToolAgent:
 
     def _reset_loop_safety(self) -> None:
         """Reset loop-detection state at the start of each run."""
+        self._tool_call_history = []
+        self._last_verify_output = None
+
+    def note_progress(self, reason: str) -> None:
+        """Declare that the turn advanced, so repetition restarts from here.
+
+        Called when a write actually lands or a verifier verdict changes. A
+        repeated command is only a loop when nothing changed between the
+        repeats; once something has, the prior calls are history rather than
+        evidence of being stuck.
+        """
+        if self._tool_call_history:
+            log_action(
+                "tool-agent",
+                f"loop-safety window reset: {reason}",
+                zone=Zone.GREEN,
+            )
         self._tool_call_history = []
 
     def run(self, messages: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
@@ -1143,6 +1178,10 @@ class ToolAgent:
                             pending_lessons, str(args.get("command", "")), output, index
                         )
                 elif name in ("edit_file", "create_file") and status == "ok":
+                    # A write landing IS progress: whatever the model does next
+                    # acts on different bytes than before, so earlier repeats
+                    # stop being evidence that it is stuck.
+                    self.note_progress("file write applied")
                     # A write actually landed. Force a verification so the
                     # AUTHORITATIVE PASS/FAIL -- not the model's narration -- is the
                     # next signal the model and UI see ("trust evidence, not the
@@ -1264,6 +1303,8 @@ class ToolAgent:
                 }
                 convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
         # Phase 2 -- every granted file is now on disk; verify against the truth.
+        if applied:
+            self.note_progress("approved writes applied")
         for index, filepath, action_type in applied:
             yield from self._auto_verify(
                 filepath, index, convo, action_type=action_type
@@ -1362,10 +1403,23 @@ class ToolAgent:
             else abs_file.with_name(f"test_{p.stem}.py")
         )
         if not test_abs.is_file():
+            # A warning the model can act on, not just be scolded by.
+            #
+            # This said only "the change is UNVERIFIED -- do not assume it
+            # works", which is true and useless: the loop knows exactly which
+            # file is missing and never asked for it. Organ 44's cohort lost
+            # 3 of 8 steps to this -- the model wrote the implementation, was
+            # told it was unverified, had no next action, and ended the turn.
+            #
+            # Naming the file turns a dead end into a step. The verdict and its
+            # fail-closed meaning are unchanged; only the instruction is new.
             note = (
                 f"[VERIFY SKIPPED] no sibling test for {filepath} "
                 f"(looked for {test_abs.name}); the change is UNVERIFIED -- "
-                "do not assume it works."
+                "do not assume it works. Create "
+                f"{test_abs.name} next to it with tests covering this change, "
+                "then the verifier will run and report a real verdict. Until "
+                "that file exists this work cannot be verified."
             )
             yield {
                 "type": "tool_result",
@@ -1410,6 +1464,12 @@ class ToolAgent:
             }
             verified_ok = output.lstrip().startswith("[VERIFY PASS]")
             verify_strength = strength_from_text(output)
+            # A changed verdict means the edit between the two runs did
+            # something -- "2 failed" becoming "1 failed" is progress even
+            # though the pytest command was byte-identical.
+            if output != self._last_verify_output:
+                self.note_progress("verifier verdict changed")
+            self._last_verify_output = output
         convo.append({"role": "tool", "content": output[:_TOOL_RESULT_LIMIT]})
         # Fold the authoritative verdict into the earned-autonomy evidence for
         # this write class: a PASS extends the streak (eventually graduating the

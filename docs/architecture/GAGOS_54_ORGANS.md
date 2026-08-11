@@ -761,7 +761,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 52 green / 2 yellow / 54 total
-- **Source ledger sha256:** `48f1d73919fd36ee342918efa6c1770ef4c7bebac052e39fdd8e87bbf687688e`
+- **Source ledger sha256:** `c586e6abd763d7ad6826c303cd595159bfb98136ff9681c1d79039deab2f2539`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -831,6 +831,6 @@ re-audits recorded above.
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | MEASURED 0/5. The golden cohort now runs live against Google Gemini (Vertex, gemini-2.5-flash) with a real operator session and a real disposable pytest sandbox, and scores 0/5 missions — 2 of 8 steps pass, 2 are near misses (7-of-9 and 4-of-5 assertions), 3 fail by omitting the test file, 1 hits the loop detector. This is the honest number, recorded not engineered; nothing in the missions or the verifier was loosened. Green would read as 'the missions pass'. They do not. See release/organ-44/2026-08-11-first-real-measurement.md.<br>Outside-machine — this is a laptop run. CI has neither cloud credentials nor the aios-worker/aios-executor images.<br>Outside-machine — endurance (tools/endurance_tester.py) has not been run and still carries the authentication defect that was fixed for the golden runner. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | MEASURED 1/5 (4/8 steps), improved from 0/5 (2/8) by fixing three agent-loop defects, not by touching the missions or the verifier: loop detection killed the canonical edit-test-edit-test debugging cycle (A->B->A->B with the window cleared only at run() start); the no-sibling-test note warned without naming the file to create (3 of 8 steps died there, now 0); and failing-run detail was truncated to 500 chars so the model learned THAT tests failed but not WHICH. data-pipeline completed both steps -- the first mission this system has ever finished. Remaining: 2 loop-detector errors on identical repeated verdicts and 2 real test failures in generated code. Green would read as 'the missions pass'; four of five do not. See release/organ-44/2026-08-11-loop-fix-cohort.md.<br>Outside-machine — this is a laptop run. CI has neither cloud credentials nor the aios-worker/aios-executor images.<br>Outside-machine — endurance (tools/endurance_tester.py) has not been run and still carries the authentication defect that was fixed for the golden runner. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
