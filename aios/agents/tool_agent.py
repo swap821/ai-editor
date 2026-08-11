@@ -142,6 +142,19 @@ _TOOL_RESULT_LIMIT = 4000
 _FILE_READ_LIMIT = 20_000
 #: Cap on the step-preview surfaced to the UI.
 _PREVIEW_LIMIT = 400
+#: Cap on a VERIFY verdict surfaced to the UI.
+#
+# The verifier's verdict is not narration -- it is the evidence an operator
+# reads to learn WHY a run failed, and the only failure text the golden-mission
+# runner can record (it observes the stream, not the model's context). At
+# ``_PREVIEW_LIMIT`` every recorded failure died four lines into pytest's
+# FAILURES section, at ``def test_add(``, one line short of the assertion:
+# the audit trail could say a test failed but never which assertion or why.
+#
+# The model was never affected -- it reads ``_TOOL_RESULT_LIMIT`` (4000) from
+# ``convo``. This closes the gap between what the model saw and what the record
+# kept, so the two agree, and matches that same budget deliberately.
+_VERIFY_PREVIEW_LIMIT = _TOOL_RESULT_LIMIT
 
 #: First fenced code block in a final answer -> (language, code).
 _CODE_FENCE = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
@@ -1113,18 +1126,25 @@ class ToolAgent:
                         pause_event["_convo_tail"] = list(convo[1 + len(messages) :])
                         yield pause_event
                         return
+                # A verify verdict is evidence, not narration -- it keeps the
+                # model's budget so the recorded failure text is the same text
+                # the model reasoned over. Every other tool stays at the
+                # narration preview.
+                emit_limit = (
+                    _VERIFY_PREVIEW_LIMIT if name == "verify" else _PREVIEW_LIMIT
+                )
                 if status == "blocked":
                     yield {
                         "type": "tool_blocked",
                         "tool": name,
-                        "reason": output[:_PREVIEW_LIMIT],
+                        "reason": output[:emit_limit],
                         "id": call_id,
                     }
                 else:
                     result_event: dict[str, Any] = {
                         "type": "tool_result",
                         "tool": name,
-                        "output": output[:_PREVIEW_LIMIT],
+                        "output": output[:emit_limit],
                         "id": call_id,
                     }
                     if name == "verify":
@@ -1424,7 +1444,7 @@ class ToolAgent:
             yield {
                 "type": "tool_result",
                 "tool": "verify",
-                "output": note[:_PREVIEW_LIMIT],
+                "output": note[:_VERIFY_PREVIEW_LIMIT],
                 "id": f"autoverify-{index}",
             }
             convo.append({"role": "tool", "content": note})
@@ -1449,7 +1469,7 @@ class ToolAgent:
             yield {
                 "type": "tool_blocked",
                 "tool": "verify",
-                "reason": output[:_PREVIEW_LIMIT],
+                "reason": output[:_VERIFY_PREVIEW_LIMIT],
                 "id": f"autoverify-{index}",
             }
             verified_ok = False  # an unverifiable change is fail-closed
@@ -1458,7 +1478,7 @@ class ToolAgent:
             yield {
                 "type": "tool_result",
                 "tool": "verify",
-                "output": output[:_PREVIEW_LIMIT],
+                "output": output[:_VERIFY_PREVIEW_LIMIT],
                 "id": f"autoverify-{index}",
                 "target": command,
             }

@@ -13,6 +13,7 @@ Usage:
 Missions are designed to be idempotent: each run resets sandbox state,
 executes the full sequence, and records pass/fail per step + overall.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,7 +26,7 @@ from typing import Any, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE
 from aios.probe_session import ProbeSession
 
 try:
@@ -62,7 +63,10 @@ MISSIONS: dict[str, dict[str, Any]] = {
         "steps": [
             {
                 "prompt": "Create training_ground/sorted_insert.py with a function sorted_insert(sorted_list, value) that inserts value into the correct position in an already sorted list (in-place) and returns the list. Then create training_ground/test_sorted_insert.py with pytest tests covering empty list, beginning, middle, end, and duplicates. Then verify that the tests pass.",
-                "files": ["training_ground/sorted_insert.py", "training_ground/test_sorted_insert.py"],
+                "files": [
+                    "training_ground/sorted_insert.py",
+                    "training_ground/test_sorted_insert.py",
+                ],
                 "expect": "verified_success",
             },
             {
@@ -77,12 +81,18 @@ MISSIONS: dict[str, dict[str, Any]] = {
         "steps": [
             {
                 "prompt": "Create training_ground/validator.py with a function validate_email(email) that returns True if the email contains exactly one @ with non-empty local and domain parts, and the domain contains at least one dot. Then create training_ground/test_validator.py with pytest tests. Then verify that the tests pass.",
-                "files": ["training_ground/validator.py", "training_ground/test_validator.py"],
+                "files": [
+                    "training_ground/validator.py",
+                    "training_ground/test_validator.py",
+                ],
                 "expect": "verified_success",
             },
             {
                 "prompt": "Create training_ground/user_registry.py that imports validate_email from training_ground.validator and has a UserRegistry class with register(name, email) that raises ValueError for invalid emails, and list_users() that returns registered names. Then create training_ground/test_user_registry.py with pytest tests covering valid registration, invalid email rejection, and listing. Then verify that the tests pass.",
-                "files": ["training_ground/user_registry.py", "training_ground/test_user_registry.py"],
+                "files": [
+                    "training_ground/user_registry.py",
+                    "training_ground/test_user_registry.py",
+                ],
                 "expect": "verified_success",
             },
         ],
@@ -92,7 +102,10 @@ MISSIONS: dict[str, dict[str, Any]] = {
         "steps": [
             {
                 "prompt": "Create training_ground/safe_json.py with functions safe_parse(text) that returns (parsed_dict, None) on success or (None, error_string) on failure, and safe_get(data, path) where path is a dot-separated key path that returns the nested value or None if any key is missing. Then create training_ground/test_safe_json.py with pytest tests covering valid JSON, invalid JSON, nested paths, and missing keys. Then verify that the tests pass.",
-                "files": ["training_ground/safe_json.py", "training_ground/test_safe_json.py"],
+                "files": [
+                    "training_ground/safe_json.py",
+                    "training_ground/test_safe_json.py",
+                ],
                 "expect": "verified_success",
             },
         ],
@@ -102,7 +115,10 @@ MISSIONS: dict[str, dict[str, Any]] = {
         "steps": [
             {
                 "prompt": "Create training_ground/pipeline.py with a Pipeline class that has add_step(fn) to register transformation functions and run(data) that passes data through each step in order. Include a built-in step filter_nulls that removes None values from lists. Then create training_ground/test_pipeline.py with pytest tests covering empty pipeline, single step, chained steps, and filter_nulls. Then verify that the tests pass.",
-                "files": ["training_ground/pipeline.py", "training_ground/test_pipeline.py"],
+                "files": [
+                    "training_ground/pipeline.py",
+                    "training_ground/test_pipeline.py",
+                ],
                 "expect": "verified_success",
             },
             {
@@ -134,9 +150,9 @@ def parse_sse(resp: requests.Response) -> Iterator[tuple[str, dict[str, Any]]]:
                 yield event, payload
             event, data_lines = None, []
         elif raw.startswith("event:"):
-            event = raw[len("event:"):].strip()
+            event = raw[len("event:") :].strip()
         elif raw.startswith("data:"):
-            data_lines.append(raw[len("data:"):].strip())
+            data_lines.append(raw[len("data:") :].strip())
     if event is not None and data_lines:
         yield event, json.loads("\n".join(data_lines))
 
@@ -146,15 +162,24 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     if inp.get("creations"):
         paths = [str(c.get("filepath", "")) for c in inp["creations"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"create {paths}" if not bad else f"creation outside allowlist: {bad}")
+        return (
+            not bad,
+            f"create {paths}" if not bad else f"creation outside allowlist: {bad}",
+        )
     if inp.get("edits"):
         paths = [str(e.get("filepath", "")) for e in inp["edits"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"edit {paths}" if not bad else f"edit outside allowlist: {bad}")
+        return (
+            not bad,
+            f"edit {paths}" if not bad else f"edit outside allowlist: {bad}",
+        )
     if inp.get("commands"):
         cmds = [str(c) for c in inp["commands"]]
         bad = [c for c in cmds if not ALLOWED_CMD_RE.match(c)]
-        return (not bad, f"run {cmds}" if not bad else f"command outside allowlist: {bad}")
+        return (
+            not bad,
+            f"run {cmds}" if not bad else f"command outside allowlist: {bad}",
+        )
     return False, "unrecognized approval payload shape"
 
 
@@ -190,7 +215,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
         for event, data in parse_sse(resp):
             if event == "step":
                 output = str(data.get("output", ""))
-                if output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")):
+                if output.startswith(
+                    ("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")
+                ):
                     evidence.append(output)
             elif event == "human_required":
                 paused = data
@@ -201,14 +228,20 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 finished = True
 
         if finished and paused is None:
-            counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+            counted = [
+                e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
+            ]
             if not counted:
                 outcome = "unverified"
             elif counted[-1].startswith("[VERIFY PASS]"):
                 outcome = "verified_success"
             else:
                 outcome = "verified_failure"
-            return {"outcome": outcome, "approvals": approvals_granted, "evidence": evidence}
+            return {
+                "outcome": outcome,
+                "approvals": approvals_granted,
+                "evidence": evidence,
+            }
 
         if paused is None:
             return {"outcome": "truncated", "evidence": evidence}
@@ -255,7 +288,9 @@ class GoldenMissionEnduranceAuthority:
 
         for step_idx, step in enumerate(mission["steps"]):
             session_id = f"golden-{name}-s{step_idx}-{run_id}"
-            print(f"  step {step_idx + 1}/{len(mission['steps'])}: {step['prompt'][:80]}...")
+            print(
+                f"  step {step_idx + 1}/{len(mission['steps'])}: {step['prompt'][:80]}..."
+            )
 
             result = run_prompt(step["prompt"], session_id, model_id=model_id)
             expected = step["expect"]
@@ -301,8 +336,15 @@ class GoldenMissionEnduranceAuthority:
             if not step_passed and detail:
                 print(f"      why: {str(detail)[:300]}")
             if not step_passed and result.get("evidence"):
+                # Print the verdict WHOLE. At 300 chars every recorded failure
+                # stopped four lines into pytest's FAILURES section -- on the
+                # "def test_add(" line, one line short of the assertion -- so
+                # the log could say a test failed but never which assertion or
+                # why, and diagnosing a cohort meant re-running it. The stream
+                # now carries the model's full verdict (_VERIFY_PREVIEW_LIMIT);
+                # truncating it here would throw that away at the last step.
                 for line in list(result["evidence"])[-2:]:
-                    print(f"      evidence: {str(line)[:300]}")
+                    print(f"      evidence: {line}")
 
             if not step_passed:
                 mission_passed = False
@@ -335,27 +377,40 @@ class GoldenMissionEnduranceAuthority:
 
 
 # Compatibility function for callers that used the pre-owner runner API.
-def run_mission(name: str, mission: dict[str, Any], model_id: str, run_id: str) -> dict[str, Any]:
-    return GoldenMissionEnduranceAuthority().run_mission(name, mission, model_id, run_id)
+def run_mission(
+    name: str, mission: dict[str, Any], model_id: str, run_id: str
+) -> dict[str, Any]:
+    return GoldenMissionEnduranceAuthority().run_mission(
+        name, mission, model_id, run_id
+    )
 
 
 def cmd_run(args: argparse.Namespace) -> None:
     if args.mission and args.mission not in MISSIONS:
-        sys.exit(f"unknown mission: {args.mission!r}. Use 'list' to see available missions.")
+        sys.exit(
+            f"unknown mission: {args.mission!r}. Use 'list' to see available missions."
+        )
 
     targets = {args.mission: MISSIONS[args.mission]} if args.mission else MISSIONS
     authority = GoldenMissionEnduranceAuthority()
     all_results: list[dict[str, Any]] = []
 
     for repeat in range(args.repeats):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[golden] repeat {repeat + 1}/{args.repeats}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         for name, mission in targets.items():
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
             print(f"\n[golden] mission={name}: {mission['description']}")
-            log_event({"kind": "mission-start", "mission": name, "run_id": run_id, "repeat": repeat})
+            log_event(
+                {
+                    "kind": "mission-start",
+                    "mission": name,
+                    "run_id": run_id,
+                    "repeat": repeat,
+                }
+            )
 
             t0 = time.monotonic()
             result = authority.run_mission(name, mission, args.model, run_id)
@@ -364,7 +419,9 @@ def cmd_run(args: argparse.Namespace) -> None:
 
             all_results.append(result)
             status = "PASSED" if result["passed"] else "FAILED"
-            print(f"  [{status}] {result['steps_completed']}/{result['steps_total']} steps in {result['elapsed_s']}s")
+            print(
+                f"  [{status}] {result['steps_completed']}/{result['steps_total']} steps in {result['elapsed_s']}s"
+            )
             log_event({"kind": "mission-complete", **result})
 
             reset_mission_files(mission)
@@ -372,9 +429,17 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     passed = sum(1 for r in all_results if r["passed"])
     total = len(all_results)
-    print(f"\n[golden] FINAL: {passed}/{total} mission runs passed ({round(passed/max(total,1)*100)}%)")
-    log_event({"kind": "batch-summary", "passed": passed, "total": total,
-               "rate": round(passed / max(total, 1), 3)})
+    print(
+        f"\n[golden] FINAL: {passed}/{total} mission runs passed ({round(passed / max(total, 1) * 100)}%)"
+    )
+    log_event(
+        {
+            "kind": "batch-summary",
+            "passed": passed,
+            "total": total,
+            "rate": round(passed / max(total, 1), 3),
+        }
+    )
 
 
 def cmd_list(_: argparse.Namespace) -> None:
@@ -411,7 +476,9 @@ def cmd_report(_: argparse.Namespace) -> None:
         print(f"  {name}: {passed}/{len(runs)} passed ({rate}%) avg={avg_time}s")
 
     total_passed = sum(1 for r in completions if r["passed"])
-    print(f"\n  overall: {total_passed}/{len(completions)} ({round(total_passed/len(completions)*100)}%)")
+    print(
+        f"\n  overall: {total_passed}/{len(completions)} ({round(total_passed / len(completions) * 100)}%)"
+    )
 
 
 def main() -> int:
@@ -419,8 +486,12 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command")
 
     run_p = sub.add_parser("run", help="Run golden missions")
-    run_p.add_argument("--mission", type=str, default=None, help="Run a specific mission")
-    run_p.add_argument("--repeats", type=int, default=1, help="Repeat all missions N times")
+    run_p.add_argument(
+        "--mission", type=str, default=None, help="Run a specific mission"
+    )
+    run_p.add_argument(
+        "--repeats", type=int, default=1, help="Repeat all missions N times"
+    )
     run_p.add_argument("--model", type=str, default="auto", help="Model ID to use")
     run_p.set_defaults(func=cmd_run)
 
