@@ -26,6 +26,7 @@ from typing import Any, Iterator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+from aios.probe_session import ProbeSession
 
 try:
     import requests
@@ -157,6 +158,18 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     return False, "unrecognized approval payload shape"
 
 
+#: One operator session for the whole run. Built lazily so `list`/`report`
+#: keep working without a live backend.
+_PROBE_SESSION: ProbeSession | None = None
+
+
+def _session() -> ProbeSession:
+    global _PROBE_SESSION
+    if _PROBE_SESSION is None:
+        _PROBE_SESSION = ProbeSession().bootstrap("Golden Mission Driver")
+    return _PROBE_SESSION
+
+
 def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
     tokens: list[str] = []
     approvals_granted: list[str] = []
@@ -169,7 +182,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             "sessionId": session_id,
             "approvalTokens": tokens,
         }
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        resp = _session().post_stream("/api/generate", body, TURN_TIMEOUT_S)
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False

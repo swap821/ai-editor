@@ -1,0 +1,33 @@
+
+============================================================
+[golden] repeat 1/1
+============================================================
+
+[golden] mission=tdd-workflow: Full TDD cycle: write failing test, implement, verify green
+  step 1/2: Create training_ground/test_calculator.py with pytest tests for a Calculator cla...
+    PASS: got=verified_failure expected=verified_failure
+  step 2/2: Create training_ground/calculator.py with the Calculator class implementing add,...
+    FAIL: got=error expected=verified_success
+  [FAILED] 2/2 steps in 196.2s
+
+[golden] mission=iterative-refinement: Build, test, find a bug, fix it — the debugging loop
+  step 1/2: Create training_ground/sorted_insert.py with a function sorted_insert(sorted_lis...
+    FAIL: got=error expected=verified_success
+  [FAILED] 1/2 steps in 160.6s
+
+[golden] mission=multi-module: Build two cooperating modules with integration test
+  step 1/2: Create training_ground/validator.py with a function validate_email(email) that r...
+    FAIL: got=verified_failure expected=verified_success
+  [FAILED] 1/2 steps in 212.1s
+
+[golden] mission=error-handling: Build robust error-handling code with comprehensive tests
+  step 1/1: Create training_ground/safe_json.py with functions safe_parse(text) that returns...
+    FAIL: got=rejected expected=verified_success
+  [FAILED] 1/1 steps in 96.7s
+
+[golden] mission=data-pipeline: Build a data transformation pipeline end-to-end
+  step 1/2: Create training_ground/pipeline.py with a Pipeline class that has add_step(fn) t...
+    FAIL: got=verified_failure expected=verified_success
+  [FAILED] 1/2 steps in 166.5s
+
+[golden] FINAL: 0/5 mission runs passed (0%)

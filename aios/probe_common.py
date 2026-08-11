@@ -7,12 +7,38 @@ policy for file writes and verifier commands.
 
 from __future__ import annotations
 
+import os
 import re
 
-from aios.config import PROBE_BASE
+from aios.config import API_TOKEN, PROBE_BASE
 
 #: Base URL for the GAGOS HTTP API, configurable via ``AIOS_PROBE_BASE``.
 BASE = PROBE_BASE
+
+
+def probe_headers() -> dict[str, str]:
+    """Headers every evidence driver needs to reach a SECURED backend.
+
+    These drivers were written when ``/api/generate`` was open. The API has
+    since required "a bearer token or a valid session, exact Origin, and
+    session-bound CSRF proof" for any mutation, and nobody re-ran the drivers
+    against it -- so organ 44's own production entrypoint could not execute at
+    all, and returned a bare 403 before reaching a single model.
+
+    The bearer token is the server-configured ``AIOS_API_TOKEN``. Read from the
+    live environment first and only then from the import-time config constant,
+    so a driver launched in the same shell as the server picks up the token
+    without the import order mattering. Never written to disk here.
+
+    Nothing is weakened: a driver that cannot authenticate is not more secure,
+    it is only unable to produce evidence.
+    """
+    headers = {"Origin": "http://localhost:5173", "Content-Type": "application/json"}
+    token = os.environ.get("AIOS_API_TOKEN") or API_TOKEN
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 #: Only bare .py files directly inside training_ground/ or lab/ may be written.
 ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$")
