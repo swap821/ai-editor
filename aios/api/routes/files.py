@@ -9,8 +9,38 @@ from aios import config
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
 from aios.security.scope_lock import is_path_in_scope
 from aios.api.action_guard import enforce_action_boundary
+from aios.api.deps import get_constitution_authority
+from aios.application.governance.constitution_authority import (
+    ConstitutionAuthority,
+)
 
-_enforcer = ConstitutionEnforcer()
+
+def _enforcer_for(authority: ConstitutionAuthority) -> ConstitutionEnforcer:
+    """Build an enforcer that honours the ACTIVE constitution snapshot.
+
+    This was a module-level singleton built at import time with no
+    snapshot, which meant two things: a ratified amendment could never
+    reach it (`amended_frozen_paths` was permanently empty), and even once
+    the parameter existed the value would have been frozen at boot.
+
+    So `activate_amendment` persisted a new constitution, and the gate that
+    decides whether a file may be edited went on consulting the one from
+    process start. The amendment mechanism was wired end to end except for
+    the last hop, which is the only hop a user can feel.
+
+    Per request, deliberately: the active snapshot changes when an operator
+    ratifies and activates one, and a cache here would reintroduce exactly
+    the staleness this replaces. Falls back to a snapshot-less enforcer if
+    the chain cannot be read, which is the pre-existing behaviour and is
+    strictly the more restrictive of the two (live config only, no
+    amendment-added freezes dropped -- amendments can only ADD).
+    """
+    try:
+        snapshot = authority.get_active_snapshot()
+    except Exception:  # pragma: no cover - defensive; chain not yet enrolled
+        snapshot = None
+    return ConstitutionEnforcer(snapshot=snapshot)
+
 
 router = APIRouter(tags=["Files"], dependencies=[Depends(enforce_action_boundary)])
 
@@ -92,7 +122,11 @@ from aios.runtime.cortex_bus import CortexBus
 
 
 @router.post("/api/v1/files/edit")
-def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_cortex_bus)):
+def edit_file(
+    req: EditFileRequest,
+    bus: Optional[CortexBus] = Depends(get_cortex_bus),
+    authority: ConstitutionAuthority = Depends(get_constitution_authority),
+):
     """Proposes diff, hits gate."""
     check = is_path_in_scope(req.path)
     if not check.in_scope:
@@ -116,7 +150,7 @@ def edit_file(req: EditFileRequest, bus: Optional[CortexBus] = Depends(get_corte
             bus.append(canonical)
         raise HTTPException(status_code=403, detail="File out of bounds")
 
-    decision = _enforcer.check_file_edit(req.path, actor="operator")
+    decision = _enforcer_for(authority).check_file_edit(req.path, actor="operator")
     if not decision.allowed:
         if bus:
             from aios.core.events import (
