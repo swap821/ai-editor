@@ -131,13 +131,19 @@ def test_edit_file_rejects_when_constitution_enforcer_blocks(client, scoped_work
 
     target = scoped_workspace / "gateway.py"
     target.write_text("# pretend security module", encoding="utf-8")
-    monkeypatch.setattr(
-        files_route._enforcer,
-        "check_file_edit",
-        lambda path, actor="worker": EnforcementDecision(
-            allowed=False, risk="RED", reason="frozen core path blocked", source="constitution"
-        ),
-    )
+    # The route builds its enforcer per request now, so that an amendment
+    # ratified after start-up can reach it -- the import-time singleton this
+    # used to patch could never see one. Patch the factory instead.
+    class _Blocking:
+        def check_file_edit(self, path, actor="worker"):
+            return EnforcementDecision(
+                allowed=False,
+                risk="RED",
+                reason="frozen core path blocked",
+                source="constitution",
+            )
+
+    monkeypatch.setattr(files_route, "_enforcer_for", lambda authority: _Blocking())
 
     resp = client.post(
         "/api/v1/files/edit",

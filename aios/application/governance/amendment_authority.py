@@ -38,6 +38,18 @@ class AmendmentError(RuntimeError):
 
 _OPEN_STATUSES = frozenset({"proposed", "critiqued", "simulated"})
 
+#: Fields that only a real ratification may write.
+_RATIFICATION_ONLY_FIELDS = frozenset(
+    {
+        "status",
+        "ratified_by_operator_id",
+        "ratification_capability_digest",
+        "ratified_changes_digest",
+        "activated_snapshot_digest",
+        "predecessor_snapshot_digest",
+    }
+)
+
 
 def propose_amendment(
     *,
@@ -53,6 +65,19 @@ def propose_amendment(
 ) -> ConstitutionalAmendmentProposalV1:
     """Models, humans, or workers may all propose -- a proposal has zero
     runtime effect until it is ratified and activated."""
+    # `**extra` is a convenience for optional descriptive fields (incident_refs,
+    # threat_model, changes...). It must never carry the fields that record a
+    # ratification: a caller could otherwise hand a brand-new proposal a
+    # `ratified_changes_digest`, which is a claim about an operator decision
+    # that has not happened. Activation independently refuses such a proposal
+    # today, but a field whose only honest source is `ratify_amendment` should
+    # not be settable by its caller at all.
+    forbidden = _RATIFICATION_ONLY_FIELDS.intersection(extra)
+    if forbidden:
+        raise AmendmentError(
+            f"{sorted(forbidden)} may only be set by ratify_amendment, "
+            "never supplied when proposing"
+        )
     return ConstitutionalAmendmentProposalV1(
         proposal_id=proposal_id,
         target_articles=target_articles,
@@ -300,6 +325,32 @@ def rollback_amendment(
     if proposal.status != "activated":
         raise AmendmentError(
             f"cannot roll back a proposal in status {proposal.status!r}"
+        )
+    # Rollback only applies to the amendment CURRENTLY in force.
+    #
+    # The predecessor check below confirms the target is this proposal's own
+    # predecessor, but said nothing about whether this proposal's activation is
+    # still the live one. So an older amendment could be rolled back while a
+    # newer snapshot was in force, and every change activated since would be
+    # silently discarded. Measured:
+    #
+    #   v3 live : ('aios/security/', 'aios/api/', 'aios/core/')
+    #   roll back the FIRST amendment
+    #   restored: ('aios/security/',)   -- 'aios/api/' and 'aios/core/' gone
+    #
+    # That is a protection-REDUCING outcome reached through a permitted
+    # operation, which is exactly what the v1 direction limit exists to
+    # prevent. Found by the self-run adversarial pass; the fourth campaign
+    # reported the same shape.
+    if (
+        proposal.activated_snapshot_digest is not None
+        and current_snapshot.snapshot_digest != proposal.activated_snapshot_digest
+    ):
+        raise AmendmentError(
+            "cannot roll back an amendment that is no longer in force: the live "
+            f"constitution is {current_snapshot.snapshot_digest[:12]}... but this "
+            f"proposal activated {proposal.activated_snapshot_digest[:12]}.... "
+            "Roll back the later amendments first."
         )
     if proposal.predecessor_snapshot_digest is not None:
         if previous_snapshot.snapshot_digest != proposal.predecessor_snapshot_digest:
