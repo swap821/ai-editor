@@ -26,6 +26,7 @@ from typing import Any, Iterator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+from aios.probe_session import ProbeSession
 
 try:
     import requests
@@ -157,6 +158,18 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     return False, "unrecognized approval payload shape"
 
 
+#: One operator session for the whole run. Built lazily so `list`/`report`
+#: keep working without a live backend.
+_PROBE_SESSION: ProbeSession | None = None
+
+
+def _session() -> ProbeSession:
+    global _PROBE_SESSION
+    if _PROBE_SESSION is None:
+        _PROBE_SESSION = ProbeSession().bootstrap("Golden Mission Driver")
+    return _PROBE_SESSION
+
+
 def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
     tokens: list[str] = []
     approvals_granted: list[str] = []
@@ -169,7 +182,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             "sessionId": session_id,
             "approvalTokens": tokens,
         }
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        resp = _session().post_stream("/api/generate", body, TURN_TIMEOUT_S)
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False
@@ -248,14 +261,48 @@ class GoldenMissionEnduranceAuthority:
             expected = step["expect"]
             step_passed = result["outcome"] == expected
 
-            steps_results.append({
+            # Persist WHY, not only WHAT.
+            #
+            # `run_prompt` already returns the diagnosis -- the `error` payload
+            # for a stream error, the `reason` an approval was refused, and the
+            # [VERIFY ...] evidence lines -- and this record used to keep only
+            # outcome/expected/passed and drop the rest.
+            #
+            # The cost was concrete: the first live cloud cohort scored 0/5
+            # across three different failure modes and the audit record could
+            # not say why any of them happened. A score you cannot debug is not
+            # a measurement, and an evaluation organ that discards its own
+            # diagnostics cannot be trusted to evaluate.
+            step_record: dict[str, Any] = {
                 "step": step_idx,
                 "outcome": result["outcome"],
                 "expected": expected,
                 "passed": step_passed,
-            })
+            }
+            if result.get("error") is not None:
+                step_record["error"] = result["error"]
+            if result.get("reason"):
+                step_record["reason"] = result["reason"]
+            if result.get("evidence"):
+                # The verifier's own verdict lines are the primary evidence for
+                # a verified_failure: they distinguish "the model wrote nothing"
+                # from "the model wrote code and its tests failed".
+                step_record["evidence"] = list(result["evidence"])
+            if result.get("approvals"):
+                step_record["approvals"] = list(result["approvals"])
+            steps_results.append(step_record)
+
             status = "PASS" if step_passed else "FAIL"
             print(f"    {status}: got={result['outcome']} expected={expected}")
+            # Surface the reason at the console too. A run that prints only
+            # "FAIL: got=error" sends the reader to the audit file for
+            # something the runner already knew.
+            detail = result.get("reason") or result.get("error")
+            if not step_passed and detail:
+                print(f"      why: {str(detail)[:300]}")
+            if not step_passed and result.get("evidence"):
+                for line in list(result["evidence"])[-2:]:
+                    print(f"      evidence: {str(line)[:300]}")
 
             if not step_passed:
                 mission_passed = False
