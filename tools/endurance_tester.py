@@ -309,6 +309,17 @@ def cmd_run(args: argparse.Namespace) -> None:
             "memory_mb": mem_mb,
             "elapsed_total_s": round(time.monotonic() - start_time, 1),
         }
+        # WHY a turn failed, not only that it did. `run_prompt` already returns
+        # the error payload, the rejection reason and the [VERIFY ...] lines,
+        # and this record used to drop all three -- so the first real endurance
+        # run produced "turn 0: error" and an audit row that could not say
+        # more. The golden runner had the identical gap (#214); a failure the
+        # log cannot explain sends the reader back to re-run a 30-minute test.
+        for key in ("error", "reason"):
+            if result.get(key):
+                turn_record[key] = result[key]
+        if result.get("evidence"):
+            turn_record["evidence"] = list(result["evidence"])
         log_event(turn_record)
 
         status = "OK" if result["outcome"] == "verified_success" else result["outcome"]
@@ -316,6 +327,11 @@ def cmd_run(args: argparse.Namespace) -> None:
         print(
             f"  turn {turn_idx}: {status} latency={elapsed:.1f}s mem={mem_mb or '?'}MB ({elapsed_min}m elapsed)"
         )
+        detail = result.get("error") or result.get("reason")
+        if detail:
+            print(f"      why: {detail}")
+        for line in list(result.get("evidence") or [])[-1:]:
+            print(f"      evidence: {line}")
 
         if result["outcome"] in ("error", "rejected", "truncated"):
             errors_consecutive += 1

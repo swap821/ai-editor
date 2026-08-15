@@ -107,6 +107,93 @@ def test_an_auth_failure_stops_the_run_instead_of_scoring_zero(monkeypatch) -> N
         endurance.run_prompt("anything", "session-1")
 
 
+class _Resp:
+    """Minimal stand-in for a streamed requests.Response."""
+
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+    def json(self) -> dict:
+        return {}
+
+
+def _session_with(statuses: list[int], reauth_status: int = 200):
+    """A ProbeSession whose POSTs return `statuses` in order."""
+    from aios.probe_session import ProbeSession
+
+    session = ProbeSession()
+    session._credential = "credential-from-enrollment"
+    sent: list[str] = []
+
+    def _post_stream(url, **kwargs):
+        sent.append(url)
+        return _Resp(statuses.pop(0))
+
+    def _post_auth(path, payload, timeout=30):
+        sent.append(path)
+        return _Resp(reauth_status)
+
+    session.http.post = _post_stream  # type: ignore[method-assign]
+    session._post = _post_auth  # type: ignore[method-assign]
+    return session, sent
+
+
+def test_an_expired_privileged_window_is_refreshed_and_the_call_retried() -> None:
+    """The defect that killed the first 30-minute endurance run.
+
+    `aios/application/identity/service.py` records the reauthentication event
+    with `expires_at = now + 900`, so privileged access lapses after 15
+    minutes. The endurance harness defaults to a 30-MINUTE run and died at
+    turn 6 with `401 Unauthorized for url: /api/generate` -- it could never
+    once have completed its own default duration.
+    """
+    session, sent = _session_with([401, 200])
+
+    response = session.post_stream("/api/generate", {}, 10)
+
+    assert response.status_code == 200
+    assert any("/api/v1/auth/reauth" in s for s in sent), (
+        "a 401 must trigger a re-authentication, not just a blind retry"
+    )
+
+
+def test_a_real_401_still_surfaces() -> None:
+    """The refresh is not a way to make 401s disappear.
+
+    If re-authentication does not restore access the failure is genuine and
+    must reach the caller. Swallowing it would turn a broken credential into
+    an infinite retry, or into a silent run of failed turns -- the same class
+    of dishonesty as an unauthenticated driver scoring zero.
+    """
+    session, _ = _session_with([401, 401], reauth_status=200)
+    assert session.post_stream("/api/generate", {}, 10).status_code == 401
+
+
+def test_only_one_retry_is_attempted() -> None:
+    """Exactly one, so a persistent 401 cannot spin."""
+    session, sent = _session_with([401, 401], reauth_status=200)
+    session.post_stream("/api/generate", {}, 10)
+    assert sum(1 for s in sent if "/api/generate" in s) == 2
+
+
+def test_a_failed_reauthentication_does_not_retry() -> None:
+    """No credential, or a refused refresh, means the 401 stands as-is."""
+    session, sent = _session_with([401, 200], reauth_status=403)
+    assert session.post_stream("/api/generate", {}, 10).status_code == 401
+    assert sum(1 for s in sent if "/api/generate" in s) == 1
+
+
+def test_a_healthy_call_never_reauthenticates() -> None:
+    """The refresh is exceptional. A 200 must cost exactly one request."""
+    session, sent = _session_with([200])
+    assert session.post_stream("/api/generate", {}, 10).status_code == 200
+    assert not any("reauth" in s for s in sent)
+
+
 def test_the_session_is_built_once_and_reused(monkeypatch) -> None:
     """One operator session per run, not one per turn.
 
