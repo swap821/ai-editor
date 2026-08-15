@@ -412,6 +412,16 @@ jobs:
           chmod 0777 data data/executor-workspaces
           export AIOS_DOCKER_SOCKET_GID="$(stat -c '%g' /var/run/docker.sock)"
           export AIOS_EXECUTOR_HOST_WORKSPACE_ROOT="$(pwd)/data/executor-workspaces"
+          # Build the disposable workload image the executor launches per job.
+          # It is NOT a service -- it sits behind the `build-only` profile and
+          # is never started here -- so a plain `compose up executor` skips it
+          # and every job then dies on "image not found". That is exactly how
+          # this job broke: AIOS_CONTAINER_IMAGE used to default to
+          # `aios-executor:local`, which this step already built by accident,
+          # so repointing it at its own image left CI referencing an image
+          # nothing built. `tests/test_release_conformance.py` now pins the
+          # rule so the next repoint fails in review, not on master.
+          docker compose --profile build-only build worker
           # Keep only the lightweight privileged service resident. The
           # control-plane proof below runs as a one-shot container so CI does
           # not need a second Python interpreter inside the live API process.
