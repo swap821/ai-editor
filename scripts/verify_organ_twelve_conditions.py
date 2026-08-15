@@ -474,7 +474,7 @@ def _evidence_reference_failures(
                         f"cited test {path}::{test_name} did not execute in this run",
                     )
                 )
-            elif test_name not in outcome.get("passed_names", ()):
+            elif not _proof_ran_and_passed(outcome, test_name):
                 failures.append(
                     ("C10", f"cited test {path}::{test_name} did not run and pass")
                 )
@@ -511,6 +511,50 @@ def _referenced_test_files(records) -> set[str]:
                 if path.endswith(".py") and (REPO_ROOT / path).exists():
                     referenced.add(path)
     return referenced
+
+
+def _proof_ran_and_passed(outcome: dict, test_name: str) -> bool:
+    """Did the cited test run and pass -- including when it is parametrized?
+
+    The bug this closes
+    -------------------
+    Both proof checks asked ``test_name not in outcome["passed_names"]``, an
+    exact membership test. pytest never records a parametrized test under its
+    bare name: ``test_x`` decorated with three cases appears as
+    ``test_x[case0]``, ``test_x[case1]``, ``test_x[case2]``. So a citation
+    naming a parametrized test could NEVER be discharged, no matter how
+    thoroughly it passed, and the organ silently joined the proof-gap set.
+
+    That is what took master's release-authority job down. Organ 46 went green
+    in #213 citing
+    ``test_applicable_amendments.py::test_changes_swapped_after_ratification_are_refused``
+    for C4 -- three parametrized cases, all passing. The gate scored it
+    unproven, the gap count went 46 -> 47, and the condition-proof ratchet
+    correctly refused a regression it had been handed by a measurement error.
+
+    Why this does not lower the bar
+    -------------------------------
+    A parametrized test that passes IS an executed, passing proof; crediting it
+    is the gate finally asking the question it always claimed to ask. The bar
+    is if anything RAISED: a parametrized proof counts only when NO case of it
+    failed, so citing a test whose fifth case is red no longer half-counts.
+
+    Deliberately narrow: ``test_x`` matches ``test_x`` and ``test_x[...]``, and
+    nothing else. It does not prefix-match sibling tests -- ``test_x`` must not
+    be discharged by ``test_x_and_more`` passing.
+    """
+    passed = outcome.get("passed_names", ())
+    bracket = f"{test_name}["
+
+    def _matches(name: str) -> bool:
+        return name == test_name or name.startswith(bracket)
+
+    if not any(_matches(name) for name in passed):
+        return False
+    # `failed_names` is capped by the collector, so this cannot be the ONLY
+    # guard -- but where a failure IS recorded it must veto the citation
+    # outright rather than let a passing sibling case launder it.
+    return not any(_matches(name) for name in outcome.get("failed_names", ()))
 
 
 def _condition_proof_failures(
@@ -588,7 +632,7 @@ def _condition_proof_failures(
                 failures.append(
                     (cond, f"proof {path}::{test_name} did not execute in this run")
                 )
-            elif test_name not in outcome.get("passed_names", ()):
+            elif not _proof_ran_and_passed(outcome, test_name):
                 failures.append(
                     (cond, f"proof {path}::{test_name} did not run and pass")
                 )
