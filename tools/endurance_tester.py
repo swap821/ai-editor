@@ -15,11 +15,11 @@ The harness collects per-turn metrics (latency, outcome, memory) and flags
 degradation patterns. A run is "green" when >=80% of turns verify successfully
 and p95 latency stays within 2x of the initial baseline.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -29,6 +29,7 @@ from typing import Any, Iterator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+from aios.probe_session import ProbeSession
 from tools.golden_mission_runner import GoldenMissionEnduranceAuthority
 
 try:
@@ -46,35 +47,59 @@ MAX_REPLAYS = 10
 ENDURANCE_PROMPTS = [
     {
         "prompt": "Create training_ground/endurance_a.py with a function reverse_string(s) that returns s reversed. Then create training_ground/test_endurance_a.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_a.py", "training_ground/test_endurance_a.py"],
+        "files": [
+            "training_ground/endurance_a.py",
+            "training_ground/test_endurance_a.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_b.py with a function flatten(nested_list) that recursively flattens a nested list into a single list. Then create training_ground/test_endurance_b.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_b.py", "training_ground/test_endurance_b.py"],
+        "files": [
+            "training_ground/endurance_b.py",
+            "training_ground/test_endurance_b.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_c.py with a function is_palindrome(s) that checks if a string reads the same forwards and backwards, ignoring case and non-alphanumeric characters. Then create training_ground/test_endurance_c.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_c.py", "training_ground/test_endurance_c.py"],
+        "files": [
+            "training_ground/endurance_c.py",
+            "training_ground/test_endurance_c.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_d.py with a function merge_sorted(list1, list2) that merges two sorted lists into one sorted list without using the built-in sort. Then create training_ground/test_endurance_d.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_d.py", "training_ground/test_endurance_d.py"],
+        "files": [
+            "training_ground/endurance_d.py",
+            "training_ground/test_endurance_d.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_e.py with a function count_vowels(text) that returns the number of vowels (a,e,i,o,u case-insensitive) in the text. Then create training_ground/test_endurance_e.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_e.py", "training_ground/test_endurance_e.py"],
+        "files": [
+            "training_ground/endurance_e.py",
+            "training_ground/test_endurance_e.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_f.py with a function chunk_list(items, size) that splits a list into chunks of the given size. The last chunk may be smaller. Then create training_ground/test_endurance_f.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_f.py", "training_ground/test_endurance_f.py"],
+        "files": [
+            "training_ground/endurance_f.py",
+            "training_ground/test_endurance_f.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_g.py with a function deep_get(d, path, default=None) that retrieves a nested dict value using a dot-separated path, returning default if any key is missing. Then create training_ground/test_endurance_g.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_g.py", "training_ground/test_endurance_g.py"],
+        "files": [
+            "training_ground/endurance_g.py",
+            "training_ground/test_endurance_g.py",
+        ],
     },
     {
         "prompt": "Create training_ground/endurance_h.py with a function retry(fn, max_attempts=3) that calls fn() and returns its result, retrying up to max_attempts times if it raises an exception. If all attempts fail, re-raise the last exception. Then create training_ground/test_endurance_h.py with pytest tests. Then verify that the tests pass.",
-        "files": ["training_ground/endurance_h.py", "training_ground/test_endurance_h.py"],
+        "files": [
+            "training_ground/endurance_h.py",
+            "training_ground/test_endurance_h.py",
+        ],
     },
 ]
 
@@ -98,9 +123,9 @@ def parse_sse(resp: requests.Response) -> Iterator[tuple[str, dict[str, Any]]]:
                 yield event, payload
             event, data_lines = None, []
         elif raw.startswith("event:"):
-            event = raw[len("event:"):].strip()
+            event = raw[len("event:") :].strip()
         elif raw.startswith("data:"):
-            data_lines.append(raw[len("data:"):].strip())
+            data_lines.append(raw[len("data:") :].strip())
     if event is not None and data_lines:
         yield event, json.loads("\n".join(data_lines))
 
@@ -110,16 +135,48 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     if inp.get("creations"):
         paths = [str(c.get("filepath", "")) for c in inp["creations"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"create {paths}" if not bad else f"creation outside allowlist: {bad}")
+        return (
+            not bad,
+            f"create {paths}" if not bad else f"creation outside allowlist: {bad}",
+        )
     if inp.get("edits"):
         paths = [str(e.get("filepath", "")) for e in inp["edits"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"edit {paths}" if not bad else f"edit outside allowlist: {bad}")
+        return (
+            not bad,
+            f"edit {paths}" if not bad else f"edit outside allowlist: {bad}",
+        )
     if inp.get("commands"):
         cmds = [str(c) for c in inp["commands"]]
         bad = [c for c in cmds if not ALLOWED_CMD_RE.match(c)]
-        return (not bad, f"run {cmds}" if not bad else f"command outside allowlist: {bad}")
+        return (
+            not bad,
+            f"run {cmds}" if not bad else f"command outside allowlist: {bad}",
+        )
     return False, "unrecognized approval payload shape"
+
+
+#: One operator session for the whole run. Built lazily so `report`/`health`
+#: keep working without a live backend.
+#:
+#: Until now this module posted to /api/generate with no headers, no session,
+#: no CSRF and no 428 capability replay -- so endurance, which is HALF of organ
+#: 44 ("Golden Mission and Endurance Evaluation"), could never have executed a
+#: single turn. The golden runner hit the same wall and `aios/probe_session.py`
+#: was written to solve it; this reuses that rather than growing a second auth
+#: path to drift out of sync.
+_PROBE_SESSION: ProbeSession | None = None
+
+
+def _session() -> ProbeSession:
+    global _PROBE_SESSION
+    if _PROBE_SESSION is None:
+        # bootstrap() raises ProbeAuthError rather than inventing a credential.
+        # That is deliberate and must stay: a run that cannot authenticate has
+        # to fail loudly, because the alternative is a 30-minute endurance run
+        # scoring every turn as a failure and reporting it as a model result.
+        _PROBE_SESSION = ProbeSession().bootstrap("Endurance Test Driver")
+    return _PROBE_SESSION
 
 
 def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
@@ -134,7 +191,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             "sessionId": session_id,
             "approvalTokens": tokens,
         }
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        # post_stream carries the operator session + CSRF and replays the 428
+        # capability challenge, which a bare requests.post cannot do.
+        resp = _session().post_stream("/api/generate", body, TURN_TIMEOUT_S)
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False
@@ -142,7 +201,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
         for event, data in parse_sse(resp):
             if event == "step":
                 output = str(data.get("output", ""))
-                if output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")):
+                if output.startswith(
+                    ("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")
+                ):
                     evidence.append(output)
             elif event == "human_required":
                 paused = data
@@ -153,14 +214,20 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 finished = True
 
         if finished and paused is None:
-            counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+            counted = [
+                e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
+            ]
             if not counted:
                 outcome = "unverified"
             elif counted[-1].startswith("[VERIFY PASS]"):
                 outcome = "verified_success"
             else:
                 outcome = "verified_failure"
-            return {"outcome": outcome, "approvals": approvals_granted, "evidence": evidence}
+            return {
+                "outcome": outcome,
+                "approvals": approvals_granted,
+                "evidence": evidence,
+            }
 
         if paused is None:
             return {"outcome": "truncated", "evidence": evidence}
@@ -187,6 +254,7 @@ def reset_files(files: list[str]) -> None:
 def get_process_memory_mb() -> float | None:
     try:
         import resource
+
         usage = resource.getrusage(resource.RUSAGE_SELF)
         return usage.ru_maxrss / 1024
     except (ImportError, AttributeError):
@@ -202,8 +270,14 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"  cooldown between turns: {cooldown_s}s")
     print(f"  model: {model_id}")
 
-    log_event({"kind": "endurance-start", "duration_minutes": args.duration_minutes,
-               "cooldown_s": cooldown_s, "model": model_id})
+    log_event(
+        {
+            "kind": "endurance-start",
+            "duration_minutes": args.duration_minutes,
+            "cooldown_s": cooldown_s,
+            "model": model_id,
+        }
+    )
 
     start_time = time.monotonic()
     turn_idx = 0
@@ -214,7 +288,9 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     while (time.monotonic() - start_time) < duration_s:
         task = ENDURANCE_PROMPTS[turn_idx % len(ENDURANCE_PROMPTS)]
-        session_id = f"endurance-t{turn_idx}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
+        session_id = (
+            f"endurance-t{turn_idx}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
+        )
 
         reset_files(task["files"])
         t0 = time.monotonic()
@@ -237,14 +313,22 @@ def cmd_run(args: argparse.Namespace) -> None:
 
         status = "OK" if result["outcome"] == "verified_success" else result["outcome"]
         elapsed_min = round((time.monotonic() - start_time) / 60, 1)
-        print(f"  turn {turn_idx}: {status} latency={elapsed:.1f}s mem={mem_mb or '?'}MB ({elapsed_min}m elapsed)")
+        print(
+            f"  turn {turn_idx}: {status} latency={elapsed:.1f}s mem={mem_mb or '?'}MB ({elapsed_min}m elapsed)"
+        )
 
         if result["outcome"] in ("error", "rejected", "truncated"):
             errors_consecutive += 1
             if errors_consecutive >= max_consecutive_errors:
                 print(f"[endurance] ABORT: {max_consecutive_errors} consecutive errors")
-                log_event({"kind": "endurance-abort", "reason": "consecutive_errors",
-                           "turn": turn_idx, "errors": errors_consecutive})
+                log_event(
+                    {
+                        "kind": "endurance-abort",
+                        "reason": "consecutive_errors",
+                        "turn": turn_idx,
+                        "errors": errors_consecutive,
+                    }
+                )
                 break
         else:
             errors_consecutive = 0
@@ -295,7 +379,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"  success rate: {success_rate} (threshold: 0.80)")
     print(f"  latency p50={p50:.1f}s p95={p95:.1f}s baseline_p95={baseline_p95:.1f}s")
     print(f"  latency stable: {latency_stable} (p95 <= 2x baseline)")
-    print(f"  duration: {round(total_elapsed/60, 1)} minutes")
+    print(f"  duration: {round(total_elapsed / 60, 1)} minutes")
 
 
 def cmd_report(_: argparse.Namespace) -> None:
@@ -317,8 +401,10 @@ def cmd_report(_: argparse.Namespace) -> None:
     print(f"[endurance] {len(summaries)} completed runs:")
     for i, s in enumerate(summaries, 1):
         status = "GREEN" if s["green"] else "RED"
-        print(f"  run {i}: {status} turns={s['turns']} rate={s['success_rate']} "
-              f"p95={s['latency_p95_s']}s duration={round(s['duration_actual_s']/60,1)}m")
+        print(
+            f"  run {i}: {status} turns={s['turns']} rate={s['success_rate']} "
+            f"p95={s['latency_p95_s']}s duration={round(s['duration_actual_s'] / 60, 1)}m"
+        )
 
     greens = sum(1 for s in summaries if s["green"])
     print(f"\n  overall: {greens}/{len(summaries)} green runs")
@@ -342,8 +428,12 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command")
 
     run_p = sub.add_parser("run", help="Run endurance test")
-    run_p.add_argument("--duration-minutes", type=int, default=30, help="Run duration in minutes")
-    run_p.add_argument("--cooldown-s", type=int, default=5, help="Seconds between turns")
+    run_p.add_argument(
+        "--duration-minutes", type=int, default=30, help="Run duration in minutes"
+    )
+    run_p.add_argument(
+        "--cooldown-s", type=int, default=5, help="Seconds between turns"
+    )
     run_p.add_argument("--model", type=str, default="auto", help="Model ID to use")
     run_p.set_defaults(func=cmd_run)
 
