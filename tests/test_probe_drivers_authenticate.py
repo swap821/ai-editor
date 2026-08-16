@@ -237,6 +237,74 @@ def test_a_failed_reauthentication_does_not_retry() -> None:
     assert sum(1 for s in sent if "/api/generate" in s) == 1
 
 
+def test_stale_capability_tokens_are_dropped_from_the_retry() -> None:
+    """The 400 that truncated three long organ-44 runs.
+
+    A capability is bound to the PRINCIPAL that requested it. Logging in again
+    mints a NEW session, so a token issued to the old one fails its binding.
+    Reproduced against the live API by issuing an approval, expiring the
+    privileged window, then replaying:
+
+        400 {"detail":"invalid approval token: capability binding mismatch"}
+
+    Replaying the identical body after a refresh is therefore guaranteed to fail
+    whenever an approval was in flight -- which is why every simpler
+    reproduction recovered cleanly: they all carried no tokens.
+
+    Dropping them is fail-safe: without a token the route re-issues its 428 and
+    the caller's approval loop obtains a fresh capability bound to the new
+    session. Carrying the dead token forward is the only option that cannot work.
+    """
+    from aios.probe_session import ProbeSession
+
+    session = ProbeSession()
+    session._credential = "credential-from-enrollment"
+    statuses = [401, 200]
+    bodies: list[dict] = []
+
+    def _post_stream(url, **kwargs):
+        bodies.append(kwargs.get("json") or {})
+        return _Resp(statuses.pop(0))
+
+    session.http.post = _post_stream  # type: ignore[method-assign]
+    session._post = lambda path, payload, timeout=30: _Resp(200)  # type: ignore[method-assign]
+
+    payload = {"messages": [], "approvalTokens": ["cap-bound-to-dead-session"]}
+    session.post_stream("/api/generate", payload, 10)
+
+    assert len(bodies) == 2, "expected an original send and one retry"
+    assert bodies[0]["approvalTokens"] == ["cap-bound-to-dead-session"], (
+        "the FIRST attempt must still carry the token -- it is valid until the "
+        "session is replaced"
+    )
+    assert bodies[1]["approvalTokens"] == [], (
+        "the retry replayed a capability bound to the session the refresh just "
+        "replaced; the server answers 400 capability binding mismatch"
+    )
+    assert payload["approvalTokens"] == ["cap-bound-to-dead-session"], (
+        "the caller's payload was mutated -- the runner reuses that dict across "
+        "its own replay loop"
+    )
+
+
+def test_a_retry_without_tokens_is_left_alone() -> None:
+    """No needless copying when there is nothing stale to drop."""
+    from aios.probe_session import ProbeSession
+
+    session = ProbeSession()
+    session._credential = "c"
+    statuses = [401, 200]
+    bodies: list[dict] = []
+    session.http.post = lambda url, **kw: (  # type: ignore[method-assign]
+        bodies.append(kw.get("json") or {}),
+        _Resp(statuses.pop(0)),
+    )[1]
+    session._post = lambda path, payload, timeout=30: _Resp(200)  # type: ignore[method-assign]
+
+    session.post_stream("/api/generate", {"messages": [], "approvalTokens": []}, 10)
+    assert bodies[1]["approvalTokens"] == []
+
+
 def test_a_healthy_call_never_reauthenticates() -> None:
     """The refresh is exceptional. A 200 must cost exactly one request."""
     session, sent = _session_with([200])

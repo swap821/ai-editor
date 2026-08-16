@@ -184,7 +184,9 @@ class ProbeSession:
         the server on every request.
         """
 
-        def _send(extra: dict[str, str] | None = None):
+        def _send(
+            extra: dict[str, str] | None = None, body: dict[str, Any] | None = None
+        ):
             headers = {**probe_headers(), "Host": API_HOST_HEADER}
             csrf = self.http.cookies.get("csrf_token")
             if csrf:
@@ -193,18 +195,47 @@ class ProbeSession:
                 headers.update(extra)
             return self.http.post(
                 f"{self.base}{path}",
-                json=payload,
+                json=payload if body is None else body,
                 headers=headers,
                 stream=True,
                 timeout=timeout,
             )
 
+        def _without_stale_capabilities(body: dict[str, Any]) -> dict[str, Any]:
+            """Drop approvalTokens minted for the session we just replaced.
+
+            A capability is bound to the PRINCIPAL that requested it
+            (``_generate_capability_binding`` in the turn pipeline). Logging in
+            again mints a NEW session, so a token issued to the old one fails
+            its binding and the server answers::
+
+                400 {"detail":"invalid approval token: capability binding mismatch"}
+
+            Replaying the identical body after a refresh is therefore guaranteed
+            to fail whenever an approval was in flight -- which is exactly what
+            truncated three long organ-44 runs, and why every simpler
+            reproduction recovered cleanly: they all carried no tokens.
+
+            Dropping them is FAIL-SAFE and self-healing. It cannot grant
+            anything: without a token the route re-issues its 428 challenge, and
+            the caller's normal approval loop obtains a fresh capability bound to
+            the new session. Carrying the dead token forward is the only option
+            that cannot work.
+            """
+            if not body.get("approvalTokens"):
+                return body
+            return {**body, "approvalTokens": []}
+
         response = _send()
         if response.status_code == 401 and self._reauthenticate():
             # Exactly one retry. If the refresh did not restore access the 401
             # is real and must surface, not be retried into a hang.
+            #
+            # The retry drops any approvalTokens: they were bound to the session
+            # the refresh just replaced, and replaying them yields a guaranteed
+            # 400 rather than the recovery this path exists to provide.
             response.close()
-            response = _send()
+            response = _send(body=_without_stale_capabilities(payload))
         if response.status_code != CAPABILITY_CHALLENGE:
             return response
 
