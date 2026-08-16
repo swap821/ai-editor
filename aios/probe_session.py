@@ -134,15 +134,32 @@ class ProbeSession:
         return self
 
     def _reauthenticate(self) -> bool:
-        """Refresh the privileged reauthentication event. True if it took.
+        """Re-establish the session AND the privileged window. True if it took.
 
         A ``reauthentication`` event is recorded with ``expires_at = now + 900``
         (``aios/application/identity/service.py``), so privileged access lapses
         15 minutes after bootstrap. That is a real control and is NOT to be
         widened; the correct client behaviour when it lapses is to authenticate
         again, which is what the real UI does.
+
+        LOGIN FIRST, and that ordering is the whole fix. Calling only
+        ``/api/v1/auth/reauth`` looks sufficient and is not: by the time the
+        privileged window has lapsed the SESSION has usually lapsed with it, so
+        reauth is itself rejected. The first version of this method did exactly
+        that and the endurance harness still died at turn 6; the backend log
+        showed the attempt and its refusal on consecutive lines::
+
+            POST /api/generate        401 Unauthorized
+            POST /api/v1/auth/reauth  401 Unauthorized
+
+        ``login`` mints a fresh session cookie, and only then can ``reauth``
+        grant the privileged window on it -- the same two steps, in the same
+        order, that :meth:`bootstrap` performs.
         """
         if not self._credential:
+            return False
+        login = self._post("/api/v1/auth/login", {"credential": self._credential})
+        if login.status_code != 200:
             return False
         reauth = self._post("/api/v1/auth/reauth", {"credential": self._credential})
         return reauth.status_code == 200

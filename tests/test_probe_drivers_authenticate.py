@@ -121,8 +121,19 @@ class _Resp:
         return {}
 
 
-def _session_with(statuses: list[int], reauth_status: int = 200):
-    """A ProbeSession whose POSTs return `statuses` in order."""
+def _session_with(
+    statuses: list[int],
+    reauth_status: int = 200,
+    login_status: int = 200,
+):
+    """A ProbeSession whose POSTs return `statuses` in order.
+
+    `login_status` and `reauth_status` are separate on purpose. The first
+    version of these tests returned one status for every auth call, so it could
+    not tell login from reauth -- and passed against a refresh that called only
+    reauth, which the live run then proved insufficient. A mock that cannot
+    distinguish the two steps cannot guard their ordering.
+    """
     from aios.probe_session import ProbeSession
 
     session = ProbeSession()
@@ -135,11 +146,50 @@ def _session_with(statuses: list[int], reauth_status: int = 200):
 
     def _post_auth(path, payload, timeout=30):
         sent.append(path)
+        if "login" in path:
+            return _Resp(login_status)
         return _Resp(reauth_status)
 
     session.http.post = _post_stream  # type: ignore[method-assign]
     session._post = _post_auth  # type: ignore[method-assign]
     return session, sent
+
+
+def test_the_refresh_logs_in_before_reauthenticating() -> None:
+    """The ordering that the first fix got wrong.
+
+    Calling only `/api/v1/auth/reauth` looks sufficient and is not: once the
+    privileged window has lapsed the session has usually lapsed with it, so
+    reauth is itself refused. The endurance harness died at turn 6 twice, and
+    the backend log showed the refusal directly:
+
+        POST /api/generate        401 Unauthorized
+        POST /api/v1/auth/reauth  401 Unauthorized
+
+    Login mints a fresh session; only then can reauth grant the window on it.
+    """
+    session, sent = _session_with([401, 200])
+    session.post_stream("/api/generate", {}, 10)
+
+    auth = [s for s in sent if "/auth/" in s]
+    assert auth, "no authentication was attempted on a 401"
+    assert "login" in auth[0], f"expected login first, got {auth}"
+    assert any("reauth" in s for s in auth), (
+        "login alone leaves the privileged window unopened -- reauth must follow"
+    )
+    assert auth.index([s for s in auth if "login" in s][0]) < auth.index(
+        [s for s in auth if "reauth" in s][0]
+    ), "reauth ran before login; that is the exact ordering bug this pins"
+
+
+def test_a_refused_login_stops_the_refresh() -> None:
+    """If the credential itself is rejected, do not go on to reauth."""
+    session, sent = _session_with([401, 200], login_status=401)
+    assert session.post_stream("/api/generate", {}, 10).status_code == 401
+    assert not any("reauth" in s for s in sent), (
+        "reauth was attempted after login failed -- it cannot succeed and the "
+        "extra call only obscures the real error"
+    )
 
 
 def test_an_expired_privileged_window_is_refreshed_and_the_call_retried() -> None:
