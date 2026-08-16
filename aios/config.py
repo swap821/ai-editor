@@ -337,7 +337,29 @@ BEDROCK_ENABLED: Final[bool] = bool(BEDROCK_REGION and BEDROCK_MODEL)
 GEMINI_PROJECT: Final[str] = _env_str("AIOS_GEMINI_PROJECT", "")
 GEMINI_LOCATION: Final[str] = _env_str("AIOS_GEMINI_LOCATION", "us-central1")
 GEMINI_MODEL: Final[str] = _env_str("AIOS_GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_MAX_TOKENS: Final[int] = _env_int("AIOS_GEMINI_MAX_TOKENS", 1024)
+#: Output budget for Gemini. 8192, not 1024, because the 2.5 models THINK.
+#:
+#: `max_output_tokens` on Gemini 2.5 covers thinking tokens AND visible output,
+#: and 2.5-pro cannot turn thinking off. Measured against the live API at the
+#: old default of 1024, same prompt, four trials:
+#:
+#:     finish_reason=MAX_TOKENS  thoughts=~980  visible_output=~39 tokens
+#:
+#: The model spent ~96% of its budget reasoning and was cut off mid-sentence
+#: with ~137 characters of usable text. Downstream that arrives as a turn that
+#: did nothing -- no tool call, no answer -- which is exactly the failure organ
+#: 44's golden cohort kept recording (2 of 4 failures in the 2026-08-16 run).
+#:
+#: At 8192 the same prompt finishes cleanly: finish_reason=STOP, 2528 thinking
+#: tokens, 1430 output tokens, ~5000 characters of real answer.
+#:
+#: Capping thinking instead (thinking_budget=128) also frees output, but still
+#: truncated at 1024 and it spends the operator's quality for a budget that was
+#: never the constraint. Raise the ceiling; leave the model's reasoning alone.
+GEMINI_MAX_TOKENS: Final[int] = _env_int("AIOS_GEMINI_MAX_TOKENS", 8192)
+#: 0 means "send no thinking_config at all" -- the model's own default applies.
+#: For 2.5-pro that is dynamic thinking and CANNOT be disabled, which is why
+#: the output budget above has to accommodate it rather than assume it away.
 GEMINI_THINKING_BUDGET: Final[int] = _env_int("AIOS_GEMINI_THINKING_BUDGET", 0)
 GEMINI_ENABLED: Final[bool] = bool(GEMINI_PROJECT and GEMINI_MODEL)
 

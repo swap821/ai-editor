@@ -144,6 +144,43 @@ def _coerce_args(raw: Any) -> dict[str, Any]:
         return {}
 
 
+def _warn_if_truncated(candidate: Any, response: Any) -> None:
+    """Log when the model was cut off, instead of returning silence.
+
+    `finish_reason` was checked NOWHERE in this codebase, so a response cut off
+    at `max_output_tokens` arrived downstream as an ordinary short answer -- or,
+    when thinking consumed the whole budget, as nothing at all.
+
+    That silence is what made the underlying defect expensive: organ 44's golden
+    cohort recorded turns that "did nothing", and four hypotheses were tested and
+    rejected before the live API was asked directly and answered
+    `finish_reason=MAX_TOKENS, thoughts=980, output=39`.
+
+    Best-effort only: a malformed or faked response must never break a chat
+    call, so every read is guarded and nothing here can raise.
+    """
+    try:
+        reason = str(getattr(candidate, "finish_reason", "") or "")
+        if "MAX_TOKENS" not in reason.upper():
+            return
+        usage = getattr(response, "usage_metadata", None)
+        logger.warning(
+            "gemini_response_truncated",
+            extra={
+                "finish_reason": reason,
+                "thinking_tokens": getattr(usage, "thoughts_token_count", None),
+                "output_tokens": getattr(usage, "candidates_token_count", None),
+                "hint": (
+                    "raise AIOS_GEMINI_MAX_TOKENS -- on Gemini 2.5 the output "
+                    "budget covers thinking AND visible output, and 2.5-pro "
+                    "cannot disable thinking"
+                ),
+            },
+        )
+    except Exception:  # noqa: BLE001 - diagnostics must never break a call
+        return
+
+
 def _parse_output(response: Any) -> dict[str, Any]:
     """Map a Gemini response back to the agent's Ollama-style assistant message.
 
@@ -156,6 +193,7 @@ def _parse_output(response: Any) -> dict[str, Any]:
         return {"role": "assistant", "content": ""}
     content = getattr(candidates[0], "content", None)
     parts = (getattr(content, "parts", None) or []) if content is not None else []
+    _warn_if_truncated(candidates[0], response)
 
     text = ""
     tool_calls: list[dict[str, Any]] = []
@@ -204,11 +242,25 @@ def _stream_from_gemini(chunks: Any) -> Iterator[str | StreamFinished]:
     tool_calls: list[dict[str, Any]] = []
 
     for chunk in chunks or []:
+        # NOTE: no `continue` after emitting text.
+        #
+        # This used to short-circuit the moment `chunk.text` was truthy, which
+        # silently DROPPED any function_call riding in the same chunk -- Gemini
+        # is free to put prose and a tool call in one chunk, and `.text`
+        # concatenates only the text parts (the SDK even warns: "there are
+        # non-text parts in the response: ['function_call'], returning
+        # concatenated text result from text parts").
+        #
+        # The result was a turn that appeared to answer while never calling the
+        # tool it had asked for. Falling through to the parts loop below costs
+        # nothing -- it re-reads the same text guarded by `if t` -- and the
+        # `seen_text` flag keeps that text from being emitted twice.
         text = getattr(chunk, "text", None)
+        seen_text = False
         if text:
             text_parts.append(str(text))
             yield str(text)
-            continue
+            seen_text = True
         # Parse full chunk for both text and function_calls
         candidates = getattr(chunk, "candidates", None) or []
         if not candidates:
@@ -217,7 +269,7 @@ def _stream_from_gemini(chunks: Any) -> Iterator[str | StreamFinished]:
         parts = (getattr(content, "parts", None) or []) if content is not None else []
         for part in parts:
             t = getattr(part, "text", None)
-            if t:
+            if t and not seen_text:
                 text_parts.append(str(t))
                 yield str(t)
             fc = getattr(part, "function_call", None)
