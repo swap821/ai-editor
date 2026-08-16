@@ -59,9 +59,21 @@ def finish_stream(
     then — for the first fenced block — a series of growing ``code_chunk`` events
     (incremental reveal) followed by the final ``code`` event, and a ``done``.
     """
+    # A blank answer still gets a visible placeholder, but it is FLAGGED.
+    #
+    # Without the flag the placeholder is indistinguishable from a real reply
+    # one layer up: an empty turn appears to have spoken, having written and
+    # verified nothing. That is how a model returning nothing reached organ 44's
+    # golden cohort as `unverified` with no trace of the cause. `placeholder`
+    # lets the turn pipeline tell "the model said nothing" from "the model
+    # answered", without it having to string-match this text.
+    placeholder = not content.strip()
     text = content.strip() or "(no answer)"
     for word in re.findall(r"\S+\s*", text):
-        yield {"type": "text", "text": word}
+        event: dict[str, Any] = {"type": "text", "text": word}
+        if placeholder:
+            event["placeholder"] = True
+        yield event
     match = code_fence.search(text)
     if match:
         code = match.group(2).rstrip("\n")
