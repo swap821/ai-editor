@@ -133,29 +133,85 @@ class ProbeSession:
             raise ProbeAuthError("no session cookie was set by the server")
         return self
 
+    def _reauthenticate(self) -> bool:
+        """Re-establish the session AND the privileged window. True if it took.
+
+        A ``reauthentication`` event is recorded with ``expires_at = now + 900``
+        (``aios/application/identity/service.py``), so privileged access lapses
+        15 minutes after bootstrap. That is a real control and is NOT to be
+        widened; the correct client behaviour when it lapses is to authenticate
+        again, which is what the real UI does.
+
+        LOGIN FIRST, and that ordering is the whole fix. Calling only
+        ``/api/v1/auth/reauth`` looks sufficient and is not: by the time the
+        privileged window has lapsed the SESSION has usually lapsed with it, so
+        reauth is itself rejected. The first version of this method did exactly
+        that and the endurance harness still died at turn 6; the backend log
+        showed the attempt and its refusal on consecutive lines::
+
+            POST /api/generate        401 Unauthorized
+            POST /api/v1/auth/reauth  401 Unauthorized
+
+        ``login`` mints a fresh session cookie, and only then can ``reauth``
+        grant the privileged window on it -- the same two steps, in the same
+        order, that :meth:`bootstrap` performs.
+        """
+        if not self._credential:
+            return False
+        login = self._post("/api/v1/auth/login", {"credential": self._credential})
+        if login.status_code != 200:
+            return False
+        reauth = self._post("/api/v1/auth/reauth", {"credential": self._credential})
+        return reauth.status_code == 200
+
     # -- requests ----------------------------------------------------------
     def post_stream(self, path: str, payload: dict[str, Any], timeout: int):
-        """POST with the session, replaying a capability challenge once.
+        """POST with the session, refreshing auth and replaying a challenge.
 
         A YELLOW route answers 428 with an opaque token instead of running the
         handler. Replaying the identical request with that token is the real
         two-request protocol, not a workaround -- the token is server-issued
         and bound to this session.
+
+        A 401 is handled separately and for a different reason. The privileged
+        reauthentication window is 900 seconds, so ANY driver running longer
+        than 15 minutes loses access mid-run. The endurance harness defaults to
+        a 30-minute run and died at turn 6 with
+        ``401 Unauthorized for url: /api/generate`` -- it could never once have
+        completed its own default duration. Re-authenticating with the
+        credential this session already holds is the documented flow, not a
+        bypass: the window still expires on schedule and is still enforced by
+        the server on every request.
         """
+
+        def _send(extra: dict[str, str] | None = None):
+            headers = {**probe_headers(), "Host": API_HOST_HEADER}
+            csrf = self.http.cookies.get("csrf_token")
+            if csrf:
+                headers["X-CSRF-Token"] = csrf
+            if extra:
+                headers.update(extra)
+            return self.http.post(
+                f"{self.base}{path}",
+                json=payload,
+                headers=headers,
+                stream=True,
+                timeout=timeout,
+            )
+
+        response = _send()
+        if response.status_code == 401 and self._reauthenticate():
+            # Exactly one retry. If the refresh did not restore access the 401
+            # is real and must surface, not be retried into a hang.
+            response.close()
+            response = _send()
+        if response.status_code != CAPABILITY_CHALLENGE:
+            return response
+
         headers = {**probe_headers(), "Host": API_HOST_HEADER}
         csrf = self.http.cookies.get("csrf_token")
         if csrf:
             headers["X-CSRF-Token"] = csrf
-
-        response = self.http.post(
-            f"{self.base}{path}",
-            json=payload,
-            headers=headers,
-            stream=True,
-            timeout=timeout,
-        )
-        if response.status_code != CAPABILITY_CHALLENGE:
-            return response
 
         try:
             token = (response.json().get("detail") or {}).get("approvalToken")
