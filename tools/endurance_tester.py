@@ -25,6 +25,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -251,14 +252,60 @@ def reset_files(files: list[str]) -> None:
             target.unlink()
 
 
-def get_process_memory_mb() -> float | None:
-    try:
-        import resource
+#: Why memory could not be sampled, or None while it is working. Recorded once
+#: in the run summary so an absent measurement is stated rather than implied.
+_MEMORY_UNAVAILABLE_REASON: str | None = None
 
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        return usage.ru_maxrss / 1024
-    except (ImportError, AttributeError):
+
+def get_process_memory_mb() -> float | None:
+    """Resident memory of the BACKEND process, in MB.
+
+    Two defects, and the second was the serious one:
+
+    1. It used ``resource``, which does not exist on Windows -- the operator's
+       platform. Every turn of the first real endurance run recorded
+       ``memory_mb: None``, and "memory stability (no OOM / leak under sustained
+       load)" is one of the four things this harness advertises. A metric that
+       reports None forever looks like data until somebody checks.
+
+    2. Even where ``resource`` exists it read ``RUSAGE_SELF`` -- the memory of
+       the TEST DRIVER, not of GAGOS. A green memory-stability result from that
+       would have measured the wrong process entirely, which is worse than
+       measuring nothing: the number would have looked real.
+
+    Now it resolves the process actually listening on the API port and samples
+    that, reusing the approach `tools/learning_loop_prover.py` already uses for
+    staleness rather than growing a second way to find the server.
+
+    Returns None only when sampling genuinely fails, and records WHY in
+    ``_MEMORY_UNAVAILABLE_REASON`` so the run can say so instead of quietly
+    emitting nulls.
+    """
+    global _MEMORY_UNAVAILABLE_REASON
+    port = urlparse(BASE).port or 8000
+    try:
+        import psutil
+    except ImportError:
+        _MEMORY_UNAVAILABLE_REASON = "psutil is not installed"
         return None
+    try:
+        for conn in psutil.net_connections(kind="tcp"):
+            if (
+                conn.laddr
+                and conn.laddr.port == port
+                and conn.status == "LISTEN"
+                and conn.pid
+            ):
+                rss = psutil.Process(conn.pid).memory_info().rss
+                _MEMORY_UNAVAILABLE_REASON = None
+                return round(rss / (1024 * 1024), 1)
+    except Exception as exc:  # noqa: BLE001 - permission denied etc: stay honest
+        _MEMORY_UNAVAILABLE_REASON = f"{type(exc).__name__}: {exc}"
+        return None
+    _MEMORY_UNAVAILABLE_REASON = (
+        f"no process is LISTENing on port {port}; is the backend running?"
+    )
+    return None
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -283,6 +330,11 @@ def cmd_run(args: argparse.Namespace) -> None:
     turn_idx = 0
     latencies: list[float] = []
     outcomes: list[str] = []
+    #: Per-turn backend RSS. Sampled before, but only ever written to the turn
+    #: record and then discarded, so no run could report growth or a peak --
+    #: the "memory stability" claim had nothing behind it even when sampling
+    #: worked.
+    memory_readings: list[float | None] = []
     errors_consecutive = 0
     max_consecutive_errors = 5
 
@@ -300,6 +352,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         latencies.append(elapsed)
         outcomes.append(result["outcome"])
         mem_mb = get_process_memory_mb()
+        memory_readings.append(mem_mb)
 
         turn_record = {
             "kind": "endurance-turn",
@@ -388,6 +441,18 @@ def cmd_run(args: argparse.Namespace) -> None:
         "latency_stable": latency_stable,
         "green": green,
     }
+    # Memory stability is one of the four things this harness advertises. When
+    # it could not be sampled the run must SAY so -- the first real endurance
+    # run emitted `memory_mb: None` on all 18 turns and reported nothing about
+    # it, which reads as "measured and fine" rather than "not measured".
+    memory_samples = [m for m in memory_readings if m is not None]
+    if memory_samples:
+        summary["memory_mb_first"] = memory_samples[0]
+        summary["memory_mb_last"] = memory_samples[-1]
+        summary["memory_mb_peak"] = max(memory_samples)
+        summary["memory_growth_mb"] = round(memory_samples[-1] - memory_samples[0], 1)
+    else:
+        summary["memory_unavailable"] = _MEMORY_UNAVAILABLE_REASON or "unknown"
     log_event(summary)
 
     print(f"\n[endurance] {'GREEN' if green else 'RED'}")
@@ -395,6 +460,14 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"  success rate: {success_rate} (threshold: 0.80)")
     print(f"  latency p50={p50:.1f}s p95={p95:.1f}s baseline_p95={baseline_p95:.1f}s")
     print(f"  latency stable: {latency_stable} (p95 <= 2x baseline)")
+    if memory_samples:
+        print(
+            f"  backend memory: {memory_samples[0]}MB -> {memory_samples[-1]}MB "
+            f"(peak {max(memory_samples)}MB, growth "
+            f"{round(memory_samples[-1] - memory_samples[0], 1)}MB)"
+        )
+    else:
+        print(f"  backend memory: NOT MEASURED — {summary['memory_unavailable']}")
     print(f"  duration: {round(total_elapsed / 60, 1)} minutes")
 
 
