@@ -963,6 +963,12 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     answer_parts: list[str] = []
     workflow_steps: list[str] = []
     blocked_actions = 0
+    #: Did the MODEL produce anything this turn -- a tool call, prose, or code?
+    #:
+    #: Deliberately not `answer_parts`, which also carries the system's own
+    #: alignment notice. A turn that emits only that notice looks like it spoke
+    #: and did not: the notice is ours, not the model's.
+    model_produced_output = False
     verification_evidence: list[str] = []
     verify_verdicts: dict[str, str] = {}
     #: Per-target verification strength (parallel to the verdict dicts), so the
@@ -1285,6 +1291,11 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     swarm_plan: Optional[list[str]] = None
     for ev in _safe_iter(event_source):
         kind = ev["type"]
+        if kind in ("tool_call", "text", "code") and not ev.get("placeholder"):
+            # `placeholder` marks the "(no answer)" stand-in the tool loop emits
+            # for a blank reply. It is display text, not something the model
+            # said, and counting it would let an empty turn pass for a real one.
+            model_produced_output = True
         if kind in ("tool_call", "text", "code", "done", "human_required"):
             # A model produced output (or the turn is ending) -> the failover
             # client now names the model that ACTUALLY served. Announce (or
@@ -1522,6 +1533,43 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             _record_telemetry(telemetry.OUTCOME_ABORTED)
             yield sse("human_required", payload)
         elif kind == "done":
+            # A turn where the model produced NOTHING is a failure, and until
+            # now it was reported as `done` -- a success-shaped terminal event
+            # indistinguishable downstream from a completed turn.
+            #
+            # Observed shape (raw SSE of a real failing turn, all 9 events):
+            #
+            #   turn.started -> plan -> query_knowledge -> query_skills
+            #                -> alignment notice -> route -> done
+            #
+            # It routes to the model and ends. No tool call, no prose, no code.
+            # A successful turn goes route -> create_file -> ... -> VERIFY PASS.
+            #
+            # Downstream this became `unverified` (auto-verify only fires after
+            # a write), and organ 44's golden cohort lost missions to it with
+            # NOTHING in the audit trail saying the model returned nothing. The
+            # failure was invisible by construction: there is no error to
+            # record, only an absence. Four hypotheses were tested and rejected
+            # before the cause was seen -- stale files, a mis-framing SSE
+            # parser, position in the cohort, accumulated memory -- because
+            # every diagnostic built for failing turns needs a failure to
+            # attach to.
+            #
+            # Naming it converts a silent no-op into a diagnosable one. The
+            # stream still closes normally with `done` after -- this ADDS a
+            # statement, it does not swallow the turn or retry it.
+            if not model_produced_output:
+                yield sse(
+                    "error",
+                    {
+                        "text": (
+                            "The model produced no output this turn -- no tool "
+                            "call, no answer, no code. Nothing was written and "
+                            "nothing was verified. This is a failed turn, not a "
+                            "completed one; retry the request."
+                        )
+                    },
+                )
             # 4. Persist the answer (L2) and consolidate the turn into L3.
             answer = "".join(answer_parts)
             _record_episode(
