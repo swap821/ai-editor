@@ -1256,6 +1256,12 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 "execute_terminal",
                 "edit_file",
                 "create_file",
+                # Resolved into an `edit_file` call before dispatch, so it adds
+                # no write path and no new approval kind -- but it IS a verb the
+                # model is offered, and a tool absent from the declared set
+                # would be exactly the quiet inconsistency this contract exists
+                # to prevent.
+                "overwrite_file",
                 "verify",
                 "browse",
                 "plan",

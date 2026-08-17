@@ -299,6 +299,43 @@ TOOL_SPECS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "overwrite_file",
+            "description": (
+                "Replace the ENTIRE body of an existing sandbox file with new "
+                "content. Use this to modify a file when you cannot reproduce an "
+                "exact snippet for edit_file -- supply the complete new file, not "
+                "a fragment. Shows a unified diff of every change and pauses for "
+                "human approval before writing, exactly like edit_file. Refuses a "
+                "file that does not exist (use create_file). Confined to the "
+                "sandbox playground (training_ground/)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {
+                        "type": "string",
+                        "description": (
+                            "Project-relative path of the EXISTING file to replace "
+                            "(e.g. training_ground/pipeline.py). Must be inside the "
+                            "sandbox playground (training_ground/)."
+                        ),
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "The COMPLETE new text body of the file. Everything not "
+                            "included here is removed, so carry forward any existing "
+                            "code you still want -- read the file first."
+                        ),
+                    },
+                },
+                "required": ["filepath", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "verify",
             "description": (
                 "Run a verification command (e.g. the test suite) to confirm the "
@@ -1088,6 +1125,36 @@ class ToolAgent:
                 name = str(function.get("name", ""))
                 required_tools.discard(name)
                 args: dict[str, Any] = _coerce_args(function.get("arguments"))
+
+                # An overwrite IS an edit whose old_string is the file's current
+                # body, so resolve it into one HERE, before anything downstream
+                # sees it. Everything past this point -- the approval payload
+                # builder, the replay that applies `approved_edits`, earned
+                # autonomy, note_progress, and the forced auto-verify -- keys off
+                # the tool NAME, and each of them already handles `edit_file`.
+                # Translating at the boundary means none of them needs to learn a
+                # third write verb, and there is no second gated write path to
+                # drift out of step with the first.
+                if name == "overwrite_file":
+                    resolved_args, refusal = self._overwrite_as_edit(args)
+                    if refusal is not None:
+                        yield {
+                            "type": "tool_call",
+                            "tool": name,
+                            "input": args,
+                            "id": f"{name}-{index}",
+                        }
+                        yield {
+                            "type": "tool_blocked",
+                            "tool": name,
+                            "reason": refusal[:_PREVIEW_LIMIT],
+                            "id": f"{name}-{index}",
+                        }
+                        convo.append(
+                            {"role": "tool", "content": refusal[:_TOOL_RESULT_LIMIT]}
+                        )
+                        continue
+                    name, args = "edit_file", resolved_args
                 call_id = f"{name}-{index}"
 
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
@@ -1620,6 +1687,10 @@ class ToolAgent:
                 str(args.get("filepath", "")),
                 str(args.get("content", "")),
             )
+        # No `overwrite_file` branch on purpose: `run()` resolves it into an
+        # `edit_file` call before dispatch, so this method never sees the name.
+        # A branch here would be dead code that silently diverged from the
+        # translation -- two write paths again.
         if name == "verify":
             return self._verify(str(args.get("command", "")))
         if name == "browse":
@@ -1707,6 +1778,43 @@ class ToolAgent:
             approved_creations=self.approved_creations,
             snapshot=self.snapshot,
             audit=self._audit,
+        )
+
+    def _overwrite_as_edit(
+        self, args: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
+        """Resolve ``overwrite_file`` args into ``edit_file`` args.
+
+        Returns ``(edit_args, None)`` on success, or ``({}, refusal)`` when the
+        request cannot become an edit. Grants nothing: the resulting edit still
+        pauses for the approval ``edit_file`` has always required, and the human
+        still sees a full unified diff of every line that changes.
+
+        Refusals are the ones `edit_file` could not express for itself: a file
+        that does not exist (that is `create_file`'s job, and creating one here
+        would dodge its approval preview) and content identical to what is
+        already on disk (nothing to approve, and a no-op should say what remains
+        rather than pause).
+        """
+        filepath = str(args.get("filepath", ""))
+        content = str(args.get("content", ""))
+        resolved = tool_handlers.resolve_sandbox_file(
+            filepath, read_root=self.read_root
+        )
+        if isinstance(resolved, str):
+            return {}, resolved
+        try:
+            current = resolved.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return {}, f"[ERROR] Could not read {filepath}: {exc}"
+        if current == content:
+            return {}, (
+                f"{filepath} already contains exactly that content; nothing to "
+                f"write.{tool_handlers.next_step_after_noop(resolved)}"
+            )
+        return (
+            {"filepath": filepath, "old_string": current, "new_string": content},
+            None,
         )
 
     def _verify(self, command: str, *, approved: bool = False) -> tuple[str, str, bool]:
