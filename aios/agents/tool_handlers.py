@@ -181,7 +181,26 @@ def edit_file(
                 "noop",
                 False,
             )
-        return (f"[ERROR] old_string not found in {filepath}.", "blocked", False)
+        # Name the way out. This is the single most common write failure in
+        # organ 44's cohort -- 7 of 10 `unverified` steps -- and it happens
+        # because the model reconstructs the file from memory instead of from
+        # what it read. Captured from a real run, it offered
+        # `def __init__(self, steps: List[...])` for a file whose actual line is
+        # `def __init__(self):`. Re-reading does not fix that; it re-read and
+        # hallucinated again.
+        #
+        # "not found" alone leaves only the option that already failed. The
+        # alternative does not need an exact match at all, so it is stated here,
+        # at the moment the model is choosing what to try next.
+        return (
+            f"[ERROR] old_string not found in {filepath}. It must match the file "
+            "byte-for-byte, including indentation -- do not retype it from "
+            "memory. Either read_file and copy an exact snippet, or call "
+            f"overwrite_file with the COMPLETE new body of {filepath}, which "
+            "needs no snippet match.",
+            "blocked",
+            False,
+        )
     if occurrences > 1:
         return (
             f"[ERROR] old_string is not unique in {filepath} "
@@ -230,6 +249,35 @@ def edit_file(
     except Exception as exc:  # noqa: BLE001 - report write failures cleanly
         return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
     return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
+
+
+def resolve_sandbox_file(filepath: str, *, read_root: Path):
+    """Return the sandbox Path for an EXISTING file, or a refusal string.
+
+    Shared by the overwrite translation so it refuses exactly what the write
+    handlers refuse -- root escape, out-of-scope, and not-a-file -- with the
+    same wording, instead of growing a second, subtly different gate.
+    """
+    if _resolve_within(read_root, filepath) is None:
+        return f"[BLOCKED] Path '{filepath}' escapes the project root."
+    scope = scope_lock.is_path_in_scope(str(read_root / filepath))
+    if not scope.in_scope:
+        roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
+        return (
+            f"[BLOCKED] '{filepath}' is outside the editable sandbox scope ({roots})."
+        )
+    target = Path(scope.resolved)
+    if not target.is_file():
+        return (
+            f"[ERROR] {filepath} does not exist; use create_file to author a new "
+            "file (overwrite_file only replaces an existing one)."
+        )
+    return target
+
+
+def next_step_after_noop(target: Path) -> str:
+    """Public alias -- see :func:`_next_step_after_noop`."""
+    return _next_step_after_noop(target)
 
 
 def _next_step_after_noop(target: Path) -> str:
