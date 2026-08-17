@@ -53,12 +53,19 @@ numpy==2.4.6
 packaging==26.3
 pluggy==1.6.0
 pydantic==2.13.4
-# Held at 2.46.4 deliberately: pydantic 2.13.4 pins `pydantic-core==2.48.0`
-# exactly, and no released pydantic yet pairs with 2.48.0 (checked every
-# release through 2.13.4). Dependabot bumped this transitive pin on its own,
-# which makes the requirements file unresolvable -- CI failed at pip install
-# with ResolutionImpossible before a single test ran. Bump it only together
-# with the pydantic release that requires it.
+# Held at 2.46.4 by pydantic, NOT by preference: pydantic 2.13.4 -- the latest
+# release -- pins `pydantic-core==2.46.4` EXACTLY, so any other value makes the
+# file unresolvable and CI dies at pip install with ResolutionImpossible before
+# a single test runs.
+#
+# (This comment previously said pydantic pins 2.48.0, which is backwards and
+# made the paragraph contradict its own first line. Re-checked against PyPI:
+# pydantic 2.13.4 requires pydantic-core==2.46.4.)
+#
+# Dependabot proposed 2.48.0 anyway -- twice -- because it cannot see an exact
+# transitive pin from a parent it is bumping independently. Now ignored in
+# .github/dependabot.yml. Bump this only together with the pydantic release
+# that requires it.
 pydantic_core==2.46.4
 Pygments==2.20.0
 pytest==9.1.1
