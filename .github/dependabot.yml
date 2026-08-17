@@ -28,6 +28,13 @@ updates:
       # each time. Lift when transformers widens the range.
       - dependency-name: "tokenizers"
         versions: [">0.23.0"]
+      # pydantic 2.13.4 -- the latest release -- pins `pydantic-core==2.46.4`
+      # EXACTLY. Dependabot cannot see an exact transitive pin from a parent it
+      # is bumping independently, so it has proposed 2.48.0 twice; both times
+      # the install died with ResolutionImpossible before a single test ran.
+      # Lift together with the pydantic release that requires a newer core.
+      - dependency-name: "pydantic-core"
+        versions: [">2.46.4"]
     groups:
       python-minor-patch:
         patterns:
