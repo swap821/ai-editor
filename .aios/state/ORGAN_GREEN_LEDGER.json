@@ -53,7 +53,8 @@
     ],
     "integration_tests": [
       "tests/adversarial/test_sandbox_escape.py",
-      "tests/test_spine_invariants.py"
+      "tests/test_spine_invariants.py",
+      "tests/adversarial/test_control_consistency.py"
     ],
     "live_evidence": [
       {
