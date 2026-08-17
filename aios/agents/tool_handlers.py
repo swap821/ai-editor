@@ -15,7 +15,6 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Optional
 
-from aios import config
 from aios.agents.self_analysis_agent import SelfAnalysisAgent
 from aios.core.planner import Planner, PlannerError
 from aios.security import scope_lock
@@ -178,7 +177,7 @@ def edit_file(
             # gone) means there is nothing left to write or approve.
             return (
                 f"{filepath} already contains the requested replacement; "
-                "nothing to change.",
+                f"nothing to change.{_next_step_after_noop(target)}",
                 "noop",
                 False,
             )
@@ -231,6 +230,36 @@ def edit_file(
     except Exception as exc:  # noqa: BLE001 - report write failures cleanly
         return (f"[ERROR] Could not write {filepath}: {exc}", "blocked", False)
     return (f"Edited {filepath}:\n{scrubbed}", "ok", False)
+
+
+def _next_step_after_noop(target: Path) -> str:
+    """Name what is still outstanding for an already-correct Python file.
+
+    A no-op write is the loop's own signal that the file is finished, and
+    "nothing to write" gives the model nowhere to go. Auto-verify already knows
+    the rule that decides whether the change can be verified at all -- a
+    sibling ``test_<stem>.py`` -- so the same rule is stated here, at the moment
+    the model is deciding what to do next.
+
+    Returns "" when there is nothing useful to add: a non-Python file, or a
+    sibling test that already exists (in which case verification will run and
+    speak for itself), or any filesystem error. Never raises -- a hint must not
+    be able to fail a write path.
+    """
+    try:
+        if target.suffix != ".py" or target.stem.startswith("test_"):
+            return ""
+        sibling = target.with_name(f"test_{target.stem}.py")
+        if sibling.exists():
+            return ""
+        return (
+            f" This change is UNVERIFIED and will stay that way until "
+            f"{sibling.name} exists: create {sibling.name} next to it with "
+            f"tests covering this change. Do NOT re-write {target.name} -- it "
+            "is already exactly as requested."
+        )
+    except OSError:
+        return ""
 
 
 def create_file(
@@ -291,9 +320,24 @@ def create_file(
             # "noop" (not "ok") so the loop reports success without forcing
             # a redundant re-verification: auto-verify exists to verify a
             # write that LANDED, and nothing changed on disk here.
+            # "nothing to write" is TRUE and it is a dead end, which is the
+            # same shape #215 fixed for the no-sibling-test note: the loop
+            # knows what remains and does not say it, so the model repeats the
+            # write it just made.
+            #
+            # Measured on organ 44's error-handling mission: the model wrote
+            # safe_json.py, was told "[VERIFY SKIPPED] no sibling test", and
+            # then re-issued create_file for safe_json.py FIVE more times --
+            # burning every remaining iteration on a file that was already
+            # correct, never creating the test, and ending the turn
+            # `unverified`. The loop detector cannot catch it because the
+            # calls are not identical (the content argument varies), and a
+            # noop is not "progress" to clear the window either.
+            #
+            # So the reply now names the one thing actually outstanding.
             return (
                 f"{filepath} already exists with exactly the requested "
-                "content; nothing to write.",
+                f"content; nothing to write.{_next_step_after_noop(target)}",
                 "noop",
                 False,
             )
@@ -380,7 +424,6 @@ def verify_command(
     Verifier recorded no lesson) so the caller can SURFACE an already-recorded
     lesson as a tool-loop step without recording it a second time.
     """
-    from aios.core.verifier import VerifierResult  # local to avoid import cycles
 
     is_approved = approved or command in approved_commands
     result = verifier.verify(
