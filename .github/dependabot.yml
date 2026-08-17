@@ -8,6 +8,26 @@ updates:
       time: "03:00"
       timezone: "Asia/Kolkata"
     open-pull-requests-limit: 3
+    ignore:
+      # radon 6.0.1 (the latest release) requires `mando >=0.6,<0.8`, so any
+      # bump to 0.8.x makes requirements.txt unresolvable and every backend job
+      # dies at `pip install` with ResolutionImpossible -- before a single test
+      # runs. Dependabot cannot see that constraint because mando is pinned
+      # directly here as well as pulled in by radon.
+      #
+      # Lift this the moment a radon release accepts mando 0.8.
+      - dependency-name: "mando"
+        versions: [">=0.8"]
+      # sympy 1.14.0 (the latest release) requires `mpmath >=1.1.0,<1.4`.
+      # Identical shape to mando/radon: the bump resolves to nothing and takes
+      # the whole install down. Lift when sympy accepts mpmath 1.4.
+      - dependency-name: "mpmath"
+        versions: [">=1.4"]
+      # transformers 5.15.0 requires `tokenizers >=0.22.0,<=0.23.0`. A grouped
+      # bump has pushed past that ceiling three times now and broken install
+      # each time. Lift when transformers widens the range.
+      - dependency-name: "tokenizers"
+        versions: [">0.23.0"]
     groups:
       python-minor-patch:
         patterns:
