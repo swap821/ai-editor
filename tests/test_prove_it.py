@@ -17,6 +17,13 @@ import cost, not this test's own work), so the number of subprocess-driving
 scenarios below is deliberately kept to four (one clean + three sabotage) to
 stay well under the 60s budget -- see the comment above the parametrize list.
 
+That 60s is the EXPECTED total on a warm machine, and is a different thing from
+``_PROVE_IT_TIMEOUT_S`` below, which is the per-run failure bound. The bound has
+to tolerate the slowest CI platform (Windows runners are several times slower on
+this shape of work) while still being short enough to catch a genuine hang.
+Conflating the two is what produced a 45s bound and two TimeoutExpired CI
+failures.
+
 Two things are asserted:
 1. The clean run's checklist is INTERNALLY HONEST: steps 1-5 (BOOT, DIRECTIVE,
    SUPERVISION, APPROVAL, ACTION) genuinely PROVE against the real app today,
