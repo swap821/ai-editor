@@ -62,10 +62,25 @@ def enabled_ledger(tmp_memory_db):
 class TestAutonomyFailClosed:
     """TC-SEC-550 through TC-SEC-553: Fail-closed when disabled."""
 
-    def test_autonomy_enabled_by_default(self):
-        """TC-SEC-550: EARNED_AUTONOMY_ENABLED is True (wonder phase active)."""
-        assert config.EARNED_AUTONOMY_ENABLED is True, \
-            "Earned autonomy is ON by default (wonder phase); disable with AIOS_EARNED_AUTONOMY=false"
+    def test_autonomy_disabled_by_default(self):
+        """TC-SEC-550: EARNED_AUTONOMY_ENABLED is False — Invariant II.
+
+        This asserted True until 2026-08-17, calling it "wonder phase active".
+        That was a real decision, not a slip -- but it put the code in conflict
+        with `aios/core/autonomy.py` ("It is OFF by default; supervision stays the
+        norm"), AGENTS.md, and the cortex-core-fusion ADR, all of which said OFF.
+
+        Resolved toward Invariant II: "intelligence never grants itself
+        authority", which earned autonomy contradicts by construction when it is
+        on without anyone asking. The feature is unchanged and still gated by its
+        evidence floor; wonder phase is now an explicit opt-in
+        (AIOS_EARNED_AUTONOMY=1) rather than the default posture.
+        """
+        assert config.EARNED_AUTONOMY_ENABLED is False, (
+            "Earned autonomy must be OFF by default -- it authorises a write with "
+            "no human in the loop, which is exactly what Invariant II forbids. "
+            "Enable deliberately with AIOS_EARNED_AUTONOMY=1."
+        )
 
     def test_is_earned_returns_false_when_disabled(self, ledger):
         """TC-SEC-551: is_earned() must return False when feature disabled."""

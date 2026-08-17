@@ -28,6 +28,23 @@ from aios import config
 #: ``foo;/etc/passwd``) becomes its own word and is scope-checked as the escape
 #: it is. Newlines are already handled by shlex's whitespace split.
 _SHELL_OPS = re.compile(r"[;|&<>`]+")
+#: A scheme-bearing token (``https://``, ``git@``-style ``ssh://``, ``file://``).
+#: Deliberately NOT a filesystem path -- see :func:`_looks_like_path`. Requires
+#: ``//`` so a Windows drive (``C:\\x``) is still treated as the path it is.
+_URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*://")
+
+#: Commands exempt from the sandbox scope check by EXACT string identity.
+#:
+#: Exactly one entry, and it must stay that way: the §VIII self-apply verify
+#: suite, which by design runs the project's own tests against a proposed change
+#: to `aios/`. Its boundary is identity-pinning plus container-only execution
+#: (`aios/api/deps.py` raises on any other command), not the training_ground
+#: sandbox. Duplicated as a literal rather than imported to keep this frozen
+#: module free of an application-layer dependency; a test asserts the two never
+#: drift.
+#:
+#: Do not add patterns here. A pattern is a hole; an exact string is a fact.
+_SCOPE_EXEMPT_COMMANDS = frozenset({".venv/Scripts/python -m pytest tests/ -q"})
 
 
 @dataclass(frozen=True)
@@ -66,6 +83,19 @@ def _looks_like_path(token: str) -> bool:
     has a drive prefix (``C:``). Bare words (``pip``, ``flask``) are not paths and
     are skipped, so a command argument can't be mistaken for one.
     """
+    # A URL is not a filesystem path, and scope-checking it produces a
+    # meaningless answer that depends on the resolution base rather than on
+    # anything about the request. `https://github.com/x/y.git` used to resolve
+    # under the scope root and pass; once command tokens began resolving against
+    # the executor's real cwd it resolved outside and failed. Both verdicts were
+    # accidents of arithmetic, and the second silently turned `git clone` from
+    # CAUTION into RED as a side effect of a containment fix.
+    #
+    # Network reach is a POLICY question (see the network patterns in
+    # `gateway.py`), not a containment one. Skipping schemes here keeps the two
+    # decisions separate, so tightening one cannot quietly move the other.
+    if _URL_SCHEME.match(token):
+        return False
     if "/" in token or "\\" in token:
         return True
     if token.startswith(".."):
@@ -159,18 +189,52 @@ class ScopeLockAuthority:
         with self._lock:
             return tuple(self._scope_roots)
 
-    def is_path_in_scope(self, candidate: str) -> ScopeResult:
+    def command_cwd(self) -> Path:
+        """The directory a sandboxed command actually runs in.
+
+        MUST stay identical to ``Executor._scope_cwd()``. The executor runs with
+        cwd = the scope root's PARENT so ``training_ground`` is importable as a
+        package, and a relative path token in a command is therefore resolved by
+        the shell against that parent -- not against the scope root.
+
+        Resolving the CHECK against a different base than the EXECUTION is a
+        containment escape, not a cosmetic mismatch. See
+        :meth:`is_path_in_scope`.
+        """
+        roots = self.get_scope_roots()
+        return roots[0].resolve().parent if roots else Path.cwd()
+
+    def is_path_in_scope(
+        self, candidate: str, *, base: Optional[Path] = None
+    ) -> ScopeResult:
         """Resolve *candidate* and check it against every declared scope root.
 
-        Relative paths are resolved against the primary (first) scope root.
-        Fail-closed: any resolution error yields ``in_scope=False``.
+        Relative paths resolve against *base*, defaulting to the primary scope
+        root. Fail-closed: any resolution error yields ``in_scope=False``.
+
+        ``base`` exists because the default is WRONG for command tokens, and was
+        a real escape. The executor runs commands with cwd = the scope root's
+        parent (the repo root), so a token like ``training_ground/../X`` was:
+
+            CHECKED  as (training_ground / "training_ground/../X")
+                     -> <repo>/training_ground/X        -- in scope, allowed
+            EXECUTED as (<repo> / "training_ground/../X")
+                     -> <repo>/X                        -- outside every root
+
+        Measured before the fix: ``touch training_ground/../PROOF_ESCAPE.txt``
+        classified YELLOW -- one operator approval away from writing outside the
+        sandbox, including over ``aios/security/gateway.py`` and the audit DB.
+
+        Callers passing an ABSOLUTE path (the file tools do) are unaffected:
+        pathlib lets an absolute right-hand side override the base entirely.
         """
         try:
             if not candidate or not isinstance(candidate, str):
                 return ScopeResult(False, "", "Empty or invalid path (fail-closed).")
 
             roots = self.get_scope_roots()
-            base = roots[0] if roots else Path.cwd()
+            if base is None:
+                base = roots[0] if roots else Path.cwd()
             raw = Path(candidate)
             # Join relative paths onto the primary root; absolute/drive-rooted paths
             # override the base per pathlib semantics (which is what we want — they
@@ -203,6 +267,25 @@ class ScopeLockAuthority:
         ``~`` home reference is refused outright. Returns at the first offending word;
         fail-closed (unbalanced quotes fall back to a whitespace split).
         """
+        # The §VIII self-apply verify suite is exempt, by EXACT string identity.
+        #
+        # It is the one command that legitimately runs repo-wide: it executes the
+        # project's own test suite against a proposed change to `aios/`. The
+        # sandbox is not its boundary, and never was -- `aios/api/deps.py` refuses
+        # ANY other command outright (`if command != DEFAULT_VERIFY_COMMAND:
+        # raise`), it is container-only, and self_apply adds no-self-approval,
+        # RED-target refusal, single-file diff confinement and auto-rollback.
+        # Exact-match identity on one fixed string is a stronger control than
+        # path scoping, and it cannot be widened or parameterised.
+        #
+        # It passed the scope check before only by accident: `.venv/Scripts/...`
+        # resolved under the scope ROOT, which is the same arithmetic that let
+        # `training_ground/../X` escape. Fixing the base correctly turned this
+        # RED and would have blocked §VIII self-modification entirely.
+        if command.strip() in _SCOPE_EXEMPT_COMMANDS:
+            return CommandScopeResult(
+                True, "Exempt fixed command (self-apply verify suite)."
+            )
         if not command or not isinstance(command, str):
             return CommandScopeResult(False, "Empty command (fail-closed).")
 
@@ -237,7 +320,9 @@ class ScopeLockAuthority:
             # Skip tiny pure flags (``/s``, ``-r``) — but never a parent ref (``..``).
             if len(token) < 3 and not token.startswith(".."):
                 continue
-            check = self.is_path_in_scope(token)
+            # Resolve against the cwd the command will ACTUALLY run in, not the
+            # scope root. Anything else checks a path the executor never opens.
+            check = self.is_path_in_scope(token, base=self.command_cwd())
             if not check.in_scope:
                 return CommandScopeResult(False, check.reason, offending=token)
 

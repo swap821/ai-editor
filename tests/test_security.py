@@ -21,11 +21,28 @@ from aios.security.secret_scanner import scan_and_redact, shannon_entropy
 
 @pytest.fixture()
 def scoped(tmp_path: Path):
-    """Point scope roots at an isolated temp dir; restore afterwards."""
+    """Point scope roots at an isolated sandbox, SHAPED LIKE PRODUCTION.
+
+    The root is ``<tmp>/training_ground``, not ``<tmp>`` itself, because that is
+    the only shape the executor ever runs in: ``Executor._scope_cwd()`` returns
+    the scope root's PARENT so ``training_ground`` is importable as a package,
+    and mission commands are therefore written as ``training_ground/x.py``.
+
+    This fixture used to make ``tmp_path`` itself the root while the tests below
+    still passed ``training_ground/...`` tokens -- a layout in which relative
+    tokens only resolve correctly if they are joined onto the ROOT. That is
+    exactly the assumption that made the containment escape invisible: the scope
+    check resolved against the root while the executor resolved against the
+    root's parent, so ``training_ground/../X`` was checked inside the sandbox and
+    executed outside it. A fixture that cannot express the mismatch cannot catch
+    it.
+    """
     original = scope_lock.get_scope_roots()
-    set_scope_roots([tmp_path])
+    root = tmp_path / "training_ground"
+    root.mkdir(parents=True, exist_ok=True)
+    set_scope_roots([root])
     try:
-        yield tmp_path
+        yield root
     finally:
         set_scope_roots(list(original))
 
@@ -146,19 +163,74 @@ def test_symlink_escape_is_out_of_scope(scoped: Path, tmp_path: Path) -> None:
     assert is_path_in_scope(str(link / "creds.txt")).in_scope is False
 
 
-def test_relative_tool_path_stays_in_scope(scoped: Path) -> None:
-    # Regression: a relative tool path (.venv\Scripts\python.exe) must not be
-    # mis-read as the rooted C:\Scripts\python.exe. It stays in scope and the
-    # command classifies YELLOW (a pip install), not a RED scope block.
+def test_relative_tool_path_is_not_misread_as_drive_rooted(scoped: Path) -> None:
+    r"""A relative tool path must parse as relative, not as ``C:\Scripts\...``.
+
+    That parse is the original regression this test was written for, and it still
+    holds. What CHANGED is the verdict: ``.venv`` lives beside the sandbox, not
+    inside it, so once command tokens resolve against the executor's real cwd
+    (the scope root's parent) the path is correctly OUT of scope.
+
+    It used to read as in-scope only because the check resolved tokens against
+    the scope ROOT, which silently placed ``.venv`` inside the sandbox. That is
+    the same arithmetic that let ``training_ground/../X`` pass -- see
+    `test_parent_traversal_out_of_the_sandbox_is_blocked`. Accepting the stricter
+    verdict is the point: `.venv\Scripts\pip install` is a package install
+    running outside the sandbox, which is the supply-chain shape this boundary
+    exists to gate.
+    """
     cmd = r".venv\Scripts\python.exe -m pip install flask"
-    assert command_stays_in_scope(cmd).in_scope is True
-    assert classify(cmd).zone is Zone.YELLOW
+    result = command_stays_in_scope(cmd)
+
+    assert result.in_scope is False
+    # The parse is still right: it resolved under the sandbox's PARENT, not to a
+    # drive root. A mis-parse would have produced C:\Scripts\python.exe.
+    assert "Scripts" in (result.reason or "")
+    assert not (result.reason or "").startswith("Path 'C:\\Scripts")
 
 
-def test_compound_venv_command_stays_in_scope(scoped: Path) -> None:
+def test_compound_venv_command_is_out_of_scope(scoped: Path) -> None:
+    """Both halves touch ``.venv`` beside the sandbox, so neither is in scope."""
     cmd = r"python -m venv .venv && .venv\Scripts\pip install flask"
-    assert command_stays_in_scope(cmd).in_scope is True
+    assert command_stays_in_scope(cmd).in_scope is False
     assert classify(cmd).zone is Zone.RED
+
+
+def test_parent_traversal_out_of_the_sandbox_is_blocked(scoped: Path) -> None:
+    """The escape §2.1 fixed: checked inside the sandbox, executed outside it.
+
+    ``Executor._scope_cwd()`` runs commands from the scope root's PARENT so
+    ``training_ground`` is importable as a package. The scope check resolved
+    tokens against the ROOT instead, so this token was:
+
+        CHECKED  as <root>/training_ground/ESCAPE.txt   -- in scope, allowed
+        EXECUTED as <parent>/ESCAPE.txt                 -- outside every root
+
+    Measured before the fix: this classified YELLOW, i.e. one operator approval
+    away from writing outside the sandbox -- including over
+    ``aios/security/gateway.py``, the identity DB and the audit DB.
+    """
+    for cmd in (
+        "touch training_ground/../ESCAPE.txt",
+        "python training_ground/../aios/security/gateway.py",
+        "cat training_ground/../.env",
+    ):
+        assert command_stays_in_scope(cmd).in_scope is False, cmd
+        assert classify(cmd).zone is Zone.RED, cmd
+
+
+def test_a_url_is_not_scope_checked_as_a_path(scoped: Path) -> None:
+    """Network reach is a policy question, not a containment one.
+
+    ``https://github.com/x/y.git`` used to resolve under the scope root and pass;
+    with the corrected base it resolved outside and failed. Both verdicts were
+    accidents of arithmetic, and the second silently turned ``git clone`` from
+    CAUTION into RED as a side effect of a containment fix. Schemes are skipped
+    so tightening containment cannot quietly move network policy.
+    """
+    assert command_stays_in_scope("git clone https://github.com/x/y.git").in_scope
+    # And a Windows drive path is still treated as the path it is.
+    assert command_stays_in_scope(r"type C:\Windows\System32\config").in_scope is False
 
 
 @pytest.mark.skipif(
@@ -435,3 +507,33 @@ def test_durable_rate_limiter_connect_closes_the_connection(tmp_path) -> None:
 def test_green_allows_and_red_blocks() -> None:
     assert validate_command("cat readme").status == "BLOCK"
     assert validate_command("rm -rf /").status == "BLOCK"
+
+
+def test_the_scope_exemption_matches_the_command_it_exempts() -> None:
+    """The one exempt command must BE the self-apply verify command.
+
+    `scope_lock` duplicates the literal rather than importing it, to keep a
+    frozen security module free of an application-layer dependency. That
+    duplication is only safe if it cannot drift: if `DEFAULT_VERIFY_COMMAND`
+    changes and the exemption does not, §VIII self-modification silently breaks;
+    if the exemption broadens and the command does not, the sandbox silently
+    gains a hole.
+    """
+    from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
+    from aios.security.scope_lock import _SCOPE_EXEMPT_COMMANDS
+
+    assert _SCOPE_EXEMPT_COMMANDS == frozenset({DEFAULT_VERIFY_COMMAND}), (
+        "the scope exemption and the self-apply verify command have drifted"
+    )
+
+
+def test_the_exemption_is_exact_not_a_prefix() -> None:
+    """Identity, not pattern. A near-miss must NOT inherit the exemption."""
+    from aios.core.self_apply import DEFAULT_VERIFY_COMMAND
+
+    for impostor in (
+        DEFAULT_VERIFY_COMMAND + " && rm -rf /",
+        DEFAULT_VERIFY_COMMAND.replace("tests/", "../"),
+        ".venv/Scripts/python -m pytest aios/ -q",
+    ):
+        assert command_stays_in_scope(impostor).in_scope is False, impostor
