@@ -1,9 +1,13 @@
-"""Contract test: wonder organs are fail-closed even when default-on.
+"""Contract test: wonder organs are fail-closed even when their flag is on.
 
 Enabling the wonder flags does NOT grant autonomy, enable LLM reasoning, or
 burst to cloud by itself. Each organ checks its runtime dependency (ledger
 evidence, LLM client, cloud credentials) before acting. This test proves the
 flags are safe to enable — they unlock capability, not action.
+
+Earned autonomy is no longer among the default-on flags: it defaults OFF to
+match Invariant II, so the tests below enable it explicitly rather than reading
+the default. What is under test is the evidence floor, not the switch.
 """
 from __future__ import annotations
 
@@ -27,8 +31,17 @@ class TestEarnedAutonomyFailClosed:
     """Even with the flag on, autonomy requires verified evidence."""
 
     def test_is_earned_false_without_evidence(self, fresh_ledger: AutonomyLedger) -> None:
-        assert config.EARNED_AUTONOMY_ENABLED is True
-        assert fresh_ledger.is_earned("create", "some/file.py") is False
+        """Evidence, not the flag, is what withholds autonomy here.
+
+        This asserted ``EARNED_AUTONOMY_ENABLED is True`` until the default was
+        flipped OFF for Invariant II. That assertion was a guard, not the
+        subject: it existed so the ``False`` below could only come from missing
+        evidence rather than from the kill switch. Now that the flag defaults
+        OFF, the guard has to enable it explicitly — otherwise this test passes
+        vacuously and stops covering the evidence floor it was written for.
+        """
+        with patch.object(config, "EARNED_AUTONOMY_ENABLED", True):
+            assert fresh_ledger.is_earned("create", "some/file.py") is False
 
     def test_single_success_not_enough(self, fresh_ledger: AutonomyLedger) -> None:
         fresh_ledger.record_outcome("create", "some/file.py", success=True)

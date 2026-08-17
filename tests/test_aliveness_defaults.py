@@ -40,8 +40,11 @@ def test_foundation_layers_default_awake() -> None:
 
 
 def test_wonder_phase_organs_default_awake() -> None:
-    # earned autonomy: after N verified successes, auto-approve without pausing
-    assert config.EARNED_AUTONOMY_ENABLED is True
+    # NOTE: earned autonomy was asserted awake here until 2026-08-17. It moved to
+    # test_authority_crossing_arms_stay_opt_in below, for the same reason swarm
+    # cloud burst moved out in 2026-08-04 — it crosses a boundary rather than
+    # being an aliveness organ, and the two sets have different defaults by
+    # design. The boundary it crosses is authority, not privacy.
     # council reasoning: LLM-backed Queen planning (degrades to deterministic)
     assert config.COUNCIL_REASONING is True
     # council origination: chat -> council mission pipeline
@@ -51,6 +54,20 @@ def test_wonder_phase_organs_default_awake() -> None:
     # NOTE: swarm cloud burst was asserted awake here until 2026-08-04. It moved
     # to test_boundary_crossing_arms_stay_opt_in below — it is an egress path,
     # not an aliveness organ, and the two sets have different defaults by design.
+
+
+def test_authority_crossing_arms_stay_opt_in() -> None:
+    """Aliveness defaults may not hand out authority.
+
+    Earned autonomy auto-approves a write with no human in the loop, which is
+    precisely what Invariant II forbids. The capability is unchanged and still
+    gated by its evidence floor — what changed on 2026-08-17 is that switching it
+    on is now a deliberate act (``AIOS_EARNED_AUTONOMY=1``) rather than the
+    default posture. Kept in its own test because the boundary is authority,
+    not privacy: locking down egress must not be mistaken for withholding
+    authority, or the reverse.
+    """
+    assert config.EARNED_AUTONOMY_ENABLED is False
 
 
 def test_boundary_crossing_arms_stay_opt_in() -> None:
