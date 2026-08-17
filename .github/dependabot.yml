@@ -51,6 +51,35 @@ updates:
       time: "03:30"
       timezone: "Asia/Kolkata"
     open-pull-requests-limit: 3
+    ignore:
+      # 3.0.5 ships a typing regression that makes every effect's props
+      # unusable. Its prop type is
+      #
+      #   Omit<Partial<ConstructorParameters<typeof Effect>[0]>, 'offset'> & {...}
+      #
+      # and that constructor parameter is OPTIONAL, so the inner type is
+      # `{...} | undefined`. `keyof (A | undefined)` is `never`, so the Omit
+      # collapses to `{}` and every real prop -- radialModulation,
+      # modulationOffset -- becomes an excess-property error:
+      #
+      #   PostFX.tsx(182,11): error TS2322
+      #
+      # This is upstream's bug, not ours; 3.0.4 types the same props fine.
+      # Lift when a release fixes the Omit-over-optional-union.
+      - dependency-name: "@react-three/postprocessing"
+        versions: [">3.0.4"]
+      # TypeScript 7 has no linting story yet. @typescript-eslint/eslint-plugin
+      # 8.67.0 -- the LATEST release -- declares `typescript >=4.8.4 <6.1.0`, so
+      # npm refuses the install outright:
+      #
+      #   npm error ERESOLVE could not resolve
+      #   Found: typescript@7.0.2 ... peer typescript@">=4.8.4 <6.1.0"
+      #
+      # Forcing it would mean --legacy-peer-deps and running the linter against
+      # a compiler it does not support, which trades a real guarantee for a
+      # version number. Lift when typescript-eslint ships TS 7 support.
+      - dependency-name: "typescript"
+        versions: [">=7"]
     groups:
       frontend-minor-patch:
         patterns:
