@@ -59,7 +59,7 @@ pydantic==2.13.4
 # which makes the requirements file unresolvable -- CI failed at pip install
 # with ResolutionImpossible before a single test ran. Bump it only together
 # with the pydantic release that requires it.
-pydantic_core==2.46.4
+pydantic_core==2.48.0
 Pygments==2.20.0
 pytest==9.1.1
 pytest-asyncio==1.4.0
