@@ -17,6 +17,13 @@ import cost, not this test's own work), so the number of subprocess-driving
 scenarios below is deliberately kept to four (one clean + three sabotage) to
 stay well under the 60s budget -- see the comment above the parametrize list.
 
+That 60s is the EXPECTED total on a warm machine, and is a different thing from
+``_PROVE_IT_TIMEOUT_S`` below, which is the per-run failure bound. The bound has
+to tolerate the slowest CI platform (Windows runners are several times slower on
+this shape of work) while still being short enough to catch a genuine hang.
+Conflating the two is what produced a 45s bound and two TimeoutExpired CI
+failures.
+
 Two things are asserted:
 1. The clean run's checklist is INTERNALLY HONEST: steps 1-5 (BOOT, DIRECTIVE,
    SUPERVISION, APPROVAL, ACTION) genuinely PROVE against the real app today,
@@ -30,6 +37,7 @@ Two things are asserted:
    FAILED with a real WHY and a nonzero exit code -- proving prove_it.py is
    not hardcoded to print PROVED.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -47,7 +55,26 @@ PROVE_IT = REPO_ROOT / "prove_it.py"
 pytestmark = pytest.mark.slow
 
 
-def _run_prove_it(*extra_args: str, timeout: float = 45.0) -> subprocess.CompletedProcess:
+#: Wall-clock ceiling for one scripted prove_it.py run.
+#:
+#: 45s was tuned on a warm dev machine and is too tight for the slowest CI
+#: platform. Measured locally the scripted sabotage run takes ~14s; Windows
+#: runners are several times slower on exactly this shape of work (cold
+#: interpreter, no warm import cache, torch/faiss pulled in on first import),
+#: which lands the real runtime right at the old bound. It has failed CI twice
+#: that way -- `[supervision-SUPERVISION]` and `[learning-LEARNING]` -- both
+#: times on windows-latest, both times as TimeoutExpired rather than a real
+#: assertion.
+#:
+#: 180s is still a BOUND, not an absence of one: a genuine hang is unbounded
+#: and this fails it in three minutes. The point is to catch a hang, not to
+#: race the slowest runner.
+_PROVE_IT_TIMEOUT_S = 180.0
+
+
+def _run_prove_it(
+    *extra_args: str, timeout: float = _PROVE_IT_TIMEOUT_S
+) -> subprocess.CompletedProcess:
     exe = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
     return subprocess.run(
         [exe, str(PROVE_IT), "--scripted", *extra_args],
@@ -104,8 +131,12 @@ def test_scripted_run_is_internally_honest():
 
     for name, (proved, blob) in steps.items():
         if proved:
-            assert blob, f"step {name} is PROVED with no evidence line:\n{result.stdout}"
-            assert "WHY:" not in blob, f"step {name} is PROVED but also carries a WHY:\n{blob}"
+            assert blob, (
+                f"step {name} is PROVED with no evidence line:\n{result.stdout}"
+            )
+            assert "WHY:" not in blob, (
+                f"step {name} is PROVED but also carries a WHY:\n{blob}"
+            )
         else:
             assert "WHY:" in blob, f"step {name} is FAILED with no WHY line:\n{blob}"
 
@@ -179,7 +210,9 @@ def test_sabotage_forces_honest_failure(sabotage, failing_step_name):
     )
     proved, blob = steps[failing_step_name]
     assert not proved, f"sabotage={sabotage} should have made {failing_step_name} FAIL"
-    assert "WHY:" in blob, f"sabotage={sabotage}: {failing_step_name} is FAILED but has no WHY"
+    assert "WHY:" in blob, (
+        f"sabotage={sabotage}: {failing_step_name} is FAILED but has no WHY"
+    )
     assert "RUN FAILED" in result.stdout
 
     if sabotage == "learning":
@@ -285,7 +318,9 @@ def test_cleanup_stale_rollback_pointer_removes_pytest_sandbox_pointer(tmp_path)
     prove_it = _import_prove_it_utils()
     scope_root = tmp_path / "training_ground"
     scope_root.mkdir()
-    pytest_runtime = prove_it.REPO_ROOT / ".aios" / "tmp" / "pytest-root" / f"prover-{uuid4().hex}"
+    pytest_runtime = (
+        prove_it.REPO_ROOT / ".aios" / "tmp" / "pytest-root" / f"prover-{uuid4().hex}"
+    )
     target = pytest_runtime / "rollback"
     target.mkdir(parents=True)
     pointer = scope_root / ".git"
