@@ -51,6 +51,23 @@ updates:
       time: "03:30"
       timezone: "Asia/Kolkata"
     open-pull-requests-limit: 3
+    ignore:
+      # 3.0.5 ships a typing regression that makes every effect's props
+      # unusable. Its prop type is
+      #
+      #   Omit<Partial<ConstructorParameters<typeof Effect>[0]>, 'offset'> & {...}
+      #
+      # and that constructor parameter is OPTIONAL, so the inner type is
+      # `{...} | undefined`. `keyof (A | undefined)` is `never`, so the Omit
+      # collapses to `{}` and every real prop -- radialModulation,
+      # modulationOffset -- becomes an excess-property error:
+      #
+      #   PostFX.tsx(182,11): error TS2322
+      #
+      # This is upstream's bug, not ours; 3.0.4 types the same props fine.
+      # Lift when a release fixes the Omit-over-optional-union.
+      - dependency-name: "@react-three/postprocessing"
+        versions: [">3.0.4"]
     groups:
       frontend-minor-patch:
         patterns:
