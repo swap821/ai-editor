@@ -68,6 +68,18 @@ updates:
       # Lift when a release fixes the Omit-over-optional-union.
       - dependency-name: "@react-three/postprocessing"
         versions: [">3.0.4"]
+      # TypeScript 7 has no linting story yet. @typescript-eslint/eslint-plugin
+      # 8.67.0 -- the LATEST release -- declares `typescript >=4.8.4 <6.1.0`, so
+      # npm refuses the install outright:
+      #
+      #   npm error ERESOLVE could not resolve
+      #   Found: typescript@7.0.2 ... peer typescript@">=4.8.4 <6.1.0"
+      #
+      # Forcing it would mean --legacy-peer-deps and running the linter against
+      # a compiler it does not support, which trades a real guarantee for a
+      # version number. Lift when typescript-eslint ships TS 7 support.
+      - dependency-name: "typescript"
+        versions: [">=7"]
     groups:
       frontend-minor-patch:
         patterns:
