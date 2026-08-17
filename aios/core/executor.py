@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol
 
 from aios import config
 from aios.security.audit_logger import log_action
+from aios.security.scope_lock import command_cwd as scope_lock_command_cwd
 from aios.security.gateway import (
     RateLimiter,
     Zone,
@@ -597,13 +598,19 @@ class Executor:
         This is the repo root that the primary scope root (``training_ground``)
         lives under, NOT the scope root itself — so ``training_ground`` is
         importable as a package (``from training_ground.x import y``) rather
-        than being mounted/spawned as if it were the root itself. The
-        scope-lock security boundary (``aios/security/scope_lock.py``) resolves
-        path tokens against ``config.SCOPE_ROOTS`` independently of this cwd, so
-        this is safe to change without touching containment.
+        than being mounted/spawned as if it were the root itself.
+
+        Delegates to :func:`aios.security.scope_lock.command_cwd` rather than
+        deriving the directory again here. The scope CHECK resolves relative
+        command tokens against that same function, so the base that is checked
+        and the base that is executed cannot drift apart — a drift is a
+        containment escape, not a cosmetic mismatch, and this pair has drifted
+        once already (this method read the process-start default
+        ``config.SCOPE_ROOTS`` while the check read the live, re-declarable
+        ``get_scope_roots()``). Asserted by
+        ``tests/adversarial/test_control_consistency.py``.
         """
-        roots = config.SCOPE_ROOTS
-        cwd = roots[0].resolve().parent if roots else Path.cwd()
+        cwd = scope_lock_command_cwd()
         cwd.mkdir(parents=True, exist_ok=True)
         return cwd
 

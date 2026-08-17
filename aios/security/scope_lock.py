@@ -192,14 +192,24 @@ class ScopeLockAuthority:
     def command_cwd(self) -> Path:
         """The directory a sandboxed command actually runs in.
 
-        MUST stay identical to ``Executor._scope_cwd()``. The executor runs with
-        cwd = the scope root's PARENT so ``training_ground`` is importable as a
-        package, and a relative path token in a command is therefore resolved by
-        the shell against that parent -- not against the scope root.
+        This is the SINGLE source for that directory: ``Executor._scope_cwd()``
+        calls it rather than deriving the same thing a second time. The executor
+        runs with cwd = the scope root's PARENT so ``training_ground`` is
+        importable as a package, and a relative path token in a command is
+        therefore resolved by the shell against that parent -- not against the
+        scope root.
 
         Resolving the CHECK against a different base than the EXECUTION is a
         containment escape, not a cosmetic mismatch. See
         :meth:`is_path_in_scope`.
+
+        It is a single function because two copies kept in sync by comment did
+        drift, and the drift was an escape. The executor previously derived this
+        from :data:`aios.config.SCOPE_ROOTS` (the process-start default) while
+        the check derived it from ``get_scope_roots()`` (the live, re-declarable
+        authority). Under any session that called :func:`set_scope_roots`, the
+        two disagreed and ``touch training_ground/PROOF.txt`` was ALLOWED while
+        landing outside every declared root. Read the roots from one place.
         """
         roots = self.get_scope_roots()
         return roots[0].resolve().parent if roots else Path.cwd()
@@ -350,6 +360,16 @@ def set_scope_roots(roots: Iterable[str | Path]) -> tuple[Path, ...]:
 def get_scope_roots() -> tuple[Path, ...]:
     """Return the currently declared scope roots."""
     return _SCOPE_LOCK.get_scope_roots()
+
+
+def command_cwd() -> Path:
+    """The directory a sandboxed command actually runs in.
+
+    The single source for the command-resolution base, shared by the scope CHECK
+    and by ``Executor._scope_cwd()`` which ACTS. See
+    :meth:`ScopeLockAuthority.command_cwd`.
+    """
+    return _SCOPE_LOCK.command_cwd()
 
 
 def is_path_in_scope(candidate: str) -> ScopeResult:

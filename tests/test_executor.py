@@ -82,23 +82,40 @@ def test_green_command_runs_in_sandbox() -> None:
     assert runner.calls[0]["command"] == "echo hello"
 
 
-def test_scope_cwd_is_the_repo_root_not_the_scope_root(monkeypatch, tmp_path) -> None:
+@pytest.fixture
+def declared_scope_root(tmp_path):
+    """Declare a scope root through the authority, and restore it afterwards.
+
+    These tests used to ``monkeypatch.setattr(config, "SCOPE_ROOTS", ...)``,
+    which no longer moves the executor's cwd -- and never moved the scope CHECK.
+    ``config.SCOPE_ROOTS`` is only the process-start default; the live roots live
+    in the ``ScopeLockAuthority`` singleton (the same trap documented at
+    ``tests/test_spine_invariants.py``'s ``scoped`` fixture). Declaring them the
+    way production does means these tests now exercise the real mechanism.
+    """
+    from aios.security import scope_lock
+
+    original = scope_lock.get_scope_roots()
+    scope_root = tmp_path / "training_ground"
+    scope_root.mkdir()
+    scope_lock.set_scope_roots([scope_root])
+    try:
+        yield scope_root
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_scope_cwd_is_the_repo_root_not_the_scope_root(declared_scope_root) -> None:
     # training_ground.X imports (and probe_common's training_ground/-relative
     # allowlist regexes) only resolve if commands run from the repo root that
     # training_ground/ lives under -- not from training_ground/ itself.
-    scope_root = tmp_path / "training_ground"
-    scope_root.mkdir()
-    monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
-    assert _executor()._scope_cwd() == tmp_path
+    assert _executor()._scope_cwd() == declared_scope_root.parent
 
 
-def test_green_command_runs_from_the_repo_root(monkeypatch, tmp_path) -> None:
-    scope_root = tmp_path / "training_ground"
-    scope_root.mkdir()
-    monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
+def test_green_command_runs_from_the_repo_root(declared_scope_root) -> None:
     runner = RecordingRunner()
     _executor(runner).execute("echo hi")
-    assert runner.calls[0]["cwd"] == str(tmp_path)
+    assert runner.calls[0]["cwd"] == str(declared_scope_root.parent)
 
 
 def test_default_runner_handles_safe_builtin_without_a_shell(tmp_path) -> None:
