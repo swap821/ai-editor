@@ -51,19 +51,19 @@ def test_three_identical_calls_with_no_progress_still_trip(agent) -> None:
     """The original protection, unchanged: repeating one action forever with
     nothing changing in between is still a loop."""
     call = _call("run_command", command="pytest -q")
-    assert agent._detect_agent_loop([call]) is False
-    assert agent._detect_agent_loop([call]) is False
-    assert agent._detect_agent_loop([call]) is True
+    assert agent._detect_agent_loop([call]) is None
+    assert agent._detect_agent_loop([call]) is None
+    assert agent._detect_agent_loop([call])
 
 
 def test_alternating_two_calls_with_no_progress_still_trip(agent) -> None:
     """A->B->A->B with nothing landing in between is genuine oscillation."""
     a = _call("read_file", filepath="x.py")
     b = _call("read_file", filepath="y.py")
-    assert agent._detect_agent_loop([a]) is False
-    assert agent._detect_agent_loop([b]) is False
-    assert agent._detect_agent_loop([a]) is False
-    assert agent._detect_agent_loop([b]) is True
+    assert agent._detect_agent_loop([a]) is None
+    assert agent._detect_agent_loop([b]) is None
+    assert agent._detect_agent_loop([a]) is None
+    assert agent._detect_agent_loop([b])
 
 
 def test_progress_does_not_disarm_the_detector_permanently(agent) -> None:
@@ -73,9 +73,9 @@ def test_progress_does_not_disarm_the_detector_permanently(agent) -> None:
     agent.note_progress("file write applied")
 
     call = _call("run_command", command="pytest -q")
-    assert agent._detect_agent_loop([call]) is False
-    assert agent._detect_agent_loop([call]) is False
-    assert agent._detect_agent_loop([call]) is True
+    assert agent._detect_agent_loop([call]) is None
+    assert agent._detect_agent_loop([call]) is None
+    assert agent._detect_agent_loop([call])
 
 
 # --------------------------------------------------------------------------- #
@@ -93,9 +93,9 @@ def test_edit_test_edit_test_is_not_a_loop(agent) -> None:
     test = _call("run_command", command="pytest -q calc.py")
 
     for _ in range(4):
-        assert agent._detect_agent_loop([edit]) is False
+        assert agent._detect_agent_loop([edit]) is None
         agent.note_progress("file write applied")
-        assert agent._detect_agent_loop([test]) is False
+        assert agent._detect_agent_loop([test]) is None
         agent.note_progress("verifier verdict changed")
 
 
@@ -107,7 +107,7 @@ def test_retesting_after_a_changed_verdict_is_not_a_loop(agent) -> None:
     """
     test = _call("run_command", command="pytest -q")
     for _ in range(5):
-        assert agent._detect_agent_loop([test]) is False
+        assert agent._detect_agent_loop([test]) is None
         agent.note_progress("verifier verdict changed")
 
 
@@ -116,3 +116,62 @@ def test_note_progress_is_safe_on_an_empty_history(agent) -> None:
     not log a reset that never happened."""
     agent.note_progress("approved writes applied")
     assert agent._tool_call_history == []
+
+
+# --------------------------------------------------------------------------- #
+# When it fires, it must say what it saw.
+# --------------------------------------------------------------------------- #
+
+
+def test_the_reason_names_the_repeated_call(agent) -> None:
+    """The detector used to return a bare bool.
+
+    The error it produced said only "the model repeated the same action(s)" --
+    never which ones. Diagnosing a single occurrence meant re-running the
+    mission under a tracer, because the one component that knew the answer
+    threw it away. That is what this session actually had to do to establish
+    that a real `Agent loop detected` was correct rather than a false positive.
+    """
+    call = _call("read_file", filepath="training_ground/test_calculator.py")
+    agent._detect_agent_loop([call])
+    agent._detect_agent_loop([call])
+    reason = agent._detect_agent_loop([call])
+
+    assert reason, "the detector fired without saying why"
+    assert "read_file" in reason, f"the reason does not name the tool: {reason}"
+    assert "test_calculator.py" in reason, (
+        f"the reason does not identify WHICH call repeated: {reason}"
+    )
+    assert "3 times" in reason
+
+
+def test_the_alternating_reason_names_both_calls(agent) -> None:
+    """Oscillation is a different failure from repetition, and says so."""
+    a = _call("read_file", filepath="a.py")
+    b = _call("read_file", filepath="b.py")
+    agent._detect_agent_loop([a])
+    agent._detect_agent_loop([b])
+    agent._detect_agent_loop([a])
+    reason = agent._detect_agent_loop([b])
+
+    assert reason
+    assert "alternated" in reason
+    assert "a.py" in reason and "b.py" in reason, (
+        f"an oscillation reason that names neither side is not diagnosable: {reason}"
+    )
+
+
+def test_a_huge_argument_is_truncated_in_the_reason(agent) -> None:
+    """Arguments carry whole file bodies; this text reaches an operator.
+
+    A create_file call can hold a few KB of source. Pasting that into an error
+    message turns a diagnostic into a wall of code.
+    """
+    call = _call("create_file", filepath="x.py", content="x = 1\n" * 500)
+    agent._detect_agent_loop([call])
+    agent._detect_agent_loop([call])
+    reason = agent._detect_agent_loop([call])
+
+    assert reason
+    assert len(reason) < 300, f"reason is {len(reason)} chars; it must stay readable"
+    assert "..." in reason, "a long argument should be visibly truncated"

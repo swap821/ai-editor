@@ -807,10 +807,28 @@ class ToolAgent:
         #: second recording.
         self._last_verify_lesson: Optional[tuple[int, str]] = None
 
-    def _detect_agent_loop(self, tool_calls: list[dict[str, Any]]) -> bool:
+    @staticmethod
+    def _describe_call(call: tuple[str, str]) -> str:
+        """A short, safe label for one recorded call.
+
+        Arguments can carry whole file bodies, so only a prefix is kept: this
+        goes into an operator-visible error, not a debug dump.
+        """
+        name, args = call
+        preview = args if len(args) <= 80 else args[:77] + "..."
+        return f"{name}({preview})"
+
+    def _detect_agent_loop(self, tool_calls: list[dict[str, Any]]) -> str | None:
         """Detect if the agent is stuck in a repetitive loop.
 
-        Returns True when, SINCE THE LAST OBSERVED PROGRESS:
+        Returns a REASON naming what repeated, or None. It used to return a
+        bare bool, and the error it produced said only "the model repeated the
+        same action(s)" -- never which ones. Diagnosing a single occurrence
+        meant re-running the mission under a tracer, because the one component
+        that knew the answer threw it away. A control that stops a turn should
+        be able to say what it saw.
+
+        Fires when, SINCE THE LAST OBSERVED PROGRESS:
           * The last N tool calls are identical (stuck repeating one action)
           * The last 4 calls form an A->B->A->B alternating pattern
             (oscillating between two actions with no progress)
@@ -845,7 +863,11 @@ class ToolAgent:
         if len(self._tool_call_history) >= self._repeated_tool_threshold:
             last_n = self._tool_call_history[-self._repeated_tool_threshold :]
             if len(set(last_n)) == 1:
-                return True
+                return (
+                    f"the same call {self._describe_call(last_n[0])} was made "
+                    f"{self._repeated_tool_threshold} times in a row with "
+                    "nothing changing in between"
+                )
 
         # Check 2: alternating A->B->A->B pattern (oscillation)
         if len(self._tool_call_history) >= 4:
@@ -855,9 +877,13 @@ class ToolAgent:
                 and last_4[1] == last_4[3]
                 and last_4[0] != last_4[1]
             ):
-                return True
+                return (
+                    "two calls alternated with nothing changing in between: "
+                    f"{self._describe_call(last_4[0])} then "
+                    f"{self._describe_call(last_4[1])}, twice over"
+                )
 
-        return False
+        return None
 
     def _reset_loop_safety(self) -> None:
         """Reset loop-detection state at the start of each run."""
@@ -1008,17 +1034,17 @@ class ToolAgent:
                 )
 
             # ---- Loop safety: detect repetitive patterns ----
-            if tool_calls and self._detect_agent_loop(tool_calls):
+            loop_reason = self._detect_agent_loop(tool_calls) if tool_calls else None
+            if loop_reason:
                 log_action(
                     "tool-agent",
-                    "Agent loop detected: stopping for safety",
+                    f"Agent loop detected: stopping for safety -- {loop_reason}",
                     zone=Zone.YELLOW,
                 )
                 yield {
                     "type": "error",
                     "text": (
-                        "Agent loop detected: the model repeated the same action(s) "
-                        "without making progress. Stopped for safety. "
+                        f"Agent loop detected: {loop_reason}. Stopped for safety. "
                         "Try rephrasing your request."
                     ),
                 }
