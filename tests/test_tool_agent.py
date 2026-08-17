@@ -1345,7 +1345,7 @@ def test_agent_verify_success_confirms_pending_lesson() -> None:
     # verify-tool SUCCESS on the EXACT same command must promote it -- a
     # reflect-tool step with a verify-* id (has_confirm_step's shape), gated
     # by the STRONG promotion floor (same strength derivation as execute_terminal).
-    cmd = "pytest tests/test_x.py -q"
+    cmd = "pytest training_ground/test_x.py -q"
     chat = ScriptedChat([
         _tool_call("verify", {"command": cmd}),
         _tool_call("verify", {"command": cmd}),
@@ -1380,7 +1380,7 @@ def test_agent_confirms_recalled_pending_lesson_across_run_boundary() -> None:
     # (before an approval pause) is seeded via recalled_pending. When its EXACT
     # command succeeds in this run -- with NO failure this run -- it is promoted,
     # so the fail->confirm chain survives the replayed continuation.
-    cmd = "pytest tests/test_x.py -q"
+    cmd = "pytest training_ground/test_x.py -q"
     chat = ScriptedChat([
         _tool_call("verify", {"command": cmd}),
         {"role": "assistant", "content": "Verified."},
@@ -1408,7 +1408,7 @@ def test_agent_confirms_recalled_pending_lesson_across_run_boundary() -> None:
 def test_agent_recalled_pending_not_confirmed_by_unrelated_command() -> None:
     # The seed must preserve the exact-command invariant: an unrelated command's
     # success must NOT promote a recalled lesson.
-    cmd_failed = "pytest tests/test_x.py -q"
+    cmd_failed = "pytest training_ground/test_x.py -q"
     cmd_other = "pytest tests/test_y.py -q"
     chat = ScriptedChat([
         _tool_call("verify", {"command": cmd_other}),

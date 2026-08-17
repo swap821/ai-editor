@@ -211,7 +211,23 @@ SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1
 SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
 
-EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", True)
+#: OFF by default, by operator decision 2026-08-17.
+#:
+#: Invariant II is "intelligence never grants itself authority", and earned
+#: autonomy is precisely the system authorising its own write with no human in
+#: the loop. A default of True inverted the one law this project exists to
+#: demonstrate.
+#:
+#: The disagreement was not a typo -- it was a real split. This default said
+#: True and `tests/adversarial/test_autonomy_safety.py` asserted True as
+#: deliberate ("wonder phase active"), while `aios/core/autonomy.py`, AGENTS.md
+#: and the cortex-core-fusion ADR all said OFF. Three documents against the code
+#: and one test, on the most safety-critical default in the system.
+#:
+#: Resolved toward the invariant. The feature is UNCHANGED and still requires its
+#: full evidence floor; only who must ask for it moved. Opting in is a deliberate
+#: operator act: AIOS_EARNED_AUTONOMY=1.
+EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", False)
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int(
     "AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5
 )
