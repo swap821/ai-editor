@@ -87,8 +87,16 @@ def test_an_unavailable_measurement_states_a_reason() -> None:
             "sampling failed and recorded no reason -- the run would emit "
             "nulls and imply the measurement was taken"
         )
-        assert "port" in mod._MEMORY_UNAVAILABLE_REASON.lower() or "psutil" in (
-            mod._MEMORY_UNAVAILABLE_REASON.lower()
+        # The PROPERTY is that a reason is stated, not that it is worded a
+        # particular way. The first version of this assertion demanded "port"
+        # or "psutil" and failed on macOS CI, where psutil.net_connections
+        # needs elevated privileges and the sampler correctly recorded
+        # "AccessDenied: (pid=14447)" -- a better reason than either word I had
+        # anticipated. Pinning prose instead of behaviour makes a passing
+        # implementation look broken.
+        reason = mod._MEMORY_UNAVAILABLE_REASON
+        assert len(reason) > 8 and reason != "unknown", (
+            f"the recorded reason is not informative enough to act on: {reason!r}"
         )
     finally:
         mod._MEMORY_UNAVAILABLE_REASON = original
