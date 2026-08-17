@@ -175,3 +175,42 @@ def test_a_huge_argument_is_truncated_in_the_reason(agent) -> None:
     assert reason
     assert len(reason) < 300, f"reason is {len(reason)} chars; it must stay readable"
     assert "..." in reason, "a long argument should be visibly truncated"
+
+
+# ── the step budget must fit the recovery path the system recommends ──────────
+
+def test_the_step_budget_can_walk_the_recovery_path_it_recommends() -> None:
+    """A way forward the budget cannot reach is not a way forward.
+
+    The measured dominant failure in organ 44's golden cohort was `edit_file`
+    BLOCKED on "old_string not found" -- 7 of 10 unverified steps. #240 gave
+    that dead end an exit: the error names `overwrite_file` with the complete
+    body. Walking it costs, at minimum:
+
+        read_file 1, edit_file 2 (fails), overwrite_file 3, verify 4 (may fail),
+        fix 5, verify 6
+
+    With the previous hardcoded `DEFAULT_MAX_ITERS = 5` the turn ended on the
+    step where the guidance began, so the recovery could never be observed to
+    work or fail. This asserts the budget is large enough to take the advice at
+    least once with room to verify, because a cap below that measures the cap
+    rather than the model.
+    """
+    from aios.agents.tool_agent import DEFAULT_MAX_ITERS
+
+    minimum_recovery_path = 6
+    assert DEFAULT_MAX_ITERS >= minimum_recovery_path + 2, (
+        f"DEFAULT_MAX_ITERS={DEFAULT_MAX_ITERS} cannot complete the "
+        f"read->edit(fail)->overwrite->verify(fail)->fix->verify path "
+        f"({minimum_recovery_path} steps) with any margin. Raising the cap is "
+        "not a weakened control: repetition is still stopped by "
+        "_detect_agent_loop, which bounds spinning independently of this number."
+    )
+
+
+def test_the_step_budget_is_operator_tunable() -> None:
+    """The cap was hardcoded, so measuring a different one meant editing code."""
+    from aios import config
+    from aios.agents import tool_agent
+
+    assert tool_agent.DEFAULT_MAX_ITERS == config.AGENT_MAX_ITERS

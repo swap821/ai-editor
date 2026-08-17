@@ -117,8 +117,10 @@ FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
 #: evidence that they were fixed.
 ConfirmHook = Callable[[int], None]
 
-#: Max reason -> act turns before the loop stops for safety.
-DEFAULT_MAX_ITERS = 5
+#: Max reason -> act turns before the loop stops for safety. Tunable via
+#: ``AIOS_AGENT_MAX_ITERS``; see :data:`aios.config.AGENT_MAX_ITERS` for why the
+#: hardcoded 5 was too small to walk the recovery path this module recommends.
+DEFAULT_MAX_ITERS = config.AGENT_MAX_ITERS
 
 #: The loop's step-cap sentinel answer. Exported so composition layers (the
 #: role-pass conductor) can recognise it as a non-answer at a leg boundary.
