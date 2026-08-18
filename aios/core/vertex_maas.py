@@ -78,6 +78,7 @@ class VertexMaaSClient(OpenAICompatClient):
         model: str = config.VERTEX_MAAS_MODEL,
         project: str = config.VERTEX_MAAS_PROJECT,
         location: str = config.VERTEX_MAAS_LOCATION,
+        max_tokens: int = config.VERTEX_MAAS_MAX_TOKENS,
         credentials: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
@@ -93,6 +94,7 @@ class VertexMaaSClient(OpenAICompatClient):
             api_key="",  # never used; _headers mints a fresh token instead
             base_url=maas_base_url(project, location),
             model=model,
+            max_tokens=max_tokens,
             **kwargs,
         )
 

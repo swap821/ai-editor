@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import json
 from typing import Any, Final
 
 from aios import config
@@ -548,19 +549,32 @@ class PrivacyFilter:
         if isinstance(fn, dict) and "arguments" in fn:
             args = fn["arguments"]
             if isinstance(args, dict):
-                args_str = str(args)
+                # JSON, not str(dict). The previous version took a Python repr
+                # -- single-quoted -- and tried to recover JSON from it with
+                # args_str.replace("'", '"'), which swaps EVERY single quote,
+                # including ones inside string values. Tool arguments carry code,
+                # and code is full of them: print('hello') corrupts the swap,
+                # json.loads then fails, and the except branch shipped the repr
+                # STRING onward. _to_openai_messages passes a str through
+                # untouched, so the provider received single-quoted "JSON" and
+                # answered 400 "Expected a valid JSON object in the request".
+                # Measured on Vertex MaaS; it applies to every OpenAI-compatible
+                # provider and to any argument containing a quote.
+                args_str = json.dumps(args)
                 args_str, n_cred = _redact_credentials(args_str)
                 audit["redacted_credentials"] += n_cred
                 args_str, n_sec = _redact_high_entropy(args_str)
                 audit["redacted_secrets"] += n_sec
                 args_str, n_path = _redact_paths(args_str)
                 audit["redacted_paths"] += n_path
-                import json
-
                 try:
-                    fn["arguments"] = json.loads(args_str.replace("'", '"'))
+                    fn["arguments"] = json.loads(args_str)
                 except (json.JSONDecodeError, ValueError):
-                    fn["arguments"] = args_str
+                    # Redaction produced something unparseable. Keep a DICT --
+                    # a broken string here becomes a provider-level 400 far from
+                    # its cause. Redacting to empty is fail-closed: it withholds
+                    # the argument rather than leaking or corrupting it.
+                    fn["arguments"] = {}
             elif isinstance(args, str):
                 s, n_cred = _redact_credentials(args)
                 audit["redacted_credentials"] += n_cred

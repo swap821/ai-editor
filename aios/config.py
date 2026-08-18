@@ -409,6 +409,18 @@ VERTEX_MAAS_MODEL: Final[str] = _env_str(
 )
 VERTEX_MAAS_PROJECT: Final[str] = _env_str("AIOS_VERTEX_MAAS_PROJECT", "") or GEMINI_PROJECT
 VERTEX_MAAS_LOCATION: Final[str] = _env_str("AIOS_VERTEX_MAAS_LOCATION", "us-central1")
+# Output budget. 8192, not the OPENAI_MAX_TOKENS default of 1024, for the same
+# reason GEMINI_MAX_TOKENS is 8192: these models THINK before they answer, and
+# the thinking comes out of the same budget.
+#
+# DeepSeek R1 emits its chain of thought in <think> blocks. At 1024 the entire
+# allowance is consumed reasoning, the block never closes, it is stripped as the
+# unterminated reasoning it is, and the turn ends with no answer and no tool
+# call -- "The model produced no output this turn". Measured: a 5-mission cohort
+# scored 0/5 with all five steps unverified, which looks exactly like a model
+# that cannot do the task and is nothing of the kind. #222 fixed this same
+# defect for Gemini; inheriting the OpenAI default reintroduced it here.
+VERTEX_MAAS_MAX_TOKENS: Final[int] = _env_int("AIOS_VERTEX_MAAS_MAX_TOKENS", 8192)
 VERTEX_MAAS_ENABLED: Final[bool] = bool(VERTEX_MAAS_PROJECT and VERTEX_MAAS_MODEL)
 #: Output budget for Gemini. 8192, not 1024, because the 2.5 models THINK.
 #:
@@ -827,6 +839,7 @@ __all__ = [
     "VERTEX_MAAS_MODEL",
     "VERTEX_MAAS_PROJECT",
     "VERTEX_MAAS_LOCATION",
+    "VERTEX_MAAS_MAX_TOKENS",
     "VERTEX_MAAS_ENABLED",
     "GEMINI_MODEL",
     "GEMINI_MAX_TOKENS",
