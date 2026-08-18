@@ -527,6 +527,18 @@ def next_step_after_blocked_read(command: str) -> str:
     is unchanged -- nothing new is permitted, the command is still blocked. Only
     the message changes.
 
+    MEASURED EFFECT: NONE, so far. Blocked-read counts across four cohorts on
+    gemini-3.1-pro-preview were 9 (before this hint), then 3, 8, 9, 8 (after).
+    The single 3 was an outlier and was originally, wrongly, cited as evidence
+    this worked. The hint demonstrably fires -- see
+    tests/test_blocked_read_hint.py -- so the honest reading is that the model
+    receives the guidance and keeps reaching for the shell regardless.
+
+    Kept anyway, on the merits rather than on results: a refusal that names no
+    alternative is a worse refusal, and #215/#238/#240 established that pattern
+    here. But nobody should cite this function as a proven improvement, and a
+    future measurement showing no change is expected rather than surprising.
+
     Returns "" when the command is not a read attempt, so ordinary blocked
     commands keep their unadorned refusal. Never raises: a hint must not be able
     to fail a refusal path.
