@@ -36,6 +36,7 @@ def _active_route(
         model,
         openai=runtime.openai_client,
         anthropic=runtime.anthropic_client,
+        vertex_maas=runtime.vertex_maas_client,
     )
 
 

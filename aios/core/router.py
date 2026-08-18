@@ -53,6 +53,10 @@ PROVIDER_BEDROCK = "bedrock"
 PROVIDER_GEMINI = "gemini"
 PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
+#: Third-party models served by Vertex (DeepSeek, gpt-oss, ...). CLOUD:
+#: Google's infrastructure, someone else's weights. Gated exactly like any
+#: other cloud provider -- ineligible unless the task is in cloud_tasks.
+PROVIDER_VERTEX_MAAS = "vertexmaas"
 
 #: UI model-id prefixes (``ollama.qwen2.5-coder:7b`` etc.). The router's chosen
 #: model is a BARE id/tag; :func:`route_model_id` re-attaches the prefix for the
@@ -63,6 +67,7 @@ _PREFIX = {
     PROVIDER_GEMINI: "gemini.",
     PROVIDER_OPENAI: "openai.",
     PROVIDER_ANTHROPIC: "anthropic.",
+    PROVIDER_VERTEX_MAAS: "vertexmaas.",
 }
 
 # --- Privacy + cost tags -----------------------------------------------------
@@ -83,6 +88,7 @@ _DEFAULT_CAPABILITY = {
     PROVIDER_GEMINI: 300,
     PROVIDER_OPENAI: 300,
     PROVIDER_ANTHROPIC: 300,
+    PROVIDER_VERTEX_MAAS: 300,
 }
 #: Tie-bias that makes a local provider win over an equally-capable cloud one when
 #: the policy allows both (local-first preference). Small on purpose: genuine

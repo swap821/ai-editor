@@ -98,6 +98,7 @@ def _build_providers(
     *,
     openai: Optional[Any] = None,
     anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
 ) -> list[router.Provider]:
     """Describe the live providers as router :class:`~aios.core.router.Provider` rows.
 
@@ -153,6 +154,12 @@ def _build_providers(
             config.ANTHROPIC_MODEL,
             router.COST_HIGH,
         ),
+        (
+            vertex_maas,
+            router.PROVIDER_VERTEX_MAAS,
+            config.VERTEX_MAAS_MODEL,
+            router.COST_LOW,
+        ),
     ):
         if client is None:
             continue
@@ -178,6 +185,7 @@ def _client_for(
     *,
     openai: Optional[Any] = None,
     anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
 ) -> Optional[Any]:
     """Map a router provider name back to its live chat client."""
     if provider == router.PROVIDER_BEDROCK:
@@ -188,6 +196,8 @@ def _client_for(
         return openai
     if provider == router.PROVIDER_ANTHROPIC:
         return anthropic
+    if provider == router.PROVIDER_VERTEX_MAAS:
+        return vertex_maas
     return ollama
 
 
@@ -246,6 +256,7 @@ def _provider_name(
     *,
     openai: Optional[Any] = None,
     anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
 ) -> str:
     """The router provider name for the selected *chat_client* (for evidence + UI)."""
     if bedrock is not None and chat_client is bedrock:
@@ -267,6 +278,7 @@ def _active_route(
     *,
     openai: Optional[Any] = None,
     anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
 ) -> tuple[str, str]:
     """The ``(provider, model)`` that ACTUALLY served — truthful under failover.
 
@@ -309,6 +321,7 @@ def _select_chat_client(
     gemini: Optional[Any] = None,
     openai: Optional[Any] = None,
     anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
     task: str = "coding",
     metrics: Optional[dict] = None,
     calibration_weight: float = 0.0,
@@ -329,7 +342,8 @@ def _select_chat_client(
     """
     if model_id in _AUTO_IDS:
         providers = _build_providers(
-            ollama, bedrock, gemini, openai=openai, anthropic=anthropic
+            ollama, bedrock, gemini, openai=openai, anthropic=anthropic,
+            vertex_maas=vertex_maas,
         )
         policy = _router_policy()
         # Enforce classification-bound routing: let the PrivacyBroker filter the
@@ -382,6 +396,7 @@ def _select_chat_client(
                     gemini,
                     openai=openai,
                     anthropic=anthropic,
+                    vertex_maas=vertex_maas,
                 )
                 if client is not None:
                     cascade.append((client, r.model, r.provider))
@@ -425,6 +440,16 @@ def _select_chat_client(
         raise HTTPException(
             status_code=503,
             detail="Anthropic model selected but Anthropic direct is not configured",
+        )
+    if model_id and model_id.startswith("vertexmaas."):
+        if vertex_maas is not None:
+            return vertex_maas, model_id[len("vertexmaas.") :]
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Vertex MaaS model selected but the provider is not configured "
+                "(set AIOS_VERTEX_MAAS_PROJECT, or AIOS_GEMINI_PROJECT)"
+            ),
         )
     if model_id and bedrock is not None:
         return bedrock, model_id

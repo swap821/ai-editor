@@ -60,7 +60,7 @@ def _make_runtime(*, extra_overrides: dict[str, object] | None = None) -> Runtim
         "sse_writer": _sse_writer,
         "telemetry": telemetry,
         "select_chat_client": lambda task: (_FakeChatClient(), "fake-model"),
-        "active_route": lambda chat_client, bedrock, gemini, model, *, openai=None, anthropic=None: (
+        "active_route": lambda chat_client, bedrock, gemini, model, *, openai=None, anthropic=None, vertex_maas=None: (
             "ollama",
             model,
         ),
@@ -242,7 +242,7 @@ def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -
     local_client = _Client("local")
     cloud_client = _Client("cloud")
 
-    def _active_route(chat_client, bedrock, gemini, model, *, openai=None, anthropic=None):
+    def _active_route(chat_client, bedrock, gemini, model, *, openai=None, anthropic=None, vertex_maas=None):
         return ("cloud", "cloud-model") if chat_client is cloud_client else ("ollama", "local-model")
 
     def _stream_chat_chunks(chat_client, messages, *, model):

@@ -350,7 +350,27 @@ EXECUTOR_REMOTE_WORKSPACE_ROOT: Final[str] = _env_str(
 )
 
 OLLAMA_HOST: Final[str] = _env_str("OLLAMA_HOST", "http://127.0.0.1:11434")
-LLM_MODEL: Final[str] = _env_str("AIOS_LLM_MODEL", "llama3.1:8b")
+# The LOCAL CLERK model, not the cloud brain. It serves the default-on aliveness
+# organs -- CRAG, reflection, narrative self-model, facts extraction -- which
+# summarise and classify. They do not write code and they do not call tools.
+#
+# Was llama3.1:8b, which is 5.6GB resident and is pulled ONCE PER TURN even when
+# every agent turn is cloud-routed (verified 2026-08-18: routing was correct
+# throughout, Vertex calls only, while llama-server loaded alongside the backend
+# regardless). On a 16GB host that reaches 96% memory within a minute and killed
+# two consecutive 30-minute endurance runs -- reported by the harness as
+# ConnectionResetError, which is indistinguishable from a killed backend and
+# sent the first diagnosis down the wrong path entirely.
+#
+# qwen2.5:3b is 2.2GB resident. The endurance run that finally completed used it:
+# 37 turns over 30.7 minutes, backend memory 556.5MB -> 563.8MB (growth 7.3MB),
+# latency stable. Right-sized for clerk work and leaves the host ~4.6GB of head.
+#
+# Raise it deliberately if the clerk needs more (phi4-mini:3.8b and
+# granite4.1:3b are the same weight class; qwen2.5-coder:7b is better at code and
+# reintroduces the memory problem). The cloud brain is chosen per request and is
+# unaffected by this.
+LLM_MODEL: Final[str] = _env_str("AIOS_LLM_MODEL", "qwen2.5:3b")
 LLM_REQUEST_TIMEOUT_S: Final[int] = _env_int("AIOS_LLM_TIMEOUT_S", 120)
 LLM_TEMPERATURE: Final[float] = _env_float("AIOS_LLM_TEMPERATURE", 0.1)
 LLM_NUM_CTX: Final[int] = _env_int("AIOS_LLM_NUM_CTX", 4096)
@@ -373,6 +393,35 @@ GEMINI_PROJECT: Final[str] = _env_str("AIOS_GEMINI_PROJECT", "")
 #: reach the 3.x line. See CURATED_MODELS in aios/core/gemini.py.
 GEMINI_LOCATION: Final[str] = _env_str("AIOS_GEMINI_LOCATION", "us-central1")
 GEMINI_MODEL: Final[str] = _env_str("AIOS_GEMINI_MODEL", "gemini-2.5-flash")
+
+# --- Vertex Model-as-a-Service (third-party models on Vertex) ----------------
+# Vertex serves more than Gemini. Verified by invoking each id on 2026-08-18
+# (a publisher listing shows the catalogue, not project access):
+#   deepseek-ai/deepseek-r1-0528-maas  us-central1  200 OK, tool calls work
+#   openai/gpt-oss-120b-maas           us-central1  429 throttled but reachable
+#   meta/... , nvidia/nemotron-v3      every region 404 listed, not callable
+#   anthropic/claude-opus-4-5          global       429 zero quota (request denied)
+# These are CLOUD BRAIN models for the agent loop, not the local clerk
+# (AIOS_LLM_MODEL) -- they are cloud-hosted and carry the same residency
+# question as Gemini.
+VERTEX_MAAS_MODEL: Final[str] = _env_str(
+    "AIOS_VERTEX_MAAS_MODEL", "deepseek-ai/deepseek-r1-0528-maas"
+)
+VERTEX_MAAS_PROJECT: Final[str] = _env_str("AIOS_VERTEX_MAAS_PROJECT", "") or GEMINI_PROJECT
+VERTEX_MAAS_LOCATION: Final[str] = _env_str("AIOS_VERTEX_MAAS_LOCATION", "us-central1")
+# Output budget. 8192, not the OPENAI_MAX_TOKENS default of 1024, for the same
+# reason GEMINI_MAX_TOKENS is 8192: these models THINK before they answer, and
+# the thinking comes out of the same budget.
+#
+# DeepSeek R1 emits its chain of thought in <think> blocks. At 1024 the entire
+# allowance is consumed reasoning, the block never closes, it is stripped as the
+# unterminated reasoning it is, and the turn ends with no answer and no tool
+# call -- "The model produced no output this turn". Measured: a 5-mission cohort
+# scored 0/5 with all five steps unverified, which looks exactly like a model
+# that cannot do the task and is nothing of the kind. #222 fixed this same
+# defect for Gemini; inheriting the OpenAI default reintroduced it here.
+VERTEX_MAAS_MAX_TOKENS: Final[int] = _env_int("AIOS_VERTEX_MAAS_MAX_TOKENS", 8192)
+VERTEX_MAAS_ENABLED: Final[bool] = bool(VERTEX_MAAS_PROJECT and VERTEX_MAAS_MODEL)
 #: Output budget for Gemini. 8192, not 1024, because the 2.5 models THINK.
 #:
 #: `max_output_tokens` on Gemini 2.5 covers thinking tokens AND visible output,
@@ -787,6 +836,11 @@ __all__ = [
     "BEDROCK_ENABLED",
     "GEMINI_PROJECT",
     "GEMINI_LOCATION",
+    "VERTEX_MAAS_MODEL",
+    "VERTEX_MAAS_PROJECT",
+    "VERTEX_MAAS_LOCATION",
+    "VERTEX_MAAS_MAX_TOKENS",
+    "VERTEX_MAAS_ENABLED",
     "GEMINI_MODEL",
     "GEMINI_MAX_TOKENS",
     "GEMINI_THINKING_BUDGET",
