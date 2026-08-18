@@ -43,9 +43,28 @@ def probe_headers() -> dict[str, str]:
 #: Only bare .py files directly inside training_ground/ or lab/ may be written.
 ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$")
 #: Only pytest on a single training_ground/ or lab/ .py file may run as an
-#: approved command — either spelling (`python -m pytest` / bare `pytest`),
-#: optional quotes, `-q` allowed anywhere. Nothing else (no pip, no shell, no
-#: paths outside the sandbox).
+#: approved command -- either spelling (`python -m pytest` / bare `pytest`),
+#: optional quotes, and a single VERBOSITY flag (`-q` or `-v`) allowed on
+#: either side of the target. Nothing else (no pip, no shell, no paths outside
+#: the sandbox, no other flags).
+#:
+#: `-v` was added 2026-08-18 by operator decision, after a golden cohort on
+#: gemini-3.7-flash scored 1/5 where FOUR of the five failures were this
+#: allowlist refusing `pytest -v training_ground/<file>.py`. The model was
+#: doing the right thing -- running the tests it had just written -- and a
+#: model that prefers `-v` scored 2.7x worse than one that prefers `-q`, which
+#: measured the regex rather than the system.
+#:
+#: This is deliberately the SMALLEST possible widening. `-v` changes pytest
+#: output verbosity and nothing else: same binary, same single-file target,
+#: same sandbox constraint. It does not admit a new command, a new path, or a
+#: new capability. Everything the old pattern refused, this one still refuses
+#: -- pinned by tests/test_probe_allowlist.py, which asserts the refusals
+#: rather than only the permissions.
+#:
+#: NOT widened: `--collect-only` (present in one of the four rejections),
+#: `-k`, `-x`, `--tb`, multiple files, or any flag taking a value. Those are
+#: separate decisions and none of them are needed to run a test.
 ALLOWED_CMD_RE = re.compile(
-    r"^(?:python -m )?pytest(?: -q)?(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)?(?: -q)?$"
+    r"^(?:python -m )?pytest(?: -[qv])?(?: \"?(?:training_ground|lab)[/\][A-Za-z0-9_\-]+\.py\"?)?(?: -[qv])?$"
 )
