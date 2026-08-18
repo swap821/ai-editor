@@ -35,11 +35,39 @@ held in memory for the life of the driver and written nowhere -- not to the
 repo, not to `.aios/`, not to a log. A driver that persisted it would be
 manufacturing a permanent operator credential on disk, which is precisely what
 AGENTS.md §VII forbids.
+
+Because it was written nowhere it was also *shown* nowhere, and that made every
+instance single-use: the second run gets a 409 and this driver correctly refuses
+to invent a credential. That was organ 44's blocker 4, and it made the endurance
+harness -- which needs repeated runs to measure anything -- effectively
+unrunnable without discarding the instance each time.
+
+`explain_reusable_enrollment` addresses it without ever touching the secret. It
+takes only the operator id, so it cannot print, log or leak a credential -- the
+rule `scripts/spine_release_attest.py::cmd_keygen` states for signing keys: "A
+tool that never holds the secret cannot give it away."
+
+An earlier attempt printed the credential to a TTY behind an isatty() guard.
+VII.4 arguably permits that -- a terminal is not disk, not a log, not .aios/ --
+but CodeQL flagged it high severity (py/clear-text-logging-sensitive-data) and
+was right to: the guard is invisible to any reader, and "we print secrets, but
+only sometimes" is a worse invariant than "we never print secrets".
+
+So auto-enrollment still happens and the credential still lives in memory for
+the life of the driver, which leaks nothing. What the driver will not do is make
+that credential reusable, because doing so would mean printing it. Instead the
+operator is shown how to enroll themselves, in their own terminal, where the
+server hands the credential straight to them:
+
+    AIOS_OPERATOR_CREDENTIAL=<value>   (volatile env var, VII.4-sanctioned)
+
+or how to give each run its own AIOS_DATA_DIR.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any
 
 import requests
@@ -53,6 +81,51 @@ API_HOST_HEADER = os.environ.get("AIOS_PROBE_HOST", "localhost:8000")
 #: Returned by a YELLOW route instead of running the handler. The driver must
 #: replay the identical request carrying the server-issued token.
 CAPABILITY_CHALLENGE = 428
+
+
+def explain_reusable_enrollment(operator_id: str | None) -> None:
+    """Say how to obtain a REUSABLE credential. Never handles the secret.
+
+    This deliberately does not take the credential as an argument, so it cannot
+    print, log or leak one. That is the same rule
+    `scripts/spine_release_attest.py::cmd_keygen` states for signing keys --
+    "A tool that never holds the secret cannot give it away" -- and an earlier
+    version of this function broke it: it printed the credential to a TTY,
+    guarded by `sys.stdout.isatty()`. AGENTS.md VII.4 arguably permits that (a
+    terminal is not disk, not a log, not .aios/), but CodeQL flagged it high
+    severity as py/clear-text-logging-sensitive-data and CodeQL was right: the
+    guard is invisible to any reader, static or human, and "we print secrets
+    but only sometimes" is a worse invariant than "we never print secrets".
+
+    Auto-enrollment still happens and still holds the credential in memory for
+    the life of the driver -- that leaks nothing. What it cannot do is make the
+    credential reusable, because surfacing it would mean printing it. So the
+    operator is told how to enroll themselves, in their own terminal, where the
+    server hands the credential straight to them and no tool of ours ever sees
+    it.
+    """
+    who = f" ({operator_id})" if operator_id else ""
+    guidance = [
+        f"[probe] Enrolled a new operator{who}. This driver holds the one-time",
+        "[probe] credential in memory for this run only and will not print it:",
+        "[probe] a tool that never holds a secret cannot give it away.",
+        "[probe] This instance is therefore single-use as launched.",
+        "[probe]",
+        "[probe] To make repeated runs possible, enroll YOURSELF against a fresh",
+        "[probe] instance and keep what the server returns:",
+        "[probe]",
+        "[probe]   curl -s -X POST $AIOS_PROBE_BASE/api/v1/auth/enroll \\",
+        "[probe]     -H 'Origin: http://localhost:5173' \\",
+        "[probe]     -H 'Host: '\"$AIOS_PROBE_HOST\" \\",
+        "[probe]     -H 'Content-Type: application/json' \\",
+        "[probe]     -d '{\"display_name\":\"operator\"}'",
+        "[probe]",
+        "[probe] Put enrollmentCredential in your password manager, then export",
+        "[probe] AIOS_OPERATOR_CREDENTIAL before each run. Never write it to a",
+        "[probe] file in this repo, to .env, or to .aios/ (AGENTS.md VII.4).",
+        "[probe] Alternatively give every run its own AIOS_DATA_DIR.",
+    ]
+    print(chr(10).join(guidance), file=sys.stderr)
 
 
 class ProbeAuthError(RuntimeError):
@@ -98,6 +171,7 @@ class ProbeSession:
                 body = enrolled.json()
                 credential = body["enrollmentCredential"]
                 self.operator_id = body.get("operatorId")
+                explain_reusable_enrollment(self.operator_id)
             elif enrolled.status_code == 409:
                 raise ProbeAuthError(
                     "an operator is already enrolled and no credential was "

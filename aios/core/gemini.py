@@ -29,6 +29,7 @@ Design notes (mirrors ``bedrock.py`` so the three providers stay symmetric):
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from typing import Any, Iterator, Optional
@@ -45,6 +46,30 @@ logger = logging.getLogger(__name__)
 #: returns nothing (Vertex discovery is best-effort / permission-dependent). These
 #: ids are stable; the operator can still type any model id the project can serve.
 CURATED_MODELS: list[dict[str, str]] = [
+    # Verified by INVOKING each id on 2026-08-18, not by reading the publisher
+    # listing -- the listing shows the catalogue, not what a project may call.
+    #
+    # REGION MATTERS, and silently: every gemini-3.x id below returns 404
+    # NOT_FOUND in `us-central1` and 200 in `global`. AIOS_GEMINI_LOCATION
+    # defaults to us-central1, so a 3.x model looks like it "does not exist"
+    # when it is only in the wrong region. That cost a full golden cohort
+    # (0/5, every step unverified) before the 404 body was read. Set
+    # AIOS_GEMINI_LOCATION=global to use anything in the 3.x line.
+    #
+    # The default is deliberately NOT changed here: `global` routes the request
+    # without a region guarantee, which is a data-residency decision for the
+    # operator to make, not a convenience default to flip on their behalf.
+    #
+    # The 3.x line is flash-led: there is a 3.6-flash and a 3.7-flash but no
+    # matching pro, so the newest *pro* is 3.1-pro-preview (3-pro-preview 404s
+    # in both regions). Ordered newest-first so the picker's default stops being
+    # the oldest option -- organ 44 measured eight cohorts on 2.5-pro while four
+    # newer models were already callable.
+    {"id": "gemini-3.7-flash", "name": "Google Gemini 3.7 Flash"},
+    {"id": "gemini-3.6-flash", "name": "Google Gemini 3.6 Flash"},
+    {"id": "gemini-3.5-flash", "name": "Google Gemini 3.5 Flash"},
+    {"id": "gemini-3.1-pro-preview", "name": "Google Gemini 3.1 Pro (preview)"},
+    {"id": "gemini-3-pro-preview", "name": "Google Gemini 3 Pro (preview)"},
     {"id": "gemini-2.5-pro", "name": "Google Gemini 2.5 Pro"},
     {"id": "gemini-2.5-flash", "name": "Google Gemini 2.5 Flash"},
     {"id": "gemini-2.0-flash", "name": "Google Gemini 2.0 Flash"},
@@ -90,7 +115,16 @@ def _to_gemini(
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         args = {}
-                parts.append({"function_call": {"name": name, "args": args or {}}})
+                fc_part: dict[str, Any] = {
+                    "function_call": {"name": name, "args": args or {}}
+                }
+                # Gemini 3.x rejects a replayed function_call whose
+                # thought_signature is missing; 2.5 never sends one, so this is
+                # emitted only when the model actually gave us one.
+                signature = call.get("thought_signature") if isinstance(call, dict) else None
+                if signature:
+                    fc_part["thought_signature"] = _decode_signature(signature)
+                parts.append(fc_part)
             if not parts:
                 parts.append({"text": ""})  # Gemini rejects empty content
             contents.append({"role": "model", "parts": parts})
@@ -109,6 +143,20 @@ def _to_gemini(
                     ],
                 }
             )
+    # Gemini 3.x: "Requests ending with a model turn are not supported." 2.5
+    # accepted it, so the agent loop has always been able to reach chat() with
+    # its own last turn at the end -- a blocked or refused tool call appends the
+    # assistant message with no matching tool result, and the next request then
+    # ends on `model`. That is a 400 on 3.x, and it killed four of five golden
+    # missions after the earlier adapter fixes had already landed.
+    #
+    # Normalised here rather than in the loop: this is one provider transport
+    # requirement and the agent should not have to know about it. The appended
+    # turn is a neutral continuation, not new instruction -- it must not smuggle
+    # guidance into a measured run.
+    if contents and contents[-1].get("role") == "model":
+        contents.append({"role": "user", "parts": [{"text": "Continue."}]})
+
     return "\n\n".join(system_parts), contents
 
 
@@ -132,6 +180,58 @@ def _to_tools(tools: Optional[list[dict[str, Any]]]) -> Optional[list[dict[str, 
             }
         )
     return [{"function_declarations": decls}]
+
+
+def _decode_signature(signature: Any) -> Any:
+    """base64 text -> bytes for the wire; anything else passes through."""
+    if isinstance(signature, str):
+        try:
+            return base64.b64decode(signature.encode("ascii"), validate=True)
+        except Exception:  # noqa: BLE001 - a non-base64 value is sent as-is
+            return signature
+    return signature
+
+
+def _tool_call_from_part(part: Any, fc: Any) -> dict[str, Any]:
+    """Build one tool-call dict, carrying Gemini 3.x's ``thought_signature``.
+
+    Gemini 3.x returns an opaque ``thought_signature`` on the *part* that holds
+    a ``function_call``, and REQUIRES it back when that call is replayed in the
+    conversation history. Dropping it is not a degradation, it is a hard 400:
+
+        Function call is missing a thought_signature in functionCall parts.
+        This is required for tools to work correctly.
+
+    The first tool call therefore succeeds and the next request fails, which is
+    why every golden mission on gemini-3.7-flash died ~35s in with every step
+    unverified. 2.5 does not send the field, so this is invisible until a 3.x
+    model is selected -- and the region default (us-central1) meant no 3.x
+    model could be selected at all. Two defaults hid one protocol change.
+
+    The signature rides on the tool-call dict, which ``ToolAgent`` stores
+    verbatim in the conversation, so it survives the round trip without the
+    agent needing to know it exists.
+    """
+    call: dict[str, Any] = {
+        "id": None,
+        "function": {
+            "name": str(fc.name),
+            "arguments": _coerce_args(getattr(fc, "args", None)),
+        },
+    }
+    signature = getattr(part, "thought_signature", None)
+    if signature:
+        # base64 TEXT, not the raw bytes the SDK hands back. This dict is stored
+        # in the agent conversation, which is streamed, audited and serialised;
+        # raw bytes there raise "Object of type bytes is not JSON serializable"
+        # and kill the turn just as dead as the 400 this field exists to avoid.
+        # Decoded back to bytes at the API boundary in ``_to_gemini``.
+        call["thought_signature"] = (
+            base64.b64encode(signature).decode("ascii")
+            if isinstance(signature, (bytes, bytearray))
+            else str(signature)
+        )
+    return call
 
 
 def _coerce_args(raw: Any) -> dict[str, Any]:
@@ -203,15 +303,7 @@ def _parse_output(response: Any) -> dict[str, Any]:
             text += str(chunk)
         fc = getattr(part, "function_call", None)
         if fc is not None and getattr(fc, "name", None):
-            tool_calls.append(
-                {
-                    "id": None,
-                    "function": {
-                        "name": str(fc.name),
-                        "arguments": _coerce_args(getattr(fc, "args", None)),
-                    },
-                }
-            )
+            tool_calls.append(_tool_call_from_part(part, fc))
     result: dict[str, Any] = {"role": "assistant", "content": text}
     if tool_calls:
         result["tool_calls"] = tool_calls
@@ -274,15 +366,7 @@ def _stream_from_gemini(chunks: Any) -> Iterator[str | StreamFinished]:
                 yield str(t)
             fc = getattr(part, "function_call", None)
             if fc is not None and getattr(fc, "name", None):
-                tool_calls.append(
-                    {
-                        "id": None,
-                        "function": {
-                            "name": str(fc.name),
-                            "arguments": _coerce_args(getattr(fc, "args", None)),
-                        },
-                    }
-                )
+                tool_calls.append(_tool_call_from_part(part, fc))
 
     yield StreamFinished(tool_calls=tool_calls, content="".join(text_parts))
 
