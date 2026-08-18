@@ -154,6 +154,120 @@ jobs:
           docker logs --tail=40 ollama || true
           docker rm -f ollama || true
 
+  golden-cohort-local:
+    # Blocker 2 on organ 44 says: "Outside-machine -- this is a laptop run. CI
+    # has neither cloud credentials nor the aios-worker/aios-executor images."
+    # The honest content of that is not that the numbers are wrong, it is that
+    # NOBODY ELSE CAN RE-RUN THEM. Every golden figure the organ carries was
+    # produced on one machine.
+    #
+    # This job fixes the reproducibility half with no cloud credentials at all,
+    # by driving the same runner against a local model. It does not reproduce
+    # the cloud score and is not meant to -- a CI-sized model will do badly.
+    #
+    # WHAT IT GATES ON: harness integrity, never score. The distinction is the
+    # whole lesson of 2026-08-18, when NINE separate infrastructure defects each
+    # produced a low cohort score indistinguishable from model weakness -- a
+    # region default, a missing thought_signature, an inherited 1024-token
+    # budget, a privacy filter emitting invalid JSON, a stub conftest. A gate on
+    # score goes red for all nine and says nothing about which. A gate on
+    # integrity goes red for exactly those nine and stays green when the model
+    # is merely small. `local-clerk-live` states the same rule: demanding a pass
+    # "would create pressure to pick a model that flatters the suite or to
+    # loosen the suite until something passes".
+    #
+    # workflow_dispatch only: a cohort is minutes of model time, and putting it
+    # on every push buys noise rather than signal.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start a real Ollama daemon
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+              echo "ollama ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:11434/api/tags >/dev/null
+
+      - name: Pull the cohort model
+        run: |
+          docker exec ollama ollama pull "${AIOS_LLM_MODEL}"
+          docker exec ollama ollama list
+        env:
+          AIOS_LLM_MODEL: qwen2.5:3b
+
+      - name: Start the backend on its own instance
+        env:
+          AIOS_API_PORT: "8300"
+          AIOS_PROBE_BASE: http://127.0.0.1:8300
+          AIOS_DATA_DIR: ${{ runner.temp }}/cohort-data
+          AIOS_LLM_MODEL: qwen2.5:3b
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          mkdir -p "${AIOS_DATA_DIR}"
+          nohup python -m uvicorn aios.api.main:app             --host 127.0.0.1 --port 8300 > backend.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8300/health >/dev/null; then
+              echo "backend ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8300/health >/dev/null
+
+      - name: Run one golden mission against the local model
+        env:
+          AIOS_API_PORT: "8300"
+          AIOS_PROBE_BASE: http://127.0.0.1:8300
+          AIOS_PROBE_HOST: localhost:8300
+          AIOS_DATA_DIR: ${{ runner.temp }}/cohort-data
+          AIOS_LLM_MODEL: qwen2.5:3b
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          # One mission, not five: this proves the harness runs off the laptop,
+          # and a full cohort on a small local model is minutes of runtime for
+          # no extra evidence about reproducibility.
+          #
+          # `|| true` because the runner exits non-zero on a low SCORE, which is
+          # expected here. The gate below reads the log and fails only on a
+          # broken harness.
+          python tools/golden_mission_runner.py run             --mission tdd-workflow             --model ollama.qwen2.5:3b 2>&1 | tee cohort.log || true
+
+      - name: Assert the harness ran (never that the model scored)
+        run: python scripts/ci_local_cohort_check.py cohort.log
+
+      - name: Upload the cohort log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-cohort-local
+          path: |
+            cohort.log
+            backend.log
+          retention-days: 14
+
+      - name: Report daemon state
+        if: ${{ always() }}
+        run: |
+          docker logs --tail=40 ollama || true
+          docker rm -f ollama || true
+
   frontend-tests:
     runs-on: ubuntu-latest
     defaults:

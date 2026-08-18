@@ -29,6 +29,9 @@ class RuntimeDeps:
     gemini: Optional[Any] = None
     openai_client: Optional[Any] = None
     anthropic_client: Optional[Any] = None
+    #: Vertex Model-as-a-Service (DeepSeek, gpt-oss). CLOUD brain, gated by
+    #: the router policy's cloud_tasks exactly like every other cloud client.
+    vertex_maas_client: Optional[Any] = None
     executor: Optional[Any] = None
     indexer: Optional[Any] = None
     reflector: Optional[Any] = None

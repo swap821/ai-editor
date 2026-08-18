@@ -33,10 +33,20 @@ REFUSED = [
     ("a package install", "pip install evil"),
     ("a shell", "bash -c 'pytest -v training_ground/x.py'"),
     ("a different binary", "python training_ground/x.py"),
-    ("a flag that takes a value", "pytest --tb=long training_ground/x.py"),
+    # --tb=<style> is now admitted: it formats tracebacks and changes nothing
+    # about what runs. A value-taking flag that DOES change behaviour is
+    # covered by the --rootdir and -c cases below.
+    ("a value flag that changes behaviour", "pytest --rootdir=/tmp training_ground/x.py"),
     ("test selection by keyword", "pytest -k secret training_ground/x.py"),
-    ("collect-only, not widened", "pytest -v --collect-only training_ground/x.py"),
-    ("doubled verbosity", "pytest -vv training_ground/x.py"),
+    ("plugin loading", "pytest -p evil training_ground/x.py"),
+    ("bundled -s with -k", "pytest -sk sel training_ground/x.py"),
+    ("-o config override", "pytest -o junit_suite_name=x training_ground/x.py"),
+    ("-s does not launder -k", "pytest -s -k sel training_ground/x.py"),
+    ("-s does not launder --pdb", "pytest -s --pdb training_ground/x.py"),
+    ("interactive debugger", "pytest --pdb training_ground/x.py"),
+    ("stop on first failure", "pytest -x training_ground/x.py"),
+    ("conftest suppression", "pytest --noconftest training_ground/x.py"),
+    ("a rootdir path", "pytest --rootdir=/ training_ground/x.py"),
     ("two files", "pytest -v training_ground/a.py training_ground/b.py"),
     ("a directory rather than a file", "pytest -v training_ground/"),
     ("a nested path", "pytest training_ground/subdir/foo.py"),
@@ -60,6 +70,13 @@ def test_still_refused(why: str, command: str) -> None:
 
 PERMITTED = [
     "pytest -v training_ground/test_calculator.py",
+    "pytest -q --collect-only training_ground/test_pipeline.py",
+    "pytest training_ground/test_sorted_insert.py -q --no-header",
+    "pytest --tb=short training_ground/x.py",
+    "pytest -vv training_ground/x.py",
+    "pytest -s training_ground/x.py",
+    "pytest -vv -s training_ground/test_pipeline.py",
+    "pytest training_ground/x.py -s",
     "pytest training_ground/test_calculator.py -v",
     "python -m pytest -v training_ground/x.py",
     'pytest -v "training_ground/x.py"',
@@ -86,21 +103,31 @@ def test_the_quiet_forms_still_work() -> None:
         assert ALLOWED_CMD_RE.match(command), command
 
 
-def test_only_verbosity_flags_are_admitted() -> None:
-    """Any single-letter flag other than q/v must still be refused.
+def test_only_the_named_short_flags_are_admitted() -> None:
+    """Exactly three single-letter flags, and no others.
 
-    A regex written as `-[a-z]` instead of `-[qv]` would pass every test above
-    and quietly admit -x, -s, -p and the rest.
+    q/v are verbosity; s disables output capture so print() is visible. All
+    three change what is PRINTED and nothing about what runs.
+
+    This loops the whole alphabet because a pattern that drifted to `-[a-z]`
+    would pass every hand-written case in this file while admitting -x (stop on
+    first failure), -k (select tests) and -p (load arbitrary plugins). It has
+    already earned its keep once: it failed when -s was added, which is the
+    correct behaviour for a guard on a security gate -- widening the set has to
+    be a deliberate edit here, not a side effect somewhere else.
     """
     import string
 
+    from aios.probe_common import ALLOWED_CMD_RE
+
+    admitted = {"q", "v", "s"}
     for letter in string.ascii_lowercase:
         command = f"pytest -{letter} training_ground/x.py"
         allowed = bool(ALLOWED_CMD_RE.match(command))
-        assert allowed == (letter in {"q", "v"}), (
-            f"-{letter} allowed={allowed}; only -q and -v may be admitted"
+        assert allowed == (letter in admitted), (
+            f"-{letter} allowed={allowed}; the admitted short flags are "
+            f"{sorted(admitted)} and changing that set is a security decision"
         )
-
 
 def test_the_file_allowlist_was_not_touched() -> None:
     """This change is about commands. The write gate must be unchanged."""
@@ -109,26 +136,34 @@ def test_the_file_allowlist_was_not_touched() -> None:
     assert not ALLOWED_FILE_RE.match("training_ground/../aios/x.py")
 
 
-def test_only_the_verbosity_group_differs_from_the_original() -> None:
-    """Differential: the ONLY change is the verbosity group.
+def test_only_output_flags_are_admitted() -> None:
+    """Every flag that changes WHAT RUNS must still be refused.
 
-    The first attempt at this widening lost a backslash, so the character class
-    never closed, swallowed the next one and admitted "/". That silently
-    permitted a nested path the original refused. All sixteen refusal cases
-    above still passed; the repo's own tests/test_probe_common.py caught it.
-
-    So this compares the whole pattern against the pre-2026-08-18 one rather
-    than trusting a hand-written refusal list to be exhaustive.
+    The widening is justified only if the admitted flags are output-only. A
+    pattern that drifted to `--[a-z-]+` would pass every case above and quietly
+    admit -p (arbitrary plugin loading), --pdb (interactive), or --rootdir
+    (takes a path).
     """
     from aios.probe_common import ALLOWED_CMD_RE
 
-    original = (
-        r"^(?:python -m )?pytest(?: -q)?"
-        r"(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)?(?: -q)?$"
-    )
-    normalised = ALLOWED_CMD_RE.pattern.replace("-[qv]", "-q")
+    execution_changing = [
+        "-k sel", "-x", "-p plug", "--pdb", "--noconftest", "--rootdir=/",
+        "-o junit_suite_name=x", "--pdbcls=IPython:TerminalPdb",
+        "-c setup.cfg", "--import-mode=importlib", "-n 4", "--lf", "--ff",
+    ]
+    for flag in execution_changing:
+        cmd = f"pytest {flag} training_ground/x.py"
+        assert not ALLOWED_CMD_RE.match(cmd), (
+            f"{flag!r} changes what executes and must not be admitted by a "
+            "widening justified as output-only"
+        )
 
-    assert normalised == original, (
-        "the live pattern differs from the original by more than the verbosity "
-        f"group:{chr(10)}  live={normalised!r}{chr(10)}  orig={original!r}"
-    )
+
+def test_the_pattern_is_built_from_named_parts() -> None:
+    """Structural: the previous widening was one long literal and lost a
+    backslash, silently admitting nested paths. Named parts make the character
+    class reviewable on its own line."""
+    from aios import probe_common
+
+    assert hasattr(probe_common, "_PYTEST_READ_ONLY_FLAG")
+    assert hasattr(probe_common, "_SANDBOX_TEST_FILE")
