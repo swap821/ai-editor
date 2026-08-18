@@ -39,6 +39,10 @@ REFUSED = [
     ("doubled verbosity", "pytest -vv training_ground/x.py"),
     ("two files", "pytest -v training_ground/a.py training_ground/b.py"),
     ("a directory rather than a file", "pytest -v training_ground/"),
+    ("a nested path", "pytest training_ground/subdir/foo.py"),
+    ("a nested path with -v", "pytest -v training_ground/subdir/foo.py"),
+    ("a nested lab path", "pytest lab/subdir/foo.py"),
+    ("traversal into the source tree", "pytest training_ground/../aios/x.py"),
     ("the whole suite", "pytest -v tests/"),
     ("an env prefix", "AIOS_X=1 pytest -v training_ground/x.py"),
 ]
@@ -103,3 +107,28 @@ def test_the_file_allowlist_was_not_touched() -> None:
     assert ALLOWED_FILE_RE.match("training_ground/x.py")
     assert not ALLOWED_FILE_RE.match("aios/security/gateway.py")
     assert not ALLOWED_FILE_RE.match("training_ground/../aios/x.py")
+
+
+def test_only_the_verbosity_group_differs_from_the_original() -> None:
+    """Differential: the ONLY change is the verbosity group.
+
+    The first attempt at this widening lost a backslash, so the character class
+    never closed, swallowed the next one and admitted "/". That silently
+    permitted a nested path the original refused. All sixteen refusal cases
+    above still passed; the repo's own tests/test_probe_common.py caught it.
+
+    So this compares the whole pattern against the pre-2026-08-18 one rather
+    than trusting a hand-written refusal list to be exhaustive.
+    """
+    from aios.probe_common import ALLOWED_CMD_RE
+
+    original = (
+        r"^(?:python -m )?pytest(?: -q)?"
+        r"(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)?(?: -q)?$"
+    )
+    normalised = ALLOWED_CMD_RE.pattern.replace("-[qv]", "-q")
+
+    assert normalised == original, (
+        "the live pattern differs from the original by more than the verbosity "
+        f"group:{chr(10)}  live={normalised!r}{chr(10)}  orig={original!r}"
+    )
