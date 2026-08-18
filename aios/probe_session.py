@@ -35,11 +35,29 @@ held in memory for the life of the driver and written nowhere -- not to the
 repo, not to `.aios/`, not to a log. A driver that persisted it would be
 manufacturing a permanent operator credential on disk, which is precisely what
 AGENTS.md §VII forbids.
+
+Because it was written nowhere it was also *shown* nowhere, and that made every
+instance single-use: the second run gets a 409 and this driver correctly refuses
+to invent a credential. That was organ 44's blocker 4, and it made the endurance
+harness -- which needs repeated runs to measure anything -- effectively
+unrunnable without discarding the instance each time.
+
+`surface_enrollment_credential` closes it without persisting anything: the
+credential is PRINTED once, and only when stdout is a terminal, so a human can
+put it in a password manager and re-run with
+
+    AIOS_OPERATOR_CREDENTIAL=<value>
+
+which is the volatile env var §VII.4 sanctions. When stdout is not a terminal --
+an agent session, CI, or any `>` redirect -- it is deliberately not printed,
+because a captured secret is a secret in a log. That is the same guard
+`scripts/spine_release_attest.py::cmd_sign` applies to the signing key.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any
 
 import requests
@@ -53,6 +71,60 @@ API_HOST_HEADER = os.environ.get("AIOS_PROBE_HOST", "localhost:8000")
 #: Returned by a YELLOW route instead of running the handler. The driver must
 #: replay the identical request carrying the server-issued token.
 CAPABILITY_CHALLENGE = 428
+
+
+def surface_enrollment_credential(credential: str, operator_id: str | None) -> bool:
+    """Show one-time enrollment material to the human, or refuse to show it.
+
+    Returns True if the credential was displayed.
+
+    AGENTS.md VII.4 is absolute: "Keys live only in volatile env vars; never on
+    disk, in logs, or in `.aios/`." So this NEVER writes the credential
+    anywhere. It prints it, and only when stdout is a terminal.
+
+    The TTY guard is the same one `scripts/spine_release_attest.py::cmd_sign`
+    uses, for the same reason: a non-TTY stdout means the output is being
+    captured, and a captured secret is a secret in a log. An agent session, a
+    CI job and a `> run.log` redirect are indistinguishable from here, so the
+    safe assumption is that none of them may see it.
+
+    This closes organ 44's blocker 4. The credential was already being received
+    and used -- it was simply discarded, which made every instance single-use:
+    the second run got a 409 and the driver correctly refused to invent one.
+    Surfacing it to the operator is what makes the harness re-runnable, without
+    persisting anything.
+    """
+    who = f" ({operator_id})" if operator_id else ""
+    if not sys.stdout.isatty():
+        refusal = [
+            f"[probe] Enrolled a new operator{who}. The one-time enrollment",
+            "[probe] credential was NOT printed: stdout is not a terminal, and a",
+            "[probe] captured secret is a secret in a log (AGENTS.md VII.4).",
+            "[probe] This instance is therefore single-use as launched. To",
+            "[probe] re-run against it, either bootstrap once from a plain",
+            "[probe] terminal and export AIOS_OPERATOR_CREDENTIAL, or give each",
+            "[probe] run its own instance via AIOS_DATA_DIR.",
+        ]
+        print('\n'.join(refusal), file=sys.stderr)
+        return False
+
+    banner = "=" * 72
+    shown = [
+        "",
+        banner,
+        "ONE-TIME OPERATOR ENROLLMENT CREDENTIAL -- shown once, stored nowhere",
+        f"operator:{who}" if operator_id else "operator: (id not reported)",
+        credential,
+        banner,
+        "Save it in your password manager NOW. It is not written to disk, to a",
+        "log, or to .aios/ (AGENTS.md VII.4), and cannot be re-displayed.",
+        "Re-run this harness against this instance with:",
+        "    AIOS_OPERATOR_CREDENTIAL=<the value above>",
+        banner,
+        "",
+    ]
+    print('\n'.join(shown), flush=True)
+    return True
 
 
 class ProbeAuthError(RuntimeError):
@@ -98,6 +170,7 @@ class ProbeSession:
                 body = enrolled.json()
                 credential = body["enrollmentCredential"]
                 self.operator_id = body.get("operatorId")
+                surface_enrollment_credential(credential, self.operator_id)
             elif enrolled.status_code == 409:
                 raise ProbeAuthError(
                     "an operator is already enrolled and no credential was "

@@ -366,6 +366,11 @@ BEDROCK_MAX_TOKENS: Final[int] = _env_int("AIOS_BEDROCK_MAX_TOKENS", 1024)
 BEDROCK_ENABLED: Final[bool] = bool(BEDROCK_REGION and BEDROCK_MODEL)
 
 GEMINI_PROJECT: Final[str] = _env_str("AIOS_GEMINI_PROJECT", "")
+#: Vertex region. NOTE: every gemini-3.x model 404s here and answers in
+#: "global" -- verified by invoking both on 2026-08-18. Left at
+#: us-central1 because "global" gives up the region guarantee, which is
+#: an operator data-residency call. Set AIOS_GEMINI_LOCATION=global to
+#: reach the 3.x line. See CURATED_MODELS in aios/core/gemini.py.
 GEMINI_LOCATION: Final[str] = _env_str("AIOS_GEMINI_LOCATION", "us-central1")
 GEMINI_MODEL: Final[str] = _env_str("AIOS_GEMINI_MODEL", "gemini-2.5-flash")
 #: Output budget for Gemini. 8192, not 1024, because the 2.5 models THINK.
