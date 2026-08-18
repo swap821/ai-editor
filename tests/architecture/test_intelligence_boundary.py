@@ -18,6 +18,14 @@ ALLOWED_CLIENT_IMPORTERS = {
     "aios/core/gemini.py",
     "aios/core/openai_compat.py",
     "aios/core/anthropic_direct.py",
+    # Vertex Model-as-a-Service (DeepSeek, gpt-oss). A provider ADAPTER in
+    # exactly the sense the four above are -- it subclasses OpenAICompatClient
+    # to swap a static api_key for a per-request ADC token, because Vertex
+    # bearer tokens expire mid-run. It is reached through get_vertex_maas_client
+    # and the router like every other provider; the boundary this test defends
+    # is application/agent code constructing providers directly, which this is
+    # not.
+    "aios/core/vertex_maas.py",
     "aios/api/main.py",          # Legacy compat, needs migration
     "aios/api/routes/models.py", # Legacy compat, needs migration
     "aios/core/failover.py",
