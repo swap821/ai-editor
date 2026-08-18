@@ -39,6 +39,10 @@ REFUSED = [
     ("a value flag that changes behaviour", "pytest --rootdir=/tmp training_ground/x.py"),
     ("test selection by keyword", "pytest -k secret training_ground/x.py"),
     ("plugin loading", "pytest -p evil training_ground/x.py"),
+    ("bundled -s with -k", "pytest -sk sel training_ground/x.py"),
+    ("-o config override", "pytest -o junit_suite_name=x training_ground/x.py"),
+    ("-s does not launder -k", "pytest -s -k sel training_ground/x.py"),
+    ("-s does not launder --pdb", "pytest -s --pdb training_ground/x.py"),
     ("interactive debugger", "pytest --pdb training_ground/x.py"),
     ("stop on first failure", "pytest -x training_ground/x.py"),
     ("conftest suppression", "pytest --noconftest training_ground/x.py"),
@@ -70,6 +74,9 @@ PERMITTED = [
     "pytest training_ground/test_sorted_insert.py -q --no-header",
     "pytest --tb=short training_ground/x.py",
     "pytest -vv training_ground/x.py",
+    "pytest -s training_ground/x.py",
+    "pytest -vv -s training_ground/test_pipeline.py",
+    "pytest training_ground/x.py -s",
     "pytest training_ground/test_calculator.py -v",
     "python -m pytest -v training_ground/x.py",
     'pytest -v "training_ground/x.py"',
@@ -96,21 +103,31 @@ def test_the_quiet_forms_still_work() -> None:
         assert ALLOWED_CMD_RE.match(command), command
 
 
-def test_only_verbosity_flags_are_admitted() -> None:
-    """Any single-letter flag other than q/v must still be refused.
+def test_only_the_named_short_flags_are_admitted() -> None:
+    """Exactly three single-letter flags, and no others.
 
-    A regex written as `-[a-z]` instead of `-[qv]` would pass every test above
-    and quietly admit -x, -s, -p and the rest.
+    q/v are verbosity; s disables output capture so print() is visible. All
+    three change what is PRINTED and nothing about what runs.
+
+    This loops the whole alphabet because a pattern that drifted to `-[a-z]`
+    would pass every hand-written case in this file while admitting -x (stop on
+    first failure), -k (select tests) and -p (load arbitrary plugins). It has
+    already earned its keep once: it failed when -s was added, which is the
+    correct behaviour for a guard on a security gate -- widening the set has to
+    be a deliberate edit here, not a side effect somewhere else.
     """
     import string
 
+    from aios.probe_common import ALLOWED_CMD_RE
+
+    admitted = {"q", "v", "s"}
     for letter in string.ascii_lowercase:
         command = f"pytest -{letter} training_ground/x.py"
         allowed = bool(ALLOWED_CMD_RE.match(command))
-        assert allowed == (letter in {"q", "v"}), (
-            f"-{letter} allowed={allowed}; only -q and -v may be admitted"
+        assert allowed == (letter in admitted), (
+            f"-{letter} allowed={allowed}; the admitted short flags are "
+            f"{sorted(admitted)} and changing that set is a security decision"
         )
-
 
 def test_the_file_allowlist_was_not_touched() -> None:
     """This change is about commands. The write gate must be unchanged."""
@@ -131,6 +148,7 @@ def test_only_output_flags_are_admitted() -> None:
 
     execution_changing = [
         "-k sel", "-x", "-p plug", "--pdb", "--noconftest", "--rootdir=/",
+        "-o junit_suite_name=x", "--pdbcls=IPython:TerminalPdb",
         "-c setup.cfg", "--import-mode=importlib", "-n 4", "--lf", "--ff",
     ]
     for flag in execution_changing:

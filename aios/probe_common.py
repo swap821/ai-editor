@@ -44,6 +44,7 @@ def probe_headers() -> dict[str, str]:
 ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$")
 #: Output-only pytest flags. Each changes what is PRINTED, never what runs:
 #:   -q/-qq/-v/-vv  verbosity      --no-header   suppress the header block
+#:   -s             show print()   
 #:   --collect-only list, run none  --tb=<style>  traceback format
 #:
 #: Widened 2026-08-18 by operator decision, twice. First for -v, after a cohort
@@ -66,7 +67,7 @@ ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$
 #: whose \] escaped the bracket so the class never closed, swallowed the next
 #: one and silently admitted `/` -- permitting nested paths the gate had always
 #: refused. Sixteen hand-written refusal tests all still passed.
-_PYTEST_READ_ONLY_FLAG = r"(?: -(?:[qv]{1,2}|-collect-only|-no-header|-tb=[a-z]+))"
+_PYTEST_READ_ONLY_FLAG = r"(?: -(?:[qv]{1,2}|s|-collect-only|-no-header|-tb=[a-z]+))"
 _SANDBOX_TEST_FILE = r"(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)"
 ALLOWED_CMD_RE = re.compile(
     r"^(?:python -m )?pytest"
