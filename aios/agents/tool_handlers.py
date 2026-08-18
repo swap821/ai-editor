@@ -504,6 +504,86 @@ def verify_command(
 # --------------------------------------------------------------------------- execute
 
 
+#: Shell verbs whose whole purpose is to show a file or a directory. A blocked
+#: one is not a security event worth narrating, it is a model reaching for the
+#: wrong tool -- the agent already has read_file and read_directory.
+_READ_VERBS = {"cat", "type", "head", "tail", "more", "less", "bat", "gc", "get-content"}
+_LIST_VERBS = {"ls", "dir", "gci", "get-childitem", "tree"}
+
+
+def next_step_after_blocked_read(command: str) -> str:
+    """Point a blocked file-read at the tool that would have worked.
+
+    A blocked command returns "[BLOCKED] <reason>" and nothing else, so a model
+    that wanted to look at a file learns only that this spelling failed. It then
+    tries the next spelling. Measured in one 5-mission cohort on
+    gemini-3.1-pro-preview: 3 `cat`, 2 `ls`, 3 `python -c "...open(...)"`, and
+    finally TWO throwaway scripts (read_it.py, read_b64.py) written for no
+    reason other than to smuggle a file read past the gate -- eleven iterations
+    spent on a capability the agent already had.
+
+    This is the same dead end #215/#238 fixed for no-op writes and #240 fixed
+    for edit_file: the refusal was correct and offered nowhere to go. The gate
+    is unchanged -- nothing new is permitted, the command is still blocked. Only
+    the message changes.
+
+    MEASURED EFFECT: NONE, so far. Blocked-read counts across four cohorts on
+    gemini-3.1-pro-preview were 9 (before this hint), then 3, 8, 9, 8 (after).
+    The single 3 was an outlier and was originally, wrongly, cited as evidence
+    this worked. The hint demonstrably fires -- see
+    tests/test_blocked_read_hint.py -- so the honest reading is that the model
+    receives the guidance and keeps reaching for the shell regardless.
+
+    Kept anyway, on the merits rather than on results: a refusal that names no
+    alternative is a worse refusal, and #215/#238/#240 established that pattern
+    here. But nobody should cite this function as a proven improvement, and a
+    future measurement showing no change is expected rather than surprising.
+
+    Returns "" when the command is not a read attempt, so ordinary blocked
+    commands keep their unadorned refusal. Never raises: a hint must not be able
+    to fail a refusal path.
+    """
+    try:
+        import shlex
+
+        text = (command or "").strip()
+        if not text:
+            return ""
+        lowered = text.lower()
+
+        # `python -c "... open(path) ..."` and friends -- an inline read.
+        if "open(" in lowered and (" -c" in lowered or lowered.startswith("python")):
+            return (
+                " To look at a file, call the read_file tool with its path."
+                " Reading through the shell is blocked; read_file is not."
+            )
+
+        try:
+            words = shlex.split(text)
+        except ValueError:
+            words = text.split()
+        if not words:
+            return ""
+        verb = words[0].strip("'\"").lower().rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        target = next((w for w in words[1:] if not w.startswith("-")), "")
+
+        if verb in _READ_VERBS:
+            where = f" with filepath={target!r}" if target else ""
+            return (
+                f" To read a file, call the read_file tool{where} instead of the"
+                " shell. read_file is not blocked."
+            )
+        if verb in _LIST_VERBS:
+            where = f" with path={target!r}" if target else ""
+            return (
+                f" To list a directory, call the read_directory tool{where}"
+                " instead of the shell. read_directory is not blocked."
+            )
+        return ""
+    except Exception:  # noqa: BLE001 - a hint must never break a refusal
+        return ""
+
+
 def _format_exec_result(result: Any) -> tuple[str, str, bool]:
     """Map a *resolved* ExecutionResult to ``(output, status, failed)``.
 
@@ -519,8 +599,10 @@ def _format_exec_result(result: Any) -> tuple[str, str, bool]:
     if result.status in ("TIMEOUT", "ERROR"):
         return (f"[{result.status}] {result.reason}", "blocked", True)
     # BLOCKED — a security decision (incl. RED refused under approval), not a
-    # mistake to reflect on.
-    return (f"[{result.status}] {result.reason}", "blocked", False)
+    # mistake to reflect on. The refusal stands; only the message gains a way
+    # forward when the model was reaching for a file it could simply have read.
+    hint = next_step_after_blocked_read(getattr(result, "command", "") or "")
+    return (f"[{result.status}] {result.reason}{hint}", "blocked", False)
 
 
 def execute_terminal(
