@@ -1,21 +1,42 @@
-# Organ 44 — three models, nine clean cohorts: the incumbent wins
+# Organ 44 — four models, fifteen cohorts: switch to gemini-3.7-flash
 
 - **Measured**: 2026-08-18, golden cohort, 3 repeats per model, fresh instance each
-- **Conclusion**: stay on `gemini-2.5-pro`
+- **Conclusion**: **switch to `gemini-3.7-flash`** (3.000, zero variance)
 
 | Model | runs | scores | mean | spread |
 |---|---|---|---|---|
-| **gemini-2.5-pro** | 3 | 2, 3, 3 | **2.667** | tight |
-| deepseek-r1-0528-maas (Vertex) | 3 | 2, 3, 0 | 1.667 | 0–3 |
-| gemini-3.1-pro-preview | 3 | 1, 1, 1 | 1.000 | tight |
+| **gemini-3.7-flash** | 3 | **3, 3, 3** | **3.000** | **zero** |
+| gemini-2.5-pro | 3 | 2, 3, 3 | 2.667 | 1 |
+| gemini-3.7-flash *(before the flag widenings)* | 3 | 2, 3, 1 | 2.000 | 2 |
+| deepseek-r1-0528-maas (Vertex) | 3 | 2, 3, 0 | 1.667 | 3 |
+| gemini-3.1-pro-preview | 3 | 1, 1, 1 | 1.000 | zero |
 
-The newest Gemini pro is 2.7× worse than the two-generation-old one. DeepSeek's
-best run matches 2.5-pro's best but it swings from 0 to 3. Neither justifies a
-switch.
+`gemini-3.7-flash` is both the highest mean and the only model to repeat the
+same score three times at the top. It is also a FLASH model, so it is cheaper
+and faster than the pro it displaces.
 
-This refutes two claims made earlier the same day: that the agent's missing
-capability was "for sale", and that organ 44's bottleneck had "moved to model
-correctness". Buying newer capability made it worse.
+## The same model went 2.000 -> 3.000 without changing
+
+Nothing about gemini-3.7-flash changed between those two rows. What changed was
+`ALLOWED_CMD_RE`: it stopped refusing `--collect-only`, `--no-header`, `--tb=`
+and `-s`. A full mission per run was being lost to how the model formatted its
+pytest output.
+
+That is the clearest single demonstration of this session's theme. The benchmark
+was measuring the model's pytest habits and reporting the result as capability,
+and it did so consistently enough to look like a real 2.000.
+
+## What was refuted along the way
+
+Two claims made earlier the same day, both mine, both wrong:
+
+  * "the agent's missing capability is for sale" -- gemini-3.1-pro-preview,
+    newer and nominally stronger, measured 1.000 against 2.5-pro's 2.667;
+  * "the bottleneck moved to model correctness" -- it had partly moved to the
+    approval gate, which no model change could have fixed.
+
+And a third, stated as a prediction before this final run: that admitting `-s`
+would convert "at most one mission", landing near 2.333. It landed at 3.000.
 
 ## What it cost to get a number that meant anything
 
