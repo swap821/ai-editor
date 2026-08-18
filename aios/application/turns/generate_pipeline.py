@@ -121,6 +121,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         gemini=runtime.gemini,
         openai=runtime.openai_client,
         anthropic=runtime.anthropic_client,
+        vertex_maas=runtime.vertex_maas_client,
         task=task,
         metrics=_route_metrics(runtime.development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
@@ -133,6 +134,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         model,
         openai=runtime.openai_client,
         anthropic=runtime.anthropic_client,
+        vertex_maas=runtime.vertex_maas_client,
     )
 
     def route_meta() -> dict[str, Any]:
@@ -143,6 +145,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             model,
             openai=runtime.openai_client,
             anthropic=runtime.anthropic_client,
+        vertex_maas=runtime.vertex_maas_client,
         )
         return {
             "provider": provider,

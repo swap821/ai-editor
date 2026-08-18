@@ -102,6 +102,7 @@ if TYPE_CHECKING:
 #: Lazy cloud-client singletons — built on first use, reused across requests.
 _bedrock_client: Optional[BedrockClient] = None
 _gemini_client: Optional[GeminiClient] = None
+_vertex_maas_client: Optional[Any] = None
 _openai_client: Optional[Any] = None
 _anthropic_client: Optional[Any] = None
 _bedrock_lock = threading.Lock()
@@ -195,6 +196,43 @@ def get_gemini_client() -> Optional[GeminiClient]:
         except LLMError:
             return None
     return _gemini_client
+
+
+def get_vertex_maas_client() -> Optional[Any]:
+    """Provide the Vertex Model-as-a-Service chat client, or ``None`` when unset.
+
+    Third-party models served by Vertex -- DeepSeek and gpt-oss today; Meta and
+    NVIDIA are listed by the publisher API but 404 on invocation, and Anthropic
+    resolves with zero quota. Verified by invoking each, not by reading the
+    catalogue.
+
+    This is a CLOUD BRAIN for the agent loop, not the local clerk
+    (``AIOS_LLM_MODEL``). It is registered with ``PRIVACY_CLOUD`` and is therefore
+    ineligible for any task not explicitly in the router policy's ``cloud_tasks``,
+    which defaults to empty -- so adding this provider cannot, by itself, send a
+    single prompt off the machine.
+
+    Auth is the laptop's ADC, refreshed per request because those tokens expire;
+    no key is read from or written to disk. Built lazily, enablement re-checked
+    each call (mirrors ``get_gemini_client``).
+    """
+    global _vertex_maas_client
+    if not config.VERTEX_MAAS_ENABLED:
+        return None
+    if _vertex_maas_client is not None:
+        return _vertex_maas_client
+    with _gemini_lock:
+        if _vertex_maas_client is not None:
+            return _vertex_maas_client
+        try:
+            from aios.core.vertex_maas import VertexMaaSClient
+
+            _vertex_maas_client = VertexMaaSClient(
+                privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+            )
+        except (LLMError, ImportError):
+            return None
+    return _vertex_maas_client
 
 
 def get_openai_client() -> Optional[Any]:
