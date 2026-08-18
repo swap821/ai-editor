@@ -66,5 +66,5 @@ ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$
 #: `-k`, `-x`, `--tb`, multiple files, or any flag taking a value. Those are
 #: separate decisions and none of them are needed to run a test.
 ALLOWED_CMD_RE = re.compile(
-    r"^(?:python -m )?pytest(?: -[qv])?(?: \"?(?:training_ground|lab)[/\][A-Za-z0-9_\-]+\.py\"?)?(?: -[qv])?$"
+    r"^(?:python -m )?pytest(?: -[qv])?(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)?(?: -[qv])?$"
 )
