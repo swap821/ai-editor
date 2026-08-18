@@ -80,6 +80,7 @@ class VertexMaaSClient(OpenAICompatClient):
         location: str = config.VERTEX_MAAS_LOCATION,
         max_tokens: int = config.VERTEX_MAAS_MAX_TOKENS,
         credentials: Optional[Any] = None,
+        request_factory: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
         if not project:
@@ -90,6 +91,7 @@ class VertexMaaSClient(OpenAICompatClient):
         self.project = project
         self.location = location
         self._credentials = credentials
+        self._request_factory = request_factory
         super().__init__(
             api_key="",  # never used; _headers mints a fresh token instead
             base_url=maas_base_url(project, location),
@@ -98,20 +100,38 @@ class VertexMaaSClient(OpenAICompatClient):
             **kwargs,
         )
 
-    def _fresh_token(self) -> str:
-        """Mint/refresh an ADC access token. Never cached beyond its own refresh."""
-        try:
-            import google.auth
-            import google.auth.transport.requests
+    def _auth_request(self) -> Any:
+        """The transport handed to ``credentials.refresh()``.
 
+        Injectable for the same reason ``credentials`` is: google-auth lives in
+        requirements-OPTIONAL.txt, so a caller that supplies its own credentials
+        must not be forced to have it installed.
+        """
+        if self._request_factory is not None:
+            return self._request_factory()
+        import google.auth.transport.requests
+
+        return google.auth.transport.requests.Request()
+
+    def _fresh_token(self) -> str:
+        """Mint/refresh an ADC access token. Never cached beyond its own refresh.
+
+        google is imported WHERE IT IS NEEDED, not at the top of this block.
+        Importing it eagerly defeated the `credentials` parameter entirely: the
+        one caller who had already done the auth work still crashed with
+        ModuleNotFoundError before reaching the branch that would have used it.
+        """
+        try:
             creds = self._credentials
             if creds is None:
+                import google.auth
+
                 creds, _ = google.auth.default(
                     scopes=["https://www.googleapis.com/auth/cloud-platform"]
                 )
                 self._credentials = creds
             if not getattr(creds, "valid", False):
-                creds.refresh(google.auth.transport.requests.Request())
+                creds.refresh(self._auth_request())
             token = getattr(creds, "token", "")
             if not token:
                 raise LLMError("Vertex ADC returned no access token.")

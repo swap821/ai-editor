@@ -86,13 +86,47 @@ def test_the_token_is_minted_per_request_not_cached_at_construction() -> None:
             self.valid = True
             self.token = f"tok-{len(refreshes) + 1}"
 
-    client = VertexMaaSClient(project="p", credentials=Creds())
+    # request_factory: the fake ignores the transport, but SOMETHING must be
+    # constructed, and google-auth is optional. See the regression test below.
+    client = VertexMaaSClient(project="p", credentials=Creds(), request_factory=lambda: None)
     first = client._headers()["Authorization"]
     client._credentials.valid = False  # simulate expiry
     second = client._headers()["Authorization"]
 
     assert first != second, "the bearer token was reused after expiry"
     assert len(refreshes) == 2
+
+
+def test_injected_credentials_do_not_need_google_auth() -> None:
+    """The `credentials` parameter must work when google-auth is ABSENT.
+
+    google-genai lives in requirements-optional.txt, so CI runners do not have
+    it. `_fresh_token` imported google.auth at the top of its try block, before
+    the branch that checks whether credentials were already supplied -- so the
+    one caller who had done the auth work himself still crashed with
+    ModuleNotFoundError, and three tests failed on a runner rather than in the
+    code they were testing.
+
+    This blocks the import the way the runner does, and asserts the escape hatch
+    actually escapes.
+    """
+    import builtins
+
+    real_import = builtins.__import__
+
+    def blocked(name: str, *args, **kwargs):
+        if name == "google" or name.startswith("google."):
+            raise ModuleNotFoundError(f"No module named '{name}'")
+        return real_import(name, *args, **kwargs)
+
+    builtins.__import__ = blocked
+    try:
+        client = VertexMaaSClient(
+            project="p", credentials=SimpleNamespace(valid=True, token="t")
+        )
+        assert client._headers()["Authorization"] == "Bearer t"
+    finally:
+        builtins.__import__ = real_import
 
 
 def test_the_quota_project_header_is_sent() -> None:
