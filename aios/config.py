@@ -168,6 +168,21 @@ WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
 WORKER_MAX_REPAIRS: Final[int] = _env_int("AIOS_WORKER_MAX_REPAIRS", 2)
 # Max bytes of LLM-proposed content the worker will write per edit (DoS guard).
 WORKER_MAX_FILE_BYTES: Final[int] = _env_int("AIOS_WORKER_MAX_FILE_BYTES", 1_000_000)
+# Max reason -> act steps in one agent turn before the loop stops for safety.
+#
+# Was a hardcoded 5, which could not accommodate the recovery path the system
+# itself offers. The measured dominant failure in the golden cohort was
+# edit_file BLOCKED on 'old_string not found' (7 of 10 unverified steps); the
+# error names overwrite_file as the way forward, and taking it costs:
+#
+#   read_file 1, edit_file 2 (fails), overwrite_file 3, verify 4 (may fail),
+#   fix 5, verify 6
+#
+# So the budget ran out exactly where the guidance began. 16 allows roughly two
+# independent recovery cycles plus the initial multi-file creates. The downside
+# stays bounded by the loop detector (which stops repetition since last
+# progress) and by the turn timeout, not by this number.
+AGENT_MAX_ITERS: Final[int] = _env_int("AIOS_AGENT_MAX_ITERS", 16)
 # Mission origination over HTTP (chat -> council). When enabled, the
 # /api/v1/council/originate endpoint accepts mission requests from the chat UI.
 COUNCIL_ORIGINATION: Final[bool] = _env_bool("AIOS_COUNCIL_ORIGINATION", True)

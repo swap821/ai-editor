@@ -195,6 +195,29 @@ def _session() -> ProbeSession:
     return _PROBE_SESSION
 
 
+def outcome_from_evidence(evidence: list[str]) -> str:
+    """Classify a step by the verdicts the verifier actually issued.
+
+    The SINGLE place this rule lives. It used to exist only on the clean-finish
+    path, while the ``error`` path returned ``outcome="error"`` and discarded the
+    evidence -- so the same verdict scored differently depending on how the turn
+    ended. A turn can error AFTER earning a verdict: the loop detector fires on
+    dithering that happens once the work is already done, and organ 44's
+    ``iterative-refinement`` step 2 was scored a FAILURE while carrying
+    ``[VERIFY PASS] 6 passed, 0 failed (strength=STRONG)``.
+
+    This does NOT lower the bar. ``[VERIFY SKIPPED]`` is still not evidence, a
+    trailing ``[VERIFY FAIL]`` is still a failure, and no evidence is still
+    ``unverified``. Only a real terminal PASS counts as success, exactly as
+    before -- it simply stops being thrown away because of what happened after
+    it was earned.
+    """
+    counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+    if not counted:
+        return "unverified"
+    return "verified_success" if counted[-1].startswith("[VERIFY PASS]") else "verified_failure"
+
+
 def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
     tokens: list[str] = []
     approvals_granted: list[str] = []
@@ -223,22 +246,23 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 paused = data
                 break
             elif event == "error":
-                return {"outcome": "error", "error": data, "evidence": evidence}
+                # Classify by the evidence earned, not by how the turn ended.
+                # ``errored`` is retained so the trip stays visible in the record
+                # -- an agent that finishes the work and then fails to stop is a
+                # real defect, and hiding it would be the opposite of the point.
+                return {
+                    "outcome": outcome_from_evidence(evidence),
+                    "error": data,
+                    "errored": True,
+                    "approvals": approvals_granted,
+                    "evidence": evidence,
+                }
             elif event == "done":
                 finished = True
 
         if finished and paused is None:
-            counted = [
-                e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
-            ]
-            if not counted:
-                outcome = "unverified"
-            elif counted[-1].startswith("[VERIFY PASS]"):
-                outcome = "verified_success"
-            else:
-                outcome = "verified_failure"
             return {
-                "outcome": outcome,
+                "outcome": outcome_from_evidence(evidence),
                 "approvals": approvals_granted,
                 "evidence": evidence,
             }
