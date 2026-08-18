@@ -42,29 +42,35 @@ def probe_headers() -> dict[str, str]:
 
 #: Only bare .py files directly inside training_ground/ or lab/ may be written.
 ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$")
-#: Only pytest on a single training_ground/ or lab/ .py file may run as an
-#: approved command -- either spelling (`python -m pytest` / bare `pytest`),
-#: optional quotes, and a single VERBOSITY flag (`-q` or `-v`) allowed on
-#: either side of the target. Nothing else (no pip, no shell, no paths outside
-#: the sandbox, no other flags).
+#: Output-only pytest flags. Each changes what is PRINTED, never what runs:
+#:   -q/-qq/-v/-vv  verbosity      --no-header   suppress the header block
+#:   --collect-only list, run none  --tb=<style>  traceback format
 #:
-#: `-v` was added 2026-08-18 by operator decision, after a golden cohort on
-#: gemini-3.7-flash scored 1/5 where FOUR of the five failures were this
-#: allowlist refusing `pytest -v training_ground/<file>.py`. The model was
-#: doing the right thing -- running the tests it had just written -- and a
-#: model that prefers `-v` scored 2.7x worse than one that prefers `-q`, which
-#: measured the regex rather than the system.
+#: Widened 2026-08-18 by operator decision, twice. First for -v, after a cohort
+#: on gemini-3.7-flash scored 1/5 with FOUR of five failures being this regex
+#: refusing `pytest -v <file>`. Then for the rest, after the re-run scored 3/5
+#: with BOTH remaining failures being `--collect-only` and `--no-header`.
 #:
-#: This is deliberately the SMALLEST possible widening. `-v` changes pytest
-#: output verbosity and nothing else: same binary, same single-file target,
-#: same sandbox constraint. It does not admit a new command, a new path, or a
-#: new capability. Everything the old pattern refused, this one still refuses
-#: -- pinned by tests/test_probe_allowlist.py, which asserts the refusals
-#: rather than only the permissions.
+#: The point is not convenience. Every model reaches for different flags --
+#: 2.5-pro writes bare `pytest`, 3.7-flash adds -v and --no-header, DeepSeek
+#: adds --noconftest -- so a gate that admits one spelling measures pytest
+#: HABITS and reports them as capability. Three missions that passed cleanly
+#: were scored as failures because of how the model formatted its output.
 #:
-#: NOT widened: `--collect-only` (present in one of the four rejections),
-#: `-k`, `-x`, `--tb`, multiple files, or any flag taking a value. Those are
-#: separate decisions and none of them are needed to run a test.
+#: NOT admitted, deliberately: -k and -x (change which tests run), -p (loads
+#: arbitrary plugins), --pdb (interactive), --noconftest (changes collection),
+#: --rootdir/-c (take a path), multiple files, and anything that is not pytest.
+#:
+#: Built from NAMED PARTS rather than one long literal. The previous widening
+#: was written as a single pattern and lost a backslash: [/\\] became [/\],
+#: whose \] escaped the bracket so the class never closed, swallowed the next
+#: one and silently admitted `/` -- permitting nested paths the gate had always
+#: refused. Sixteen hand-written refusal tests all still passed.
+_PYTEST_READ_ONLY_FLAG = r"(?: -(?:[qv]{1,2}|-collect-only|-no-header|-tb=[a-z]+))"
+_SANDBOX_TEST_FILE = r"(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)"
 ALLOWED_CMD_RE = re.compile(
-    r"^(?:python -m )?pytest(?: -[qv])?(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)?(?: -[qv])?$"
+    r"^(?:python -m )?pytest"
+    + _PYTEST_READ_ONLY_FLAG + "*"
+    + _SANDBOX_TEST_FILE + "?"
+    + _PYTEST_READ_ONLY_FLAG + "*$"
 )
