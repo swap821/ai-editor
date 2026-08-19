@@ -761,7 +761,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 53 green / 1 yellow / 54 total
-- **Source ledger sha256:** `9cf2d331745a90478558d8baf0811de6238ff83745dc6007b4c2189623f3a5e3`
+- **Source ledger sha256:** `351c7fdcd2ba80f2e6ecf6fa96b8cd1c33947a15b58f2f98176e9d3e2f06c351`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -815,7 +815,7 @@ re-audits recorded above.
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `5d482164707c` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5d482164707c` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5d482164707c` | live |
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | `67924fe06fbd` | live |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | `0b52e3208a07` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5d482164707c` | live |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | `3dc7323d74cc` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |

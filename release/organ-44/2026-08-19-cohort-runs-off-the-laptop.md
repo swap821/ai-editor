@@ -80,3 +80,42 @@ organ's contract is to evaluate golden missions and endurance, and it does, with
 measurements anyone can now re-run. Reproducing a specific cloud number inside
 CI is infrastructure convenience, and holding the organ yellow for it would be
 holding it against a claim it never made.
+
+## Why four rows are OPERATOR-ATTESTED and one is not
+
+C10 requires every `proof_level=live` row to resolve as a `release/phase4`
+artifact, a `tests/foo.py::test_bar` node, an `actions/runs/<id>` run, or an
+explicitly declared `OPERATOR-ATTESTED` observation.
+
+**Organ 44 cannot carry a phase4 artifact.** `scripts/phase4_live_evidence.py`
+says so in its own docstring — *"Ollama / Outside-machine / frozen / browser /
+Phase-6 organs are not claimed here"* — and contains zero references to organ 44.
+So a laptop measurement has no machine-derivable anchor, by design.
+
+That leaves exactly one machine-checkable route for this organ: a CI run. The
+row citing run `32240063690` takes it. The four laptop rows are declared
+`OPERATOR-ATTESTED`, on the operator's decision of 2026-08-19.
+
+Two things were refused along the way:
+
+* **Marking a 0/5 run "passed"** in a fabricated phase4 artifact to make it
+  checkable. The 2026-08-11 rows record real failures and are deliberately
+  retained; laundering them into a passing artifact would have destroyed the
+  only thing they are good for.
+* **Declaring `OPERATOR-ATTESTED` on the operator's behalf.** It is his
+  signature. The verifier prints how many rows rest on attestation on every run,
+  which is exactly the kind of number that should be visible rather than
+  inferred — and the CI row's prose was reworded because merely *mentioning* the
+  token inflated that count from 4 to 5.
+
+## The run had to be made citable first
+
+`_github_run_verifier` requires a cited run to have **succeeded**. Every
+`workflow_dispatch` run concluded `failure`, because `release-strict-gate` shares
+that trigger and is structurally red outside a release cut — so the cohort
+evidence produced inside those runs could never be cited. Fixed by making that
+gate advisory on dispatch and blocking on release tags, which is where tip
+equality is the actual claim.
+
+Run `32240063690`: `conclusion=success`, `head_sha=0b52e320`, matching the
+evidence row's `commit_sha` and the organ's `last_verified_sha`.
