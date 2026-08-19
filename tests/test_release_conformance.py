@@ -268,3 +268,50 @@ def test_restart_resilience_step_proves_a_restart_not_a_cold_start() -> None:
     # The container must be the SAME one on the other side of the restart.
     assert "State.Health.Status" in step
     assert "REPLACED, not restarted" in step
+
+
+def test_every_job_that_runs_a_golden_mission_builds_the_workload_image() -> None:
+    """The image rule has to hold PER JOB, not per file.
+
+    `test_ci_builds_the_workload_image_the_runtime_defaults_to` asserts the
+    string "build worker" appears in ci.yml. It does, in release-authority --
+    so the rule stayed green while `golden-cohort-local`, added later, launched
+    the same containers and never built the image.
+
+    On 2026-08-19 that job executed for the first time and scored 0/1: every
+    verify step died with "Unable to find image 'aios-worker:local'" (exit 125,
+    the docker daemon refusing to start a container) and the integrity gate
+    still reported OK. A whole cohort run proved nothing, and said it was fine.
+
+    A file-scoped assertion cannot see a second job. This one iterates jobs, so
+    the next job that drives the runner has to build what it launches.
+    """
+    import yaml
+
+    from aios import config
+
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+    image = config.CONTAINER_IMAGE
+
+    offenders = []
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        runs = " ".join(
+            str(step.get("run", "")) for step in (job.get("steps") or [])
+        )
+        if "golden_mission_runner.py" not in runs:
+            continue
+        # Either build the image by name, or declare it is not using the
+        # container backend at all -- both are honest, silence is not.
+        builds = "build worker" in runs or f"image inspect {image}" in runs
+        opts_out = "AIOS_APPROVED_EXECUTION_BACKEND" in yaml.dump(job)
+        if not (builds or opts_out):
+            offenders.append(job_name)
+
+    assert not offenders, (
+        f"job(s) {offenders} drive golden_mission_runner.py but never build "
+        f"{image!r}, which AIOS_APPROVED_EXECUTION_BACKEND='container' makes "
+        "every verify step depend on. The mission will score 0 for a reason "
+        "that has nothing to do with the model."
+    )

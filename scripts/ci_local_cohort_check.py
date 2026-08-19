@@ -41,9 +41,28 @@ _HARNESS_FAILURES = (
     ("ConnectionResetError", "the backend died mid-run"),
     ("Host header is not configured", "the driver dialled the wrong host"),
     ("an operator is already enrolled", "the instance was not fresh"),
+    # Added 2026-08-19, after this gate passed a run it existed to fail. The
+    # cohort job never built aios-worker:local, so every verify step died with
+    # "Unable to find image" and the mission scored 0/1. The gate reported
+    # "harness integrity: OK" -- the exact confusion of infrastructure with
+    # model quality it was written to prevent, in the gate itself.
+    ("Unable to find image", "the approved-execution image was never built"),
+    ("pull access denied", "the approved-execution image was never built"),
+    ("Cannot connect to the Docker daemon", "the container runtime was unavailable"),
+    (
+        "container execution backend unavailable",
+        "the container runtime was unavailable",
+    ),
 )
 
 _FINAL = re.compile(r"FINAL: (\d+)/(\d+) mission runs passed")
+
+#: Docker reserves 125 (the daemon could not run the container), 126 (command
+#: found but not executable) and 127 (command not found). pytest returns none of
+#: them -- its codes are 0-5. A verify verdict carrying one proves the sandbox
+#: never started, so the mission could not have passed however good the model
+#: was. Scoring that as model weakness is the failure this file exists to stop.
+_CONTAINER_EXIT = re.compile(r"\(exit 12[567]\)")
 
 
 def check(text: str) -> tuple[bool, list[str]]:
@@ -56,6 +75,15 @@ def check(text: str) -> tuple[bool, list[str]]:
         if hits:
             ok = False
             notes.append(f"HARNESS FAILURE: {meaning} ({marker} x{hits})")
+
+    container_deaths = len(_CONTAINER_EXIT.findall(text))
+    if container_deaths:
+        ok = False
+        notes.append(
+            f"HARNESS FAILURE: {container_deaths} verify step(s) ended in a "
+            "docker-reserved exit code (125/126/127) -- the sandbox never "
+            "started, so no score was earned"
+        )
 
     final = _FINAL.search(text)
     if not final:

@@ -89,3 +89,68 @@ def test_the_score_is_reported_even_when_the_harness_failed() -> None:
 
     assert not ok
     assert any("score 2/5" in n for n in notes)
+
+
+# -- the gate once passed the very run it existed to fail ---------------------
+
+_REAL_MISSING_IMAGE = (
+    "step 1/2: write the tests" + chr(10)
+    + "      evidence: [VERIFY FAIL] 0 passed, 0 failed (exit 125) (strength=NONE)" + chr(10)
+    + "Unable to find image 'aios-worker:local' locally" + chr(10)
+    + "docker: Error response from daemon: pull access denied for aios-worker, "
+    "repository does not exist" + chr(10)
+    + "[golden] FINAL: 0/1 mission runs passed (0%)" + chr(10)
+)
+
+
+def test_a_missing_workload_image_is_a_harness_failure_not_a_low_score() -> None:
+    """Verbatim from run 32201154129, the job's first real execution.
+
+    AIOS_APPROVED_EXECUTION_BACKEND defaults to "container" and the cohort job
+    did not build aios-worker:local, so every verify step died in the docker
+    daemon. The mission scored 0/1 and this gate said "harness integrity: OK".
+
+    That is the precise confusion this file exists to prevent -- infrastructure
+    reported as model quality -- occurring inside the guard against it. The
+    string is kept verbatim so a reworded docker error does not silently reopen
+    the hole.
+    """
+    ok, notes = check(_REAL_MISSING_IMAGE)
+
+    assert ok is False, "a cohort that could not start a container proved nothing"
+    joined = " ".join(notes)
+    assert "image was never built" in joined
+    assert "score 0/1 (reported, NOT gated)" in joined, (
+        "the score must still be REPORTED -- the gate stops enforcing it, it "
+        "does not stop showing it"
+    )
+
+
+@pytest.mark.parametrize("code", ["125", "126", "127"])
+def test_docker_reserved_exit_codes_fail_the_gate(code: str) -> None:
+    """125/126/127 mean the container never ran. pytest returns 0-5, never these."""
+    log = (
+        _STEPS
+        + "      evidence: [VERIFY FAIL] 0 passed, 0 failed (exit " + code + ") (strength=NONE)" + chr(10)
+        + "FINAL: 0/5 mission runs passed" + chr(10)
+    )
+    ok, notes = check(log)
+
+    assert ok is False
+    assert "sandbox never started" in " ".join(notes)
+
+
+def test_a_real_pytest_failure_still_passes_the_gate() -> None:
+    """The counterpart that must NOT regress: exit 1 is a model failing a test.
+
+    If this ever starts failing the gate, the gate has become a score gate and
+    the whole distinction is gone.
+    """
+    log = (
+        _STEPS
+        + "      evidence: [VERIFY FAIL] 3 passed, 1 failed (exit 1) (strength=NONE)" + chr(10)
+        + "FINAL: 0/5 mission runs passed" + chr(10)
+    )
+    ok, _ = check(log)
+
+    assert ok is True, "a genuinely failing test is model performance, not a fault"
