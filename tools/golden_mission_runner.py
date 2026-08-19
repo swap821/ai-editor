@@ -26,7 +26,11 @@ from typing import Any, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE
+from aios.probe_common import (
+    ALLOWED_CMD_RE,
+    ALLOWED_FILE_RE,
+    approval_policy_text,
+)
 from aios.probe_session import ProbeSession
 
 try:
@@ -218,14 +222,38 @@ def outcome_from_evidence(evidence: list[str]) -> str:
     return "verified_success" if counted[-1].startswith("[VERIFY PASS]") else "verified_failure"
 
 
+def compose_turn_text(prompt: str) -> str:
+    """Operator approval policy, then the mission prompt VERBATIM.
+
+    Split out so the composition has exactly one definition and a test can
+    assert the mission text survives it byte-for-byte. Stating a policy must
+    never become a back door for rewording a mission -- "no editing the
+    missions" is the first line of organ 44's forbidden list.
+    """
+    return approval_policy_text() + "\n\n---\n\n" + prompt
+
+
 def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
     tokens: list[str] = []
     approvals_granted: list[str] = []
     evidence: list[str] = []
 
     for replay in range(MAX_REPLAYS):
+        # The approval policy precedes the mission text, and the mission text
+        # is passed through VERBATIM -- `test_the_mission_prompt_is_sent_
+        # unmodified` asserts it appears as an exact substring, so stating the
+        # policy can never become a way to reword a mission.
+        #
+        # Cohorts kept losing a mission to output formatting (-v, --no-header,
+        # -s, --tb=, -o addopts=, -o console_output_style=classic). Each
+        # widening was correct and a different model then reached for a
+        # different spelling, because the agent was never told what would be
+        # approved -- so the score partly measured its ability to guess an
+        # unpublished rule. A real operator says what they will sign off.
+        # The gate itself is unchanged and refuses everything it refused before.
+        turn_text = compose_turn_text(prompt)
         body = {
-            "messages": [{"role": "user", "content": [{"text": prompt}]}],
+            "messages": [{"role": "user", "content": [{"text": turn_text}]}],
             "modelId": model_id,
             "sessionId": session_id,
             "approvalTokens": tokens,

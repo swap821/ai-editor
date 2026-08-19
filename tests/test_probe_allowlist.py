@@ -208,3 +208,56 @@ def test_the_harness_own_verify_command_is_admitted_by_its_own_gate() -> None:
         assert ALLOWED_CMD_RE.match(command), (
             f"the harness runs {command!r} but its own allowlist refuses it"
         )
+
+
+# -- the policy the harness states must match the gate it describes -----------
+
+def test_every_policy_example_is_actually_admitted() -> None:
+    """A policy that promises more than the gate allows is a trap.
+
+    The agent is told these exact commands will be approved. If a future
+    narrowing of ALLOWED_CMD_RE refused one, the harness would be inviting the
+    model into a refusal -- worse than saying nothing, because the model would
+    have no reason to doubt it.
+    """
+    from aios.probe_common import APPROVAL_POLICY_EXAMPLES
+
+    for command in APPROVAL_POLICY_EXAMPLES:
+        assert ALLOWED_CMD_RE.match(command), (
+            f"the approval policy offers {command!r} but the gate refuses it"
+        )
+
+
+def test_the_policy_names_things_that_are_genuinely_refused() -> None:
+    """And a policy that under-promises teaches the model a false limit."""
+    from aios.probe_common import approval_policy_text
+
+    text = approval_policy_text()
+    for flag, probe in (
+        ("-k", "pytest -k sel training_ground/x.py"),
+        ("-x", "pytest -x training_ground/x.py"),
+        ("--pdb", "pytest --pdb training_ground/x.py"),
+        ("--noconftest", "pytest --noconftest training_ground/x.py"),
+    ):
+        assert flag in text, f"the policy should warn about {flag}"
+        assert not ALLOWED_CMD_RE.match(probe), (
+            f"the policy calls {flag} refused, but the gate admits {probe!r}"
+        )
+
+
+def test_the_mission_prompt_is_sent_unmodified() -> None:
+    """The policy is a preamble, never an edit.
+
+    Organ 44's forbidden list opens with "no editing the missions". Prepending
+    an operator policy is only legitimate if the mission text crosses the wire
+    byte-for-byte, so this asserts the exact substring rather than a fuzzy match.
+    """
+    from tools.golden_mission_runner import compose_turn_text
+
+    for prompt in (
+        "Create training_ground/pipeline.py with a Pipeline class",
+        "Edit training_ground/x.py to add error handling: if a step raises, wrap it",
+    ):
+        composed = compose_turn_text(prompt)
+        assert prompt in composed, "the mission text was altered in transit"
+        assert composed.endswith(prompt), "the mission text must come last"
