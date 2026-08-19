@@ -297,9 +297,7 @@ def test_every_job_that_runs_a_golden_mission_builds_the_workload_image() -> Non
 
     offenders = []
     for job_name, job in (workflow.get("jobs") or {}).items():
-        runs = " ".join(
-            str(step.get("run", "")) for step in (job.get("steps") or [])
-        )
+        runs = " ".join(str(step.get("run", "")) for step in (job.get("steps") or []))
         if "golden_mission_runner.py" not in runs:
             continue
         # Either build the image by name, or declare it is not using the
@@ -345,7 +343,7 @@ def test_every_job_that_runs_docker_compose_supplies_its_required_variables() ->
     offenders = {}
     for job_name, job in (workflow.get("jobs") or {}).items():
         job_env = set((job.get("env") or {}).keys())
-        for step in (job.get("steps") or []):
+        for step in job.get("steps") or []:
             if "docker compose" not in str(step.get("run", "")):
                 continue
             supplied = job_env | set((step.get("env") or {}).keys())
