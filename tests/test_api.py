@@ -3,6 +3,7 @@
 Collaborators are overridden via dependency injection so the suite never calls
 Ollama, spawns a shell, or touches the real sandbox/ledger.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,7 +73,9 @@ def _reset_runtime_profile():
     kernel._active_profile = profiles.get_profile("local-first")
 
 
-def _set_cloud_policy(monkeypatch, *, cloud_tasks=(), prefer_local=True, max_cost="high"):
+def _set_cloud_policy(
+    monkeypatch, *, cloud_tasks=(), prefer_local=True, max_cost="high"
+):
     """Drive the router through the kernel's active profile while mirroring legacy config knobs."""
     base = profiles.get_profile("local-first")
     profile = replace(
@@ -143,10 +146,20 @@ class FakeLLM:
             )
         if "planning module" in (system or ""):
             return json.dumps(
-                {"steps": [
-                    {"step_id": "1", "description": "scaffold project", "confidence": 0.9},
-                    {"step_id": "2", "description": "risky migration", "confidence": 0.4},
-                ]}
+                {
+                    "steps": [
+                        {
+                            "step_id": "1",
+                            "description": "scaffold project",
+                            "confidence": 0.9,
+                        },
+                        {
+                            "step_id": "2",
+                            "description": "risky migration",
+                            "confidence": 0.4,
+                        },
+                    ]
+                }
             )
         return json.dumps(
             {
@@ -281,7 +294,9 @@ class FakeIndexer:
 
 
 def _fake_executor() -> Executor:
-    return Executor(runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit())
+    return Executor(
+        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
 
 
 @pytest.fixture()
@@ -355,7 +370,9 @@ def test_onboarding_state_reflects_milestones(client: TestClient) -> None:
     assert state["firstVerify"] is True
 
     # First cloud route: a cloud-route audit entry.
-    log_action("cloud-route", '{"provider":"bedrock","model":"amazon.titan"}', Zone.GREEN)
+    log_action(
+        "cloud-route", '{"provider":"bedrock","model":"amazon.titan"}', Zone.GREEN
+    )
     state = client.get("/api/v1/onboarding/state").json()
     assert state["firstCloudRoute"] is True
 
@@ -388,7 +405,9 @@ def test_workspace_lists_training_ground_text_files(
     assert all(".." not in p and not p.startswith("/") for p in by_path)
 
 
-def test_configured_api_token_protects_api_routes(client: TestClient, monkeypatch) -> None:
+def test_configured_api_token_protects_api_routes(
+    client: TestClient, monkeypatch
+) -> None:
     monkeypatch.setattr(config, "API_TOKEN", "release-test-token")
 
     denied = client.get("/api/v1/models/local")
@@ -440,7 +459,9 @@ def test_unauthenticated_remote_client_cannot_read_api_schema(monkeypatch) -> No
         assert remote.get("/health").status_code == 200
 
 
-def test_authenticated_deployment_allows_cors_preflight(client: TestClient, monkeypatch) -> None:
+def test_authenticated_deployment_allows_cors_preflight(
+    client: TestClient, monkeypatch
+) -> None:
     monkeypatch.setattr(config, "API_TOKEN", "release-test-token")
 
     response = client.options(
@@ -460,12 +481,16 @@ def test_classify_red_and_yellow(client: TestClient) -> None:
     assert red.status_code == 200
     assert red.json()["zone"] == "RED"
 
-    yellow = client.post("/api/v1/security/classify", json={"command": "pip install flask"})
+    yellow = client.post(
+        "/api/v1/security/classify", json={"command": "pip install flask"}
+    )
     assert yellow.json()["zone"] == "YELLOW"
 
 
 def test_memory_search_returns_list(client: TestClient) -> None:
-    response = client.post("/api/v1/memory/search", json={"query": "anything", "top_k": 3})
+    response = client.post(
+        "/api/v1/memory/search", json={"query": "anything", "top_k": 3}
+    )
     assert response.status_code == 200
     assert isinstance(response.json()["results"], list)
 
@@ -479,7 +504,11 @@ def test_audit_verify_responds(client: TestClient) -> None:
 def test_reflect_with_injected_fake_llm(client: TestClient) -> None:
     response = client.post(
         "/api/v1/reflect",
-        json={"command": "fetch url", "error_output": "timed out", "task_id": "api-test"},
+        json={
+            "command": "fetch url",
+            "error_output": "timed out",
+            "task_id": "api-test",
+        },
     )
     assert response.status_code == 200
     body = response.json()
@@ -661,7 +690,9 @@ def _route_models(body: str) -> list[str]:
     return models
 
 
-def test_route_event_names_the_model_that_served_after_failover(client, monkeypatch) -> None:
+def test_route_event_names_the_model_that_served_after_failover(
+    client, monkeypatch
+) -> None:
     # Active-brain truthfulness: when the ranked-primary candidate fails over, the
     # `route` frame must name the model that ACTUALLY served — never the primary that
     # was merely picked first (which may be a non-invocable frontier id). A
@@ -692,7 +723,9 @@ def test_route_event_names_the_model_that_served_after_failover(client, monkeypa
 
     fake = FakeBedrockFailover()
     _set_cloud_policy(monkeypatch, cloud_tasks=("reasoning", "coding"))  # cloud allowed
-    monkeypatch.setattr(config, "ROUTER_LLM_PICK", False)  # deterministic cascade (no picker chat)
+    monkeypatch.setattr(
+        config, "ROUTER_LLM_PICK", False
+    )  # deterministic cascade (no picker chat)
     app.dependency_overrides[get_bedrock_client] = lambda: fake
     # Keep this failover test bedrock-only; real Gemini discovery is irrelevant here.
     app.dependency_overrides[get_gemini_client] = lambda: None
@@ -701,7 +734,12 @@ def test_route_event_names_the_model_that_served_after_failover(client, monkeypa
         response = client.post(
             "/api/generate",
             json={
-                "messages": [{"role": "user", "content": [{"text": "reason about this carefully"}]}],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{"text": "reason about this carefully"}],
+                    }
+                ],
                 "modelId": "auto",
                 "sessionId": "failover-route",
             },
@@ -716,7 +754,7 @@ def test_route_event_names_the_model_that_served_after_failover(client, monkeypa
 
     announced = _route_models(response.text)
     assert announced, "a route frame must be emitted once a model has served"
-    assert served in announced       # the model that DID the work is named
+    assert served in announced  # the model that DID the work is named
     assert primary not in announced  # the failed-over primary is never advertised
 
 
@@ -736,7 +774,9 @@ def test_terminal_red_command_is_blocked(client: TestClient) -> None:
     assert "BLOCKED" in body["output"]
 
 
-def test_terminal_yellow_issues_capability_and_runs_after_approval(client: TestClient) -> None:
+def test_terminal_yellow_issues_capability_and_runs_after_approval(
+    client: TestClient,
+) -> None:
     session_id = _cookie_session_id(client)
     pending = client.post(
         "/api/terminal",
@@ -805,7 +845,9 @@ def test_generate_persists_episodic_turns(client: TestClient) -> None:
 
 def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> None:
     recalled = [SimpleNamespace(text="The project serves the API on port 8000.")]
-    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3: recalled)
+    monkeypatch.setattr(
+        "aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3: recalled
+    )
 
     response = client.post(
         "/api/generate",
@@ -817,18 +859,22 @@ def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> Non
     )
     assert response.status_code == 200
     body = response.text
-    assert "query_knowledge" in body          # the recall step is surfaced
+    assert "query_knowledge" in body  # the recall step is surfaced
     assert "serves the API on port 8000" in body
 
 
-def test_generate_injects_validated_advisory_understanding_frame(client: TestClient) -> None:
+def test_generate_injects_validated_advisory_understanding_frame(
+    client: TestClient,
+) -> None:
     chat = CapturingOllama()
     app.dependency_overrides[get_ollama_client] = lambda: chat
 
     response = client.post(
         "/api/generate",
         json={
-            "messages": [{"role": "user", "content": [{"text": "start implementation"}]}],
+            "messages": [
+                {"role": "user", "content": [{"text": "start implementation"}]}
+            ],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": "test-understanding-frame",
         },
@@ -893,7 +939,12 @@ def test_generate_low_confidence_alignment_pauses_before_agent_tools(
     response = client.post(
         "/api/generate",
         json={
-            "messages": [{"role": "user", "content": [{"text": "Implement the settings endpoint"}]}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"text": "Implement the settings endpoint"}],
+                }
+            ],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": "test-confidence-gated",
         },
@@ -950,7 +1001,12 @@ def test_generate_verified_mistake_calibrates_default_confidence_gate(
     response = client.post(
         "/api/generate",
         json={
-            "messages": [{"role": "user", "content": [{"text": "Implement the settings endpoint"}]}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"text": "Implement the settings endpoint"}],
+                }
+            ],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": "test-confidence-calibrated",
         },
@@ -966,6 +1022,7 @@ def test_generate_verified_mistake_calibrates_default_confidence_gate(
     assert '"lesson_ids": [77]' in body
     assert "What should I clarify before continuing?" in body
     assert chat.calls == []
+
 
 def test_generate_states_unverified_assumptions_then_runs_normal_agent(
     client: TestClient,
@@ -991,7 +1048,9 @@ def test_generate_states_unverified_assumptions_then_runs_normal_agent(
             "messages": [
                 {
                     "role": "user",
-                    "content": [{"text": "Implement the endpoint using your best judgment"}],
+                    "content": [
+                        {"text": "Implement the endpoint using your best judgment"}
+                    ],
                 }
             ],
             "modelId": "ollama.llama3.2:3b",
@@ -1001,17 +1060,24 @@ def test_generate_states_unverified_assumptions_then_runs_normal_agent(
 
     assert response.status_code == 200
     assert '"ambiguity_action": "state_assumptions"' in response.text
-    assert "Unverified assumptions before proceeding: Use the existing API shape" in response.text
+    assert (
+        "Unverified assumptions before proceeding: Use the existing API shape"
+        in response.text
+    )
     assert "event: code" in response.text
     assert len(chat.calls) == 1
 
 
-def test_conversation_session_restores_alignment_and_recent_dialogue(client: TestClient) -> None:
+def test_conversation_session_restores_alignment_and_recent_dialogue(
+    client: TestClient,
+) -> None:
     session_id = _cookie_session_id(client)
     generated = client.post(
         "/api/generate",
         json={
-            "messages": [{"role": "user", "content": [{"text": "start implementation"}]}],
+            "messages": [
+                {"role": "user", "content": [{"text": "start implementation"}]}
+            ],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": session_id,
         },
@@ -1031,7 +1097,9 @@ def test_conversation_session_restores_alignment_and_recent_dialogue(client: Tes
     assert body["messages"][0]["content"][0]["text"] == "start implementation"
 
 
-def test_user_correction_persists_reapplies_and_can_be_cleared(client: TestClient) -> None:
+def test_user_correction_persists_reapplies_and_can_be_cleared(
+    client: TestClient,
+) -> None:
     session_id = _cookie_session_id(client)
     generated = client.post(
         "/api/generate",
@@ -1160,7 +1228,9 @@ def test_alignment_evaluation_records_feedback_and_correction_evidence(
     assert feedback.status_code == 200
     assert feedback.json()["automaticPolicyUpdates"] is False
     assert corrected.status_code == 200
-    assert corrected.json()["alignment"]["evaluation"]["observation_id"] == observation_id
+    assert (
+        corrected.json()["alignment"]["evaluation"]["observation_id"] == observation_id
+    )
     assert summary.status_code == 200
     body = summary.json()
     assert body["total_turns"] == before + 1
@@ -1255,7 +1325,9 @@ class FakeReflector:
     """Reflector stand-in that recalls one pending lesson for the session."""
 
     def recall_pending(self, task_id, limit=5):
-        return [{"mistake_id": 5, "error_type": "Timeout", "lesson_text": "set a timeout"}]
+        return [
+            {"mistake_id": 5, "error_type": "Timeout", "lesson_text": "set a timeout"}
+        ]
 
     def reflect(self, *a, **k):  # pragma: no cover - not exercised here
         raise AssertionError("reflect should not be called in this test")
@@ -1276,7 +1348,7 @@ def test_generate_recalls_session_lessons_as_step(client: TestClient) -> None:
     )
     assert response.status_code == 200
     body = response.text
-    assert "Recalled 1 past lesson" in body     # the lesson-recall step is surfaced
+    assert "Recalled 1 past lesson" in body  # the lesson-recall step is surfaced
     assert "event: done" in body
 
 
@@ -1314,7 +1386,9 @@ def test_generate_redacts_secrets_before_memory_persistence(client: TestClient) 
     assert response.status_code == 200
     assert secret not in client.fake_indexer.added[-1]
     assert "REDACTED" in client.fake_indexer.added[-1]
-    assert all(secret not in row["content"] for row in EpisodicMemory().recent(session_id))
+    assert all(
+        secret not in row["content"] for row in EpisodicMemory().recent(session_id)
+    )
 
 
 def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
@@ -1333,12 +1407,14 @@ def test_generate_pauses_for_yellow_approval(client: TestClient) -> None:
     body = response.text
     assert "event: human_required" in body
     assert "approvalToken" in body
-    assert "pip install flask" in body          # the command to authorise is surfaced
-    assert "Approval required to run: pip install flask" in body  # plain-language prompt
+    assert "pip install flask" in body  # the command to authorise is surfaced
+    assert (
+        "Approval required to run: pip install flask" in body
+    )  # plain-language prompt
     # The raw classifier reason (which embeds a regex like "\bpip\s+install\b")
     # must never reach the human approval prompt — it belongs in the audit log.
     assert "Caution operation requires approval" not in body
-    assert "event: done" not in body            # the paused turn does not complete
+    assert "event: done" not in body  # the paused turn does not complete
 
 
 def test_generate_approval_payload_refusal_returns_error_frame(
@@ -1376,7 +1452,10 @@ class FakeBedrockChat:
     """Bedrock stand-in for the agent loop — answers with a fenced code block."""
 
     def chat(self, messages, *, tools=None, model=None) -> dict:
-        return {"role": "assistant", "content": "Answer from Bedrock.\n```text\ncloud\n```"}
+        return {
+            "role": "assistant",
+            "content": "Answer from Bedrock.\n```text\ncloud\n```",
+        }
 
 
 class FakeBedrockModels:
@@ -1486,8 +1565,8 @@ def test_generate_routes_cloud_model_to_bedrock(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.text
     assert "event: done" in body
-    assert "cloud" in body                      # code block from the Bedrock answer
-    assert "<button>Hi</button>" not in body    # did NOT fall through to Ollama
+    assert "cloud" in body  # code block from the Bedrock answer
+    assert "<button>Hi</button>" not in body  # did NOT fall through to Ollama
 
 
 def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
@@ -1510,7 +1589,7 @@ def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.text
     assert "event: human_required" not in body
-    assert "ran: pip install flask" in body     # executed in the sandbox
+    assert "ran: pip install flask" in body  # executed in the sandbox
     assert "event: done" in body
 
 
@@ -1597,7 +1676,9 @@ def test_execute_endpoint_green_runs_and_red_blocks(client: TestClient) -> None:
     assert rbody["zone"] == "RED"
 
 
-def test_execute_issues_capability_then_approval_runs_yellow(client: TestClient) -> None:
+def test_execute_issues_capability_then_approval_runs_yellow(
+    client: TestClient,
+) -> None:
     session_id = _cookie_session_id(client)
     escalated = client.post(
         "/api/v1/execute",
@@ -1625,7 +1706,9 @@ def test_execute_issues_capability_then_approval_runs_yellow(client: TestClient)
     assert body["result"]["status"] == "OK"
 
 
-def test_execute_capability_rejects_altered_command_without_consuming(client: TestClient) -> None:
+def test_execute_capability_rejects_altered_command_without_consuming(
+    client: TestClient,
+) -> None:
     session_id = _cookie_session_id(client)
     original = "pip install flask"
     pending = client.post(
@@ -1655,7 +1738,9 @@ def test_execute_capability_rejects_altered_command_without_consuming(client: Te
     assert accepted.json()["result"]["status"] == "OK"
 
 
-def test_execute_yellow_requires_session_for_approval_capability(client: TestClient) -> None:
+def test_execute_yellow_requires_session_for_approval_capability(
+    client: TestClient,
+) -> None:
     client.cookies.clear()
     response = client.post("/api/v1/execute", json={"command": "pip install flask"})
     assert response.status_code == 403
@@ -1692,7 +1777,9 @@ def test_approval_req_reject_does_not_run(client: TestClient) -> None:
     assert body["executed"] is False
 
 
-def test_approval_req_reject_consumes_non_command_capability(client: TestClient) -> None:
+def test_approval_req_reject_consumes_non_command_capability(
+    client: TestClient,
+) -> None:
     session_id = _cookie_session_id(client)
     token = _issue_generate_capability(
         client,
@@ -1940,10 +2027,14 @@ def test_rollback_endpoint_maps_error_to_500(client: TestClient) -> None:
     assert response.status_code == 500
 
 
-def test_self_apply_verifier_runs_through_container_from_project_root(monkeypatch) -> None:
+def test_self_apply_verifier_runs_through_container_from_project_root(
+    monkeypatch,
+) -> None:
     # Phase 2: self-apply verifies through the container boundary, mounting the real
     # project root, using a container-appropriate interpreter (not the host venv).
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
     docker_argv: list[list[str]] = []
 
     def fake_docker_spawn(argv, **kwargs):
@@ -1980,7 +2071,9 @@ def test_self_apply_refuses_in_host_mode(monkeypatch) -> None:
 
 
 def test_self_apply_verifier_refuses_any_other_runner_command(monkeypatch) -> None:
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
     monkeypatch.setattr(
         "aios.core.executor._bounded_run",
         lambda *args, **kwargs: pytest.fail("unexpected subprocess"),
@@ -2013,15 +2106,24 @@ class FakeOllamaEdit:
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "edit_file", "arguments": {
-                        "filepath": "note.txt", "old_string": "world", "new_string": "there",
-                    }}}
+                    {
+                        "function": {
+                            "name": "edit_file",
+                            "arguments": {
+                                "filepath": "note.txt",
+                                "old_string": "world",
+                                "new_string": "there",
+                            },
+                        }
+                    }
                 ],
             }
         return {"role": "assistant", "content": "Applied the edit."}
 
 
-def test_generate_pauses_with_edit_diff(client: TestClient, tmp_path, monkeypatch) -> None:
+def test_generate_pauses_with_edit_diff(
+    client: TestClient, tmp_path, monkeypatch
+) -> None:
     (tmp_path / "note.txt").write_text("hello world\n", encoding="utf-8")
     # edit_file resolves under read_root (= config.PROJECT_ROOT); point it at the sandbox
     # so the bare "note.txt" the model edits resolves in scope.
@@ -2030,29 +2132,38 @@ def test_generate_pauses_with_edit_diff(client: TestClient, tmp_path, monkeypatc
     scope_lock.set_scope_roots([tmp_path])
     app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
     try:
-        response = client.post("/api/generate", json={
-            "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
-            "modelId": "ollama.llama3.2:3b",
-            "sessionId": "test-edit-pause",
-        })
+        response = client.post(
+            "/api/generate",
+            json={
+                "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
+                "modelId": "ollama.llama3.2:3b",
+                "sessionId": "test-edit-pause",
+            },
+        )
         assert response.status_code == 200
         body = response.text
         assert "event: human_required" in body
-        assert "-hello world" in body and "+hello there" in body   # the diff is surfaced
-        assert "event: done" not in body                            # paused, not completed
-        assert (tmp_path / "note.txt").read_text(encoding="utf-8") == "hello world\n"  # unwritten
+        assert "-hello world" in body and "+hello there" in body  # the diff is surfaced
+        assert "event: done" not in body  # paused, not completed
+        assert (tmp_path / "note.txt").read_text(
+            encoding="utf-8"
+        ) == "hello world\n"  # unwritten
     finally:
         scope_lock.set_scope_roots(list(original))
 
 
-def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_path, monkeypatch) -> None:
+def test_generate_applies_approved_edit_with_snapshot(
+    client: TestClient, tmp_path, monkeypatch
+) -> None:
     (tmp_path / "note.txt").write_text("hello world\n", encoding="utf-8")
     snaps: list[str] = []
     monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
     original = scope_lock.get_scope_roots()
     scope_lock.set_scope_roots([tmp_path])
     app.dependency_overrides[get_ollama_client] = FakeOllamaEdit
-    app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": snaps.append(message))
+    app.dependency_overrides[get_edit_snapshot] = lambda: (
+        lambda message="": snaps.append(message)
+    )
     try:
         session_id = _cookie_session_id(client)
         token = _issue_generate_capability(
@@ -2060,16 +2171,21 @@ def test_generate_applies_approved_edit_with_snapshot(client: TestClient, tmp_pa
             "edit",
             {"filepath": "note.txt", "old_string": "world", "new_string": "there"},
         )
-        response = client.post("/api/generate", json={
-            "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
-            "modelId": "ollama.llama3.2:3b",
-            "sessionId": session_id,
-            "approvalTokens": [token],
-        })
+        response = client.post(
+            "/api/generate",
+            json={
+                "messages": [{"role": "user", "content": [{"text": "edit the note"}]}],
+                "modelId": "ollama.llama3.2:3b",
+                "sessionId": session_id,
+                "approvalTokens": [token],
+            },
+        )
         assert response.status_code == 200
         body = response.text
-        assert "event: human_required" not in body                  # authorised -> no pause
-        assert (tmp_path / "note.txt").read_text(encoding="utf-8") == "hello there\n"  # applied
+        assert "event: human_required" not in body  # authorised -> no pause
+        assert (tmp_path / "note.txt").read_text(
+            encoding="utf-8"
+        ) == "hello there\n"  # applied
         assert snaps, "a pre-edit snapshot must be taken before the write"
         assert "event: done" in body
     finally:
@@ -2093,7 +2209,12 @@ class FakeOllamaVerify:
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
+                    {
+                        "function": {
+                            "name": "verify",
+                            "arguments": {"command": "pytest -q"},
+                        }
+                    }
                 ],
             }
         return {"role": "assistant", "content": "Verified."}
@@ -2131,13 +2252,20 @@ class RecordingCurriculum:
         self.matches: list[tuple[str, bool, str]] = []
         self.tasks: list[dict] = []
 
-    def record_matching(self, prompt, *, passed, evidence, strength=None, on_mastered=None):
+    def record_matching(
+        self, prompt, *, passed, evidence, strength=None, on_mastered=None
+    ):
         self.matches.append((prompt, passed, evidence))
         return [1]
 
     def add_task(self, skill_name, level, prompt, *, held_out=False):
         self.tasks.append(
-            {"skill_name": skill_name, "level": level, "prompt": prompt, "held_out": held_out}
+            {
+                "skill_name": skill_name,
+                "level": level,
+                "prompt": prompt,
+                "held_out": held_out,
+            }
         )
         return len(self.tasks)
 
@@ -2408,7 +2536,9 @@ def test_generate_self_corrected_turn_counts_as_verified_success(
     curriculum = RecordingCurriculum()
     app.dependency_overrides[get_ollama_client] = FakeOllamaVerifySequence
     app.dependency_overrides[get_executor] = lambda: Executor(
-        runner=FlakyThenGreenRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=FlakyThenGreenRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
@@ -2522,7 +2652,9 @@ def test_generate_turn_ending_in_failure_stays_verified_failure(
     development = RecordingDevelopment()
     app.dependency_overrides[get_ollama_client] = FakeOllamaVerifySequence
     app.dependency_overrides[get_executor] = lambda: Executor(
-        runner=GreenThenFlakyRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=GreenThenFlakyRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = _cookie_session_id(client)
@@ -2561,13 +2693,19 @@ def test_final_pass_on_one_target_cannot_mask_anothers_failure(
 
     app.dependency_overrides[get_ollama_client] = FakeOllamaThreeVerifies
     app.dependency_overrides[get_executor] = lambda: Executor(
-        runner=BrokenFileRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=BrokenFileRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = _cookie_session_id(client)
     tokens = [
-        _issue_generate_capability(client, "command", {"command": "pytest test_ok.py -q"}),
-        _issue_generate_capability(client, "command", {"command": "pytest test_broken.py -q"}),
+        _issue_generate_capability(
+            client, "command", {"command": "pytest test_ok.py -q"}
+        ),
+        _issue_generate_capability(
+            client, "command", {"command": "pytest test_broken.py -q"}
+        ),
     ]
 
     response = client.post(
@@ -2602,7 +2740,9 @@ def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
 
     app.dependency_overrides[get_ollama_client] = FakeOllamaMultiThenSingle
     app.dependency_overrides[get_executor] = lambda: Executor(
-        runner=BrokenFileRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=BrokenFileRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = _cookie_session_id(client)
@@ -2610,7 +2750,9 @@ def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
         _issue_generate_capability(
             client, "command", {"command": "pytest test_ok.py test_broken.py -q"}
         ),
-        _issue_generate_capability(client, "command", {"command": "pytest test_ok.py -q"}),
+        _issue_generate_capability(
+            client, "command", {"command": "pytest test_ok.py -q"}
+        ),
     ]
 
     response = client.post(
@@ -2628,7 +2770,9 @@ def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
     assert development.records[-1][1] == "verified_failure"
 
 
-def test_generate_role_pass_flag_is_not_a_production_worker_selector(client: TestClient) -> None:
+def test_generate_role_pass_flag_is_not_a_production_worker_selector(
+    client: TestClient,
+) -> None:
     # Role-pass remains an experimental adapter until WorkerFoundry owns its
     # lifecycle; the production generation route must refuse the selector
     # instead of bypassing the Foundry with direct caste execution.
@@ -2684,7 +2828,10 @@ def test_growth_api_surfaces_are_non_autonomous(client: TestClient) -> None:
     ).json()
     assert created == {"id": 1, "executed": False}
     assert client.get("/api/v1/development/curriculum").json()["tasks"]
-    assert client.post("/api/v1/memory/consolidate").json()["active_facts_consolidated"] == 1
+    assert (
+        client.post("/api/v1/memory/consolidate").json()["active_facts_consolidated"]
+        == 1
+    )
     fact = client.post(
         "/api/v1/memory/facts",
         json={
@@ -2707,3 +2854,63 @@ def test_growth_api_surfaces_are_non_autonomous(client: TestClient) -> None:
     )
     assert reconciled.status_code == 200
     assert reconciled.json()["fact_id"] == 8
+
+
+def test_an_orphaned_grant_does_not_ride_into_the_next_turn(
+    client: TestClient,
+) -> None:
+    """A capability consumed by a turn that never finished must not authorise a later one.
+
+    The behavioural half of the grant-chain fix. `grants()` returns every
+    still-live consumed capability for a session+route and the pipeline appends
+    each one to approved_commands, so a paused turn that was abandoned left its
+    approval live and the next request carrying ANY token inherited it.
+
+    Constructed so a completed turn cannot mask the bug: the presented token is
+    for a DIFFERENT command than the model asks for, so this turn pauses rather
+    than reaching `done` -- and `done` is where grants would be cleared anyway.
+    The only thing that can clear the orphan here is the new-turn check.
+    """
+    app.dependency_overrides[get_ollama_client] = FakeOllamaYellow
+    session_id = _cookie_session_id(client)
+    principal = get_identity_service().get_authenticated_principal(session_id)
+    assert principal is not None
+
+    # A turn that consumed an approval and then died: consumed, still live as a
+    # grant, with nothing stashed because it never paused cleanly.
+    orphan_payload = {"command": "pip install flask"}
+    orphan_token = _issue_generate_capability(client, "command", orphan_payload)
+    authority = get_capability_authority()
+    authority.consume(
+        orphan_token,
+        _generate_capability_binding(principal, "command", orphan_payload),
+    )
+    assert authority.grants(session_id, route="/api/generate"), (
+        "precondition failed: the orphaned grant is not live, so this test "
+        "would prove nothing"
+    )
+
+    # A NEW turn that merely carries its own, unrelated token.
+    fresh_token = _issue_generate_capability(
+        client, "command", {"command": "echo unrelated"}
+    )
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [fresh_token],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "ran: pip install flask" not in body, (
+        "the orphaned approval rode forward into a turn that never asked for "
+        "it -- the grant chain is not bound to one turn"
+    )
+    assert "event: human_required" in body, (
+        "the command should have been re-escalated for approval rather than "
+        "silently inherited"
+    )
