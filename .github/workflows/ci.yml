@@ -213,6 +213,24 @@ jobs:
         env:
           AIOS_LLM_MODEL: qwen2.5:3b
 
+      - name: Build the workload image the missions actually run in
+        # Without this the job "passes" while proving nothing. On 2026-08-19 the
+        # first real execution of this job scored 0/1 because every verify step
+        # died with "Unable to find image 'aios-worker:local'" -- exit 125, the
+        # docker daemon refusing to start a container -- and the integrity gate
+        # reported OK. AIOS_APPROVED_EXECUTION_BACKEND defaults to "container"
+        # and AIOS_CONTAINER_IMAGE to aios-worker:local, so a golden mission
+        # CANNOT verify anything without this image, however good the model is.
+        #
+        # The worker sits behind compose's `build-only` profile precisely so it
+        # is never started as a service; it has to be built by name. This is the
+        # same defect that took release-authority down on 2026-08-11, recurring
+        # in a new job because the conformance rule was file-scoped and this
+        # file already said "build worker" somewhere else.
+        run: |
+          docker compose --profile build-only build worker
+          docker image inspect aios-worker:local >/dev/null
+
       - name: Start the backend on its own instance
         env:
           AIOS_API_PORT: "8300"
