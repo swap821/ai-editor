@@ -356,3 +356,39 @@ def test_every_job_that_runs_docker_compose_supplies_its_required_variables() ->
         f"{ {k: sorted(v) for k, v in offenders.items()} }. compose resolves the "
         "entire file before building, so the build fails before it starts."
     )
+
+
+def test_the_strict_release_gate_still_blocks_on_a_release_tag() -> None:
+    """`continue-on-error` on the strict gate must stay conditional.
+
+    The gate was made ADVISORY on manual dispatch because it is structurally red
+    there: --strict-release requires every green organ's last_verified_sha to
+    EQUAL HEAD, and outside a release cut all of them differ, necessarily, since
+    every merge moves HEAD. A permanently-red gate teaches people to ignore it,
+    and it made every dispatch run conclude `failure` -- which made the cohort
+    evidence inside that run uncitable under C10, whose verifier requires a
+    cited run to have SUCCEEDED.
+
+    The danger is the obvious next edit: `continue-on-error: true`, which would
+    silently defang the gate at release time, exactly where tip equality IS the
+    claim. This asserts the expression stays keyed to workflow_dispatch.
+    """
+    import yaml
+
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["release-strict-gate"]
+    coe = job.get("continue-on-error")
+
+    assert coe is not True, (
+        "release-strict-gate is unconditionally advisory -- it would no longer "
+        "block a gagos-release-* tag, which is the only place it has teeth"
+    )
+    assert isinstance(coe, str) and "workflow_dispatch" in coe, (
+        "release-strict-gate's continue-on-error must stay keyed to "
+        f"workflow_dispatch so release tags still block; found {coe!r}"
+    )
+    assert "gagos-release-" in str(job.get("if", "")), (
+        "release-strict-gate must still run on release tags"
+    )
