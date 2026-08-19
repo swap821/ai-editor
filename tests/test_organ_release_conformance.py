@@ -737,21 +737,50 @@ def test_verify_organ_contracts_strict_release_rejects_ordinary_non_evidence_tip
 # --- CLI wiring -----------------------------------------------------------
 
 
-def test_launcher_organ_check_strict_fails_until_all_organs_green(
+def test_launcher_organ_check_strict_agrees_with_the_ledger(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """`--strict` must pass exactly when the ledger carries no yellow.
+
+    This was `test_launcher_organ_check_strict_fails_until_all_organs_green`,
+    asserting `== 1` and `all_green is False`. Its name carried its own expiry:
+    organ 23 went green on 2026-08-19, every organ is green, and "until" arrived.
+
+    Flipping the two constants to `0` and `True` would have produced a test just
+    as stale the next time an organ is honestly demoted -- and a demotion is
+    exactly when this assertion needs to still mean something. So it is now a
+    property rather than a snapshot: strict agrees with the ledger in BOTH
+    directions, and cannot be satisfied by a hardcoded expectation that reality
+    has moved past.
+
+    `conformant` is separate from `all_green` on purpose and is asserted
+    unconditionally: the ledger being internally consistent is not the same
+    claim as every organ being green.
+    """
     config = launcher.LauncherConfig.from_environment(profile="development")
-    assert launcher.organ_check(config, strict=True, as_json=True) == 1
+    yellows = sum(1 for r in load_ledger(LEDGER_PATH) if r.status == "yellow")
+
+    returncode = launcher.organ_check(config, strict=True, as_json=True)
     payload = json.loads(capsys.readouterr().out)
-    assert payload["all_green"] is False
-    assert payload["yellow_count"] == sum(
-        1 for r in load_ledger(LEDGER_PATH) if r.status == "yellow"
+
+    assert payload["yellow_count"] == yellows
+    assert payload["all_green"] is (yellows == 0)
+    assert returncode == (0 if yellows == 0 else 1), (
+        f"strict organ_check returned {returncode} with {yellows} yellow organ(s)"
     )
     assert payload["conformant"] is True
 
 
-def test_launcher_organ_check_non_strict_passes_with_truthful_yellow_baseline(
+def test_launcher_organ_check_non_strict_passes_on_a_conformant_ledger(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Non-strict cares that the ledger is CONSISTENT, not that it is all green.
+
+    Renamed from `..._passes_with_truthful_yellow_baseline` on 2026-08-19, when
+    organ 23 went green and the baseline stopped having a yellow in it. The
+    assertion never depended on one -- non-strict passes on a conformant ledger
+    whatever the colours are -- but a test whose name states something the repo
+    no longer contains is the kind of quiet rot this suite exists to catch.
+    """
     config = launcher.LauncherConfig.from_environment(profile="development")
     assert launcher.organ_check(config, strict=False, as_json=True) == 0
