@@ -227,6 +227,14 @@ jobs:
         # same defect that took release-authority down on 2026-08-11, recurring
         # in a new job because the conformance rule was file-scoped and this
         # file already said "build worker" somewhere else.
+        env:
+          # `docker compose` parses the WHOLE file before building anything,
+          # so building only `worker` still interpolates grafana's and the
+          # executor's variables. Without these the build dies with
+          # "required variable ... is missing a value" and never reaches the
+          # image -- which is how the first attempt at this fix failed.
+          AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
+          AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
         run: |
           docker compose --profile build-only build worker
           docker image inspect aios-worker:local >/dev/null

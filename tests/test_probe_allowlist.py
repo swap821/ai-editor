@@ -41,6 +41,14 @@ REFUSED = [
     ("plugin loading", "pytest -p evil training_ground/x.py"),
     ("bundled -s with -k", "pytest -sk sel training_ground/x.py"),
     ("-o config override", "pytest -o junit_suite_name=x training_ground/x.py"),
+    # `-o addopts=` (EMPTY) is admitted; every other use of -o is not. -o
+    # overrides ANY ini option, so a non-empty value is arbitrary flag
+    # injection wearing the costume of the one form the harness needs.
+    ("-o addopts= with an injected value", "pytest -o addopts=--pdb training_ground/x.py"),
+    ("-o addopts= smuggling -x", "pytest -o addopts=-x training_ground/x.py"),
+    ("-o addopts= smuggling -k", "pytest -o addopts=-k sel training_ground/x.py"),
+    ("bare -o", "pytest -o training_ground/x.py"),
+    ("-o without the space", "pytest -oaddopts= training_ground/x.py"),
     ("-s does not launder -k", "pytest -s -k sel training_ground/x.py"),
     ("-s does not launder --pdb", "pytest -s --pdb training_ground/x.py"),
     ("interactive debugger", "pytest --pdb training_ground/x.py"),
@@ -77,6 +85,13 @@ PERMITTED = [
     "pytest -s training_ground/x.py",
     "pytest -vv -s training_ground/test_pipeline.py",
     "pytest training_ground/x.py -s",
+    # The harness's OWN forced auto-verify command. It was refused here until
+    # 2026-08-19, while the loop showed the model that exact string as the
+    # target of a step that had just succeeded -- so the model copied it and
+    # lost the mission. See _PYTEST_CLEAR_ADDOPTS.
+    'python -m pytest -o addopts= "training_ground/test_calculator.py" -q',
+    "pytest -o addopts= training_ground/x.py",
+    "python -m pytest -o addopts= lab/y.py -v",
     "pytest training_ground/test_calculator.py -v",
     "python -m pytest -v training_ground/x.py",
     'pytest -v "training_ground/x.py"',
@@ -167,3 +182,82 @@ def test_the_pattern_is_built_from_named_parts() -> None:
 
     assert hasattr(probe_common, "_PYTEST_READ_ONLY_FLAG")
     assert hasattr(probe_common, "_SANDBOX_TEST_FILE")
+
+
+def test_the_harness_own_verify_command_is_admitted_by_its_own_gate() -> None:
+    """The gate must admit what the harness itself is built to run.
+
+    `build_auto_verify_command` is the single source of the forced auto-verify
+    command, and `_auto_verify` surfaces it to the model as the `target` of a
+    step that just passed. Until 2026-08-19 `ALLOWED_CMD_RE` refused that exact
+    string, so a model that imitated the form the loop had just demonstrated had
+    its mission terminated -- scored as a model failure, in the ledger, for a
+    cohort run.
+
+    Asserted against the real builder rather than a copied literal, so the two
+    cannot drift apart again. That drift IS the defect.
+    """
+    from aios.agents.tool_agent import build_auto_verify_command
+
+    for target in (
+        "training_ground/test_calculator.py",
+        "training_ground/test_pipeline.py",
+        "lab/test_thing.py",
+    ):
+        command = build_auto_verify_command(target)
+        assert ALLOWED_CMD_RE.match(command), (
+            f"the harness runs {command!r} but its own allowlist refuses it"
+        )
+
+
+# -- the policy the harness states must match the gate it describes -----------
+
+def test_every_policy_example_is_actually_admitted() -> None:
+    """A policy that promises more than the gate allows is a trap.
+
+    The agent is told these exact commands will be approved. If a future
+    narrowing of ALLOWED_CMD_RE refused one, the harness would be inviting the
+    model into a refusal -- worse than saying nothing, because the model would
+    have no reason to doubt it.
+    """
+    from aios.probe_common import APPROVAL_POLICY_EXAMPLES
+
+    for command in APPROVAL_POLICY_EXAMPLES:
+        assert ALLOWED_CMD_RE.match(command), (
+            f"the approval policy offers {command!r} but the gate refuses it"
+        )
+
+
+def test_the_policy_names_things_that_are_genuinely_refused() -> None:
+    """And a policy that under-promises teaches the model a false limit."""
+    from aios.probe_common import approval_policy_text
+
+    text = approval_policy_text()
+    for flag, probe in (
+        ("-k", "pytest -k sel training_ground/x.py"),
+        ("-x", "pytest -x training_ground/x.py"),
+        ("--pdb", "pytest --pdb training_ground/x.py"),
+        ("--noconftest", "pytest --noconftest training_ground/x.py"),
+    ):
+        assert flag in text, f"the policy should warn about {flag}"
+        assert not ALLOWED_CMD_RE.match(probe), (
+            f"the policy calls {flag} refused, but the gate admits {probe!r}"
+        )
+
+
+def test_the_mission_prompt_is_sent_unmodified() -> None:
+    """The policy is a preamble, never an edit.
+
+    Organ 44's forbidden list opens with "no editing the missions". Prepending
+    an operator policy is only legitimate if the mission text crosses the wire
+    byte-for-byte, so this asserts the exact substring rather than a fuzzy match.
+    """
+    from tools.golden_mission_runner import compose_turn_text
+
+    for prompt in (
+        "Create training_ground/pipeline.py with a Pipeline class",
+        "Edit training_ground/x.py to add error handling: if a step raises, wrap it",
+    ):
+        composed = compose_turn_text(prompt)
+        assert prompt in composed, "the mission text was altered in transit"
+        assert composed.endswith(prompt), "the mission text must come last"
