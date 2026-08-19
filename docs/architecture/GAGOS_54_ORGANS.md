@@ -760,8 +760,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 53 green / 1 yellow / 54 total
-- **Source ledger sha256:** `351c7fdcd2ba80f2e6ecf6fa96b8cd1c33947a15b58f2f98176e9d3e2f06c351`
+- **Counts:** 54 green / 0 yellow / 54 total
+- **Source ledger sha256:** `e23637cc853b33f5591dcaa4ee865ead1f91c437babaef241f58f9fbb2cb577b`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -769,7 +769,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (53)
+### Green (54)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -795,6 +795,7 @@ re-audits recorded above.
 | 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `14856c23e08b` | live |
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `5d482164707c` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `5d482164707c` | live |
+| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `abf7346def48` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `5d482164707c` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `5d482164707c` | live |
 | 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `5d482164707c` | live |
@@ -827,10 +828,9 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (1) — exact residual, from the ledger's own `known_blockers`
+### Yellow (0) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->

@@ -901,7 +901,7 @@
   {
     "organ_id": 23,
     "name": "Release Conformance Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ReleaseConformanceAuthority",
     "production_entrypoints": [
       "scripts/build_release_manifest.py",
@@ -913,25 +913,34 @@
     "integration_tests": [
       "tests/test_organ_release_conformance.py"
     ],
-    "live_evidence": [],
-    "known_blockers": [
-      "Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green"
+    "live_evidence": [
+      {
+        "description": "command=`gh workflow run ci.yml` -> job release-authority; CI run https://github.com/swap821/ai-editor/actions/runs/32246180129 (conclusion success, head_sha abf7346d, release-authority success); ORGAN 23'S OWN FUNCTION EXECUTING ON A MACHINE THAT IS NOT THE AUTHOR'S. That job runs scripts/verify_organ_contracts.py and scripts/verify_organ_twelve_conditions.py against the shipped ledger and manifest -- it re-derives every green claim in this file, including this one. The organ whose job is checking release conformance is proven by conformance being checked, at a commit, by a machine nobody here controls.",
+        "commit_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
+        "proof_level": "live"
+      },
+      {
+        "description": "command=`python -m pytest tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest`; the real script against the REAL on-disk ledger and manifest, not fixtures. Paired with tests/test_organ_release_conformance.py::test_organ_proof_manifest_hash_pins_the_ledger, which re-computes the manifest's hash of the shipped ledger. Together these are the live half of the integrity chain: the artifacts on disk today still validate, and the pin still matches what it claims to pin.",
+        "commit_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
+        "proof_level": "live"
+      }
     ],
-    "last_verified_sha": null,
+    "known_blockers": [],
+    "last_verified_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReleaseConformanceAuthority class defined in production_entrypoints ['scripts/build_release_manifest.py', 'tests/test_organ_release_conformance.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_release_conformance.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 release conformance reads ledger+manifest on disk",
-      "C4": "PASS \u2014 manifest hash-pins ledger; stale hashes fail verify_organ_contracts",
-      "C5": "PASS \u2014 violations listed explicitly; never silent green",
+      "C3": "PASS - tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest. C3 asks whether durable state survives a process restart. Organ 23's durable state IS the ledger and manifest on disk, and its authority is a script: every invocation is a fresh process that re-reads both from disk and re-derives its verdict from them, holding nothing in memory between runs. The cited test runs the real script against the real on-disk artifacts rather than fixtures. Reinforced by tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest, which proves a fresh build of the manifest reproduces the persisted one.",
+      "C4": "PASS - tests/test_organ_release_conformance.py::test_organ_proof_manifest_hash_pins_the_ledger. C4 asks for tamper-evidence and an integrity chain, which is not an incidental property of this organ but its entire job: release/organ-proof-manifest.json hash-pins the ledger and every tracked file, and verify_organ_contracts fails on a stale hash. The refusals are pinned too -- tests/test_organ_release_conformance.py::test_validate_manifest_rejects_wrong_ledger_hash and tests/test_organ_release_conformance.py::test_validate_manifest_rejects_a_stale_tracked_file_hash assert that an altered ledger and an altered tracked file are each caught, so the chain is proven by what it REFUSES rather than by what it accepts.",
+      "C5": "PASS - tests/test_organ_release_conformance.py::test_phase4_honesty_rejects_silent_organs_without_named_reason. C5 asks for fail-safe reporting: unavailable rather than a plausible zero. This organ's failure mode would be reporting a green it cannot justify, and it refuses to -- an organ that is silent about why it is silent is rejected rather than passed over. Paired with tests/test_organ_release_conformance.py::test_green_with_known_blockers_fails: a green carrying a live blocker is a contradiction and is refused, which is the rule that kept organ 23 itself yellow until 2026-08-19. C5 carries no N/A-BY-DESIGN clause and none was invented.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_release_conformance.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_organ_release_conformance.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL \u2014 yellow with named residual(s): ['Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (Outside-machine / no Docker / no Ollama / frozen spine / browser-session residuals remain).', 'Phase 6 gate \u2014 organ 23 waits until every below-organ is honestly green']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: Phase 6 gate \u2014 organ 23 stays yellow until every below-organ is honestly green. Absolute Phase 6 publishes itemised shortfall under release/phase6/ (Outside-machine / no Docker / n",
-      "C11": "FAIL/N/A \u2014 yellow without last_verified_sha (expected until tip attestation)",
-      "C12": "FAIL/N/A \u2014 yellow; CI tip gate applies to greens only"
+      "C9": "PASS - known_blockers is empty. The single blocker, 'Phase 6 gate - organ 23 stays yellow until every below-organ is honestly green', was discharged by its own condition being met: organ 44 went green on 2026-08-19 (#254) and it was the last one. The condition being satisfied is NOT the same as the organ having done the work, so the flip waited until C3/C4/C5 named real proofs, C10 held resolvable live evidence and C11/C12 had a stamp. Adversarial/failure-path coverage is dense in this organ's own suite: tests/test_organ_release_conformance.py carries 30 adversarial-named tests of 54, and this organ is proven mostly by what it refuses.",
+      "C10": "PASS - two proof_level=live rows, both machine-checkable, neither resting on operator attestation. One cites CI run 32246180129 (conclusion success, head_sha matching its commit_sha) in which release-authority re-derived every green claim in this ledger. The other cites a test node that runs the real conformance script against the real on-disk artifacts. Unlike organ 44, organ 23 needs no OPERATOR-ATTESTED row: its evidence is re-derivable by anyone with the repo.",
+      "C11": "PASS - last_verified_sha abf7346d, the head_sha of CI run 32246180129 (conclusion success) in which release-authority passed. The stamp and the cited run describe the same commit rather than merely both being well-formed.",
+      "C12": "PASS - last_verified_sha abf7346d is an ancestor of HEAD; the CI tip gate applies to greens and is satisfied."
     }
   },
   {

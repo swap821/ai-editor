@@ -64,10 +64,19 @@ def test_check_fails_when_the_ledger_moves_ahead_of_the_prose():
     )
     current_block = render_block(rows, ledger_digest="x" * 64)
 
-    # Simulate a merged PR that flipped one yellow organ green in the JSON only.
+    # Simulate a merged PR that flipped one organ's status in the JSON only.
+    #
+    # This used to require a non-green organ to exist in the shipped ledger and
+    # raised StopIteration on 2026-08-19, when organ 23 went green and the ledger
+    # reached 54/54. The property under test is that the renderer READS `status`
+    # -- it never depended on which colour was scarce, so it no longer asks.
     moved = [dict(r) for r in rows]
-    victim = next(r for r in moved if r["status"] != "green")
-    victim["status"] = "green"
+    victim = next((r for r in moved if r["status"] != "green"), None)
+    if victim is None:
+        victim = moved[0]
+        victim["status"] = "yellow"
+    else:
+        victim["status"] = "green"
     moved_block = render_block(moved, ledger_digest="x" * 64)
 
     assert moved_block != current_block, (
@@ -108,18 +117,36 @@ def test_yellow_rows_carry_their_real_residual():
     ledger is what makes that class of staleness impossible.
     """
     rows = load_rows()
-    block = render_block(rows, ledger_digest="x" * 64)
 
-    yellow_with_blockers = [
-        r for r in rows if r["status"] != "green" and (r.get("known_blockers") or [])
+    # A SYNTHETIC yellow, always present, so the property is tested whatever
+    # colour the shipped ledger happens to be. This asserted "expected at least
+    # one yellow organ with a blocker" and failed on 2026-08-19, when organ 23
+    # went green and the ledger reached 54/54 -- the renderer had not changed,
+    # the fixture had simply run out. A guard that can only fire while the repo
+    # is imperfect stops guarding the moment it succeeds.
+    probe_rows = [dict(r) for r in rows]
+    probe_rows[0]["status"] = "yellow"
+    probe_rows[0]["known_blockers"] = [
+        "SYNTHETIC RESIDUAL for the ledger-doc renderer, never shipped"
     ]
-    assert yellow_with_blockers, "expected at least one yellow organ with a blocker"
 
-    for row in yellow_with_blockers:
-        first = " ".join(str(row["known_blockers"][0]).split())
-        # Compare on a distinctive prefix; the renderer flattens whitespace.
-        probe = first[:40].replace("|", "\\|")
-        assert probe in block, f"organ {row['organ_id']} residual missing from prose"
+    for source in (probe_rows, rows):
+        block = render_block(source, ledger_digest="x" * 64)
+        yellows = [
+            r
+            for r in source
+            if r["status"] != "green" and (r.get("known_blockers") or [])
+        ]
+        for row in yellows:
+            first = " ".join(str(row["known_blockers"][0]).split())
+            # Compare on a distinctive prefix; the renderer flattens whitespace.
+            probe = first[:40].replace("|", "\\|")
+            assert probe in block, (
+                f"organ {row['organ_id']} residual missing from prose"
+            )
+
+    # And the synthetic case must genuinely have exercised the loop above.
+    assert any(r["status"] != "green" for r in probe_rows)
 
 
 def test_history_above_the_region_is_never_rewritten():
