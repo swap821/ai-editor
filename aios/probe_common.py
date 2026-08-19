@@ -68,10 +68,34 @@ ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$
 #: one and silently admitted `/` -- permitting nested paths the gate had always
 #: refused. Sixteen hand-written refusal tests all still passed.
 _PYTEST_READ_ONLY_FLAG = r"(?: -(?:[qv]{1,2}|s|-collect-only|-no-header|-tb=[a-z]+))"
+#: `-o addopts=` with an EMPTY value, and nothing else.
+#:
+#: Widened 2026-08-19 by operator decision, for a reason the other widenings did
+#: not have: the harness's OWN forced auto-verify runs
+#:
+#:     python -m pytest -o addopts= "training_ground/test_x.py" -q
+#:
+#: (`build_auto_verify_command`), and the agent loop shows the model that exact
+#: command as the `target` of a step that just succeeded. The model copied the
+#: form the loop had demonstrated, and this regex refused it -- terminating the
+#: mission. Organ 44 lost a mission per cohort to a command its own harness
+#: relies on. Two derivations of "what may run" disagreeing: the same shape as
+#: the containment escapes tests/adversarial/test_control_consistency.py exists
+#: to catch, here between the verifier and the gate that judges it.
+#:
+#: `-o` in general is NOT admitted and must not be: it overrides ANY ini option,
+#: so `-o addopts=--pdb` would inject an interactive debugger. The lookahead
+#: pins the value to EMPTY -- the one form that can only REMOVE inherited
+#: config, never add behaviour. `-o addopts=<anything>`, `-o junit_suite_name=x`
+#: and bare `-o` all stay refused, pinned by tests.
+_PYTEST_CLEAR_ADDOPTS = r"(?: -o addopts=(?= |$))"
+
+#: Either kind of flag may appear on either side of the target.
+_ALLOWED_FLAG = f"(?:{_PYTEST_READ_ONLY_FLAG}|{_PYTEST_CLEAR_ADDOPTS})"
 _SANDBOX_TEST_FILE = r"(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)"
 ALLOWED_CMD_RE = re.compile(
     r"^(?:python -m )?pytest"
-    + _PYTEST_READ_ONLY_FLAG + "*"
+    + _ALLOWED_FLAG + "*"
     + _SANDBOX_TEST_FILE + "?"
-    + _PYTEST_READ_ONLY_FLAG + "*$"
+    + _ALLOWED_FLAG + "*$"
 )
