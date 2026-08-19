@@ -39,7 +39,10 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol
 
 from aios import config
 from aios.security.audit_logger import log_action
-from aios.security.scope_lock import command_cwd as scope_lock_command_cwd
+from aios.security.scope_lock import (
+    command_cwd as scope_lock_command_cwd,
+    get_scope_roots,
+)
 from aios.security.gateway import (
     RateLimiter,
     Zone,
@@ -215,6 +218,71 @@ def _bounded_run(
     return subprocess.CompletedProcess(argv, return_code, outputs[0], outputs[1])
 
 
+def _mount_spec_safe(path: str) -> bool:
+    """Is `path` safe to interpolate into a Docker ``--mount`` spec?
+
+    H4 — commas, equals and non-drive-letter colons are field separators in the
+    ``--mount`` syntax, so a path containing one can break out of the spec and
+    append fields of its own. A normal Windows root ("C:\\...") is allowed.
+
+    A function rather than an inline block because the writable scope mounts
+    below must be validated by the SAME rule as the workspace mount. Two copies
+    of a containment check kept in step by comment is the exact shape that has
+    already produced escapes in this repo.
+    """
+    colon_scan = (
+        path[2:] if len(path) >= 2 and path[1] == ":" and path[0].isalpha() else path
+    )
+    return not (any(ch in path for ch in ",=") or ":" in colon_scan)
+
+
+def _writable_scope_mounts(resolved_cwd: str) -> list[str]:
+    """``--mount`` args remounting each scope root read-write inside /workspace.
+
+    The workspace bind is read-only (see :meth:`DockerRunner.__call__`), so the
+    sandbox needs its own roots handed back writable or no mission could create
+    a file. The writable set is derived from
+    :func:`aios.security.scope_lock.get_scope_roots` -- the live, re-declarable
+    authority -- and never from a second list kept here. A second derivation of
+    "what is in scope" is how containment escapes happen; `command_cwd()` exists
+    for the same reason.
+
+    A root that is not under the mounted workspace is SKIPPED rather than
+    mounted somewhere invented: silently widening the mount to reach it would
+    hand the sandbox a path the workspace never contained.
+    """
+    mounts: list[str] = []
+    try:
+        roots = get_scope_roots()
+    except Exception:  # noqa: BLE001 - fail closed: no roots means nothing writable
+        return mounts
+
+    base = PureWindowsPath(resolved_cwd) if ntpath.isabs(resolved_cwd) else Path(resolved_cwd)
+    for root in roots:
+        src = ntpath.normpath(str(root)) if ntpath.isabs(str(root)) else str(Path(root).resolve())
+        if not _mount_spec_safe(src):
+            continue
+        try:
+            relative = (
+                PureWindowsPath(src).relative_to(base)
+                if isinstance(base, PureWindowsPath)
+                else Path(src).relative_to(base)
+            )
+        except ValueError:
+            continue  # outside the workspace: skip, never widen
+        rel_posix = "/".join(relative.parts)
+        if not rel_posix or rel_posix.startswith(".."):
+            continue
+        mounts.extend(
+            [
+                "--mount",
+                f"type=bind,src={src},dst=/workspace/{rel_posix},"
+                "bind-propagation=private",
+            ]
+        )
+    return mounts
+
+
 class DockerRunner:
     """Run an approved command in a locked-down, ephemeral Docker container."""
 
@@ -284,17 +352,7 @@ class DockerRunner:
         # The scope-lock and structured executor adapters resolve cwd before
         # crossing this runner boundary. Keep that canonical value unchanged;
         # re-normalizing a request-derived string is itself a CodeQL path sink.
-        # H4 — Docker mount spec characters can break out of the mount string.
-        # Commas, equals, and non-drive-letter colons are separators in the
-        # --mount syntax. A normal Windows root ("C:\...") is allowed.
-        colon_scan = (
-            resolved_cwd[2:]
-            if len(resolved_cwd) >= 2
-            and resolved_cwd[1] == ":"
-            and resolved_cwd[0].isalpha()
-            else resolved_cwd
-        )
-        if any(ch in resolved_cwd for ch in ",=") or ":" in colon_scan:
+        if not _mount_spec_safe(resolved_cwd):
             raise ValueError(
                 "working directory path contains characters not permitted in Docker mount spec"
             )
@@ -302,10 +360,27 @@ class DockerRunner:
         # volume shorthand) is rejected by modern Docker with exit 125
         # ("invalid field 'rw' must be a key=value pair"), which fail-closed
         # every container-backed verify the moment a real daemon was present
-        # (first observed live 2026-07-03). Bind mounts are read-write by
-        # default, so simply omit the field. bind-propagation=private prevents
+        # (first observed live 2026-07-03). bind-propagation=private prevents
         # mounts created inside the sandbox from leaking back to the host.
-        mount = f"type=bind,src={resolved_cwd},dst=/workspace,bind-propagation=private"
+        #
+        # `readonly` added 2026-08-19. Bind mounts are read-write by DEFAULT, and
+        # `cwd` here is the REPO ROOT -- `command_cwd()` returns the scope root's
+        # parent on purpose, so `training_ground` imports as a package. The
+        # container is otherwise well sealed (no network, read-only rootfs, all
+        # caps dropped, no-new-privileges, uid 65534), which made this bind the
+        # entire writable surface: a sandboxed command could write
+        # `aios/security/*` -- the frozen spine that adjudicates it -- and
+        # `.aios/state/ORGAN_GREEN_LEDGER.json`, the record of its own status.
+        # Reproduced before the fix; both writes succeeded.
+        #
+        # The repo is mounted read-only and only the scope roots are remounted
+        # writable on top, so the sandbox keeps exactly the write access its
+        # missions need and no more.
+        mount = (
+            f"type=bind,src={resolved_cwd},dst=/workspace,readonly=true,"
+            "bind-propagation=private"
+        )
+        writable_mounts = _writable_scope_mounts(resolved_cwd)
         docker_argv = [
             self.runtime,
             "run",
@@ -327,6 +402,7 @@ class DockerRunner:
             "65534:65534",
             "--mount",
             mount,
+            *writable_mounts,
             "--tmpfs",
             "/tmp:rw,noexec,nosuid,nodev,size=64m",
             "--workdir",

