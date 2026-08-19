@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
+
+
 from aios.runtime.backends import (
     ControlledSubprocessBackend,
     WorkerBackend,
@@ -19,6 +23,36 @@ from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.king_report import KingReportStore, build_king_report
 from aios.runtime.run_ledger import RunLedgerStore, build_run_ledger
 from aios.runtime.snapshots import SnapshotManager
+
+
+if TYPE_CHECKING:
+    from aios.domain.governance.constitution import ConstitutionSnapshotV1
+
+
+logger = logging.getLogger(__name__)
+
+
+def _active_constitution_snapshot():
+    """The ratified snapshot, or None when no constitutional chain is reachable.
+
+    Best-effort by design: `get_active_snapshot()` requires an enrolled
+    sovereign and a writable store, and a worker spawn must not fail because a
+    test or a fresh install has neither. Returning None is precisely the
+    behaviour that shipped before, and `_is_frozen` unions the snapshot with
+    the live config, so the worst case is failing to ADD an amendment's frozen
+    path -- never dropping one the config already declares.
+    """
+    try:
+        from aios.application.governance.constitution_authority import (
+            get_constitution_authority,
+        )
+
+        return get_constitution_authority().get_active_snapshot()
+    except Exception:  # noqa: BLE001 - see docstring: degrade, never block a spawn
+        logger.debug(
+            "no active constitution snapshot; amendment-added frozen paths will not apply"
+        )
+        return None
 
 
 class CasteSpawnRefused(RuntimeError):
@@ -77,6 +111,7 @@ class WorkerSpawner:
         ledger_store: RunLedgerStore | None = None,
         report_store: KingReportStore | None = None,
         constitution_enforcer: ConstitutionEnforcer | None = None,
+        constitution_snapshot: "ConstitutionSnapshotV1 | None" = None,
         bus: CortexBus | None = None,
     ) -> None:
         from aios.runtime import _safe_resolve
@@ -86,7 +121,32 @@ class WorkerSpawner:
         self.snapshot_manager = snapshot_manager or SnapshotManager(self.runtime_root)
         self.ledger_store = ledger_store or RunLedgerStore(self.runtime_root)
         self.report_store = report_store or KingReportStore(self.runtime_root)
-        self.constitution_enforcer = constitution_enforcer or ConstitutionEnforcer()
+        # A bare ConstitutionEnforcer() carries `amended_frozen_paths = ()`, so a
+        # RATIFIED, ACTIVATED amendment that adds a frozen path reaches the
+        # enforcer's own docstring but not its decisions. That gap is the exact
+        # failure the enforcer records having been "found by the fourth red-team
+        # campaign" -- the enforcer grew a `snapshot` parameter and this caller
+        # never passed one.
+        #
+        # It has no reach through THIS class today: the only enforcer call here
+        # is `check_caste_spawn`, which consults the caste profiles rather than
+        # `_is_frozen`. It is closed anyway, because the next caller to reach for
+        # `check_file_edit` on this instance would silently get live-config-only
+        # frozen paths, and a fix that waits for an exploit is a fix that waits.
+        #
+        # Resolution is best-effort ON PURPOSE. `get_active_snapshot()` needs an
+        # enrolled sovereign and a writable store, and raising here would break
+        # every worker spawn in a context that has neither. Degrading to None is
+        # exactly today's behaviour, never worse: `_is_frozen` applies the
+        # snapshot as a UNION with the live config, so a missing snapshot can
+        # only fail to ADD a frozen path, never drop one.
+        self.constitution_enforcer = constitution_enforcer or ConstitutionEnforcer(
+            snapshot=(
+                constitution_snapshot
+                if constitution_snapshot is not None
+                else _active_constitution_snapshot()
+            )
+        )
         self.bus = bus
 
     async def run(self, contract: MissionContract, *, claim: bool = True) -> WorkerRun:

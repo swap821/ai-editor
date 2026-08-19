@@ -3,6 +3,7 @@
 A recording runner captures what *would* have been spawned, and a recording
 audit sink keeps the real tamper-evident ledger untouched.
 """
+
 from __future__ import annotations
 
 import os
@@ -32,7 +33,9 @@ class RecordingRunner:
         self.out, self.err, self.code = out, err, code
 
     def __call__(self, command, *, cwd, env, timeout_s):
-        self.calls.append({"command": command, "cwd": cwd, "env": env, "timeout_s": timeout_s})
+        self.calls.append(
+            {"command": command, "cwd": cwd, "env": env, "timeout_s": timeout_s}
+        )
         return self.out, self.err, self.code
 
 
@@ -146,7 +149,9 @@ def test_sandbox_prefers_project_venv_tools(monkeypatch, tmp_path) -> None:
     assert runner.calls[0]["env"]["PATH"].split(os.pathsep)[0] == str(venv_bin)
 
 
-def test_default_runner_resolves_bare_program_via_sanitised_path(monkeypatch, tmp_path) -> None:
+def test_default_runner_resolves_bare_program_via_sanitised_path(
+    monkeypatch, tmp_path
+) -> None:
     # Windows' CreateProcess searches the parent exe's directory and the cwd
     # BEFORE the child PATH, so a bare `python` could silently ignore the venv
     # that _sanitise_env put first — or hit a binary planted inside the writable
@@ -163,7 +168,9 @@ def test_default_runner_resolves_bare_program_via_sanitised_path(monkeypatch, tm
         "aios.core.executor.shutil.which", lambda name, path=None: sentinel
     )
 
-    _default_runner("python -m pytest -q", cwd=str(tmp_path), env={"PATH": "x"}, timeout_s=1)
+    _default_runner(
+        "python -m pytest -q", cwd=str(tmp_path), env={"PATH": "x"}, timeout_s=1
+    )
 
     assert captured["argv"][0] == sentinel
     assert captured["argv"][1:] == ["-m", "pytest", "-q"]
@@ -271,7 +278,9 @@ def test_executor_truncates_output_from_injected_runner(monkeypatch) -> None:
     assert "[OUTPUT TRUNCATED]" in result.stdout
 
 
-def test_executor_refuses_oversized_command_without_auditing_payload(monkeypatch) -> None:
+def test_executor_refuses_oversized_command_without_auditing_payload(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr("aios.core.executor.config.MAX_COMMAND_CHARS", 8)
     audit = RecordingAudit()
     result = Executor(
@@ -303,11 +312,15 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
     assert result == ("ok", "", 0)
     argv, kwargs = calls[0]
     assert argv[:3] == ["docker", "run", "--rm"]
-    assert ["--network", "none"] == argv[argv.index("--network"):argv.index("--network") + 2]
+    assert ["--network", "none"] == argv[
+        argv.index("--network") : argv.index("--network") + 2
+    ]
     assert "--read-only" in argv
-    assert ["--cap-drop", "ALL"] == argv[argv.index("--cap-drop"):argv.index("--cap-drop") + 2]
+    assert ["--cap-drop", "ALL"] == argv[
+        argv.index("--cap-drop") : argv.index("--cap-drop") + 2
+    ]
     assert ["--security-opt", "no-new-privileges"] == argv[
-        argv.index("--security-opt"):argv.index("--security-opt") + 2
+        argv.index("--security-opt") : argv.index("--security-opt") + 2
     ]
     assert "test-image" in argv
     assert argv[-5:] == ["python", "-m", "pytest", "test_greeter.py", "-q"]
@@ -387,14 +400,20 @@ def test_default_execution_backend_is_container() -> None:
     assert config.APPROVED_EXECUTION_BACKEND == "container"
 
 
-def test_container_backend_validation_degrades_when_image_is_unavailable(monkeypatch) -> None:
+def test_container_backend_validation_degrades_when_image_is_unavailable(
+    monkeypatch,
+) -> None:
     # Degrade, don't brick: a container backend with no available Docker/image must
     # NOT raise at startup (that would brick the whole app); it returns a warning
     # and the exec path fails closed at call time instead.
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
     monkeypatch.setattr(
         "aios.core.executor._bounded_run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, stdout="", stderr="missing"),
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 1, stdout="", stderr="missing"
+        ),
     )
 
     warning = validate_approved_execution_backend()
@@ -405,10 +424,14 @@ def test_container_backend_validation_degrades_when_image_is_unavailable(monkeyp
 
 
 def test_container_backend_validation_is_silent_when_available(monkeypatch) -> None:
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
     monkeypatch.setattr(
         "aios.core.executor._bounded_run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, stdout="ok", stderr=""),
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, stdout="ok", stderr=""
+        ),
     )
 
     assert validate_approved_execution_backend() is None
@@ -425,16 +448,24 @@ def test_host_backend_validation_warns_development_only(monkeypatch) -> None:
 
 
 def test_unknown_backend_validation_still_raises(monkeypatch) -> None:
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "unknown")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "unknown"
+    )
 
-    with pytest.raises(RuntimeError, match="unsupported AIOS_APPROVED_EXECUTION_BACKEND"):
+    with pytest.raises(
+        RuntimeError, match="unsupported AIOS_APPROVED_EXECUTION_BACKEND"
+    ):
         validate_approved_execution_backend()
 
 
-def test_container_default_routes_approved_command_through_container_not_host(monkeypatch) -> None:
+def test_container_default_routes_approved_command_through_container_not_host(
+    monkeypatch,
+) -> None:
     # The escape boundary: with the container backend, an approved arbitrary command
     # is dispatched through the locked-down DockerRunner and NEVER the host runner.
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
     docker_argv: list[list[str]] = []
 
     def fake_run(argv, **kwargs):
@@ -453,17 +484,23 @@ def test_container_default_routes_approved_command_through_container_not_host(mo
     result = executor.execute_approved("pip install flask")
 
     assert result.status == "OK"
-    assert host.calls == []  # the host runner is never touched under the container default
+    assert (
+        host.calls == []
+    )  # the host runner is never touched under the container default
     assert docker_argv and docker_argv[0][:3] == ["docker", "run", "--rm"]
     argv = docker_argv[0]
-    assert ["--network", "none"] == argv[argv.index("--network"):argv.index("--network") + 2]
+    assert ["--network", "none"] == argv[
+        argv.index("--network") : argv.index("--network") + 2
+    ]
     assert "--read-only" in argv and "--cap-drop" in argv
 
 
 def test_container_backend_fails_closed_when_runner_raises(monkeypatch) -> None:
     # No silent host fallback: if the container cannot run, the approved-exec path
     # returns ERROR rather than dropping to the host runner.
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "container"
+    )
 
     def boom(*args, **kwargs):
         raise RuntimeError("docker daemon unreachable")
@@ -484,7 +521,9 @@ def test_container_backend_fails_closed_when_runner_raises(monkeypatch) -> None:
 
 
 def test_invalid_approved_execution_backend_fails_closed(monkeypatch) -> None:
-    monkeypatch.setattr("aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "unknown")
+    monkeypatch.setattr(
+        "aios.core.executor.config.APPROVED_EXECUTION_BACKEND", "unknown"
+    )
     result = Executor(
         runner=RecordingRunner(),
         approved_runner=approved_runner_from_config(),
@@ -503,14 +542,20 @@ def test_human_reauthorisation_resets_sensitive_action_budget() -> None:
         rate_limiter=limiter,
         audit_log=RecordingAudit(),
     )
-    assert executor.execute("pip install flask", session_id="s1").status == "REQUIRE_APPROVAL"
+    assert (
+        executor.execute("pip install flask", session_id="s1").status
+        == "REQUIRE_APPROVAL"
+    )
     second = executor.execute("pip install flask", session_id="s1")
     assert second.status == "REQUIRE_APPROVAL"
     assert "re-authorisation required" in second.reason
 
     executor.reset_sensitive_actions("s1")
 
-    assert executor.execute("pip install flask", session_id="s1").status == "REQUIRE_APPROVAL"
+    assert (
+        executor.execute("pip install flask", session_id="s1").status
+        == "REQUIRE_APPROVAL"
+    )
 
 
 def test_execute_approved_still_refuses_red() -> None:
@@ -520,7 +565,9 @@ def test_execute_approved_still_refuses_red() -> None:
     assert runner.calls == []
 
 
-def test_approved_bare_mkdir_no_longer_escapes_the_sandbox(monkeypatch, tmp_path) -> None:
+def test_approved_bare_mkdir_no_longer_escapes_the_sandbox(
+    monkeypatch, tmp_path
+) -> None:
     """Regression for the 2026-07-10 adversarial audit: because _scope_cwd()
     runs commands from the repo root (not training_ground/ itself, needed for
     training_ground.x imports -- see _scope_cwd's docstring), an approved bare
@@ -533,6 +580,7 @@ def test_approved_bare_mkdir_no_longer_escapes_the_sandbox(monkeypatch, tmp_path
     scope_root.mkdir()
     monkeypatch.setattr(config, "SCOPE_ROOTS", [scope_root])
     from aios.security import scope_lock
+
     monkeypatch.setattr(scope_lock._SCOPE_LOCK, "_scope_roots", [scope_root])
 
     executor = Executor(rate_limiter=RateLimiter(), audit_log=RecordingAudit())
@@ -573,3 +621,122 @@ def test_every_outcome_is_audited() -> None:
     ex.execute("rm -rf /")
     ex.execute("echo hi")
     assert len(audit.entries) == 2
+
+
+# --- containment: the workspace bind is the sandbox's whole writable surface ---
+
+
+def _docker_argv_for(tmp_path, monkeypatch, scope_roots):
+    """Capture the argv DockerRunner would spawn, with `scope_roots` declared."""
+    monkeypatch.setattr(
+        "aios.core.executor.get_scope_roots", lambda: tuple(scope_roots)
+    )
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    DockerRunner(image="test-image", process_runner=fake_run)(
+        "python -m pytest test_x.py -q",
+        cwd=str(tmp_path),
+        env={"PATH": "safe"},
+        timeout_s=9,
+    )
+    return calls[0]
+
+
+def _mounts(argv):
+    return [argv[i + 1] for i, tok in enumerate(argv) if tok == "--mount"]
+
+
+def test_the_workspace_bind_is_read_only(tmp_path, monkeypatch) -> None:
+    """The repo must not be writable from inside the sandbox.
+
+    `command_cwd()` returns the scope root's PARENT -- the repo root -- so that
+    `training_ground` imports as a package. A bind mount is read-write by
+    DEFAULT, so that one omission made the entire repository writable by a
+    sandboxed command. Reproduced live on 2026-08-19 before the fix: a container
+    with this contract created files in `aios/security/` (the frozen spine that
+    adjudicates it) and in `.aios/state/` (the ledger recording its own status).
+
+    The container is otherwise sealed -- no network, read-only rootfs, all caps
+    dropped, no-new-privileges, uid 65534 -- which is exactly why this single
+    bind was the whole writable surface.
+    """
+    workspace = _mounts(_docker_argv_for(tmp_path, monkeypatch, []))[0]
+
+    assert ",dst=/workspace," in workspace
+    assert "readonly=true" in workspace, (
+        f"the workspace bind must be read-only; got {workspace!r}"
+    )
+    # `readonly=true`, not a bare `readonly`: EVERY --mount field must be
+    # key=value or modern Docker refuses the run with exit 125, which is the
+    # 2026-07-03 incident the test above pins.
+    assert all("=" in field for field in workspace.split(","))
+
+
+def test_each_declared_scope_root_is_remounted_writable(tmp_path, monkeypatch) -> None:
+    """The sandbox still gets write access to exactly its own roots.
+
+    A read-only workspace with nothing handed back would break every mission --
+    they create files in `training_ground/`. The writable set is derived from
+    `scope_lock.get_scope_roots()`, the live authority, never a second list.
+    """
+    roots = [tmp_path / "training_ground", tmp_path / "lab"]
+    for root in roots:
+        root.mkdir()
+
+    mounts = _mounts(_docker_argv_for(tmp_path, monkeypatch, roots))
+
+    assert "readonly" in mounts[0]
+    writable = [m for m in mounts[1:]]
+    assert len(writable) == 2, f"expected one mount per scope root, got {writable}"
+    for name in ("training_ground", "lab"):
+        match = [
+            m
+            for m in writable
+            if m.endswith(f"dst=/workspace/{name},bind-propagation=private")
+        ]
+        assert match, f"{name} was not remounted writable: {writable}"
+        assert "readonly" not in match[0], f"{name} must be writable"
+
+
+def test_a_scope_root_outside_the_workspace_is_skipped_not_widened(
+    tmp_path, monkeypatch
+) -> None:
+    """Fail closed: never invent a mount to reach a root the workspace lacks.
+
+    Silently widening the bind to cover an out-of-tree root would hand the
+    sandbox a path the workspace never contained -- a containment escape dressed
+    as a convenience.
+    """
+    outside = tmp_path.parent / "somewhere-else"
+    outside.mkdir(exist_ok=True)
+
+    mounts = _mounts(_docker_argv_for(tmp_path, monkeypatch, [outside]))
+
+    assert len(mounts) == 1, f"an out-of-tree scope root was mounted: {mounts}"
+    assert str(outside) not in " ".join(mounts)
+
+
+def test_a_scope_root_with_mount_spec_characters_is_skipped(
+    tmp_path, monkeypatch
+) -> None:
+    """H4 applies to the writable mounts too, by the same function.
+
+    Commas and equals are field separators in --mount, so a root containing one
+    could append fields of its own. The workspace mount has always been checked;
+    the writable mounts are checked by the SAME predicate rather than a copy.
+    """
+    from aios.core.executor import _mount_spec_safe
+
+    assert _mount_spec_safe(str(tmp_path))
+    assert not _mount_spec_safe(str(tmp_path / "a,b"))
+    assert not _mount_spec_safe(str(tmp_path / "a=b"))
+
+    hostile = tmp_path / "a,b"
+    hostile.mkdir()
+    mounts = _mounts(_docker_argv_for(tmp_path, monkeypatch, [hostile]))
+
+    assert len(mounts) == 1, f"a mount-spec-unsafe root was mounted: {mounts}"
