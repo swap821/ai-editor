@@ -315,3 +315,46 @@ def test_every_job_that_runs_a_golden_mission_builds_the_workload_image() -> Non
         "every verify step depend on. The mission will score 0 for a reason "
         "that has nothing to do with the model."
     )
+
+
+def test_every_job_that_runs_docker_compose_supplies_its_required_variables() -> None:
+    """`docker compose` interpolates the WHOLE file before building anything.
+
+    `golden-cohort-local` builds only the `worker` service, but compose still
+    resolves grafana's and the executor's variables first, so a job that omits
+    them dies with "required variable ... is missing a value" and never reaches
+    the image. That is exactly how the first attempt at building the workload
+    image failed: the job was fixed, the build step was added, and the build
+    itself could not start.
+
+    Derived from docker-compose.yml rather than hard-coded, so adding a new
+    `${VAR:?...}` to compose fails here instead of in a job nobody watches.
+    """
+    import re
+
+    import yaml
+
+    compose_text = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    required = set(re.findall(r"\$\{([A-Z_]+):\?", compose_text))
+    assert required, "expected compose to declare at least one required variable"
+
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+
+    offenders = {}
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        job_env = set((job.get("env") or {}).keys())
+        for step in (job.get("steps") or []):
+            if "docker compose" not in str(step.get("run", "")):
+                continue
+            supplied = job_env | set((step.get("env") or {}).keys())
+            missing = required - supplied
+            if missing:
+                offenders.setdefault(job_name, set()).update(missing)
+
+    assert not offenders, (
+        "job(s) run `docker compose` without the variables compose requires: "
+        f"{ {k: sorted(v) for k, v in offenders.items()} }. compose resolves the "
+        "entire file before building, so the build fails before it starts."
+    )
