@@ -121,6 +121,12 @@ jobs:
         run: |
           docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}"
           docker exec ollama ollama list
+          # Warm it. `pull` only downloads; the FIRST chat request also pays
+          # model-load-into-RAM, and on a 2-core runner that pushed the first
+          # turn past AIOS_LLM_TIMEOUT_S and failed the job with
+          # "Ollama chat ... timed out" -- infrastructure, correctly caught by
+          # the integrity gate but still a job that proves nothing.
+          docker exec ollama ollama run "${AIOS_LLM_MODEL}" "say ok" || true
         env:
           AIOS_OLLAMA_MODEL: qwen2.5:0.5b
 
@@ -245,6 +251,10 @@ jobs:
           AIOS_PROBE_BASE: http://127.0.0.1:8300
           AIOS_DATA_DIR: ${{ runner.temp }}/cohort-data
           AIOS_LLM_MODEL: qwen2.5:3b
+          # The BACKEND makes the Ollama call, so the timeout belongs here.
+          # 120s (the default) is a laptop-with-a-GPU number; this runner is
+          # 2 CPU cores with no accelerator.
+          AIOS_LLM_TIMEOUT_S: "600"
           OLLAMA_HOST: http://127.0.0.1:11434
         run: |
           mkdir -p "${AIOS_DATA_DIR}"
