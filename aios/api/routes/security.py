@@ -51,6 +51,13 @@ def security_audit(limit: int = 50, zone: Optional[str] = None) -> dict[str, Any
         "chainValid": chain.valid,
         "chainReason": chain.reason,
         "totalEntries": chain.total_entries,
+        # §VIII 2026-08-19: `chainValid` alone is not the whole truth. With no
+        # key pinned outside the audited database, signatures were checked
+        # against keys that database supplied about ITSELF, so valid=True means
+        # "internally consistent", not "attested". This dict is built field by
+        # field (unlike /audit/verify, which returns asdict), so the distinction
+        # has to be carried across deliberately or the UI silently loses it.
+        "trustAnchored": chain.trust_anchored,
         "anchor": anchor,
     }
 

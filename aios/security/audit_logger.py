@@ -79,6 +79,9 @@ except Exception:  # noqa: BLE001
 
 #: Environment variable holding the hex-encoded 64-byte Ed25519 private-key seed.
 _ENV_AUDIT_PRIVATE_KEY: str = "AIOS_AUDIT_PRIVATE_KEY"
+#: Verification keys pinned OUTSIDE the audited database. See
+#: :func:`_pinned_public_keys` for why the DB cannot be its own trust root.
+_ENV_AUDIT_PUBLIC_KEY: str = "AIOS_AUDIT_PUBLIC_KEY"
 
 
 # --------------------------------------------------------------------------- #
@@ -166,6 +169,17 @@ class ChainStatus:
     #: True = the signed anchor matches the real tip; False = tail-truncation /
     #: anchor tamper detected; None = no anchor present (legacy / never-written).
     tip_anchor_valid: Optional[bool] = None
+    #: Was signature trust anchored OUTSIDE the audited database?
+    #:
+    #: True  = every signature was checked against a key pinned via
+    #:         AIOS_AUDIT_PUBLIC_KEY (or the public half of the configured
+    #:         private key), so a forged `audit_keys` row proves nothing.
+    #: False = no key was pinned, so signatures were checked against keys the
+    #:         audited database supplied about ITSELF. `valid=True` here means
+    #:         "internally consistent", NOT "attested".
+    #: None  = signature verification did not run (verify_signatures=False, or
+    #:         Ed25519 unavailable).
+    trust_anchored: Optional[bool] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -220,6 +234,80 @@ def _load_or_create_private_key() -> tuple[Ed25519PrivateKey, bool]:
         )
     private_key = Ed25519PrivateKey.generate()
     return private_key, True
+
+
+def _pinned_public_keys() -> tuple["Ed25519PublicKey", ...]:
+    """Verification keys pinned OUTSIDE the database being verified.
+
+    §VIII change, operator-approved 2026-08-19. `verify_chain` loaded every
+    verification key with ``SELECT key_id, public_key_hex FROM audit_keys`` — a
+    table in the same SQLite file as ``tamper_audit_trail``. An attacker who
+    could write that file could insert their own public key, re-sign forged
+    entries, recompute the chain and rewrite the in-DB tip anchor, and
+    verification would call the result valid. The artifact under suspicion was
+    being asked who is allowed to vouch for it.
+
+    The signing key was never the problem: it is volatile, read from
+    ``AIOS_AUDIT_PRIVATE_KEY`` and never persisted (§VII.4). But a volatile
+    signing key protects SIGNING, not TRUST.
+
+    Two sources, both outside the database:
+
+    * ``AIOS_AUDIT_PUBLIC_KEY`` — one or more hex Ed25519 public keys, comma or
+      whitespace separated. Multiple keys keep rotation possible, which this
+      module has always supported and which must not be traded away for this.
+    * otherwise the public half of ``AIOS_AUDIT_PRIVATE_KEY`` when that is set —
+      the operator already holds it, so production anchors itself with no new
+      configuration.
+
+    Returns empty when neither is set. That is the ephemeral-key case the module
+    already warns about: a key generated per process cannot anchor a chain
+    written by a previous one, so trust is genuinely unanchorable rather than
+    merely unconfigured. The caller degrades loudly instead of pretending
+    (``ChainStatus.trust_anchored``); it does not invent an anchor.
+    """
+    if not _ED25519_AVAILABLE:
+        return ()
+
+    keys: list[Ed25519PublicKey] = []
+    raw = os.getenv(_ENV_AUDIT_PUBLIC_KEY, "").strip()
+    if raw:
+        for token in raw.replace(",", " ").split():
+            try:
+                keys.append(Ed25519PublicKey.from_public_bytes(bytes.fromhex(token)))
+            except (ValueError, TypeError):
+                logger.error(
+                    "Invalid %s entry (%s...); ignoring it. Must be 64 hex "
+                    "characters (32-byte Ed25519 public key).",
+                    _ENV_AUDIT_PUBLIC_KEY,
+                    token[:8],
+                )
+    if keys:
+        return tuple(keys)
+
+    hex_seed = os.getenv(_ENV_AUDIT_PRIVATE_KEY, "").strip()
+    if hex_seed:
+        try:
+            seed = bytes.fromhex(hex_seed)
+            if len(seed) == 32:
+                return (Ed25519PrivateKey.from_private_bytes(seed).public_key(),)
+        except (ValueError, TypeError):
+            pass  # already reported by _load_or_create_private_key
+    return ()
+
+
+def _signature_matches_a_pinned_key(
+    pinned: tuple["Ed25519PublicKey", ...],
+    sig_hex: str,
+    *args: Any,
+) -> bool:
+    """Does this entry verify under ANY pinned key?
+
+    `key_id` is deliberately ignored here. It is a column in the database under
+    suspicion, so letting it select the verifying key would hand the attacker
+    back the choice this function exists to take away.
+    """
+    return any(_verify_entry_signature(pk, sig_hex, *args) for pk in pinned)
 
 
 def _init_signing_state(db_path: Path) -> _SigningState:
@@ -457,6 +545,8 @@ def _check_tip_anchor(
     db_path: Path,
     pub_keys: dict[int, "Ed25519PublicKey"],
     verify_signatures: bool,
+    *,
+    pinned: tuple["Ed25519PublicKey", ...] = (),
 ) -> Optional[bool]:
     """Compare the signed tip-anchor to the real chain tip (Phase 3).
 
@@ -506,11 +596,23 @@ def _check_tip_anchor(
 
     sig = anchor["signature"]
     if sig and verify_signatures and _ED25519_AVAILABLE:
-        pk = pub_keys.get(int(anchor["key_id"])) if anchor["key_id"] else None
-        if pk is None or not _verify_tip_anchor_signature(
-            pk, sig, int(anchor["tip_entry_id"]), anchor["tip_hash"]
-        ):
-            return False
+        tip_entry_id, tip_hash = int(anchor["tip_entry_id"]), anchor["tip_hash"]
+        if pinned:
+            # The anchor row lives in the database it anchors, so an attacker who
+            # rewrites the chain can rewrite the anchor too. It only means
+            # anything under a key that database did not supply -- and `key_id`
+            # is likewise not allowed to choose the verifier.
+            if not any(
+                _verify_tip_anchor_signature(pk, sig, tip_entry_id, tip_hash)
+                for pk in pinned
+            ):
+                return False
+        else:
+            pk = pub_keys.get(int(anchor["key_id"])) if anchor["key_id"] else None
+            if pk is None or not _verify_tip_anchor_signature(
+                pk, sig, tip_entry_id, tip_hash
+            ):
+                return False
     return True
 
 
@@ -719,6 +821,9 @@ class AuditLoggerAuthority:
         conn = _connect(self.db_path)
         try:
             # Load all public keys for signature verification
+            # Keys pinned outside this database. When present they REPLACE the
+            # in-DB key table as the trust root; see _pinned_public_keys.
+            pinned = _pinned_public_keys() if verify_signatures else ()
             pub_keys: dict[int, Ed25519PublicKey] = {}
             if verify_signatures and _ED25519_AVAILABLE:
                 for row in conn.execute("SELECT key_id, public_key_hex FROM audit_keys"):
@@ -813,32 +918,50 @@ class AuditLoggerAuthority:
                     entry_key = int(entry_key_id) if entry_key_id is not None else None
                 except (TypeError, ValueError):
                     entry_key = None
-                pk = pub_keys.get(entry_key) if entry_key is not None else None
-                if pk is not None:
-                    sig_valid = _verify_entry_signature(
-                        pk,
-                        sig_hex,
-                        entry["previous_hash"],
-                        entry["timestamp"],
-                        entry["actor"],
-                        entry["action_payload"],
-                        entry["security_zone"],
-                        entry["current_hash"],
-                    )
-                    if not sig_valid:
+                signed_fields = (
+                    entry["previous_hash"],
+                    entry["timestamp"],
+                    entry["actor"],
+                    entry["action_payload"],
+                    entry["security_zone"],
+                    entry["current_hash"],
+                )
+                if pinned:
+                    # Trust is anchored OUTSIDE this database, so `key_id` -- a
+                    # column in the file under suspicion -- does not get to
+                    # choose the verifying key. An entry counts only if it
+                    # verifies under a key the operator pinned.
+                    if not _signature_matches_a_pinned_key(
+                        pinned, sig_hex, *signed_fields
+                    ):
                         invalid_sigs.append(eid)
                 else:
-                    # Signature present but key unknown (key deleted?) — suspicious
-                    invalid_sigs.append(eid)
+                    pk = pub_keys.get(entry_key) if entry_key is not None else None
+                    if pk is None:
+                        # Signature present but key unknown (key deleted?) — suspicious
+                        invalid_sigs.append(eid)
+                    elif not _verify_entry_signature(pk, sig_hex, *signed_fields):
+                        invalid_sigs.append(eid)
             elif not sig_hex:
                 unsigned_count += 1
 
             previous_hash = entry["current_hash"]
 
+        # Was trust anchored outside this database? None when signatures were
+        # not verified at all, so "unanchored" is never confused with "unchecked".
+        anchored: Optional[bool] = (
+            bool(pinned) if (verify_signatures and _ED25519_AVAILABLE) else None
+        )
+
         # --- 4. Tip-anchor check (Phase 3): detect tail-truncation on a verify-to-tip. ---
         tip_anchor_valid: Optional[bool] = None
         if to_id is None:
-            tip_anchor_valid = _check_tip_anchor(self.db_path, pub_keys, verify_signatures)
+            # The tip anchor is a row in the SAME database, so it is only
+            # meaningful against a key the database did not supply. Pinned keys
+            # are passed positionally as the trusted set.
+            tip_anchor_valid = _check_tip_anchor(
+                self.db_path, pub_keys, verify_signatures, pinned=pinned
+            )
             if tip_anchor_valid is False:
                 return ChainStatus(
                     valid=False,
@@ -850,20 +973,40 @@ class AuditLoggerAuthority:
                     invalid_signatures=tuple(invalid_sigs),
                     unsigned_entries=unsigned_count,
                     tip_anchor_valid=False,
+                    trust_anchored=anchored,
                 )
 
         chain_valid = len(invalid_sigs) == 0
+        # An unanchored PASS is reported as such rather than silently: with no
+        # pinned key the signatures were checked against keys this database
+        # supplied about itself, so `valid=True` means "internally consistent",
+        # not "attested". C5's own rule -- unavailable rather than a plausible
+        # zero -- applies to trust as much as to counts.
+        unanchored_note = (
+            None
+            if anchored is not False or unsigned_count == len(rows)
+            else (
+                "Signatures verified against keys held in the audited database "
+                f"itself; set {_ENV_AUDIT_PUBLIC_KEY} (or "
+                f"{_ENV_AUDIT_PRIVATE_KEY}) to anchor trust outside it."
+            )
+        )
         return ChainStatus(
             valid=chain_valid,
             total_entries=len(rows),
             # A failed status must always NAME its failure mode — valid=False with
             # reason=None is an alarm that explains nothing (§VIII 2026-07-02).
-            reason=None if chain_valid else "Invalid Ed25519 signatures detected.",
+            reason=(
+                "Invalid Ed25519 signatures detected."
+                if not chain_valid
+                else unanchored_note
+            ),
             head_hash=previous_hash if rows else config.AUDIT_GENESIS_HASH,
             signature_valid=chain_valid,
             invalid_signatures=tuple(invalid_sigs),
             unsigned_entries=unsigned_count,
             tip_anchor_valid=tip_anchor_valid,
+            trust_anchored=anchored,
         )
 
     def get_anchor(self) -> dict[str, Optional[Union[str, int]]]:
