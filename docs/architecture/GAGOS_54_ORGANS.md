@@ -760,8 +760,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 52 green / 2 yellow / 54 total
-- **Source ledger sha256:** `b5f5ea7701b0368e668b49c6a08845141cc0be2b04190b9daf0208ea10343aa6`
+- **Counts:** 53 green / 1 yellow / 54 total
+- **Source ledger sha256:** `9cf2d331745a90478558d8baf0811de6238ff83745dc6007b4c2189623f3a5e3`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -769,7 +769,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (52)
+### Green (53)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -815,6 +815,7 @@ re-audits recorded above.
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `5d482164707c` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5d482164707c` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5d482164707c` | live |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | `67924fe06fbd` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5d482164707c` | live |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | `3dc7323d74cc` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |
@@ -826,11 +827,10 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (2) — exact residual, from the ledger's own `known_blockers`
+### Yellow (1) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | Phase 6 gate — organ 23 stays yellow until every below-organ is honestly green |
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | MEASURED 2026-08-18 (second measurement of the day): golden cohort mean 4.333 of 5 across 3 runs on gemini-3.7-flash ([4, 4, 5]), INCLUDING ONE CLEAN 5/5 -- all nine steps meeting their declared expectation, 0 rejected, 0 provider errors, 0 loop trips. No mission was edited, no verifier weakened, no pass criterion relaxed. Arc across the day: 1.125 (gemini-2.5-pro, original harness) -> 2.667 (step budget 5->16 + evidence-based scoring) -> 3.000 (gemini-3.7-flash, adapter + allowlist fixed) -> 4.333 (sandbox import fixed). NINE infrastructure causes stood between the system and that number and every one produced a score that looked like model quality: region default, thought_signature not replayed, raw bytes in the conversation, history ending on a model turn, allowlist refusing pytest -v, an inherited 1024-token budget, the privacy filter corrupting tool arguments, a measurement branch missing a fix, and a stub conftest. Six pre-existing and latent, three introduced during the work. The last was worth 1.333 missions per run: training_ground/ is a package and the verify command runs from the repo root, so pytest prepend mode never put the package directory on sys.path and a test importing the module beside it raised ModuleNotFoundError -- recorded as verified_failure and initially reported as the model contradicting itself. The model's code was correct. NOT DISCHARGED: 2 of 3 runs still lose exactly one mission, each to a different pytest flag (a form the harness's own auto-verify relies on, and -k which is correctly refused because it changes which tests run). Evidence: release/organ-44/2026-08-18-honest-five-of-five.md, release/organ-44/2026-08-18-model-comparison.md.<br>PARTLY ADDRESSED 2026-08-18. The honest content of this blocker is not that the numbers are wrong but that every organ 44 figure was produced on ONE laptop, so nobody else could re-run any of it. The reproducibility half is now fixed with no cloud credentials: the golden-cohort-local CI job runs a real Ollama daemon, qwen2.5:3b, its own backend instance on its own port with a fresh AIOS_DATA_DIR, and drives the real runner through a golden mission (workflow_dispatch, 30-minute cap, logs uploaded as artifacts). It gates on HARNESS INTEGRITY and never on score: any score passes, allowlist refusals pass because a refusal is the approval gate working, and it fails only on auth failure, provider error, traceback, a backend that died mid-run, no FINAL line, or no step reaching a model (scripts/ci_local_cohort_check.py, 15 tests). That split exists because nine infrastructure defects on 2026-08-18 each produced a low score indistinguishable from model weakness; a score gate would have gone red for all nine and identified none. REMAINS OPEN: CI still cannot reproduce the CLOUD number, and a 3B local model is not asked to. That needs a Workload Identity Federation pool bound to this repo plus the aios-worker/aios-executor images in the cohort job -- an IAM action on the operator's Google account that no agent can or should perform.<br>DISCHARGED 2026-08-18: endurance GREEN on all three conditions. success_rate 1.000 (24 turns, 24 verified_success) against the 0.80 bar; latency stable (p50 60.8s, p95 138.4s against an 89.5s baseline, inside the 2x rule); backend memory 556.7MB -> 559.5MB over 31.5 minutes (growth 2.8MB, peak 561.6MB). VERIFIED rather than reported, because a perfect score deserves the scrutiny a zero gets: 24 [VERIFY PASS], all strength=STRONG, 0 allowlist refusals, 0 provider errors, 0 tracebacks -- every verdict a real pytest run parsed by the taxonomy that exists so a forged 'N passed' cannot pass. Supersedes 0.611 (2026-08-16, 18 turns) and 0.703 (2026-08-18 first re-run, 37 turns); neither is withdrawn, both were complete runs. WHAT CHANGED: the agent model (gemini-2.5-flash to gemini-3.7-flash, itself the result of measuring four models), the allowlist admitting output-only pytest flags by operator decision, the sandbox conftest that stopped a test importing the module beside it, and the step budget raised from a hardcoded 5. WHAT DID NOT CHANGE: the prompts, the 0.80 threshold, the verifier, or what counts as a pass. The failures at 0.611 and 0.703 concentrated on count_vowels and deep_get, both prompts whose edge case is genuinely underdetermined; rewriting them was the obvious way to lift the number and would have raised the score without the system improving. It was named as forbidden in the earlier record and was not done. Evidence: release/organ-44/2026-08-18-endurance-green.md.<br>PARTLY DISCHARGED 2026-08-18: the enrollment credential is one-time and the driver used to receive it, use it and discard it, so every instance was single-use and AIOS_OPERATOR_CREDENTIAL was documented nowhere. The driver now surfaces both routes explicitly (explain_reusable_enrollment): export AIOS_OPERATOR_CREDENTIAL after enrolling yourself in a terminal, or give each run its own AIOS_DATA_DIR. It deliberately never handles the secret -- AGENTS.md VII.4 forbids persisting it and cmd_keygen's rule is that a tool which never holds a secret cannot give it away. REMAINS: a non-TTY run (CI, an agent session) still cannot capture the credential, so repeated runs there need a fresh AIOS_DATA_DIR per run. That is a workaround, not a fix. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
