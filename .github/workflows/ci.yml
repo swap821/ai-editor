@@ -186,7 +186,7 @@ jobs:
     # on every push buys noise rather than signal.
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -217,7 +217,14 @@ jobs:
           docker exec ollama ollama pull "${AIOS_LLM_MODEL}"
           docker exec ollama ollama list
         env:
-          AIOS_LLM_MODEL: qwen2.5:3b
+          # 0.5b, not 3b. Measured 2026-08-19: qwen2.5:3b on a 2-core runner with
+          # no accelerator did not finish a SINGLE turn in 27 minutes, and the job
+          # hit its cap having proved nothing. This job exists to show the harness
+          # runs off the author's laptop -- auth, the approval gate, container
+          # execution, verification -- and it gates on integrity, NEVER on score.
+          # A small model proves all of that; it is not asked to be good.
+          # `local-clerk-live` reached the same size independently.
+          AIOS_LLM_MODEL: qwen2.5:0.5b
 
       - name: Build the workload image the missions actually run in
         # Without this the job "passes" while proving nothing. On 2026-08-19 the
@@ -250,7 +257,7 @@ jobs:
           AIOS_API_PORT: "8300"
           AIOS_PROBE_BASE: http://127.0.0.1:8300
           AIOS_DATA_DIR: ${{ runner.temp }}/cohort-data
-          AIOS_LLM_MODEL: qwen2.5:3b
+          AIOS_LLM_MODEL: qwen2.5:0.5b
           # The BACKEND makes the Ollama call, so the timeout belongs here.
           # 120s (the default) is a laptop-with-a-GPU number; this runner is
           # 2 CPU cores with no accelerator.
@@ -273,7 +280,7 @@ jobs:
           AIOS_PROBE_BASE: http://127.0.0.1:8300
           AIOS_PROBE_HOST: localhost:8300
           AIOS_DATA_DIR: ${{ runner.temp }}/cohort-data
-          AIOS_LLM_MODEL: qwen2.5:3b
+          AIOS_LLM_MODEL: qwen2.5:0.5b
           OLLAMA_HOST: http://127.0.0.1:11434
         run: |
           # One mission, not five: this proves the harness runs off the laptop,
@@ -283,7 +290,7 @@ jobs:
           # `|| true` because the runner exits non-zero on a low SCORE, which is
           # expected here. The gate below reads the log and fails only on a
           # broken harness.
-          python tools/golden_mission_runner.py run             --mission tdd-workflow             --model ollama.qwen2.5:3b 2>&1 | tee cohort.log || true
+          python tools/golden_mission_runner.py run             --mission tdd-workflow             --model ollama.qwen2.5:0.5b 2>&1 | tee cohort.log || true
 
       - name: Assert the harness ran (never that the model scored)
         run: python scripts/ci_local_cohort_check.py cohort.log
