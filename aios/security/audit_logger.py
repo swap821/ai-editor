@@ -547,6 +547,7 @@ def _check_tip_anchor(
     verify_signatures: bool,
     *,
     pinned: tuple["Ed25519PublicKey", ...] = (),
+    signing_expected: bool = False,
 ) -> Optional[bool]:
     """Compare the signed tip-anchor to the real chain tip (Phase 3).
 
@@ -595,6 +596,13 @@ def _check_tip_anchor(
         return False  # the tip moved/shrank without re-anchoring — truncation/tamper
 
     sig = anchor["signature"]
+    if not sig and signing_expected and verify_signatures and _ED25519_AVAILABLE:
+        # An UNSIGNED anchor on a signing ledger is a stripped anchor. Without
+        # this, the downgrade attack completed: forge the entries, delete their
+        # signatures, and re-point an unsigned anchor at the forged tip. The
+        # anchor then agreed with the chain and this function returned True
+        # because it only verified a signature that was present.
+        return False
     if sig and verify_signatures and _ED25519_AVAILABLE:
         tip_entry_id, tip_hash = int(anchor["tip_entry_id"]), anchor["tip_hash"]
         if pinned:
@@ -824,6 +832,20 @@ class AuditLoggerAuthority:
             # Keys pinned outside this database. When present they REPLACE the
             # in-DB key table as the trust root; see _pinned_public_keys.
             pinned = _pinned_public_keys() if verify_signatures else ()
+
+            # Does this ledger sign at all? Two independent reasons to say yes,
+            # and only one of them can be edited by an attacker:
+            #   * the operator pinned a key -> signing is expected regardless of
+            #     anything this database claims about itself;
+            #   * the ledger registered a key of its own (a key row appears on
+            #     the first append; a never-written ledger has none).
+            # A genuinely pre-signature ledger satisfies neither and keeps its
+            # old, lenient treatment.
+            registered_keys = int(
+                conn.execute("SELECT COUNT(*) FROM audit_keys").fetchone()[0] or 0
+            )
+            signing_expected = bool(pinned) or registered_keys > 0
+
             pub_keys: dict[int, Ed25519PublicKey] = {}
             if verify_signatures and _ED25519_AVAILABLE:
                 for row in conn.execute("SELECT key_id, public_key_hex FROM audit_keys"):
@@ -944,6 +966,22 @@ class AuditLoggerAuthority:
                         invalid_sigs.append(eid)
             elif not sig_hex:
                 unsigned_count += 1
+                # A STRIPPED signature is tampering, not legacy data.
+                #
+                # `chain_valid` counts only `invalid_sigs`, so until 2026-08-19
+                # an attacker could forge every payload, recompute the chain,
+                # DELETE the signatures and re-point an unsigned anchor, and the
+                # verifier returned valid=True with unsigned_entries=N. The
+                # classic downgrade: remove the crypto and the checker stops
+                # checking. Reproduced before this fix.
+                #
+                # `signing_expected` is what makes this safe for genuinely
+                # legacy ledgers: an unsigned entry only counts as tampering
+                # when this chain is KNOWN to sign -- because the operator
+                # pinned a key, or because the ledger itself registered one.
+                # A pre-signature ledger registers no key and is untouched.
+                if signing_expected and verify_signatures and _ED25519_AVAILABLE:
+                    invalid_sigs.append(eid)
 
             previous_hash = entry["current_hash"]
 
@@ -953,6 +991,7 @@ class AuditLoggerAuthority:
             bool(pinned) if (verify_signatures and _ED25519_AVAILABLE) else None
         )
 
+
         # --- 4. Tip-anchor check (Phase 3): detect tail-truncation on a verify-to-tip. ---
         tip_anchor_valid: Optional[bool] = None
         if to_id is None:
@@ -960,7 +999,11 @@ class AuditLoggerAuthority:
             # meaningful against a key the database did not supply. Pinned keys
             # are passed positionally as the trusted set.
             tip_anchor_valid = _check_tip_anchor(
-                self.db_path, pub_keys, verify_signatures, pinned=pinned
+                self.db_path,
+                pub_keys,
+                verify_signatures,
+                pinned=pinned,
+                signing_expected=signing_expected,
             )
             if tip_anchor_valid is False:
                 return ChainStatus(
@@ -975,6 +1018,36 @@ class AuditLoggerAuthority:
                     tip_anchor_valid=False,
                     trust_anchored=anchored,
                 )
+
+        # --- 4b. Total erasure with the anchor deleted too. ---
+        #
+        # An emptied ledger that still HAS its anchor is caught above: the
+        # anchor names a tip that no longer exists. Deleting the anchor as well
+        # left nothing to disagree with -- no rows to iterate, no anchor to
+        # check -- so every test passed vacuously and verify_chain returned
+        # valid=True. Deleting the entire record was the one tamper that
+        # reported perfectly clean. Reproduced before this fix.
+        #
+        # A key row appears on the first append, so "registered a key, holds no
+        # entries" is a deletion, while a never-written ledger has no key and
+        # stays valid. Range queries are exempt: an empty WINDOW over a
+        # populated ledger is a legitimate question, not a wipe.
+        if not rows and registered_keys > 0 and from_id <= 1 and to_id is None:
+            return ChainStatus(
+                valid=False,
+                total_entries=0,
+                broken_at=None,
+                reason=(
+                    "Ledger emptied: a signing key is registered but no entries "
+                    "remain, so the trail was deleted rather than never written."
+                ),
+                head_hash=config.AUDIT_GENESIS_HASH,
+                signature_valid=False,
+                invalid_signatures=(),
+                unsigned_entries=0,
+                tip_anchor_valid=tip_anchor_valid,
+                trust_anchored=anchored,
+            )
 
         chain_valid = len(invalid_sigs) == 0
         # An unanchored PASS is reported as such rather than silently: with no

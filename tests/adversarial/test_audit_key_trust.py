@@ -273,3 +273,160 @@ def test_a_malformed_pin_does_not_silently_disable_verification(
         "an unparseable pin must fall back to the configured private key, not to "
         "trusting the audited database"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Downgrade and erasure: pinning a key is not enough on its own
+# --------------------------------------------------------------------------- #
+
+
+def test_stripping_signatures_is_tampering_not_legacy_data(
+    tmp_path, monkeypatch
+) -> None:
+    """The downgrade attack: remove the crypto and the checker stops checking.
+
+    `chain_valid` counted only `invalid_sigs`, and an entry with no signature
+    merely incremented `unsigned_entries`. So an attacker could forge every
+    payload, recompute the chain, DELETE the signatures, re-point an unsigned
+    anchor -- and the verifier returned valid=True. Pinning a key did not help,
+    because the pinned path was never reached for an entry that carried no
+    signature to check.
+    """
+    seed = bytes(range(32))
+    monkeypatch.setenv("AIOS_AUDIT_PRIVATE_KEY", seed.hex())
+
+    db_path = tmp_path / "stripped.db"
+    init_audit_db(db_path)
+    for i in range(3):
+        log_action(f"actor-{i}", f"honest {i}", Zone.GREEN, db_path=db_path)
+
+    from aios.security.audit_logger import compute_entry_hash
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        previous_hash = config.AUDIT_GENESIS_HASH
+        for row in conn.execute(
+            "SELECT * FROM tamper_audit_trail ORDER BY entry_id ASC"
+        ).fetchall():
+            payload = "ATTACKER REWROTE THIS, SIGNATURE REMOVED"
+            new_hash = compute_entry_hash(
+                previous_hash,
+                row["timestamp"],
+                row["actor"],
+                payload,
+                row["security_zone"],
+                version=int(row["hash_version"] or 1),
+            )
+            conn.execute(
+                "UPDATE tamper_audit_trail SET action_payload=?, current_hash=?, "
+                "previous_hash=?, signature=NULL, key_id=NULL WHERE entry_id=?",
+                (payload, new_hash, previous_hash, row["entry_id"]),
+            )
+            previous_hash = new_hash
+        tip = conn.execute(
+            "SELECT entry_id, current_hash FROM tamper_audit_trail "
+            "ORDER BY entry_id DESC LIMIT 1"
+        ).fetchone()
+        conn.execute(
+            "UPDATE audit_tip_anchor SET tip_entry_id=?, tip_hash=?, signature=NULL, "
+            "key_id=NULL WHERE anchor_id=1",
+            (int(tip["entry_id"]), tip["current_hash"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    status = verify_chain(db_path=db_path)
+
+    assert status.valid is False, (
+        "a chain whose signatures were deleted was accepted -- stripping the "
+        "crypto must be tampering, not a downgrade to 'legacy unsigned'"
+    )
+    assert status.unsigned_entries == 3
+
+
+def test_a_pre_signature_ledger_is_still_accepted(tmp_path, monkeypatch) -> None:
+    """The counterpart that must NOT regress: genuine legacy data still verifies.
+
+    Treating every unsigned entry as tampering would condemn ledgers written
+    before signing existed. The discriminator is whether this chain is KNOWN to
+    sign -- a pinned key, or a key the ledger registered itself. A pre-signature
+    ledger has neither, and is left exactly as lenient as it was.
+    """
+    monkeypatch.delenv("AIOS_AUDIT_PRIVATE_KEY", raising=False)
+    monkeypatch.delenv("AIOS_AUDIT_PUBLIC_KEY", raising=False)
+
+    db_path = tmp_path / "legacy.db"
+    init_audit_db(db_path)
+    log_action("actor", "written before signing existed", Zone.GREEN, db_path=db_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("UPDATE tamper_audit_trail SET signature=NULL, key_id=NULL")
+        conn.execute("UPDATE audit_tip_anchor SET signature=NULL, key_id=NULL")
+        conn.execute("DELETE FROM audit_keys")  # no key was ever registered
+        conn.commit()
+    finally:
+        conn.close()
+
+    status = verify_chain(db_path=db_path)
+
+    assert status.valid is True, (
+        "a genuinely pre-signature ledger must still verify; the strip check "
+        "keys off whether this chain signs at all"
+    )
+
+
+def test_deleting_the_entire_ledger_is_detected(tmp_path, monkeypatch) -> None:
+    """Total erasure was the one tamper that reported perfectly clean.
+
+    An emptied ledger that still has its anchor is caught by the anchor naming a
+    tip that no longer exists. Deleting the anchor TOO left nothing to disagree
+    with: no rows to iterate, no anchor to check, so every test passed vacuously
+    and verify_chain returned valid=True.
+
+    A key row appears on the first append, so "registered a key, holds no
+    entries" is a deletion.
+    """
+    seed = bytes(range(32))
+    monkeypatch.setenv("AIOS_AUDIT_PRIVATE_KEY", seed.hex())
+
+    db_path = tmp_path / "wiped.db"
+    init_audit_db(db_path)
+    for i in range(3):
+        log_action(f"actor-{i}", f"honest {i}", Zone.GREEN, db_path=db_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM tamper_audit_trail")
+        conn.execute("DELETE FROM audit_tip_anchor")
+        conn.commit()
+    finally:
+        conn.close()
+
+    status = verify_chain(db_path=db_path)
+
+    assert status.valid is False, "deleting every entry AND the anchor was accepted"
+    assert status.reason and "emptied" in status.reason.lower()
+
+
+def test_a_never_written_ledger_is_not_mistaken_for_a_wiped_one(
+    tmp_path, monkeypatch
+) -> None:
+    """A fresh install must not be reported as tampered.
+
+    This is the false positive the erasure check has to avoid, and the reason it
+    keys off a REGISTERED KEY rather than emptiness alone: a never-written
+    ledger has no key, a wiped one kept the key it registered on first append.
+    """
+    seed = bytes(range(32))
+    monkeypatch.setenv("AIOS_AUDIT_PRIVATE_KEY", seed.hex())
+
+    db_path = tmp_path / "brand_new.db"
+    init_audit_db(db_path)
+
+    status = verify_chain(db_path=db_path)
+
+    assert status.valid is True, "a fresh, never-written ledger must verify clean"
+    assert status.total_entries == 0
