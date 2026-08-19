@@ -169,7 +169,32 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
     approved_edits: list[dict[str, Any]] = []
     approved_creations: list[dict[str, Any]] = []
     try:
-        if not req.approval_tokens:
+        # Bind the grant chain to ONE turn.
+        #
+        # `grants()` returns every still-live consumed capability for this
+        # session+route, and each one is appended to `approved_commands` below.
+        # Clearing only when a request arrives with NO tokens left a window: a
+        # paused turn that was abandoned (client disconnect, or its stashed tail
+        # expiring) kept its grant live, and the NEXT request carrying any token
+        # inherited it -- an approval riding forward into a turn that never
+        # asked for it. Bounded by the 120s capability TTL, but real; measured
+        # live at t+60s and gone at t+121s.
+        #
+        # `turn_state.take()` is the continuation signal: a paused turn stashes
+        # (always, even an empty tail -- see the human_required branch), so a
+        # token-bearing request that finds NOTHING stashed is a NEW turn rather
+        # than a replay of a paused one, and must not inherit anything.
+        #
+        # Computed here rather than after the token loop because the decision
+        # has to precede `grants()`. `take()` is single-use, so it happens
+        # exactly once either way.
+        if req.approval_tokens:
+            resume_tail = turn_state.take(session_id)
+            if resume_tail is None:
+                capabilities.clear_grants(session_id, route="/api/generate")
+        else:
+            turn_state.clear(session_id)
+            resume_tail = None
             capabilities.clear_grants(session_id, route="/api/generate")
         for token in req.approval_tokens:
             capability = capabilities.inspect(token)
@@ -212,11 +237,10 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             status_code=400, detail=f"invalid approval token: {exc}"
         ) from exc
 
-    resume_tail = (
-        turn_state.take(session_id)
-        if req.approval_tokens
-        else (turn_state.clear(session_id) or None)
-    )
+    # `resume_tail` was decided above, before `grants()` was read: the same
+    # `take()` that pops the stashed tail is what tells us whether this request
+    # continues a paused turn or starts a new one. Popping it twice would return
+    # None the second time and silently drop the resumed conversation.
 
     def issue_generate_capability(action_type: str, payload: dict[str, Any]) -> str:
         binding = _generate_capability_binding(principal, action_type, payload)
@@ -1451,8 +1475,18 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             # The token itself lives only in `payload` (issued just below),
             # never in the tail -- the tail carries no authority.
             _convo_tail = ev.pop("_convo_tail", None)
-            if _convo_tail:
-                turn_state.stash(session_id, _convo_tail)
+            # Stash UNCONDITIONALLY, even when the tail is empty. The stash is
+            # no longer only a convenience for splicing the conversation back
+            # together -- it is now the record that a turn is paused, and the
+            # signal `take()` gives the next request to distinguish a replay
+            # from a fresh turn (see the grant-chain comment above). Stashing
+            # only when a tail happened to exist would make a paused turn with
+            # no tail look like no pause at all, and its own replay would then
+            # clear the grants it is trying to redeem.
+            #
+            # An empty list is safe downstream: ToolAgent splices on
+            # `if self.resume_tail:`, so [] behaves exactly as None did.
+            turn_state.stash(session_id, _convo_tail or [])
             try:
                 if edit is not None:
                     token = _issue_generate_capability("edit", edit)
