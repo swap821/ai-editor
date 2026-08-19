@@ -825,6 +825,21 @@ jobs:
     # Also runs on gagos-release-* tags so a tagged evidence tip is teeth, not
     # only manual workflow_dispatch.
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/gagos-release-')
+    # ADVISORY on manual dispatch, BLOCKING on a release tag.
+    #
+    # --strict-release requires every green organ's last_verified_sha to EQUAL
+    # HEAD. Outside a release cut all 52 differ, necessarily, because every
+    # merge moves HEAD -- so on workflow_dispatch this job could never pass and
+    # never had: its first execution ever (2026-08-19) was also its first
+    # failure. A gate that is structurally red in a mode teaches people to
+    # ignore it, and it made every dispatch run conclude `failure`, which in
+    # turn made the cohort evidence in that run uncitable under C10 (the
+    # evidence verifier requires a cited run to have SUCCEEDED).
+    #
+    # It keeps its teeth exactly where they mean something -- a gagos-release-*
+    # tag, an evidence tip, where tip equality is the actual claim. Pinned by
+    # test_the_strict_release_gate_still_blocks_on_a_release_tag.
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
