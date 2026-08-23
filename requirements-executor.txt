@@ -4,5 +4,5 @@
 # privileged service image.
 cryptography==50.0.0
 fastapi==0.141.1
-python-dotenv==1.2.2
-uvicorn==0.52.3
+python-dotenv==1.2.3
+uvicorn==0.52.4
