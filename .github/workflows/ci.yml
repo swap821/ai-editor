@@ -403,7 +403,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pip-licenses ruff==0.9.10
+          pip install pip-licenses ruff==0.9.10 bandit==1.9.4
 
       - name: Tracked-source secret scan
         run: python scripts/security_scan.py
@@ -508,6 +508,17 @@ jobs:
         # while proving nothing. Runs with the other paperwork checks because
         # it is pure-Python and needs no topology.
         #
+        # check_bandit.py is pattern-level security lint (item 87). pip-audit
+        # covers third-party CVEs and CodeQL covers semantic queries; neither
+        # catches a new `shell=True`, a hardcoded credential, or weak crypto.
+        # Ratcheted against .aios/state/bandit_budget.json: the first run found
+        # 141 pre-existing findings (0 HIGH), and demanding zero would have meant
+        # blanket `# nosec`, which is how a security lint becomes decoration.
+        # HIGH severity fails regardless of the budget, and an OVERSTATED budget
+        # fails too -- without that half the number never comes down and the file
+        # quietly becomes a permission slip. It needs no AIOS_DATA_DIR redirect:
+        # it shells out to bandit, which parses ASTs and imports nothing.
+        #
         # check_frozen_core.py is the merge-boundary backstop for AGENTS.md
         # §VIII. Until it existed, the frozen security spine was guarded ONLY by
         # two in-process checks (ConstitutionEnforcer.check_file_edit and
@@ -531,6 +542,7 @@ jobs:
         # imports `aios` needs the same treatment.
         run: |
           AIOS_DATA_DIR="$(mktemp -d)" python scripts/check_frozen_core.py --base origin/master
+          python scripts/check_bandit.py
           AIOS_DATA_DIR="$(mktemp -d)" python tools/thesis_audit.py
           python scripts/build_organ_ledger_doc.py --check
           python scripts/check_organism_seam.py --check
