@@ -175,6 +175,38 @@ def test_ci_builds_the_workload_image_the_runtime_defaults_to() -> None:
     )
 
 
+def test_the_thesis_audit_actually_runs_in_ci() -> None:
+    """The M1 anti-rot gate must be executed, not merely present in the repo.
+
+    `tools/thesis_audit.py` asserts that config defaults still match the claims
+    made in README/AGENTS/PLAN -- it is the machine-checked half of "the system
+    is honest AND cannot silently rot". It shipped, passed, and was never wired
+    into any workflow, so for weeks it proved nothing about any merge.
+
+    That is the same failure this repo has now hit four times: `golden-cohort-local`
+    reporting OK because the image was missing; a ledger-ordering rule believed to
+    be CI-enforced that was not; C6/C7 satisfied by a test file merely EXISTING on
+    disk. A check nobody runs is a claim.
+
+    Asserted against the workflow text rather than by running the tool, because
+    the failure mode being guarded is "it stopped being invoked", which a passing
+    local run cannot detect.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "python tools/thesis_audit.py" in workflow, (
+        "tools/thesis_audit.py is no longer invoked by ci.yml -- the M1 honesty "
+        "gate has been reduced back to a script nobody runs"
+    )
+
+    tool = REPO_ROOT / "tools" / "thesis_audit.py"
+    assert tool.exists(), (
+        "ci.yml invokes tools/thesis_audit.py but the file is gone; the job "
+        "would fail, but the rule belongs here where the reason is written down"
+    )
+
+
 def test_release_source_scan_is_clean() -> None:
     assert scan() == ()
 
