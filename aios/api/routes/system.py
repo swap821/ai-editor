@@ -12,12 +12,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sqlite3
 import sys
 import threading
 import time
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -27,6 +28,7 @@ from aios import config
 from aios.api.deps import (
     get_capability_authority,
     get_autonomy,
+    get_ollama_client,
     get_development_tracker,
     get_memory_authority,
     get_policy_kernel,
@@ -117,6 +119,116 @@ class BootstrapResponse(BaseModel):
 def health() -> dict[str, Any]:
     """Liveness probe."""
     return {"status": "ok", "version": aios.__version__}
+
+
+#: Refuse readiness below this much free space on the data volume. A brain that
+#: cannot write its audit chain, snapshots, or memory must not be handed work:
+#: the failure would surface as a mid-turn write error after the model has
+#: already acted, which is the worst moment to discover it.
+_MIN_FREE_DISK_BYTES: Final[int] = 512 * 1024 * 1024
+
+
+def _check_disk() -> tuple[bool, dict[str, Any]]:
+    """Free space on the data volume."""
+    try:
+        usage = shutil.disk_usage(config.DATA_DIR)
+    except OSError as exc:
+        return False, {"ok": False, "detail": f"unreadable: {exc}"}
+    ok = usage.free >= _MIN_FREE_DISK_BYTES
+    return ok, {
+        "ok": ok,
+        "free_bytes": usage.free,
+        "required_bytes": _MIN_FREE_DISK_BYTES,
+    }
+
+
+def _check_db_writable() -> tuple[bool, dict[str, Any]]:
+    """The memory DB must accept a write, not merely open.
+
+    A read-only open succeeds against a full disk, a read-only mount, and a
+    permission-dropped data dir alike -- all three states in which the next real
+    turn fails. The probe therefore opens a transaction and rolls it back, so it
+    proves writability without leaving anything behind.
+    """
+    try:
+        with get_connection() as conn:
+            # BEGIN IMMEDIATE takes the write lock straight away, so a read-only
+            # database fails HERE rather than at the first real write. Rolled
+            # back so the probe leaves nothing behind.
+            conn.execute("BEGIN IMMEDIATE")
+            conn.rollback()
+    except Exception as exc:  # noqa: BLE001 - a readiness probe reports, never raises
+        return False, {"ok": False, "detail": str(exc)[:200]}
+    return True, {"ok": True}
+
+
+def _check_providers(ollama: Any) -> tuple[bool, dict[str, Any]]:
+    """At least one route to a model must exist, and we name which.
+
+    Local reachability is probed live (``list_models`` never raises and carries
+    its own timeout). Cloud providers are reported from configuration only: a
+    readiness probe must not spend money or leak a request to a third party.
+    """
+    try:
+        local = ollama.list_models()
+    except Exception as exc:  # noqa: BLE001 - never let discovery break the probe
+        local = {"available": False, "models": [], "detail": str(exc)[:200]}
+
+    local_up = bool(local.get("available"))
+    cloud_configured = sorted(
+        name
+        for name, enabled in (
+            ("bedrock", config.BEDROCK_ENABLED),
+            ("gemini", config.GEMINI_ENABLED),
+            ("openai", config.OPENAI_ENABLED),
+            ("anthropic", config.ANTHROPIC_ENABLED),
+        )
+        if enabled
+    )
+    return (local_up or bool(cloud_configured)), {
+        "ok": local_up or bool(cloud_configured),
+        "local": {
+            "reachable": local_up,
+            "model_count": len(local.get("models") or []),
+            "host": config.OLLAMA_HOST,
+        },
+        "cloud_configured": cloud_configured,
+    }
+
+
+@router.get("/ready")
+def ready(
+    response: Response,
+    ollama: Any = Depends(get_ollama_client),
+) -> dict[str, Any]:
+    """Readiness probe -- distinct from ``/health``, which is liveness only.
+
+    ``/health`` answers "is this process alive"; it returns ``ok`` from a
+    process that cannot write its database, has no disk left, and can reach no
+    model at all. An orchestrator reading it would keep routing work to a brain
+    that fails on contact. This answers the different question: "can this
+    process actually serve a turn right now."
+
+    **Fail-closed:** any unmet check returns HTTP 503 with the per-check detail,
+    so a load balancer or supervisor removes the instance rather than being told
+    everything is fine. Unknown state is not ready.
+    """
+    checks: dict[str, Any] = {}
+    disk_ok, checks["disk"] = _check_disk()
+    db_ok, checks["database"] = _check_db_writable()
+    providers_ok, checks["providers"] = _check_providers(ollama)
+
+    ready_now = disk_ok and db_ok and providers_ok
+    if not ready_now:
+        response.status_code = 503
+    return {
+        "ready": ready_now,
+        "version": aios.__version__,
+        "checks": checks,
+        "not_ready": sorted(
+            name for name, c in checks.items() if not c.get("ok", False)
+        ),
+    }
 
 
 @router.get("/api/v1/system/bootstrap", response_model=BootstrapResponse)
