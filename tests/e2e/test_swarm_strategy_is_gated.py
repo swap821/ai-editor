@@ -47,20 +47,32 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aios import config as config_mod
-from aios.api.main import app, get_bedrock_client, get_ollama_client
+from aios.api.main import (
+    app,
+    get_alignment_interpreter,
+    get_bedrock_client,
+    get_ollama_client,
+)
 
 
 class _FakeChat:
-    """A provider that must never be consulted: the gate precedes the LLM."""
+    """A benign stand-in so no test in this file can reach a real model.
+
+    It deliberately does NOT raise on `chat`. An earlier version did, to assert
+    "the gate refuses before any model is contacted" -- but that claim is false
+    and the assertion could not have caught it either way: the mandatory plan
+    stage runs BEFORE the strategy gate and may consult an LLM, and it is
+    fail-open, so a raised AssertionError would have been swallowed by its
+    exception handler rather than failing the test. A guard that cannot fire is
+    worse than no guard, so this returns a harmless answer instead and the file
+    claims only what it actually checks.
+    """
 
     def list_models(self) -> dict:
         return {"available": True, "models": ["qwen2.5-coder:7b"]}
 
     def chat(self, messages: list[dict[str, Any]], **_kwargs: Any) -> dict[str, Any]:
-        raise AssertionError(
-            "the swarm gate let a request through to a provider; it is supposed "
-            "to refuse before any model is contacted"
-        )
+        return {"role": "assistant", "content": ""}
 
 
 def _parse_sse(response) -> list[dict[str, object]]:
@@ -84,6 +96,26 @@ def _parse_sse(response) -> list[dict[str, object]]:
 def client() -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = _FakeChat
     app.dependency_overrides[get_bedrock_client] = _FakeChat
+    # The strategy gate is NOT the first thing the pipeline can end a turn on.
+    # Earlier stages run first, and the confidence gate ends the turn outright
+    # when the alignment frame's confidence falls under the threshold:
+    #
+    #     if alignment is not None and not _cerebellum_matched:
+    #         ... yield sse("confidence.gated", ...); yield sse("done", {}); return
+    #
+    # That confidence is LLM-derived, so on a machine with a real Ollama serving
+    # the turn sails past it and reaches the strategy gate, and on CI it does
+    # not. This test passed locally and failed on macOS CI for exactly that
+    # reason, with frames ['turn.started', 'alignment', 'confidence.gated',
+    # 'text_chunk', 'done'] -- a test whose result depended on whether a model
+    # daemon happened to be running.
+    #
+    # `alignment_interpreter=None` is the supported off switch
+    # (AIOS_INTERPRET_ALIGNMENT=false); `alignment` then stays None and the whole
+    # confidence block is skipped, so the turn reaches the gate under test
+    # deterministically on every platform. Nothing about the strategy gate
+    # itself is relaxed.
+    app.dependency_overrides[get_alignment_interpreter] = lambda: None
     try:
         # The loopback address is what makes conftest seed the authenticated
         # Human Sovereign session + CSRF proof -- the exact thing the standalone
@@ -110,13 +142,17 @@ def _generate(client: TestClient, **extra: Any) -> list[dict[str, object]]:
 
 
 @pytest.mark.parametrize("strategy", ["swarm", "role_pass"])
-def test_an_experimental_strategy_is_refused_before_any_provider_is_chosen(
+def test_an_experimental_strategy_is_refused_with_a_named_reason(
     client: TestClient, strategy: str
 ) -> None:
     """Both experimental strategies fail closed, and say why.
 
     Asserted through the real SSE stream rather than by reading the source, so a
     refactor that moves the gate keeps this honest as long as the behaviour holds.
+
+    With the alignment interpreter off the frames are deterministic:
+    ``['turn.started', 'step', 'plan', 'error', 'done']`` -- the plan stage still
+    runs (it is advisory and fail-open) and the gate is what ends the turn.
     """
     events = _generate(client, **{strategy: True})
 
