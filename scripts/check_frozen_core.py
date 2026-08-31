@@ -47,12 +47,25 @@ touches is named by a §VIII record added in the same diff. Exit 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+
+# Importing `aios` MATERIALIZES the SQLite stores in AIOS_DATA_DIR as a side
+# effect of import -- identity, constitution snapshots, approvals, capabilities.
+# This script is pure static analysis and has no business creating any of them.
+# It matters beyond tidiness: run as one uid, those files then belong to that
+# uid, and a container step running as another uid fails every runtime probe
+# with "attempt to write a readonly database". That is not hypothetical -- it
+# took three blocking gates PARTIAL on the first CI run of this very script.
+#
+# `setdefault` so an explicit AIOS_DATA_DIR from the caller still wins.
+os.environ.setdefault("AIOS_DATA_DIR", tempfile.mkdtemp(prefix="frozen-core-gate-"))
 
 from aios.policy.constitution import FROZEN_PATH_PREFIXES  # noqa: E402
 
