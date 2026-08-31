@@ -56,9 +56,17 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from aios.policy.constitution import FROZEN_PATH_PREFIXES  # noqa: E402
 
-#: Where a §VIII authorization record must live. Kept as a directory rather than
+#: Where a §VIII AUTHORIZATION record must live. Kept as a directory rather than
 #: a magic commit-message token so the ceremony leaves a reviewable artifact in
 #: the tree, which is what §VIII asks for.
+#:
+#: This directory means "the operator authorized this change", and nothing else.
+#: A PROPOSAL -- the Observe/Analyse/Propose half of §VIII, written before anyone
+#: has approved anything -- must NOT live here, or it would authorize itself the
+#: moment someone bundled an edit alongside it. Proposals go under the relevant
+#: `release/organ-N/` directory instead; see
+#: `release/organ-2/2026-08-31-scope-context-proposal.md` and
+#: `release/organ-4/2026-08-19-audit-key-trust-proposal.md`.
 SECTION_VIII_DIR = "release/section-viii/"
 
 
