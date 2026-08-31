@@ -54,8 +54,17 @@ router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 #: from aios.core.metrics, so this is the SAME object main's middleware uses).
 _METRICS = get_collector()
 
-#: Authority-owned episodic facade over the shared chronological store.
-_EPISODIC = get_memory_authority().adapters["episodic"]
+def _episodic() -> Any:
+    """Authority-owned episodic facade over the shared chronological store.
+
+    Resolved on FIRST USE, not at import (inventory item 5b). Building it at
+    module level meant `import aios.api.routes.system` opened -- and therefore
+    CREATED -- the memory database wherever the importing process pointed
+    AIOS_DATA_DIR, which is how a static-analysis tool ends up provisioning
+    databases it never reads. The authority already caches, so this adds no
+    per-call cost.
+    """
+    return get_memory_authority().adapters["episodic"]
 
 
 # --------------------------------------------------------------------------- #
@@ -340,7 +349,7 @@ def onboarding_state(
     """Return which first-run milestones have been reached."""
     ledger = autonomy.ledger_map()
     return OnboardingStateResponse(
-        firstDirective=_EPISODIC.count(None) > 0,
+        firstDirective=_episodic().count(None) > 0,
         firstApproval=_has_any_approval_grant(capabilities),
         firstVerify=_has_verified_success(),
         firstCloudRoute=_has_cloud_route(),
