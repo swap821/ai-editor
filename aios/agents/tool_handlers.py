@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 from aios.agents.self_analysis_agent import SelfAnalysisAgent
 from aios.core.planner import Planner, PlannerError
+from aios.policy.credential_paths import is_credential_path, refusal_reason
 from aios.security import scope_lock
 from aios.security.gateway import Zone
 from aios.security.secret_scanner import scan_and_redact
@@ -79,6 +80,12 @@ def read_file(
     file_read_limit: int,
 ) -> tuple[str, str, bool]:
     """Read a scoped text file, redact secrets, and return its contents."""
+    # Refuse credential-shaped paths OUTRIGHT rather than relying on the content
+    # scanner alone. Redaction is a heuristic over bytes -- `privacy_filter`
+    # shipped a live AWS-key bypass on exactly that kind of shape reasoning --
+    # whereas a name is a fact. Defence in depth: the scan below still runs.
+    if is_credential_path(filepath):
+        return ("[BLOCKED] " + refusal_reason(filepath), "blocked", False)
     resolved = _resolve_within(read_root, filepath)
     if resolved is None:
         return (
@@ -146,6 +153,8 @@ def edit_file(
     # path makes is_path_in_scope a pure containment check, so a path that names the
     # sandbox dir (training_ground/x) no longer double-joins to
     # training_ground/training_ground/x. Sandbox confinement is unchanged.
+    if is_credential_path(filepath):
+        return ("[BLOCKED] " + refusal_reason(filepath), "blocked", False)
     scope = scope_lock.is_path_in_scope(str(read_root / filepath))
     if not scope.in_scope:
         roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
@@ -260,6 +269,8 @@ def resolve_sandbox_file(filepath: str, *, read_root: Path):
     """
     if _resolve_within(read_root, filepath) is None:
         return f"[BLOCKED] Path '{filepath}' escapes the project root."
+    if is_credential_path(filepath):
+        return "[BLOCKED] " + refusal_reason(filepath)
     scope = scope_lock.is_path_in_scope(str(read_root / filepath))
     if not scope.in_scope:
         roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
@@ -344,6 +355,8 @@ def create_file(
         )
     # Same containment check edit_file uses: resolve project-relative, then a
     # pure scope test against the sandbox roots (out-of-sandbox -> refused).
+    if is_credential_path(filepath):
+        return ("[BLOCKED] " + refusal_reason(filepath), "blocked", False)
     scope = scope_lock.is_path_in_scope(str(read_root / filepath))
     if not scope.in_scope:
         roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())

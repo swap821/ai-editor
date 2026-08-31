@@ -395,7 +395,11 @@ class SecurityGatewayAuthority:
         )
 
     def classify(
-        self, command: str, *, injection_shield: object = None
+        self,
+        command: str,
+        *,
+        injection_shield: object = None,
+        scope: object = None,
     ) -> ClassificationResult:
         """Deterministically classify *command* into a security zone (fail-closed).
 
@@ -477,10 +481,14 @@ class SecurityGatewayAuthority:
                         Zone.RED, 1.0, f"Shell composition blocked: {pat.pattern}"
                     )
 
-            scope = command_stays_in_scope(command)
-            if not scope.in_scope:
+            # Forward the caller's scope so the classification and the execution
+            # that follows it are judged against the SAME workspace. With
+            # `scope=None` this is the process default -- byte-identical to the
+            # behaviour before item 3.
+            scope_check = command_stays_in_scope(command, scope=scope)
+            if not scope_check.in_scope:
                 return ClassificationResult(
-                    Zone.RED, 1.0, f"Scope violation: {scope.reason}"
+                    Zone.RED, 1.0, f"Scope violation: {scope_check.reason}"
                 )
 
             for pat in _CAUTION_PATTERNS:
@@ -561,7 +569,9 @@ def set_injection_shield(shield: object) -> None:
     _GATEWAY.set_injection_shield(shield)
 
 
-def classify(command: str, *, injection_shield: object = None) -> ClassificationResult:
+def classify(
+    command: str, *, injection_shield: object = None, scope: object = None
+) -> ClassificationResult:
     """Deterministically classify *command* into a security zone (fail-closed).
 
     Args:
@@ -569,11 +579,17 @@ def classify(command: str, *, injection_shield: object = None) -> Classification
         injection_shield: Optional vector injection shield (``is_injection``);
             falls back to the process-wide one set via
             :func:`set_injection_shield`. ``None`` everywhere = regex-only.
+        scope: Optional :class:`aios.security.scope_lock.ScopeContext` to judge
+            containment against. ``None`` uses the scope bound to the current
+            task, then the process default -- so an existing caller that passes
+            nothing behaves exactly as it always did. Pass it explicitly when the
+            classification happens on a different task or thread from the work,
+            because the ambient binding does not follow a bare thread.
 
     Returns:
         A :class:`ClassificationResult`. Any internal error yields ``RED``.
     """
-    return _GATEWAY.classify(command, injection_shield=injection_shield)
+    return _GATEWAY.classify(command, injection_shield=injection_shield, scope=scope)
 
 
 def validate_command(
