@@ -580,7 +580,19 @@ _LAZY_SINGLETONS: dict[str, Any] = {}
 
 
 def _lazy_singleton(name: str, factory: Callable[[], Any]) -> Any:
-    """Return the process-wide *name*, constructing it on first use."""
+    """Return the process-wide *name*, constructing it on first use.
+
+    An explicitly ASSIGNED module global wins. `monkeypatch.setattr(deps,
+    "_SESSION_MANAGER", fake)` sets a real attribute, and module `__getattr__`
+    (PEP 562) fires only when normal lookup FAILS -- so honouring reads through
+    `__getattr__` while ignoring writes here would make the override silently
+    disappear. It did: `test_human_sovereign_identity.py` installs its own
+    session manager exactly this way, and every auth call then ran against the
+    production store and returned 403.
+    """
+    override = globals().get(name)
+    if override is not None:
+        return override
     existing = _LAZY_SINGLETONS.get(name)
     if existing is not None:
         return existing

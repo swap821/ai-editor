@@ -145,6 +145,34 @@ def test_the_singletons_are_singletons() -> None:
     assert deps.get_session_manager() is deps._session_manager()
 
 
+def test_an_assigned_module_global_overrides_the_lazy_singleton() -> None:
+    """Reads AND writes must both work, not just reads.
+
+    The first version of this fix honoured `deps._SESSION_MANAGER` for reading
+    (via PEP 562 `__getattr__`) but not for writing. `monkeypatch.setattr(deps,
+    "_SESSION_MANAGER", fake)` sets a REAL module attribute, and `__getattr__`
+    fires only when normal lookup fails -- so the accessor never saw the
+    override and kept returning the production object.
+
+    That is not a cosmetic gap: `test_human_sovereign_identity.py` installs its
+    own session manager exactly this way, so every auth call ran against the
+    production store and returned 403 instead of 200. CI caught it on all three
+    platforms; this pins it.
+    """
+    import aios.api.deps as deps
+
+    sentinel = object()
+    original = deps._SESSION_MANAGER  # builds it, so teardown restores a real one
+    try:
+        deps._SESSION_MANAGER = sentinel  # type: ignore[assignment]
+        assert deps._session_manager() is sentinel
+        assert deps.get_session_manager() is sentinel
+    finally:
+        deps._SESSION_MANAGER = original  # type: ignore[assignment]
+
+    assert deps._session_manager() is original
+
+
 def test_an_unknown_attribute_still_raises_attribute_error() -> None:
     """`__getattr__` must not turn every typo into a silent None."""
     import aios.api.deps as deps
