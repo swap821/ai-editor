@@ -7,6 +7,11 @@ from typing import Final
 
 from dotenv import load_dotenv
 
+# Guardrail constants are DEFINED in the frozen core and re-exported here
+# (inventory item 5). `limits` imports nothing from this module, so there is no
+# cycle -- see its docstring for why its env helpers are local.
+from aios.security import limits as _limits
+
 PROJECT_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 
 
@@ -242,10 +247,14 @@ SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_
 #: Resolved toward the invariant. The feature is UNCHANGED and still requires its
 #: full evidence floor; only who must ask for it moved. Opting in is a deliberate
 #: operator act: AIOS_EARNED_AUTONOMY=1.
-EARNED_AUTONOMY_ENABLED: Final[bool] = _env_bool("AIOS_EARNED_AUTONOMY", False)
-EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _env_int(
-    "AIOS_EARNED_AUTONOMY_MIN_SUCCESSES", 5
-)
+#: DEFINED IN aios/security/limits.py, re-exported here (inventory item 5).
+#: These are guardrail constants -- how far the system may reach and how much it
+#: may do unattended -- so their definition belongs inside the frozen core, where
+#: check_frozen_core.py guards it at the merge boundary and ConstitutionEnforcer
+#: guards it at runtime. Re-exported so every existing `config.X` caller is
+#: unchanged.
+EARNED_AUTONOMY_ENABLED: Final[bool] = _limits.EARNED_AUTONOMY_ENABLED
+EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _limits.EARNED_AUTONOMY_MIN_SUCCESSES
 
 # Mandatory plan stage (Product-Phase-1 close-out): run the deterministic
 # Planner unconditionally on every non-reflex /api/generate turn and surface
@@ -292,20 +301,25 @@ SWARM_MEMORY_PER_WORKER_MB: Final[int] = _env_int(
 RESOURCE_MODE: Final[str] = _env_str("AIOS_RESOURCE_MODE", "normal").strip().lower()
 
 CONFIDENCE_THRESHOLD: Final[float] = _env_float("AIOS_CONFIDENCE_THRESHOLD", 0.72)
-MAX_RED_ACTIONS_PER_SESSION: Final[int] = _env_int("AIOS_MAX_RED_ACTIONS", 3)
+#: Guardrail — defined in aios/security/limits.py (see item 5 note above).
+MAX_RED_ACTIONS_PER_SESSION: Final[int] = _limits.MAX_RED_ACTIONS_PER_SESSION
 YELLOW_APPROVAL_TIMEOUT_MS: Final[int] = _env_int("AIOS_YELLOW_TIMEOUT_MS", 60_000)
 RED_APPROVAL_TIMEOUT_MS: Final[int] = _env_int("AIOS_RED_TIMEOUT_MS", 30_000)
 
-AUDIT_GENESIS_HASH: Final[str] = "0" * 64
+#: Guardrail — defined in aios/security/limits.py. Re-anchoring the audit chain
+#: is how a rewritten history is made to verify, so the value lives behind the
+#: freeze.
+AUDIT_GENESIS_HASH: Final[str] = _limits.AUDIT_GENESIS_HASH
 
 INJECTION_VECTOR_SHIELD: Final[bool] = _env_bool("AIOS_INJECTION_VECTOR_SHIELD", False)
 INJECTION_VECTOR_THRESHOLD: Final[float] = _env_float(
     "AIOS_INJECTION_VECTOR_THRESHOLD", 0.6
 )
 
-SCOPE_ROOTS: Final[tuple[Path, ...]] = _env_scope_roots(
-    "AIOS_SCOPE_ROOTS", (PROJECT_ROOT / "training_ground", PROJECT_ROOT / "lab")
-)
+#: Guardrail — defined in aios/security/limits.py. Widening where the system may
+#: act at all is the single most consequential change in the product, so an agent
+#: must not be able to do it without §VIII.
+SCOPE_ROOTS: Final[tuple[Path, ...]] = _limits.SCOPE_ROOTS
 
 VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")
 # Phase 2 (execution boundary): the container is the supported default for running
@@ -505,9 +519,9 @@ def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 # argument is unchanged — a 7B local model does hit a ceiling on hard reasoning —
 # so expect to set this deliberately for heavy work.
 _ROUTER_CLOUD_TASKS_DEFAULT: Final[tuple[str, ...]] = ()
-ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _env_router_tasks(
-    "AIOS_ROUTER_CLOUD_TASKS", _ROUTER_CLOUD_TASKS_DEFAULT
-)
+#: Guardrail — defined in aios/security/limits.py. This decides what may LEAVE
+#: the machine, so it belongs behind the freeze with the other egress controls.
+ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _limits.ROUTER_CLOUD_TASKS
 ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
 ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
 ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
