@@ -84,7 +84,7 @@ s3transfer==0.19.2
 safetensors==0.8.0
 scikit-learn==1.9.0
 scipy==1.17.1
-sentence-transformers==5.7.0
+sentence-transformers==6.0.0
 setuptools==84.0.0
 shellingham==1.5.4
 six==1.17.0

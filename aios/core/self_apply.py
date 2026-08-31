@@ -62,18 +62,40 @@ def classify_target(
     rel_path: str,
     *,
     package: str = "aios",
-    frozen_subdirs: tuple[str, ...] = ("security",),
+    frozen_subdirs: tuple[str, ...] | None = None,
 ) -> str:
     """Deterministic would-be-apply zone for a project-relative path.
 
-    A file under a frozen subdir of *package* (e.g. ``aios/security/…``, the frozen
-    core in AGENTS.md §XI) is **RED** — editing the gate that guards the agent is the
+    A file under a frozen path (e.g. ``aios/security/…``, the frozen core in
+    AGENTS.md §XI) is **RED** — editing the gate that guards the agent is the
     highest-risk action. Every other path is **YELLOW**. This is the single source of
     truth shared by T2 (records ``proposed_zone``, see
     :mod:`aios.agents.self_analysis_agent`) and T3 (the apply zone gate below), so the
     two can never diverge. Lives in ``core`` (not ``agents``) so agents/, which is
     built on top of core/, can depend on it without core reaching back up into agents/.
+
+    The frozen set now comes from ``aios.policy.constitution.FROZEN_PATH_PREFIXES``
+    — the SAME constant ``ConstitutionEnforcer._is_frozen`` and
+    ``scripts/check_frozen_core.py`` consult. It used to be a local default,
+    ``frozen_subdirs=("security",)``, which agreed with the constitution only by
+    coincidence of content: there were THREE independent answers to "is this path
+    frozen?" and nothing made them agree. That is the shape behind two containment
+    escapes already found in this repo, and inventory item 5 names it directly
+    ("frozen-core enforcement covers only aios/security/ — 1 of 4 surfaces").
+
+    ``frozen_subdirs`` is kept as an explicit override for callers that genuinely
+    need a different set (tests do); ``None`` means "ask the constitution".
     """
+    if frozen_subdirs is None:
+        from aios.policy.constitution import FROZEN_PATH_PREFIXES
+
+        normalized = rel_path.replace("\\", "/")
+        for prefix in FROZEN_PATH_PREFIXES:
+            frozen = prefix.rstrip("/")
+            if normalized == frozen or normalized.startswith(f"{frozen}/"):
+                return "RED"
+        return "YELLOW"
+
     for sub in frozen_subdirs:
         base = f"{package}/{sub}"
         if rel_path == base or rel_path.startswith(base + "/"):
