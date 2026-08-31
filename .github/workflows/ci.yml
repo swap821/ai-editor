@@ -518,9 +518,20 @@ jobs:
         # runtime enforcer uses, so the gate and the product cannot disagree.
         # Needs the full history this job already fetches (fetch-depth: 0) to
         # resolve a merge base.
+        #
+        # AIOS_DATA_DIR is redirected for the two commands that import `aios`.
+        # Importing the package MATERIALIZES the SQLite stores (identity,
+        # constitution snapshots, approvals, capabilities) in AIOS_DATA_DIR as an
+        # import side effect. This job later runs the executor topology as a
+        # DIFFERENT uid, which then cannot write files this step created, and
+        # every runtime probe fails with "attempt to write a readonly database"
+        # -- operator_identity, mutation_authority and emergency_stop_controller
+        # all went PARTIAL that way. The pre-existing checks below create only
+        # directories, which is why this never bit before. Any future gate that
+        # imports `aios` needs the same treatment.
         run: |
-          python scripts/check_frozen_core.py --base origin/master
-          python tools/thesis_audit.py
+          AIOS_DATA_DIR="$(mktemp -d)" python scripts/check_frozen_core.py --base origin/master
+          AIOS_DATA_DIR="$(mktemp -d)" python tools/thesis_audit.py
           python scripts/build_organ_ledger_doc.py --check
           python scripts/check_organism_seam.py --check
           python scripts/spine_mutation_probe.py --check
