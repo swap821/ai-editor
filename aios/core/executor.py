@@ -668,7 +668,7 @@ class Executor:
         #: tests can record actions without touching the on-disk ledger.
         self._audit: Callable[..., object] = audit_log or log_action
 
-    def _scope_cwd(self) -> Path:
+    def _scope_cwd(self, scope: object = None) -> Path:
         """The working directory for child processes.
 
         This is the repo root that the primary scope root (``training_ground``)
@@ -686,7 +686,7 @@ class Executor:
         ``get_scope_roots()``). Asserted by
         ``tests/adversarial/test_control_consistency.py``.
         """
-        cwd = scope_lock_command_cwd()
+        cwd = scope_lock_command_cwd(scope)
         cwd.mkdir(parents=True, exist_ok=True)
         return cwd
 
