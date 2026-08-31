@@ -165,7 +165,7 @@ def get_bedrock_client() -> Optional[BedrockClient]:
             return _bedrock_client
         try:
             _bedrock_client = BedrockClient(
-                privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+                privacy_audit_tracker=_privacy_audit_tracker()
             )
         except LLMError:
             return None
@@ -192,7 +192,7 @@ def get_gemini_client() -> Optional[GeminiClient]:
         if _gemini_client is not None:
             return _gemini_client
         try:
-            _gemini_client = GeminiClient(privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER)
+            _gemini_client = GeminiClient(privacy_audit_tracker=_privacy_audit_tracker())
         except LLMError:
             return None
     return _gemini_client
@@ -228,7 +228,7 @@ def get_vertex_maas_client() -> Optional[Any]:
             from aios.core.vertex_maas import VertexMaaSClient
 
             _vertex_maas_client = VertexMaaSClient(
-                privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+                privacy_audit_tracker=_privacy_audit_tracker()
             )
         except (LLMError, ImportError):
             return None
@@ -248,7 +248,7 @@ def get_openai_client() -> Optional[Any]:
         from aios.core.openai_compat import OpenAICompatClient
 
         _openai_client = OpenAICompatClient(
-            privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+            privacy_audit_tracker=_privacy_audit_tracker()
         )
     return _openai_client
 
@@ -266,7 +266,7 @@ def get_anthropic_client() -> Optional[Any]:
         from aios.core.anthropic_direct import AnthropicDirectClient
 
         _anthropic_client = AnthropicDirectClient(
-            privacy_audit_tracker=_PRIVACY_AUDIT_TRACKER
+            privacy_audit_tracker=_privacy_audit_tracker()
         )
     return _anthropic_client
 
@@ -442,7 +442,7 @@ def get_emergency_stop() -> EmergencyStopController:
 
             _emergency_stop = EmergencyStopController(
                 hooks=EmergencyStopHooks(
-                    revoke_capabilities=_CAPABILITIES.revoke_all_active,
+                    revoke_capabilities=_capabilities().revoke_all_active,
                     cancel_queued_missions=cancel_queued_work,
                     kill_active_workers=WorkerScheduler.cancel_active_registered,
                     disable_autonomy=AutonomyLedger().revoke_all,
@@ -558,22 +558,92 @@ def get_alignment_interpreter(
 # ApprovalStore compatibility surface is intentionally not constructed in the
 # production dependency graph.
 # --------------------------------------------------------------------------- #
-_CAPABILITIES = CapabilityAuthority(db_path=config.CAPABILITY_DB_PATH)
-_RATE_LIMITER = RateLimiter(db_path=config.APPROVAL_DB_PATH)
+# BUILT ON FIRST USE, NOT AT IMPORT (inventory item 5b).
+#
+# These four constructors each initialise their schema, which CREATES the SQLite
+# file. Doing that at module import meant `import aios.policy` -- via
+# `interfaces/http/edge_security.py` -> `from aios.api.deps import
+# get_session_manager` -- materialised four databases wherever the importing
+# process happened to point AIOS_DATA_DIR.
+#
+# That is not merely untidy. It broke the release-authority job: two pure
+# static-analysis gates (`tools/thesis_audit.py`, `scripts/check_frozen_core.py`)
+# imported the package as the RUNNER uid, and the executor topology later in the
+# same job runs as a DIFFERENT uid, which then could not write the files. Three
+# blocking gates reported `attempt to write a readonly database`. CI works around
+# it with a throwaway AIOS_DATA_DIR; this removes the cause.
+#
+# The lazy pattern is the one `get_identity_service` below already uses:
+# double-checked under a lock, so concurrent first calls still yield ONE object.
+_LAZY_SINGLETON_LOCK = threading.Lock()
+_LAZY_SINGLETONS: dict[str, Any] = {}
 
-#: Server-side session manager with httpOnly cookie support.
-#: Sessions are stored by SHA-256 hash only; the raw ID never leaves the server
-#: except inside the httpOnly cookie response, and is never persisted.
-_SESSION_MANAGER = SessionManager(
-    max_age=3600,
-    cleanup_interval=300,
-    store_path=config.SESSION_DB_PATH,
-)
+
+def _lazy_singleton(name: str, factory: Callable[[], Any]) -> Any:
+    """Return the process-wide *name*, constructing it on first use."""
+    existing = _LAZY_SINGLETONS.get(name)
+    if existing is not None:
+        return existing
+    with _LAZY_SINGLETON_LOCK:
+        existing = _LAZY_SINGLETONS.get(name)
+        if existing is None:
+            existing = factory()
+            _LAZY_SINGLETONS[name] = existing
+        return existing
+
+
+def _capabilities() -> CapabilityAuthority:
+    return _lazy_singleton(
+        "_CAPABILITIES", lambda: CapabilityAuthority(db_path=config.CAPABILITY_DB_PATH)
+    )
+
+
+def _rate_limiter() -> RateLimiter:
+    return _lazy_singleton(
+        "_RATE_LIMITER", lambda: RateLimiter(db_path=config.APPROVAL_DB_PATH)
+    )
+
+
+def _session_manager() -> SessionManager:
+    #: Server-side session manager with httpOnly cookie support.
+    #: Sessions are stored by SHA-256 hash only; the raw ID never leaves the
+    #: server except inside the httpOnly cookie response, and is never persisted.
+    return _lazy_singleton(
+        "_SESSION_MANAGER",
+        lambda: SessionManager(
+            max_age=3600,
+            cleanup_interval=300,
+            store_path=config.SESSION_DB_PATH,
+        ),
+    )
+
+
+def __getattr__(name: str) -> Any:
+    """Keep `deps._CAPABILITIES` (and siblings) working as module attributes.
+
+    PEP 562. Four test modules reach for these directly to install fakes, and a
+    lazy rewrite that turned them into `None` would break that surface for no
+    reason. Attribute access builds the singleton exactly as a getter would.
+
+    Note this fires only for access THROUGH the module object; code inside this
+    file must call the `_capabilities()` accessors, because a bare global lookup
+    does not consult module `__getattr__`.
+    """
+    factories = {
+        "_CAPABILITIES": _capabilities,
+        "_RATE_LIMITER": _rate_limiter,
+        "_SESSION_MANAGER": _session_manager,
+        "_PRIVACY_AUDIT_TRACKER": _privacy_audit_tracker,
+    }
+    factory = factories.get(name)
+    if factory is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return factory()
 
 
 def get_session_manager() -> SessionManager:
     """Provide the server-side session manager singleton."""
-    return _SESSION_MANAGER
+    return _session_manager()
 
 
 #: Organ 34: real, in-memory per-process circuit-breaker state over reported
@@ -591,14 +661,16 @@ def get_provider_health() -> ProviderHealthTracker:
 #: Organ 50 privacy-audit history -- Phase 3 durable SQLite (survives restart).
 #: Diagnostic surface, still fail-soft on write errors so cloud turns never die
 #: because the audit sink could not flush.
-_PRIVACY_AUDIT_TRACKER = PrivacyAuditTracker(
-    database_path=config.PRIVACY_AUDIT_DB_PATH
-)
+def _privacy_audit_tracker() -> PrivacyAuditTracker:
+    return _lazy_singleton(
+        "_PRIVACY_AUDIT_TRACKER",
+        lambda: PrivacyAuditTracker(database_path=config.PRIVACY_AUDIT_DB_PATH),
+    )
 
 
 def get_privacy_audit_tracker() -> PrivacyAuditTracker:
     """Provide the process-wide privacy-audit tracker singleton."""
-    return _PRIVACY_AUDIT_TRACKER
+    return _privacy_audit_tracker()
 
 
 def get_identity_service() -> IdentityService:
@@ -867,7 +939,7 @@ def get_executor() -> Executor:
     return Executor(
         runner=command_runner,
         approved_runner=approved_runner,
-        rate_limiter=_RATE_LIMITER,
+        rate_limiter=_rate_limiter(),
         policy_kernel=kernel,
         emergency_stop=get_emergency_stop(),
     )
@@ -875,11 +947,12 @@ def get_executor() -> Executor:
 
 def get_capability_authority() -> CapabilityAuthority:
     """Provide the server-issued exact capability authority."""
-    if _CAPABILITIES.emergency_stop is None:
-        _CAPABILITIES.emergency_stop = get_emergency_stop()
-    if _CAPABILITIES.constitution_authority is None:
-        _CAPABILITIES.constitution_authority = get_constitution_authority()
-    return _CAPABILITIES
+    capabilities = _capabilities()
+    if capabilities.emergency_stop is None:
+        capabilities.emergency_stop = get_emergency_stop()
+    if capabilities.constitution_authority is None:
+        capabilities.constitution_authority = get_constitution_authority()
+    return capabilities
 
 
 def get_capability_verifier(
@@ -900,7 +973,7 @@ def get_policy_kernel() -> "PolicyKernel":
     from aios.policy.kernel import get_policy_kernel as _kernel_singleton
 
     return _kernel_singleton(
-        rate_limiter=_RATE_LIMITER,
+        rate_limiter=_rate_limiter(),
         autonomy_ledger=AutonomyLedger(emergency_stop=get_emergency_stop()),
     )
 
