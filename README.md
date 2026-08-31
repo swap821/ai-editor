@@ -870,6 +870,60 @@ Defences include:
 - Emergency stop
 - Fail-closed unknown state
 
+### Adversarial regression suite
+
+Every defence above is asserted by an attack, not by a description of itself.
+`tests/adversarial/` holds ten files, one per boundary, run as part of the
+ordinary suite:
+
+```bash
+python -m pytest tests/adversarial/ -q
+```
+
+Measured on `1c8addf1` (2026-08-31): **486 passed, 0 failed.**
+
+| File | Boundary under attack |
+| --- | --- |
+| `test_gateway_bypass.py` | Constitutional intelligence gateway |
+| `test_sandbox_escape.py` | Isolated execution plane |
+| `test_path_containment.py` | Scope lock and protected foundation paths |
+| `test_secret_detection.py` | Secret scanning and redaction |
+| `test_cloud_privacy.py` | Cloud transmission boundary |
+| `test_api_security.py` | HTTP surface, capability binding, replay |
+| `test_audit_integrity.py` | Tamper-evident provenance |
+| `test_audit_key_trust.py` | Trust anchor of the audit chain |
+| `test_autonomy_safety.py` | Autonomy ceiling and approval requirement |
+| `test_control_consistency.py` | Agreement between layers that both decide |
+
+#### What a green run means, and what it does not
+
+Each case here is a **reproduction of an attack that once worked**, reduced to a
+test at the boundary it defeated. Recent additions came from a single campaign:
+a sandboxed command that could write the frozen security spine that judges it;
+an audit verifier that trusted verification keys stored in the database it was
+verifying, and its two siblings (signature stripping, total erasure); an
+authorisation grant that outlived the turn that earned it; and a ratified
+constitutional amendment that never reached the worker spawner.
+
+So the suite is a **regression benchmark**. Green means those specific attacks
+are closed and stay closed — the day one reopens, this goes red loudly, with the
+reproduction attached.
+
+It is deliberately **not** published as an "attack success rate", and the number
+above should not be read as one. A corpus derived from already-fixed bugs cannot
+measure resistance to attacks nobody has thought of yet; scoring 0% against it is
+close to tautological. Its value is in the failing case, not the passing one.
+
+Two further limits, stated rather than buried:
+
+- Container-backed containment tests need a live Docker daemon
+  (`AIOS_EXECUTOR_INTEGRATION=1`); without one they assert the constructed
+  argv rather than a real boundary.
+- `test_control_consistency.py` exists because differential testing — asking
+  whether two layers that both decide actually agree — found two containment
+  escapes that roughly 450 payload-style attacks had missed. Payload coverage
+  and structural coverage are not substitutes for each other.
+
 Security reports should describe the exact threat, boundary, reproduction, and evidence.
 
 See [SECURITY.md](SECURITY.md) for reporting guidance.

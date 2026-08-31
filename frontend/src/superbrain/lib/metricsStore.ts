@@ -48,13 +48,26 @@ type Snapshot = Record<MetricKey, number>;
  *  drift/bump animation suddenly tells the truth. */
 const bases: Snapshot = { ...METRIC_BASES };
 
-/** True while the adapter's link is up. Online, the idle drift is zeroed —
- *  the displayed number only moves on real polls and real acquisition
- *  bumps. Offline, the demo imagination keeps its gentle wander. */
+/** True while the adapter's link is up.
+ *
+ *  This used to gate an idle drift: online the number moved only on real polls,
+ *  offline it wandered on `Math.random()`. The wander is gone — a readout that
+ *  invents motion while the backend is down lies at the one moment the operator
+ *  is trying to tell whether anything is alive.
+ *
+ *  The flag is still worth carrying, but as something a caller can READ rather
+ *  than a switch between real and imagined: with the link down the numbers are
+ *  the last real samples, and a consumer should be able to say "stale" rather
+ *  than presenting them as current. */
 let linkUp = false;
 
 export function setMetricLink(up: boolean): void {
   linkUp = up;
+}
+
+/** Are the displayed metrics backed by a live link, or are they last-known? */
+export function isMetricLinkUp(): boolean {
+  return linkUp;
 }
 
 /** Real history per channel (one sample per successful adapter poll), the
@@ -112,10 +125,14 @@ function startTicker() {
     const next: Snapshot = { ...current };
     for (const key of METRIC_KEYS) {
       bumps[key] *= 0.82; // acquisition bumps ease back to baseline
-      // Online the number is REAL — it moves only on polls and bumps.
-      // Offline the demo imagination keeps its gentle wander.
-      const drift = linkUp ? 0 : (Math.random() - 0.5) * 1.6;
-      const target = bases[key] + bumps[key] + drift;
+      // The number moves only on real polls and real acquisition bumps.
+      //
+      // Offline it used to keep a `(Math.random() - 0.5) * 1.6` wander, labelled
+      // "the demo imagination". A number that invents motion while the backend
+      // is down is a readout that lies exactly when it matters most — the one
+      // moment the operator is trying to tell whether anything is alive. Held
+      // still instead: a frozen gauge is honestly stale, a drifting one is not.
+      const target = bases[key] + bumps[key];
       next[key] = Math.round(Math.max(1, Math.min(99, target)));
     }
     current = next;
