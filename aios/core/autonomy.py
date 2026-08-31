@@ -35,11 +35,41 @@ from typing import Any
 from aios import config
 from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.memory.db import get_connection
+from aios.security import scope_lock
 from aios.security.secret_scanner import scan_and_redact
 
 #: Tool names whose target is a filepath (write actions). Everything else is
 #: treated as a command whose first token is the verb.
 _WRITE_ACTIONS = frozenset({"create", "edit", "create_file", "edit_file"})
+
+
+def workspace_id() -> str:
+    """Stable id for the workspace this process is currently confined to.
+
+    Derived from the ACTIVE scope roots rather than from the action's target,
+    for two reasons:
+
+    * It works uniformly. `is_earned` is called with a filepath from
+      `tool_agent` and with a whole shell command from `PolicyKernel`; parsing a
+      workspace out of a command string would be guesswork, and guesswork in the
+      key that decides whether a human is consulted is the wrong place for it.
+    * It matches the claim being made. "Earned per action-class-per-workspace"
+      means autonomy earned while confined to one workspace must not apply while
+      confined to another -- which is a property of the confinement, not of the
+      individual path.
+
+    Resolved at CALL time, not construction: a ledger built once and used across
+    a scope change must follow the change, not the moment it was created.
+    """
+    roots = scope_lock.get_scope_roots()
+    if not roots:
+        # No declared scope is not "any workspace" -- it is an unknown one, and
+        # unknown must not collide with a real workspace's earned streak.
+        roots = (Path(config.PROJECT_ROOT).resolve(),)
+    payload = "|".join(
+        sorted(str(root).replace("\\", "/").rstrip("/").lower() for root in roots)
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def _now_iso() -> str:
@@ -61,8 +91,33 @@ class AutonomyLedger:
         self.emergency_stop = emergency_stop
         self._ensure_table()
 
+    @staticmethod
+    def _migrate_workspace_column(conn: Any) -> None:
+        """Add `workspace_id` to an existing ledger, idempotently.
+
+        The column is RECORD-KEEPING, not the control: the workspace is already
+        baked into the signature hash, so a row from another workspace can never
+        be matched regardless of what this column says. It exists so an operator
+        auditing the ledger can see WHICH workspace earned a grant instead of
+        inferring it from an opaque digest.
+
+        Rows written before this migration keep NULL. They are already
+        unreachable -- their signature was computed without a workspace
+        component -- so there is nothing to back-fill and back-filling a guess
+        would be worse than leaving it blank.
+        """
+        try:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(earned_autonomy)")
+            }
+        except Exception:  # noqa: BLE001 - table may not exist yet; CREATE handles it
+            return
+        if columns and "workspace_id" not in columns:
+            conn.execute("ALTER TABLE earned_autonomy ADD COLUMN workspace_id TEXT")
+
     def _ensure_table(self) -> None:
         with get_connection(self.db_path) as conn:
+            self._migrate_workspace_column(conn)
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS earned_autonomy (
@@ -77,7 +132,8 @@ class AutonomyLedger:
                     revoked_at TEXT,
                     last_outcome_at TEXT,
                     created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-                    updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+                    updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                    workspace_id TEXT
                 );
                 """
             )
@@ -116,8 +172,26 @@ class AutonomyLedger:
         return (verb + " " + " ".join(shape)).strip()
 
     def signature(self, action_type: str, target: str) -> str:
+        """Action-class key, bound to the workspace that earned it.
+
+        The workspace component was missing until 2026-08-31. Without it a streak
+        earned doing `create *.py` in one project silently granted the same
+        action-shape in ANY other project -- and this is the LIVE path: both
+        `tool_agent` (create_file/edit_file auto-grant) and `PolicyKernel`
+        (REQUIRE_HUMAN command auto-grant) call `is_earned`, which keys on this.
+        The scoped variant below already existed and had no production caller,
+        so the capability was present and the path was not.
+
+        Pre-existing rows keyed by the old two-part signature are now unreachable
+        rather than migrated. That is deliberate and it is the safe direction: an
+        unreachable row means the class must be re-earned, whereas back-filling a
+        workspace we cannot actually know would grant autonomy nobody verified in
+        that workspace.
+        """
         norm = self._normalize(action_type, target)
-        return hashlib.sha256(f"{action_type}|{norm}".encode("utf-8")).hexdigest()
+        return hashlib.sha256(
+            f"{workspace_id()}|{action_type}|{norm}".encode("utf-8")
+        ).hexdigest()
 
     @classmethod
     def scoped_signature(
@@ -258,8 +332,8 @@ class AutonomyLedger:
                     "INSERT INTO earned_autonomy "
                     "(signature, action_type, target_shape, success_count, "
                     "failure_count, streak, status, earned_at, revoked_at, "
-                    "last_outcome_at, updated_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "last_outcome_at, updated_at, workspace_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         sig,
                         action_type,
@@ -272,6 +346,7 @@ class AutonomyLedger:
                         revoked_at,
                         now,
                         now,
+                        workspace_id(),
                     ),
                 )
             elif eligible_success:

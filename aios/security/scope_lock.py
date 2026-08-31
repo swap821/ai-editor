@@ -14,12 +14,15 @@ Scope roots default to :data:`aios.config.SCOPE_ROOTS` (the ``training_ground``
 
 from __future__ import annotations
 
+import contextvars
+import hashlib
 import re
 import shlex
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional
 
 from aios import config
 
@@ -160,6 +163,58 @@ def _bare_write_target_is_out_of_scope(words: list[str]) -> Optional[str]:
     return None
 
 
+@dataclass(frozen=True)
+class ScopeContext:
+    """An immutable set of scope roots that one task may bind for itself.
+
+    Inventory item 3. Before this, ``ScopeLockAuthority`` held ONE process-global
+    mutable list, so a concurrent lane could not declare a workspace without
+    every other lane's containment check seeing it. That was latent rather than
+    live -- measured: no production code ever called ``set_scope_roots``, only
+    tests -- but it blocks concurrent lanes and multi-project autonomy outright.
+
+    Frozen and pre-resolved, so a context cannot be edited after the checks that
+    trusted it have run.
+    """
+
+    roots: tuple[Path, ...]
+
+    @classmethod
+    def of(cls, roots: Iterable[str | Path]) -> "ScopeContext":
+        resolved = tuple(Path(r).resolve() for r in roots)
+        if not resolved:
+            # Same fail-closed rule as set_scope_roots: an empty scope is not
+            # "everything", it is a mistake, and guessing which is unsafe.
+            raise ValueError("At least one scope root is required.")
+        return cls(resolved)
+
+    @property
+    def workspace_id(self) -> str:
+        """Stable id for this confinement, for callers that key on the workspace."""
+        payload = "|".join(
+            sorted(str(r).replace("\\", "/").rstrip("/").lower() for r in self.roots)
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+#: The scope bound to the CURRENT task, or None to use the process default.
+#:
+#: A ContextVar rather than a thread-local: it follows asyncio tasks, which is
+#: what a per-request lane actually is here.
+#:
+#: CAVEAT, stated rather than discovered later: contextvars do NOT propagate
+#: into a bare ``threading.Thread``. A thread spawned inside a bound context
+#: sees the process default, which may be WIDER than the binding -- a fail-OPEN
+#: direction. Any path that crosses a thread boundary must therefore pass
+#: ``scope=`` EXPLICITLY rather than relying on the ambient binding. That is
+#: precisely why every check below takes an explicit parameter as well as
+#: honouring the context, and `test_scope_context.py` pins the caveat so it
+#: cannot be forgotten.
+_ACTIVE_SCOPE: contextvars.ContextVar[Optional[ScopeContext]] = contextvars.ContextVar(
+    "aios_active_scope", default=None
+)
+
+
 class ScopeLockAuthority:
     """Own path canonicalization and scope-root enforcement (Decision A / organ 2).
 
@@ -184,12 +239,36 @@ class ScopeLockAuthority:
             self._scope_roots.extend(resolved)
             return tuple(self._scope_roots)
 
-    def get_scope_roots(self) -> tuple[Path, ...]:
-        """Return the currently declared scope roots."""
+    def get_scope_roots(
+        self, scope: Optional[ScopeContext] = None
+    ) -> tuple[Path, ...]:
+        """Return the scope roots in force, in precedence order.
+
+        1. an EXPLICIT ``scope`` argument -- unambiguous, and the only form that
+           is safe across a thread boundary;
+        2. the scope bound to the current task via :func:`scope_context`;
+        3. the process-global default.
+
+        This is deliberately the ONE place the question is answered. Every check
+        in this module -- and, through them, ``gateway.classify`` and
+        ``Executor._scope_cwd`` -- resolves roots here, so a bound context can
+        never make one layer believe a path is contained while another does not.
+        An override living OUTSIDE this function would have created exactly that
+        second answer, which is why item 3 could not be delivered as a
+        non-frozen change and is applied under §VIII instead.
+
+        With no argument and no binding this returns precisely what it always
+        returned.
+        """
+        if scope is not None:
+            return scope.roots
+        active = _ACTIVE_SCOPE.get()
+        if active is not None:
+            return active.roots
         with self._lock:
             return tuple(self._scope_roots)
 
-    def command_cwd(self) -> Path:
+    def command_cwd(self, scope: Optional[ScopeContext] = None) -> Path:
         """The directory a sandboxed command actually runs in.
 
         This is the SINGLE source for that directory: ``Executor._scope_cwd()``
@@ -211,11 +290,15 @@ class ScopeLockAuthority:
         two disagreed and ``touch training_ground/PROOF.txt`` was ALLOWED while
         landing outside every declared root. Read the roots from one place.
         """
-        roots = self.get_scope_roots()
+        roots = self.get_scope_roots(scope)
         return roots[0].resolve().parent if roots else Path.cwd()
 
     def is_path_in_scope(
-        self, candidate: str, *, base: Optional[Path] = None
+        self,
+        candidate: str,
+        *,
+        base: Optional[Path] = None,
+        scope: Optional[ScopeContext] = None,
     ) -> ScopeResult:
         """Resolve *candidate* and check it against every declared scope root.
 
@@ -242,7 +325,7 @@ class ScopeLockAuthority:
             if not candidate or not isinstance(candidate, str):
                 return ScopeResult(False, "", "Empty or invalid path (fail-closed).")
 
-            roots = self.get_scope_roots()
+            roots = self.get_scope_roots(scope)
             if base is None:
                 base = roots[0] if roots else Path.cwd()
             raw = Path(candidate)
@@ -262,7 +345,9 @@ class ScopeLockAuthority:
         except Exception as exc:  # noqa: BLE001 - fail-closed on any error
             return ScopeResult(False, "", f"Path resolution failed (fail-closed): {exc}")
 
-    def command_stays_in_scope(self, command: str) -> CommandScopeResult:
+    def command_stays_in_scope(
+        self, command: str, *, scope: Optional[ScopeContext] = None
+    ) -> CommandScopeResult:
         """Verify every path-like *word* in *command* resolves inside a scope root.
 
         The command is split into shell **words** and each path-like word is resolved
@@ -332,7 +417,14 @@ class ScopeLockAuthority:
                 continue
             # Resolve against the cwd the command will ACTUALLY run in, not the
             # scope root. Anything else checks a path the executor never opens.
-            check = self.is_path_in_scope(token, base=self.command_cwd())
+            # BOTH the base and the containment check must come from the SAME
+            # scope. Passing `scope` to only one of them would resolve the token
+            # against one workspace and check it against another -- which is the
+            # exact base/roots mismatch that once let `training_ground/../X`
+            # escape while classifying YELLOW.
+            check = self.is_path_in_scope(
+                token, base=self.command_cwd(scope), scope=scope
+            )
             if not check.in_scope:
                 return CommandScopeResult(False, check.reason, offending=token)
 
@@ -357,31 +449,71 @@ def set_scope_roots(roots: Iterable[str | Path]) -> tuple[Path, ...]:
     return _SCOPE_LOCK.set_scope_roots(roots)
 
 
-def get_scope_roots() -> tuple[Path, ...]:
-    """Return the currently declared scope roots."""
-    return _SCOPE_LOCK.get_scope_roots()
+def get_scope_roots(scope: Optional[ScopeContext] = None) -> tuple[Path, ...]:
+    """Return the scope roots in force. See :meth:`ScopeLockAuthority.get_scope_roots`."""
+    return _SCOPE_LOCK.get_scope_roots(scope)
 
 
-def command_cwd() -> Path:
+@contextmanager
+def scope_context(roots: Iterable[str | Path]) -> Iterator[ScopeContext]:
+    """Bind a scope to the CURRENT task for the duration of the block.
+
+    Unlike :func:`set_scope_roots`, this mutates nothing another task can
+    observe, which is the whole point of item 3::
+
+        with scope_context([project_a]):
+            ...            # every containment check here sees project_a
+        ...                # and nothing outside the block ever did
+
+    Always restores on exit, including on exception -- a scope that leaked
+    because a task raised would be a containment bug, not a tidiness one.
+
+    NOT safe across a bare ``threading.Thread``: contextvars do not propagate
+    there, so the thread would fall back to the process default, which may be
+    WIDER than this binding. Pass ``scope=`` explicitly across thread
+    boundaries; :func:`current_scope` returns the object to hand over.
+    """
+    context = ScopeContext.of(roots)
+    token = _ACTIVE_SCOPE.set(context)
+    try:
+        yield context
+    finally:
+        _ACTIVE_SCOPE.reset(token)
+
+
+def current_scope() -> Optional[ScopeContext]:
+    """The scope bound to this task, or None when the process default applies.
+
+    Use this to hand an explicit scope to work that crosses a thread boundary,
+    where the ambient binding does not follow.
+    """
+    return _ACTIVE_SCOPE.get()
+
+
+def command_cwd(scope: Optional[ScopeContext] = None) -> Path:
     """The directory a sandboxed command actually runs in.
 
     The single source for the command-resolution base, shared by the scope CHECK
     and by ``Executor._scope_cwd()`` which ACTS. See
     :meth:`ScopeLockAuthority.command_cwd`.
     """
-    return _SCOPE_LOCK.command_cwd()
+    return _SCOPE_LOCK.command_cwd(scope)
 
 
-def is_path_in_scope(candidate: str) -> ScopeResult:
+def is_path_in_scope(
+    candidate: str, *, scope: Optional[ScopeContext] = None
+) -> ScopeResult:
     """Resolve *candidate* and check it against every declared scope root.
 
     Relative paths are resolved against the primary (first) scope root.
     Fail-closed: any resolution error yields ``in_scope=False``.
     """
-    return _SCOPE_LOCK.is_path_in_scope(candidate)
+    return _SCOPE_LOCK.is_path_in_scope(candidate, scope=scope)
 
 
-def command_stays_in_scope(command: str) -> CommandScopeResult:
+def command_stays_in_scope(
+    command: str, *, scope: Optional[ScopeContext] = None
+) -> CommandScopeResult:
     """Verify every path-like *word* in *command* resolves inside a scope root.
 
     The command is split into shell **words** and each path-like word is resolved
@@ -396,4 +528,4 @@ def command_stays_in_scope(command: str) -> CommandScopeResult:
     ``~`` home reference is refused outright. Returns at the first offending word;
     fail-closed (unbalanced quotes fall back to a whitespace split).
     """
-    return _SCOPE_LOCK.command_stays_in_scope(command)
+    return _SCOPE_LOCK.command_stays_in_scope(command, scope=scope)
