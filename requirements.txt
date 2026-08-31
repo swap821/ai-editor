@@ -100,7 +100,7 @@ threadpoolctl==3.6.0
 # actually satisfies the ceiling. This is the third grouped bump to push past
 # it (see 63404ab0), hence the ignore in .github/dependabot.yml rather than a
 # weekly re-fix. Lift when transformers widens the range.
-tokenizers==0.22.2
+tokenizers==0.23.1
 torch==2.13.0
 tqdm==4.70.0
 transformers==5.16.1
