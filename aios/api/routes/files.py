@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from aios import config
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
+from aios.policy.credential_paths import is_credential_path, refusal_reason
 from aios.security.scope_lock import is_path_in_scope
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import get_constitution_authority
@@ -105,6 +106,9 @@ def read_file(req: ReadFileRequest):
     check = is_path_in_scope(req.path)
     if not check.in_scope:
         raise HTTPException(status_code=403, detail="File out of bounds")
+    # In scope is containment, not permission to read secrets.
+    if is_credential_path(req.path) or is_credential_path(check.resolved):
+        raise HTTPException(status_code=403, detail=refusal_reason(req.path))
     p = Path(check.resolved)
 
     if not p.exists() or not p.is_file():
@@ -128,6 +132,8 @@ def edit_file(
     authority: ConstitutionAuthority = Depends(get_constitution_authority),
 ):
     """Proposes diff, hits gate."""
+    if is_credential_path(req.path):
+        raise HTTPException(status_code=403, detail=refusal_reason(req.path))
     check = is_path_in_scope(req.path)
     if not check.in_scope:
         if bus:

@@ -31,6 +31,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 from aios import config
+from aios.policy.credential_paths import (
+    is_credential_path,
+    refusal_reason,
+)
 from aios.security import scope_lock
 from aios.security.gateway import Zone, classify
 
@@ -48,7 +52,14 @@ _READ_TOOLS = frozenset({"Read", "Glob", "Grep", "read_file", "read_directory"})
 #: Path markers that carry credentials. A read is not harmless when the bytes
 #: are a key: VII.4 keeps secrets off disk and out of logs, and handing one to
 #: an external agent's context is the same leak by another route.
-_SECRET_MARKERS = (".env", "id_rsa", "credentials.json", ".pem", ".key", ".p12")
+#: Superseded by aios.policy.credential_paths. Kept only as a doc of what the
+#: basename-only version caught, because the gap it left was structural: it
+#: matched the FINAL segment only, so `.aws/credentials`, `.ssh/config`,
+#: `.git/config` and `.docker/config.json` were all invisible to it -- every
+#: credential store that identifies itself by its directory. It also guarded
+#: reads only, so a bridge-authorized agent could not read `.env` but could
+#: overwrite it.
+_LEGACY_SECRET_MARKERS = (".env", "id_rsa", "credentials.json", ".pem", ".key", ".p12")
 
 
 @dataclass(frozen=True)
@@ -80,10 +91,14 @@ def _first_str(payload: dict[str, Any], *keys: str) -> str:
 
 
 def looks_secret_bearing(path: str) -> bool:
-    """Whether a path names credential material rather than source."""
-    lowered = path.replace("\\", "/").lower()
-    name = lowered.rsplit("/", 1)[-1]
-    return any(marker in name for marker in _SECRET_MARKERS)
+    """Whether a path names credential material rather than source.
+
+    Delegates to the single repo-wide predicate. This function used to carry its
+    own basename-substring answer, which disagreed with what every other
+    chokepoint would have said -- and since it was the ONLY chokepoint that
+    asked, the disagreement was invisible.
+    """
+    return is_credential_path(path)
 
 
 def authorize(
@@ -141,6 +156,11 @@ def authorize(
                 "Write outside the sandbox scope (" + roots + "): " + str(check.reason),
                 name, "N/A", target,
             )
+        # In scope is not permission to WRITE credential material. Reads were
+        # guarded here from the start and writes were not, so the bridge refused
+        # to show an agent `.env` while letting it overwrite the file.
+        if is_credential_path(target) or is_credential_path(resolved):
+            return BridgeDecision(False, refusal_reason(target), name, "N/A", target)
         return BridgeDecision(True, "Write within the sandbox scope.", name, "N/A", target)
 
     if name in _READ_TOOLS:

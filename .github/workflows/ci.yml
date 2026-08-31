@@ -499,7 +499,28 @@ jobs:
         # "organs 1-5's tests were written by the party that wrote the code".
         # Fast (six targeted AST mutations, no pytest subprocess), so it runs on
         # every build rather than on demand.
+        #
+        # thesis_audit.py is the M1 anti-rot gate: it asserts that the config
+        # defaults and the claims in README/AGENTS/PLAN still agree, so a
+        # documented invariant cannot quietly stop being true. It existed and
+        # passed for weeks WITHOUT being wired here, which made it a claim
+        # rather than a gate -- the same shape as golden-cohort-local passing
+        # while proving nothing. Runs with the other paperwork checks because
+        # it is pure-Python and needs no topology.
+        #
+        # check_frozen_core.py is the merge-boundary backstop for AGENTS.md
+        # §VIII. Until it existed, the frozen security spine was guarded ONLY by
+        # two in-process checks (ConstitutionEnforcer.check_file_edit and
+        # SelfAnalysisAgent.classify_target), so a commit authored any other way
+        # -- an agent editing files directly, or a future self-improvement loop
+        # opening its own PR -- met no automated resistance at all. It reads the
+        # frozen set from aios/policy/constitution.py, the SAME constant the
+        # runtime enforcer uses, so the gate and the product cannot disagree.
+        # Needs the full history this job already fetches (fetch-depth: 0) to
+        # resolve a merge base.
         run: |
+          python scripts/check_frozen_core.py --base origin/master
+          python tools/thesis_audit.py
           python scripts/build_organ_ledger_doc.py --check
           python scripts/check_organism_seam.py --check
           python scripts/spine_mutation_probe.py --check
