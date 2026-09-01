@@ -41,9 +41,18 @@ RUN pip install --no-cache-dir -r /tmp/requirements-worker.txt
 # Jobs are mounted here by the executor.
 WORKDIR /workspace
 
-# Same unprivileged uid as the executor service. A workload container must
-# never run as root even though it is disposable -- the mounted workspace is
-# host-visible.
+# A workload container must never run as root even though it is disposable --
+# the mounted workspace is host-visible.
+#
+# This USER is the IMAGE default and a floor, not the whole story: the executor
+# passes an explicit `--user` at run time (see `_container_user` in
+# aios/core/executor.py), derived from the invoking uid so the sandbox can
+# actually write the scope roots bind-mounted from the host. Hardcoding 65534
+# at run time meant that on Linux it could not -- inventory item 84b -- because
+# those directories belong to whoever checked the repository out.
+#
+# The chown below still matters for the image's own /workspace, which is what a
+# container sees when nothing is mounted over it.
 RUN mkdir -p /workspace && chown -R 65534:65534 /workspace
 USER 65534:65534
 

@@ -150,6 +150,16 @@ def test_the_sandbox_can_still_write_its_own_scope_root(runner: DockerRunner) ->
     writes AND break every mission — missions create files in
     `training_ground/`. Read-only-everything is not the fix; read-only-parent
     plus writable-scope-roots is.
+
+    The write must SUCCEED. EACCES was tolerated while item 84b was open (the
+    container ran as nobody while the host directory belonged to the checkout
+    user); now that the sandbox runs as the invoking uid, a permission failure
+    here is a regression.
+
+    A MISSING mount is checked separately and first, because that is what made
+    the forbidden-write cases above pass vacuously on 2026-09-01: the container
+    died at mount config, so "no file appeared" and "exit != 0" were both
+    trivially true.
     """
     roots = scope_lock.get_scope_roots()
     if not roots:
@@ -178,28 +188,25 @@ def test_the_sandbox_can_still_write_its_own_scope_root(runner: DockerRunner) ->
             f"docker refused the container (exit 125): {stderr[:300]!r}"
         )
 
-        if exit_code == 0:
-            assert probe.exists(), (
-                f"the write to {root.name}/ reported success but no file appeared "
-                "on the host; the scope root is not actually bind-mounted "
-                "read-write"
-            )
-            return
-
-        # The mount exists but this uid cannot write through it. That is a REAL
-        # and separate limitation, not a containment failure: the container runs
-        # `--user 65534:65534` (nobody) while the host directory belongs to
-        # whoever checked the repo out. Docker Desktop on Windows papers over
-        # this with its own uid translation; on Linux it bites, so a mission
-        # that creates a file in training_ground/ cannot succeed there.
-        #
-        # Asserted rather than skipped, so this stays visible and cannot decay
-        # into a silent green. See inventory item 84b.
-        assert "permission denied" in combined, (
-            f"the write to {root.name}/ failed for an UNEXPECTED reason. Either "
-            "the mount is missing or something new is wrong: "
-            f"exit={exit_code} stdout={stdout[:300]!r} stderr={stderr[:300]!r}"
+        # EACCES was tolerated here while item 84b was open: the container ran
+        # `--user 65534:65534` while the host scope root belonged to the checkout
+        # user, so on Linux this write could not succeed. That is fixed -- the
+        # sandbox now runs as the invoking uid -- so the contract is a successful
+        # write again, and a permission failure is a REGRESSION, not a known
+        # limitation.
+        assert exit_code == 0, (
+            f"the sandbox could not write its OWN scope root {root.name}/. A "
+            "read-only workspace with no writable roots handed back breaks every "
+            "mission. If this says 'Permission denied', item 84b has regressed "
+            "and the container uid no longer matches the host directory owner. "
+            f"stdout={stdout[:300]!r} stderr={stderr[:300]!r}"
         )
+        assert probe.exists(), (
+            f"the write to {root.name}/ reported success but no file appeared on "
+            "the host; the scope root is not actually bind-mounted read-write"
+        )
+        return
+
     finally:
         if probe.exists():
             probe.unlink()
