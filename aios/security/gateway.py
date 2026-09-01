@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Iterator, Optional, Pattern
 
 from aios import config
-from aios.security.scope_lock import command_stays_in_scope
+from aios.security.scope_lock import ScopeContext, command_stays_in_scope
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -399,7 +399,7 @@ class SecurityGatewayAuthority:
         command: str,
         *,
         injection_shield: object = None,
-        scope: object = None,
+        scope: Optional[ScopeContext] = None,
     ) -> ClassificationResult:
         """Deterministically classify *command* into a security zone (fail-closed).
 
@@ -570,7 +570,10 @@ def set_injection_shield(shield: object) -> None:
 
 
 def classify(
-    command: str, *, injection_shield: object = None, scope: object = None
+    command: str,
+    *,
+    injection_shield: object = None,
+    scope: Optional[ScopeContext] = None,
 ) -> ClassificationResult:
     """Deterministically classify *command* into a security zone (fail-closed).
 

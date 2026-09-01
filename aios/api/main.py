@@ -180,6 +180,7 @@ from aios.memory.curriculum import CurriculumManager
 from aios.memory.relevance import signature as task_signature
 from aios.memory.embeddings import VectorIndex
 from aios.memory.fact_extraction import extract_candidates
+from aios.memory.development import DevelopmentTracker
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
 from aios.memory.semantic import SemanticMemory

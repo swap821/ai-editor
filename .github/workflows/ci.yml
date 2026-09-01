@@ -403,7 +403,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pip-licenses ruff==0.9.10 bandit==1.9.4
+          pip install pip-licenses ruff==0.9.10 bandit==1.9.4 mypy==2.3.1
 
       - name: Tracked-source secret scan
         run: python scripts/security_scan.py
@@ -508,6 +508,16 @@ jobs:
         # while proving nothing. Runs with the other paperwork checks because
         # it is pure-Python and needs no topology.
         #
+        # check_mypy.py type-checks the SECURITY SPINE at zero errors (item 86).
+        # Deliberately not ratcheted like bandit: the subset had only 11 errors,
+        # small enough to fix outright, and a budget there would institutionalise
+        # a pile that could simply be cleared. Its first run found a real Windows
+        # crash in the executor's timeout-kill path (POSIX-only signal names
+        # guarded by `except OSError`, which does not catch AttributeError) and
+        # two unresolvable FastAPI route annotations -- none caught by any test.
+        # Scoped with --follow-imports=silent; the same subset without it reports
+        # 337 errors across 80 files, which is a separate, larger project.
+        #
         # check_bandit.py is pattern-level security lint (item 87). pip-audit
         # covers third-party CVEs and CodeQL covers semantic queries; neither
         # catches a new `shell=True`, a hardcoded credential, or weak crypto.
@@ -543,6 +553,7 @@ jobs:
         run: |
           AIOS_DATA_DIR="$(mktemp -d)" python scripts/check_frozen_core.py --base origin/master
           python scripts/check_bandit.py
+          python scripts/check_mypy.py
           AIOS_DATA_DIR="$(mktemp -d)" python tools/thesis_audit.py
           python scripts/build_organ_ledger_doc.py --check
           python scripts/check_organism_seam.py --check
