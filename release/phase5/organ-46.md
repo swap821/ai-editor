@@ -2,13 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `3b413945d1638c80b645e2f5a4aeab642ef7b1f5`
-**Generated:** 2026-08-02T16:26:10+00:00
+**Evaluated tip:** `9381121b346f2645b8c9812b3ea3ae5ba89ba334`
+**Generated:** 2026-09-01T15:53:46+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: no Ollama — live constitutional learning / human red-team path needs live Ollama and/or Outside-machine cloud; human red-team still absent by design
-- **residual**: C4: N/A-BY-DESIGN — learning outcomes are not the adversarial journal; aios/application/governance/constitutional_learning.py::ConstitutionalLearningAuthority
+- **residual**: Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- this organ asserts a runtime property, so requires_live_evidence is now true, but its live evidence is stamped at an earlier commit than the evaluated one. To return to green, regenerate live evidence at the evaluated tip. See release/organ-ledger/2026-09-01-live-evidence-recount.md
 
 ## Written verdict keys that are not PASS/N/A
 
