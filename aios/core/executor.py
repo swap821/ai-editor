@@ -261,6 +261,35 @@ def _mount_spec_safe(path: str) -> bool:
     return not (any(ch in path for ch in ",=") or ":" in colon_scan)
 
 
+def _is_windows_style(path: str) -> bool:
+    r"""True only for a real Windows path: a drive (``C:\...``) or a UNC share.
+
+    NOT `ntpath.isabs`. That was the original discriminator and it is wrong for
+    POSIX paths in a way that depends on the Python version:
+
+        Python 3.12:  ntpath.isabs("/home/runner/x")  ->  True
+        Python 3.13+: ntpath.isabs("/home/runner/x")  ->  False
+
+    A leading slash is "absolute" under Windows semantics (drive-relative), so
+    on Python 3.12 -- which CI runs -- every POSIX absolute path took the
+    Windows branch and `ntpath.normpath` rewrote `/home/runner/...` into
+    `\home\runner\...`. Docker then refused the whole container:
+
+        invalid mount config for type "bind": bind source path does not exist
+
+    That broke `DockerRunner` outright on Linux from 2026-08-19 until it was
+    caught by the first REAL container run on 2026-09-01. Nothing noticed
+    because the unit tests assert the constructed argv on Windows (where the
+    branch happens to be right), the executor-service integration tests use a
+    different code path, and the operator's machine is Windows on 3.14.
+
+    A drive prefix is the property that actually requires ntpath semantics, so
+    that is what this tests.
+    """
+    drive, _ = ntpath.splitdrive(path)
+    return bool(drive) or path.startswith("\\\\")
+
+
 def _writable_scope_mounts(resolved_cwd: str) -> list[str]:
     """``--mount`` args remounting each scope root read-write inside /workspace.
 
@@ -282,9 +311,17 @@ def _writable_scope_mounts(resolved_cwd: str) -> list[str]:
     except Exception:  # noqa: BLE001 - fail closed: no roots means nothing writable
         return mounts
 
-    base = PureWindowsPath(resolved_cwd) if ntpath.isabs(resolved_cwd) else Path(resolved_cwd)
+    base = (
+        PureWindowsPath(resolved_cwd)
+        if _is_windows_style(resolved_cwd)
+        else Path(resolved_cwd)
+    )
     for root in roots:
-        src = ntpath.normpath(str(root)) if ntpath.isabs(str(root)) else str(Path(root).resolve())
+        src = (
+            ntpath.normpath(str(root))
+            if _is_windows_style(str(root))
+            else str(Path(root).resolve())
+        )
         if not _mount_spec_safe(src):
             continue
         try:
