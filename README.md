@@ -515,6 +515,9 @@ must originate from canonical backend state or be clearly labelled as ambient pr
 
 GAGOS contains substantial implementations of its major organs, but the repository is still converging toward one complete and independently proven V1 runtime.
 
+**Status below last verified on `9381121` (2026-09-01).** Where a line names a
+check, the check is the claim — re-run it rather than trusting the line.
+
 ### Substantially implemented
 
 - Deterministic security classification
@@ -535,20 +538,47 @@ GAGOS contains substantial implementations of its major organs, but the reposito
 - Living 3D and workbench frontend
 - Durable emergency-stop authority
 
+### Proven by a runnable check
+
+Each row names the check. The check is the claim.
+
+| Claim | Check |
+| --- | --- |
+| Container containment holds against a real daemon: the repo root is mounted read-only and only declared scope roots are remounted writable | `AIOS_EXECUTOR_INTEGRATION=1 python -m pytest -rs tests/test_container_containment_integration.py` — runs on every push in `release-authority`; 4 passed, 0 skipped on `9381121` |
+| The private Executor Service is isolated and never receives the Docker socket | `AIOS_EXECUTOR_INTEGRATION=1 python -m pytest tests/test_executor_integration.py` — runs on every push in `release-authority` |
+| A ratified constitutional amendment changes enforced behaviour, including at worker spawn | `pytest tests/adversarial/test_control_consistency.py tests/test_governance_red_team_corpus.py` |
+| The audit chain rejects a forged key, a stripped signature, and total erasure | `pytest tests/adversarial/test_audit_key_trust.py` |
+| Known attacks against every governed boundary stay closed | `python -m pytest tests/adversarial/ -q` — 486 passed, 0 failed on `9381121` |
+
+Green here means those specific checks pass. It does not mean the boundary
+resists attacks nobody has written yet.
+
 ### Still being completed or proven
 
 - One universal gateway for every model call
-- Complete human-representation context for every provider
+- Complete human-representation context for every provider — the agentic
+  `/api/generate` path compiles its own representative context and carries
+  neither operator preferences nor the project passport
 - Durable end-to-end local-clerk provenance
-- Repeated live local-clerk evidence
-- Complete private Executor runtime proof
+- Repeated live local-clerk evidence — the nightly runs the prover against a
+  real Ollama daemon; the corpus is young
 - Crash-safe mission resumption
-- Skill confidence, demotion, and endurance evidence
-- Human-ratified constitutional amendments
-- Constitutional learning
-- Fully truthful read models and operator walkthrough
-- Clean-machine packaging, backup, and restore
-- Exact-tip release evidence and independent review
+- Skill confidence and demotion evidence — `create_file`/`edit_file` steps
+  cannot compile into a playbook (`aios/core/cerebellum.py:41`), so the
+  workflow class the system most often performs can neither earn nor lose a
+  skill
+- Endurance evidence — the nightly workflow that runs `tools/endurance_tester.py`
+  was merged on 2026-09-01 and **has not yet fired once**, so no endurance run
+  has been recorded by CI. It is also wired at `--duration-minutes 10`, not the
+  tool's 30-minute default
+- Fully truthful operator walkthrough — read models no longer invent motion
+  while the backend is unreachable; the guided walkthrough does not exist
+- Clean-machine packaging — backup and restore exist
+  (`aios/operations/recovery.py`, with live DR drills); one-command install on
+  a fresh machine does not
+- **Independent review — no engineer outside this repository has installed
+  GAGOS, run a governed mission, or reproduced any of its evidence.** This is
+  the largest untested claim in the project.
 
 ### Executable release truth
 

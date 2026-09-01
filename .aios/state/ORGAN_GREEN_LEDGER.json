@@ -203,7 +203,7 @@
   {
     "organ_id": 6,
     "name": "Edge Trust Boundary",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "EdgeTrustAuthority",
     "production_entrypoints": [
       "aios/interfaces/http/edge_security.py"
@@ -221,9 +221,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 EdgeTrustAuthority class defined in production_entrypoints ['aios/interfaces/http/edge_security.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_edge_security.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -242,7 +244,7 @@
   {
     "organ_id": 7,
     "name": "Policy Kernel",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "PolicyKernelAuthority",
     "production_entrypoints": [
       "aios/policy/kernel.py"
@@ -260,9 +262,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 PolicyKernelAuthority class defined in production_entrypoints ['aios/policy/kernel.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_policy_kernel.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -281,7 +285,7 @@
   {
     "organ_id": 8,
     "name": "Action Broker",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ActionBrokerAuthority",
     "production_entrypoints": [
       "aios/application/action_broker.py"
@@ -299,7 +303,9 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -320,7 +326,7 @@
   {
     "organ_id": 9,
     "name": "Exact Capability Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "CapabilityAuthority",
     "production_entrypoints": [
       "aios/application/capabilities/authority.py"
@@ -343,9 +349,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 CapabilityAuthority class defined in production_entrypoints ['aios/application/capabilities/authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_exact_capabilities.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -364,7 +372,7 @@
   {
     "organ_id": 10,
     "name": "Mission Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "MissionAuthority",
     "production_entrypoints": [
       "aios/application/missions/mission_service.py"
@@ -387,9 +395,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 MissionAuthority class defined in production_entrypoints ['aios/application/missions/mission_service.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mission_contract_v1.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -408,7 +418,7 @@
   {
     "organ_id": 11,
     "name": "Turn Coordinator",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "TurnCoordinatorAuthority",
     "production_entrypoints": [
       "aios/application/turns/turn_coordinator.py"
@@ -426,9 +436,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 TurnCoordinatorAuthority class defined in production_entrypoints ['aios/application/turns/turn_coordinator.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_turn_coordinator.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -447,7 +459,7 @@
   {
     "organ_id": 12,
     "name": "Worker Foundry",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "WorkerFoundryAuthority",
     "production_entrypoints": [
       "aios/application/workers/foundry.py"
@@ -465,9 +477,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 WorkerFoundryAuthority class defined in production_entrypoints ['aios/application/workers/foundry.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_worker_foundry.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -486,7 +500,7 @@
   {
     "organ_id": 13,
     "name": "Isolated Executor Service (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ExecutorServiceAuthority",
     "production_entrypoints": [
       "aios/executor_service.py"
@@ -504,9 +518,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ExecutorServiceAuthority class defined in production_entrypoints ['aios/executor_service.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_executor_service.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -525,7 +541,7 @@
   {
     "organ_id": 14,
     "name": "Staged Workspace Manager (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "StagedWorkspaceAuthority",
     "production_entrypoints": [
       "aios/application/workspaces/staged.py"
@@ -543,9 +559,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 StagedWorkspaceAuthority class defined in production_entrypoints ['aios/application/workspaces/staged.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_staged_workspaces.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -564,7 +582,7 @@
   {
     "organ_id": 15,
     "name": "Evidence and Verification Authority (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "VerificationAuthority",
     "production_entrypoints": [
       "aios/application/evidence/verification.py"
@@ -587,9 +605,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 VerificationAuthority class defined in production_entrypoints ['aios/application/evidence/verification.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_verification_strength.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -608,7 +628,7 @@
   {
     "organ_id": 16,
     "name": "Promotion Authority (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "PromotionAuthority",
     "production_entrypoints": [
       "aios/application/promotion/authority.py"
@@ -631,9 +651,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 PromotionAuthority class defined in production_entrypoints ['aios/application/promotion/authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_promotion_authority.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -652,7 +674,7 @@
   {
     "organ_id": 17,
     "name": "Cortex Observation Bus",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "CortexBusAuthority",
     "production_entrypoints": [
       "aios/runtime/cortex_bus.py"
@@ -675,9 +697,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 CortexBusAuthority class defined in production_entrypoints ['aios/runtime/cortex_bus.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_cortex_bus.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -696,7 +720,7 @@
   {
     "organ_id": 18,
     "name": "Memory Authority (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "MemoryAuthority",
     "production_entrypoints": [
       "aios/application/memory/authority.py"
@@ -719,9 +743,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 MemoryAuthority class defined in production_entrypoints ['aios/application/memory/authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_memory_authority.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -740,7 +766,7 @@
   {
     "organ_id": 19,
     "name": "Emergency Stop Controller (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "EmergencyStopController",
     "production_entrypoints": [
       "aios/application/governance/emergency_stop.py"
@@ -763,9 +789,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 EmergencyStopController class defined in production_entrypoints ['aios/application/governance/emergency_stop.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_governance.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -784,7 +812,7 @@
   {
     "organ_id": 20,
     "name": "Living Mirror Reaction Registry (construction)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LivingMirrorAuthority",
     "production_entrypoints": [
       "frontend/src/superbrain/lib/livingMirrorRegistry.ts"
@@ -802,9 +830,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 LivingMirrorAuthority class defined in production_entrypoints ['frontend/src/superbrain/lib/livingMirrorRegistry.ts'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['frontend/src/superbrain/lib/livingMirrorRegistry.test.ts'] (Phase 2 caller / anti-passthrough suite)",
@@ -823,7 +853,7 @@
   {
     "organ_id": 21,
     "name": "Queen Council Orchestrator",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "QueenCouncilAuthority",
     "production_entrypoints": [
       "aios/council/council_orchestrator.py"
@@ -841,9 +871,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 QueenCouncilAuthority class defined in production_entrypoints ['aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_council_orchestrator.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -862,7 +894,7 @@
   {
     "organ_id": 22,
     "name": "V1 Release Declaration (gagos v1-check)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ReleaseDeclarationAuthority",
     "production_entrypoints": [
       "aios/application/governance/v1_declaration.py"
@@ -880,7 +912,9 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -901,7 +935,7 @@
   {
     "organ_id": 23,
     "name": "Release Conformance Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ReleaseConformanceAuthority",
     "production_entrypoints": [
       "scripts/build_release_manifest.py",
@@ -925,9 +959,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- this organ asserts a runtime property, so requires_live_evidence is now true, but its live evidence is stamped at an earlier commit than the evaluated one. To return to green, regenerate live evidence at the evaluated tip. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReleaseConformanceAuthority class defined in production_entrypoints ['scripts/build_release_manifest.py', 'tests/test_organ_release_conformance.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_release_conformance.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -946,7 +982,7 @@
   {
     "organ_id": 24,
     "name": "Human Sovereign Identity",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "IdentityAuthority",
     "production_entrypoints": [
       "aios/domain/identity/models.py",
@@ -968,9 +1004,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 IdentityAuthority class defined in production_entrypoints ['aios/domain/identity/models.py', 'aios/application/identity/service.py', 'aios/infrastructure/identity/sqlite_store.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitution_snapshot.py', 'tests/test_exact_capabilities.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -989,7 +1027,7 @@
   {
     "organ_id": 25,
     "name": "Constitutional Kernel",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ConstitutionalKernelAuthority",
     "production_entrypoints": [
       "aios/application/governance/constitution_authority.py",
@@ -1024,9 +1062,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalKernelAuthority class defined in production_entrypoints ['aios/application/governance/constitution_authority.py', 'aios/infrastructure/governance/constitution_snapshot_store.py', 'aios/domain/governance/constitution.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitution_authority.py', 'tests/test_constitution_snapshot.py', 'tests/test_constitution_snapshot_store.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1045,7 +1085,7 @@
   {
     "organ_id": 26,
     "name": "Emergency Stop Organ (full boundary hard-wiring)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "EmergencyStopHardWiringAuthority",
     "production_entrypoints": [
       "aios/runtime/intelligence_gateway.py",
@@ -1075,7 +1115,9 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -1096,7 +1138,7 @@
   {
     "organ_id": 27,
     "name": "Operator Taste Model",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "OperatorTasteModelAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -1127,9 +1169,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 OperatorTasteModelAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_operator_preferences_api.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1148,7 +1192,7 @@
   {
     "organ_id": 28,
     "name": "Project Understanding Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProjectUnderstandingAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -1175,9 +1219,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProjectUnderstandingAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1196,7 +1242,7 @@
   {
     "organ_id": 29,
     "name": "Correction and Interpretation-Lineage Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "CorrectionLineageAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -1226,9 +1272,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 CorrectionLineageAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1247,7 +1295,7 @@
   {
     "organ_id": 30,
     "name": "Communication and Human-State Interpreter",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "HumanStateInterpreterAuthority",
     "production_entrypoints": [
       "aios/domain/memory/human_representation.py",
@@ -1274,9 +1322,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 HumanStateInterpreterAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/application/turns/conversation_pipeline.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_human_representation.py', 'tests/test_human_representation_store.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1295,7 +1345,7 @@
   {
     "organ_id": 31,
     "name": "Human Representative Context Compiler",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "RepresentativeContextCompilerAuthority",
     "production_entrypoints": [
       "aios/domain/intelligence/representative_context.py",
@@ -1321,9 +1371,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 RepresentativeContextCompilerAuthority class defined in production_entrypoints ['aios/domain/intelligence/representative_context.py', 'aios/application/intelligence/context_compiler.py', 'aios/application/intelligence/gateway.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_representative_context_compiler.py', 'tests/test_representative_context_store.py', 'tests/test_authenticated_chat_representation.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1342,7 +1394,7 @@
   {
     "organ_id": 32,
     "name": "Universal Intelligence Gateway",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "UniversalIntelligenceGatewayAuthority",
     "production_entrypoints": [
       "aios/application/intelligence/gateway.py",
@@ -1381,9 +1433,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 UniversalIntelligenceGatewayAuthority class defined in production_entrypoints ['aios/application/intelligence/gateway.py', 'aios/council/gateway_reasoning.py', 'aios/application/intelligence/authenticated_chat.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_intelligence_gateway.py', 'tests/test_council_gateway_reasoning.py', 'tests/test_authenticated_chat_route.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1402,7 +1456,7 @@
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -1429,9 +1483,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "90830647e40c2f29b45b042e00b935d632d1d8f4",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1450,7 +1506,7 @@
   {
     "organ_id": 34,
     "name": "Cloud Budget and Provider-Health Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProviderHealthBudgetAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -1474,9 +1530,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProviderHealthBudgetAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/health.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_model_passport_and_health.py', 'tests/test_failover.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1495,7 +1553,7 @@
   {
     "organ_id": 35,
     "name": "Local Clerk Runtime",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LocalClerkRuntimeAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/contracts.py"
@@ -1515,9 +1573,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalClerkRuntimeAuthority class defined in production_entrypoints ['aios/domain/local_workforce/contracts.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/domain/test_local_workforce_qualifier.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1536,7 +1596,7 @@
   {
     "organ_id": 36,
     "name": "Clerical Job Contract and Dispatcher",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ClerkDispatcherAuthority",
     "production_entrypoints": [
       "aios/application/local_workforce/dispatcher.py",
@@ -1561,7 +1621,9 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -1582,7 +1644,7 @@
   {
     "organ_id": 37,
     "name": "Local Model Qualification and Health",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "LocalModelQualificationAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/qualifier.py",
@@ -1605,9 +1667,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalModelQualificationAuthority class defined in production_entrypoints ['aios/domain/local_workforce/qualifier.py', 'aios/application/local_workforce/qualification_evidence.py', 'aios/domain/local_workforce/registry.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_clerk_dispatcher.py', 'tests/test_local_workforce_qualification_evidence.py', 'tests/domain/test_local_workforce_qualifier.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1626,7 +1690,7 @@
   {
     "organ_id": 38,
     "name": "Durable Local-Clerk Provenance and Continuity Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ClerkProvenanceAuthority",
     "production_entrypoints": [
       "aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py",
@@ -1652,9 +1716,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ClerkProvenanceAuthority class defined in production_entrypoints ['aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py', 'aios/infrastructure/local_workforce/sqlite_store.py', 'aios/application/local_workforce/provenance.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_local_workforce_provenance.py', 'tests/test_local_workforce_service_provenance.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1673,7 +1739,7 @@
   {
     "organ_id": 39,
     "name": "Multi-Model Deliberation and Dissent Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "DeliberationCouncilAuthority",
     "production_entrypoints": [
       "aios/domain/intelligence/deliberation.py",
@@ -1701,9 +1767,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 DeliberationCouncilAuthority class defined in production_entrypoints ['aios/domain/intelligence/deliberation.py', 'aios/application/intelligence/deliberation.py', 'aios/council/deliberation_gather.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_deliberation.py', 'tests/test_deliberation_gather.py', 'tests/test_deliberation_store.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1722,7 +1790,7 @@
   {
     "organ_id": 40,
     "name": "Isolated Workspace and Executor (live proof)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "IsolatedExecutorLiveAuthority",
     "production_entrypoints": [
       "aios/application/executor/service.py",
@@ -1758,9 +1826,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 IsolatedExecutorLiveAuthority class defined in production_entrypoints ['aios/application/executor/service.py', 'aios/application/governance/runtime_proof.py', 'aios/application/read_models/executor_projections.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_executor_service.py', 'tests/test_executor_client.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1779,7 +1849,7 @@
   {
     "organ_id": 41,
     "name": "Promotion, Checkpoint and Rollback (live proof)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "PromotionRollbackLiveAuthority",
     "production_entrypoints": [
       "aios/application/promotion/authority.py",
@@ -1798,9 +1868,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 PromotionRollbackLiveAuthority class defined in production_entrypoints ['aios/application/promotion/authority.py', 'aios/domain/promotion/contracts.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_promotion_authority.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1819,7 +1891,7 @@
   {
     "organ_id": 42,
     "name": "Recovery and Resumption",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "RecoveryResumptionAuthority",
     "production_entrypoints": [
       "aios/api/routes/council.py",
@@ -1851,9 +1923,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 RecoveryResumptionAuthority class defined in production_entrypoints ['aios/api/routes/council.py', 'aios/api/routes/maintenance.py', 'aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_council_orchestrator.py', 'tests/test_mission_transition_journal.py', 'tests/test_maintenance_api.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1872,7 +1946,7 @@
   {
     "organ_id": 43,
     "name": "Local Skill Reuse, Confidence and Demotion",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SkillLifecycleAuthority",
     "production_entrypoints": [
       "aios/domain/learning/skill_contracts.py",
@@ -1896,9 +1970,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 SkillLifecycleAuthority class defined in production_entrypoints ['aios/domain/learning/skill_contracts.py', 'aios/domain/learning/repository.py', 'aios/application/learning/skill_lifecycle.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_skill_lifecycle.py', 'tests/test_learning_application.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1917,7 +1993,7 @@
   {
     "organ_id": 44,
     "name": "Golden Mission and Endurance Evaluation",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "GoldenMissionEnduranceAuthority",
     "production_entrypoints": [
       "tools/golden_mission_runner.py",
@@ -1957,9 +2033,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- this organ asserts a runtime property, so requires_live_evidence is now true, but its live evidence is stamped at an earlier commit than the evaluated one. To return to green, regenerate live evidence at the evaluated tip. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "0b52e3208a07c60139f1f200d8ab10bf07e6c362",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 GoldenMissionEnduranceAuthority class defined in production_entrypoints ['tools/golden_mission_runner.py', 'tools/endurance_tester.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -1978,7 +2056,7 @@
   {
     "organ_id": 45,
     "name": "Constitutional Amendment Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ConstitutionalAmendmentAuthority",
     "production_entrypoints": [
       "aios/domain/governance/amendments.py",
@@ -2009,9 +2087,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalAmendmentAuthority class defined in production_entrypoints ['aios/domain/governance/amendments.py', 'aios/domain/governance/constitution.py', 'aios/application/governance/amendment_authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitutional_amendment.py', 'tests/test_constitution_snapshot_store.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -2030,7 +2110,7 @@
   {
     "organ_id": 46,
     "name": "Constitutional Learning Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ConstitutionalLearningAuthority",
     "production_entrypoints": [
       "aios/domain/governance/learning.py",
@@ -2085,9 +2165,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- this organ asserts a runtime property, so requires_live_evidence is now true, but its live evidence is stamped at an earlier commit than the evaluated one. To return to green, regenerate live evidence at the evaluated tip. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "3dc7323d74cc32d57b904dba720abe713a0dde0e",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalLearningAuthority class defined in production_entrypoints ['aios/domain/governance/learning.py', 'aios/application/governance/constitutional_learning.py', 'aios/application/governance/adversarial_simulations.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_constitutional_learning.py', 'tests/test_adversarial_simulations.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -2106,7 +2188,7 @@
   {
     "organ_id": 47,
     "name": "Read-Model and Projection Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ReadModelProjectionAuthority",
     "production_entrypoints": [
       "aios/domain/read_models/contracts.py",
@@ -2126,9 +2208,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReadModelProjectionAuthority class defined in production_entrypoints ['aios/domain/read_models/contracts.py', 'aios/application/read_models/governance_projections.py', 'aios/api/routes/mirror.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_read_model_projections.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -2147,7 +2231,7 @@
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2167,9 +2251,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 TruthfulMirrorAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ48.test.jsx'] (Phase 2 caller / anti-passthrough suite)",
@@ -2188,7 +2274,7 @@
   {
     "organ_id": 49,
     "name": "Approval and Decision Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ApprovalDecisionSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2208,9 +2294,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ApprovalDecisionSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ49.test.jsx'] (Phase 2 caller / anti-passthrough suite)",
@@ -2229,7 +2317,7 @@
   {
     "organ_id": 50,
     "name": "Provenance and Explanation Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
     "production_entrypoints": [
       "aios/memory/development.py",
@@ -2271,9 +2359,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProvenanceExplanationSurfaceAuthority class defined in production_entrypoints ['aios/memory/development.py', 'aios/application/models/privacy_audit.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_brain_growth.py', 'tests/test_read_model_projections.py', 'tests/test_privacy_audit.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -2292,7 +2382,7 @@
   {
     "organ_id": 51,
     "name": "Sovereign Control and Heartbeat Surface",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "SovereignHeartbeatSurfaceAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2312,9 +2402,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 SovereignHeartbeatSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ51.test.jsx'] (Phase 2 caller / anti-passthrough suite)",
@@ -2333,7 +2425,7 @@
   {
     "organ_id": 52,
     "name": "Observability and Health Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "ObservabilityAuthority",
     "production_entrypoints": [
       "aios/api/main.py",
@@ -2371,9 +2463,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 ObservabilityAuthority class defined in production_entrypoints ['aios/api/main.py', 'aios/council/queen_service.py', 'aios/operations/tracing.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_operations.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -2392,7 +2486,7 @@
   {
     "organ_id": 53,
     "name": "Installation, Configuration and Key Authority",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "InstallationConfigurationAuthority",
     "production_entrypoints": [
       "aios/domain/security/api_token.py",
@@ -2422,9 +2516,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 InstallationConfigurationAuthority class defined in production_entrypoints ['aios/domain/security/api_token.py', 'aios/infrastructure/security/api_token_store.py', 'aios/application/security/api_token_authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_api_token_authority.py', 'tests/test_llm.py', 'tests/test_local_workforce_api.py'] (Phase 2 caller / anti-passthrough suite)",
@@ -2443,7 +2539,7 @@
   {
     "organ_id": 54,
     "name": "Backup and Disaster-Recovery Organ",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "BackupDisasterRecoveryAuthority",
     "production_entrypoints": [
       "aios/operations/recovery.py",
@@ -2463,9 +2559,11 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+    ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": false,
+    "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 BackupDisasterRecoveryAuthority class defined in production_entrypoints ['aios/operations/recovery.py', 'aios/operations/doctor.py', 'aios/__main__.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_restore_invalidation.py'] (Phase 2 caller / anti-passthrough suite)",
