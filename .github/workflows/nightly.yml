@@ -1,0 +1,271 @@
+name: Nightly
+
+# Ultra-plan Phase 8 / inventory item 88: "No scheduled/nightly CI workflow
+# exists — every automation tool is manual-only."
+#
+# Verified before writing this: `grep -rn "tools/" .github/workflows/*.yml`
+# reached only golden_mission_runner (inside a DISPATCH-ONLY job) and
+# thesis_audit. `tools/learning_loop_prover.py` and `tools/endurance_tester.py`
+# were invoked by nothing at all, and `codeql.yml` held the repository's only
+# `schedule:` trigger.
+#
+# The concrete consequence, in item 88's own words: the README's "19/19
+# learning-loop prover, stable across repeated runs" claim is evidenced ONLY by
+# manual local runs recorded in `.aios/audit/learning-loop-runs.jsonl` — never
+# by an artifact anyone else can fetch. This workflow makes that evidence
+# reproducible off the laptop.
+#
+# WHAT IT GATES ON: harness integrity, never model score. That distinction is
+# the established rule here — see `scripts/ci_local_cohort_check.py` and the
+# `local-clerk-live` job, both of which refuse to gate on a CI-sized model's
+# quality because "demanding a pass would create pressure to pick a model that
+# flatters the suite or to loosen the suite until something passes".
+#
+# For the prover that rule has a first-class implementation: `--lenient`
+# downgrades the LLM-obedience-dependent checks to warnings while the structural
+# checks still fail the run. So this gates on the prover's real exit code rather
+# than swallowing it with `|| true` — a red here means the learning CHAIN is
+# broken, not that a 0.5b model was disobedient.
+
+on:
+  schedule:
+    # 03:17 UTC. Deliberately not on the hour: GitHub's scheduler queues heavily
+    # at :00 and a nightly that starts 40 minutes late every night is a nightly
+    # whose failures get attributed to the wrong day.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  learning-loop-prover:
+    # The claim this job exists to make re-runnable. It needs BOTH a live Ollama
+    # and a live backend: the prover drives the full chain through the real API.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start a real Ollama daemon
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          # Poll rather than sleep: the daemon is ready when it answers, and a
+          # fixed sleep either wastes time or races on a slow runner.
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+              echo "ollama ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:11434/api/tags >/dev/null
+
+      - name: Pull and warm the clerk model
+        env:
+          AIOS_OLLAMA_MODEL: qwen2.5:0.5b
+        run: |
+          docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}"
+          # `pull` only downloads. The FIRST chat also pays model-load-into-RAM,
+          # which on a 2-core runner pushed the first turn past the LLM timeout
+          # and failed a job for infrastructure reasons. Warm it here.
+          docker exec ollama ollama run "${AIOS_OLLAMA_MODEL}" "say ok" || true
+
+      - name: Start the backend
+        env:
+          AIOS_API_PORT: "8300"
+          AIOS_PROBE_BASE: http://127.0.0.1:8300
+          AIOS_DATA_DIR: ${{ runner.temp }}/nightly-data
+          AIOS_LLM_MODEL: qwen2.5:0.5b
+          # The BACKEND makes the Ollama call, so the timeout belongs here. The
+          # 120s default is a laptop-with-a-GPU number; this runner has 2 cores
+          # and no accelerator.
+          AIOS_LLM_TIMEOUT_S: "600"
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          mkdir -p "${AIOS_DATA_DIR}"
+          nohup python -m uvicorn aios.api.main:app --host 127.0.0.1 --port 8300 > backend.log 2>&1 &
+          # Wait on /ready, NOT /health. /health is a liveness probe: it returns
+          # ok from a process whose database is unwritable, whose disk is full,
+          # and which can reach no model at all. /ready answers the question this
+          # job actually depends on -- "can it serve a turn" -- and returns 503
+          # until it can. Added in #269 for exactly this use.
+          for i in $(seq 1 120); do
+            if curl -sf http://127.0.0.1:8300/ready >/dev/null; then
+              echo "backend ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          # Fail loudly rather than proceeding into a run that would blame the
+          # model for an unavailable backend.
+          curl -sf http://127.0.0.1:8300/ready | head -c 400 || {
+            echo "::error::backend never became ready"; tail -50 backend.log; exit 1;
+          }
+
+      - name: Preflight the provider path
+        env:
+          AIOS_PROBE_BASE: http://127.0.0.1:8300
+          AIOS_DATA_DIR: ${{ runner.temp }}/nightly-data
+          AIOS_LLM_MODEL: qwen2.5:0.5b
+          AIOS_LLM_TIMEOUT_S: "600"
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: python tools/preflight.py
+
+      - name: Run the learning-loop prover
+        env:
+          AIOS_PROBE_BASE: http://127.0.0.1:8300
+          AIOS_PROBE_HOST: localhost:8300
+          AIOS_DATA_DIR: ${{ runner.temp }}/nightly-data
+          AIOS_LLM_MODEL: qwen2.5:0.5b
+          AIOS_LLM_TIMEOUT_S: "600"
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          # --lenient is the prover's own supported way to say "the chain must
+          # work; the model's obedience is not the subject". Structural checks
+          # still fail the run, so this exit code is a real gate -- deliberately
+          # NOT `|| true`, which would make this job prove nothing.
+          #
+          # --allow-stale is NOT passed: the prover refuses to run against a
+          # backend provably older than HEAD, and here the backend was started
+          # from this very checkout, so that check should pass on its own.
+          python tools/learning_loop_prover.py run --lenient --model ollama.qwen2.5:0.5b
+
+      - name: Summarise recorded prover runs
+        if: ${{ always() }}
+        env:
+          AIOS_DATA_DIR: ${{ runner.temp }}/nightly-data
+        run: python tools/learning_loop_prover.py report || true
+
+      - name: Upload prover evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-prover-evidence
+          path: |
+            .aios/audit/learning-loop-runs.jsonl
+            backend.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Backend log on failure
+        if: ${{ failure() }}
+        run: |
+          echo "--- backend.log (tail) ---"; tail -100 backend.log || true
+          echo "--- ollama ---"; docker logs --tail=40 ollama || true
+
+      - name: Tear down Ollama
+        if: ${{ always() }}
+        run: docker rm -f ollama || true
+
+  endurance:
+    # A SHORT endurance run. The 48h burn-in the plan asks for needs a named
+    # execution environment and a budget decision that is the operator's, not a
+    # thing to smuggle into a nightly -- see Phase 8. Ten minutes here proves the
+    # harness survives repeated turns and produces a report; it does not claim to
+    # be the burn-in.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start a real Ollama daemon
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+              echo "ollama ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:11434/api/tags >/dev/null
+
+      - name: Pull and warm the clerk model
+        env:
+          AIOS_OLLAMA_MODEL: qwen2.5:0.5b
+        run: |
+          docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}"
+          docker exec ollama ollama run "${AIOS_OLLAMA_MODEL}" "say ok" || true
+
+      - name: Start the backend
+        env:
+          AIOS_API_PORT: "8301"
+          AIOS_PROBE_BASE: http://127.0.0.1:8301
+          AIOS_DATA_DIR: ${{ runner.temp }}/endurance-data
+          AIOS_LLM_MODEL: qwen2.5:0.5b
+          AIOS_LLM_TIMEOUT_S: "600"
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          mkdir -p "${AIOS_DATA_DIR}"
+          nohup python -m uvicorn aios.api.main:app --host 127.0.0.1 --port 8301 > backend.log 2>&1 &
+          for i in $(seq 1 120); do
+            if curl -sf http://127.0.0.1:8301/ready >/dev/null; then
+              echo "backend ready after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8301/ready >/dev/null || {
+            echo "::error::backend never became ready"; tail -50 backend.log; exit 1;
+          }
+
+      - name: Run a short endurance pass
+        env:
+          AIOS_PROBE_BASE: http://127.0.0.1:8301
+          AIOS_PROBE_HOST: localhost:8301
+          AIOS_DATA_DIR: ${{ runner.temp }}/endurance-data
+          AIOS_LLM_MODEL: qwen2.5:0.5b
+          AIOS_LLM_TIMEOUT_S: "600"
+          OLLAMA_HOST: http://127.0.0.1:11434
+        run: |
+          python tools/endurance_tester.py run \
+            --duration-minutes 10 \
+            --cooldown-s 5 \
+            --model ollama.qwen2.5:0.5b 2>&1 | tee endurance.log
+
+      - name: Assert the endurance harness ran
+        run: python scripts/ci_nightly_endurance_check.py endurance.log
+
+      - name: Upload endurance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-endurance-evidence
+          path: |
+            endurance.log
+            backend.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Backend log on failure
+        if: ${{ failure() }}
+        run: |
+          echo "--- backend.log (tail) ---"; tail -100 backend.log || true
+          echo "--- ollama ---"; docker logs --tail=40 ollama || true
+
+      - name: Tear down Ollama
+        if: ${{ always() }}
+        run: docker rm -f ollama || true
