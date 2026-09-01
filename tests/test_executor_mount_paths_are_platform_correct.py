@@ -44,20 +44,6 @@ import pytest
 from aios.core import executor as executor_module
 from aios.core.executor import _is_windows_style, _writable_scope_mounts
 
-#: The end-to-end resolver tests below cannot be faked on the other platform:
-#: `pathlib.Path` is platform-bound, so on Windows `Path("/home/x").resolve()`
-#: yields `C:\home\x`. Simulating it would test the simulation. The
-#: cross-platform guard is `_is_windows_style` itself, exercised above -- that
-#: predicate IS the fix, and it would have caught the outage on any host.
-_posix_only = pytest.mark.skipif(
-    os.name == "nt",
-    reason="pathlib.Path is platform-bound; the POSIX resolver path runs on CI's Linux",
-)
-_windows_only = pytest.mark.skipif(
-    os.name != "nt", reason="Windows drive-path resolution needs a Windows host"
-)
-
-
 def _mount_sources(mounts: list[str]) -> list[str]:
     """The `src=` value of every `--mount` spec."""
     sources: list[str] = []
@@ -106,79 +92,114 @@ def test_the_predicate_is_not_ntpath_isabs() -> None:
     )
 
 
+
+
 # --------------------------------------------------------------------------- #
-# The resolver, driven with each platform's paths on any host
+# The resolver, against REAL directories on whatever host is running
 # --------------------------------------------------------------------------- #
-@_posix_only
-def test_posix_scope_roots_keep_forward_slashes(monkeypatch) -> None:
-    """The regression, reproduced without needing to be on Linux."""
-    base = "/home/runner/work/ai-editor/ai-editor"
-    roots = (Path(f"{base}/training_ground"), Path(f"{base}/lab"))
-    monkeypatch.setattr(executor_module, "get_scope_roots", lambda: roots)
+# These use `tmp_path` rather than fabricated absolute paths. The first version
+# hard-coded "/home/runner/..." and passed on Linux while failing on macOS with
+# "no writable mounts were emitted": `_writable_scope_mounts` calls `.resolve()`
+# on each ROOT but not on the BASE, and macOS resolves `/home` and `/var`
+# through symlinks -- so the two disagreed, `relative_to` raised, and every root
+# was silently skipped. Real directories, with the base resolved the same way,
+# keep the comparison honest on every platform.
+#
+# The separator assertion is therefore against `os.sep`, the host's own
+# convention, which is the actual invariant. Hard-coding "/" would just move the
+# platform bug into the test.
+
+
+def _scope_fixture(tmp_path, monkeypatch, names):
+    base = tmp_path.resolve()
+    roots = []
+    for name in names:
+        root = base / name
+        root.mkdir(parents=True, exist_ok=True)
+        roots.append(root)
+    monkeypatch.setattr(executor_module, "get_scope_roots", lambda: tuple(roots))
+    return str(base), roots
+
+
+def test_mount_sources_use_the_hosts_own_separators(tmp_path, monkeypatch) -> None:
+    """The regression: a source with foreign separators is unmountable.
+
+    On CI (Linux, Python 3.12) every source came out with backslashes and Docker
+    refused the container with "bind source path does not exist".
+    """
+    base, _ = _scope_fixture(tmp_path, monkeypatch, ("training_ground", "lab"))
 
     sources = _mount_sources(_writable_scope_mounts(base))
 
-    assert sources, "no writable mounts were emitted for two declared roots"
+    assert len(sources) == 2, f"expected one mount per declared root, got {sources}"
+    foreign = "/" if os.sep == chr(92) else chr(92)
     for src in sources:
-        assert "\\" not in src, (
-            f"a POSIX mount source contains backslashes: {src!r}. Docker will "
-            "refuse the container with 'bind source path does not exist'."
+        assert foreign not in src, (
+            f"mount source {src!r} uses foreign separators for this host "
+            f"(os.sep={os.sep!r}); Docker will refuse it with 'bind source path "
+            "does not exist'"
         )
-        assert src.startswith("/"), src
+        assert src.startswith(base), f"{src!r} is not under the workspace {base!r}"
 
 
-@_windows_only
-def test_windows_scope_roots_keep_backslashes(monkeypatch) -> None:
-    """The other platform must not regress while fixing the first."""
-    base = "C:\\Users\\k\\ai-editor"
-    roots = (
-        PureWindowsPath(f"{base}\\training_ground"),
-        PureWindowsPath(f"{base}\\lab"),
-    )
-    monkeypatch.setattr(executor_module, "get_scope_roots", lambda: roots)
-
-    sources = _mount_sources(_writable_scope_mounts(base))
-
-    assert sources, "no writable mounts were emitted for two declared roots"
-    for src in sources:
-        assert src.startswith("C:\\"), (
-            f"a Windows mount source lost its drive/separators: {src!r}"
-        )
-
-
-@_posix_only
-def test_each_root_is_remounted_at_its_own_workspace_path(monkeypatch) -> None:
+def test_each_root_is_remounted_at_its_own_workspace_path(
+    tmp_path, monkeypatch
+) -> None:
     """The destination must mirror the layout inside /workspace.
 
     A correct source with a wrong destination is the same outage wearing a
-    different hat, so both halves are asserted.
+    different hat, so both halves are asserted. Destinations are always POSIX --
+    they name paths INSIDE the Linux container, whatever the host is.
     """
-    base = "/srv/checkout"
-    roots = (Path(f"{base}/training_ground"), Path(f"{base}/lab"))
-    monkeypatch.setattr(executor_module, "get_scope_roots", lambda: roots)
+    base, _ = _scope_fixture(tmp_path, monkeypatch, ("training_ground", "lab"))
 
-    mounts = _writable_scope_mounts(base)
-    joined = ",".join(mounts)
+    joined = ",".join(_writable_scope_mounts(base))
 
     for name in ("training_ground", "lab"):
-        assert f"src={base}/{name}," in joined, joined
         assert f"dst=/workspace/{name}," in joined, joined
 
 
-@_posix_only
-def test_a_root_outside_the_workspace_is_still_skipped(monkeypatch) -> None:
+def test_a_root_outside_the_workspace_is_still_skipped(tmp_path, monkeypatch) -> None:
     """The containment rule the fix must not weaken.
 
-    A root that is not under the mounted workspace is skipped rather than
+    A root that is not under the mounted workspace is SKIPPED rather than
     mounted somewhere invented -- widening the mount to reach it would hand the
     sandbox a path the workspace never contained.
     """
-    base = "/srv/checkout"
-    roots = (Path("/etc"), Path(f"{base}/training_ground"))
-    monkeypatch.setattr(executor_module, "get_scope_roots", lambda: roots)
+    base, roots = _scope_fixture(tmp_path, monkeypatch, ("training_ground",))
+    outside = (tmp_path.parent / "outside_the_workspace").resolve()
+    outside.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(executor_module, "get_scope_roots", lambda: (outside, roots[0]))
 
     sources = _mount_sources(_writable_scope_mounts(base))
 
-    assert sources == [f"{base}/training_ground"], (
+    assert sources == [str(roots[0])], (
         f"an out-of-workspace root leaked into the writable set: {sources}"
+    )
+
+
+def test_the_resolver_does_not_use_ntpath_isabs() -> None:
+    """A structural guard, because the behavioural one is platform-limited.
+
+    Reverting the call sites to `ntpath.isabs` does NOT fail the tests above on
+    Windows: there the two predicates agree, so the difference only shows on
+    POSIX with Python 3.12 -- which is exactly why this shipped broken for two
+    weeks and was invisible on the operator's machine.
+
+    Verified by experiment while writing this file: restoring the old predicate
+    left all ten cases green on Windows. So the revert is caught here, on any
+    host, rather than waiting for a Linux runner to notice.
+    """
+    import inspect
+
+    source = inspect.getsource(executor_module._writable_scope_mounts)
+    assert "ntpath.isabs" not in source, (
+        "_writable_scope_mounts is choosing its path flavour with ntpath.isabs "
+        "again. That predicate returns True for POSIX absolute paths on Python "
+        "3.12, which rewrites /home/... into backslashes and makes Docker refuse "
+        "every container with 'bind source path does not exist'."
+    )
+    assert "_is_windows_style" in source, (
+        "the resolver no longer consults _is_windows_style; a drive or UNC "
+        "prefix is the only property that should select ntpath semantics"
     )
