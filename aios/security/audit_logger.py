@@ -350,7 +350,10 @@ def _init_signing_state(db_path: Path) -> _SigningState:
                 (public_key_hex, datetime.now(timezone.utc).isoformat()),
             )
             conn.commit()
-            state.key_id = int(cur.lastrowid)
+            row_id = cur.lastrowid
+            if row_id is None:  # pragma: no cover - INSERT always sets it
+                raise RuntimeError("audit key INSERT returned no rowid")
+            state.key_id = int(row_id)
             logger.info(
                 "Registered new audit signing key (key_id=%d, pubkey=%s...%s).",
                 state.key_id,
@@ -662,7 +665,10 @@ class AuditLoggerAuthority:
                 (public_key_hex, datetime.now(timezone.utc).isoformat()),
             )
             conn.commit()
-            new_key_id = int(cur.lastrowid)
+            new_row_id = cur.lastrowid
+            if new_row_id is None:  # pragma: no cover - INSERT always sets it
+                raise RuntimeError("audit key INSERT returned no rowid")
+            new_key_id = int(new_row_id)
 
             # Update cache
             state.private_key = new_private_key
@@ -782,7 +788,10 @@ class AuditLoggerAuthority:
                             _CHAIN_HASH_VERSION,
                         ),
                     )
-                    entry_id = int(cur.lastrowid)
+                    entry_row_id = cur.lastrowid
+                    if entry_row_id is None:  # pragma: no cover
+                        raise RuntimeError("audit entry INSERT returned no rowid")
+                    entry_id = int(entry_row_id)
 
                     # Phase 3: re-pin the signed tip-anchor to this new tip, in the SAME
                     # transaction, so a later tail-truncation (deleting the latest

@@ -56,6 +56,7 @@ from aios.operations.tracing import get_trace_context
 
 if TYPE_CHECKING:
     from aios.policy.kernel import PolicyKernel
+    from aios.security.scope_lock import ScopeContext
 
 #: Environment variables whose *names* indicate a secret; stripped from children.
 _SECRET_NAME_HINTS = (
@@ -192,15 +193,39 @@ def _bounded_run(
     try:
         return_code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        # SIGSTOP bypass: wake stopped processes so they can receive the fatal signal
-        try:
-            os.kill(process.pid, signal.SIGCONT)
-        except (OSError, ProcessLookupError):
-            pass
-        # Kill the entire process group — not just the immediate child
-        try:
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        except (OSError, ProcessLookupError):
+        # SIGCONT/SIGKILL/killpg/getpgid are POSIX-ONLY. Guarding them with
+        # `except (OSError, ProcessLookupError)` did not cover Windows, where the
+        # names do not exist at all: `signal.SIGCONT` raised AttributeError,
+        # which is not in that tuple, so it escaped `_bounded_run`, the
+        # `process.kill()` fallback below was unreachable, and a timed-out child
+        # was left RUNNING while the caller saw an attribute error instead of a
+        # timeout. Found by the mypy gate; reproduced in
+        # tests/test_executor_timeout_kill_is_cross_platform.py.
+        #
+        # The group kill stays the preferred path where it exists -- killing only
+        # the immediate child leaves the process GROUP alive, which is how a
+        # forking command outlives its own timeout.
+        sigcont = getattr(signal, "SIGCONT", None)
+        if sigcont is not None:
+            # SIGSTOP bypass: wake stopped processes so they can receive the
+            # fatal signal.
+            try:
+                os.kill(process.pid, sigcont)
+            except (OSError, ProcessLookupError):
+                pass
+
+        killpg = getattr(os, "killpg", None)
+        getpgid = getattr(os, "getpgid", None)
+        sigkill = getattr(signal, "SIGKILL", None)
+        killed_group = False
+        if killpg is not None and getpgid is not None and sigkill is not None:
+            # Kill the entire process group — not just the immediate child.
+            try:
+                killpg(getpgid(process.pid), sigkill)
+                killed_group = True
+            except (OSError, ProcessLookupError):
+                killed_group = False
+        if not killed_group:
             process.kill()
         process.wait()
         raise
@@ -668,7 +693,7 @@ class Executor:
         #: tests can record actions without touching the on-disk ledger.
         self._audit: Callable[..., object] = audit_log or log_action
 
-    def _scope_cwd(self, scope: object = None) -> Path:
+    def _scope_cwd(self, scope: "ScopeContext | None" = None) -> Path:
         """The working directory for child processes.
 
         This is the repo root that the primary scope root (``training_ground``)

@@ -20,7 +20,7 @@ Properties:
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 
@@ -42,6 +42,7 @@ _CURATED_INJECTIONS: tuple[str, ...] = (
 )
 
 
+
 class InjectionShieldAuthority:
     """Own the embedding-similarity prompt-injection boundary (dual-layer w/ regex).
 
@@ -53,13 +54,17 @@ class InjectionShieldAuthority:
         self,
         *,
         threshold: Optional[float] = None,
-        embedder: object = None,
+        embedder: Any = None,
         patterns: Optional[Sequence[str]] = None,
     ) -> None:
         self.threshold = (
             threshold if threshold is not None else config.INJECTION_VECTOR_THRESHOLD
         )
-        self._embedder = embedder
+        #: Duck-typed on purpose: any object exposing `encode(...)`. Typed
+        #: `Any` rather than `object` -- `object` claims it has NO
+        #: attributes, which made the two real `.encode` calls below type
+        #: errors while verifying nothing.
+        self._embedder: Any = embedder
         self._patterns = (
             tuple(patterns) if patterns is not None else _CURATED_INJECTIONS
         )

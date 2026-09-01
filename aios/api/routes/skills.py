@@ -15,6 +15,7 @@ from aios.application.learning.service import (
     SkillActivationDenied,
 )
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
+from aios.domain.learning.repository import SkillRepository
 
 router = APIRouter(
     tags=["skill-library"], dependencies=[Depends(enforce_action_boundary)]
