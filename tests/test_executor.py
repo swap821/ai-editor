@@ -661,8 +661,13 @@ def test_the_workspace_bind_is_read_only(tmp_path, monkeypatch) -> None:
     adjudicates it) and in `.aios/state/` (the ledger recording its own status).
 
     The container is otherwise sealed -- no network, read-only rootfs, all caps
-    dropped, no-new-privileges, uid 65534 -- which is exactly why this single
-    bind was the whole writable surface.
+    dropped, no-new-privileges, an unprivileged uid -- which is exactly why this
+    single bind was the whole writable surface.
+
+    (That uid is no longer hardcoded to 65534: it is derived from the invoking
+    process so the sandbox can write the scope roots bind-mounted from the host.
+    See `_container_user`. The mounts, not the uid, are what bound the sandbox --
+    which is why deriving it changes nothing here.)
     """
     workspace = _mounts(_docker_argv_for(tmp_path, monkeypatch, []))[0]
 

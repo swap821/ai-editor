@@ -105,6 +105,9 @@ _STRIPPED_NAMES = (
 )
 # fmt: on
 _OUTPUT_TRUNCATED = "\n[OUTPUT TRUNCATED]\n"
+#: uid:gid used when the invoking uid is unavailable or unsafe. `nobody`
+#: exists in the worker image, so `getpwuid` resolves and HOME lookups work.
+_UNPRIVILEGED_FALLBACK_USER = "65534:65534"
 
 
 @dataclass(frozen=True)
@@ -259,6 +262,53 @@ def _mount_spec_safe(path: str) -> bool:
         path[2:] if len(path) >= 2 and path[1] == ":" and path[0].isalpha() else path
     )
     return not (any(ch in path for ch in ",=") or ":" in colon_scan)
+
+
+def _container_user() -> str:
+    """The ``uid:gid`` the disposable sandbox runs as.
+
+    Derived from the INVOKING process rather than hardcoded to 65534 (nobody).
+
+    The hardcode predates the read-only-workspace fix. When the whole repository
+    was bind-mounted read-write, limiting the uid genuinely limited the damage a
+    sandboxed command could do. It no longer does: the workspace bind is
+    ``readonly=true`` and only declared scope roots are remounted writable, and
+    Docker enforces mount permissions independently of the uid. The reachable set
+    is defined by the MOUNTS.
+
+    What the hardcode did still do was break the sandbox. The scope roots on the
+    host belong to whoever checked the repository out, so on Linux uid 65534
+    could not write them and no file-creating mission could succeed::
+
+        touch: cannot touch '/workspace/training_ground/x': Permission denied
+
+    Docker Desktop on Windows translates bind-mount ownership itself, which is
+    why this was invisible on the operator's machine until the containment suite
+    ran on CI (inventory item 84b). It also meant any file the sandbox DID create
+    would be owned by nobody -- files the operator cannot edit or delete without
+    root, in a workspace whose whole purpose is to be host-visible.
+
+    The trade-off, stated rather than buried: a container escape now holds the
+    invoking user's privileges instead of nobody's. That is bounded by
+    ``--cap-drop ALL``, ``--security-opt no-new-privileges``, a read-only rootfs
+    and ``--network none`` -- and the parent backend process already runs as that
+    user.
+
+    Two fallbacks, both fail-safe:
+
+    * **No POSIX uid** (Windows). Docker Desktop maps ownership itself, so the
+      historical unprivileged id remains correct there.
+    * **Running as root.** A sandbox must never be root even if the backend is.
+      The old hardcode had no such guard; this one does.
+    """
+    getuid = getattr(os, "getuid", None)
+    getgid = getattr(os, "getgid", None)
+    if getuid is None or getgid is None:
+        return _UNPRIVILEGED_FALLBACK_USER
+    uid, gid = getuid(), getgid()
+    if uid == 0:
+        return _UNPRIVILEGED_FALLBACK_USER
+    return f"{uid}:{gid}"
 
 
 def _is_windows_style(path: str) -> bool:
@@ -461,7 +511,7 @@ class DockerRunner:
             "--cpus",
             str(self.cpus),
             "--user",
-            "65534:65534",
+            _container_user(),
             "--mount",
             mount,
             *writable_mounts,
@@ -469,6 +519,15 @@ class DockerRunner:
             "/tmp:rw,noexec,nosuid,nodev,size=64m",
             "--workdir",
             "/workspace",
+            "--env",
+            # An arbitrary uid has no /etc/passwd entry, so `getpwuid` raises
+            # and `os.path.expanduser` -- plus anything in pytest/pip that
+            # resolves a home -- fails. HOME is stripped from the child
+            # environment by design (see _STRIPPED_NAMES), so set a
+            # container-local one explicitly. /tmp is already the
+            # noexec,nosuid,nodev tmpfs. This is NOT the host's home, which
+            # stays stripped.
+            "HOME=/tmp",
             "--env",
             "PYTHONDONTWRITEBYTECODE=1",
             "--env",
