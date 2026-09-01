@@ -186,16 +186,44 @@ class OpenAICompatClient:
                 f"OpenAI-compatible endpoint returned a non-JSON response: {exc}"
             ) from exc
 
+    def _filtered_for_egress(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Redact *messages* and record the audit before anything leaves the host.
+
+        The single derivation of "sanitize before transmission" for this client
+        AND for :class:`~aios.core.vertex_maas.VertexMaaSClient`, which inherits
+        every egress method defined here. Inventory item 33: :meth:`complete`
+        built its payload straight from the caller's ``prompt``/``system`` and
+        never called the filter -- so the leak reached a THIRD client the
+        catalogue did not name, since Vertex picks it up via
+        ``super().complete()``.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("OpenAI-compatible privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("openai", audit)
+        return safe_messages
+
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         """Generate a single non-streaming completion from *prompt*.
+
+        Privacy: *prompt* and *system* are filtered through
+        :class:`PrivacyFilter` before transmission, exactly as :meth:`chat`
+        filters its message list. Until inventory item 33 was closed, this
+        method sent both verbatim.
 
         Raises:
             LLMError: On any transport, HTTP, or decoding failure.
         """
-        messages: list[dict[str, Any]] = []
+        outbound: list[dict[str, Any]] = []
         if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+            outbound.append({"role": "system", "content": system})
+        outbound.append({"role": "user", "content": prompt})
+        # Same converter as `chat`, so the provider-shape mapping cannot drift
+        # between the two entry points either.
+        messages = _to_openai_messages(self._filtered_for_egress(outbound))
 
         payload: dict[str, Any] = {
             "model": self.model,
@@ -228,11 +256,7 @@ class OpenAICompatClient:
         Privacy: *messages* are filtered through :class:`PrivacyFilter` before
         transmission so sensitive content never leaves the local machine.
         """
-        safe_messages, audit = self._privacy_filter.filter(messages)
-        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
-            logger.info("OpenAI-compatible privacy filter applied", extra=audit)
-        if self._privacy_audit_tracker is not None:
-            self._privacy_audit_tracker.record("openai", audit)
+        safe_messages = self._filtered_for_egress(messages)
 
         output_tokens = self.max_tokens if max_tokens is None else max_tokens
         if output_tokens <= 0:
@@ -273,11 +297,7 @@ class OpenAICompatClient:
         Privacy is identical to :meth:`chat`: sanitize before cloud transmission
         and scrub provider failures before surfacing them as :class:`LLMError`.
         """
-        safe_messages, audit = self._privacy_filter.filter(messages)
-        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
-            logger.info("OpenAI-compatible privacy filter applied", extra=audit)
-        if self._privacy_audit_tracker is not None:
-            self._privacy_audit_tracker.record("openai", audit)
+        safe_messages = self._filtered_for_egress(messages)
 
         payload: dict[str, Any] = {
             "model": model or self.model,

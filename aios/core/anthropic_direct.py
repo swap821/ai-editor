@@ -219,22 +219,61 @@ class AnthropicDirectClient:
                 f"Anthropic Messages API returned a non-JSON response: {exc}"
             ) from exc
 
+    def _filtered_for_egress(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Redact *messages* and record the audit before anything leaves the host.
+
+        The single derivation of "sanitize before transmission" for this client.
+        Inventory item 33: :meth:`complete` built its HTTP payload straight from
+        the caller's ``prompt``/``system`` and never called the filter at all,
+        so this class's own docstring claim -- "every message list is passed
+        through PrivacyFilter" -- was false for one of its three public egress
+        methods, and had been since the class was written.
+
+        Routing all three through one helper is what makes that sentence true.
+        It also means a fourth egress method cannot re-open the hole by simply
+        forgetting to copy five lines, which is exactly how this one stayed
+        open: :meth:`chat` and :meth:`stream_chat` carried the block verbatim
+        and :meth:`complete` silently did not.
+        """
+        safe_messages, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Anthropic privacy filter applied", extra=audit)
+        if self._privacy_audit_tracker is not None:
+            self._privacy_audit_tracker.record("anthropic", audit)
+        return safe_messages
+
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         """Generate a single non-streaming completion from *prompt*.
+
+        Privacy: *prompt* and *system* are filtered through
+        :class:`PrivacyFilter` before transmission, exactly as :meth:`chat`
+        filters its message list. Until inventory item 33 was closed, this
+        method sent both verbatim.
 
         Raises:
             LLMError: On any transport, HTTP, or decoding failure.
         """
+        # Assembled as a message list rather than filtered as two loose strings
+        # so that the SAME redaction and the SAME provider-shape converter run
+        # here as in `chat`. A second, complete()-shaped derivation of either is
+        # the thing this fix exists to remove.
+        outbound: list[dict[str, Any]] = []
+        if system:
+            outbound.append({"role": "system", "content": system})
+        outbound.append({"role": "user", "content": prompt})
+        safe_messages = self._filtered_for_egress(outbound)
+        system_text, anthropic_messages = _to_anthropic_messages(safe_messages)
+
         payload: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
-            "messages": [
-                {"role": "user", "content": [{"type": "text", "text": prompt}]}
-            ],
+            "messages": anthropic_messages,
         }
-        if system:
-            payload["system"] = system
+        if system_text.strip():
+            payload["system"] = system_text
 
         body = self._post(payload)
         text = ""
@@ -260,11 +299,7 @@ class AnthropicDirectClient:
         Privacy: *messages* are filtered through :class:`PrivacyFilter` before
         transmission so sensitive content never leaves the local machine.
         """
-        safe_messages, audit = self._privacy_filter.filter(messages)
-        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
-            logger.info("Anthropic privacy filter applied", extra=audit)
-        if self._privacy_audit_tracker is not None:
-            self._privacy_audit_tracker.record("anthropic", audit)
+        safe_messages = self._filtered_for_egress(messages)
 
         system_text, anthropic_messages = _to_anthropic_messages(safe_messages)
         output_tokens = self.max_tokens if max_tokens is None else max_tokens
@@ -301,11 +336,7 @@ class AnthropicDirectClient:
         Privacy is identical to :meth:`chat`: sanitize before cloud transmission
         and scrub provider failures before surfacing them as :class:`LLMError`.
         """
-        safe_messages, audit = self._privacy_filter.filter(messages)
-        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
-            logger.info("Anthropic privacy filter applied", extra=audit)
-        if self._privacy_audit_tracker is not None:
-            self._privacy_audit_tracker.record("anthropic", audit)
+        safe_messages = self._filtered_for_egress(messages)
 
         system_text, anthropic_messages = _to_anthropic_messages(safe_messages)
         payload: dict[str, Any] = {
