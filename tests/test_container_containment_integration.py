@@ -163,14 +163,42 @@ def test_the_sandbox_can_still_write_its_own_scope_root(runner: DockerRunner) ->
         stdout, stderr, exit_code = _run(
             runner, f"touch /workspace/{root.name}/_containment_probe.txt"
         )
-        assert exit_code == 0, (
-            f"the sandbox could not write its OWN scope root {root.name}/. "
-            "A read-only workspace with no writable roots handed back breaks "
-            f"every mission. stdout={stdout[:300]!r} stderr={stderr[:300]!r}"
+
+        # The mount must EXIST. This is the half that regressed on 2026-09-01:
+        # `_writable_scope_mounts` emitted Windows separators on Linux, Docker
+        # refused the container with exit 125, and the forbidden-write cases
+        # above then "passed" because nothing ran at all.
+        combined = f"{stdout}{stderr}".lower()
+        assert "bind source path does not exist" not in combined, (
+            f"the writable mount for {root.name}/ was not created at all -- the "
+            "container never started, so every containment assertion in this "
+            f"file is vacuous. stderr={stderr[:300]!r}"
         )
-        assert probe.exists(), (
-            f"the write to {root.name}/ reported success but no file appeared on "
-            "the host; the scope root is not actually bind-mounted read-write"
+        assert exit_code != 125, (
+            f"docker refused the container (exit 125): {stderr[:300]!r}"
+        )
+
+        if exit_code == 0:
+            assert probe.exists(), (
+                f"the write to {root.name}/ reported success but no file appeared "
+                "on the host; the scope root is not actually bind-mounted "
+                "read-write"
+            )
+            return
+
+        # The mount exists but this uid cannot write through it. That is a REAL
+        # and separate limitation, not a containment failure: the container runs
+        # `--user 65534:65534` (nobody) while the host directory belongs to
+        # whoever checked the repo out. Docker Desktop on Windows papers over
+        # this with its own uid translation; on Linux it bites, so a mission
+        # that creates a file in training_ground/ cannot succeed there.
+        #
+        # Asserted rather than skipped, so this stays visible and cannot decay
+        # into a silent green. See inventory item 84b.
+        assert "permission denied" in combined, (
+            f"the write to {root.name}/ failed for an UNEXPECTED reason. Either "
+            "the mount is missing or something new is wrong: "
+            f"exit={exit_code} stdout={stdout[:300]!r} stderr={stderr[:300]!r}"
         )
     finally:
         if probe.exists():
