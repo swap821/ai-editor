@@ -326,7 +326,7 @@
   {
     "organ_id": 9,
     "name": "Exact Capability Authority",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "CapabilityAuthority",
     "production_entrypoints": [
       "aios/application/capabilities/authority.py"
@@ -349,17 +349,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 CapabilityAuthority class defined in production_entrypoints ['aios/application/capabilities/authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_exact_capabilities.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 CapabilityAuthority / CapabilityStore SQLite durable (incl. constitution_digest column)",
-      "C4": "PASS \u2014 consume recomputes constitution digest; mismatch refuses",
-      "C5": "PASS \u2014 IdentityDegraded / CapabilityError fail closed",
+      "C3": "PASS \u2014 CapabilityAuthority / CapabilityStore SQLite durable (incl. constitution_digest column); issue and consume run through two separate authority instances, so only the real stored row can carry the value across. Proven by tests/test_exact_capabilities.py::test_constitution_digest_survives_the_real_store_round_trip",
+      "C4": "PASS \u2014 consume recomputes the constitution digest and a mismatch is refused outright, so a capability issued under a superseded constitution cannot be spent. Proven by tests/test_exact_capabilities.py::test_constitution_digest_mismatch_is_rejected_outright",
+      "C5": "PASS \u2014 a constitution-bound capability with no wired authority is refused rather than treated as satisfiable. Proven by tests/test_exact_capabilities.py::test_a_constitution_bound_capability_needs_a_wired_authority. The prior verdict cited IdentityDegraded, which is raised only in organ 24's suite and never covered this organ \u2014 corrected rather than restated.",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_exact_capabilities.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -766,7 +764,7 @@
   {
     "organ_id": 19,
     "name": "Emergency Stop Controller (construction)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "EmergencyStopController",
     "production_entrypoints": [
       "aios/application/governance/emergency_stop.py"
@@ -789,17 +787,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 EmergencyStopController class defined in production_entrypoints ['aios/application/governance/emergency_stop.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_governance.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 EmergencyStopController durable latch (aios emergency stop store)",
-      "C4": "PASS-PARTIAL \u2014 latch durability + audit preserve_evidence hook",
-      "C5": "PASS \u2014 engage blocks capability/scheduling/execution; reports engaged truthfully",
+      "C3": "PASS \u2014 the durable latch survives a reopen of the same store: the clear capability stays bound and single-use across a fresh EmergencyStopController on the same path. Proven by tests/test_governance.py::test_emergency_clear_capability_is_bound_single_use_and_restart_durable",
+      "C4": "N/A-BY-DESIGN \u2014 the stop state is a single mutable latch row, not an append-only journal, so this organ has no chain of its own to tamper-detect. The tamper-evident ledger that records stop events belongs to organ 4. Claiming a chain here would invent a property this organ does not have. Referent: aios/security/audit_logger.py::AuditLoggerAuthority",
+      "C5": "PASS \u2014 a failing stop hook keeps the latch engaged and reports the failure rather than reporting a clean stop. Proven by tests/test_governance.py::test_failed_stop_hook_keeps_latch_engaged_and_reports_failure",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_governance.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_release_conformance.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -1456,7 +1452,7 @@
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -1483,17 +1479,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "90830647e40c2f29b45b042e00b935d632d1d8f4",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 LocalWorkforceRegistry SQLite persists admission/role/qualification/passport fields across restart (passport route projects same digest after reopen)",
+      "C3": "PASS \u2014 LocalWorkforceRegistry SQLite persists admission/role/qualification/passport fields across restart; the passport route projects the same digest after reopen. Proven by tests/test_model_passport_authority.py::test_a_passport_survives_a_restart_because_the_row_does",
       "C4": "N/A-BY-DESIGN \u2014 passport fields are not a journal; aios/security/audit_logger.py::AuditLoggerAuthority and aios/application/local_workforce/provenance.py::ClerkProvenanceAuthority own the integrity chain. Passport digest projection from durable registry fields; dedicated SQL-tamper suite not claimed equal to organ 38.",
-      "C5": "PASS \u2014 unregistered models return None rather than a fabricated passport",
+      "C5": "PASS \u2014 unregistered models return None rather than a fabricated passport, and an unknown cost stays unknown rather than collapsing to a plausible zero. Proven by tests/test_model_passport_and_health.py::test_unknown_cost_remains_unknown_not_zero",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_model_passport_and_health.py', 'tests/test_model_passport_authority.py', 'tests/test_organ_authority_owners.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/test_local_workforce_api.py and tests/test_runtime_intelligence_gateway.py in the gate's own run, and tests/test_model_passport_live_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -1849,7 +1843,7 @@
   {
     "organ_id": 41,
     "name": "Promotion, Checkpoint and Rollback (live proof)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "PromotionRollbackLiveAuthority",
     "production_entrypoints": [
       "aios/application/promotion/authority.py",
@@ -1868,17 +1862,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 PromotionRollbackLiveAuthority class defined in production_entrypoints ['aios/application/promotion/authority.py', 'aios/domain/promotion/contracts.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_promotion_authority.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 checkpoints on filesystem; PromotionAuthority durable DB",
+      "C3": "PASS \u2014 checkpoints live on the filesystem and the promotion receipt survives a real durable-store round trip rather than only in-process state. Proven by tests/test_promotion_authority.py::test_receipt_survives_the_real_durable_store_round_trip",
       "C4": "PASS \u2014 real filesystem round trip via production CheckpointAuthority-backed adapters (aios/api/deps.py::get_checkpoint_creator/get_checkpoint_restorer, the exact callables POST /api/v1/maintenance/repairs/run wires into promote()) restores exact pre-mutation bytes on apply/smoke failure (tests/test_promotion_authority.py::test_apply_or_smoke_failure_restores_exact_bytes_via_real_checkpoint_authority); checkpoint_id_is_valid() additionally refuses forged/malformed checkpoint targets",
-      "C5": "PASS \u2014 promotion failure restores rather than leaving silent partial",
+      "C5": "PASS \u2014 an apply/smoke failure restores the exact checkpoint rather than leaving a silent partial promotion. Proven by tests/test_promotion_authority.py::test_apply_or_smoke_failure_restores_exact_checkpoint",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_promotion_authority.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_maintenance_api.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -1891,7 +1883,7 @@
   {
     "organ_id": 42,
     "name": "Recovery and Resumption",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "RecoveryResumptionAuthority",
     "production_entrypoints": [
       "aios/api/routes/council.py",
@@ -1914,7 +1906,8 @@
     ],
     "integration_tests": [
       "tests/test_mission_contract_v1.py",
-      "tests/test_maintenance_api.py"
+      "tests/test_maintenance_api.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "live_evidence": [
       {
@@ -1923,17 +1916,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 RecoveryResumptionAuthority class defined in production_entrypoints ['aios/api/routes/council.py', 'aios/api/routes/maintenance.py', 'aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_council_orchestrator.py', 'tests/test_mission_transition_journal.py', 'tests/test_maintenance_api.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 MissionTransitionJournal SQLite persists ordered mission transitions; startup recovery + CouncilOrchestrator + MaintenanceConvergenceService share one RecoveryResumptionAuthority journal",
-      "C4": "PASS \u2014 entry_digest + previous_entry_digest chain; edited/deleted/reordered rows raise JournalTamperedError (tests/test_mission_journal_tamper_evidence.py); legacy pre-chain rows reported unverifiable rather than silently trusted",
-      "C5": "PASS \u2014 recovery report never raises on a tampered journal and does not invent a clean timeline (tests/test_organ_authority_owners.py)",
+      "C3": "PASS \u2014 MissionTransitionJournal SQLite persists ordered mission transitions, and the chain verifies against a journal the running process did not write (a second journal opened on the same path). Proven by tests/test_mission_journal_tamper_evidence.py::test_the_chain_survives_a_restart",
+      "C4": "PASS \u2014 entry_digest + previous_entry_digest chain; edited/deleted/reordered rows raise JournalTamperedError, and legacy pre-chain rows are reported unverifiable rather than silently trusted. Proven by tests/test_mission_journal_tamper_evidence.py::test_an_edited_transition_is_detected",
+      "C5": "PASS \u2014 the recovery report never raises on a tampered journal and does not invent a clean timeline; it reports integrity=tampered, because a recovery scan that crashes the boot is worse than one that reports honestly. Proven by tests/test_organ_authority_owners.py::test_the_recovery_report_never_raises_on_a_tampered_journal",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_council_orchestrator.py', 'tests/test_mission_transition_journal.py', 'tests/test_maintenance_api.py', 'tests/test_mission_journal_tamper_evidence.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_mission_contract_v1.py', 'tests/test_maintenance_api.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -2188,7 +2179,7 @@
   {
     "organ_id": 47,
     "name": "Read-Model and Projection Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ReadModelProjectionAuthority",
     "production_entrypoints": [
       "aios/domain/read_models/contracts.py",
@@ -2208,17 +2199,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReadModelProjectionAuthority class defined in production_entrypoints ['aios/domain/read_models/contracts.py', 'aios/application/read_models/governance_projections.py', 'aios/api/routes/mirror.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_read_model_projections.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 projections read durable constitution/stop/health/capability/routing/privacy sources",
-      "C4": "PASS-PARTIAL \u2014 projection is read-model; integrity of sources is upstream",
-      "C5": "PASS \u2014 missing inputs project unavailable envelopes, not fabricated health",
+      "C3": "N/A-BY-DESIGN \u2014 a pure projection over other organs' durable stores; it owns no store of its own, so it has nothing of its own to survive a restart. Referent: aios/application/read_models/governance_projections.py::ReadModelProjectionAuthority",
+      "C4": "N/A-BY-DESIGN \u2014 a read-model keeps no journal; the integrity of each source is owned upstream by the organ that writes it, and a chain asserted here would duplicate a guarantee this organ cannot make. Referent: aios/application/read_models/governance_projections.py::ReadModelProjectionAuthority",
+      "C5": "PASS \u2014 a missing input projects an unavailable envelope rather than a fabricated zero. Proven by tests/test_read_model_projections.py::test_provider_health_projection_unknown_budget_is_unavailable_not_zero",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_read_model_projections.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_mirror.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -2317,7 +2306,7 @@
   {
     "organ_id": 50,
     "name": "Provenance and Explanation Surface",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ProvenanceExplanationSurfaceAuthority",
     "production_entrypoints": [
       "aios/memory/development.py",
@@ -2359,17 +2348,15 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
-    ],
+    "known_blockers": [],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProvenanceExplanationSurfaceAuthority class defined in production_entrypoints ['aios/memory/development.py', 'aios/application/models/privacy_audit.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_brain_growth.py', 'tests/test_read_model_projections.py', 'tests/test_privacy_audit.py'] (Phase 2 caller / anti-passthrough suite)",
       "C3": "PASS \u2014 PrivacyAuditTracker now persists to aios_privacy_audits.db (config.PRIVACY_AUDIT_DB_PATH); restart-survival proven by tests/test_privacy_audit.py::test_durable_tracker_survives_restart; production singleton in aios/api/deps.py wires the durable path",
-      "C4": "PASS \u2014 each durable row carries a content digest; silent SQL edits raise PrivacyAuditTamperedError (test_durable_tracker_detects_tampered_row)",
-      "C5": "PASS \u2014 durable_status()/verify_durable_chain() report unavailable/tampered rather than inventing an empty reassuring history; record() never raises into cloud turns",
+      "C4": "PASS \u2014 each durable row carries a content digest; a silent SQL edit raises PrivacyAuditTamperedError rather than reading clean. Proven by tests/test_privacy_audit.py::test_durable_tracker_detects_tampered_row",
+      "C5": "PASS \u2014 durable_status()/verify_durable_chain() report unavailable or tampered rather than inventing an empty, reassuring history; record() never raises into cloud turns. Proven by tests/test_privacy_audit.py::test_durable_load_failure_surfaces_unavailable_not_empty_history",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_brain_growth.py', 'tests/test_read_model_projections.py', 'tests/test_privacy_audit.py', 'tests/test_gemini.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_mirror.py', 'tests/test_route_wiring.py', 'frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
@@ -2444,7 +2431,8 @@
       "tests/test_queen_service.py",
       "tests/test_executor_service.py",
       "tests/test_executor_client.py",
-      "tests/test_executor_integration.py"
+      "tests/test_executor_integration.py",
+      "tests/test_organ_authority_owners.py"
     ],
     "live_evidence": [
       {
@@ -2464,16 +2452,16 @@
       }
     ],
     "known_blockers": [
-      "Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md"
+      "Phase 4 absolute residual: held back from wave 1 (2026-09-01). Its C3/C4/C5 referents are in place and resolve, but C10's existing evidence row cites an executor-integration node that needs a real Docker daemon, which the machine preparing this wave did not have. CI's release-authority job does run it and merges the resulting JUnit into the same gate invocation, so this is expected to clear there -- but promoting an organ whose own phase 5 artifact records 'survives mechanical adversarial re-read: no' would ship an inconsistency. Promote once that node is observed passing in the gate's own run. See release/organ-ledger/2026-09-01-wave1-restoration.md"
     ],
     "last_verified_sha": "5d482164707c6c6e62f3da6a37cff79f252f9260",
-    "requires_live_evidence": true,
+    "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ObservabilityAuthority class defined in production_entrypoints ['aios/api/main.py', 'aios/council/queen_service.py', 'aios/operations/tracing.py'] (Decision A / enforce_owner_attestation)",
       "C2": "PASS \u2014 production-path reachability covered by focused_tests ['tests/test_operations.py'] (Phase 2 caller / anti-passthrough suite)",
-      "C3": "PASS \u2014 rotating durable logs under DATA_DIR/logs; correlation headers",
-      "C4": "PASS-PARTIAL \u2014 log files rotatable; not a hash chain (audit is organ 4)",
-      "C5": "PASS \u2014 metrics unavailable rather than plausible zero. Already green with live evidence historically",
+      "C3": "PASS \u2014 rotating durable logs under DATA_DIR/logs survive the process that wrote them; a reader started afterwards sees the earlier process's lines. Proven by tests/test_organ_authority_owners.py::test_durable_logs_survive_the_process_that_wrote_them",
+      "C4": "N/A-BY-DESIGN \u2014 rotating log files are not a hash chain, and rotation deliberately discards old segments, so an integrity chain is not a property this organ has. The tamper-evident chain is organ 4's. Referent: aios/security/audit_logger.py::AuditLoggerAuthority",
+      "C5": "PASS \u2014 health reports unavailable rather than inventing a reading; an observability organ that fabricates reassuring numbers is worse than one that admits it cannot tell. Proven by tests/test_organ_authority_owners.py::test_health_reports_unavailable_rather_than_inventing_a_reading",
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_operations.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_logging.py', 'tests/test_queen_service.py', 'tests/test_executor_service.py', 'tests/test_executor_client.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",

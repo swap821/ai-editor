@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 42: Recovery and Resumption
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `9381121b346f2645b8c9812b3ea3ae5ba89ba334`
-**Generated:** 2026-09-01T15:53:46+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `8d9964eaba2e69462253c83eda757ae8ad43a3bc`
+**Generated:** 2026-09-01T17:23:53+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+(none — written verdicts PASS/N/A)
 
 ## Notes
 
