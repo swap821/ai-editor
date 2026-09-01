@@ -33,6 +33,20 @@ break every mission while looking like security.
 
 Gated on `AIOS_EXECUTOR_INTEGRATION=1` like its sibling, so it runs in CI where
 Docker and the image exist, and skips with a reason on a laptop that has neither.
+
+## Probes use `touch`, not a shell redirect
+
+The first version of this file wrote its probes as a shell redirect, and every
+case failed in CI with `ValueError: shell composition is not permitted` -- raised
+by `parse_argv`, long before Docker was involved. The executor rejects the
+metacharacters `;&|<>` and launches with `shell=False` BY DESIGN, so a
+redirect-based probe tests the argv boundary and never reaches the mount it means
+to test.
+
+Worth stating rather than quietly fixing: a containment probe that dies at argv
+parsing proves nothing about containment, while looking exactly like a failing
+security test. `touch` carries no metacharacters, so these probes reach the
+mount itself.
 """
 
 from __future__ import annotations
@@ -116,9 +130,7 @@ def test_the_sandbox_cannot_write_the_tree_that_judges_it(
         "before trusting this result."
     )
 
-    stdout, stderr, exit_code = _run(
-        runner, f"sh -c 'echo escaped > /workspace/{target}'"
-    )
+    stdout, stderr, exit_code = _run(runner, f"touch /workspace/{target}")
 
     assert not host_path.exists(), (
         f"CONTAINMENT ESCAPE: a sandboxed command created {target} on the host. "
@@ -149,8 +161,7 @@ def test_the_sandbox_can_still_write_its_own_scope_root(runner: DockerRunner) ->
 
     try:
         stdout, stderr, exit_code = _run(
-            runner,
-            f"sh -c 'echo ok > /workspace/{root.name}/_containment_probe.txt'",
+            runner, f"touch /workspace/{root.name}/_containment_probe.txt"
         )
         assert exit_code == 0, (
             f"the sandbox could not write its OWN scope root {root.name}/. "
@@ -193,8 +204,7 @@ def test_the_writable_set_matches_the_declared_scope_roots(
     assert not probe.exists(), f"{probe} leaked from a previous run"
 
     stdout, stderr, exit_code = _run(
-        runner,
-        f"sh -c 'echo escaped > /workspace/{victim.name}/_containment_probe.txt'",
+        runner, f"touch /workspace/{victim.name}/_containment_probe.txt"
     )
 
     assert not probe.exists(), (
