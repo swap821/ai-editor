@@ -663,6 +663,35 @@ jobs:
             -e AIOS_EXECUTOR_INTEGRATION=1 aios \
             python -m pytest -q -o addopts= tests/test_executor_integration.py
 
+      - name: Prove container CONTAINMENT against the real daemon
+        # Runs on the RUNNER, not inside the `aios` service above. This drives
+        # DockerRunner, which shells out to `docker`, and the control-plane
+        # container deliberately never receives the Docker socket (asserted by
+        # test_executor_integration.py itself) -- so it cannot run there.
+        #
+        # Inventory item 84's broader claim is stale: CI already builds both
+        # images and runs the integration suite in a container. But its core
+        # concern was aimed correctly at a gap that was still real. The
+        # 2026-08-19 containment fix -- repo root read-ONLY, scope roots
+        # remounted writable -- is proven in tests/test_executor.py by building
+        # the docker argv and asserting the string contains `readonly=true`.
+        # That is a good unit test of argv construction and proves nothing about
+        # whether Docker HONOURS it. The behaviour was verified by hand once and
+        # then nothing pinned it.
+        #
+        # An argv assertion cannot catch a Docker version that parses
+        # `readonly=true` differently, an overlapping-mount ordering change where
+        # the writable scope-root mounts shadow the read-only parent, or an edit
+        # that keeps the string and breaks the effect. This step executes the
+        # real thing: a real command, in a real container, writing to a real
+        # path, asserting the real outcome -- in BOTH directions, because
+        # "cannot write the spine" passes trivially if the container cannot
+        # write anything, which would break every mission while looking secure.
+        env:
+          AIOS_EXECUTOR_INTEGRATION: "1"
+        run: |
+          python -m pytest -q -o addopts= -rs             tests/test_container_containment_integration.py
+
       # Organ 40's one remaining named gap: failure/timeout are proven above,
       # but restart resilience specifically was not. The control-plane
       # container intentionally never receives the Docker socket (asserted by

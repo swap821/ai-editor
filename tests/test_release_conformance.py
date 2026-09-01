@@ -207,6 +207,44 @@ def test_the_thesis_audit_actually_runs_in_ci() -> None:
     )
 
 
+def test_container_containment_is_proven_against_a_real_daemon() -> None:
+    """The 2026-08-19 containment fix must be EXECUTED, not just constructed.
+
+    `tests/test_executor.py` proves that fix by building the docker argv and
+    asserting the string contains `readonly=true`. That is a good unit test of
+    argv construction and says nothing about whether Docker honours it. The
+    behaviour was verified by hand once, on 2026-08-19, and then nothing pinned
+    it -- inventory item 84's core concern, and the reason this step exists.
+
+    An argv assertion cannot catch a Docker version that parses `readonly=true`
+    differently, an overlapping-mount ordering change where the writable
+    scope-root mounts shadow the read-only parent, or an edit that keeps the
+    string and breaks the effect.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "tests/test_container_containment_integration.py" in workflow, (
+        "the real-container containment proof is no longer run by CI; the "
+        "isolation boundary is back to being asserted only against argv strings"
+    )
+    assert 'AIOS_EXECUTOR_INTEGRATION: "1"' in workflow, (
+        "the containment suite is gated on AIOS_EXECUTOR_INTEGRATION=1 and will "
+        "silently ALL-SKIP without it -- a green job proving nothing"
+    )
+
+    suite = REPO_ROOT / "tests" / "test_container_containment_integration.py"
+    assert suite.exists()
+    body = suite.read_text(encoding="utf-8")
+    # Both directions, or the forbidden-write test passes trivially on a
+    # container that cannot write anything at all.
+    assert "can_still_write_its_own_scope_root" in body, (
+        "the containment suite no longer proves the sandbox CAN write its own "
+        "scope root; read-only-everything is not the fix and would break every "
+        "mission while looking like security"
+    )
+
+
 def test_release_source_scan_is_clean() -> None:
     assert scan() == ()
 
