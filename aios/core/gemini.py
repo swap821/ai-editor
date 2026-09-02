@@ -38,6 +38,7 @@ from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
+from aios.core.provider_retry import call_with_backoff, stream_with_backoff
 from aios.core.stream_protocol import StreamFinished
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,16 @@ CURATED_MODELS: list[dict[str, str]] = [
 ]
 
 
+#: Sent in place of a tool result when a function_call was never answered --
+#: refused at the approval gate, blocked by the security gateway, or the turn
+#: ended first. Factual, not instructive: the transport layer must not inject
+#: guidance into a measured run.
+_UNANSWERED_CALL_RESULT = (
+    "No result: this tool call was not executed (refused, blocked, or the turn "
+    "ended before it produced output)."
+)
+
+
 def _to_gemini(
     messages: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, Any]]]:
@@ -89,9 +100,10 @@ def _to_gemini(
     """
     system_parts: list[str] = []
     contents: list[dict[str, Any]] = []
-    pending_names: list[str] = []
 
-    for msg in messages:
+    index = 0
+    while index < len(messages):
+        msg = messages[index]
         role = msg.get("role")
         content = msg.get("content") or ""
         if role == "system":
@@ -99,16 +111,32 @@ def _to_gemini(
                 system_parts.append(str(content))
         elif role == "user":
             contents.append({"role": "user", "parts": [{"text": str(content)}]})
+        elif role == "tool":
+            # An orphan result with no preceding call. Kept rather than dropped
+            # so nothing the agent observed disappears from the transcript.
+            contents.append(
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "function_response": {
+                                "name": "tool",
+                                "response": {"result": str(content)},
+                            }
+                        }
+                    ],
+                }
+            )
         elif role == "assistant":
             parts: list[dict[str, Any]] = []
             text = str(content).strip()
             if text:
                 parts.append({"text": text})
-            pending_names = []
+            call_names: list[str] = []
             for call in msg.get("tool_calls") or []:
                 fn = call.get("function", {}) if isinstance(call, dict) else {}
                 name = str(fn.get("name", ""))
-                pending_names.append(name)
+                call_names.append(name)
                 args = fn.get("arguments")
                 if isinstance(args, str):
                     try:
@@ -121,28 +149,65 @@ def _to_gemini(
                 # Gemini 3.x rejects a replayed function_call whose
                 # thought_signature is missing; 2.5 never sends one, so this is
                 # emitted only when the model actually gave us one.
-                signature = call.get("thought_signature") if isinstance(call, dict) else None
+                signature = (
+                    call.get("thought_signature") if isinstance(call, dict) else None
+                )
                 if signature:
                     fc_part["thought_signature"] = _decode_signature(signature)
                 parts.append(fc_part)
             if not parts:
                 parts.append({"text": ""})  # Gemini rejects empty content
             contents.append({"role": "model", "parts": parts})
-        elif role == "tool":
-            name = pending_names.pop(0) if pending_names else "tool"
-            contents.append(
-                {
-                    "role": "user",
-                    "parts": [
-                        {
-                            "function_response": {
-                                "name": name,
-                                "response": {"result": str(content)},
-                            }
+
+            if call_names:
+                # EVERY function_call must be answered, in ONE turn.
+                #
+                # Gemini validates the count: "the number of function response
+                # parts is equal to the number of function call parts of the
+                # function call turn". Two ways the old converter broke that,
+                # both measured in a golden-mission cohort on 2026-09-02:
+                #
+                #  * a refused tool call produced no `role: "tool"` message at
+                #    all, so its call went unanswered. That is not an edge case
+                #    here -- refusing a YELLOW action is the supervision
+                #    mechanism, so any approval-gated mission could hit it.
+                #  * multiple results were emitted as separate user turns, so
+                #    the answers were spread across turns instead of answering
+                #    the call turn.
+                #
+                # Unanswered calls get a truthful placeholder rather than being
+                # dropped: the model is told the call produced no result, which
+                # is what actually happened. Deliberately factual and not
+                # instructive -- a measured run must not have guidance smuggled
+                # into it by the transport layer.
+                results: list[str] = []
+                lookahead = index + 1
+                while (
+                    lookahead < len(messages)
+                    and messages[lookahead].get("role") == "tool"
+                    and len(results) < len(call_names)
+                ):
+                    results.append(str(messages[lookahead].get("content") or ""))
+                    lookahead += 1
+
+                response_parts = [
+                    {
+                        "function_response": {
+                            "name": name,
+                            "response": {
+                                "result": results[position]
+                                if position < len(results)
+                                else _UNANSWERED_CALL_RESULT
+                            },
                         }
-                    ],
-                }
-            )
+                    }
+                    for position, name in enumerate(call_names)
+                ]
+                contents.append({"role": "user", "parts": response_parts})
+                index = lookahead
+                continue
+        index += 1
+
     # Gemini 3.x: "Requests ending with a model turn are not supported." 2.5
     # accepted it, so the agent loop has always been able to reach chat() with
     # its own last turn at the end -- a blocked or refused tool call appends the
@@ -460,10 +525,18 @@ class GeminiClient:
             gen_config["tools"] = tool_decls
 
         try:
-            response = self._client.models.generate_content(
-                model=model or self.model,
-                contents=contents,
-                config=gen_config,
+            response = call_with_backoff(
+                lambda: self._client.models.generate_content(
+                    model=model or self.model,
+                    contents=contents,
+                    config=gen_config,
+                ),
+                on_retry=lambda n, exc, d: logger.warning(
+                    "Gemini transient failure (attempt %s), retrying in %.1fs: %s",
+                    n,
+                    d,
+                    scrub_exception(exc),
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             # --- Privacy: scrub credentials from the exception before logging. ---
@@ -516,12 +589,24 @@ class GeminiClient:
             gen_config["tools"] = tool_decls
 
         try:
-            stream = self._client.models.generate_content_stream(
-                model=model or self.model,
-                contents=contents,
-                config=gen_config,
+            # generate_content_stream is LAZY -- it issues no request until
+            # iterated -- so retry must wrap CONSUMPTION, not creation, and is
+            # bounded by emission: safe to re-issue while no chunk has escaped.
+            yield from stream_with_backoff(
+                lambda: _stream_text_from_gemini(
+                    self._client.models.generate_content_stream(
+                        model=model or self.model,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                ),
+                on_retry=lambda n, exc, d: logger.warning(
+                    "Gemini transient stream failure (attempt %s), retrying in %.1fs: %s",
+                    n,
+                    d,
+                    scrub_exception(exc),
+                ),
             )
-            yield from _stream_text_from_gemini(stream)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             scrubbed = scrub_exception(exc)
             logger.warning(
@@ -567,12 +652,24 @@ class GeminiClient:
             gen_config["tools"] = tool_decls
 
         try:
-            stream = self._client.models.generate_content_stream(
-                model=model or self.model,
-                contents=contents,
-                config=gen_config,
+            # Lazy stream: retry wraps CONSUMPTION, bounded by emission. This
+            # is the path that lost a golden-mission run to a 429 on
+            # 2026-09-02 while a creation-only wrapper watched it go past.
+            yield from stream_with_backoff(
+                lambda: _stream_from_gemini(
+                    self._client.models.generate_content_stream(
+                        model=model or self.model,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                ),
+                on_retry=lambda n, exc, d: logger.warning(
+                    "Gemini transient stream failure (attempt %s), retrying in %.1fs: %s",
+                    n,
+                    d,
+                    scrub_exception(exc),
+                ),
             )
-            yield from _stream_from_gemini(stream)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             scrubbed = scrub_exception(exc)
             logger.warning(
