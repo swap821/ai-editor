@@ -1,13 +1,13 @@
 # Phase 5 proof — Organ 40: Isolated Workspace and Executor (live proof)
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `6907220325f721f9bbc72590e482cb8d9a39b50e`
-**Generated:** 2026-09-02T12:01:05+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `7c0f675ccb58297cbd7455a14dd158cc1c30f60b`
+**Generated:** 2026-09-02T19:02:22+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C7**: no integration_tests proved anything here (unverified: tests/test_executor_integration.py (all 4 skipped))
 
 ## Written verdict keys that are not PASS/N/A
 

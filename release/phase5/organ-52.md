@@ -1,13 +1,13 @@
 # Phase 5 proof — Organ 52: Observability and Health Organ
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `6907220325f721f9bbc72590e482cb8d9a39b50e`
-**Generated:** 2026-09-02T12:01:07+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `7c0f675ccb58297cbd7455a14dd158cc1c30f60b`
+**Generated:** 2026-09-02T19:02:23+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C10**: cited test tests/test_executor_integration.py::test_trace_context_reaches_the_isolated_container did not run and pass
 
 ## Written verdict keys that are not PASS/N/A
 

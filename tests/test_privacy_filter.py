@@ -6,6 +6,7 @@ filter ENGINE (per-role redaction, file-content stubbing, tool-call arg redactio
 history truncation, request/response validation) was unit-untested. These pin the
 real redaction + validation behavior.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -17,8 +18,11 @@ _GH_TOKEN = "ghp_" + "a" * 36  # matches the GitHub-token credential pattern
 
 # ── filter(): per-role redaction ─────────────────────────────────────────────
 
+
 def test_filter_redacts_credentials_in_user_message() -> None:
-    safe, audit = PrivacyFilter().filter([{"role": "user", "content": f"key is {_GH_TOKEN} ok"}])
+    safe, audit = PrivacyFilter().filter(
+        [{"role": "user", "content": f"key is {_GH_TOKEN} ok"}]
+    )
     assert _GH_TOKEN not in safe[0]["content"]
     assert audit["redacted_credentials"] >= 1
 
@@ -78,7 +82,10 @@ def test_filter_redacts_tool_call_arguments() -> None:
 
 def test_filter_drops_unknown_role() -> None:
     safe, audit = PrivacyFilter().filter(
-        [{"role": "weird", "content": "x"}, {"role": "user", "content": "hello there friend"}]
+        [
+            {"role": "weird", "content": "x"},
+            {"role": "user", "content": "hello there friend"},
+        ]
     )
     assert all(m["role"] != "weird" for m in safe)
     assert audit["dropped_messages"] >= 1
@@ -86,7 +93,10 @@ def test_filter_drops_unknown_role() -> None:
 
 def test_filter_drops_empty_system_message() -> None:
     safe, _ = PrivacyFilter().filter(
-        [{"role": "system", "content": ""}, {"role": "user", "content": "hello there now"}]
+        [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": "hello there now"},
+        ]
     )
     assert all(m["role"] != "system" for m in safe)
 
@@ -110,8 +120,13 @@ def test_history_window_has_floor_and_coding_can_keep_more_turns() -> None:
 
 # ── validate_response() ──────────────────────────────────────────────────────
 
+
 def test_validate_response_accepts_valid() -> None:
-    resp = {"role": "assistant", "content": "hi", "tool_calls": [{"function": {"arguments": {"a": 1}}}]}
+    resp = {
+        "role": "assistant",
+        "content": "hi",
+        "tool_calls": [{"function": {"arguments": {"a": 1}}}],
+    }
     assert PrivacyFilter().validate_response(resp) is resp
 
 
@@ -122,7 +137,9 @@ def test_validate_response_rejects_non_dict() -> None:
 
 def test_validate_response_rejects_oversize() -> None:
     with pytest.raises(ValueError):
-        PrivacyFilter(max_response_size=10).validate_response({"role": "assistant", "content": "x" * 100})
+        PrivacyFilter(max_response_size=10).validate_response(
+            {"role": "assistant", "content": "x" * 100}
+        )
 
 
 def test_validate_response_rejects_bad_role_and_content_and_tool_calls() -> None:
@@ -132,16 +149,29 @@ def test_validate_response_rejects_bad_role_and_content_and_tool_calls() -> None
     with pytest.raises(ValueError):
         pf.validate_response({"role": "assistant", "content": 123})
     with pytest.raises(ValueError):
-        pf.validate_response({"role": "assistant", "content": "x", "tool_calls": "nope"})
+        pf.validate_response(
+            {"role": "assistant", "content": "x", "tool_calls": "nope"}
+        )
     with pytest.raises(ValueError):
-        pf.validate_response({"role": "assistant", "content": "x", "tool_calls": ["not a dict"]})
+        pf.validate_response(
+            {"role": "assistant", "content": "x", "tool_calls": ["not a dict"]}
+        )
     with pytest.raises(ValueError):
-        pf.validate_response({"role": "assistant", "content": "x", "tool_calls": [{"function": "x"}]})
+        pf.validate_response(
+            {"role": "assistant", "content": "x", "tool_calls": [{"function": "x"}]}
+        )
     with pytest.raises(ValueError):
-        pf.validate_response({"role": "assistant", "content": "x", "tool_calls": [{"function": {"arguments": 1}}]})
+        pf.validate_response(
+            {
+                "role": "assistant",
+                "content": "x",
+                "tool_calls": [{"function": {"arguments": 1}}],
+            }
+        )
 
 
 # ── _validate_request() raise paths ──────────────────────────────────────────
+
 
 def test_validate_request_rejects_too_many_messages() -> None:
     pf = PrivacyFilter(max_messages=2)
@@ -158,6 +188,7 @@ def test_validate_request_rejects_bad_role_and_missing_content() -> None:
 
 
 # ── _redact_file_content() ───────────────────────────────────────────────────
+
 
 def test_redact_file_content_stubs_code() -> None:
     code = "import os\nx = 1\ny = 2\nz = 3\nw = 4\n"
@@ -314,7 +345,12 @@ class TestPathShapedTokensAreNotSecrets:
 
         balanced = "sk9F2xQ7mZ4tY8bA1cD3eG6hJ0kL5nP/rS8uV2wX4yA6zB9cE1f"
         safe2, audit2 = pf.filter(
-            [{"role": "user", "content": f"cloud provider returned {balanced} and closed"}]
+            [
+                {
+                    "role": "user",
+                    "content": f"cloud provider returned {balanced} and closed",
+                }
+            ]
         )
         assert balanced not in str(safe2[0]["content"])
         assert audit2["redacted_credentials"] + audit2["redacted_secrets"] > 0
@@ -327,11 +363,15 @@ class TestPathShapedTokensAreNotSecrets:
         pf = PrivacyFilter()
         secret = "qwertyuiopasdfghjklzxc"
         assert len(secret) == 22
-        safe, audit = pf.filter([{"role": "user", "content": f"here is the key {secret} end"}])
+        safe, audit = pf.filter(
+            [{"role": "user", "content": f"here is the key {secret} end"}]
+        )
         assert secret not in str(safe[0]["content"])
         assert audit["redacted_secrets"] > 0
 
-    def test_pascal_case_and_camel_case_identifiers_are_not_false_positives(self) -> None:
+    def test_pascal_case_and_camel_case_identifiers_are_not_false_positives(
+        self,
+    ) -> None:
         """The case-transition-ratio check must not flag normal camelCase/
         PascalCase code identifiers -- these have very few case transitions
         relative to real random-generated secrets, which transition on
@@ -352,7 +392,125 @@ class TestPathShapedTokensAreNotSecrets:
         relative path tokens is fixed."""
         pf = PrivacyFilter()
         safe, _ = pf.filter(
-            [{"role": "user", "content": r"see C:\Users\kumar\secret_project\notes.txt"}]
+            [
+                {
+                    "role": "user",
+                    "content": r"see C:\Users\kumar\secret_project\notes.txt",
+                }
+            ]
         )
         assert r"C:\Users\kumar" not in str(safe[0]["content"])
         assert "[PATH REDACTED]" in str(safe[0]["content"])
+
+
+# ── _bound_message_count(): the agent-loop history hole ──────────────────────
+#
+# `_truncate_history` counts a turn only when a `user` message follows an
+# `assistant` one. A tool-calling agent loop emits assistant -> tool -> assistant
+# -> tool with NO user message between, so that counter never advanced, the loop
+# never broke, and the entire history was returned unchanged -- truncation was a
+# no-op for exactly the traffic that grows without bound.
+#
+# Measured, not theorised: on 2026-09-02 a golden-mission repair loop reached 51
+# messages and the turn died on
+#
+#     ValueError: Request contains 51 messages; max is 50
+#
+# surfaced to the agent as an opaque "Internal error". The mission was scored as
+# a capability miss; the cause was ours.
+#
+# The cap is NOT raised in the fix. These pin that the filter now COMPLIES with
+# its own limit rather than failing on it.
+
+
+def _agent_loop(pairs: int) -> list[dict]:
+    """One user turn, then `pairs` assistant/tool exchanges and no user message."""
+    msgs: list[dict] = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "do the task"},
+    ]
+    for i in range(pairs):
+        msgs.append(
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": f"c{i}",
+                        "type": "function",
+                        "function": {"name": "run_tests", "arguments": "{}"},
+                    }
+                ],
+            }
+        )
+        msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": f"result {i}"})
+    return msgs
+
+
+def test_a_long_tool_loop_no_longer_blows_the_message_cap() -> None:
+    """The exact shape that cost a golden-mission run."""
+    pf = PrivacyFilter()
+    messages = _agent_loop(25)
+
+    assert len(messages) > pf.max_messages, (
+        "fixture must exceed the cap to be meaningful"
+    )
+
+    safe, audit = pf.filter(messages)  # must not raise
+
+    assert len(safe) <= pf.max_messages
+    assert audit["truncated_history"] > 0, "nothing was actually trimmed"
+
+
+@pytest.mark.parametrize("pairs", [25, 40, 100])
+def test_the_bound_holds_however_long_the_loop_runs(pairs: int) -> None:
+    pf = PrivacyFilter()
+    safe, _ = pf.filter(_agent_loop(pairs))
+    assert len(safe) <= pf.max_messages
+
+
+def test_trimming_never_orphans_a_tool_response() -> None:
+    """A window may not begin with a `tool` whose assistant call was trimmed away.
+
+    Gemini rejects a turn whose function_response count does not match its
+    function_call count -- the same 400 that cost a mission on 2026-09-02. A
+    naive tail-slice would reintroduce it from the other direction.
+    """
+    pf = PrivacyFilter()
+    safe, _ = pf.filter(_agent_loop(40))
+
+    roles = [m.get("role") for m in safe]
+    first_non_system = next(r for r in roles if r != "system")
+    assert first_non_system != "tool", "window opens on an orphaned tool response"
+
+
+def test_the_system_message_survives_trimming() -> None:
+    """Dropping the system prompt would change the agent's instructions mid-run."""
+    pf = PrivacyFilter()
+    safe, _ = pf.filter(_agent_loop(40))
+    assert safe[0]["role"] == "system"
+
+
+def test_a_short_conversation_is_not_touched() -> None:
+    """The bound must not perturb ordinary traffic."""
+    pf = PrivacyFilter()
+    short = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "yo"},
+    ]
+    safe, audit = pf.filter(short)
+    assert len(safe) == len(short)
+    assert audit["truncated_history"] == 0
+
+
+def test_the_cap_itself_is_unchanged() -> None:
+    """The fix must not have been 'raise the limit until it fits'.
+
+    If this ever fails because the default grew, the fix was abandoned for the
+    thing it was written to avoid.
+    """
+    from aios.core.privacy_filter import _MAX_MESSAGES_PER_REQUEST
+
+    assert _MAX_MESSAGES_PER_REQUEST == 50
+    assert PrivacyFilter().max_messages == 50

@@ -300,3 +300,74 @@ the TDD red phase intact and no infrastructure assistance.
 
 It does not establish that it does so under throttling. Runs 1-3 are the record
 of what happens then — 87%, 67%, 73% — and they remain in this document.
+
+---
+
+# Addendum — run 5 at master: `[5, 4, 4+1 unresolved]`, and a third defect
+
+**Run 5 did not reproduce `[5, 5, 5]`, and it is recorded here for that reason.**
+
+Run at master `af268809` itself (not a branch tip), fresh instance per repeat.
+The operator asked for a second confirming cohort after the bar was already met.
+It did not confirm.
+
+| repeat | result |
+| --- | --- |
+| 1 | **5/5** |
+| 2 | **4/5** — `iterative-refinement` failed |
+| 3 | 4 of 5 resolved; the 5th was **interrupted with no verdict** |
+
+**13 passed, 1 failed, 1 unresolved of 15.** The final mission has no verdict
+because the *driver* process was killed by the test harness mid-step — the
+backend was still healthy and still returning `200 OK` from Vertex when it died.
+That mission is reported as unresolved rather than counted either way.
+
+## The one real failure was ours, not the model's
+
+`iterative-refinement` repeat 2. The model made a botched edit that produced
+invalid Python (`xsorted_insert import sorted_insert`), then looped ~805s trying
+to repair it. That part is a model error and would have been an honest miss.
+
+What actually ended the turn was our own guard:
+
+```
+ValueError: Request contains 51 messages; max is 50
+  tool_agent.py:1635 _stream_iteration
+   -> gemini.py:635  stream_chat_with_tools
+    -> privacy_filter.py:375 filter
+     -> privacy_filter.py:590 _validate_request
+```
+
+`aios/core/privacy_filter.py:90` caps a single request at 50 messages. A long
+repair loop crosses that ceiling and the whole turn dies with an opaque
+`Internal error` surfaced to the agent. The same file already carries
+history-trimming machinery (`_HISTORY_WINDOW`, `AIOS_CLOUD_HISTORY_WINDOW=2`),
+but on this path the cap is validated against the full sanitized list and the
+request is refused rather than trimmed.
+
+This is the **third product defect a golden cohort has surfaced**, after the
+organ 53 auth bypass and the `_to_gemini` pairing bug. Like the pairing bug, it
+was being scored as a capability miss.
+
+**It has not been changed.** It is a resource guard inside the privacy filter --
+the component that sanitizes outbound cloud traffic -- and raising a cap so a
+mission passes is precisely the move this campaign exists to prevent. Bounding
+the loop, trimming before validating, or failing with something actionable are
+design decisions for the operator.
+
+One thing did work as designed: the retry classified this as permanent and failed
+fast instead of spending three backoffs on an error that could never clear.
+
+## What run 5 does and does not change
+
+It does **not** retract run 4. The bar -- three consecutive clean 5/5 -- was
+declared before the 2026-08-19 runs, and run 4 met it in full at a tree identical
+to master. Nothing about run 4's evidence is weakened by a later run.
+
+It does establish that **`[5,5,5]` is not reliably reproducible**: across five
+cohorts the results are 87%, 67%, 73%, 100%, and 93% (of resolved missions).
+Organ 44 is green on a measurement that met its declared bar, not on a claim that
+every cohort will.
+
+Recording this rather than stopping at run 4 is the point. A bar that only ever
+sees its winning run is not a bar.

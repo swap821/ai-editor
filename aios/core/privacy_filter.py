@@ -430,7 +430,54 @@ class PrivacyFilter:
                     break
             kept.append(msg)
         kept.reverse()
-        return kept
+        return self._bound_message_count(kept)
+
+    def _bound_message_count(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Bound message COUNT, not only conversational turns.
+
+        `_truncate_history` above counts a turn only when a ``user`` message
+        follows an ``assistant`` one. A tool-calling agent loop emits
+        ``assistant -> tool -> assistant -> tool`` with no intervening user
+        message, so that counter never advances, the loop never breaks, and the
+        whole history is returned unchanged -- truncation is a no-op for exactly
+        the traffic that grows without bound. `_validate_request` then refuses
+        the entire request.
+
+        Measured, not theorised: on 2026-09-02 a golden-mission repair loop
+        reached 51 messages and died on
+
+            ValueError: Request contains 51 messages; max is 50
+
+        surfaced to the agent as an opaque "Internal error". The mission was
+        scored as a capability miss; the cause was ours.
+
+        THE CAP IS NOT RAISED. Requests still never exceed ``max_messages``.
+        The filter now complies with its own limit instead of failing on it.
+        """
+        if len(messages) <= self.max_messages:
+            return list(messages)
+
+        leading_system: list[dict[str, Any]] = []
+        for msg in messages:
+            if msg.get("role") != "system":
+                break
+            leading_system.append(msg)
+
+        budget = self.max_messages - len(leading_system)
+        if budget <= 0:
+            # Pathological: more system messages than the cap allows.
+            return list(messages[: self.max_messages])
+
+        window = list(messages[len(leading_system) :][-budget:])
+        # Never orphan a tool response whose assistant tool_call was trimmed
+        # away. Gemini rejects a turn whose function_response count does not
+        # match its function_call count -- the same 400 that cost a mission on
+        # 2026-09-02 -- so a window may not begin with a dangling `tool`.
+        while window and window[0].get("role") == "tool":
+            window.pop(0)
+        return leading_system + window
 
     def _redact_message(
         self, msg: dict[str, Any]
