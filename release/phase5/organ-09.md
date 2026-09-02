@@ -2,8 +2,8 @@
 
 **Status under re-read:** `green`
 **Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `8d9964eaba2e69462253c83eda757ae8ad43a3bc`
-**Generated:** 2026-09-01T17:23:53+00:00
+**Evaluated tip:** `1aaa6fa6b2badf5dbfd98bce9bfe59a621364aa0`
+**Generated:** 2026-09-02T03:35:40+00:00
 
 ## Mechanical failures (enforceable subset)
 
