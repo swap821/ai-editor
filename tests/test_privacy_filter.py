@@ -514,3 +514,102 @@ def test_the_cap_itself_is_unchanged() -> None:
 
     assert _MAX_MESSAGES_PER_REQUEST == 50
     assert PrivacyFilter().max_messages == 50
+
+
+# ── _in_code_identifier_context(): redaction must not corrupt source ──────────
+#
+# On 2026-09-02 the entropy heuristic rewrote `test_insert_beginning` (21 chars)
+# to a `[SENSITIVE: ...]` placeholder inside source relayed to a cloud model. The
+# model echoed the placeholder back and emitted `def [SENSITIVE: ...]():`. The
+# resulting SyntaxError was scored as a golden-mission capability miss -- the
+# model had been handed corrupted ground truth. Same bug the 2026-07-07 filename
+# exemption fixed (models "echoing the redaction hash back as a filename"), same
+# remedy.
+#
+# The exemption is by POSITION, never by shape. Shape cannot decide it: a
+# passphrase and a pytest name are indistinguishable by length, character class
+# AND Shannon entropy -- both ~3.5 bits/char. An entropy threshold was tried
+# first and rejected for exactly that reason.
+
+_PASSPHRASE = "correct_horse_battery_staple"
+_AUDIT_SECRET = "qwertyuiopasdfghjklzxc"  # 2026-07-10 adversarial audit
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def test_insert_beginning():",
+        "def test_divide_by_zero_raises():",
+        "async def test_pipeline_handles_errors():",
+        "class SortedInsertMaintainsOrder:",
+        "from training_ground.mod import validate_email_address",
+        "    test_pipeline_handles_errors()",
+        "result = sorted_insert_maintains_order(data)",
+    ],
+)
+def test_code_identifiers_are_not_redacted(source: str) -> None:
+    """Declaration, import and call positions must survive intact."""
+    from aios.core.privacy_filter import _redact_high_entropy
+
+    redacted, count = _redact_high_entropy(source)
+
+    assert count == 0, f"redaction corrupted source: {redacted}"
+    assert redacted == source
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        'password = "{s}"',
+        "api_key = {s}",
+        "Authorization: Bearer {s}",
+        "the token is {s} ok",
+        "return {s}",
+    ],
+)
+def test_a_passphrase_in_a_value_position_is_still_redacted(template: str) -> None:
+    """The half that must not weaken.
+
+    `correct_horse_battery_staple` is shaped exactly like a test name and has
+    the same entropy as one. It is redacted here purely because it sits where a
+    VALUE goes, which is the whole basis of the exemption.
+    """
+    from aios.core.privacy_filter import _redact_high_entropy
+
+    redacted, count = _redact_high_entropy(template.format(s=_PASSPHRASE))
+
+    assert count >= 1, f"secret escaped redaction: {redacted}"
+    assert _PASSPHRASE not in redacted
+
+
+def test_the_audited_secret_is_still_redacted() -> None:
+    """The exact string a 2026-07-10 audit found slipping through a carve-out."""
+    from aios.core.privacy_filter import _redact_high_entropy
+
+    redacted, count = _redact_high_entropy(f"token = {_AUDIT_SECRET}")
+
+    assert count == 1
+    assert _AUDIT_SECRET not in redacted
+
+
+def test_a_secret_beside_an_identifier_is_still_caught() -> None:
+    """The exemption must be per-token, not per-line."""
+    from aios.core.privacy_filter import _redact_high_entropy
+
+    source = f'def test_insert_beginning():\n    key = "{_GH_TOKEN}"\n'
+
+    redacted, count = _redact_high_entropy(source)
+
+    assert "test_insert_beginning" in redacted, "identifier was corrupted"
+    assert _GH_TOKEN not in redacted, "secret leaked"
+    assert count == 1
+
+
+def test_the_identifier_exemption_requires_a_real_identifier() -> None:
+    """A non-identifier token in a `def`-adjacent position is not exempt."""
+    from aios.core.privacy_filter import _in_code_identifier_context
+
+    token = "wJalrXUtnFEMI" + "/K7MDENG/bPxRfi"  # slash-bearing, not an identifier
+    text = f"def {token}"
+
+    assert not _in_code_identifier_context(text, 4, 4 + len(token), token)

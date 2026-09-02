@@ -80,6 +80,16 @@ _PATH_PATTERNS: Final[list[re.Pattern[str]]] = [
 #: and looks like a random/base64 string.
 _SECRET_ENTROPY_THRESHOLD: Final[int] = 20
 
+#: Source-code positions in which a long token is a declared or referenced
+#: identifier rather than a value. Position, not shape, is what separates an
+#: identifier from a secret: `correct_horse_battery_staple` and
+#: `test_divide_by_zero_raises` are indistinguishable by length, character
+#: class and Shannon entropy alike (both ~3.5 bits/char), but only one of them
+#: ever appears immediately after `def`.
+_CODE_IDENTIFIER_PREFIX_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?:^|[\s(,\[])(?:async\s+)?(?:def|class|function|import|from)\s+$"
+)
+
 #: Maximum response body size we'll accept from a cloud provider (bytes).
 _MAX_RESPONSE_SIZE: Final[int] = 4 * 1024 * 1024  # 4 MiB
 
@@ -225,6 +235,39 @@ def _in_filename_context(text: str, start: int, end: int, token: str) -> bool:
     return bool(_EXT_AFTER.match(text, end))
 
 
+def _in_code_identifier_context(text: str, start: int, end: int, token: str) -> bool:
+    """True when the matched token is a source-code identifier, not a value.
+
+    Same class of bug as the 2026-07-07 filename exemption above, and the same
+    remedy. There, the entropy heuristic redacted the very filename a model was
+    asked to work on and "the learning-loop prover recorded models echoing the
+    redaction hash back as a filename". Here it was long *identifiers*: on
+    2026-09-02 `test_insert_beginning` (21 chars) was rewritten to
+    `[SENSITIVE: 7f4fdbc550c8]` inside source relayed to the model, which echoed
+    the placeholder back and emitted `def [SENSITIVE: 7f4fdbc550c8]():`. The
+    resulting SyntaxError was scored as a golden-mission capability miss; the
+    model had been handed corrupted ground truth.
+
+    Exemption is by POSITION, never by shape, because shape cannot decide it:
+    `correct_horse_battery_staple` (a passphrase) and
+    `test_divide_by_zero_raises` (a pytest name) are indistinguishable by
+    length, character class and Shannon entropy alike -- both ~3.5 bits/char.
+    Only one of them ever appears immediately after `def`, or immediately
+    before a call's `(`.
+
+    A token is exempt only when it is a valid identifier AND sits in a
+    declaration/import position or at a call site. A secret in an assignment,
+    a string literal, a header or prose matches none of those and is still
+    redacted.
+    """
+    if not token.isidentifier():
+        return False
+    if _CODE_IDENTIFIER_PREFIX_RE.search(text[:start]):
+        return True
+    # Call site: `name(` — a quoted or assigned value never has this shape.
+    return text[end : end + 1] == "("
+
+
 def _redact_high_entropy(text: str) -> tuple[str, int]:
     """Replace high-entropy strings in *text* with hashed placeholders.
 
@@ -243,6 +286,8 @@ def _redact_high_entropy(text: str) -> tuple[str, int]:
     for match in re.finditer(r"[A-Za-z0-9_+/=\-]{20,}", text):
         token = match.group(0)
         if _in_filename_context(text, match.start(), match.end(), token):
+            continue
+        if _in_code_identifier_context(text, match.start(), match.end(), token):
             continue
         if _looks_like_secret(token):
             pieces.append(text[cursor : match.start()])
