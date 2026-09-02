@@ -423,3 +423,139 @@ def test_models_gemini_endpoint_unconfigured_is_empty() -> None:
         "available": False,
         "models": [],
     }
+
+
+# --------------------------------------------------------------------------- #
+# Every function_call must be answered — Gemini counts them
+# --------------------------------------------------------------------------- #
+# Gemini rejects a request whose model turn carries N function_call parts unless
+# exactly N function_response parts answer it:
+#
+#   400 INVALID_ARGUMENT: Please ensure that the number of function response
+#   parts is equal to the number of function call parts of the function call turn.
+#
+# That is not an edge case here, it is the supervision mechanism: a YELLOW tool
+# call that the operator refuses produces a call with no result. The adapter
+# previously emitted the call and simply never answered it, so the NEXT turn of
+# any approval-gated mission died at the provider. Measured on 2026-09-02, in a
+# golden-mission cohort, after the earlier "ends on a model turn" fix had already
+# landed -- that fix addressed a different symptom of the same imbalance.
+
+
+def _function_response_parts(contents: list[dict]) -> list[dict]:
+    return [
+        part
+        for content in contents
+        for part in content.get("parts", [])
+        if "function_response" in part
+    ]
+
+
+def _function_call_parts(contents: list[dict]) -> list[dict]:
+    return [
+        part
+        for content in contents
+        for part in content.get("parts", [])
+        if "function_call" in part
+    ]
+
+
+def test_a_refused_tool_call_is_still_answered() -> None:
+    """The approval path: a call the operator blocked yields no tool message.
+
+    The model turn still carries the function_call, so an unanswered call makes
+    the whole request invalid. It is answered with a truthful placeholder rather
+    than dropped.
+    """
+    _, contents = _to_gemini(
+        [
+            {"role": "user", "content": "delete the database"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "execute_terminal", "arguments": {"command": "rm -rf /"}}}
+                ],
+            },
+            # No {"role": "tool", ...}: the gateway refused it.
+        ]
+    )
+
+    calls = _function_call_parts(contents)
+    responses = _function_response_parts(contents)
+    assert len(calls) == 1
+    assert len(responses) == len(calls), (
+        "a refused tool call left its function_call unanswered; Gemini rejects "
+        "the request with 400 INVALID_ARGUMENT"
+    )
+    assert responses[0]["function_response"]["name"] == "execute_terminal"
+
+
+def test_partially_answered_multi_call_turns_are_balanced() -> None:
+    """Two calls, one result: the second must still be answered."""
+    _, contents = _to_gemini(
+        [
+            {"role": "user", "content": "read both files"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "read_file", "arguments": {"path": "a.py"}}},
+                    {"function": {"name": "read_file", "arguments": {"path": "b.py"}}},
+                ],
+            },
+            {"role": "tool", "content": "contents of a.py"},
+        ]
+    )
+
+    assert len(_function_response_parts(contents)) == len(_function_call_parts(contents)) == 2
+
+
+def test_all_responses_for_one_call_turn_share_a_single_turn() -> None:
+    """Gemini counts responses against the CALL TURN, so they belong together.
+
+    Emitting each result as its own user content splits the answers across
+    turns, which is what the provider's message is complaining about.
+    """
+    _, contents = _to_gemini(
+        [
+            {"role": "user", "content": "read both"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "read_file", "arguments": {"path": "a.py"}}},
+                    {"function": {"name": "read_file", "arguments": {"path": "b.py"}}},
+                ],
+            },
+            {"role": "tool", "content": "a"},
+            {"role": "tool", "content": "b"},
+        ]
+    )
+
+    holders = [c for c in contents if any("function_response" in p for p in c.get("parts", []))]
+    assert len(holders) == 1, "responses were split across turns instead of grouped"
+    assert len(holders[0]["parts"]) == 2
+
+
+def test_real_results_are_preserved_and_paired_in_order() -> None:
+    """The fix must not scramble genuine results while balancing counts."""
+    _, contents = _to_gemini(
+        [
+            {"role": "user", "content": "go"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "first", "arguments": {}}},
+                    {"function": {"name": "second", "arguments": {}}},
+                ],
+            },
+            {"role": "tool", "content": "result-one"},
+            {"role": "tool", "content": "result-two"},
+        ]
+    )
+
+    responses = [p["function_response"] for p in _function_response_parts(contents)]
+    assert [r["name"] for r in responses] == ["first", "second"]
+    assert [r["response"]["result"] for r in responses] == ["result-one", "result-two"]
