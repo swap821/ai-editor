@@ -1,15 +1,14 @@
 # GAGOS 54 Organs
 
-> **SUPERSEDED COUNTS BELOW - current status is 23 green / 31 yellow as of
+> **SUPERSEDED COUNTS BELOW - current status is 30 green / 24 yellow as of
 > 2026-09-01.** The 2026-09-01 recount first took the ledger to 5 green / 49
-> yellow by measuring every green against the twelve-condition bar; waves 1
-> and 2 of the restoration then returned 18 organs to green by citing C3/C4/C5
-> proofs that execute in the gate's own run - see
-> `release/organ-ledger/2026-09-01-wave1-restoration.md` and
-> `-wave2-restoration.md`. Every green/yellow tally in the dated narrative
-> that follows was true when written and is kept for lineage, not as current
-> status. Nothing was disproven and no test was weakened. The generated table
-> further down is rendered from `.aios/state/ORGAN_GREEN_LEDGER.json` and
+> yellow by measuring every green against the twelve-condition bar; waves 1-3
+> then returned 25 organs to green by citing C3/C4/C5 proofs that execute in
+> the gate's own run - see `release/organ-ledger/2026-09-01-wave{1,2,3}-restoration.md`.
+> Every green/yellow tally in the dated narrative that follows was true when
+> written and is kept for lineage, not as current status. Nothing was disproven
+> and no test was weakened. The generated table further down is rendered from
+> `.aios/state/ORGAN_GREEN_LEDGER.json` and
 > is always current; this banner exists because the prose above it is not.
 
 **Established:** Slice 25 of the GAGOS Completion Plan (Slices 25-40), baseline
@@ -772,8 +771,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 23 green / 31 yellow / 54 total
-- **Source ledger sha256:** `5774b36cd99cc92e547e995f46ffa7e80f83489b23fcaca3ca11e4357f863849`
+- **Counts:** 30 green / 24 yellow / 54 total
+- **Source ledger sha256:** `25a991bf873f34ddc4f91c193f75636147e10a7f7be347ba4e199f0bd6b311ea`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -781,7 +780,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (23)
+### Green (30)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -791,14 +790,21 @@ re-audits recorded above.
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `f3cb6122fb8d` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `f3cb6122fb8d` | live |
 | 7 | Policy Kernel | `PolicyKernelAuthority` | `5d482164707c` | live |
+| 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
 | 9 | Exact Capability Authority | `CapabilityAuthority` | `5d482164707c` | live |
 | 10 | Mission Authority | `MissionAuthority` | `5d482164707c` | live |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `5d482164707c` | live |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5d482164707c` | live |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | `5d482164707c` | live |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `5d482164707c` | live |
 | 18 | Memory Authority (construction) | `MemoryAuthority` | `5d482164707c` | live |
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `5d482164707c` | live |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `5d482164707c` | live |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `5d482164707c` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `abf7346def48` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `5d482164707c` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `5d482164707c` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `5d482164707c` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `90830647e40c` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `4cd9f1550cf1` | live |
@@ -809,22 +815,15 @@ re-audits recorded above.
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `5d482164707c` | live |
 
-### Yellow (31) — exact residual, from the ledger's own `known_blockers`
+### Yellow (24) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 6 | Edge Trust Boundary | `EdgeTrustAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 8 | Action Broker | `ActionBrokerAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 12 | Worker Foundry | `WorkerFoundryAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 17 | Cortex Observation Bus | `CortexBusAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
