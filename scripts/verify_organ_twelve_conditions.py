@@ -309,9 +309,43 @@ def _suite_outcome(
 
 #: A condition proof: an exact test that must have executed and PASSED, written
 #: `tests/foo.py::test_bar` inside the condition's own written verdict.
+#:
+#: The quoted alternative exists because a vitest test cannot be named any other
+#: way. Frontend suites are written `it('rejects malformed known events before
+#: read-model mutation or reaction')` -- the description IS the name, and it
+#: contains spaces. Before the quoted form, citing one was not merely rejected,
+#: it was SILENTLY TRUNCATED: the path matched, `[\w\[\]\-]+` captured only
+#: `rejects`, and the verdict passed the "a referent is named" check before
+#: failing execution-matching against a test nobody wrote. Organs 20, 48, 49 and
+#: 51 were therefore unciteable by construction -- their proofs existed and the
+#: contract could not express them.
+#:
+#: The alternation lives INSIDE group 2 on purpose. Three call sites unpack the
+#: 2-tuples this yields; a third capturing group turns every one of them into
+#: `ValueError: too many values to unpack`.
 _CONDITION_PROOF_RE = re.compile(
-    r"((?:tests|frontend)/[\w./\-]+\.(?:py|tsx?|jsx?))::([\w\[\]\-]+)"
+    r'((?:tests|frontend)/[\w./\-]+\.(?:py|tsx?|jsx?))::("[^"\n]+"|[\w\[\]\-]+)'
 )
+
+
+def _unquote_proof_name(raw: str) -> str:
+    """Strip the optional surrounding quotes from a cited test name.
+
+    Applied at every `findall` site so the loop bodies keep receiving a bare
+    name and need no knowledge of the quoting.
+    """
+    if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
+        return raw[1:-1]
+    return raw
+
+
+def _proof_citations(text: str) -> list[tuple[str, str]]:
+    """Every `path::name` citation in *text*, with names unquoted."""
+    return [
+        (path, _unquote_proof_name(name))
+        for path, name in _CONDITION_PROOF_RE.findall(text)
+    ]
+
 
 #: C3 and C4 are defined as "... (or N/A-BY-DESIGN with cite)", so they may be
 #: discharged by a resolvable code cite instead of a test. C5 -- "Fail-safe
@@ -409,7 +443,7 @@ def _evidence_reference_failures(
         desc = evidence.description
         artifacts = _PHASE4_ARTIFACT_RE.findall(desc)
         runs = _CI_RUN_RE.findall(desc)
-        nodes = _CONDITION_PROOF_RE.findall(desc)
+        nodes = _proof_citations(desc)
         operator = _OPERATOR_ATTESTED in desc
 
         if not (artifacts or runs or nodes or operator):
@@ -507,7 +541,7 @@ def _referenced_test_files(records) -> set[str]:
             if path.endswith(".py") and (REPO_ROOT / path).exists():
                 referenced.add(path)
         for text in (record.condition_verdicts or {}).values():
-            for path, _test_name in _CONDITION_PROOF_RE.findall(str(text or "")):
+            for path, _test_name in _proof_citations(str(text or "")):
                 if path.endswith(".py") and (REPO_ROOT / path).exists():
                     referenced.add(path)
     return referenced
@@ -542,12 +576,30 @@ def _proof_ran_and_passed(outcome: dict, test_name: str) -> bool:
     Deliberately narrow: ``test_x`` matches ``test_x`` and ``test_x[...]``, and
     nothing else. It does not prefix-match sibling tests -- ``test_x`` must not
     be discharged by ``test_x_and_more`` passing.
+
+    The vitest clause
+    -----------------
+    vitest folds the enclosing ``describe`` blocks into the JUnit ``name``,
+    joined by " > " -- ``it('rejects malformed known events')`` inside
+    ``describe('Living Mirror reaction registry')`` is reported as
+    ``Living Mirror reaction registry > rejects malformed known events``.
+    A citation names the leaf, because that is what a human reads in the test
+    file, so an exact match could never succeed for any frontend test.
+
+    Matching on the final segment keeps the bar exactly where it was: the cited
+    name must equal the WHOLE segment after the last " > ", so a sibling named
+    ``...rejects malformed known events and more`` still cannot discharge a
+    citation of ``...rejects malformed known events`` -- the same sibling-safety
+    the bracket clause has for pytest.
     """
     passed = outcome.get("passed_names", ())
     bracket = f"{test_name}["
+    suite_suffix = f" > {test_name}"
 
     def _matches(name: str) -> bool:
-        return name == test_name or name.startswith(bracket)
+        return (
+            name == test_name or name.startswith(bracket) or name.endswith(suite_suffix)
+        )
 
     if not any(_matches(name) for name in passed):
         return False
@@ -606,7 +658,7 @@ def _condition_proof_failures(
                 )
             continue
 
-        refs = _CONDITION_PROOF_RE.findall(text)
+        refs = _proof_citations(text)
         if not refs:
             failures.append(
                 (
