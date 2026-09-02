@@ -192,7 +192,9 @@ def get_gemini_client() -> Optional[GeminiClient]:
         if _gemini_client is not None:
             return _gemini_client
         try:
-            _gemini_client = GeminiClient(privacy_audit_tracker=_privacy_audit_tracker())
+            _gemini_client = GeminiClient(
+                privacy_audit_tracker=_privacy_audit_tracker()
+            )
         except LLMError:
             return None
     return _gemini_client
@@ -1177,7 +1179,9 @@ def get_local_workforce_service(
         config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH
     )
     return LocalWorkforceService(
-        registry=registry, ollama=ollama, provenance_store=provenance_store,
+        registry=registry,
+        ollama=ollama,
+        provenance_store=provenance_store,
         emergency_stop=emergency_stop,
     )
 
@@ -1513,12 +1517,27 @@ def get_worker_foundry(
             from aios.runtime.spawner import WorkerSpawner
 
             spawner = WorkerSpawner(runtime_root=config.COUNCIL_RUNTIME_DIR)
+            # Worker lifecycle is durably observable, not just in-process.
+            #
+            # `WorkerFoundry` has always accepted a `bus=`, and `_set_state`
+            # has always appended a CanonicalEvent to it -- but this factory
+            # never passed one, so the FastAPI-facing singleton dropped every
+            # worker admission and lifecycle transition on restart, while
+            # `CouncilOrchestrator` (which does pass `bus=self.bus`) kept them.
+            # Two production paths, one durable and one not, for the same
+            # organ's state.
+            #
+            # The 2026-09-01 ledger recount surfaced this: organ 12 could not
+            # honestly discharge C3/C4 as "owns no durable store" when the seam
+            # existed and was simply unwired. Wiring it is the honest fix; an
+            # N/A-BY-DESIGN would have papered over the inconsistency.
             _worker_foundry = WorkerFoundry(
                 runtime_root=config.PROJECT_ROOT,
                 spawner=spawner,
                 workspace_manager=workspace_manager,
                 emergency_stop=emergency_stop,
                 strategies={"code": code_strategy, "deterministic": code_strategy},
+                bus=get_cortex_observation_bus(),
             )
     return _worker_foundry
 

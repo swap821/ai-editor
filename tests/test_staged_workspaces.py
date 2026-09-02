@@ -111,3 +111,67 @@ def test_cleanup_for_mission_removes_workspace_and_lease_marker(tmp_path: Path) 
     assert manager.for_mission("mission-cleanup") is None
     replacement = manager.stage("mission-cleanup", project)
     assert replacement.mission_id == "mission-cleanup"
+
+
+def test_the_mission_lease_is_recovered_by_a_process_that_never_staged_it(
+    tmp_path: Path,
+) -> None:
+    """Organ 14's C3: `for_mission` really does read the lease back off disk.
+
+    `for_mission()` promises "the durable lease for a mission, including after
+    restart", and implements it as::
+
+        self._mission_leases.get(mission_id) or self._find_metadata(mission_id)
+
+    Because `or` short-circuits, ANY authority that staged the mission in this
+    process is answered by its own in-memory cache and never reaches
+    `_find_metadata`. Every existing test in this file reuses one manager for
+    both `stage()` and `for_mission()`, so the on-disk glob that the docstring's
+    promise actually rests on had never executed -- a restart claim proven only
+    by the cache that a restart destroys.
+
+    A SECOND authority over the same root is the restart: it starts with an
+    empty `_mission_leases`, so the lease can only come from the
+    `.gagos-workspace.json` written by the first.
+    """
+    project = _project(tmp_path)
+    root = tmp_path / "staged"
+
+    first = StagedWorkspaceManager(root, enrolled_roots=(project,))
+    lease = first.stage("mission-restart", project)
+
+    restarted = StagedWorkspaceManager(root, enrolled_roots=(project,))
+    assert restarted._mission_leases == {}, (
+        "the second authority inherited in-memory state, so this test would "
+        "pass without the disk fallback ever running"
+    )
+
+    recovered = restarted.for_mission("mission-restart")
+
+    assert recovered is not None, (
+        "a restarted authority could not recover the mission lease from disk, "
+        "so for_mission()'s 'including after restart' promise is not kept"
+    )
+    assert recovered.lease_id == lease.lease_id
+    assert recovered.mission_id == lease.mission_id
+    assert recovered.workspace_path == lease.workspace_path
+    assert recovered.baseline_digest == lease.baseline_digest
+
+
+def test_a_restarted_authority_reports_an_unknown_mission_as_absent(
+    tmp_path: Path,
+) -> None:
+    """The other direction: the disk fallback must not invent a lease.
+
+    Without this, the test above would still pass if `for_mission` returned
+    some arbitrary lease it happened to find in the root.
+    """
+    project = _project(tmp_path)
+    root = tmp_path / "staged"
+
+    first = StagedWorkspaceManager(root, enrolled_roots=(project,))
+    first.stage("mission-real", project)
+
+    restarted = StagedWorkspaceManager(root, enrolled_roots=(project,))
+
+    assert restarted.for_mission("mission-never-staged") is None

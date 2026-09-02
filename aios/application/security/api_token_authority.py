@@ -23,13 +23,20 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import secrets
 import time
 from pathlib import Path
 from typing import Callable
 
 from aios.domain.security.api_token import ApiTokenRotationState
-from aios.infrastructure.security.api_token_store import ApiTokenStore
+from aios.infrastructure.security.api_token_store import (
+    ApiTokenRotationTampered,
+    ApiTokenStore,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def token_digest(token: str) -> str:
@@ -48,13 +55,33 @@ class InstallationConfigurationAuthority:
         self.store = ApiTokenStore(db_path)
         self.clock = clock
 
+    def _state(self):
+        """The verified rotation state, or None when it cannot be trusted.
+
+        Organ 53. `ApiTokenStore.current()` raises when the durable row fails
+        its HMAC -- tampered, unstamped, or no signing key configured. Treating
+        that as "no rotation state" means a tampered row can only ever REMOVE
+        access to rotated tokens; it can never grant access, because a forged
+        `current_token_digest` will not verify and so is never compared against
+        a candidate. `config.API_TOKEN` is unaffected and keeps working, so
+        corrupting this file cannot lock the operator out of their own API.
+        """
+        try:
+            return self.store.current()
+        except ApiTokenRotationTampered:
+            logger.error(
+                "api_token_rotation_state_unverifiable",
+                exc_info=True,
+            )
+            return None
+
     def is_configured(self, *, current_env_token: str = "") -> bool:
-        return bool(current_env_token) or self.store.current() is not None
+        return bool(current_env_token) or self._state() is not None
 
     def is_valid(self, candidate: str) -> bool:
         if not candidate:
             return False
-        state = self.store.current()
+        state = self._state()
         if state is None:
             return False
         candidate_digest = token_digest(candidate)
@@ -85,7 +112,7 @@ class InstallationConfigurationAuthority:
         """
         if not candidate:
             return False
-        state = self.store.current()
+        state = self._state()
         if state is None:
             return False
         if state.previous_token_digest is None or state.previous_expires_at is None:

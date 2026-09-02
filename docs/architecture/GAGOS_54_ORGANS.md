@@ -1,17 +1,17 @@
 # GAGOS 54 Organs
 
-> **SUPERSEDED COUNTS BELOW - current status is 41 green / 13 yellow as of
-> 2026-09-01.** The 2026-09-01 recount first took the ledger to 5 green / 49
-> yellow by measuring every green against the twelve-condition bar; waves 1-4
-> then returned 36 organs to green by citing C3/C4/C5 proofs that execute in
-> the gate's own run - see release/organ-ledger/2026-09-01-wave{1,2,3,4}-restoration.md.
-> The 13 that remain are documented there in four honest categories: two need a
-> Docker-capable run, four are frontend organs the gate's referent pattern
-> cannot express, four are code/wiring gaps rather than citation gaps, and one
-> needs the operator's cloud cohort. Every tally in the dated narrative below
-> was true when written and is kept for lineage, not as current status. Nothing
-> was disproven and no test was weakened. The generated table further down is
-> rendered from `.aios/state/ORGAN_GREEN_LEDGER.json` and
+> **SUPERSEDED COUNTS BELOW - current status is 53 green / 1 yellow as of
+> 2026-09-02.** The 2026-09-01 recount first took the ledger from an unverified
+> 54 green to a measured 5 by testing every green against the twelve-condition
+> bar; five restoration waves then returned 48 organs to green, each citing
+> C3/C4/C5 proofs that execute in the gate's own run. See
+> release/organ-ledger/2026-09-01-wave{1,2,3,4}-restoration.md and
+> 2026-09-02-final-thirteen.md. Organ 44 alone remains yellow: it needs a golden
+> mission cohort against a live cloud model plus the operator's personal
+> attestation, and is not agent-reachable. Every tally in the dated narrative
+> below was true when written and is kept for lineage, not as current status.
+> Nothing was disproven and no test was weakened. The generated table further
+> down is rendered from `.aios/state/ORGAN_GREEN_LEDGER.json` and
 > is always current; this banner exists because the prose above it is not.
 
 **Established:** Slice 25 of the GAGOS Completion Plan (Slices 25-40), baseline
@@ -774,8 +774,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 41 green / 13 yellow / 54 total
-- **Source ledger sha256:** `d69a2f73dadc2533222fcd6c3ef557537bc52dc453eba82e3a20ee6710b6f2b7`
+- **Counts:** 53 green / 1 yellow / 54 total
+- **Source ledger sha256:** `4f7c2640d5fd6238d69565413fab638e780717e4f60f3533679568974d8fa09f`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -783,7 +783,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (41)
+### Green (53)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -792,16 +792,21 @@ re-audits recorded above.
 | 3 | Secret Scanner | `SecretScannerAuthority` | `f3cb6122fb8d` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `f3cb6122fb8d` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `f3cb6122fb8d` | live |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `5d482164707c` | live |
 | 7 | Policy Kernel | `PolicyKernelAuthority` | `5d482164707c` | live |
 | 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
 | 9 | Exact Capability Authority | `CapabilityAuthority` | `5d482164707c` | live |
 | 10 | Mission Authority | `MissionAuthority` | `5d482164707c` | live |
 | 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `5d482164707c` | live |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `5d482164707c` | live |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `5d482164707c` | live |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `5d482164707c` | live |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5d482164707c` | live |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | `5d482164707c` | live |
 | 17 | Cortex Observation Bus | `CortexBusAuthority` | `5d482164707c` | live |
 | 18 | Memory Authority (construction) | `MemoryAuthority` | `5d482164707c` | live |
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `5d482164707c` | live |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `14856c23e08b` | live |
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `5d482164707c` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `5d482164707c` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `abf7346def48` | live |
@@ -815,36 +820,31 @@ re-audits recorded above.
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `5d482164707c` | live |
 | 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `5d482164707c` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `90830647e40c` | live |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `5d482164707c` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `5d482164707c` | live |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `4cd9f1550cf1` | live |
 | 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `5d482164707c` | live |
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `5d482164707c` | live |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | `14856c23e08b` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `5d482164707c` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5d482164707c` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5d482164707c` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5d482164707c` | live |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | `3dc7323d74cc` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `5c64cd54ca52` | live |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | `5c64cd54ca52` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `5d482164707c` | live |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | `5c64cd54ca52` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `5d482164707c` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (13) — exact residual, from the ledger's own `known_blockers`
+### Yellow (1) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 12 | Worker Foundry | `WorkerFoundryAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | Phase 4 absolute residual: held back from wave 4 (2026-09-01). Its C3/C4/C5 referents are in place and resolve, but C7 cannot be proven on a machine without Docker: this organ's ONLY integration suite is tests/test_executor_integration.py, which gates on AIOS_EXECUTOR_INTEGRATION and skips all four tests locally, so the gate correctly reports that nothing was proven. ci.yml documents the same fact and solves it by running that file inside the container and mounting out executor-junit.xml for the gate to merge. Promote once those tests are observed passing in the gate's own run. Same class of block as organ 52. See release/organ-ledger/2026-09-01-wave4-restoration.md |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- this organ asserts a runtime property, so requires_live_evidence is now true, but its live evidence is stamped at an earlier commit than the evaluated one. To return to green, regenerate live evidence at the evaluated tip. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | Phase 4 absolute residual: held back from wave 1 (2026-09-01). Its C3/C4/C5 referents are in place and resolve, but C10's existing evidence row cites an executor-integration node that needs a real Docker daemon, which the machine preparing this wave did not have. CI's release-authority job does run it and merges the resulting JUnit into the same gate invocation, so this is expected to clear there -- but promoting an organ whose own phase 5 artifact records 'survives mechanical adversarial re-read: no' would ship an inconsistency. Promote once that node is observed passing in the gate's own run. See release/organ-ledger/2026-09-01-wave1-restoration.md |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->

@@ -135,3 +135,89 @@ def test_the_real_organ46_citation_is_parametrized() -> None:
         "guards can no longer occur through it; re-point the test at a "
         "parametrized proof rather than deleting the guard"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Vitest citations — quoted names, and describe-folded JUnit names
+# --------------------------------------------------------------------------- #
+# Organs 20, 48, 49 and 51 were unciteable by construction, not unproven. A
+# vitest test IS its description -- `it('rejects malformed known events before
+# read-model mutation or reaction')` -- so its name contains spaces, and the
+# referent pattern admitted only [\w\[\]\-]+ after "::".
+#
+# The failure mode was worse than rejection: the path matched, the name group
+# captured only `rejects`, and the citation PASSED the "a referent is named"
+# check before failing execution-matching against a test nobody wrote. A
+# citation that looks resolvable and points at nothing is exactly what this
+# gate exists to prevent.
+
+_citations = _MODULE._proof_citations
+_unquote = _MODULE._unquote_proof_name
+
+_VITEST_FILE = "frontend/src/superbrain/lib/livingMirrorRegistry.test.ts"
+_VITEST_NAME = "rejects malformed known events before read-model mutation or reaction"
+_VITEST_JUNIT = f"Living Mirror reaction registry > {_VITEST_NAME}"
+
+
+def test_a_quoted_citation_captures_the_whole_name() -> None:
+    """The fix: the space-bearing name survives intact.
+
+    Before, this same text yielded ("...test.ts", "rejects").
+    """
+    text = f'PASS - proven by {_VITEST_FILE}::"{_VITEST_NAME}"'
+
+    assert _citations(text) == [(_VITEST_FILE, _VITEST_NAME)]
+
+
+def test_an_unquoted_spaced_citation_still_truncates_and_is_refused() -> None:
+    """The old shape must not silently become valid.
+
+    Widening the pattern must not make a badly-written citation work by
+    accident: without quotes the name is still cut at the first space, and the
+    truncated fragment must not match the real JUnit entry.
+    """
+    text = f"PASS - proven by {_VITEST_FILE}::{_VITEST_NAME}"
+
+    assert _citations(text) == [(_VITEST_FILE, "rejects")]
+    assert not _ran_and_passed(_outcome(passed=(_VITEST_JUNIT,)), "rejects")
+
+
+def test_a_citation_matches_the_describe_folded_junit_name() -> None:
+    """vitest folds describe() blocks into the reported name, joined by " > ".
+
+    A citation names the leaf, because that is what a reader sees in the test
+    file, so exact matching could never discharge a frontend proof.
+    """
+    assert _ran_and_passed(_outcome(passed=(_VITEST_JUNIT,)), _VITEST_NAME)
+
+
+def test_a_failing_vitest_case_still_vetoes_its_citation() -> None:
+    """The veto survives the new clause -- a red test cannot be cited."""
+    outcome = _outcome(passed=(), failed=(_VITEST_JUNIT,))
+
+    assert not _ran_and_passed(outcome, _VITEST_NAME)
+
+
+@pytest.mark.parametrize(
+    "sibling",
+    [
+        "Living Mirror reaction registry > rejects malformed known events before read-model mutation or reaction and more",
+        "Living Mirror reaction registry > also rejects malformed known events before read-model mutation or reaction",
+    ],
+)
+def test_a_vitest_sibling_never_discharges_the_citation(sibling: str) -> None:
+    """Segment matching keeps the pytest sibling-safety guarantee.
+
+    The cited name must equal the WHOLE segment after the last " > ". A longer
+    sibling ("...and more") differs at the end; a differently-prefixed one
+    ("also rejects...") is not preceded by " > " at the right offset. Neither
+    may launder a citation.
+    """
+    assert not _ran_and_passed(_outcome(passed=(sibling,)), _VITEST_NAME)
+
+
+def test_unquoting_leaves_bare_names_untouched() -> None:
+    """Python citations keep working exactly as before."""
+    assert _unquote("test_x") == "test_x"
+    assert _unquote('"a b"') == "a b"
+    assert _citations("tests/test_a.py::test_x") == [("tests/test_a.py", "test_x")]
