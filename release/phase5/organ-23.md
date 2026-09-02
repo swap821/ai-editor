@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 23: Release Conformance Organ
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `8d9964eaba2e69462253c83eda757ae8ad43a3bc`
-**Generated:** 2026-09-01T17:23:53+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `1aaa6fa6b2badf5dbfd98bce9bfe59a621364aa0`
+**Generated:** 2026-09-02T03:35:40+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- this organ asserts a runtime property, so requires_live_evidence is now true, but its live evidence is stamped at an earlier commit than the evaluated one. To return to green, regenerate live evidence at the evaluated tip. See release/organ-ledger/2026-09-01-live-evidence-recount.md
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+(none — written verdicts PASS/N/A)
 
 ## Notes
 
