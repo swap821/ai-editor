@@ -38,6 +38,7 @@ from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
+from aios.core.provider_retry import call_with_backoff, stream_with_backoff
 from aios.core.stream_protocol import StreamFinished
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,9 @@ def _to_gemini(
                 # Gemini 3.x rejects a replayed function_call whose
                 # thought_signature is missing; 2.5 never sends one, so this is
                 # emitted only when the model actually gave us one.
-                signature = call.get("thought_signature") if isinstance(call, dict) else None
+                signature = (
+                    call.get("thought_signature") if isinstance(call, dict) else None
+                )
                 if signature:
                     fc_part["thought_signature"] = _decode_signature(signature)
                 parts.append(fc_part)
@@ -460,10 +463,18 @@ class GeminiClient:
             gen_config["tools"] = tool_decls
 
         try:
-            response = self._client.models.generate_content(
-                model=model or self.model,
-                contents=contents,
-                config=gen_config,
+            response = call_with_backoff(
+                lambda: self._client.models.generate_content(
+                    model=model or self.model,
+                    contents=contents,
+                    config=gen_config,
+                ),
+                on_retry=lambda n, exc, d: logger.warning(
+                    "Gemini transient failure (attempt %s), retrying in %.1fs: %s",
+                    n,
+                    d,
+                    scrub_exception(exc),
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             # --- Privacy: scrub credentials from the exception before logging. ---
@@ -516,12 +527,24 @@ class GeminiClient:
             gen_config["tools"] = tool_decls
 
         try:
-            stream = self._client.models.generate_content_stream(
-                model=model or self.model,
-                contents=contents,
-                config=gen_config,
+            # generate_content_stream is LAZY -- it issues no request until
+            # iterated -- so retry must wrap CONSUMPTION, not creation, and is
+            # bounded by emission: safe to re-issue while no chunk has escaped.
+            yield from stream_with_backoff(
+                lambda: _stream_text_from_gemini(
+                    self._client.models.generate_content_stream(
+                        model=model or self.model,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                ),
+                on_retry=lambda n, exc, d: logger.warning(
+                    "Gemini transient stream failure (attempt %s), retrying in %.1fs: %s",
+                    n,
+                    d,
+                    scrub_exception(exc),
+                ),
             )
-            yield from _stream_text_from_gemini(stream)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             scrubbed = scrub_exception(exc)
             logger.warning(
@@ -567,12 +590,24 @@ class GeminiClient:
             gen_config["tools"] = tool_decls
 
         try:
-            stream = self._client.models.generate_content_stream(
-                model=model or self.model,
-                contents=contents,
-                config=gen_config,
+            # Lazy stream: retry wraps CONSUMPTION, bounded by emission. This
+            # is the path that lost a golden-mission run to a 429 on
+            # 2026-09-02 while a creation-only wrapper watched it go past.
+            yield from stream_with_backoff(
+                lambda: _stream_from_gemini(
+                    self._client.models.generate_content_stream(
+                        model=model or self.model,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                ),
+                on_retry=lambda n, exc, d: logger.warning(
+                    "Gemini transient stream failure (attempt %s), retrying in %.1fs: %s",
+                    n,
+                    d,
+                    scrub_exception(exc),
+                ),
             )
-            yield from _stream_from_gemini(stream)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             scrubbed = scrub_exception(exc)
             logger.warning(
