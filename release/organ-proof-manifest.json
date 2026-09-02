@@ -1,17 +1,17 @@
 {
   "schema_version": "1",
-  "created_at": "2026-09-02T03:36:57.137578+00:00",
-  "source_commit_sha": "1aaa6fa6b2badf5dbfd98bce9bfe59a621364aa0",
+  "created_at": "2026-09-02T04:28:01.870255+00:00",
+  "source_commit_sha": "3f7e1edebf6a8c784d7fdd54c86d6943ab23bfc1",
   "ledger_path": ".aios/state/ORGAN_GREEN_LEDGER.json",
-  "ledger_sha256": "5774b36cd99cc92e547e995f46ffa7e80f83489b23fcaca3ca11e4357f863849",
+  "ledger_sha256": "25a991bf873f34ddc4f91c193f75636147e10a7f7be347ba4e199f0bd6b311ea",
   "organ_summary": {
     "total": 54,
-    "green": 23,
-    "yellow": 31
+    "green": 30,
+    "yellow": 24
   },
   "files": {
-    ".aios/state/ORGAN_GREEN_LEDGER.json": "5774b36cd99cc92e547e995f46ffa7e80f83489b23fcaca3ca11e4357f863849",
-    "docs/architecture/GAGOS_54_ORGANS.md": "4d496833d436e3aa3622aeb398aed01e8f1f1773134279cd338ce2178e35821b",
+    ".aios/state/ORGAN_GREEN_LEDGER.json": "25a991bf873f34ddc4f91c193f75636147e10a7f7be347ba4e199f0bd6b311ea",
+    "docs/architecture/GAGOS_54_ORGANS.md": "1c062d3985d4160e77821f0e5cfedc59944ba35173b952de9d52d0aed059dfe4",
     "release/slice32/granite-qualification-live.json": "d9af4ebe01a98ca895573a70e6b7702e3d2b8216facedbdedf60cf7afcbfa60a",
     "release/phase4/live-evidence-7b3805118d54.json": "da44ad30cf8d5fb3dc0868bfbcc46e1293b2c62bc14eac99b95a10b2e6cd6700",
     "release/phase4/live-evidence-latest.json": "bbe992a9f2a3d85cfad2725bc010c1afc67d4fb7210a5670ff64ba7a364a046b",
