@@ -2,12 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `3f7e1edebf6a8c784d7fdd54c86d6943ab23bfc1`
-**Generated:** 2026-09-02T04:27:00+00:00
+**Evaluated tip:** `b5e11386ca3569fa6d56e0ca480d3883c712977b`
+**Generated:** 2026-09-02T08:37:34+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md
+- **residual**: Phase 4 absolute residual: held back from wave 4 (2026-09-01). Its C3/C4/C5 referents are in place and resolve, but C7 cannot be proven on a machine without Docker: this organ's ONLY integration suite is tests/test_executor_integration.py, which gates on AIOS_EXECUTOR_INTEGRATION and skips all four tests locally, so the gate correctly reports that nothing was proven. ci.yml documents the same fact and solves it by running that file inside the container and mounting out executor-junit.xml for the gate to merge. Promote once those tests are observed passing in the gate's own run. Same class of block as organ 52. See release/organ-ledger/2026-09-01-wave4-restoration.md
 
 ## Written verdict keys that are not PASS/N/A
 

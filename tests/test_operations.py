@@ -374,3 +374,91 @@ def test_projection_rebuild_replays_only_durable_observations(tmp_path: Path) ->
     assert snapshot.active_workers == ("worker-1",)
     assert snapshot.active_models == ("local",)
     assert bus.consumer_cursor("system-portrait").last_event_id == 2
+
+
+def test_a_tampered_archive_member_is_detected_by_its_content_hash(
+    tmp_path: Path,
+) -> None:
+    """Organ 54 C4: the backup's content hashes are tamper-evidence, not decoration.
+
+    `verify_backup` re-hashes every member and raises
+    ``RecoveryError("backup hash mismatch: ...")`` when a digest diverges from
+    the manifest. That mechanism existed with no test exercising it -- the
+    2026-09-01 ledger recount found this was the one genuine authoring gap among
+    the organs it demoted, so the proof is written here rather than the claim
+    being cited to a test that only round-trips a HEALTHY archive.
+
+    The tamper is done the way a real attacker would have to do it: rebuild the
+    archive with altered bytes while keeping the ORIGINAL manifest, so the
+    manifest still lists the file and still lists its old digest. A test that
+    edited the manifest too would prove nothing -- it would be checking that two
+    values the attacker controls agree with each other.
+    """
+    import io as _io
+    import tarfile
+
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "state.json").write_text('{"balance": 1}', encoding="utf-8")
+    bundle = tmp_path / "backup.tar.gz"
+    create_backup(data_dir=data, destination=bundle)
+
+    # The untampered archive must verify, or the assertion below proves nothing.
+    assert verify_backup(bundle).files["state.json"]
+
+    with tarfile.open(bundle, mode="r:gz") as archive:
+        members = {
+            m.name: (m, archive.extractfile(m).read()) for m in archive.getmembers()
+        }
+
+    tampered = tmp_path / "tampered.tar.gz"
+    with tarfile.open(tampered, mode="w:gz") as archive:
+        for name, (member, payload) in members.items():
+            if name == "state.json":
+                payload = b'{"balance": 999999}'  # the edit the manifest never saw
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            info.mtime = member.mtime
+            archive.addfile(info, _io.BytesIO(payload))
+
+    with pytest.raises(RecoveryError, match="hash mismatch"):
+        verify_backup(tampered)
+
+
+def test_a_member_added_after_the_manifest_is_refused(tmp_path: Path) -> None:
+    """The other half: smuggling in a file the manifest never declared.
+
+    Hash-checking every DECLARED member is not enough on its own -- an archive
+    that carries an extra, undeclared file would pass a per-file hash loop while
+    delivering content nobody signed for. `verify_backup` compares the declared
+    set against the actual members before hashing anything, and this pins that
+    ordering.
+    """
+    import io as _io
+    import tarfile
+
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "state.json").write_text('{"ok": true}', encoding="utf-8")
+    bundle = tmp_path / "backup.tar.gz"
+    create_backup(data_dir=data, destination=bundle)
+
+    with tarfile.open(bundle, mode="r:gz") as archive:
+        members = {
+            m.name: (m, archive.extractfile(m).read()) for m in archive.getmembers()
+        }
+
+    smuggled = tmp_path / "smuggled.tar.gz"
+    with tarfile.open(smuggled, mode="w:gz") as archive:
+        for name, (member, payload) in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            info.mtime = member.mtime
+            archive.addfile(info, _io.BytesIO(payload))
+        extra = b"pwned"
+        info = tarfile.TarInfo("backdoor.json")
+        info.size = len(extra)
+        archive.addfile(info, _io.BytesIO(extra))
+
+    with pytest.raises(RecoveryError, match="does not match archive members"):
+        verify_backup(smuggled)
