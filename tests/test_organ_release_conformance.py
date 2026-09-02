@@ -103,11 +103,31 @@ def test_green_without_live_evidence_fails_where_required() -> None:
     assert any("requires live evidence, but none is present" in v for v in violations)
 
 
-def test_evidence_from_another_commit_sha_fails() -> None:
+# --- live-evidence currency ---------------------------------------------
+#
+# These pin the rule REPLACED on 2026-09-02. The previous version required
+# every row to carry the evaluated commit's sha, which no ledger could ever
+# satisfy: recording evidence creates a commit whose sha the evidence cannot
+# contain. It was never exercised -- no organ carried the flag until the
+# 2026-09-01 recount, and the one that does stayed yellow.
+#
+# The replacement anchors currency to `last_verified_sha`. The tests below are
+# written so that the ONLY thing that got easier is the impossible part: stale
+# evidence, absent evidence and fixture evidence are all still refused.
+
+
+def test_evidence_older_than_the_verification_claim_fails() -> None:
+    """Staleness is still caught -- this is the half that must not weaken.
+
+    An organ claiming verification at one commit while every live run it can
+    show happened at an earlier one is exactly what the 2026-09-01 recount
+    demoted organs for.
+    """
     records = _baseline_records()
     records[0] = _make_green(
         records[0],
         requires_live_evidence=True,
+        last_verified_sha="1" * 40,
         live_evidence=(
             OrganEvidence(
                 description="real run at an old tip",
@@ -117,23 +137,81 @@ def test_evidence_from_another_commit_sha_fails() -> None:
         ),
     )
     violations = validate_ledger(records, current_sha="1" * 40)
-    assert any("not the evaluated commit" in v for v in violations)
+    assert any(
+        "no live evidence is stamped at its last_verified_sha" in v for v in violations
+    )
 
 
-def test_evidence_from_the_evaluated_commit_sha_passes() -> None:
+def test_evidence_at_the_verification_claim_passes() -> None:
     records = _baseline_records()
     records[0] = _make_green(
         records[0],
         requires_live_evidence=True,
+        last_verified_sha="1" * 40,
         live_evidence=(
             OrganEvidence(
-                description="real run at the evaluated tip",
+                description="real run at the claimed tip",
                 commit_sha="1" * 40,
                 proof_level="live",
             ),
         ),
     )
     assert validate_ledger(records, current_sha="1" * 40) == ()
+
+
+def test_older_rows_are_kept_as_record_and_do_not_veto() -> None:
+    """History must survive alongside a current run.
+
+    The replaced rule applied to EVERY row, so an organ could only stay green by
+    deleting its older evidence -- including runs that scored badly. Organ 44's
+    own C10 calls that laundering. Squash-merging compounds it: 3 of organ 44's
+    5 historical shas are not ancestors of HEAD at all, their branches having
+    been squashed away, so they could never be re-stamped.
+    """
+    records = _baseline_records()
+    records[0] = _make_green(
+        records[0],
+        requires_live_evidence=True,
+        last_verified_sha="1" * 40,
+        live_evidence=(
+            OrganEvidence(
+                description="an early run that scored badly, deliberately kept",
+                commit_sha="0" * 40,
+                proof_level="live",
+            ),
+            OrganEvidence(
+                description="the run at the claimed tip",
+                commit_sha="1" * 40,
+                proof_level="live",
+            ),
+        ),
+    )
+    assert validate_ledger(records, current_sha="1" * 40) == ()
+
+
+def test_the_rule_is_satisfiable_when_the_ledger_commit_moves_the_tip() -> None:
+    """The defect that made green unreachable: recording evidence moves HEAD.
+
+    Stamping the tip and committing produces a NEW commit, so under the old rule
+    the freshly written evidence was instantly stale against its own recording
+    commit. Here the evaluated commit is deliberately DIFFERENT from every
+    evidence sha -- the situation that always obtains one commit after the
+    ledger is written -- and the ledger must still be conformant.
+    """
+    records = _baseline_records()
+    records[0] = _make_green(
+        records[0],
+        requires_live_evidence=True,
+        last_verified_sha="1" * 40,
+        live_evidence=(
+            OrganEvidence(
+                description="run measured at the commit under evaluation's parent",
+                commit_sha="1" * 40,
+                proof_level="live",
+            ),
+        ),
+    )
+    assert validate_ledger(records, current_sha="2" * 40) == ()
 
 
 def test_phase4_honesty_rejects_silent_organs_without_named_reason() -> None:

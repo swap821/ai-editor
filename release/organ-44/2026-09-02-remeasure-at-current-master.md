@@ -1,5 +1,12 @@
 # Organ 44 remeasured at current master — stays YELLOW
 
+> **SUPERSEDED IN OUTCOME, NOT IN CONTENT (2026-09-02).** Runs 1-3 below did not
+> meet the bar and the document was written on that basis. **Run 4 met it:
+> `[5, 5, 5]`, 15/15, at a tree identical to master `af268809`.** Organ 44 is now
+> GREEN. Nothing in the original text has been rewritten to match the newer
+> result — the misses, the wrong hypothesis and the two defects they exposed are
+> the record of how the number was reached. See the run 4 addendum at the end.
+
 - **Measured**: 2026-09-02, `gemini.gemini-3.7-flash` via Vertex (`global`), 3 repeats, twice
 - **Result**: run 1 `[3, 5, 5]` = 13/15 (87%); run 2 `[3, 4, 3]` = 10/15 (67%)
 - **Bar**: three consecutive clean 5/5, declared before the 2026-08-19 runs
@@ -113,12 +120,183 @@ Not another roll of the same dice:
    the run measures the system rather than the rate limiter.
 2. **The corrected retry running live**, so a transient 429 no longer ends a
    mission that was otherwise proceeding.
-3. **The cold-start question answered.** Repeat 1 scored 3/5 in *both* runs while
-   later repeats scored 4-5. That reproduced across two independent runs and is a
-   real property worth understanding: whether a fresh instance with no memory, no
-   verified skills and nothing warmed is genuinely weaker, or whether the first
-   repeat simply absorbs the first throttles.
+3. ~~The cold-start question answered.~~ **ANSWERED, and the hypothesis above was
+   wrong** — see the run 3 addendum below.
 
 Until then the honest position is the one the ledger already records: organ 44 is
 yellow, and its `requires_live_evidence` is true because a golden cohort is
 precisely the kind of proof the gate's own test run cannot produce.
+
+---
+
+# Addendum — run 3, with the corrected retry live
+
+**Result: `[5, 4, 2]` = 11/15 (73%). Organ 44 still yellow.**
+
+Run with `stream_with_backoff` live for the first time.
+
+| | Cohort | Total | 429s absorbed | 429s that killed a mission |
+| --- | --- | ---: | ---: | ---: |
+| Run 1 | `[3, 5, 5]` | 87% | 0 (no retry existed) | 2 |
+| Run 2 | `[3, 4, 3]` | 67% | 0 (retry wrapped the wrong thing) | 7 |
+| Run 3 | `[5, 4, 2]` | 73% | **4** | **0** |
+
+## The retry works
+
+Four throttles absorbed, **zero reached the agent**. Every 429 that would
+previously have ended a mission was retried in 0.5-1.0s and the mission
+continued. Infrastructure failures went to zero.
+
+## The cold-start hypothesis was wrong, and is withdrawn
+
+The body of this document proposed that repeat 1 might be genuinely weaker — no
+memory, no verified skills, nothing warmed — because it scored 3/5 in both
+earlier runs.
+
+**Run 3's repeat 1 scored 5/5**, the first clean repeat of the whole exercise.
+The earlier repeat-1 weakness was not cold start: the first repeat was simply
+absorbing the first throttles, and once those were retried the fresh instance
+performed like any other. Recorded as a correction rather than edited away,
+because the wrong hypothesis is the more useful thing to have on file.
+
+## A second product defect, found because the retry refused to hide it
+
+One repeat-3 mission died on:
+
+```
+400 INVALID_ARGUMENT. Please ensure that the number of function response parts
+is equal to the number of function call parts of the function call turn.
+```
+
+`_to_gemini` emitted a `function_call` with no answering `function_response`
+whenever a tool call was **refused** — which in this system is the supervision
+mechanism, not an edge case — and split multiple results across separate turns.
+Fixed and mutation-checked; every call is now answered in the turn that made it.
+
+It surfaced precisely *because* the retry classified 400 as permanent and failed
+fast instead of burying it under three backoffs.
+
+## What remains is the model
+
+With infrastructure out of the way, the residual failures are reproducible model
+errors on the missions themselves:
+
+* **exception-type mismatch** — writes `raise ValueError("Cannot divide by
+  zero")`, then tests `pytest.raises(ZeroDivisionError)`. Seen twice.
+* **invalid syntax** — emits Python that will not parse, so pytest cannot even
+  collect the file.
+* **introspection replays** — writes throwaway tests (`test_tmp_inspect`,
+  `test_temp_check`, `test_introspect`) that `print(...)` then `assert False` to
+  dump state through the failure output, including one ROT-13 encoding both
+  source files.
+
+The introspection behaviour was investigated as a possible capability gap on our
+side. It is not: `read_file` is exposed to the agent, reads are GREEN, and it
+returns file contents correctly. The agent has a working read path and does not
+use it. The loop also gives real feedback — 4 to 8 verification attempts with
+full pytest output per failing step — so these are not cases of the model flying
+blind.
+
+Nothing here is honestly fixable from our side. Feeding the agent the file
+contents the mission deliberately withholds, or relaxing the verifier, would be
+tuning the evaluation rather than improving the system.
+
+---
+
+# Addendum — run 4: `[5, 5, 5]`, and organ 44 goes GREEN
+
+**Result: `[5, 5, 5]` = 15/15 mission runs (100%). The bar is met.**
+
+- **Measured**: 2026-09-02, `gemini.gemini-3.7-flash` via Vertex (`global`)
+- **Repeats**: 3, each a fresh instance (own port, own `AIOS_DATA_DIR`, own enrollment)
+- **Duration**: 55.7 minutes of live cloud calls; fastest mission 37.7s, slowest 565.6s
+- **Bar**: three consecutive clean 5/5, declared before the 2026-08-19 runs
+
+```
+[golden] FINAL: 15/15 mission runs passed (100%)
+```
+
+## The structural checks, not just the number
+
+A 5/5 is only worth something if the evaluation could still have produced
+anything else. The same checks that qualified the 2026-08-19 cohort:
+
+| check | run 4 |
+| --- | --- |
+| scored steps | 27 (9 per repeat) |
+| **`verified_failure` per repeat** | **1, 1, 1** |
+| outcome taxonomy | 24 `verified_success` + 3 `verified_failure` = 27 |
+| `FAIL:` lines | 0 |
+| approval refusals / loop trips | 0 |
+| tracebacks | 0 |
+
+The `verified_failure` count is load-bearing. The TDD mission requires the model
+to write a **failing** test before the implementation exists; had anything
+flattened the evaluation into success, that count would read 0. It reads exactly
+1 per repeat, matching the original evidence.
+
+## What the two fixes can and cannot claim
+
+Both were live — verified by process start time, not assumed. `provider_retry.py`
+was written at 20:34:30, the `_to_gemini` pairing fix at 21:51:24, and the serving
+backend started at **22:10:24**. (This backend has no `--reload`; run 2 was
+measured against a stale process serving the broken first version of the retry,
+which is how that error stayed hidden for a whole cohort.)
+
+**Neither fix can take credit for this score, and the record should not imply
+otherwise:**
+
+* **The retry never fired.** Zero 429s, zero backoffs, across 55.7 minutes. This
+  run had quota headroom; runs 1-3 did not. The honest reading is *measured in a
+  clean window*, not *the fixes lifted the score*.
+* **The pairing fix was never provoked.** Zero refusals means no turn ever
+  produced an unanswered `function_call`, so the 400 could not recur. Its proof
+  remains the unit tests and the mutation check, not this cohort.
+
+What the fixes bought is that a throttle or a refusal would no longer have ended
+a mission. Nothing in run 4 demanded that insurance.
+
+## No introspection replay
+
+Runs 1 and 3 saw the agent build a read primitive out of the verifier — throwaway
+tests that `assert False` to dump file contents through pytest's failure output,
+once ROT-13 encoded. Run 4 produced no such artifact. The `test_tmp_inspect.py`
+and `test_temp_check.py` files in `training_ground/` are leftovers from the
+earlier runs (mtimes 19:48 and 21:46, both before this backend's 22:10 start).
+`data-pipeline`'s 565.6s was slow legitimate work, not the assertion channel.
+
+The containment observation from run 1 stands on its own and is **not** retracted
+by this run: pytest assertion output remains an unmonitored read channel out of
+the verifier. An agent found it unprompted once. It simply was not used here.
+
+## The commit this is stamped at, and why that needed proving
+
+The cohort executed at `951e4ae6`, the tip of `fix/provider-retry-backoff` — not
+at master. This repository squash-merges, so after #288 landed, `951e4ae6` is not
+an ancestor of master, and C12 requires `last_verified_sha` to be one. Stamping
+the branch commit would fail the gate; stamping the squash commit as though the
+run happened there would be a claim the run does not support.
+
+Resolved by proving the two commits carry the same code:
+
+```
+master   af268809  tree 0022ceca78b1e3641f6a593ccabc5224ab272745
+measured 951e4ae6  tree 0022ceca78b1e3641f6a593ccabc5224ab272745
+```
+
+The tree hashes are identical, so the code that was measured **is** master's
+code, and the row is stamped `af268809` with the execution commit recorded in its
+own text. That check also discharges the squash-drop risk this repo hit on #269,
+where a squash silently lost a commit: both fix commits demonstrably survived.
+
+Had the trees differed, organ 44 would have stayed yellow pending a re-run at the
+tip. The check is the reason the stamp is honest, not a formality around it.
+
+## What this does and does not establish
+
+It establishes that GAGOS completes its five golden missions, three times
+consecutively, against a live cloud model, at the code currently on master, with
+the TDD red phase intact and no infrastructure assistance.
+
+It does not establish that it does so under throttling. Runs 1-3 are the record
+of what happens then — 87%, 67%, 73% — and they remain in this document.
