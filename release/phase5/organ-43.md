@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 43: Local Skill Reuse, Confidence and Demotion
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `3f7e1edebf6a8c784d7fdd54c86d6943ab23bfc1`
-**Generated:** 2026-09-02T04:27:01+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `b5e11386ca3569fa6d56e0ca480d3883c712977b`
+**Generated:** 2026-09-02T08:37:34+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: Phase 4 absolute residual: demoted 2026-09-01 (live-evidence recount) -- C3, C4, C5 name no resolvable referent. To return to green, each must cite a specific test node that runs and passes in the gate's own invocation, or discharge C3/C4 as N/A-BY-DESIGN with a resolvable module-and-symbol cite; C5 has no N/A-BY-DESIGN clause and must be positively proven. See release/organ-ledger/2026-09-01-live-evidence-recount.md
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+(none — written verdicts PASS/N/A)
 
 ## Notes
 
