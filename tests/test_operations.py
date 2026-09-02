@@ -407,7 +407,9 @@ def test_a_tampered_archive_member_is_detected_by_its_content_hash(
     assert verify_backup(bundle).files["state.json"]
 
     with tarfile.open(bundle, mode="r:gz") as archive:
-        members = {m.name: (m, archive.extractfile(m).read()) for m in archive.getmembers()}
+        members = {
+            m.name: (m, archive.extractfile(m).read()) for m in archive.getmembers()
+        }
 
     tampered = tmp_path / "tampered.tar.gz"
     with tarfile.open(tampered, mode="w:gz") as archive:
@@ -442,7 +444,9 @@ def test_a_member_added_after_the_manifest_is_refused(tmp_path: Path) -> None:
     create_backup(data_dir=data, destination=bundle)
 
     with tarfile.open(bundle, mode="r:gz") as archive:
-        members = {m.name: (m, archive.extractfile(m).read()) for m in archive.getmembers()}
+        members = {
+            m.name: (m, archive.extractfile(m).read()) for m in archive.getmembers()
+        }
 
     smuggled = tmp_path / "smuggled.tar.gz"
     with tarfile.open(smuggled, mode="w:gz") as archive:
