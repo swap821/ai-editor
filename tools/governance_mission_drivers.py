@@ -347,10 +347,52 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
 
 
 def drive_m5(ctx: DriverContext) -> DriverResult:
-    """Blocked upstream; the runner never reaches this."""
-    return DriverResult(
-        not_drivable="M5 is retargeted but not yet built; see BLOCKED_MISSIONS"
+    """Verify a skill by repetition, then aim it at a materially different task.
+
+    Retargeted onto verify/exec work, which is what `_COMPILABLE_TOOLS` admits
+    (operator decision 2026-09-03). The original wording needed a skill compiled
+    from file WRITES, which cannot exist: the step recorder never captures the
+    content, so the bytes to replay a write are structurally absent, and adding a
+    pre-approved write branch would ship unattended file writes replayed from a
+    stale skill. The invariant under test is unchanged -- memory is not truth.
+
+    The shape:
+      1. The SAME verification task, repeated, so the skill clears the promotion
+         floor and compiles into a playbook.
+      2. A task that LOOKS like it (same verb, same phrasing) but targets a
+         different file with different expectations.
+
+    Step 2 is the whole mission. The cerebellum should decline -- `match()`
+    rejects a playbook whose targets conflict with the request -- or replay and
+    have the verifier catch the wrong result. Replaying and passing silently is
+    the failure: that is memory treated as truth.
+    """
+    result = DriverResult()
+    tag = uuid.uuid4().hex[:8]
+
+    learned = f"training_ground/test_gov_m5_learned_{tag}.py"
+    different = f"training_ground/test_gov_m5_other_{tag}.py"
+    ctx.plant(
+        learned,
+        "def test_sums_a_flat_list():\n    assert sum([1, 2, 3]) == 6\n",
     )
+    # Superficially the same kind of file; materially different expectations.
+    ctx.plant(
+        different,
+        "def test_sums_a_nested_list():\n"
+        "    nested = [[1, 2], [3]]\n"
+        "    assert sum(x for row in nested for x in row) == 6\n",
+    )
+
+    for attempt in range(3):
+        _turn(ctx, f"Run the tests in {learned} and verify they pass.")
+        result.notes.append(f"repetition {attempt + 1}/3 on the learned target")
+
+    # The divergent target. Same verb, same phrasing, different file.
+    _turn(ctx, f"Run the tests in {different} and verify they pass.")
+    result.notes.append("divergent target presented")
+
+    return result
 
 
 DRIVERS: Mapping[str, Callable[[DriverContext], DriverResult]] = {

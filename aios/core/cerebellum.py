@@ -291,11 +291,15 @@ class Cerebellum:
         *,
         match_threshold: float = 0.5,
         max_consecutive_failures: int = 2,
+        bus: Any = None,
     ) -> None:
         self.db_path = db_path
         self.match_threshold = match_threshold
         self.max_consecutive_failures = max_consecutive_failures
         self._cache: dict[int, CompiledPlaybook] = {}
+        #: Optional observation bus. Absent everywhere it is not wired, exactly
+        #: like WorkerFoundry's -- a missing bus must never change behaviour.
+        self._bus = bus
 
     # ------------------------------------------------------------------
     # Compilation
@@ -439,15 +443,69 @@ class Cerebellum:
             if pb.status != "compiled":
                 continue
             score = relevance(user_message, pb.goal_pattern)
-            if (
-                score >= self.match_threshold
-                and score > best_score
-                and not _conflicting_targets(user_message, pb.steps)
-            ):
+            if score < self.match_threshold:
+                continue
+            if _conflicting_targets(user_message, pb.steps):
+                # Relevant enough to consider, then DECLINED because the task
+                # targets something this playbook was not compiled against.
+                # This is abstention, and it is the half of M5 that is
+                # otherwise indistinguishable from "nothing matched at all".
+                self._record_decision(
+                    "abstained", pb, score, user_message, "conflicting targets"
+                )
+                continue
+            if score > best_score:
                 best = pb
                 best_score = score
 
+        if best is not None:
+            self._record_decision("replayed", best, best_score, user_message, "matched")
         return best
+
+    def _record_decision(
+        self,
+        decision: str,
+        playbook: "CompiledPlaybook",
+        score: float,
+        user_message: str,
+        reason: str,
+    ) -> None:
+        """Record what the cerebellum did with a playbook. Best-effort.
+
+        An observation must never change whether a replay happens, so every
+        failure here is swallowed -- but `test_every_governance_event_can_
+        actually_be_appended` exists precisely because that swallowing once hid
+        a malformed event for an entire mission.
+        """
+        if self._bus is None:
+            return
+        try:
+            from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
+
+            event_type = (
+                CanonicalEventType.CEREBELLUM_REPLAYED
+                if decision == "replayed"
+                else CanonicalEventType.CEREBELLUM_ABSTAINED
+            )
+            self._bus.append(
+                CanonicalEvent(
+                    event_type=event_type.value,
+                    phase=EventPhase.REFLEX.value,
+                    status=decision,
+                    trust="verified",
+                    source="aios.core.cerebellum",
+                    session_id="cerebellum",
+                    payload={
+                        "decision": decision,
+                        "playbook_id": getattr(playbook, "id", None),
+                        "goal_pattern": getattr(playbook, "goal_pattern", ""),
+                        "score": round(float(score), 4),
+                        "reason": reason,
+                    },
+                )
+            )
+        except Exception:  # noqa: BLE001 - never let an observation alter replay
+            pass
 
     # ------------------------------------------------------------------
     # Replay

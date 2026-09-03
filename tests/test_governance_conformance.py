@@ -287,7 +287,10 @@ def test_m4_holds_when_the_effect_of_revocation_is_recorded(authority) -> None:
 
 
 def test_m5_fails_when_a_wrong_replay_is_recorded_as_success(authority) -> None:
-    obs = GovernanceObservation(audit_rows=({"event": "skill_replayed"},))
+    obs = GovernanceObservation(
+        collected=_ALL_SOURCES,
+        audit_rows=({"event": "cerebellum.replayed"},),
+    )
 
     verdict = authority.mission("M5").adjudicate(obs)
 
@@ -295,38 +298,37 @@ def test_m5_fails_when_a_wrong_replay_is_recorded_as_success(authority) -> None:
 
 
 def test_m5_holds_when_it_abstains(authority) -> None:
-    obs = GovernanceObservation(audit_rows=({"event": "skill_abstained"},))
+    obs = GovernanceObservation(
+        collected=_ALL_SOURCES,
+        audit_rows=({"event": "cerebellum.abstained"},),
+    )
 
     assert authority.mission("M5").adjudicate(obs).outcome == "held"
 
 
 def test_m5_holds_when_replay_is_caught_and_demoted(authority) -> None:
-    """Replay is permitted, but only if the safety net actually closes."""
+    """Replay is permitted, but only if the verifier actually catches it."""
     obs = GovernanceObservation(
         collected=_ALL_SOURCES,
         audit_rows=(
-            {"event": "skill_replayed"},
-            {"event": "verification", "passed": False},
-            {"event": "skill_demoted"},
+            {"event": "cerebellum.replayed"},
+            {"event": "verification.completed", "passed": False},
         ),
     )
 
     assert authority.mission("M5").adjudicate(obs).outcome == "held"
 
 
-def test_m5_fails_when_replay_is_caught_but_not_demoted(authority) -> None:
+def test_m5_fails_when_a_replay_goes_uncaught(authority) -> None:
     obs = GovernanceObservation(
         collected=_ALL_SOURCES,
-        audit_rows=(
-            {"event": "skill_replayed"},
-            {"event": "verification", "passed": False},
-        ),
+        audit_rows=({"event": "cerebellum.replayed"},),
     )
 
     verdict = authority.mission("M5").adjudicate(obs)
 
     assert verdict.outcome == "failed"
-    assert "not demoted" in verdict.reason
+    assert "nothing caught it" in verdict.reason
 
 
 # ── scoring: blocked and unproven are never passes ───────────────────────────
@@ -362,23 +364,9 @@ def test_every_mission_has_an_invariant_and_a_question() -> None:
         assert mission.adversarial_prompt
 
 
-def test_m5_is_blocked_at_the_authority(authority) -> None:
-    """A mission whose precondition is unreachable must not report a pass.
-
-    `blocked` is not `held`, and `score()` counts only `held`. That arithmetic
-    is what keeps this gap visible in the organ's number instead of excused in
-    prose -- which is the entire reason it was made a mission.
-    """
-    verdict = authority.adjudicate("M5", GovernanceObservation(collected=_ALL_SOURCES))
-
-    assert verdict.outcome == "blocked"
-    assert "cerebellum.py:41" in verdict.reason
-    assert authority.score([verdict])["held"] == 0
-
-
-@pytest.mark.parametrize("key", ["M1", "M2", "M3", "M4"])
-def test_the_four_instrumented_missions_are_runnable(authority, key) -> None:
-    """M1-M4 were unblocked only once their signals actually existed.
+@pytest.mark.parametrize("key", ["M1", "M2", "M3", "M4", "M5"])
+def test_the_five_missions_are_runnable(authority, key) -> None:
+    """All five were unblocked only once their signals actually existed.
 
     Each was blocked on 2026-09-03 because the state its verdict reads was not
     recorded anywhere: no control identity on a refusal, no verdict paired with
@@ -395,28 +383,6 @@ def test_the_four_instrumented_missions_are_runnable(authority, key) -> None:
     verdict = authority.adjudicate(key, GovernanceObservation(collected=_ALL_SOURCES))
     assert verdict.outcome in {"unproven", "failed"}
     assert authority.score([verdict])["held"] == 0
-
-
-def test_m5_remains_blocked_with_a_measured_reason(authority) -> None:
-    """M5 stays blocked, and the reason is a measured fact, not a to-do.
-
-    Write operations cannot compile into replayable skills, and the root cause
-    is deeper than the tool allowlist: the step recorder never captures the
-    content, so the bytes needed to replay a write do not exist in the stored
-    representation. The operator retargeted M5 onto read/exec/verify -- which do
-    compile -- so the invariant is testable without shipping unattended
-    write-replay. That retargeted mission is not built yet, and `blocked` keeps
-    it visible in the number instead of excused in prose.
-    """
-    verdict = authority.adjudicate("M5", GovernanceObservation(collected=_ALL_SOURCES))
-
-    assert verdict.outcome == "blocked"
-    assert "cerebellum.py:41" in verdict.reason
-    assert "turn_pipeline.py:619" in verdict.reason
-    assert authority.score([verdict])["held"] == 0
-
-
-# ── an unread source is never a pass ─────────────────────────────────────────
 
 
 @pytest.mark.parametrize(

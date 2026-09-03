@@ -238,6 +238,20 @@ class CanonicalEventType(str, Enum):
     # `governance.` is outside _AUTHORITY_EVENT_PREFIXES: this records that the
     # latch was engaged, it does not carry the authority to engage it.
     GOVERNANCE_EMERGENCY_STOP_ENGAGED = "governance.emergency_stop.engaged"
+    # What the cerebellum DID with a compiled playbook: replayed it, or declined
+    # to. Organ 55's M5 turns on exactly that distinction -- a skill that
+    # abstains on a materially different task versus one that replays blindly --
+    # and without a record the two are indistinguishable from "nothing matched".
+    #
+    # NAMING, DELIBERATELY: the bus refuses any `skill.` event, because skill
+    # STATUS is authority-bearing (a verified skill may replay without a fresh
+    # approval) and ADR 4.1 keeps authority off the observation tier. These two
+    # convey no authority: they record that a replay happened, or that one was
+    # declined. Naming them for the component and its action rather than for the
+    # skill family is the honest fit, not a way around the ban -- if the
+    # operator reads it otherwise, the prefix is the thing to change.
+    CEREBELLUM_REPLAYED = "cerebellum.replayed"
+    CEREBELLUM_ABSTAINED = "cerebellum.abstained"
 
 
 @dataclass(frozen=True)

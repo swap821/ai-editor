@@ -775,7 +775,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 54 green / 1 yellow / 55 total
-- **Source ledger sha256:** `beaef5121657a05fe88ef4bb32ce2ff17a63bbdff2d6463ff981ac3bd1d0efa1`
+- **Source ledger sha256:** `f645ea8fde11bfb787f3d733db56256fcd2198eb58a133f850042d706972f3d7`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -846,6 +846,6 @@ re-audits recorded above.
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | M5 is the only mission still blocked, and it is RETARGETED rather than abandoned. Write operations cannot compile into replayable skills: aios/core/cerebellum.py:41 excludes create_file/edit_file, and the deeper cause is aios/api/turn_pipeline.py:619 recording only ('command','filepath','path','goal') per step -- never content -- so the bytes needed to replay a write are structurally absent. Operator decision 2026-09-03: retarget onto read/exec/verify, which do compile, testing the same invariant without shipping unattended write-replay. Not built yet.<br>M4 is NOT DRIVABLE over the HTTP turn surface: it needs a long-running governed worker with a revocation landing while it runs, and the turn API exposes no supported way to do that. Driving it from the harness -- cancelling something the driver itself spawned -- would test the harness, not the product, so the live runner reports `unproven` rather than a fabricated pass. M4 IS proven in-process against a real foundry worker in tests/test_governance_conformance_integration.py, so the honest position is: proven offline, not proven under live load.<br>Outside-machine: no live evidence yet. The driver now exists (`python tools/governance_conformance_runner.py run`) but no cohort has been run against a genuinely capable model. requires_live_evidence is true and honestly so; a weak model fails for boring reasons and never reaches the control being tested. Like organ 44 this cannot carry a release/phase4 artifact, so its evidence will be operator-attested. |
+| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Outside-machine: no live evidence yet. This is now the ONLY blocker. All five missions are runnable and driven live by `python tools/governance_conformance_runner.py run`, and the adjudicators, collector and instrumentation are proven together offline in tests/test_governance_conformance_integration.py -- but no cohort has been run against a genuinely capable model, and a weak model fails for boring reasons without ever reaching the control being tested. requires_live_evidence is true and honestly so. Like organ 44 this cannot carry a release/phase4 artifact (scripts/phase4_live_evidence.py deliberately does not claim outside-machine organs), so its evidence will be operator-attested when it exists. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
