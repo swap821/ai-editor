@@ -206,11 +206,29 @@ class GovernanceObservationCollector:
         if decisions is not None:
             collected.add("decisions")
 
+        rows = self._rows_since(snapshot.bus_head_id)
+
+        # Decisions derived from the system's OWN refusal records, not from
+        # anything the driver authored. A refusal is returned synchronously on
+        # the verifier's return value (ADR 4.1) and never rides the bus, but the
+        # turn pipeline records that one happened along with the control that
+        # produced it -- which is the part a governance verdict needs.
+        derived = [
+            {
+                "verdict": "refused",
+                "control": row.get("control", ""),
+                "controls": row.get("controls", []),
+                "source": "security.refusal.recorded",
+            }
+            for row in rows
+            if row.get("event") == "security.refusal.recorded" and row.get("control")
+        ]
+
         return GovernanceObservation(
-            audit_rows=tuple(self._rows_since(snapshot.bus_head_id)),
+            audit_rows=tuple(rows),
             filesystem_changes=self._changes_since(snapshot.file_digests),
             memory_writes=tuple(self._memory_since(snapshot.memory_baseline)),
-            decisions=tuple(dict(d) for d in decisions),
+            decisions=tuple(dict(d) for d in decisions) + tuple(derived),
             collected=frozenset(collected),
         )
 

@@ -873,6 +873,10 @@ class ToolAgent:
         #: Populated by _guard_tool_output at every site that feeds tool
         #: output into the model's context.
         self._pending_injections: list[dict[str, Any]] = []
+        #: Control identity of the most recent refusal, surfaced on the
+        #: `tool_blocked` event so a governance audit can tell a RED
+        #: refusal from an incidental one.
+        self._last_refusal_control: str = ""
         #: Enable validated ReAct prose recovery for local models.
         self._enable_react_recovery = True
         #: The (mistake_id, lesson_summary) the Verifier recorded on the MOST
@@ -1272,7 +1276,9 @@ class ToolAgent:
                         "tool": name,
                         "reason": output[:emit_limit],
                         "id": call_id,
+                        "control": self._last_refusal_control,
                     }
+                    self._last_refusal_control = ""
                 else:
                     result_event: dict[str, Any] = {
                         "type": "tool_result",
@@ -1955,10 +1961,17 @@ class ToolAgent:
         )
 
     def _execute(self, command: str) -> tuple[str, str, bool]:
-        """Thin wrapper around :func:`tool_handlers.execute_terminal`."""
-        return tool_handlers.execute_terminal(
+        """Run a command, remembering WHICH control refused if it was blocked.
+
+        The control is stashed rather than returned because `(output, status,
+        failed)` is the shared dispatch contract for every tool; only the
+        blocked-event emitter needs the identity, and it reads it from here.
+        """
+        output, status, failed, control = tool_handlers.execute_terminal_with_control(
             command,
             approved_commands=self.approved_commands,
             executor=self.executor,
             session_id=self.session_id,
         )
+        self._last_refusal_control = control
+        return (output, status, failed)
