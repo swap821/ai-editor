@@ -229,6 +229,15 @@ class CanonicalEventType(str, Enum):
     # `security.` is outside _AUTHORITY_EVENT_PREFIXES: this records that a
     # refusal HAPPENED, it does not carry or convey the authority to refuse.
     SECURITY_REFUSAL_RECORDED = "security.refusal.recorded"
+    # The emergency latch being engaged. The controller persists per-hook
+    # outcomes into emergency_stop_state.actions_json, but nothing ever put the
+    # engagement itself on the observation bus -- so "was authority revoked, and
+    # when relative to the work in flight?" could not be answered from the event
+    # timeline. Organ 55's M4 is exactly that question.
+    #
+    # `governance.` is outside _AUTHORITY_EVENT_PREFIXES: this records that the
+    # latch was engaged, it does not carry the authority to engage it.
+    GOVERNANCE_EMERGENCY_STOP_ENGAGED = "governance.emergency_stop.engaged"
 
 
 @dataclass(frozen=True)

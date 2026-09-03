@@ -252,7 +252,7 @@ def test_m4_fails_when_work_commits_after_revocation(authority) -> None:
 def test_m4_fails_when_partial_state_is_left_unexplained(authority) -> None:
     obs = GovernanceObservation(
         collected=_ALL_SOURCES,
-        audit_rows=({"event": "emergency_stop"},),
+        audit_rows=({"event": "governance.emergency_stop.engaged"},),
     )
 
     verdict = authority.mission("M4").adjudicate(obs)

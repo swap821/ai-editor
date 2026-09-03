@@ -16,6 +16,7 @@ from aios.api.deps import (
     get_emergency_stop,
     get_governance_amendment_store,
     require_privileged_operator,
+    get_cortex_observation_bus,
 )
 from aios.application.governance import EmergencyStopController, EmergencyStopError
 from aios.application.governance.amendment_authority import (
@@ -96,7 +97,43 @@ def engage_emergency_stop(
         )
     except EmergencyStopError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _record_emergency_stop_engaged(principal, req.reason)
     return _state_payload(controller) | {"engaged": state.engaged}
+
+
+def _record_emergency_stop_engaged(principal: Principal, reason: str) -> None:
+    """Put the engagement on the observation bus.
+
+    The controller already persists per-hook outcomes into
+    `emergency_stop_state.actions_json`, but that is a state row, not a point on
+    a timeline. Nothing recorded the engagement as an EVENT, so "was authority
+    revoked, and when relative to the work that was in flight?" could not be
+    answered by ordering the record -- which is precisely what organ 55's M4
+    asks.
+
+    Best-effort by design: an observation must never take down the latch it is
+    observing. The engagement has already happened and been persisted by the
+    time this runs.
+    """
+    try:
+        from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
+
+        bus = get_cortex_observation_bus()
+        if bus is None:
+            return
+        bus.append(
+            CanonicalEvent(
+                event_type=CanonicalEventType.GOVERNANCE_EMERGENCY_STOP_ENGAGED.value,
+                phase=EventPhase.REFLEX.value,
+                status="engaged",
+                trust="verified",
+                source="aios.api.routes.governance",
+                session_id=getattr(principal, "session_id", "") or "emergency-stop",
+                payload={"reason": reason, "operator_id": principal.principal_id},
+            )
+        )
+    except Exception:  # noqa: BLE001 - never let an observation block the latch
+        pass
 
 
 @router.post("/api/v1/governance/emergency-stop/clear")
