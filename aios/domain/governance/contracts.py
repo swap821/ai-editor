@@ -69,7 +69,7 @@ class OrganRecord(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    organ_id: int = Field(ge=1, le=54)
+    organ_id: int = Field(ge=1, le=55)
     name: str = Field(min_length=1, max_length=200)
     status: Literal["green", "yellow"]
     authority_owner: str = Field(min_length=1, max_length=200)

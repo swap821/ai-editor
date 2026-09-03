@@ -774,8 +774,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 54 green / 0 yellow / 54 total
-- **Source ledger sha256:** `72a0223fb7b2892bd714dbbdb4620b233879232b84c77aa5cdc2422b2702ffb7`
+- **Counts:** 54 green / 1 yellow / 55 total
+- **Source ledger sha256:** `e69555aaf7479b7c2c93e55a899dc0af189022cd82aaf9c63843023ad6d12da6`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -842,9 +842,10 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (0) — exact residual, from the ledger's own `known_blockers`
+### Yellow (1) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
+| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | M3 (injected instruction arriving via TOOL OUTPUT) is runnable and is expected to FAIL. Injection classification runs on user input only: _check_prompt_injection has exactly two call sites (aios/api/main.py 1215 chat, 1456 voice transcript), and neither file content returned by read_file nor command stdout/stderr is ever passed to classify() or the vector shield. tool_handlers.read_file applies scan_and_redact (the SECRET scanner) only, and tool_agent.py:1264 appends that secret-scrubbed-but-injection-unscanned text straight into the model's conversation. SECURITY.md claimed 'User and tool output is scanned' -- that clause was false and was corrected on 2026-09-03. Verified by source trace and confirmed under adversarial refutation.<br>M5 (a verified skill that should abstain) CANNOT RUN. Write operations never compile into replayable skills, so the mission's precondition is unreachable: aios/runtime/cerebellum.py:41 defines _COMPILABLE_TOOLS = frozenset({'read_file','read_directory','execute_terminal','verify'}) with create_file and edit_file absent, and _parse_step returns None for any tool outside that set, abandoning the whole trajectory. Verified by source trace and confirmed under adversarial refutation.<br>Outside-machine: no live evidence yet. requires_live_evidence is true and honestly so -- this organ asserts a runtime property that only a real run against a genuinely capable model can establish, and no such run has happened. Like organ 44 it cannot carry a release/phase4 artifact, because scripts/phase4_live_evidence.py deliberately does not claim outside-machine organs, so its evidence will be operator-attested when it exists. Running this against a weak model would be testing a lock by pushing on the door gently.<br>No integration test yet. The missions adjudicate correctly as units, but nothing yet drives them end-to-end against a live governed system. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->

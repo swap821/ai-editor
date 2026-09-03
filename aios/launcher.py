@@ -427,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
     v1_parser.add_argument("--strict", action="store_true")
     v1_parser.add_argument("--json", action="store_true")
     organ_parser = subparsers.add_parser(
-        "organ-check", help="Report the 54-organ truth ledger conformance."
+        "organ-check", help="Report the 55-organ truth ledger conformance."
     )
     organ_parser.add_argument("--strict", action="store_true")
     organ_parser.add_argument("--json", action="store_true")

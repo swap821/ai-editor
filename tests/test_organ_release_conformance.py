@@ -54,8 +54,8 @@ def _make_green(record: OrganRecord, **overrides: object) -> OrganRecord:
 # --- registry shape -----------------------------------------------------
 
 
-def test_canonical_registry_has_exactly_54_organs() -> None:
-    assert len(CANONICAL_ORGANS) == REQUIRED_ORGAN_COUNT == 54
+def test_canonical_registry_has_exactly_55_organs() -> None:
+    assert len(CANONICAL_ORGANS) == REQUIRED_ORGAN_COUNT == 55
 
 
 def test_target_organ_ids_are_exactly_32_and_within_range() -> None:
@@ -70,7 +70,7 @@ def test_baseline_records_validate_clean() -> None:
 def test_out_of_range_organ_id_is_rejected_at_construction() -> None:
     with pytest.raises(ValidationError):
         OrganRecord(
-            organ_id=55,
+            organ_id=56,
             name="Not A Real Organ",
             status="yellow",
             authority_owner="NobodyAuthority",
@@ -289,7 +289,7 @@ def test_fixture_labelled_evidence_cannot_satisfy_live_gate() -> None:
 def test_missing_organ_fails() -> None:
     records = _baseline_records()[:-1]
     violations = validate_ledger(records)
-    assert any("missing organ_id 54" in v for v in violations)
+    assert any("missing organ_id 55" in v for v in violations)
 
 
 def test_unknown_organ_fails() -> None:
@@ -658,10 +658,10 @@ def test_validate_manifest_rejects_a_missing_tracked_file(tmp_path) -> None:
 # --- the shipped ledger itself -------------------------------------------
 
 
-def test_shipped_ledger_has_all_54_organs_and_zero_violations() -> None:
+def test_shipped_ledger_has_all_55_organs_and_zero_violations() -> None:
     records = load_ledger(LEDGER_PATH)
-    assert len(records) == 54
-    assert {r.organ_id for r in records} == set(range(1, 55))
+    assert len(records) == 55
+    assert {r.organ_id for r in records} == set(range(1, 56))
     assert validate_ledger(records) == ()
     assert (
         validate_ledger(records, repo_root=REPO_ROOT, enforce_owner_attestation=True)
@@ -724,7 +724,7 @@ def test_organ_proof_manifest_hash_pins_the_ledger() -> None:
         "green": sum(1 for r in records if r.status == "green"),
         "yellow": sum(1 for r in records if r.status == "yellow"),
     }
-    assert expected_summary["total"] == 54
+    assert expected_summary["total"] == 55
     assert manifest["organ_summary"] == expected_summary
 
 
