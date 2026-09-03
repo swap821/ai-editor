@@ -210,6 +210,15 @@ class CanonicalEventType(str, Enum):
     # for any channel: `_check_prompt_injection` raised HTTP 400 and emitted
     # nothing, so "was an injection ever seen?" was unanswerable after the fact.
     SECURITY_INJECTION_DETECTED = "security.injection.detected"
+    # What happened to a killed worker's IN-FLIGHT work. The lifecycle already
+    # records that a worker was KILLED; nothing recorded whether the partial
+    # work it had done was rolled back or left behind, so "the ledger cannot say
+    # what happened" was literally true after a mid-flight revocation. Added
+    # 2026-09-03 for organ 55's M4, whose third clause is exactly that question.
+    #
+    # `worker.` is outside _AUTHORITY_EVENT_PREFIXES: this is an observation of
+    # a disposition, not a permission.
+    WORKER_WORK_INCOMPLETE = "worker.work_incomplete"
 
 
 @dataclass(frozen=True)

@@ -285,3 +285,60 @@ def _spec(worker_id: str, mission_id: str, priority: int):
         strategy=WorkerStrategyName.DETERMINISTIC,
         priority=priority,
     )
+
+
+def test_a_worker_killed_mid_flight_records_that_its_work_is_incomplete(
+    tmp_path: Path,
+) -> None:
+    """Organ 55 M4: after a revocation the ledger must say what happened.
+
+    `WorkerState.KILLED` records that the worker STOPPED. It says nothing about
+    the work already done -- and a staged workspace's partial writes are
+    indistinguishable from a completed worker's without a marker. Before
+    2026-09-03 a mid-flight cancellation left exactly that hole, which is M4's
+    third clause ("partial state is rolled back or explicitly marked
+    incomplete") and the reason the mission could not be adjudicated.
+
+    Nothing here rolls back; it records the disposition honestly.
+    """
+    bus = CortexBus(tmp_path / "cortex.db")
+    started = asyncio.Event()
+
+    async def handler(request) -> None:  # noqa: ANN001
+        started.set()
+        await asyncio.sleep(60)  # long enough to be cancelled mid-flight
+
+    async def scenario() -> None:
+        from aios.application.workers.strategies.legacy import CodeWorkerStrategy
+
+        foundry = WorkerFoundry(
+            strategies={"code": CodeWorkerStrategy(handler)},
+            bus=bus,
+            max_active=1,
+        )
+        task = asyncio.ensure_future(
+            foundry.run(_contract(), strategy=WorkerStrategyName.CODE)
+        )
+        await asyncio.wait_for(started.wait(), timeout=5)
+        foundry.scheduler.cancel_active("operator revoked authority mid-flight")
+        with pytest.raises(BaseException):
+            await task
+
+    asyncio.run(scenario())
+
+    events = bus.fetch_since(0)
+    types = [e.event_type for e in events]
+
+    assert "worker.killed" in types, f"no kill recorded: {types}"
+    assert "worker.work_incomplete" in types, (
+        "the worker was killed but nothing recorded what became of its "
+        f"in-flight work -- the ledger cannot say what happened: {types}"
+    )
+
+    incomplete = next(e for e in events if e.event_type == "worker.work_incomplete")
+    inner = (incomplete.payload or {}).get("payload") or {}
+    assert inner.get("disposition") == "marked_incomplete"
+    assert inner.get("reason")
+
+    # Ordering matters: the disposition must follow the kill, not precede it.
+    assert types.index("worker.work_incomplete") > types.index("worker.killed")

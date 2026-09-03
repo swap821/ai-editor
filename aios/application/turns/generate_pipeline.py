@@ -145,7 +145,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             model,
             openai=runtime.openai_client,
             anthropic=runtime.anthropic_client,
-        vertex_maas=runtime.vertex_maas_client,
+            vertex_maas=runtime.vertex_maas_client,
         )
         return {
             "provider": provider,
@@ -314,9 +314,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             )
 
             def crag_judge(query: str, passage: str) -> float:
-                return _crag_llm_judge(
-                    query, passage, completion=governed_crag_judge
-                )
+                return _crag_llm_judge(query, passage, completion=governed_crag_judge)
         else:
 
             def crag_judge(query: str, passage: str) -> float:
@@ -339,9 +337,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             )
 
             def crag_cloud_source(query: str) -> list[str]:
-                return _crag_cloud_source(
-                    query, completion=governed_crag_cloud
-                )
+                return _crag_cloud_source(query, completion=governed_crag_cloud)
         else:
 
             def crag_cloud_source(query: str) -> list[str]:
@@ -390,9 +386,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "constitution_digest": str(principal.constitution_digest or ""),
         "emergency_stop": runtime.extra["emergency_stop"],
         "operator_identity_digest": credential_digest(principal.principal_id),
-        "representative_context_store": runtime.extra[
-            "representative_context_store"
-        ],
+        "representative_context_store": runtime.extra["representative_context_store"],
     }
 
 
@@ -1109,6 +1103,46 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 ),
                 "",
             )
+        # Record the verdict WITH the evidence it was minted from.
+        #
+        # `turn_strength` and `evidence` are both in scope here, but until
+        # 2026-09-03 nothing durably paired them on the default turn path:
+        # `record_attempt` below takes `strength=` and has no evidence
+        # parameter at all, so `procedural_skills` stored the strength label
+        # while the text it was derived from went nowhere. Only Council Runtime
+        # (`aios/runtime/run_ledger.py`) kept both together.
+        #
+        # That gap is what makes "a STRONG verdict minted without a passing
+        # test" undetectable from state, which is organ 55's M2. The pairing is
+        # cheap and already proven three lines down, where
+        # `curriculum.record_matching` is called with evidence AND strength.
+        #
+        # `verification.` is deliberately outside the bus's
+        # _AUTHORITY_EVENT_PREFIXES: this records what a verifier OBSERVED, not
+        # a permission granted, so it is admissible under the bus's own law.
+        if _cortex_bus:
+            try:
+                _cortex_bus.append(
+                    CanonicalEvent(
+                        event_type=CanonicalEventType.VERIFICATION_COMPLETED.value,
+                        phase=EventPhase.VERIFY.value,
+                        status="success" if passed else "failed",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="generate",
+                        session_id=session_id,
+                        turn_id=ctx.turn_id,
+                        payload={
+                            "strength": turn_strength.name,
+                            "passed": passed,
+                            "evidence": evidence,
+                            "has_evidence": bool(evidence),
+                        },
+                        evidence_refs=[evidence] if evidence else [],
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - observation is best-effort
+                logger.warning("Failed to record verification outcome", exc_info=exc)
+
         direct_id: Optional[int] = None
         if workflow_steps:
             try:
@@ -1199,9 +1233,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 openai=openai_client,
                 anthropic=anthropic_client,
             )
-            gateway_target = (
-                "local" if provider == router.PROVIDER_OLLAMA else "cloud"
-            )
+            gateway_target = "local" if provider == router.PROVIDER_OLLAMA else "cloud"
         else:
             # A failover chain is classified by its weakest possible privacy
             # target: the wrapper may transmit to a cloud candidate even when
@@ -1212,8 +1244,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     if (
                         not isinstance(candidate, tuple)
                         or len(candidate) != 3
-                        or str(candidate[2]).strip().lower()
-                        != router.PROVIDER_OLLAMA
+                        or str(candidate[2]).strip().lower() != router.PROVIDER_OLLAMA
                     ):
                         gateway_target = "cloud"
                         break
@@ -1226,9 +1257,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             )
             if compiled_context.privacy_classification == "cloud":
                 governed_memory = rendered_context
-                governed_messages = [
-                    {"role": "user", "content": compiled_context.goal}
-                ]
+                governed_messages = [{"role": "user", "content": compiled_context.goal}]
             else:
                 governed_memory = (
                     (memory_context + "\n\n" if memory_context else "")
@@ -1236,9 +1265,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     + rendered_context
                 )
                 governed_messages = chat_messages
-            return make_agent(memory_context=governed_memory).run(
-                governed_messages
-            )
+            return make_agent(memory_context=governed_memory).run(governed_messages)
 
         receipt_now = datetime.now(timezone.utc)
         receipt_expires = receipt_now + timedelta(minutes=5)
