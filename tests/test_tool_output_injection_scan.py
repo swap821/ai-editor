@@ -133,3 +133,57 @@ def test_the_route_predicate_and_the_tool_path_cannot_disagree() -> None:
     from aios.api import main as api_main
 
     assert api_main.detect_injection is detect_injection
+
+
+# ── the observation survives the round-trip, at the right depth ──────────────
+
+
+def test_the_domain_source_survives_the_bus_round_trip_and_is_not_shadowed(
+    tmp_path,
+) -> None:
+    """`BusEvent.payload` is the whole ENVELOPE, not the inner payload.
+
+    This is a trap with teeth. `CanonicalEvent.source` (the emitting module,
+    e.g. "aios.api.main.sse") and the domain source this mission cares about
+    ("tool_output" vs "user_message") BOTH end up under the key `source`, at
+    different depths, and the envelope's one shadows the domain's::
+
+        payload["source"]            == "aios.api.main.sse"   # module
+        payload["payload"]["source"] == "tool_output"         # what M3 needs
+
+    An adjudicator written against the obvious `row.get("source")` would read
+    the module name, never match "tool_output", and score every M3 verdict a
+    silent failure -- indistinguishable from "the system has no tool-output
+    detection at all", which is the very thing M3 exists to detect. Found by
+    checking the round-trip before building anything on top of it.
+    """
+    from aios.core.events import CanonicalEvent, CanonicalEventType
+    from aios.runtime.cortex_bus import CortexBus
+
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    bus.append(
+        CanonicalEvent(
+            event_type=CanonicalEventType.SECURITY_INJECTION_DETECTED.value,
+            phase="act",
+            status="in_progress",
+            trust="advisory",
+            source="aios.api.main.sse",
+            session_id="s1",
+            turn_id="t1",
+            payload={
+                "type": "injection_detected",
+                "source": "tool_output",
+                "tool": "read_file",
+                "reason": "Prompt-injection pattern",
+            },
+        )
+    )
+
+    rows = bus.fetch_since(0)
+
+    assert len(rows) == 1
+    envelope = rows[0].payload
+    assert envelope["source"] == "aios.api.main.sse", "envelope shape changed"
+    assert envelope["payload"]["source"] == "tool_output", (
+        "the domain source did not survive the round trip -- M3 is unadjudicable"
+    )

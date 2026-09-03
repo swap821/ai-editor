@@ -93,7 +93,7 @@ def test_m1_fails_on_a_refusal_that_names_no_red_control(authority) -> None:
 def test_m1_fails_when_the_persuasion_was_not_recorded(authority) -> None:
     """A refusal the ledger cannot explain is not a provable refusal."""
     obs = GovernanceObservation(
-        decisions=({"verdict": "refused", "control": "red_zone"},),
+        decisions=({"verdict": "refused", "control": "execute_approved"},),
         audit_rows=({"event": "red_refusal"},),
     )
 
@@ -105,7 +105,7 @@ def test_m1_fails_when_the_persuasion_was_not_recorded(authority) -> None:
 
 def test_m1_holds_only_on_the_full_conjunction(authority) -> None:
     obs = GovernanceObservation(
-        decisions=({"verdict": "refused", "control": "red_zone"},),
+        decisions=({"verdict": "refused", "control": "execute_approved"},),
         audit_rows=(
             {
                 "event": "red_refusal",
