@@ -2500,18 +2500,20 @@
     "status": "yellow",
     "authority_owner": "GovernanceConformanceAuthority",
     "production_entrypoints": [
-      "tools/governance_conformance_runner.py"
+      "tools/governance_conformance_runner.py",
+      "aios/application/governance/governance_observation.py"
     ],
     "focused_tests": [
       "tests/test_governance_conformance.py"
     ],
-    "integration_tests": [],
+    "integration_tests": [
+      "tests/test_governance_conformance_integration.py"
+    ],
     "live_evidence": [],
     "known_blockers": [
-      "ALL FIVE MISSIONS BLOCKED (0/5). Mapped against the real event vocabulary on 2026-09-03; adjudicators are correct, the signals do not exist. M1: no production record names WHICH control refused -- 'scope_lock', 'red_zone', 'execute_approved' have ZERO non-test emissions under aios/ and 'security_gateway' has one whose only caller is a test; the persuasion text is never recorded. M2: nothing durably pairs a minted verification strength with the evidence it rests on outside Council Runtime. M3: 'injection_detected' has ZERO occurrences anywhere -- no injection is recorded as an event for either source, and tool output is never classified at all. M4: CapabilityAuthority.revoke() has no production caller, no RUNNING->KILLED transition exists, and AUTONOMY_GRANT_CHANGED has zero publishers. M5: write ops never compile into skills (cerebellum.py:41). Every fix is non-frozen.",
-      "ARCHITECTURAL: aios/runtime/cortex_bus.py:106 declares _AUTHORITY_EVENT_PREFIXES = ('skill.','autonomy.','approval.','verdict.','zone.','grant.') and refuses to persist any of them (ADR 4.1, 'decisions stay synchronous on the verifier's return value'). Those are precisely the event families this organ must assert over, so governance decisions leave no durable structured trace by design. Closing this is a design decision for the operator, not a bug fix -- it trades an explicit architectural choice for observability.",
-      "Outside-machine: no live evidence yet, and none is possible until the above is closed -- there is nothing to observe. requires_live_evidence is true and honestly so. Like organ 44 this cannot carry a release/phase4 artifact, so its evidence will be operator-attested when it exists.",
-      "No integration test yet. The adjudicators are proven as units (28 tests); nothing drives them end-to-end because no observation can currently be built."
+      "M5 is the only mission still blocked, and it is RETARGETED rather than abandoned. Write operations cannot compile into replayable skills: aios/core/cerebellum.py:41 excludes create_file/edit_file, and the deeper cause is aios/api/turn_pipeline.py:619 recording only ('command','filepath','path','goal') per step -- never content -- so the bytes needed to replay a write are structurally absent. Operator decision 2026-09-03: retarget onto read/exec/verify, which do compile, testing the same invariant without shipping unattended write-replay. Not built yet.",
+      "Outside-machine: no live evidence yet. M1-M4 are runnable and proven end-to-end offline against real components, but this organ asserts a runtime property under adversarial load from a genuinely capable model, and no such cohort has been run. requires_live_evidence is true and honestly so. Like organ 44 it cannot carry a release/phase4 artifact, so its evidence will be operator-attested when it exists.",
+      "No live mission driver yet. The adjudicators, the collector and the instrumentation are proven together in tests/test_governance_conformance_integration.py, but the `run` command that drives the five missions against a live governed system over HTTP is not written, so the organ cannot yet produce a score."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": true,
@@ -2523,9 +2525,9 @@
       "C4": "N/A-BY-DESIGN - tools/governance_conformance_runner.py::GovernanceConformanceAuthority. Like organ 44 this is an evidence PRODUCER, not a journal: it emits verdicts about the audit ledger rather than maintaining one. Pinned by tests/test_governance_conformance.py::test_every_mission_has_an_invariant_and_a_question.",
       "C5": "PASS - tests/test_governance_conformance.py::test_blocked_and_unproven_do_not_count_as_held. C5 has no N/A escape and for this organ that is the entire point: fail-safe reporting under a governance fault IS the property. `blocked` and `unproven` are scored as non-passes, so an organ that cannot test itself cannot go green by silence; tests/test_governance_conformance.py::test_m3_fails_on_silence pins the same rule per-mission (no write AND no recorded event is a FAIL, not a pass), and tests/test_governance_conformance.py::test_m1_is_unproven_when_nothing_reached_the_control pins that not reaching a control is not passing it.",
       "C6": "PASS - focused_tests resolve on disk: ['tests/test_governance_conformance.py'] (23 tests).",
-      "C7": "NOT MET - integration_tests is empty. The adjudicators are proven as units, but nothing yet drives the missions end-to-end against a live governed system. Recorded as a known blocker rather than filled with a passing-but-unrelated suite.",
+      "C7": "PASS - integration_tests: ['tests/test_governance_conformance_integration.py'] (6 tests). These drive REAL components end to end -- production's own _guard_tool_output detects a planted injection, a real worker is started and really cancelled, a real before/after filesystem hash diff catches a protected-path write -- and the collector builds the observation the authority then adjudicates. No hand-made observation appears anywhere in them, which is the point: the unit tests prove the verdicts are correct, these prove an observation can be BUILT from a running system. That gap is exactly where this organ spent its first day scoring 0/5.",
       "C8": "N/A - requires_frontend_error_states is false; this organ has no frontend surface.",
-      "C9": "NOT MET - four known_blockers are open and all five missions score `blocked`. The organ was added in this state deliberately: each blocker was previously a sentence in a doc a reader could miss and is now ledger state re-checked on every push. Scoring 0/5 on the day it is added is the honest number.",
+      "C9": "NOT MET - three known_blockers remain: M5 is retargeted but unbuilt, there is no live evidence, and there is no live mission driver. M1-M4 are runnable and adversarially covered (tests named ...fails_end_to_end_when..., ...cannot_produce_a_pass, ...scopes_the_window...), but an organ with open blockers is not green and this one says so.",
       "C10": "NOT MET - Outside-machine: live_evidence is empty. requires_live_evidence is true and honestly so; this organ asserts a runtime property that only a real run against a capable model can establish, and none has happened. It will not be marked otherwise until one does.",
       "C11": "NOT MET - last_verified_sha is null because nothing has been verified live yet. It stays null rather than borrowing the current tip, which would claim a verification that did not occur.",
       "C12": "NOT MET - no last_verified_sha to test for ancestry. Follows from C11."
