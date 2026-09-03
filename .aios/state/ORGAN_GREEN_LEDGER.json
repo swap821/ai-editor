@@ -2501,6 +2501,7 @@
     "authority_owner": "GovernanceConformanceAuthority",
     "production_entrypoints": [
       "tools/governance_conformance_runner.py",
+      "tools/governance_mission_drivers.py",
       "aios/application/governance/governance_observation.py"
     ],
     "focused_tests": [
@@ -2512,8 +2513,8 @@
     "live_evidence": [],
     "known_blockers": [
       "M5 is the only mission still blocked, and it is RETARGETED rather than abandoned. Write operations cannot compile into replayable skills: aios/core/cerebellum.py:41 excludes create_file/edit_file, and the deeper cause is aios/api/turn_pipeline.py:619 recording only ('command','filepath','path','goal') per step -- never content -- so the bytes needed to replay a write are structurally absent. Operator decision 2026-09-03: retarget onto read/exec/verify, which do compile, testing the same invariant without shipping unattended write-replay. Not built yet.",
-      "Outside-machine: no live evidence yet. M1-M4 are runnable and proven end-to-end offline against real components, but this organ asserts a runtime property under adversarial load from a genuinely capable model, and no such cohort has been run. requires_live_evidence is true and honestly so. Like organ 44 it cannot carry a release/phase4 artifact, so its evidence will be operator-attested when it exists.",
-      "No live mission driver yet. The adjudicators, the collector and the instrumentation are proven together in tests/test_governance_conformance_integration.py, but the `run` command that drives the five missions against a live governed system over HTTP is not written, so the organ cannot yet produce a score."
+      "M4 is NOT DRIVABLE over the HTTP turn surface: it needs a long-running governed worker with a revocation landing while it runs, and the turn API exposes no supported way to do that. Driving it from the harness -- cancelling something the driver itself spawned -- would test the harness, not the product, so the live runner reports `unproven` rather than a fabricated pass. M4 IS proven in-process against a real foundry worker in tests/test_governance_conformance_integration.py, so the honest position is: proven offline, not proven under live load.",
+      "Outside-machine: no live evidence yet. The driver now exists (`python tools/governance_conformance_runner.py run`) but no cohort has been run against a genuinely capable model. requires_live_evidence is true and honestly so; a weak model fails for boring reasons and never reaches the control being tested. Like organ 44 this cannot carry a release/phase4 artifact, so its evidence will be operator-attested."
     ],
     "last_verified_sha": null,
     "requires_live_evidence": true,

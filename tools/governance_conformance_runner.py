@@ -620,10 +620,113 @@ class GovernanceConformanceAuthority:
         }
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    """Drive every mission against a LIVE governed system and report the score.
+
+    The loop is deliberately dumb: snapshot state, provoke, collect, adjudicate.
+    The driver never judges and the adjudicator never touches the network, so
+    neither can quietly compensate for the other.
+
+    `blocked` (the mission cannot run) and `not_drivable` (this harness cannot
+    reach the control) both score as NON-PASSES. That is the whole discipline:
+    an organ must not go green by being unable to test itself, and a harness
+    limitation is a result to report, not a gap to paper over.
+    """
+    from pathlib import Path as _Path
+
+    from aios.application.governance.governance_observation import (
+        GovernanceObservationCollector,
+        VerifiedMemoryReader,
+    )
+    from aios.probe_session import ProbeSession
+    from tools.governance_mission_drivers import DRIVERS, DriverContext
+
+    root = _Path(__file__).resolve().parents[1]
+    authority = GovernanceConformanceAuthority()
+
+    session = ProbeSession().bootstrap("Governance Conformance Driver")
+    bus = _live_bus()
+    collector = GovernanceObservationCollector(
+        bus=bus,
+        protected_roots=[root / "aios" / "security"],
+        memory_reader=VerifiedMemoryReader(),
+        repo_root=root,
+    )
+
+    verdicts: list[GovernanceVerdict] = []
+    for mission in authority.missions:
+        if not mission.runnable:
+            verdicts.append(authority.adjudicate(mission.key, GovernanceObservation()))
+            print(f"{mission.key}: blocked")
+            continue
+
+        ctx = DriverContext(
+            session=session,
+            session_id=f"gov-{mission.key.lower()}-{args.run_id}",
+            model_id=args.model,
+        )
+        snapshot = collector.begin()
+        try:
+            outcome = DRIVERS[mission.key](ctx)
+        finally:
+            ctx.cleanup()
+
+        if outcome.not_drivable:
+            verdicts.append(
+                GovernanceVerdict(
+                    mission.key,
+                    "unproven",
+                    f"not drivable by this harness: {outcome.not_drivable}",
+                )
+            )
+            print(f"{mission.key}: unproven (not drivable)")
+            continue
+
+        verdict = authority.adjudicate(
+            mission.key,
+            collector.collect(snapshot, decisions=outcome.decisions),
+        )
+        verdicts.append(verdict)
+        print(f"{mission.key}: {verdict.outcome} -- {verdict.reason}")
+        for note in outcome.notes:
+            print(f"    note: {note}")
+
+    score = authority.score(verdicts)
+    print(
+        f"\nGOVERNANCE CONFORMANCE: {score['held']}/{score['total']} held "
+        f"({'CONFORMANT' if score['conformant'] else 'NOT CONFORMANT'})"
+    )
+    return 0 if score["conformant"] else 1
+
+
+def _live_bus() -> Any:
+    """The process-wide cortex bus, or None when it is disabled.
+
+    None is honest: the collector then reports `bus` as un-collected and every
+    mission depending on it returns `unproven` rather than passing on silence.
+    """
+    try:
+        from aios.runtime.cortex_bus import CortexBus
+
+        return CortexBus()
+    except Exception:  # noqa: BLE001 - an absent bus is reported, not guessed
+        return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["list", "spec"])
+    parser.add_argument("command", choices=["list", "spec", "run"])
+    parser.add_argument(
+        "--model",
+        default="auto",
+        help="Model id. Use the strongest available: a weak model fails for "
+        "boring reasons and never reaches the control being tested.",
+    )
+    parser.add_argument("--run-id", default="1", help="Suffix for session ids.")
     args = parser.parse_args()
+
+    if args.command == "run":
+        return cmd_run(args)
 
     authority = GovernanceConformanceAuthority()
     if args.command == "list":
