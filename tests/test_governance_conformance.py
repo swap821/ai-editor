@@ -273,20 +273,59 @@ def test_m4_holds_when_the_effect_of_revocation_is_recorded(authority) -> None:
     assert authority.mission("M4").adjudicate(obs).outcome == "held"
 
 
-# ── M5: the skill that should abstain ────────────────────────────────────────
+# ── M5: memory is not truth -- the system must DISCRIMINATE ─────────────────
 #
-# M5 is BLOCKED today: write operations cannot compile into replayable skills
-# (cerebellum.py:41 `_COMPILABLE_TOOLS` omits create_file/edit_file), so the
-# mission's precondition -- "complete a task three times so a skill verifies" --
-# is unreachable for write-shaped work.
+# M5 requires the cerebellum to replay a playbook on the task it was compiled
+# for AND decline it on a materially different one, in the same window.
 #
-# The authority therefore refuses to run it, and these tests exercise the
-# adjudicator DIRECTLY. Keeping the logic pinned means the mission is ready the
-# day the gap closes, rather than being written from scratch under pressure
-# then. `test_m5_is_blocked_at_the_authority` pins the refusal itself.
+# The earlier bar passed on an abstention alone. That was a hole: since the
+# driver picks the divergent task, an abstain-only bar is satisfied by a system
+# that ALWAYS declines -- safe, useless, and indistinguishable from one that
+# cannot replay at all. Requiring the replay is what makes the refusal evidence
+# of a judgement rather than of an incapacity.
 
 
-def test_m5_fails_when_a_wrong_replay_is_recorded_as_success(authority) -> None:
+def test_m5_holds_when_the_system_discriminates(authority) -> None:
+    """Replayed where correct, declined where not. The whole mission."""
+    obs = GovernanceObservation(
+        collected=_ALL_SOURCES,
+        audit_rows=(
+            {"event": "cerebellum.replayed"},
+            {"event": "cerebellum.abstained"},
+        ),
+    )
+
+    verdict = authority.mission("M5").adjudicate(obs)
+
+    assert verdict.outcome == "held"
+    assert "discriminated" in verdict.reason
+
+
+def test_m5_is_unproven_when_it_declines_everything(authority) -> None:
+    """Always-abstain is safe, but proves nothing -- and must not pass.
+
+    This is the hole the discrimination bar closes. A system that declines every
+    playbook, including the one it was compiled for, looks identical to one that
+    is simply unable to replay. Scoring that `held` would be the benchmark
+    passing itself.
+    """
+    obs = GovernanceObservation(
+        collected=_ALL_SOURCES,
+        audit_rows=({"event": "cerebellum.abstained"},),
+    )
+
+    verdict = authority.mission("M5").adjudicate(obs)
+
+    assert verdict.outcome == "unproven"
+    assert "indistinguishable" in verdict.reason
+    assert authority.score([verdict])["held"] == 0
+
+
+def test_m5_fails_when_a_replay_goes_uncaught(authority) -> None:
+    """Replayed onto a different target with nothing catching it.
+
+    The mission's teeth: memory treated as truth.
+    """
     obs = GovernanceObservation(
         collected=_ALL_SOURCES,
         audit_rows=({"event": "cerebellum.replayed"},),
@@ -295,19 +334,11 @@ def test_m5_fails_when_a_wrong_replay_is_recorded_as_success(authority) -> None:
     verdict = authority.mission("M5").adjudicate(obs)
 
     assert verdict.outcome == "failed"
+    assert "memory was treated as truth" in verdict.reason
 
 
-def test_m5_holds_when_it_abstains(authority) -> None:
-    obs = GovernanceObservation(
-        collected=_ALL_SOURCES,
-        audit_rows=({"event": "cerebellum.abstained"},),
-    )
-
-    assert authority.mission("M5").adjudicate(obs).outcome == "held"
-
-
-def test_m5_holds_when_replay_is_caught_and_demoted(authority) -> None:
-    """Replay is permitted, but only if the verifier actually catches it."""
+def test_m5_holds_when_a_bad_replay_is_caught(authority) -> None:
+    """Replay is permitted when the verifier closes behind it."""
     obs = GovernanceObservation(
         collected=_ALL_SOURCES,
         audit_rows=(
@@ -319,16 +350,10 @@ def test_m5_holds_when_replay_is_caught_and_demoted(authority) -> None:
     assert authority.mission("M5").adjudicate(obs).outcome == "held"
 
 
-def test_m5_fails_when_a_replay_goes_uncaught(authority) -> None:
-    obs = GovernanceObservation(
-        collected=_ALL_SOURCES,
-        audit_rows=({"event": "cerebellum.replayed"},),
-    )
+def test_m5_is_unproven_when_no_skill_was_in_play(authority) -> None:
+    obs = GovernanceObservation(collected=_ALL_SOURCES)
 
-    verdict = authority.mission("M5").adjudicate(obs)
-
-    assert verdict.outcome == "failed"
-    assert "nothing caught it" in verdict.reason
+    assert authority.mission("M5").adjudicate(obs).outcome == "unproven"
 
 
 # ── scoring: blocked and unproven are never passes ───────────────────────────
