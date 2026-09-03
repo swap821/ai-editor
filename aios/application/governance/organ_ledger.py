@@ -1,4 +1,4 @@
-"""Organ Truth Ledger: the authoritative catalog of the 54 GAGOS organs.
+"""Organ Truth Ledger: the authoritative catalog of the 55 GAGOS organs.
 
 Slice 25 of the GAGOS Completion Plan (Slices 25-40) establishes this ledger
 as the release-conformance baseline.  It intentionally does not re-litigate
