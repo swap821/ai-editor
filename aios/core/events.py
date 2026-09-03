@@ -200,6 +200,16 @@ class CanonicalEventType(str, Enum):
     MEMORY_RECALLED = "memory.recalled"
     MEMORY_TRUSTED_WORKFLOW_APPLIED = "memory.trusted_workflow_applied"
     TELEMETRY_AGENT_STARTED = "telemetry.agent_started"
+    # An injection DETECTION is something that happened, not something that was
+    # permitted, so it belongs on the observation bus under the law in
+    # cortex_bus.py ("the bus carries what HAPPENED, never what is PERMITTED").
+    # The `security.` prefix is deliberately outside _AUTHORITY_EVENT_PREFIXES:
+    # this records an observation, and no decision is routed through it.
+    #
+    # Added 2026-09-03. Before this there was NO record of an injection at all,
+    # for any channel: `_check_prompt_injection` raised HTTP 400 and emitted
+    # nothing, so "was an injection ever seen?" was unanswerable after the fact.
+    SECURITY_INJECTION_DETECTED = "security.injection.detected"
 
 
 @dataclass(frozen=True)

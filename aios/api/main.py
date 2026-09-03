@@ -145,7 +145,11 @@ from aios.core.router_wiring import (
     _router_policy,
     _select_chat_client,
 )
-from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError, EmergencyStopHardWiringAuthority
+from aios.application.capabilities.authority import (
+    CapabilityAuthority,
+    CapabilityError,
+    EmergencyStopHardWiringAuthority,
+)
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.governance import EmergencyStopError
 from aios.application.governance.constitution_authority import (
@@ -202,7 +206,14 @@ from aios.core.verification_strength import (
     strength_from_text,
 )
 from aios.security.audit_logger import init_audit_db, log_action
-from aios.security.gateway import Zone, classify
+from aios.core.injection_scan import detect_injection
+# Re-exported, not dead: aios/application/turns/generate_pipeline.py pulls
+# `Zone` (and other names) off this module at runtime via _LIVE_NAMES /
+# _refresh_main_bindings, a deliberate mutable API seam. ruff cannot see
+# that reach-through and reports these as unused -- removing them on that
+# advice broke four shield tests with `module 'aios.api.main' has no
+# attribute 'Zone'` on 2026-09-03.
+from aios.security.gateway import Zone, classify  # noqa: F401
 from aios.security.secret_scanner import scan_and_redact
 
 # Approval/rate-limit/session singletons moved to aios.api.deps (tranche 2).
@@ -572,8 +583,10 @@ async def bind_request_context(request: Request, call_next):
     trace_context = observability.context_from_headers(trace_headers)
     with observability.bind(trace_context):
         try:
-            session_id = await edge_security.get_edge_trust_authority().extract_session_id(
-                request, allow_body_fallback=True
+            session_id = (
+                await edge_security.get_edge_trust_authority().extract_session_id(
+                    request, allow_body_fallback=True
+                )
             )
             if session_id:
                 bind_contextvars(session_id_hash=session_log_key(session_id))
@@ -604,7 +617,9 @@ def _real_client_ip(request: Request) -> str:
 @app.middleware("http")
 async def require_api_token(request: Request, call_next):
     """Protect API and schema surfaces; keep unauthenticated use loopback-only."""
-    error = edge_security.get_edge_trust_authority().check_api_token_or_loopback(request)
+    error = edge_security.get_edge_trust_authority().check_api_token_or_loopback(
+        request
+    )
     if error is not None:
         return error
     return await call_next(request)
@@ -613,7 +628,9 @@ async def require_api_token(request: Request, call_next):
 @app.middleware("http")
 async def require_browser_or_token_for_mutations(request: Request, call_next):
     """CSRF/Mutation protection: block unauthenticated non-browser mutations."""
-    error = edge_security.get_edge_trust_authority().check_mutation_origin_or_token(request)
+    error = edge_security.get_edge_trust_authority().check_mutation_origin_or_token(
+        request
+    )
     if error is not None:
         return error
     return await call_next(request)
@@ -980,6 +997,14 @@ def _sse(
                 canonical_type = CanonicalEventType.TURN_COMPLETED.value
             elif event == "error":
                 canonical_type = CanonicalEventType.TURN_FAILED.value
+            elif event == "injection_detected":
+                # An injection seen in TOOL OUTPUT. Recorded as an observation,
+                # not a decision, so it is admissible under the cortex-bus law
+                # ("carries what HAPPENED, never what is PERMITTED") -- the
+                # `security.` prefix is deliberately outside
+                # _AUTHORITY_EVENT_PREFIXES. Before 2026-09-03 an injection left
+                # no trace at all, on any channel.
+                canonical_type = CanonicalEventType.SECURITY_INJECTION_DETECTED.value
 
             canonical = CanonicalEvent(
                 event_type=canonical_type,
@@ -1328,20 +1353,15 @@ def _enforce_conversation_rate_limit(session_id: str) -> None:
 def _check_prompt_injection(text: str) -> Optional[str]:
     """Return the gateway reason if *text* is a prompt injection, else None.
 
-    Uses the public ``classify()`` API so the regex list and optional vector
-    shield are reused without editing frozen-core gateway code. Non-injection
-    RED results (e.g. ``unknown command``) are ignored — normal conversation
-    must not be blocked.
+    Thin wrapper over ``aios.core.injection_scan.detect_injection`` so this
+    route and the TOOL-OUTPUT path share one predicate. That module reuses the
+    public ``classify()`` API without editing frozen-core gateway code, and
+    ignores non-injection RED results so normal conversation is not blocked.
     """
-    if not text or not isinstance(text, str):
-        return None
-    result = classify(text)
-    if result.zone is Zone.RED and (
-        "prompt-injection" in result.reason.lower()
-        or "semantic prompt-injection" in result.reason.lower()
-    ):
-        return result.reason
-    return None
+    # Delegates to the shared predicate so user input and TOOL OUTPUT cannot
+    # drift apart. Two callers, one derivation: a differential "do these layers
+    # agree?" gap is the shape that has produced real containment escapes here.
+    return detect_injection(text)
 
 
 def _stream_chat_chunks(
