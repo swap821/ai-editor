@@ -219,7 +219,11 @@ def outcome_from_evidence(evidence: list[str]) -> str:
     counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
     if not counted:
         return "unverified"
-    return "verified_success" if counted[-1].startswith("[VERIFY PASS]") else "verified_failure"
+    return (
+        "verified_success"
+        if counted[-1].startswith("[VERIFY PASS]")
+        else "verified_failure"
+    )
 
 
 def compose_turn_text(prompt: str) -> str:
@@ -296,16 +300,36 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             }
 
         if paused is None:
-            return {"outcome": "truncated", "evidence": evidence}
+            return {
+                "outcome": "truncated",
+                "approvals": approvals_granted,
+                "evidence": evidence,
+            }
 
         ok, why = check_allowlist(paused)
         token = paused.get("input", {}).get("approvalToken")
         if not ok or not token:
-            return {"outcome": "rejected", "reason": why, "evidence": evidence}
+            return {
+                "outcome": "rejected",
+                "reason": why,
+                "approvals": approvals_granted,
+                "evidence": evidence,
+            }
         approvals_granted.append(why)
         tokens = [token]
 
-    return {"outcome": "max_replays", "evidence": evidence}
+    # The terminal outcomes above all report `approvals`; these two did not, so
+    # the outcome that most needs diagnosing recorded the least. Measured on
+    # 2026-09-03: a `max_replays` step in the three-cohort campaign logged
+    # "approvals: 0" after ten replay cycles, which read as "it never got
+    # approval" when it actually meant "we did not write down what we approved".
+    # The replay budget itself is deliberately NOT raised -- growing MAX_REPLAYS
+    # so a mission passes is exactly the move this benchmark exists to prevent.
+    return {
+        "outcome": "max_replays",
+        "approvals": approvals_granted,
+        "evidence": evidence,
+    }
 
 
 def reset_mission_files(mission: dict[str, Any]) -> None:
