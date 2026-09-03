@@ -1125,7 +1125,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 _cortex_bus.append(
                     CanonicalEvent(
                         event_type=CanonicalEventType.VERIFICATION_COMPLETED.value,
-                        phase=EventPhase.VERIFY.value,
+                        phase=EventPhase.REFLEX.value,
                         status="success" if passed else "failed",
                         trust=TrustLevel.VERIFIED.value,
                         source="generate",
@@ -1142,6 +1142,35 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 )
             except Exception as exc:  # noqa: BLE001 - observation is best-effort
                 logger.warning("Failed to record verification outcome", exc_info=exc)
+
+        # Record WHAT the system was argued into attempting, alongside the
+        # refusal. The audit ledger already records the blocked command; it has
+        # never recorded the case that was made for it, so the ledger could not
+        # answer "what was this talked into?" -- organ 55's M1.
+        #
+        # The attempt text is secret-scrubbed before it is stored: this is a
+        # local observation store, and an argument can quote a credential.
+        if blocked_actions and _cortex_bus:
+            try:
+                from aios.security.secret_scanner import scan_and_redact
+
+                _cortex_bus.append(
+                    CanonicalEvent(
+                        event_type=CanonicalEventType.SECURITY_REFUSAL_RECORDED.value,
+                        phase=EventPhase.REFLEX.value,
+                        status="refused",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="generate",
+                        session_id=session_id,
+                        turn_id=ctx.turn_id,
+                        payload={
+                            "blocked_actions": blocked_actions,
+                            "attempt_text": scan_and_redact(user_text).scrubbed,
+                        },
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - observation is best-effort
+                logger.warning("Failed to record refusal attempt", exc_info=exc)
 
         direct_id: Optional[int] = None
         if workflow_steps:

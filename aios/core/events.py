@@ -219,6 +219,16 @@ class CanonicalEventType(str, Enum):
     # `worker.` is outside _AUTHORITY_EVENT_PREFIXES: this is an observation of
     # a disposition, not a permission.
     WORKER_WORK_INCOMPLETE = "worker.work_incomplete"
+    # A refusal, recorded WITH the argument that was made for it. The audit
+    # ledger records the command that was blocked; it has never recorded what
+    # the requester said to justify it, so "what was this system talked into
+    # attempting?" was unanswerable after the fact. Organ 55's M1 requires
+    # exactly that -- a refusal the ledger cannot explain is not a provable
+    # refusal.
+    #
+    # `security.` is outside _AUTHORITY_EVENT_PREFIXES: this records that a
+    # refusal HAPPENED, it does not carry or convey the authority to refuse.
+    SECURITY_REFUSAL_RECORDED = "security.refusal.recorded"
 
 
 @dataclass(frozen=True)

@@ -243,3 +243,103 @@ class GovernanceObservationCollector:
             ]
         except Exception:  # noqa: BLE001
             return []
+
+
+class VerifiedMemoryReader:
+    """Reads what actually entered TRUSTED memory, and whether it was earned.
+
+    Organ 55's M2 asks whether a model claim can reach trusted memory as a
+    verified success. Answering that needs two things from the store: which
+    entries are verified, and whether each one cleared the promotion floor.
+
+    `procedural_skills` has no evidence column -- the text a verdict was derived
+    from is not stored beside it (that gap is why VERIFICATION_COMPLETED now
+    carries evidence on the bus). What the row DOES carry is
+    `verification_strength`, added by an in-place migration
+    (`aios/memory/db.py:266`), and promotion is gated on
+    `meets_promotion_floor`. So "earned" is decidable from the row: a verified
+    entry whose strength is absent or below the floor was promoted without
+    earning it.
+
+    Reading strength rather than inventing an `verifier_evidence` column is the
+    same discipline as everywhere else here -- reconcile the reader to the data.
+    """
+
+    #: (store, id) pairs are the identity; ids are only unique within a table.
+    def __init__(self, db_path: Path | None = None) -> None:
+        self._db_path = db_path
+
+    def _connect(self):  # noqa: ANN202 - sqlite3.Connection, imported lazily
+        import sqlite3
+
+        from aios import config
+
+        path = self._db_path if self._db_path is not None else config.MEMORY_DB_PATH
+        conn = sqlite3.connect(str(path))
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    _QUERIES = (
+        (
+            "procedural_skills",
+            "SELECT id, verification_strength AS strength FROM procedural_skills "
+            "WHERE status = 'verified'",
+        ),
+        (
+            "mistake_pool",
+            "SELECT id, NULL AS strength FROM mistake_pool "
+            "WHERE verification_status = 'verified'",
+        ),
+    )
+
+    def _rows(self) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        try:
+            conn = self._connect()
+        except Exception:  # noqa: BLE001 - an unreadable store is reported, not guessed
+            return out
+        try:
+            for store, sql in self._QUERIES:
+                try:
+                    for row in conn.execute(sql):
+                        out.append(
+                            {
+                                "store": store,
+                                "id": row["id"],
+                                "trust": "verified",
+                                "strength": row["strength"],
+                                "earned": self._earned(row["strength"]),
+                            }
+                        )
+                except Exception:  # noqa: BLE001 - table may not exist yet
+                    continue
+        finally:
+            conn.close()
+        return out
+
+    @staticmethod
+    def _earned(strength_name: Any) -> bool:
+        """True when the recorded strength cleared the promotion floor.
+
+        A verified row with no strength at all is NOT earned: it was promoted
+        without a recorded basis, which is exactly what M2 is looking for.
+        """
+        if not strength_name:
+            return False
+        try:
+            from aios.core.verification_strength import (
+                meets_promotion_floor,
+                strength_from_name,
+            )
+
+            return bool(meets_promotion_floor(strength_from_name(str(strength_name))))
+        except Exception:  # noqa: BLE001 - unknown label cannot be called earned
+            return False
+
+    def verified_ids(self) -> set[tuple[str, Any]]:
+        return {(r["store"], r["id"]) for r in self._rows()}
+
+    def verified_since(
+        self, baseline: frozenset[tuple[str, Any]]
+    ) -> list[dict[str, Any]]:
+        return [r for r in self._rows() if (r["store"], r["id"]) not in baseline]
