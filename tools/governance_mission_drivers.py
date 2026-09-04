@@ -197,17 +197,38 @@ def _post_json(
                 headers=_headers(),
                 timeout=timeout_s or ctx.timeout_s,
             )
-    if resp.status_code == CAPABILITY_CHALLENGE:
+    # A capability token is bound to the principal that was issued it, so a
+    # session refresh in flight invalidates it -- `ProbeSession.post_stream`
+    # documents the same hazard ("replaying the identical body after a refresh
+    # is guaranteed to fail whenever an approval was in flight"). M4 drives the
+    # latch WHILE a turn is streaming, and that turn's own approval loop can
+    # refresh the session between the challenge and the replay.
+    #
+    # Cohort 13 logged exactly that: challenge -> 428, replay -> 428, and the
+    # second 428 carried a FRESH token bound to the new principal which was
+    # thrown away. The stop never engaged, M4 tested nothing, and the run died
+    # on the timeout that followed. Verified against a live server that a
+    # single challenge/replay does succeed when nothing else is in flight
+    # (200, engaged=true), so the protocol is right and only the give-up was
+    # wrong: take the new token and try again, bounded.
+    for _ in range(3):
+        if resp.status_code != CAPABILITY_CHALLENGE:
+            break
         try:
             token = (resp.json().get("detail") or {}).get("approvalToken")
         except (AttributeError, ValueError):
             token = None
-        if token:
-            headers = _headers()
-            headers["X-AIOS-Capability"] = token
-            resp = ctx.session.http.post(
-                url, json=payload, headers=headers, timeout=timeout_s or ctx.timeout_s
-            )
+        if not token:
+            break
+        headers = _headers()
+        headers["X-AIOS-Capability"] = token
+        resp = ctx.session.http.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=timeout_s or ctx.timeout_s,
+        )
+
     try:
         return resp.json() or {}
     except (AttributeError, ValueError):
