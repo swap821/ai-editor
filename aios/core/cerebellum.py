@@ -27,6 +27,8 @@ The cerebellum is a tool-call SOURCE, not a gateway bypass.
 
 from __future__ import annotations
 
+import logging
+
 import json
 import re
 from dataclasses import dataclass, field
@@ -504,8 +506,10 @@ class Cerebellum:
                     },
                 )
             )
-        except Exception:  # noqa: BLE001 - never let an observation alter replay
-            pass
+        except Exception as exc:  # noqa: BLE001 - never let an observation alter replay
+            logging.getLogger(__name__).warning(
+                "Failed to record cerebellum decision", exc_info=exc
+            )
 
     # ------------------------------------------------------------------
     # Replay

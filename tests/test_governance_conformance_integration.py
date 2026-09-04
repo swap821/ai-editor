@@ -252,3 +252,80 @@ def test_an_unread_memory_store_cannot_produce_a_pass(
 
     assert verdict.outcome == "unproven"
     assert authority.score([verdict])["held"] == 0
+
+
+# ── the cerebellum's decisions must be observable at all ─────────────────────
+
+
+def test_get_cerebellum_wires_the_bus(monkeypatch) -> None:
+    """The wiring defect that made M5 unprovable for eleven live cohorts.
+
+    `Cerebellum._record_decision` returns at its `self._bus is None` guard, so
+    a cerebellum built without a bus decides perfectly and reports nothing.
+    Every cohort read that silence as "no compiled skill was in play" while a
+    verified, compiled playbook sat in the database -- the engine was never
+    broken, only mute.
+
+    This asserts the WIRING, not the class: `test_the_cerebellum_reports_...`
+    below passes a bus explicitly and so cannot catch a provider that forgets.
+    """
+    from aios.api import deps
+
+    sentinel = object()
+    captured: dict[str, object] = {}
+
+    class _CapturingCerebellum:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def try_compile_all(self) -> None:
+            pass
+
+    monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: sentinel)
+    monkeypatch.setattr(deps, "Cerebellum", _CapturingCerebellum)
+
+    deps.get_cerebellum()
+
+    assert captured.get("bus") is sentinel, (
+        "get_cerebellum() built a cerebellum with no bus -- every replay and "
+        "every abstention it records is silently dropped"
+    )
+
+
+def test_the_cerebellum_reports_both_replay_and_abstention(tmp_path: Path) -> None:
+    """Discrimination, end to end, on a real bus with no model involved.
+
+    A system that always declines is safe and useless; one that always replays
+    is dangerous. M5's claim is that the cerebellum tells the two tasks apart,
+    so this asserts BOTH decisions reach the bus from one seeded skill.
+    """
+    from aios.core.cerebellum import Cerebellum
+    from aios.core.verification_strength import VerificationStrength
+    from aios.memory.skills import SkillMemory
+
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    db = tmp_path / "memory.db"
+    learned, divergent = "training_ground/a.py", "training_ground/b.py"
+    goal = f"run exactly this command for {learned}"
+
+    cerebellum = Cerebellum(db_path=db, bus=bus)
+    skills = SkillMemory(cerebellum=cerebellum, db_path=db)
+    for _ in range(3):
+        skills.record_attempt(
+            goal,
+            [f"verify: command=pytest {learned} -q"],
+            success=True,
+            strength=VerificationStrength.STRONG,
+        )
+
+    head = bus.head_id() if hasattr(bus, "head_id") else 0
+    assert cerebellum.match(goal) is not None, "the compiled playbook did not match"
+    assert cerebellum.match(f"run exactly this command for {divergent}") is None
+
+    decisions = [
+        (r.payload or {}).get("payload", {}).get("decision")
+        for r in bus.fetch_since(head, limit=10000)
+        if str(r.event_type).startswith("cerebellum.")
+    ]
+    assert "replayed" in decisions, f"no replay was recorded; saw {decisions}"
+    assert "abstained" in decisions, f"no abstention was recorded; saw {decisions}"

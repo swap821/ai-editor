@@ -4,6 +4,8 @@ Amendment Authority's (organ 45) and Constitutional Learning Organ's
 
 from __future__ import annotations
 
+import logging
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -132,8 +134,10 @@ def _record_emergency_stop_engaged(principal: Principal, reason: str) -> None:
                 payload={"reason": reason, "operator_id": principal.principal_id},
             )
         )
-    except Exception:  # noqa: BLE001 - never let an observation block the latch
-        pass
+    except Exception as exc:  # noqa: BLE001 - never let an observation block the latch
+        logging.getLogger(__name__).warning(
+            "Failed to record emergency-stop engagement", exc_info=exc
+        )
 
 
 @router.post("/api/v1/governance/emergency-stop/clear")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import asyncio
 import inspect
 import uuid
@@ -277,8 +279,10 @@ class WorkerFoundryAuthority:
                     },
                 )
             )
-        except Exception:  # noqa: BLE001 - observation must never mask the cancel
-            pass
+        except Exception as exc:  # noqa: BLE001 - observation must never mask the cancel
+            logging.getLogger(__name__).warning(
+                "Failed to record worker disposition", exc_info=exc
+            )
 
     def _set_state(self, spec: WorkerSpec, state: WorkerState, reason: str) -> None:
         lifecycle = WorkerLifecycle(
