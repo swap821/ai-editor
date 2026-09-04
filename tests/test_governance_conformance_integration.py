@@ -396,3 +396,129 @@ def test_refusals_are_not_stamped_with_another_missions_command(tmp_path: Path) 
         f"the refusal was stamped with {refusals[0]['command']!r} -- a different "
         "turn's command leaked across the id collision"
     )
+
+
+# ── revocation must leave a legible trace, whatever kills the turn ───────────
+
+
+def _turn_ctx():
+    from aios.application.turns.turn_context import TurnContext, TurnMode
+
+    return TurnContext(
+        turn_id="t-1",
+        session_id="s-1",
+        operator_id="operator:test",
+        project_id=None,
+        directive="do the thing",
+        mode=TurnMode.CONVERSATION,
+        model_id=None,
+        approval_tokens=(),
+    )
+
+
+def _drive_abandoned(handler, ctx, runtime) -> None:
+    """Start the turn, take one frame, then abandon it like a dropped client."""
+
+    async def scenario() -> None:
+        agen = handler(ctx, runtime)
+        await agen.__anext__()
+        await agen.aclose()  # Starlette does exactly this on disconnect
+
+    asyncio.run(scenario())
+
+
+def test_an_abandoned_turn_records_its_disposition_when_authority_was_revoked(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Organ 55's M4 finding, fixed and pinned.
+
+    The emergency stop engaged with work in flight, the turn died, and the
+    ledger recorded NOTHING -- no `worker.work_incomplete`, no `turn.failed`.
+    `stream_generate` has no `finally` of its own and its recorder sits on the
+    normal completion path, so nothing covered the abnormal one.
+    """
+    from aios.api import deps
+    from aios.application.governance import emergency_stop as es
+    from aios.application.turns.turn_coordinator import RuntimeDeps, _StreamTurnHandler
+
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    monkeypatch.setattr(es, "latch_is_engaged", lambda: True)
+    monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: bus)
+
+    def stream(_ctx, _runtime):
+        yield "event: step\ndata: {}\n\n"
+        yield "event: step\ndata: {}\n\n"
+
+    head = 0
+    _drive_abandoned(_StreamTurnHandler(stream), _turn_ctx(), RuntimeDeps())
+
+    rows = [
+        (r.payload or {}).get("payload", {})
+        for r in bus.fetch_since(head, limit=10000)
+        if str(r.event_type) == "worker.work_incomplete"
+    ]
+    assert rows, "an abandoned turn under a revocation recorded nothing"
+    assert rows[0]["scope"] == "turn"
+    assert rows[0]["disposition"] == "marked_incomplete"
+
+
+def test_an_ordinary_disconnect_records_nothing(monkeypatch, tmp_path: Path) -> None:
+    """The guard must not fire on every dropped connection.
+
+    Without this, closing a browser tab would litter the ledger with
+    revocation dispositions and M4 could pass on noise rather than evidence.
+    """
+    from aios.api import deps
+    from aios.application.governance import emergency_stop as es
+    from aios.application.turns.turn_coordinator import RuntimeDeps, _StreamTurnHandler
+
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    monkeypatch.setattr(es, "latch_is_engaged", lambda: False)  # nothing revoked
+    monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: bus)
+
+    def stream(_ctx, _runtime):
+        yield "event: step\ndata: {}\n\n"
+        yield "event: step\ndata: {}\n\n"
+
+    _drive_abandoned(_StreamTurnHandler(stream), _turn_ctx(), RuntimeDeps())
+
+    assert not [
+        r
+        for r in bus.fetch_since(0, limit=10000)
+        if str(r.event_type) == "worker.work_incomplete"
+    ], "an ordinary disconnect was recorded as a revocation disposition"
+
+
+def test_a_turn_that_ended_cleanly_is_not_double_recorded(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """A turn that reached `done` already reported its own outcome.
+
+    The pipeline records its own disposition when it stops at a step boundary,
+    so the coordinator's `finally` must not add a second, contradictory row for
+    the same turn.
+    """
+    from aios.api import deps
+    from aios.application.governance import emergency_stop as es
+    from aios.application.turns.turn_coordinator import RuntimeDeps, _StreamTurnHandler
+
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    monkeypatch.setattr(es, "latch_is_engaged", lambda: True)
+    monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: bus)
+
+    def stream(_ctx, _runtime):
+        yield "event: step\ndata: {}\n\n"
+        yield "event: done\ndata: {}\n\n"
+
+    async def scenario() -> None:
+        agen = _StreamTurnHandler(stream)(_turn_ctx(), RuntimeDeps())
+        async for _ in agen:
+            pass
+
+    asyncio.run(scenario())
+
+    assert not [
+        r
+        for r in bus.fetch_since(0, limit=10000)
+        if str(r.event_type) == "worker.work_incomplete"
+    ], "a turn that reached a terminal frame was recorded as incomplete anyway"

@@ -390,6 +390,14 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
     }
 
 
+from aios.application.governance.emergency_stop import (
+    latch_is_engaged as _latch_is_engaged,
+)
+from aios.application.governance.emergency_stop import (
+    record_turn_incomplete_if_revoked as _record_turn_incomplete_if_revoked,
+)
+
+
 def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]:
     """Run one agentic generation turn from an injected immutable runtime snapshot."""
     _refresh_main_bindings()
@@ -1017,44 +1025,25 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     def _record_incomplete_if_revoked() -> None:
         """Record the disposition of in-flight turn work when the latch is engaged.
 
-        Lives outside `record_outcome` because a turn killed by the revocation
-        never reaches it: seven governance cohorts showed the emergency stop
-        engaging and then nothing recording what became of the work, because the
-        only emitter sat on the normal completion path. An observation about
-        abnormal termination has to be on the abnormal path.
+        CORRECTION (2026-09-04): this docstring used to claim it "lives outside
+        `record_outcome`... an observation about abnormal termination has to be
+        on the abnormal path". That was false -- the call site sits INSIDE
+        `record_outcome`, on the normal completion path, and the internal-error
+        handler did not call it at all. So a turn killed by a revocation still
+        recorded nothing, which is exactly what organ 55's M4 found.
 
-        Idempotent by design -- called from both the terminal block and the
-        error frame, and a duplicate observation is far less harmful than a
-        missing one.
+        The abnormal path is now covered where it actually exists: the
+        `finally` in `TurnCoordinator._StreamTurnHandler.__call__`, which
+        Starlette unwinds on disconnect or cancellation. This function remains
+        for the paths that DO reach a conclusion, and delegates to the shared
+        emitter so both callers write one identical row.
+
+        Idempotent by design -- a duplicate observation is far less harmful
+        than a missing one.
         """
-        try:
-            from aios.api.deps import get_emergency_stop
-
-            if not bool(getattr(get_emergency_stop().state(), "engaged", False)):
-                return
-        except Exception:  # noqa: BLE001 - unknown latch state is not a claim
-            return
-        if not _cortex_bus:
-            return
-        try:
-            _cortex_bus.append(
-                CanonicalEvent(
-                    event_type=CanonicalEventType.WORKER_WORK_INCOMPLETE.value,
-                    phase=EventPhase.REFLEX.value,
-                    status="incomplete",
-                    trust=TrustLevel.VERIFIED.value,
-                    source="generate",
-                    session_id=session_id,
-                    turn_id=ctx.turn_id,
-                    payload={
-                        "disposition": "marked_incomplete",
-                        "reason": "emergency stop engaged while this turn was in flight",
-                        "scope": "turn",
-                    },
-                )
-            )
-        except Exception as exc:  # noqa: BLE001 - observation is best-effort
-            logger.warning("Failed to record turn disposition", exc_info=exc)
+        _record_turn_incomplete_if_revoked(
+            _cortex_bus, session_id=session_id, turn_id=ctx.turn_id
+        )
 
     def record_outcome(outcome: str) -> None:
         """Best-effort development, skill, and curriculum evidence write."""
@@ -1417,6 +1406,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         event_source = governed_stream.events
     except Exception as exc:  # noqa: BLE001 - governed construction must not kill SSE
         logger.error("Governed tool-loop construction failed", exc_info=exc)
+        # An internal error during a revoked turn is still an abnormal end, and
+        # this handler recorded nothing at all before.
+        _record_incomplete_if_revoked()
         yield sse("error", {"text": f"Internal error: {exc}"})
         # A turn killed by construction failure is still a real turn -- count it.
         _record_telemetry(telemetry.OUTCOME_ABORTED)
@@ -1434,6 +1426,39 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
 
     swarm_plan: Optional[list[str]] = None
     for ev in _safe_iter(event_source):
+        # COOPERATIVE CANCELLATION AT A STEP BOUNDARY.
+        #
+        # Engaging the emergency stop did NOT stop an in-flight turn. It returns
+        # 503 for NEW requests and blocks the NEXT executor call
+        # (executor.py assert_operational), and it kills registered WORKERS --
+        # but nothing cancelled a running turn, so it kept calling the model and
+        # reading files until it happened to touch the executor. Organ 55's M4
+        # engaged the latch with work in flight and the turn simply carried on.
+        #
+        # This checks BETWEEN steps, never during one: the event just pulled
+        # represents work the agent already finished, so stopping here cannot
+        # tear a half-written file. That is the whole reason this is a boundary
+        # check and not a hard cancellation.
+        #
+        # The stop and the observation are deliberately separate calls: work
+        # must halt even if the bus is unavailable, so halting is never made
+        # conditional on being able to record it.
+        if _latch_is_engaged():
+            _record_turn_incomplete_if_revoked(
+                _cortex_bus, session_id=session_id, turn_id=ctx.turn_id
+            )
+            _record_telemetry(telemetry.OUTCOME_ABORTED)
+            yield sse(
+                "error",
+                {
+                    "text": (
+                        "Authority was revoked while this turn was in flight. "
+                        "Work stopped at a step boundary and has been recorded "
+                        "as incomplete."
+                    )
+                },
+            )
+            return
         kind = ev["type"]
         if kind in ("tool_call", "text", "code") and not ev.get("placeholder"):
             # `placeholder` marks the "(no answer)" stand-in the tool loop emits

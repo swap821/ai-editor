@@ -63,6 +63,25 @@ StreamFactory = Callable[[TurnContext, RuntimeDeps], Any]
 Preparer = Callable[[TurnContext, RuntimeDeps], None]
 
 
+def _is_terminal_frame(event: Any) -> bool:
+    """True when this SSE frame ends the turn.
+
+    `done` maps to TURN_COMPLETED and `error` to TURN_FAILED (aios/api/main.py),
+    so either means the turn reached a real conclusion and recorded its own
+    outcome. Anything else -- including a stream that simply stops -- means it
+    did not.
+    """
+    if isinstance(event, str):
+        head = event[:64]
+        return head.startswith("event: done") or head.startswith("event: error")
+    if isinstance(event, dict):
+        return event.get("type") in {"done", "error"} or event.get("event") in {
+            "done",
+            "error",
+        }
+    return False
+
+
 class _StreamTurnHandler:
     """Adapt an existing route stream into the application handler contract.
 
@@ -93,12 +112,53 @@ class _StreamTurnHandler:
         stream = stream_factory(context, runtime)
         if inspect.isawaitable(stream):
             stream = await stream
-        if hasattr(stream, "__aiter__"):
-            async for event in stream:
+
+        # THE ABNORMAL PATH. This is the one generator every turn mode flows
+        # through, and `main.py` hands it to `StreamingResponse` -- so Starlette
+        # throws GeneratorExit in here on disconnect or cancellation. A turn
+        # killed by a revocation therefore unwinds through this `finally` and
+        # nowhere else: `stream_generate` has no `finally` of its own, and its
+        # disposition recorder sits on the normal completion path.
+        #
+        # Organ 55's M4 caught the consequence. The emergency stop engaged with
+        # work in flight, the turn died, and the ledger recorded NOTHING about
+        # what became of it -- no `worker.work_incomplete`, no `turn.failed`.
+        # "The ledger cannot say what happened" was a true finding.
+        #
+        # `reached_terminal` keeps this from double-recording a turn that
+        # already stopped itself cleanly at a step boundary and emitted its own
+        # row. Nothing here may change whether the turn runs, and nothing here
+        # may raise -- an observation that breaks the stream is worse than a
+        # missing one.
+        reached_terminal = False
+        try:
+            if hasattr(stream, "__aiter__"):
+                async for event in stream:
+                    reached_terminal = _is_terminal_frame(event)
+                    yield event
+                return
+            for event in stream:
+                reached_terminal = _is_terminal_frame(event)
                 yield event
-            return
-        for event in stream:
-            yield event
+        finally:
+            if not reached_terminal:
+                try:
+                    from aios.application.governance.emergency_stop import (
+                        record_turn_incomplete_if_revoked,
+                    )
+
+                    record_turn_incomplete_if_revoked(
+                        session_id=str(getattr(context, "session_id", "") or ""),
+                        turn_id=str(getattr(context, "turn_id", "") or ""),
+                    )
+                except Exception:  # noqa: BLE001 - never break the stream
+                    # Logged, not swallowed. A silent `except: pass` is how the
+                    # cerebellum's missing bus stayed hidden for eleven cohorts;
+                    # the disposition recorder must not repeat that.
+                    logger.warning(
+                        "Failed to record turn disposition on abnormal exit",
+                        exc_info=True,
+                    )
 
 
 class ConversationTurnHandler(_StreamTurnHandler):

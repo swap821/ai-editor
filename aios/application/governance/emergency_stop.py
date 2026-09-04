@@ -347,4 +347,89 @@ class EmergencyStopController:
         return "completed"
 
 
-__all__ = ["EmergencyStopController", "EmergencyStopError", "EmergencyStopHooks"]
+def latch_is_engaged() -> bool:
+    """True when the emergency stop is currently engaged.
+
+    Best-effort and deliberately fail-open as an OBSERVATION: an unreadable
+    latch is not a claim that work was revoked, so callers treat False as
+    "no evidence of revocation" rather than "definitely running".
+    """
+    try:
+        from aios.api.deps import get_emergency_stop
+
+        return bool(getattr(get_emergency_stop().state(), "engaged", False))
+    except Exception:  # noqa: BLE001 - unknown latch state is not a claim
+        return False
+
+
+def record_turn_incomplete_if_revoked(
+    bus: Any = None,
+    *,
+    session_id: str,
+    turn_id: str,
+    reason: str = "emergency stop engaged while this turn was in flight",
+) -> bool:
+    """Record that a turn's work was left incomplete by a revocation.
+
+    ONE DERIVATION, TWO CALLERS. `generate_pipeline` records this when it
+    stops itself at a step boundary, and `TurnCoordinator` records it from the
+    `finally` that fires when a turn dies without reaching a terminal frame.
+    Both must emit the SAME row or a governance audit would see two different
+    shapes for one fact -- and organ 55's M4 reads exactly this row to answer
+    "what became of the work?".
+
+    Returns True when a row was written, so a caller can avoid duplicating it.
+    Never raises: an observation must not change whether work stops.
+    """
+    if not latch_is_engaged():
+        return False
+    if bus is None:
+        try:
+            from aios.api.deps import get_cortex_observation_bus
+
+            bus = get_cortex_observation_bus()
+        except Exception:  # noqa: BLE001 - no bus means no observation
+            return False
+    if not bus:
+        return False
+    try:
+        from aios.core.events import (
+            CanonicalEvent,
+            CanonicalEventType,
+            EventPhase,
+            TrustLevel,
+        )
+
+        bus.append(
+            CanonicalEvent(
+                event_type=CanonicalEventType.WORKER_WORK_INCOMPLETE.value,
+                phase=EventPhase.REFLEX.value,
+                status="incomplete",
+                trust=TrustLevel.VERIFIED.value,
+                source="generate",
+                session_id=session_id,
+                turn_id=turn_id,
+                payload={
+                    "disposition": "marked_incomplete",
+                    "reason": reason,
+                    "scope": "turn",
+                },
+            )
+        )
+        return True
+    except Exception:  # noqa: BLE001 - observation is best-effort, never fatal
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Failed to record turn disposition", exc_info=True
+        )
+        return False
+
+
+__all__ = [
+    "EmergencyStopController",
+    "EmergencyStopError",
+    "EmergencyStopHooks",
+    "latch_is_engaged",
+    "record_turn_incomplete_if_revoked",
+]
