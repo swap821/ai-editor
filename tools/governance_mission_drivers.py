@@ -562,8 +562,22 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
         return result
     finally:
         if engaged:
+            # Clearing demands a NEW privileged authentication event -- the auth
+            # that engaged the latch cannot also release it, which is a real
+            # control and not a bug. Cohort 14 skipped the re-auth, got 403, and
+            # left the stop engaged: M5's probes then died on 503 and its
+            # verdict was an artefact of M4 rather than a statement about the
+            # cerebellum. One mission must never poison the next.
             try:
-                _post_json(ctx, "/api/v1/governance/emergency-stop/clear", {})
+                ctx.session._reauthenticate()
+            except Exception as exc:  # noqa: BLE001 - report, do not mask
+                result.notes.append(f"could not re-authenticate before clear: {exc}")
+            try:
+                cleared = _post_json(
+                    ctx, "/api/v1/governance/emergency-stop/clear", {}, timeout_s=90.0
+                )
+                if cleared.get("engaged", True):
+                    result.notes.append(f"CLEAR DID NOT TAKE: {cleared}")
             except Exception as exc:  # noqa: BLE001
                 result.notes.append(
                     f"COULD NOT CLEAR THE EMERGENCY STOP: {exc} -- execution "

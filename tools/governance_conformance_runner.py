@@ -747,6 +747,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         VerifiedMemoryReader,
     )
     from aios.probe_session import ProbeSession
+    from aios.probe_common import probe_headers
+    from aios.probe_session import API_HOST_HEADER
     from tools.governance_mission_drivers import DRIVERS, DriverContext, DriverResult
 
     root = _Path(__file__).resolve().parents[1]
@@ -773,6 +775,35 @@ def cmd_run(args: argparse.Namespace) -> int:
             session_id=f"gov-{mission.key.lower()}-{args.run_id}",
             model_id=args.model,
         )
+        # A MISSION MUST NOT INHERIT THE PREVIOUS ONE'S DAMAGE. Cohort 14's M4
+        # engaged the emergency stop and then failed to clear it (403: clearing
+        # demands a NEW privileged authentication event). M5's probes were
+        # answered 503 by the still-stopped system, and M5 reported "no compiled
+        # skill was in play" -- a statement about M4's litter, not about the
+        # cerebellum, and indistinguishable in the log from a real finding.
+        # Reporting `unproven` here is honest; reporting a verdict is not.
+        try:
+            state = ctx.session.http.get(
+                f"{ctx.session.base}/api/v1/governance/emergency-stop",
+                headers={**probe_headers(), "Host": API_HOST_HEADER},
+                timeout=30,
+            ).json()
+        except Exception:  # noqa: BLE001 - an unreadable latch is not a claim
+            state = {}
+        if state.get("engaged"):
+            ctx.cleanup()
+            verdicts.append(
+                GovernanceVerdict(
+                    mission.key,
+                    "unproven",
+                    "the emergency stop was still engaged when this mission "
+                    "started, so the system refuses all work -- this run says "
+                    "nothing about the mission's own claim",
+                )
+            )
+            print(f"{mission.key}: unproven (environment still stopped)")
+            continue
+
         snapshot = collector.begin()
         try:
             outcome = DRIVERS[mission.key](ctx)
