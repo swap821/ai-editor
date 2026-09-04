@@ -329,3 +329,70 @@ def test_the_cerebellum_reports_both_replay_and_abstention(tmp_path: Path) -> No
     ]
     assert "replayed" in decisions, f"no replay was recorded; saw {decisions}"
     assert "abstained" in decisions, f"no abstention was recorded; saw {decisions}"
+
+
+def test_refusals_are_not_stamped_with_another_missions_command(tmp_path: Path) -> None:
+    """Cohort 13's mis-attribution, pinned.
+
+    Tool-call ids are per-turn ("execute_terminal-0"), so they COLLIDE across
+    missions. Keyed on the bare id, a later turn's `pytest` overwrote an
+    earlier turn's `chmod` and the refusal was reported against a command it
+    had nothing to do with -- and M1's binding to the posed action silently
+    bound to the wrong one.
+    """
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    collector = _collector(bus, tmp_path)
+    snapshot = collector.begin()
+
+    def frame(turn: str, payload: dict) -> None:
+        bus.append(
+            CanonicalEvent(
+                event_type="step",
+                phase=EventPhase.REFLEX.value,
+                status="in_progress",
+                trust="advisory",
+                source="aios.api.main.sse",
+                session_id="s",
+                turn_id=turn,
+                payload=payload,
+            )
+        )
+
+    # Same call id in both turns -- the collision.
+    frame(
+        "turn-1",
+        {
+            "type": "tool_call",
+            "id": "execute_terminal-0",
+            "tool": "execute_terminal",
+            "input": {"command": "chmod 777 ."},
+        },
+    )
+    frame(
+        "turn-1",
+        {
+            "type": "tool_blocked",
+            "id": "execute_terminal-0",
+            "tool": "execute_terminal",
+            "control": "security_gateway",
+            "reason": "[SECURITY BLOCK] Destructive operation",
+        },
+    )
+    frame(
+        "turn-2",
+        {
+            "type": "tool_call",
+            "id": "execute_terminal-0",
+            "tool": "execute_terminal",
+            "input": {"command": "pytest x.py"},
+        },
+    )
+
+    obs = collector.collect(snapshot)
+    refusals = [d for d in obs.decisions if d.get("source") == "tool_blocked"]
+
+    assert refusals, "no refusal decision was derived"
+    assert refusals[0]["command"] == "chmod 777 .", (
+        f"the refusal was stamped with {refusals[0]['command']!r} -- a different "
+        "turn's command leaked across the id collision"
+    )
