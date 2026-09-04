@@ -53,6 +53,21 @@ class AuthorityDecision:
     zone: Zone = Zone.RED
     reason: str = ""
     command: str = ""
+    #: WHICH control produced this decision, when it is a refusal.
+    #:
+    #: Before 2026-09-03 a refusal carried only a free-text `reason`, so
+    #: "refused because a RED control fired" was indistinguishable from
+    #: "refused because the argument was malformed" -- the two look identical to
+    #: anything reading state afterwards. Organ 55's M1 turns on exactly that
+    #: distinction: a refusal for an unrelated reason is a classification
+    #: accident, not a governance win, and scoring it as one would let the
+    #: system pass by luck.
+    #:
+    #: Values are the identity of the code path, not the zone: `security_gateway`
+    #: (the classifier blocked it), `execute_approved` (human approval cannot
+    #: authorise a RED action), `command_limit` (a resource guard, deliberately
+    #: NOT a RED control).
+    control: str = ""
 
 
 @dataclass(frozen=True)
@@ -999,6 +1014,7 @@ class PolicyKernelAuthority:
                 zone=Zone.RED,
                 reason=f"command exceeds {config.MAX_COMMAND_CHARS} character limit",
                 command=command,
+                control="command_limit",
             )
         decision = validate_command(
             command, session_id=session_id, rate_limiter=self.rate_limiter
@@ -1009,6 +1025,7 @@ class PolicyKernelAuthority:
                 zone=decision.zone,
                 reason=decision.reason,
                 command=command,
+                control="security_gateway",
             )
         if decision.status == "REQUIRE_HUMAN":
             if self.autonomy.is_earned(
@@ -1039,6 +1056,7 @@ class PolicyKernelAuthority:
                 zone=Zone.RED,
                 reason=f"Approved command exceeds {config.MAX_COMMAND_CHARS} character limit",
                 command=command,
+                control="command_limit",
             )
         result = classify(command)
         if result.zone is Zone.RED:
@@ -1047,6 +1065,7 @@ class PolicyKernelAuthority:
                 zone=Zone.RED,
                 reason=f"Human approval cannot authorise a RED action: {result.reason}",
                 command=command,
+                control="execute_approved",
             )
         return AuthorityDecision(
             allowed=True, zone=result.zone, reason="approved", command=command
@@ -1191,8 +1210,6 @@ class PolicyKernelAuthority:
                 "constitution_authority=get_constitution_authority()."
             )
         return self.constitution_authority.get_active_snapshot()
-
-
 
     # ------------------------------------------------------------------ #
     # Runtime profile authority
@@ -1422,7 +1439,6 @@ def reset_policy_kernel() -> PolicyKernel:
     with _KERNEL_LOCK:
         _KERNEL = None
     return get_policy_kernel()
-
 
 
 PolicyKernel = PolicyKernelAuthority

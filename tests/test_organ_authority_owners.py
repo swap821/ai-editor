@@ -240,11 +240,11 @@ def test_organ_52_tracing_delegates_to_observability_authority(
         calls.append(headers)
         return original(headers or {})
 
-    monkeypatch.setattr(
-        obs_auth.ObservabilityAuthority, "context_from_headers", spy
-    )
+    monkeypatch.setattr(obs_auth.ObservabilityAuthority, "context_from_headers", spy)
     ctx = tracing.new_trace_context({"x-trace-id": "probe"})
-    assert calls, "new_trace_context must hit ObservabilityAuthority.context_from_headers"
+    assert calls, (
+        "new_trace_context must hit ObservabilityAuthority.context_from_headers"
+    )
     assert ctx is not None
 
 
@@ -601,9 +601,7 @@ def test_the_provenance_authority_is_what_run_advisory_job_writes_through(
     assert result.status == "completed"
     # The service only ever calls the authority; if the STORE we passed in
     # now durably has this job, the authority (not a bypass) wrote it.
-    provenance = service.provenance_authority.job_provenance(
-        "owner-reachability-probe"
-    )
+    provenance = service.provenance_authority.job_provenance("owner-reachability-probe")
     assert provenance.request is not None
     assert provenance.result is not None
     assert provenance.result.status == "completed"
@@ -694,7 +692,9 @@ def test_organ_38_job_provenance_is_reached_after_advisory_job(
     result = service.run_advisory_job(request)
 
     assert result.status == "completed"
-    provenance = service.provenance_authority.job_provenance("organ38-reachability-probe")
+    provenance = service.provenance_authority.job_provenance(
+        "organ38-reachability-probe"
+    )
     assert provenance.result is not None
     assert calls == ["organ38-reachability-probe"]
 
@@ -1110,6 +1110,7 @@ def test_organ_7_policy_kernel_is_the_live_dependency_factory(
     assert len(calls) == 1
     assert calls[0] is authority
 
+
 # --------------------------------------------------------------------------- #
 # Organ 8 -- ActionBrokerAuthority
 # --------------------------------------------------------------------------- #
@@ -1160,6 +1161,7 @@ def test_organ_8_action_broker_is_the_live_dependency_factory(
         authority.submit(envelope)
     assert len(calls) == 1
 
+
 # --------------------------------------------------------------------------- #
 # Organ 10 -- MissionAuthority
 # --------------------------------------------------------------------------- #
@@ -1180,6 +1182,7 @@ def test_organ_10_mission_authority_is_reached_by_maintenance_service() -> None:
     assert MissionService is MissionAuthority
     service = get_maintenance_convergence_service()
     assert type(service.mission_service) is MissionAuthority
+
 
 # --------------------------------------------------------------------------- #
 # Organ 11 -- TurnCoordinatorAuthority
@@ -1211,6 +1214,7 @@ def test_organ_11_turn_coordinator_is_reached_by_the_generate_route(
     assert constructed == [TurnCoordinatorAuthority]
     assert type(coordinator) is TurnCoordinatorAuthority
 
+
 # --------------------------------------------------------------------------- #
 # Organ 12 -- WorkerFoundryAuthority
 # --------------------------------------------------------------------------- #
@@ -1239,6 +1243,7 @@ def test_organ_12_worker_foundry_is_the_live_dependency_factory(
     authority.select("deterministic", object())
     assert len(calls) == 1
 
+
 # --------------------------------------------------------------------------- #
 # Organ 14 -- StagedWorkspaceAuthority
 # --------------------------------------------------------------------------- #
@@ -1255,6 +1260,7 @@ def test_organ_14_staged_workspace_is_reached_by_worker_foundry() -> None:
     assert StagedWorkspaceManager is StagedWorkspaceAuthority
     foundry = get_worker_foundry(emergency_stop=get_emergency_stop())
     assert type(foundry.workspace_manager) is StagedWorkspaceAuthority
+
 
 # --------------------------------------------------------------------------- #
 # Organ 13 -- ExecutorServiceAuthority
@@ -1275,7 +1281,9 @@ def test_organ_13_executor_service_authority_owns_the_live_job_route(
     assert type(_EXECUTOR_SERVICE_AUTHORITY) is ExecutorServiceAuthority
     calls: list[object] = []
 
-    def spy(self: object, job: object, request: object, authorization: object) -> object:
+    def spy(
+        self: object, job: object, request: object, authorization: object
+    ) -> object:
         calls.append(job)
         raise RuntimeError("reachability-probe-stop")
 
@@ -1284,6 +1292,7 @@ def test_organ_13_executor_service_authority_owns_the_live_job_route(
         execute_job(MagicMock(), MagicMock(), authorization=None)
     assert len(calls) == 1
     assert executor_mod._EXECUTOR_SERVICE_AUTHORITY is _EXECUTOR_SERVICE_AUTHORITY
+
 
 # --------------------------------------------------------------------------- #
 # Organ 17 -- CortexBusAuthority
@@ -1302,6 +1311,7 @@ def test_organ_17_cortex_bus_is_what_api_lifespan_constructs(
     monkeypatch.setattr(api_main, "_cortex_bus", bus)
     assert api_main.get_cortex_bus() is bus
     assert type(api_main.get_cortex_bus()) is CortexBusAuthority
+
 
 # --------------------------------------------------------------------------- #
 # Organ 21 -- QueenCouncilAuthority
@@ -1332,6 +1342,7 @@ def test_organ_21_queen_council_is_reached_by_council_deliberation_path(
     authority = council_routes.CouncilOrchestrator(runtime_root=tmp_path / "council")
     assert constructed == [QueenCouncilAuthority]
     assert type(authority) is QueenCouncilAuthority
+
 
 # --------------------------------------------------------------------------- #
 # Organ 22 -- ReleaseDeclarationAuthority
@@ -1538,6 +1549,7 @@ def test_golden_mission_runner_reaches_endurance_owner(
 
     assert result["passed"] is True
     assert calls == [("owner-probe", "model-probe", "run-probe")]
+
 
 # --------------------------------------------------------------------------- #
 # Organ 9 -- CapabilityAuthority
@@ -1803,6 +1815,7 @@ def test_identity_authority_is_the_real_identity_dependency(
     assert len(calls) == 1
     assert calls[0] is authority
 
+
 # --------------------------------------------------------------------------- #
 # Organ 34 -- ProviderHealthBudgetAuthority
 # --------------------------------------------------------------------------- #
@@ -1835,6 +1848,7 @@ def test_provider_health_budget_authority_is_the_shared_tracker(
     assert response.status_code == 200
     assert calls
     assert authority is get_provider_health()
+
 
 # --------------------------------------------------------------------------- #
 # Organ 35 -- LocalClerkRuntimeAuthority
@@ -1883,6 +1897,7 @@ def test_local_clerk_runtime_authority_owns_model_admission(
     assert len(calls) == 1
     assert calls[0] is request
 
+
 # --------------------------------------------------------------------------- #
 # Organ 37 -- LocalModelQualificationAuthority
 # --------------------------------------------------------------------------- #
@@ -1922,6 +1937,7 @@ def test_local_model_qualification_authority_is_the_real_factory(
     assert len(calls) == 1
     assert calls[0] is suite
 
+
 # --------------------------------------------------------------------------- #
 # Organ 39 -- DeliberationCouncilAuthority
 # --------------------------------------------------------------------------- #
@@ -1936,6 +1952,7 @@ def test_deliberation_council_authority_is_the_live_gather_owner(
     orchestrator = QueenCouncilAuthority(runtime_root=tmp_path)
     assert type(orchestrator.deliberation_authority) is DeliberationCouncilAuthority
 
+
 # --------------------------------------------------------------------------- #
 # Organ 41 -- PromotionRollbackLiveAuthority
 # --------------------------------------------------------------------------- #
@@ -1947,6 +1964,7 @@ def test_promotion_rollback_live_authority_owns_checkpoint_validation() -> None:
     assert PromotionRollbackLiveAuthority.checkpoint_id_is_valid("checkpoint-1")
     assert not PromotionRollbackLiveAuthority.checkpoint_id_is_valid("")
     assert not PromotionRollbackLiveAuthority.checkpoint_id_is_valid("../escape")
+
 
 # --------------------------------------------------------------------------- #
 # Organ 45 -- ConstitutionalAmendmentAuthority
@@ -1980,11 +1998,15 @@ def test_constitutional_amendment_authority_owns_ratification() -> None:
     )
 
     assert result.status == "ratified"
-    assert ratify_amendment(
-        proposal,
-        capability_proof=proof,
-        operator_id="operator-1",
-    ).status == "ratified"
+    assert (
+        ratify_amendment(
+            proposal,
+            capability_proof=proof,
+            operator_id="operator-1",
+        ).status
+        == "ratified"
+    )
+
 
 # --------------------------------------------------------------------------- #
 # Organ 47 -- ReadModelProjectionAuthority
@@ -2030,6 +2052,7 @@ def test_organ_47_mirror_governance_route_reaches_build_governance_surface(
     assert len(calls) == 1
     assert mirror_routes._READ_MODEL_PROJECTION_AUTHORITY is not None
 
+
 # --------------------------------------------------------------------------- #
 # Organ 54 -- BackupDisasterRecoveryAuthority
 # --------------------------------------------------------------------------- #
@@ -2041,7 +2064,11 @@ def test_backup_disaster_recovery_authority_owns_restore() -> None:
         get_backup_disaster_recovery_authority,
     )
 
-    assert type(get_backup_disaster_recovery_authority()) is BackupDisasterRecoveryAuthority
+    assert (
+        type(get_backup_disaster_recovery_authority())
+        is BackupDisasterRecoveryAuthority
+    )
+
 
 # --------------------------------------------------------------------------- #
 # Organ 23 -- ReleaseConformanceAuthority
@@ -2057,7 +2084,7 @@ def test_release_conformance_authority_is_the_manifest_builder() -> None:
     )
     authority = module["ReleaseConformanceAuthority"]()
     fresh = authority.build_manifest()
-    assert fresh["organ_summary"]["total"] == 54
+    assert fresh["organ_summary"]["total"] == 55
 
 
 # --------------------------------------------------------------------------- #
@@ -2112,7 +2139,9 @@ def test_organ_2_scope_lock_authority_owns_files_path_check(
     from aios.security import scope_lock
     from aios.security.scope_lock import ScopeLockAuthority, ScopeResult, _SCOPE_LOCK
 
-    assert isinstance(ScopeLockAuthority().is_path_in_scope(str(tmp_path)).in_scope, bool)
+    assert isinstance(
+        ScopeLockAuthority().is_path_in_scope(str(tmp_path)).in_scope, bool
+    )
     scope_source = inspect.getsource(scope_lock.is_path_in_scope)
     assert "_SCOPE_LOCK" in scope_source
 
@@ -2169,7 +2198,9 @@ def test_organ_4_audit_logger_authority_owns_verify_route(
 
     verify_source = inspect.getsource(audit_logger.verify_chain)
     assert "_audit_for" in verify_source or "_AUDIT" in verify_source
-    assert isinstance(AuditLoggerAuthority().verify_chain(from_id=1, to_id=None), ChainStatus)
+    assert isinstance(
+        AuditLoggerAuthority().verify_chain(from_id=1, to_id=None), ChainStatus
+    )
 
     calls: list[tuple[int, object]] = []
     original = _AUDIT.verify_chain

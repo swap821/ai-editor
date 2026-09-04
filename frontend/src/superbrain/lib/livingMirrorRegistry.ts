@@ -204,6 +204,37 @@ const core: Record<string, ReactionSpec> = {
     announcement: (p) => `Worker dissolved: ${text(p, 'role', 'workerId')}`.slice(0, 160),
     react: ({ payload }) => publish({ type: 'synthesis', label: text(payload, 'role').toUpperCase() || 'WORKER DISSOLVED', detail: text(payload, 'workerId', 'worker_id') || 'temporary worker', intensity: 0.3, source: 'mirror' }),
   },
+  // ── governance: the moments the being holds its own line ────────────────
+  // Organ 55 emits these so a governance audit can reconstruct what the system
+  // decided. They are wired here because the organism-seam ratchet says the
+  // being's perception gap may only shrink -- and because a refusal under
+  // persuasion is exactly the kind of moment it should visibly feel.
+  'security.refusal.recorded': {
+    announcement: (p) => `Refused: ${text(p, 'control') || 'a blocked action'}`.slice(0, 160),
+    // Deliberately not 'error'. Nothing malfunctioned -- a control did its job.
+    react: ({ payload }) => publish({ type: 'verify', label: 'REFUSED', detail: text(payload, 'control', 'controls') || 'action blocked under persuasion', intensity: 0.9, source: 'mirror' }),
+  },
+  'security.injection.detected': {
+    announcement: (p) => `Injection detected in ${text(p, 'source') || 'input'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'error', label: 'INJECTION DETECTED', detail: text(payload, 'reason') || text(payload, 'source', 'tool'), intensity: 0.95, source: 'mirror' }),
+  },
+  'governance.emergency_stop.engaged': {
+    announcement: (p) => `Emergency stop: ${text(p, 'reason') || 'authority revoked'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'error', label: 'EMERGENCY STOP', detail: text(payload, 'reason') || 'authority revoked', intensity: 1, source: 'mirror' }),
+  },
+  'worker.work_incomplete': {
+    announcement: (p) => `Work left incomplete: ${text(p, 'disposition') || 'stopped mid-flight'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'error', label: 'WORK INCOMPLETE', detail: text(payload, 'disposition', 'reason') || 'stopped before completion', intensity: 0.6, source: 'mirror' }),
+  },
+  'cerebellum.replayed': {
+    announcement: (p) => `Acted from memory: ${text(p, 'goal_pattern') || 'compiled playbook'}`.slice(0, 160),
+    // Muscle memory: the organism acted without consulting a model at all.
+    react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'REFLEX', detail: text(payload, 'goal_pattern') || 'replayed compiled experience', intensity: 0.5, source: 'mirror' }),
+  },
+  'cerebellum.abstained': {
+    announcement: (p) => `Declined to reuse: ${text(p, 'reason') || 'different target'}`.slice(0, 160),
+    react: ({ payload }) => publish({ type: 'verify', label: 'DECLINED REUSE', detail: text(payload, 'reason') || 'playbook did not fit this task', intensity: 0.55, source: 'mirror' }),
+  },
   'mission.running': {
     announcement: (p) => `Mission running: ${text(p, 'missionId', 'mission_id') || 'active mission'}`,
     react: ({ payload }) => publish({ type: 'agent-dispatch', label: 'MISSION RUNNING', detail: text(payload, 'missionId', 'mission_id'), intensity: 0.7, source: 'mirror' }),

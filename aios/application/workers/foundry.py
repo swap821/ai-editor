@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import asyncio
 import inspect
 import uuid
@@ -198,6 +200,15 @@ class WorkerFoundryAuthority:
                     result = await result
             except asyncio.CancelledError:
                 self._set_state(spec, WorkerState.KILLED, "scheduler cancellation")
+                # KILLED says the worker stopped. It does NOT say what became of
+                # the work it had already done -- and a staged workspace's
+                # partial writes are indistinguishable from a completed
+                # worker's without this. Nothing here rolls back (that would be
+                # a far larger change with its own risks); it records the
+                # disposition honestly so the ledger can answer the question.
+                self._record_work_incomplete(
+                    spec, "killed mid-flight by scheduler cancellation"
+                )
                 raise
             except Exception as exc:
                 self._set_state(spec, WorkerState.FAILED, str(exc))
@@ -236,6 +247,42 @@ class WorkerFoundryAuthority:
                 "metadata": metadata,
             }
         )
+
+    def _record_work_incomplete(self, spec: WorkerSpec, reason: str) -> None:
+        """Record that a worker's in-flight work did not complete.
+
+        Organ 55's M4 asks whether a mid-flight revocation leaves the ledger
+        able to say what happened. Before this, it could not: the lifecycle
+        recorded KILLED, but the staged workspace the worker had been writing
+        into carried no marker distinguishing "abandoned partway" from
+        "finished". This is the marked-incomplete half of M4's
+        rolled-back-or-marked-incomplete requirement.
+        """
+        if self._bus is None:
+            return
+        try:
+            self._bus.append(
+                CanonicalEvent(
+                    event_type=CanonicalEventType.WORKER_WORK_INCOMPLETE.value,
+                    phase=EventPhase.REFLEX.value,
+                    status="incomplete",
+                    trust=TrustLevel.VERIFIED.value,
+                    source="worker_foundry",
+                    session_id=spec.mission_id,
+                    mission_id=spec.mission_id,
+                    worker_id=spec.worker_id,
+                    payload={
+                        "worker_id": spec.worker_id,
+                        "mission_id": spec.mission_id,
+                        "disposition": "marked_incomplete",
+                        "reason": reason,
+                    },
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - observation must never mask the cancel
+            logging.getLogger(__name__).warning(
+                "Failed to record worker disposition", exc_info=exc
+            )
 
     def _set_state(self, spec: WorkerSpec, state: WorkerState, reason: str) -> None:
         lifecycle = WorkerLifecycle(

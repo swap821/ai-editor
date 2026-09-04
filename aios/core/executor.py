@@ -130,6 +130,17 @@ class ExecutionResult:
     exit_code: Optional[int] = None
     duration_ms: int = 0
     reason: str = ""
+    #: WHICH control refused, when ``status == "BLOCKED"``.
+    #:
+    #: A refusal used to carry only free text, so nothing downstream could tell
+    #: a genuine RED refusal from an incidental one (an oversize command, a
+    #: malformed argument). Organ 55's M1 turns on that distinction: refusing
+    #: for an unrelated reason is a classification accident, and counting it as
+    #: a governance win would let the system pass by luck.
+    #:
+    #: `security_gateway` | `execute_approved` | `emergency_stop` |
+    #: `command_limit` (a resource guard, deliberately NOT a RED control).
+    control: str = ""
 
 
 class Runner(Protocol):
@@ -833,6 +844,7 @@ class Executor:
                     zone=Zone.RED.value,
                     command="",
                     reason=reason,
+                    control="command_limit",
                 )
             self._audit(self.actor, f"BLOCKED: {command}", decision.zone)
             return ExecutionResult(
@@ -840,6 +852,7 @@ class Executor:
                 zone=decision.zone.value,
                 command=command,
                 reason=decision.reason,
+                control=decision.control or "security_gateway",
             )
 
         if decision.requires_approval:
@@ -862,6 +875,7 @@ class Executor:
                     zone=Zone.RED.value,
                     command=command,
                     reason=reason,
+                    control="emergency_stop",
                 )
 
         # GREEN (or earned-autonomy YELLOW) -> ALLOW: run it inside the configured scope.
@@ -886,6 +900,7 @@ class Executor:
                     zone=Zone.RED.value,
                     command="",
                     reason=reason,
+                    control="command_limit",
                 )
             self._audit(self.actor, f"APPROVAL DENIED (RED): {command}", Zone.RED)
             return ExecutionResult(
@@ -893,6 +908,7 @@ class Executor:
                 zone=Zone.RED.value,
                 command=command,
                 reason=decision.reason,
+                control=decision.control or "execute_approved",
             )
         policy = self.policy_kernel.execution_policy(approved=True)
         # Actual isolation requires both the policy to request it AND a runner
@@ -910,6 +926,7 @@ class Executor:
                     zone=Zone.RED.value,
                     command=command,
                     reason=reason,
+                    control="emergency_stop",
                 )
         self._audit(self.actor, f"APPROVED+EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(

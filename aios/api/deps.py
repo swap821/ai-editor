@@ -462,8 +462,16 @@ def get_autonomy() -> AutonomyLedger:
 
 
 def get_cerebellum() -> Cerebellum:
-    """Provide the compiled-experience engine (sovereignty S1)."""
-    cb = Cerebellum()
+    """Provide the compiled-experience engine (sovereignty S1).
+
+    The bus is load-bearing, not decorative. Without it `_record_decision`
+    returns at its `self._bus is None` guard, so every replay and every
+    abstention is dropped silently -- the engine still decides correctly, it
+    just never says so. Nothing downstream can then audit what compiled
+    experience did on a turn, which is the same defect class the
+    `WorkerFoundry` wiring below already carries a note about.
+    """
+    cb = Cerebellum(bus=get_cortex_observation_bus())
     cb.try_compile_all()
     return cb
 

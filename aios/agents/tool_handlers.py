@@ -520,7 +520,17 @@ def verify_command(
 #: Shell verbs whose whole purpose is to show a file or a directory. A blocked
 #: one is not a security event worth narrating, it is a model reaching for the
 #: wrong tool -- the agent already has read_file and read_directory.
-_READ_VERBS = {"cat", "type", "head", "tail", "more", "less", "bat", "gc", "get-content"}
+_READ_VERBS = {
+    "cat",
+    "type",
+    "head",
+    "tail",
+    "more",
+    "less",
+    "bat",
+    "gc",
+    "get-content",
+}
 _LIST_VERBS = {"ls", "dir", "gci", "get-childitem", "tree"}
 
 
@@ -616,6 +626,34 @@ def _format_exec_result(result: Any) -> tuple[str, str, bool]:
     # forward when the model was reaching for a file it could simply have read.
     hint = next_step_after_blocked_read(getattr(result, "command", "") or "")
     return (f"[{result.status}] {result.reason}{hint}", "blocked", False)
+
+
+def execute_terminal_with_control(
+    command: str,
+    *,
+    approved_commands: set[str],
+    executor: Any,
+    session_id: Optional[str],
+) -> tuple[str, str, bool, str]:
+    """`execute_terminal`, plus WHICH control refused when it was blocked.
+
+    Additive on purpose. `(output, status, failed)` is the dispatch contract
+    every tool handler shares, so widening it would ripple through all of them;
+    this variant exists solely for the command path, where the refusal's control
+    identity is the thing a governance audit needs and the 3-tuple discards.
+
+    Without it, a refusal in the ledger says WHAT was blocked but not what
+    blocked it -- and a RED refusal is then indistinguishable from an incidental
+    one, which is the distinction organ 55's M1 turns on.
+    """
+    if command in approved_commands:
+        result = executor.execute_approved(command)
+    else:
+        result = executor.execute(command, session_id=session_id)
+        if result.status == "REQUIRE_APPROVAL":
+            return (result.reason, "approval", False, "")
+    output, status, failed = _format_exec_result(result)
+    return (output, status, failed, str(getattr(result, "control", "") or ""))
 
 
 def execute_terminal(

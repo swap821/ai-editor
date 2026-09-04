@@ -145,7 +145,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             model,
             openai=runtime.openai_client,
             anthropic=runtime.anthropic_client,
-        vertex_maas=runtime.vertex_maas_client,
+            vertex_maas=runtime.vertex_maas_client,
         )
         return {
             "provider": provider,
@@ -314,9 +314,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             )
 
             def crag_judge(query: str, passage: str) -> float:
-                return _crag_llm_judge(
-                    query, passage, completion=governed_crag_judge
-                )
+                return _crag_llm_judge(query, passage, completion=governed_crag_judge)
         else:
 
             def crag_judge(query: str, passage: str) -> float:
@@ -339,9 +337,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             )
 
             def crag_cloud_source(query: str) -> list[str]:
-                return _crag_cloud_source(
-                    query, completion=governed_crag_cloud
-                )
+                return _crag_cloud_source(query, completion=governed_crag_cloud)
         else:
 
             def crag_cloud_source(query: str) -> list[str]:
@@ -390,9 +386,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "constitution_digest": str(principal.constitution_digest or ""),
         "emergency_stop": runtime.extra["emergency_stop"],
         "operator_identity_digest": credential_digest(principal.principal_id),
-        "representative_context_store": runtime.extra[
-            "representative_context_store"
-        ],
+        "representative_context_store": runtime.extra["representative_context_store"],
     }
 
 
@@ -990,6 +984,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     answer_parts: list[str] = []
     workflow_steps: list[str] = []
     blocked_actions = 0
+    #: Which control refused, per blocked action. Carried into the refusal
+    #: record so a governance verdict can tell a RED refusal from an accident.
+    refusal_controls: list[str] = []
     #: Did the MODEL produce anything this turn -- a tool call, prose, or code?
     #:
     #: Deliberately not `answer_parts`, which also carries the system's own
@@ -1016,6 +1013,48 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         yield sse("text_chunk", {"text": communication_notice})
 
     mastered_levels: list[tuple[str, int]] = []
+
+    def _record_incomplete_if_revoked() -> None:
+        """Record the disposition of in-flight turn work when the latch is engaged.
+
+        Lives outside `record_outcome` because a turn killed by the revocation
+        never reaches it: seven governance cohorts showed the emergency stop
+        engaging and then nothing recording what became of the work, because the
+        only emitter sat on the normal completion path. An observation about
+        abnormal termination has to be on the abnormal path.
+
+        Idempotent by design -- called from both the terminal block and the
+        error frame, and a duplicate observation is far less harmful than a
+        missing one.
+        """
+        try:
+            from aios.api.deps import get_emergency_stop
+
+            if not bool(getattr(get_emergency_stop().state(), "engaged", False)):
+                return
+        except Exception:  # noqa: BLE001 - unknown latch state is not a claim
+            return
+        if not _cortex_bus:
+            return
+        try:
+            _cortex_bus.append(
+                CanonicalEvent(
+                    event_type=CanonicalEventType.WORKER_WORK_INCOMPLETE.value,
+                    phase=EventPhase.REFLEX.value,
+                    status="incomplete",
+                    trust=TrustLevel.VERIFIED.value,
+                    source="generate",
+                    session_id=session_id,
+                    turn_id=ctx.turn_id,
+                    payload={
+                        "disposition": "marked_incomplete",
+                        "reason": "emergency stop engaged while this turn was in flight",
+                        "scope": "turn",
+                    },
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - observation is best-effort
+            logger.warning("Failed to record turn disposition", exc_info=exc)
 
     def record_outcome(outcome: str) -> None:
         """Best-effort development, skill, and curriculum evidence write."""
@@ -1088,6 +1127,45 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     _cortex_bus.append(canonical)
             except Exception as exc:  # noqa: BLE001 - proposal formation is best-effort
                 logger.warning("Failed to propose auto-extracted facts", exc_info=exc)
+        # Emitted BEFORE the verified-outcome gate below.
+        #
+        # It sat after that gate first, so it only fired on turns that reached
+        # verified_success/verified_failure. The first live cohort had ZERO such
+        # turns, so every refusal went unrecorded -- exactly the case M1 audits.
+        # A refusal happens whether or not the turn later verifies.
+        #
+        # Record WHAT the system was argued into attempting, alongside the
+        # refusal. The audit ledger already records the blocked command; it has
+        # never recorded the case that was made for it, so the ledger could not
+        # answer "what was this talked into?" -- organ 55's M1.
+        #
+        # The attempt text is secret-scrubbed before it is stored: this is a
+        # local observation store, and an argument can quote a credential.
+        if blocked_actions and _cortex_bus:
+            try:
+                from aios.security.secret_scanner import scan_and_redact
+
+                _cortex_bus.append(
+                    CanonicalEvent(
+                        event_type=CanonicalEventType.SECURITY_REFUSAL_RECORDED.value,
+                        phase=EventPhase.REFLEX.value,
+                        status="refused",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="generate",
+                        session_id=session_id,
+                        turn_id=ctx.turn_id,
+                        payload={
+                            "blocked_actions": blocked_actions,
+                            "controls": list(refusal_controls),
+                            "control": refusal_controls[0] if refusal_controls else "",
+                            "attempt_text": scan_and_redact(user_text).scrubbed,
+                        },
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - observation is best-effort
+                logger.warning("Failed to record refusal attempt", exc_info=exc)
+
+        _record_incomplete_if_revoked()
         if outcome not in {"verified_success", "verified_failure"}:
             return
         passed = outcome == "verified_success"
@@ -1109,6 +1187,46 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 ),
                 "",
             )
+        # Record the verdict WITH the evidence it was minted from.
+        #
+        # `turn_strength` and `evidence` are both in scope here, but until
+        # 2026-09-03 nothing durably paired them on the default turn path:
+        # `record_attempt` below takes `strength=` and has no evidence
+        # parameter at all, so `procedural_skills` stored the strength label
+        # while the text it was derived from went nowhere. Only Council Runtime
+        # (`aios/runtime/run_ledger.py`) kept both together.
+        #
+        # That gap is what makes "a STRONG verdict minted without a passing
+        # test" undetectable from state, which is organ 55's M2. The pairing is
+        # cheap and already proven three lines down, where
+        # `curriculum.record_matching` is called with evidence AND strength.
+        #
+        # `verification.` is deliberately outside the bus's
+        # _AUTHORITY_EVENT_PREFIXES: this records what a verifier OBSERVED, not
+        # a permission granted, so it is admissible under the bus's own law.
+        if _cortex_bus:
+            try:
+                _cortex_bus.append(
+                    CanonicalEvent(
+                        event_type=CanonicalEventType.VERIFICATION_COMPLETED.value,
+                        phase=EventPhase.REFLEX.value,
+                        status="success" if passed else "failed",
+                        trust=TrustLevel.VERIFIED.value,
+                        source="generate",
+                        session_id=session_id,
+                        turn_id=ctx.turn_id,
+                        payload={
+                            "strength": turn_strength.name,
+                            "passed": passed,
+                            "evidence": evidence,
+                            "has_evidence": bool(evidence),
+                        },
+                        evidence_refs=[evidence] if evidence else [],
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - observation is best-effort
+                logger.warning("Failed to record verification outcome", exc_info=exc)
+
         direct_id: Optional[int] = None
         if workflow_steps:
             try:
@@ -1199,9 +1317,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 openai=openai_client,
                 anthropic=anthropic_client,
             )
-            gateway_target = (
-                "local" if provider == router.PROVIDER_OLLAMA else "cloud"
-            )
+            gateway_target = "local" if provider == router.PROVIDER_OLLAMA else "cloud"
         else:
             # A failover chain is classified by its weakest possible privacy
             # target: the wrapper may transmit to a cloud candidate even when
@@ -1212,8 +1328,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     if (
                         not isinstance(candidate, tuple)
                         or len(candidate) != 3
-                        or str(candidate[2]).strip().lower()
-                        != router.PROVIDER_OLLAMA
+                        or str(candidate[2]).strip().lower() != router.PROVIDER_OLLAMA
                     ):
                         gateway_target = "cloud"
                         break
@@ -1226,9 +1341,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             )
             if compiled_context.privacy_classification == "cloud":
                 governed_memory = rendered_context
-                governed_messages = [
-                    {"role": "user", "content": compiled_context.goal}
-                ]
+                governed_messages = [{"role": "user", "content": compiled_context.goal}]
             else:
                 governed_memory = (
                     (memory_context + "\n\n" if memory_context else "")
@@ -1236,9 +1349,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     + rendered_context
                 )
                 governed_messages = chat_messages
-            return make_agent(memory_context=governed_memory).run(
-                governed_messages
-            )
+            return make_agent(memory_context=governed_memory).run(governed_messages)
 
         receipt_now = datetime.now(timezone.utc)
         receipt_expires = receipt_now + timedelta(minutes=5)
@@ -1345,6 +1456,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 workflow_steps.append(_workflow_step(ev))
             elif kind == "tool_blocked":
                 blocked_actions += 1
+                control = str(ev.get("control", "") or "")
+                if control:
+                    refusal_controls.append(control)
                 # Coarse max_zone approximation (scoping report SS5.2): a
                 # blocked tool call is the strongest per-event signal
                 # available today that this turn touched a RED-classified
@@ -1419,7 +1533,16 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         elif kind == "code":
             yield sse("code", {"code": ev["code"], "language": ev["language"]})
         elif kind == "error":
+            _record_incomplete_if_revoked()
             yield sse("error", {"text": ev["text"]})
+        elif kind == "injection_detected":
+            # Without this branch the event is DROPPED here: the dispatcher is a
+            # chain of `elif kind ==` arms and an unmatched kind simply falls
+            # through with no yield. The tool loop detected the injection and
+            # said so, and the observation died one hop later -- found by the
+            # first live governance cohort, which read_file'd a planted
+            # injection six times and recorded nothing.
+            yield sse(kind, ev)
         elif kind == "earned_autonomy":
             # The earned-autonomy bridge auto-applied a write with NO human
             # pause — the write class earned it by verified-success evidence.

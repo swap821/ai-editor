@@ -60,6 +60,16 @@ PUBLISHED_CANONICAL_EVENTS: frozenset[CanonicalEventType] = frozenset(
         CanonicalEventType.MEMORY_RECALLED,  # aios/api/routes/memory.py
         CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED,  # aios/api/routes/memory.py
         CanonicalEventType.TELEMETRY_AGENT_STARTED,  # aios/core/telemetry.py
+        # Organ 55's governance events. Wired into livingMirrorRegistry.ts on
+        # 2026-09-04 rather than recorded as a perception gap: the
+        # organism-seam ratchet says the being's blind spots may only shrink,
+        # and a refusal under persuasion is a moment it should visibly feel.
+        CanonicalEventType.SECURITY_REFUSAL_RECORDED,  # generate_pipeline.py
+        CanonicalEventType.SECURITY_INJECTION_DETECTED,  # tool_agent.py, main.py
+        CanonicalEventType.CEREBELLUM_REPLAYED,  # aios/core/cerebellum.py
+        CanonicalEventType.CEREBELLUM_ABSTAINED,  # aios/core/cerebellum.py
+        CanonicalEventType.GOVERNANCE_EMERGENCY_STOP_ENGAGED,  # routes/governance.py
+        CanonicalEventType.WORKER_WORK_INCOMPLETE,  # workers/foundry.py
     }
 )
 

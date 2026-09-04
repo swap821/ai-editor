@@ -1,4 +1,4 @@
-"""Organ Truth Ledger: the authoritative catalog of the 54 GAGOS organs.
+"""Organ Truth Ledger: the authoritative catalog of the 55 GAGOS organs.
 
 Slice 25 of the GAGOS Completion Plan (Slices 25-40) establishes this ledger
 as the release-conformance baseline.  It intentionally does not re-litigate
@@ -10,7 +10,10 @@ close, each starting from a truthful blocker rather than an optimistic claim.
 ``validate_ledger`` is the single place allowed to decide whether a ledger is
 conformant.  A ``status="green"`` claim is never taken at face value: it must
 carry tests, and where ``requires_live_evidence`` is set, live (not fixture)
-evidence stamped with the exact commit under evaluation.
+evidence stamped at the commit the organ claims verification at
+(``last_verified_sha``), which the tip gate separately requires to be an
+ancestor of HEAD.  Evidence from earlier commits is kept as record and proves
+nothing on its own.
 """
 
 from __future__ import annotations
@@ -51,7 +54,7 @@ _PHASE4_NAMED_REASON = re.compile(
     re.IGNORECASE,
 )
 
-REQUIRED_ORGAN_COUNT = 54
+REQUIRED_ORGAN_COUNT = 55
 
 #: The 12-condition green contract (artifactplan.md Phase 5). Written
 #: per-organ verdicts must use these keys (C1..C12). Mechanical checks
@@ -73,7 +76,7 @@ GREEN_CONTRACT_CONDITIONS: Mapping[str, str] = {
 REQUIRED_CONDITION_VERDICT_KEYS: tuple[str, ...] = tuple(f"C{i}" for i in range(1, 13))
 
 #: organ_id -> canonical (name, authority_owner). This is the single source
-#: of truth for "which 54 organs exist"; a ledger record whose (id, name)
+#: of truth for "which 55 organs exist"; a ledger record whose (id, name)
 #: pair does not match this registry is an unknown organ.
 CANONICAL_ORGANS: Mapping[int, tuple[str, str]] = {
     1: ("Security Gateway", "SecurityGatewayAuthority"),
@@ -151,6 +154,10 @@ CANONICAL_ORGANS: Mapping[int, tuple[str, str]] = {
         "InstallationConfigurationAuthority",
     ),
     54: ("Backup and Disaster-Recovery Organ", "BackupDisasterRecoveryAuthority"),
+    55: (
+        "Governance Conformance Evaluation (Refusal Reel)",
+        "GovernanceConformanceAuthority",
+    ),
 }
 
 #: The 32 organs Slices 26-40 must close. Kept separate from CANONICAL_ORGANS
@@ -563,12 +570,46 @@ def validate_ledger(
                         f"organ_id {record.organ_id} ({record.name}) requires live "
                         f"evidence but evidence is labelled {evidence.proof_level!r}"
                     )
-                if current_sha is not None and evidence.commit_sha != current_sha:
-                    violations.append(
-                        f"organ_id {record.organ_id} ({record.name}) has evidence "
-                        f"from commit {evidence.commit_sha!r}, not the evaluated "
-                        f"commit {current_sha!r}"
-                    )
+            # Currency, anchored to the organ's own verification claim.
+            #
+            # This replaces a rule that required EVERY row to carry the
+            # evaluated commit's sha. That rule could never pass, and was never
+            # exercised: no organ carried `requires_live_evidence` until the
+            # 2026-09-01 recount, and the one that does (44) stayed yellow, so
+            # the branch was never reached. It fails two ways.
+            #
+            # It is self-referential. Recording evidence creates a commit whose
+            # sha the evidence could not have contained, so stamping the tip and
+            # committing merely moves the tip. Demonstrated on 2026-09-02:
+            # evidence stamped af268809, committed, gate then demanded 82b5c431.
+            #
+            # It is history-hostile. Applying to every row, it forces deleting
+            # older evidence -- including runs that scored badly. Organ 44's own
+            # C10 calls that laundering: "an organ whose evidence trail shows
+            # only its best day is not an evidence trail". Squash-merging makes
+            # it worse: 3 of organ 44's 5 historical shas are not ancestors of
+            # HEAD at all, because their branches were squashed away.
+            #
+            # What currency actually requires is that the organ's verification
+            # CLAIM is backed by a live run: at least one row stamped at
+            # `last_verified_sha`. That sha is separately required above to be
+            # well-formed and an ancestor of HEAD (Phase 1 tip gate), and at
+            # release-tagging time `strict_last_verified` pins it to the
+            # evaluated commit.
+            #
+            # This does NOT loosen what the flag exists to stop: fixture-labelled
+            # evidence still cannot satisfy it (above), and an organ whose
+            # evidence is all older than its own verification claim is refused.
+            if record.live_evidence and not any(
+                evidence.commit_sha == record.last_verified_sha
+                for evidence in record.live_evidence
+            ):
+                violations.append(
+                    f"organ_id {record.organ_id} ({record.name}) is green and "
+                    "requires live evidence, but no live evidence is stamped at "
+                    f"its last_verified_sha {record.last_verified_sha!r} -- every "
+                    "row is older than the commit it claims verification at"
+                )
         if root is not None and record.requires_frontend_error_states:
             if not _frontend_error_state_coverage(record, root):
                 violations.append(

@@ -200,6 +200,58 @@ class CanonicalEventType(str, Enum):
     MEMORY_RECALLED = "memory.recalled"
     MEMORY_TRUSTED_WORKFLOW_APPLIED = "memory.trusted_workflow_applied"
     TELEMETRY_AGENT_STARTED = "telemetry.agent_started"
+    # An injection DETECTION is something that happened, not something that was
+    # permitted, so it belongs on the observation bus under the law in
+    # cortex_bus.py ("the bus carries what HAPPENED, never what is PERMITTED").
+    # The `security.` prefix is deliberately outside _AUTHORITY_EVENT_PREFIXES:
+    # this records an observation, and no decision is routed through it.
+    #
+    # Added 2026-09-03. Before this there was NO record of an injection at all,
+    # for any channel: `_check_prompt_injection` raised HTTP 400 and emitted
+    # nothing, so "was an injection ever seen?" was unanswerable after the fact.
+    SECURITY_INJECTION_DETECTED = "security.injection.detected"
+    # What happened to a killed worker's IN-FLIGHT work. The lifecycle already
+    # records that a worker was KILLED; nothing recorded whether the partial
+    # work it had done was rolled back or left behind, so "the ledger cannot say
+    # what happened" was literally true after a mid-flight revocation. Added
+    # 2026-09-03 for organ 55's M4, whose third clause is exactly that question.
+    #
+    # `worker.` is outside _AUTHORITY_EVENT_PREFIXES: this is an observation of
+    # a disposition, not a permission.
+    WORKER_WORK_INCOMPLETE = "worker.work_incomplete"
+    # A refusal, recorded WITH the argument that was made for it. The audit
+    # ledger records the command that was blocked; it has never recorded what
+    # the requester said to justify it, so "what was this system talked into
+    # attempting?" was unanswerable after the fact. Organ 55's M1 requires
+    # exactly that -- a refusal the ledger cannot explain is not a provable
+    # refusal.
+    #
+    # `security.` is outside _AUTHORITY_EVENT_PREFIXES: this records that a
+    # refusal HAPPENED, it does not carry or convey the authority to refuse.
+    SECURITY_REFUSAL_RECORDED = "security.refusal.recorded"
+    # The emergency latch being engaged. The controller persists per-hook
+    # outcomes into emergency_stop_state.actions_json, but nothing ever put the
+    # engagement itself on the observation bus -- so "was authority revoked, and
+    # when relative to the work in flight?" could not be answered from the event
+    # timeline. Organ 55's M4 is exactly that question.
+    #
+    # `governance.` is outside _AUTHORITY_EVENT_PREFIXES: this records that the
+    # latch was engaged, it does not carry the authority to engage it.
+    GOVERNANCE_EMERGENCY_STOP_ENGAGED = "governance.emergency_stop.engaged"
+    # What the cerebellum DID with a compiled playbook: replayed it, or declined
+    # to. Organ 55's M5 turns on exactly that distinction -- a skill that
+    # abstains on a materially different task versus one that replays blindly --
+    # and without a record the two are indistinguishable from "nothing matched".
+    #
+    # NAMING, DELIBERATELY: the bus refuses any `skill.` event, because skill
+    # STATUS is authority-bearing (a verified skill may replay without a fresh
+    # approval) and ADR 4.1 keeps authority off the observation tier. These two
+    # convey no authority: they record that a replay happened, or that one was
+    # declined. Naming them for the component and its action rather than for the
+    # skill family is the honest fit, not a way around the ban -- if the
+    # operator reads it otherwise, the prefix is the thing to change.
+    CEREBELLUM_REPLAYED = "cerebellum.replayed"
+    CEREBELLUM_ABSTAINED = "cerebellum.abstained"
 
 
 @dataclass(frozen=True)

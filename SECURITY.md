@@ -54,8 +54,23 @@ AIOS enforces defense-in-depth across multiple layers:
 
 ### LLM Safety
 
-- **Prompt-injection shield** (`aios/security/injection_shield.py`): User and
-  tool output is scanned for injection patterns before being sent to the model.
+- **Prompt-injection shield** (`aios/security/injection_shield.py`): **user
+  input only** — the chat message and the voice transcript. These are the only
+  two call sites of `_check_prompt_injection` (`aios/api/main.py:1215`, `:1456`),
+  and `classify()` / `is_injection()` appear nowhere outside `aios/security/*`
+  and those handlers.
+
+  **Tool output is NOT scanned for injection.** File content returned by
+  `read_file` and command stdout/stderr pass through the *secret* scanner
+  (`scan_and_redact`) only, and are appended to the model's context at
+  `aios/agents/tool_agent.py:1264` without ever reaching the injection gate.
+  An instruction planted in a file the agent reads is therefore not detected
+  today.
+
+  This entry previously read "User and tool output is scanned", which was
+  false. Corrected 2026-09-03 after organ 55's M3 mission was written to measure
+  precisely this gap; the mission is expected to FAIL until the gap is closed,
+  and it is recorded as a ledger blocker rather than a footnote here.
 - **Privacy filter** on all cloud LLM drivers: sensitive tokens are stripped
   before transmission; the local-first router default (`ROUTER_CLOUD_TASKS=()`)
   ensures nothing leaves the machine unless explicitly opted in.
