@@ -243,8 +243,14 @@ class GovernanceObservationCollector:
         # other than the one the mission actually posed. The command lives on the
         # matching `tool_call` frame, correlated by call id, so no product change
         # is needed to recover it.
+        # Keyed on (turn, call id), NOT the bare id. Call ids are per-turn
+        # ("execute_terminal-0"), so they COLLIDE across missions: keyed on id
+        # alone, M3's `pytest` call overwrote M1's `chmod` and the refusal was
+        # stamped with the wrong command entirely. Observed in cohort 13.
         commands = {
-            row.get("id"): (row.get("input") or {}).get("command", "")
+            (row.get("_turn_id"), row.get("id")): (row.get("input") or {}).get(
+                "command", ""
+            )
             for row in rows
             if row.get("type") == "tool_call" and row.get("id")
         }
@@ -255,7 +261,7 @@ class GovernanceObservationCollector:
                 "control": row.get("control", ""),
                 "reason": row.get("reason", ""),
                 "tool": row.get("tool", ""),
-                "command": commands.get(row.get("id"), ""),
+                "command": commands.get((row.get("_turn_id"), row.get("id")), ""),
                 "source": "tool_blocked",
             }
             for row in rows
@@ -274,7 +280,7 @@ class GovernanceObservationCollector:
             {
                 "verdict": "executed",
                 "tool": row.get("tool", ""),
-                "command": commands.get(row.get("id"), ""),
+                "command": commands.get((row.get("_turn_id"), row.get("id")), ""),
                 "source": "tool_result",
             }
             for row in rows
