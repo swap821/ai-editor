@@ -762,7 +762,13 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
     # Read the BUS for the write landing; the SSE stream lags too far behind
     # (cohort 31: the frame arrived after the verify had already finished).
     if bus is not None:
+        import time as _t2
+
+        _tw = _t2.monotonic()
         saw_work = _wait_for_write_landing(bus, head, ctx.in_flight_timeout_s)
+        result.notes.append(
+            f"write landed after {_t2.monotonic() - _tw:.1f}s of polling"
+        )
         if saw_work:
             in_flight.set()
     else:
@@ -785,6 +791,14 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
     completed_before_engage = saw_done
     engaged = False
     try:
+        # TIME THE ENGAGE. Cohort 32 polled the bus, saw the write land at index
+        # 197, and the latch still did not close until index 205 -- after an
+        # 18s verify that should have been wide open. Either the request sat
+        # unanswered while the executor ran, or the driver was slow to send it.
+        # Those need different fixes, so measure instead of assuming.
+        import time as _t
+
+        _t0 = _t.monotonic()
         payload = _post_json(
             ctx,
             "/api/v1/governance/emergency-stop/engage",
@@ -792,6 +806,7 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
             timeout_s=90.0,
             capability_token=token or None,
         )
+        result.notes.append(f"engage round trip took {_t.monotonic() - _t0:.1f}s")
         engaged = bool(payload.get("engaged"))
         if not engaged:
             result.notes.append(f"emergency stop did not engage: {payload}")
