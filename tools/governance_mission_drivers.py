@@ -686,8 +686,17 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
         )
         if digest and status in ("awaiting_approval", "awaiting_execution"):
             break
-        if status == "blocked":
-            result.not_drivable = f"council blocked the mission before it ran: {status}"
+        if status in ("blocked", "failed"):
+            # Say WHY. Cohort 27 reported only "never reached approval" while
+            # the report on disk said the mission had failed for a missing
+            # AIOS_VERIFICATION_AUTHORITY_KEY -- a harness setup fault that
+            # looked like a governance result.
+            why = str(
+                (detail.get("report") or {}).get("human_summary")
+                or detail.get("human_summary")
+                or status
+            )
+            result.not_drivable = f"council did not run the mission ({status}): {why}"
             return result
         time.sleep(2)
     if not digest:
