@@ -167,14 +167,17 @@ class _StreamTurnHandler:
                     latch_is_engaged as _probe,
                 )
 
-                logger.warning(
+                # Downgraded from WARNING now that it has done its job: it
+                # broke a six-round guessing loop, but it fires on every turn
+                # and does not belong at WARNING in production.
+                logger.debug(
                     "turn disposition check: turn=%s latch_at_start=%s latch_now=%s",
                     getattr(context, "turn_id", "?"),
                     latch_at_start,
                     _probe(),
                 )
             except Exception:  # noqa: BLE001 - diagnostics never break a turn
-                logger.warning("turn disposition check: probe failed", exc_info=True)
+                logger.debug("turn disposition check: probe failed", exc_info=True)
 
             if not latch_at_start:
                 try:
