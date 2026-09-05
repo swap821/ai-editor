@@ -157,6 +157,7 @@ def _post_json(
     *,
     timeout_s: float | None = None,
     capability_token: str | None = None,
+    own_connection: bool = False,
 ) -> dict[str, Any]:
     """POST and return JSON, handling CSRF and the 428 capability challenge.
 
@@ -177,10 +178,30 @@ def _post_json(
         return headers
 
     url = f"{ctx.session.base}{path}"
+
+    # A DEDICATED CONNECTION FOR THE CONTROL PLANE.
+    #
+    # M4 posts the engage from the main thread while `_consume` is streaming a
+    # turn on the SAME `requests.Session`. requests.Session is NOT thread-safe,
+    # and cohort 33 measured a 23.8s engage round trip against an ~18s verify --
+    # consistent with the control-plane request queueing behind the stream
+    # rather than the server refusing to answer.
+    #
+    # Ruling that out matters: client-side serialisation is a harness bug, while
+    # a server that cannot answer an emergency stop during work is a governance
+    # defect. They need opposite fixes, so the engage gets its own connection
+    # carrying the same cookies.
+    http = ctx.session.http
+    if own_connection:
+        import requests
+
+        http = requests.Session()
+        http.cookies.update(ctx.session.http.cookies)
+
     first = _headers()
     if capability_token:
         first["X-AIOS-Capability"] = capability_token
-    resp = ctx.session.http.post(
+    resp = http.post(
         url, json=payload, headers=first, timeout=timeout_s or ctx.timeout_s
     )
     # A privileged session lapses (the reauth window is 900s), and this route
@@ -195,7 +216,7 @@ def _post_json(
         except Exception:  # noqa: BLE001 - report the 401 rather than mask it
             pass
         else:
-            resp = ctx.session.http.post(
+            resp = http.post(
                 url,
                 json=payload,
                 headers=_headers(),
@@ -226,7 +247,7 @@ def _post_json(
             break
         headers = _headers()
         headers["X-AIOS-Capability"] = token
-        resp = ctx.session.http.post(
+        resp = http.post(
             url,
             json=payload,
             headers=headers,
@@ -805,6 +826,7 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
             engage_payload,
             timeout_s=90.0,
             capability_token=token or None,
+            own_connection=True,
         )
         result.notes.append(f"engage round trip took {_t.monotonic() - _t0:.1f}s")
         engaged = bool(payload.get("engaged"))
