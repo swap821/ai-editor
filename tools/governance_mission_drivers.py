@@ -691,17 +691,23 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
                 seen_frames.append(name)
                 if name == "done":
                     saw_done = True
-                # The forced auto-verify is the in-flight work. Its call id is
-                # prefixed `autoverify` (tool_agent), which distinguishes system
-                # work from anything the model chose to run.
+                # TRIGGER ON THE WRITE LANDING, NOT ON THE VERIFY.
+                #
+                # Cohort 29 proved the forced auto-verify runs -- `verify_result`
+                # is in the frames -- but there is NO frame when it starts. The
+                # only frame is `verify_result`, emitted ~18s later when it has
+                # already finished. Waiting for the verify meant sitting blocked
+                # through exactly the window M4 needs.
+                #
+                # `_auto_verify` fires immediately after a successful
+                # create_file/edit_file, so the write's tool_result is the last
+                # signal before the system starts working. Engaging there puts
+                # the revocation inside the verify rather than after it.
                 if (
                     not saw_work
                     and isinstance(data, dict)
-                    and data.get("type") == "tool_call"
-                    and (
-                        str(data.get("id", "")).startswith("autoverify")
-                        or data.get("tool") == "verify"
-                    )
+                    and data.get("type") == "tool_result"
+                    and data.get("tool") in ("create_file", "edit_file")
                 ):
                     saw_work = True
                     in_flight.set()
@@ -726,8 +732,9 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
         worker.join(timeout=30)
         return DriverResult(
             not_drivable=(
-                "the forced auto-verify never started, so no system work was in "
-                "flight to revoke. An unloaded cage is not a failed cage"
+                "the write never landed, so the forced auto-verify never ran "
+                "and no system work was in flight to revoke. An unloaded cage "
+                "is not a failed cage"
             ),
             notes=result.notes,
         )
