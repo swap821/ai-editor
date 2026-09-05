@@ -279,21 +279,51 @@ def _turn_streaming(ctx: DriverContext, prompt: str):
     system but useless for M4: by the time it returns there is nothing in flight
     left to revoke.
     """
-    from tools.golden_mission_runner import parse_sse
+    from tools.golden_mission_runner import check_allowlist, parse_sse
 
-    body = {
-        "messages": [
-            {
-                "role": "user",
-                "content": [{"text": approval_policy_text() + "\n\n---\n\n" + prompt}],
-            }
-        ],
-        "modelId": ctx.model_id,
-        "sessionId": ctx.session_id,
-        "approvalTokens": [],
-    }
-    resp = ctx.session.post_stream("/api/generate", body, ctx.timeout_s)
-    yield from parse_sse(resp)
+    # IT MUST GRANT APPROVALS TOO, AND FOR SIX COHORTS IT DID NOT.
+    #
+    # `_turn` already loops on `human_required`, grants the token and replays --
+    # its docstring records that fix. `_turn_streaming` never received it and
+    # posted `approvalTokens: []` once. M4's whole point is to run a real
+    # command while the latch closes, and running a command is a YELLOW action,
+    # so the turn paused for approval and ENDED. The command never executed, so
+    # nothing was ever in flight, so the revocation could not land during it.
+    #
+    # That is why M4 failed six times with the turn always over in about a
+    # second. Cohort 18's ledger shows it plainly: the turn's last frame is the
+    # `execute_terminal` tool_call with no result, and the turn finalised one
+    # log line BEFORE the engage returned 200.
+    #
+    # The replay must keep STREAMING rather than draining, or M4 loses the very
+    # property it needs -- frames arriving while the caller can still act.
+    tokens: list[str] = []
+    for _ in range(MAX_APPROVAL_REPLAYS):
+        body = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"text": approval_policy_text() + SEPARATOR + prompt}],
+                }
+            ],
+            "modelId": ctx.model_id,
+            "sessionId": ctx.session_id,
+            "approvalTokens": tokens,
+        }
+        resp = ctx.session.post_stream("/api/generate", body, ctx.timeout_s)
+        paused: dict[str, Any] | None = None
+        for name, data in parse_sse(resp):
+            yield name, data
+            if name == "human_required":
+                paused = data
+                break
+        if paused is None:
+            return
+        ok, _why = check_allowlist(paused)
+        token = (paused.get("input") or {}).get("approvalToken")
+        if not ok or not token:
+            return
+        tokens = [token]
 
 
 def _turn(

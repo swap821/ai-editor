@@ -157,6 +157,25 @@ class _StreamTurnHandler:
             for event in stream:
                 yield event
         finally:
+            # DIAGNOSTIC, deliberately unconditional and at WARNING so it
+            # survives the default log level. Five cohorts have now failed M4
+            # with no trace of why: no recorder warning, no traceback, nothing.
+            # Guessing from the ledger has been wrong five times, so this says
+            # plainly whether this block runs at all and what it decided.
+            try:
+                from aios.application.governance.emergency_stop import (
+                    latch_is_engaged as _probe,
+                )
+
+                logger.warning(
+                    "turn disposition check: turn=%s latch_at_start=%s latch_now=%s",
+                    getattr(context, "turn_id", "?"),
+                    latch_at_start,
+                    _probe(),
+                )
+            except Exception:  # noqa: BLE001 - diagnostics never break a turn
+                logger.warning("turn disposition check: probe failed", exc_info=True)
+
             if not latch_at_start:
                 try:
                     from aios.application.governance.emergency_stop import (
