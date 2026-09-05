@@ -427,39 +427,90 @@ def _drive_abandoned(handler, ctx, runtime) -> None:
     asyncio.run(scenario())
 
 
-def test_an_abandoned_turn_records_its_disposition_when_authority_was_revoked(
-    monkeypatch, tmp_path: Path
-) -> None:
-    """Organ 55's M4 finding, fixed and pinned.
-
-    The emergency stop engaged with work in flight, the turn died, and the
-    ledger recorded NOTHING -- no `worker.work_incomplete`, no `turn.failed`.
-    `stream_generate` has no `finally` of its own and its recorder sits on the
-    normal completion path, so nothing covered the abnormal one.
-    """
+def _run_turn(bus, monkeypatch, *, turn_id, engaged_at_start, engage_mid, abandon):
+    """Drive one turn through the real coordinator with a controllable latch."""
     from aios.api import deps
     from aios.application.governance import emergency_stop as es
     from aios.application.turns.turn_coordinator import RuntimeDeps, _StreamTurnHandler
 
-    bus = CortexBus(db_path=tmp_path / "cortex.db")
-    monkeypatch.setattr(es, "latch_is_engaged", lambda: True)
+    state = {"engaged": engaged_at_start}
+    monkeypatch.setattr(es, "latch_is_engaged", lambda: state["engaged"])
     monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: bus)
+    monkeypatch.setattr(es, "_RECORDED_TURNS", [])
 
     def stream(_ctx, _runtime):
         yield "event: step\ndata: {}\n\n"
         yield "event: step\ndata: {}\n\n"
+        yield "event: done\ndata: {}\n\n"
 
-    head = 0
-    _drive_abandoned(_StreamTurnHandler(stream), _turn_ctx(), RuntimeDeps())
+    ctx = _turn_ctx()
+    object.__setattr__(ctx, "turn_id", turn_id) if hasattr(
+        ctx, "__dataclass_fields__"
+    ) else None
 
-    rows = [
-        (r.payload or {}).get("payload", {})
-        for r in bus.fetch_since(head, limit=10000)
+    async def scenario() -> None:
+        agen = _StreamTurnHandler(stream)(ctx, RuntimeDeps())
+        await agen.__anext__()
+        if engage_mid:
+            state["engaged"] = True
+        if abandon:
+            await agen.aclose()
+        else:
+            async for _ in agen:
+                pass
+
+    asyncio.run(scenario())
+    return [
+        r
+        for r in bus.fetch_since(0, limit=10000)
         if str(r.event_type) == "worker.work_incomplete"
     ]
-    assert rows, "an abandoned turn under a revocation recorded nothing"
-    assert rows[0]["scope"] == "turn"
-    assert rows[0]["disposition"] == "marked_incomplete"
+
+
+def test_a_revocation_during_a_turn_is_recorded_however_the_turn_ends(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Organ 55's M4 finding, and the hole in my first fix.
+
+    The first version keyed on whether the turn reached a terminal frame, to
+    avoid double-recording. That silently suppressed the LIVE case: cohorts 15
+    and 16 revoked authority while a turn was genuinely mid-tool, the turn
+    still reached a terminal frame, and neither layer recorded anything. The
+    rule is "did the latch close DURING this turn", not "how did it end".
+    """
+    for turn_id, abandon in (("t-abandoned", True), ("t-completed", False)):
+        bus = CortexBus(db_path=tmp_path / f"{turn_id}.db")
+        rows = _run_turn(
+            bus,
+            monkeypatch,
+            turn_id=turn_id,
+            engaged_at_start=False,
+            engage_mid=True,
+            abandon=abandon,
+        )
+        assert rows, f"a revocation during a turn that was {turn_id} recorded nothing"
+        payload = (rows[0].payload or {}).get("payload", {})
+        assert payload["scope"] == "turn"
+        assert payload["disposition"] == "marked_incomplete"
+
+
+def test_a_turn_that_merely_ran_while_already_stopped_is_not_recorded(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """A latch that was already closed is not THIS turn's revocation.
+
+    Without the transition check every turn attempted during an outage would
+    claim its work was interrupted, and M4 could pass on bookkeeping noise.
+    """
+    bus = CortexBus(db_path=tmp_path / "cortex.db")
+    assert not _run_turn(
+        bus,
+        monkeypatch,
+        turn_id="t-already-stopped",
+        engaged_at_start=True,
+        engage_mid=False,
+        abandon=False,
+    )
 
 
 def test_an_ordinary_disconnect_records_nothing(monkeypatch, tmp_path: Path) -> None:
@@ -468,57 +519,43 @@ def test_an_ordinary_disconnect_records_nothing(monkeypatch, tmp_path: Path) -> 
     Without this, closing a browser tab would litter the ledger with
     revocation dispositions and M4 could pass on noise rather than evidence.
     """
-    from aios.api import deps
-    from aios.application.governance import emergency_stop as es
-    from aios.application.turns.turn_coordinator import RuntimeDeps, _StreamTurnHandler
-
     bus = CortexBus(db_path=tmp_path / "cortex.db")
-    monkeypatch.setattr(es, "latch_is_engaged", lambda: False)  # nothing revoked
-    monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: bus)
-
-    def stream(_ctx, _runtime):
-        yield "event: step\ndata: {}\n\n"
-        yield "event: step\ndata: {}\n\n"
-
-    _drive_abandoned(_StreamTurnHandler(stream), _turn_ctx(), RuntimeDeps())
-
-    assert not [
-        r
-        for r in bus.fetch_since(0, limit=10000)
-        if str(r.event_type) == "worker.work_incomplete"
-    ], "an ordinary disconnect was recorded as a revocation disposition"
+    assert not _run_turn(
+        bus,
+        monkeypatch,
+        turn_id="t-plain",
+        engaged_at_start=False,
+        engage_mid=False,
+        abandon=True,
+    )
 
 
-def test_a_turn_that_ended_cleanly_is_not_double_recorded(
-    monkeypatch, tmp_path: Path
-) -> None:
-    """A turn that reached `done` already reported its own outcome.
+def test_one_turn_records_at_most_one_disposition(monkeypatch, tmp_path: Path) -> None:
+    """The pipeline and the coordinator can both reach the emitter.
 
-    The pipeline records its own disposition when it stops at a step boundary,
-    so the coordinator's `finally` must not add a second, contradictory row for
-    the same turn.
+    An audit must see one row per interrupted turn, not two contradictory
+    ones, so the emitter dedupes on turn id rather than relying on either
+    caller knowing what the other did.
     """
-    from aios.api import deps
     from aios.application.governance import emergency_stop as es
-    from aios.application.turns.turn_coordinator import RuntimeDeps, _StreamTurnHandler
 
     bus = CortexBus(db_path=tmp_path / "cortex.db")
+    monkeypatch.setattr(es, "_RECORDED_TURNS", [])
     monkeypatch.setattr(es, "latch_is_engaged", lambda: True)
+    from aios.api import deps
+
     monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: bus)
 
-    def stream(_ctx, _runtime):
-        yield "event: step\ndata: {}\n\n"
-        yield "event: done\ndata: {}\n\n"
+    for _ in range(3):
+        es.record_turn_incomplete_if_revoked(bus, session_id="s", turn_id="t-dupe")
 
-    async def scenario() -> None:
-        agen = _StreamTurnHandler(stream)(_turn_ctx(), RuntimeDeps())
-        async for _ in agen:
-            pass
-
-    asyncio.run(scenario())
-
-    assert not [
-        r
-        for r in bus.fetch_since(0, limit=10000)
-        if str(r.event_type) == "worker.work_incomplete"
-    ], "a turn that reached a terminal frame was recorded as incomplete anyway"
+    assert (
+        len(
+            [
+                r
+                for r in bus.fetch_since(0, limit=10000)
+                if str(r.event_type) == "worker.work_incomplete"
+            ]
+        )
+        == 1
+    )

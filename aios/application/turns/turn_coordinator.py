@@ -125,23 +125,39 @@ class _StreamTurnHandler:
         # what became of it -- no `worker.work_incomplete`, no `turn.failed`.
         # "The ledger cannot say what happened" was a true finding.
         #
-        # `reached_terminal` keeps this from double-recording a turn that
-        # already stopped itself cleanly at a step boundary and emitted its own
-        # row. Nothing here may change whether the turn runs, and nothing here
-        # may raise -- an observation that breaks the stream is worse than a
+        # THE RULE IS "DID THE LATCH CLOSE DURING THIS TURN", not "did the turn
+        # reach a terminal frame". An earlier version keyed on the terminal
+        # frame to avoid double-recording, and that silently suppressed the
+        # live case: cohorts 15 and 16 revoked authority while a turn was
+        # genuinely mid-tool, the turn still reached a terminal frame, and
+        # neither layer recorded anything. Reproduced directly --
+        # abandoned-mid-flight recorded, ran-to-completion recorded nothing.
+        #
+        # Sampling the latch at both ends distinguishes the three cases that
+        # matter: a revocation that landed DURING this turn (record), a turn
+        # that merely ran while the system was already stopped (not this
+        # turn's business), and an ordinary turn (nothing). Double-recording is
+        # prevented properly, by making the emitter idempotent per turn id.
+        #
+        # Nothing here may change whether the turn runs, and nothing here may
+        # raise -- an observation that breaks the stream is worse than a
         # missing one.
-        reached_terminal = False
+        try:
+            from aios.application.governance.emergency_stop import latch_is_engaged
+
+            latch_at_start = latch_is_engaged()
+        except Exception:  # noqa: BLE001 - unknown latch state is not a claim
+            latch_at_start = True  # fail closed: never invent a revocation
+
         try:
             if hasattr(stream, "__aiter__"):
                 async for event in stream:
-                    reached_terminal = _is_terminal_frame(event)
                     yield event
                 return
             for event in stream:
-                reached_terminal = _is_terminal_frame(event)
                 yield event
         finally:
-            if not reached_terminal:
+            if not latch_at_start:
                 try:
                     from aios.application.governance.emergency_stop import (
                         record_turn_incomplete_if_revoked,
