@@ -154,7 +154,27 @@ class _StreamTurnHandler:
                 async for event in stream:
                     yield event
                 return
-            for event in stream:
+            # OFF THE EVENT LOOP. `stream` is a SYNCHRONOUS generator, and
+            # iterating it with a plain `for` inside an `async def` runs every
+            # `next()` directly on the event loop. One of those calls blocks for
+            # as long as the executor takes -- so while a command ran, this
+            # process served NOTHING.
+            #
+            # Measured by organ 55's M4 (cohorts 33-35), with an ~18s command in
+            # flight:
+            #     GET /health (unauthenticated, trivial)  22.3s
+            #     emergency-stop engage                   22.8s
+            #     emergency-stop engage, once work done    0.2s
+            #
+            # The emergency stop was therefore unreachable exactly when it was
+            # needed, which is why M4 could never be posed: the latch could not
+            # land mid-work because no request at all could be served mid-work.
+            #
+            # `iterate_in_threadpool` is Starlette's own tool for this and keeps
+            # the loop free to serve the control plane while work runs.
+            from starlette.concurrency import iterate_in_threadpool
+
+            async for event in iterate_in_threadpool(stream):
                 yield event
         finally:
             # DIAGNOSTIC, deliberately unconditional and at WARNING so it
