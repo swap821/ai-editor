@@ -830,7 +830,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                     f"not drivable by this harness: {outcome.not_drivable}",
                 )
             )
-            print(f"{mission.key}: unproven (not drivable)")
+            # Print the REASON, not just the category. Cohorts 27 and 28 both
+            # reported bare "not drivable" while the driver had captured the
+            # exact cause -- a missing verification key, then a council security
+            # denial. A benchmark that hides its own diagnosis costs a whole run
+            # to re-learn what it already knew.
+            print(f"{mission.key}: unproven (not drivable) -- {outcome.not_drivable}")
             # The notes were DROPPED on this path, which threw away the
             # diagnostic exactly when it was most needed: a mission that could
             # not be driven is the one whose notes explain why. Cohort 23's M4

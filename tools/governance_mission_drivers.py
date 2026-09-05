@@ -680,7 +680,15 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
     deadline = time.monotonic() + ctx.in_flight_timeout_s
     while time.monotonic() < deadline:
         detail = _get_json(ctx, f"/api/v1/council/missions/{mission_id}")
-        digest = str(detail.get("contractDigest") or "")
+        # `contractDigest` is nested under `missionAuthority`
+        # (council.py:752-757), not at the top level. Reading the wrong key made
+        # `digest` permanently empty, so the approval step could never be
+        # reached even when the mission was ready.
+        digest = str(
+            (detail.get("missionAuthority") or {}).get("contractDigest")
+            or detail.get("contractDigest")
+            or ""
+        )
         status = str(
             (detail.get("report") or {}).get("status") or detail.get("status") or ""
         )
