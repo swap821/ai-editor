@@ -819,6 +819,23 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
         # Those need different fixes, so measure instead of assuming.
         import time as _t
 
+        # IS THE WHOLE SERVER BLOCKED, OR ONLY THIS PATH? Cohort 34 proved the
+        # 22.8s stall is server-side (a dedicated client connection changed
+        # nothing). A trivial unauthenticated GET taken at the same moment
+        # separates "the process cannot serve anything while the executor runs"
+        # from "the emergency-stop path specifically contends with it" -- and
+        # those have completely different fixes.
+        try:
+            import requests as _rq
+
+            _h0 = _t.monotonic()
+            _rq.get(f"{ctx.session.base}/health", timeout=30)
+            result.notes.append(
+                f"/health during executor work took {_t.monotonic() - _h0:.1f}s"
+            )
+        except Exception as exc:  # noqa: BLE001 - a probe fault is not a verdict
+            result.notes.append(f"/health probe failed: {type(exc).__name__}")
+
         _t0 = _t.monotonic()
         payload = _post_json(
             ctx,
