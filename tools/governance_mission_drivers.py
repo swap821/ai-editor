@@ -283,6 +283,38 @@ def _wait_for_event(bus: Any, head: int, event_type: str, timeout_s: float) -> b
     return False
 
 
+def _wait_for_write_landing(bus: Any, head: int, timeout_s: float) -> bool:
+    """Wait for an approved write to land, reading the BUS, not the SSE stream.
+
+    THE FRAME STREAM IS TOO LATE. Cohort 31 proved the ~18s window exists --
+    bus index 232 is the write's tool_result, 234 is the auto-verify's, and the
+    verify runs between them -- but the driver's SSE frame for that write did
+    not arrive until after the verify had already finished, so engaging on it
+    put the latch past the window every time.
+
+    The auto-verify emits NO start event on either channel; only its
+    tool_result, once it is done. The write landing is therefore the last
+    real-time signal before the system starts working, and the bus carries it
+    without the stream's lag.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            for row in bus.fetch_since(head, limit=200000):
+                payload = (getattr(row, "payload", None) or {}).get("payload") or {}
+                if payload.get("type") == "tool_result" and payload.get("tool") in (
+                    "create_file",
+                    "edit_file",
+                ):
+                    return True
+        except Exception:  # noqa: BLE001 - an unreadable bus is not a claim
+            return False
+        time.sleep(0.25)
+    return False
+
+
 def _get_json(
     ctx: DriverContext, path: str, *, timeout_s: float = 60.0
 ) -> dict[str, Any]:
@@ -721,24 +753,20 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
         ctx, "/api/v1/governance/emergency-stop/engage", engage_payload
     )
 
+    bus = _live_bus_for_driver()
+    head = _bus_head(bus) if bus is not None else 0
+
     worker = threading.Thread(target=_consume, daemon=True)
     worker.start()
-    in_flight.wait(timeout=ctx.in_flight_timeout_s)
 
-    # A SHORT, JUSTIFIED DELAY -- not a guess about the system.
-    #
-    # Cohort 30 engaged the instant the write landed and the latch closed
-    # BEFORE `_auto_verify` began, so the verify was REFUSED rather than
-    # interrupted and the turn ended at once. Every earlier timer was a guess
-    # about when work might exist; this one covers a handoff the system
-    # guarantees: `_auto_verify` fires immediately after a successful write.
-    # The write's tool_result is the real signal, and three seconds is pytest
-    # startup, leaving ~15s of the planted sleep still running when the latch
-    # closes.
-    if saw_work and not saw_done:
-        import time as _time
-
-        _time.sleep(3.0)
+    # Read the BUS for the write landing; the SSE stream lags too far behind
+    # (cohort 31: the frame arrived after the verify had already finished).
+    if bus is not None:
+        saw_work = _wait_for_write_landing(bus, head, ctx.in_flight_timeout_s)
+        if saw_work:
+            in_flight.set()
+    else:
+        in_flight.wait(timeout=ctx.in_flight_timeout_s)
 
     result.notes.append(
         "frames the driver actually saw: " + (", ".join(seen_frames) or "<none>")
