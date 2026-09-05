@@ -335,6 +335,11 @@ def _turn_streaming(ctx: DriverContext, prompt: str):
                 flush=True,
             )
             return
+        # The caller cannot infer this from the frames: the `execute_terminal`
+        # tool_call is what TRIGGERS the approval, so it arrives BEFORE the
+        # command runs. Only the replay that follows this grant actually
+        # executes it, and M4 must engage the latch during THAT, not before.
+        yield "approval_granted", {"replay": True}
         tokens = [token]
 
 
@@ -579,6 +584,7 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
     in_flight = threading.Event()
     saw_work = False
     saw_done = False
+    approved = False
     frames: list[tuple[str, dict[str, Any]]] = []
     seen_frames: list[str] = []
 
@@ -603,7 +609,7 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
     )
 
     def _consume() -> None:
-        nonlocal saw_work, saw_done
+        nonlocal saw_work, saw_done, approved
         try:
             # The window has to be WIDE, not just non-zero. Cohort 11 engaged
             # the latch one bus id after `turn.completed`: the turn finished
@@ -647,12 +653,30 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
                 # means the approval is already through and ~18s of real work is
                 # underway when the latch closes -- which is the scenario M4
                 # exists to create.
+                if name == "approval_granted":
+                    approved = True
+                # The tool_call BEFORE the approval is the REQUEST; the one
+                # after it is the EXECUTION. Cohort 22 engaged on the request,
+                # so the replay was refused 503 by the latch -- the same
+                # self-defeat as cohorts 13-21, one step further along.
+                # `approved` is the only signal separating the two.
+                #
+                # A command needing no approval never emits `approval_granted`,
+                # so a `tool_result` counts too: by then it has genuinely run.
                 if (
                     not saw_work
-                    and name == "step"
                     and isinstance(data, dict)
-                    and data.get("type") == "tool_call"
-                    and data.get("tool") == "execute_terminal"
+                    and (
+                        (
+                            approved
+                            and data.get("type") == "tool_call"
+                            and data.get("tool") == "execute_terminal"
+                        )
+                        or (
+                            data.get("type") == "tool_result"
+                            and data.get("tool") == "execute_terminal"
+                        )
+                    )
                 ):
                     saw_work = True
                     in_flight.set()
