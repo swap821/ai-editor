@@ -831,6 +831,13 @@ def cmd_run(args: argparse.Namespace) -> int:
                 )
             )
             print(f"{mission.key}: unproven (not drivable)")
+            # The notes were DROPPED on this path, which threw away the
+            # diagnostic exactly when it was most needed: a mission that could
+            # not be driven is the one whose notes explain why. Cohort 23's M4
+            # reported `not drivable` and discarded the frame log that would
+            # have said what the turn actually did.
+            for note in outcome.notes:
+                print(f"    note: {note}")
             continue
 
         verdict = authority.adjudicate(
