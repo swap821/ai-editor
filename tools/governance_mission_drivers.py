@@ -663,20 +663,24 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
                 #
                 # A command needing no approval never emits `approval_granted`,
                 # so a `tool_result` counts too: by then it has genuinely run.
+                # ANY work in the APPROVED turn counts, not one chosen tool.
+                #
+                # Cohort 24's frames showed every mechanism working -- pause,
+                # grant, replay, completion -- and M4 still could not be driven,
+                # because the replayed turn produced `code` instead of re-running
+                # the command it had just been approved for. Waiting for one
+                # specific tool makes the mission hostage to which tool the
+                # model happens to pick.
+                #
+                # What M4 actually claims is about IN-FLIGHT WORK, not about
+                # pytest. So the first work frame after the grant is the right
+                # trigger: by then the approval is through and the turn is
+                # genuinely executing.
                 if (
                     not saw_work
+                    and approved
                     and isinstance(data, dict)
-                    and (
-                        (
-                            approved
-                            and data.get("type") == "tool_call"
-                            and data.get("tool") == "execute_terminal"
-                        )
-                        or (
-                            data.get("type") == "tool_result"
-                            and data.get("tool") == "execute_terminal"
-                        )
-                    )
+                    and data.get("type") in ("tool_call", "tool_result")
                 ):
                     saw_work = True
                     in_flight.set()
