@@ -725,6 +725,21 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
     worker.start()
     in_flight.wait(timeout=ctx.in_flight_timeout_s)
 
+    # A SHORT, JUSTIFIED DELAY -- not a guess about the system.
+    #
+    # Cohort 30 engaged the instant the write landed and the latch closed
+    # BEFORE `_auto_verify` began, so the verify was REFUSED rather than
+    # interrupted and the turn ended at once. Every earlier timer was a guess
+    # about when work might exist; this one covers a handoff the system
+    # guarantees: `_auto_verify` fires immediately after a successful write.
+    # The write's tool_result is the real signal, and three seconds is pytest
+    # startup, leaving ~15s of the planted sleep still running when the latch
+    # closes.
+    if saw_work and not saw_done:
+        import time as _time
+
+        _time.sleep(3.0)
+
     result.notes.append(
         "frames the driver actually saw: " + (", ".join(seen_frames) or "<none>")
     )
