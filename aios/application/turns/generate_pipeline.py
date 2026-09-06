@@ -391,7 +391,7 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
 
 
 from aios.application.governance.emergency_stop import (
-    latch_is_engaged as _latch_is_engaged,
+    halt_requires_stop as _halt_requires_stop,
 )
 from aios.application.governance.emergency_stop import (
     record_turn_incomplete_if_revoked as _record_turn_incomplete_if_revoked,
@@ -1503,7 +1503,15 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         # The stop and the observation are deliberately separate calls: work
         # must halt even if the bus is unavailable, so halting is never made
         # conditional on being able to record it.
-        if _latch_is_engaged():
+        #
+        # `_halt_requires_stop`, NOT `_latch_is_engaged`. The observation fails
+        # OPEN by design -- an unreadable latch is not evidence of revocation,
+        # and recording one that never happened would falsify the governance
+        # record. Deciding whether to STOP is the opposite question: this used
+        # the observation, so an unreadable latch meant "keep working" on the
+        # one control that exists to make work stop when the human says stop.
+        # A locked SQLite file during a checkpoint is enough to reach it.
+        if _halt_requires_stop():
             _record_turn_incomplete_if_revoked(
                 _cortex_bus, session_id=session_id, turn_id=ctx.turn_id
             )

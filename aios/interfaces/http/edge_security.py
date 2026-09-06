@@ -428,7 +428,7 @@ class EdgeTrustAuthority:
         Everything above this point has established only that the caller reached
         us over loopback and that no API token is configured. That was, until
         2026-09-06, the whole check -- so on a default install any local process
-        was the operator. Measured that day: **39 of 54 privileged GET routes
+        was the operator. Measured that day: **39 of 68 privileged GET routes
         answered 200** to a caller holding no token, no cookie and no Origin,
         `/api/v1/security/audit` among them. A package postinstall script, or
         anything the operator ran once, could read the governance record.

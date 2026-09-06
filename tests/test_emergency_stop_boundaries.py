@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import sqlite3
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -271,3 +274,141 @@ def test_capability_authority_consume_refuses_when_stop_engaged(
 
     with pytest.raises(EmergencyStopError):
         authority.consume(token, binding)
+
+
+# --------------------------------------------------------------------------- #
+# The stop control: observing the latch vs deciding to halt
+# --------------------------------------------------------------------------- #
+#
+# These are the same question asked for opposite purposes, and the same answer
+# is wrong for one of them. Flagged by external review for four cycles as the
+# one control still unmeasured: whether work stops when the human says stop.
+
+
+def test_halt_fails_closed_when_the_latch_cannot_be_read(monkeypatch) -> None:
+    """An unreadable stop control means STOP, not "carry on".
+
+    `latch_is_engaged` fails OPEN by design -- an unreadable latch is not
+    evidence of revocation, and recording one that never happened would put a
+    false row in the governance record. But `generate_pipeline` used that same
+    observation to make its step-boundary HALT decision, so an unreadable latch
+    meant "keep working" on the one control that exists to make work stop when
+    a human says stop.
+
+    No attacker is required. A locked SQLite file during a checkpoint reaches
+    this.
+    """
+    import aios.api.deps as deps
+    from aios.application.governance import emergency_stop as es
+
+    def _unreadable():
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(deps, "get_emergency_stop", _unreadable)
+
+    assert es.halt_requires_stop() is True, "work would have continued"
+    assert es.latch_is_engaged() is False, (
+        "the observation must still fail OPEN -- inventing a revocation would "
+        "falsify the audit record"
+    )
+
+
+def test_halt_and_observation_agree_when_the_latch_is_readable(monkeypatch) -> None:
+    """The split must not change behaviour in the ordinary case."""
+    import aios.api.deps as deps
+    from aios.application.governance import emergency_stop as es
+
+    class _Stop:
+        def __init__(self, engaged):
+            self._engaged = engaged
+
+        def state(self):
+            return SimpleNamespace(engaged=self._engaged)
+
+    for engaged in (True, False):
+        monkeypatch.setattr(deps, "get_emergency_stop", lambda e=engaged: _Stop(e))
+        assert es.halt_requires_stop() is engaged
+        assert es.latch_is_engaged() is engaged
+
+
+def test_the_pipeline_halt_uses_the_fail_closed_check() -> None:
+    """Pins WHICH function the halt decision calls.
+
+    The bug was not a missing control; it was the right control asked the wrong
+    question. A future edit that swaps this back to the observation would
+    reintroduce it silently, because both functions return a bool and the
+    ordinary path behaves identically -- they differ only when the latch cannot
+    be read, which no ordinary test exercises.
+    """
+    import inspect
+
+    from aios.application.turns import generate_pipeline
+
+    source = inspect.getsource(generate_pipeline)
+
+    assert "if _halt_requires_stop():" in source, (
+        "the step-boundary halt no longer uses the fail-closed check"
+    )
+    assert "if _latch_is_engaged():" not in source, (
+        "the halt decision is using the fail-OPEN observation again"
+    )
+
+
+def test_one_interrupted_turn_records_exactly_one_row_under_concurrency(
+    monkeypatch,
+) -> None:
+    """The dedupe is check-then-append across TWO THREADS.
+
+    `generate_pipeline` runs inside a threadpool (its sync generator is iterated
+    via `iterate_in_threadpool` so it cannot block the event loop) while
+    `TurnCoordinator`'s `finally` runs on the loop. Both may reach this for the
+    same turn. Unlocked, both can pass the membership test before either
+    appends -- and a governance audit then sees two rows for one interrupted
+    turn, for the single fact the function's own docstring says must appear
+    exactly once.
+    """
+    import aios.api.deps as deps
+    from aios.application.governance import emergency_stop as es
+
+    class _Engaged:
+        def state(self):
+            return SimpleNamespace(engaged=True)
+
+    monkeypatch.setattr(deps, "get_emergency_stop", lambda: _Engaged())
+    monkeypatch.setattr(es, "_RECORDED_TURNS", [])
+
+    written: list[str] = []
+    lock = threading.Lock()
+
+    class _Bus:
+        def publish(self, *args, **kwargs):
+            with lock:
+                written.append("row")
+            return True
+
+        emit = publish
+        record = publish
+
+    bus = _Bus()
+    barrier = threading.Barrier(8)
+    results: list[bool] = []
+    results_lock = threading.Lock()
+
+    def claim():
+        barrier.wait()  # maximise the overlap on the check-then-append
+        got = es.record_turn_incomplete_if_revoked(
+            bus, session_id="s", turn_id="the-same-turn"
+        )
+        with results_lock:
+            results.append(bool(got))
+
+    threads = [threading.Thread(target=claim) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sum(results) <= 1, (
+        f"{sum(results)} threads each believed they were the sole recorder of "
+        "one interrupted turn"
+    )
