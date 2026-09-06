@@ -51,6 +51,16 @@ Verification strength follows the taxonomy in `aios/core/verification_strength.p
   from the operator rather than from the requester. The audit rows are
   identical. "Final authority" was a stronger claim than the evidence supports,
   and this document is the wrong place to make one.
+
+  **Partly closed the same day.** Approving an action that fetches and executes
+  remote code now requires an authentication event NEWER than the request, so
+  the requester cannot authorise its own supply-chain fetch -- M7 measured that
+  holding against a live server. The requirement is deliberately scoped there:
+  YELLOW covers `mkdir`, `touch` and `pytest`, and a re-authentication per
+  `mkdir` would be unusable, so an agent inside a privileged window can STILL
+  self-approve ordinary work. The bullet above therefore stands as written for
+  the ordinary case. This note is added rather than rewriting the correction,
+  because dated evidence is not edited here -- it is superseded in place.
 - It is NOT omniscient. The knowledge graph contains only verified facts. Its
   horizon is visible and honest.
 - It is NOT permanent. A compiled playbook decompiles after 2 consecutive
