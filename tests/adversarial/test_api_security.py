@@ -529,3 +529,111 @@ class TestStartupBanner:
         assert "docs_enabled" in banner
         assert "router_cloud_tasks" in banner
         assert "earned_autonomy" in banner
+
+
+class TestBondRequiredForPrivilegedReads:
+    """INVARIANT I: loopback is a network path, not an identity.
+
+    Until 2026-09-06 `check_api_token_or_loopback` returned None for any
+    loopback caller when no API token was configured, so on a default install
+    every local process was the operator. Measured that day: **39 of 54
+    privileged GET routes answered 200** to a caller holding no token, no
+    cookie and no Origin -- `/api/v1/security/audit` among them.
+
+    Note on the fixtures: `tests/conftest.py` already enrolls a Human Sovereign
+    and bonds every loopback TestClient, modelling the real UI flow. These
+    tests therefore have to CLEAR the cookie to probe the unbonded side --
+    which is the same reason the change broke no existing test.
+    """
+
+    @staticmethod
+    def _unbonded(client: TestClient) -> TestClient:
+        """The same client with its bond removed -- a bare local process."""
+        client.cookies.clear()
+        return client
+
+    def test_privileged_reads_are_refused_without_a_bond(self, client) -> None:
+        """The exact probe that returned 200 before the fix."""
+        bare = self._unbonded(client)
+
+        for route in (
+            "/api/v1/security/audit",
+            "/api/v1/files/tree",
+            "/api/v1/system/config",
+            "/api/v1/development/metrics",
+        ):
+            response = bare.get(route)
+            assert response.status_code == 401, (
+                f"{route} served privileged state to a caller holding nothing "
+                f"(got {response.status_code})"
+            )
+            assert "bonded operator session" in response.json()["detail"]
+
+    def test_the_bond_ceremony_stays_reachable_without_a_bond(self, client) -> None:
+        """A locked door with the key inside is not a security control.
+
+        `SovereigntyPanel` has to be able to report status and run enroll /
+        login / reauth BEFORE anyone is bonded, or the system cannot be entered
+        at all. This is why `_PUBLIC_API_PATHS` exists, and it is the one place
+        to look when M6 regresses.
+        """
+        bare = self._unbonded(client)
+
+        assert bare.get("/api/v1/auth/session").status_code == 200
+        assert bare.get("/health").status_code == 200
+        assert bare.get("/api/v1/models/local").status_code in (200, 404)
+
+    def test_a_bonded_operator_still_reads_everything(self, client) -> None:
+        """The control must not be a denial of service against the operator.
+
+        The `client` fixture is bonded by conftest, so this asserts the fix is
+        scoped to *identity* and did not simply break the read surface.
+        """
+        assert client.get("/api/v1/security/audit").status_code == 200
+        assert client.get("/api/v1/files/tree").status_code == 200
+
+    def test_a_bootstrap_session_is_not_an_operator(self, client) -> None:
+        """The hole this closes is not fixed by merely holding *a* session.
+
+        `/api/v1/auth/session` is a bootstrap path: it mints a conversation
+        session with no authentication whatsoever, and a local process can call
+        it. If that were enough, the fix would be theatre -- so the read gate
+        requires a session that resolves to the enrolled operator, which a
+        bootstrap session does not.
+        """
+        bare = self._unbonded(client)
+        created = bare.post("/api/v1/auth/session")
+        assert created.status_code == 200, "bootstrap path must stay open"
+
+        # The cookie jar now holds a real, valid, NON-operator session.
+        response = bare.get("/api/v1/security/audit")
+
+        assert response.status_code == 401, (
+            "an unauthenticated bootstrap session was accepted as the operator"
+        )
+
+    def test_identity_failure_refuses_rather_than_falling_back(
+        self, client, monkeypatch
+    ) -> None:
+        """Fail closed. A degraded identity layer is not a reason to trust loopback.
+
+        The pre-fix behaviour *was* the fallback, so a fix that silently
+        reverted to it under load or corruption would reintroduce the bug at
+        exactly the moment it matters most.
+        """
+        import aios.api.deps as deps
+
+        def _broken() -> object:
+            raise RuntimeError("identity store unavailable")
+
+        monkeypatch.setattr(deps, "get_identity_service", _broken)
+
+        response = client.get("/api/v1/security/audit")
+
+        # 503, not 401. Both refuse, but only one is honest: we could not READ
+        # the bond, so telling the operator their bond is invalid would be a
+        # lie. This matches organ 24's existing precedent -- a store-level
+        # failure means identity resolution is degraded, not that the caller is
+        # anonymous.
+        assert response.status_code == 503
+        assert "degraded" in response.json()["detail"]
