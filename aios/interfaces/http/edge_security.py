@@ -22,10 +22,61 @@ from aios.api.deps import get_session_manager
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 _MUTATION_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
+#: Methods the Invariant I bond gate applies to. Reads are the whole hole:
+#: mutations were already covered by the mutation guard and action_guard.
+_READ_METHODS = frozenset({"GET", "HEAD"})
 _SESSION_CREATE_PATH = "/api/v1/auth/session"
 _BOOTSTRAP_AUTH_PATHS = frozenset(
     {_SESSION_CREATE_PATH, "/api/v1/auth/enroll", "/api/v1/auth/login"}
 )
+
+#: Routes readable WITHOUT a bonded operator session (Invariant I).
+#:
+#: Deliberately tiny, and derived rather than guessed: the bond ceremony has to
+#: be reachable before anyone can bond, or the system is a locked door with the
+#: key inside. These are exactly what `SovereigntyPanel` and the shell touch on
+#: first paint --
+#:
+#:   /api/v1/auth/session   GET reports whether an operator is bonded; POST
+#:                          mints the pre-bond conversation session
+#:   .../enroll|login|reauth  the ceremony itself
+#:   /api/v1/models/*       the model picker, so an unbonded shell still renders
+#:
+#: Everything else under /api/ needs the bond. Adding to this set widens the
+#: unauthenticated read surface, so it is the one place to look when M6 regresses.
+_PUBLIC_API_PATHS = frozenset(
+    {
+        _SESSION_CREATE_PATH,
+        "/api/v1/auth/enroll",
+        "/api/v1/auth/login",
+        "/api/v1/auth/reauth",
+        # `/mirror/governance` and NOT the rest of `/mirror/*`. This one route
+        # already resolves the principal itself (`routes/mirror.py`) and
+        # includes constitution data only for an OPERATOR, degrading to
+        # `status: "unavailable"` otherwise -- a per-field authorization that is
+        # strictly better than a blanket refusal, and one the project tests on
+        # purpose. It does disclose one thing to an unbonded caller: whether the
+        # emergency stop is engaged, which its own docstring calls
+        # always-renderable by design.
+        #
+        # Its siblings are deliberately NOT exempt: /snapshot, /executor and
+        # /stream take no identity at all, so they would hand the bus journal,
+        # skills and executor state to any local process. A prefix exemption
+        # here would have reopened the hole this gate exists to close.
+        "/api/v1/mirror/governance",
+    }
+)
+
+#: Prefixes treated as public. Kept separate from the exact-match set so a new
+#: `/api/v1/models/<provider>` route does not silently need an allowlist edit.
+_PUBLIC_API_PREFIXES: tuple[str, ...] = ("/api/v1/models/",)
+
+
+def _is_public_path(path: str) -> bool:
+    """True when *path* may be read without a bonded operator session."""
+    return path in _PUBLIC_API_PATHS or path.startswith(_PUBLIC_API_PREFIXES)
+
+
 _LOGGER = logging.getLogger(__name__)
 
 _API_TOKEN_AUTHORITY: "ApiTokenAuthority | None" = None
@@ -367,7 +418,95 @@ class EdgeTrustAuthority:
                 status_code=403,
                 content={"detail": "unauthenticated API access is loopback-only"},
             )
-        return None
+        return self._require_bond_for_privileged_read(request, path)
+
+    def _require_bond_for_privileged_read(
+        self, request: Request, path: str
+    ) -> Optional[JSONResponse]:
+        """INVARIANT I: being on the machine is not being the operator.
+
+        Everything above this point has established only that the caller reached
+        us over loopback and that no API token is configured. That was, until
+        2026-09-06, the whole check -- so on a default install any local process
+        was the operator. Measured that day: **39 of 54 privileged GET routes
+        answered 200** to a caller holding no token, no cookie and no Origin,
+        `/api/v1/security/audit` among them. A package postinstall script, or
+        anything the operator ran once, could read the governance record.
+
+        Loopback is a network path, not an identity. The only honest fix is to
+        ask for a credential, so this requires the same bonded operator
+        principal that `action_guard` already demands of `server-session`
+        routes. The Sovereign Bond ceremony (`SovereigntyPanel`) is how a human
+        obtains one.
+
+        Scope note: YELLOW actions were never in this hole --
+        `action_guard` requires `authentication_level == "privileged"`, and a
+        self-bootstrapped session carries no `operator_id`. Reads were the hole,
+        and reads are what this closes.
+        """
+        # READS ONLY, and that is a deliberate boundary rather than timidity.
+        #
+        # Mutations already have two guards this does not duplicate:
+        # `check_mutation_origin_or_token` demands a session and CSRF proof, and
+        # `action_guard` demands `authentication_level == "privileged"` for
+        # anything YELLOW. Reads had neither -- that asymmetry WAS the hole.
+        #
+        # Extending this to mutations would also break a contract the system
+        # states on purpose: `action_guard` keeps chat and the other GREEN
+        # session routes usable with the legacy conversation cookie. Measured --
+        # applying it to every method broke six throttle tests whose subject is
+        # rate limiting, not identity.
+        if request.method not in _READ_METHODS or _is_public_path(path):
+            return None
+        raw_cookie = request.cookies.get("session_id")
+        if raw_cookie:
+            try:
+                from aios.api.deps import get_identity_service
+
+                # Resolve through `dependency_overrides` exactly as the routes
+                # do. Middleware does not participate in FastAPI's DI graph, so
+                # calling the provider directly would read a DIFFERENT identity
+                # service than the route it is guarding -- a test that injects a
+                # real operator would be refused at the edge while the route
+                # behind it considered that same operator authenticated. The
+                # override map is empty in production, so this is a test seam,
+                # not a bypass.
+                provider = request.app.dependency_overrides.get(
+                    get_identity_service, get_identity_service
+                )
+                if provider().get_authenticated_principal(raw_cookie):
+                    return None
+            except Exception:  # noqa: BLE001 - degraded identity is not trust
+                # ORGAN 24: a store-level failure is not "no session". It means
+                # identity resolution itself is degraded, and saying 401 would
+                # tell the operator their bond is bad when in truth we cannot
+                # read it. Both answers refuse -- only one is honest, and this
+                # matches the EmergencyStopError precedent the app already sets.
+                _LOGGER.warning(
+                    "identity_resolution_degraded_refusing_request",
+                    extra={"path": path},
+                )
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "detail": (
+                            "identity resolution is degraded; refusing to "
+                            "authorize anything new"
+                        )
+                    },
+                )
+        # FAIL CLOSED. An identity layer that did not answer "the operator" has
+        # not answered at all, and the pre-2026-09-06 behaviour of falling back
+        # to loopback trust is exactly the bug being fixed.
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": (
+                    "this route requires a bonded operator session; loopback "
+                    "alone is a network path, not an identity"
+                )
+            },
+        )
 
     def check_mutation_origin_or_token(
         self,
