@@ -846,6 +846,25 @@ re-audits recorded above.
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5. **2026-09-06:** the mission set grew to eight -- M6/M7/M8 measure the authority surface (invariants I, III, IV) and are driven deterministically rather than by a model, so no cohort can lose them to a model declining. Each was measured failing and holding against live backends (release/organ-55/2026-09-06-missions-m6-m8.md). This does NOT raise the score: M1-M5 are unchanged, and M7 holds only with #300 applied. The ledger entry and its yellow status are deliberately untouched -- a mission-set change is the operator's to attest. |
+| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
+
+### Organ 55 — the mission set grew to eight (2026-09-06)
+
+Written here, OUTSIDE the generated region, because the region above is built
+from `.aios/state/ORGAN_GREEN_LEDGER.json` by `scripts/build_organ_ledger_doc.py`
+and its hash is pinned in `release/organ-proof-manifest.json`. Hand-editing it
+turns four release-conformance tests red -- which is exactly what happened when
+this note was first added inside it.
+
+M6/M7/M8 measure the authority surface (invariants I, III, IV). They are driven
+deterministically rather than by a model, so no cohort can lose them to a model
+declining the scenario. Each was measured both failing and holding against live
+backends: `release/organ-55/2026-09-06-missions-m6-m8.md`.
+
+**This does not raise organ 55's score.** M1-M5 are unchanged and still read as a
+reliable 4/5 honest floor, with M1 gated on model behaviour that must not be
+engineered around. The ledger entry and its `yellow` status are deliberately
+untouched: a change to the mission SET is the operator's to attest, not
+something an assistant should grant itself by editing the row that records it.
