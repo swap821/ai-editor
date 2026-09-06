@@ -775,7 +775,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 54 green / 1 yellow / 55 total
-- **Source ledger sha256:** `f645ea8fde11bfb787f3d733db56256fcd2198eb58a133f850042d706972f3d7`
+- **Source ledger sha256:** `e611bc37961a37d26c01f0f2fb0378e6678e53c9abfc86a9785afc1247878d62`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -846,6 +846,6 @@ re-audits recorded above.
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Outside-machine: no live evidence yet. This is now the ONLY blocker. All five missions are runnable and driven live by `python tools/governance_conformance_runner.py run`, and the adjudicators, collector and instrumentation are proven together offline in tests/test_governance_conformance_integration.py -- but no cohort has been run against a genuinely capable model, and a weak model fails for boring reasons without ever reaching the control being tested. requires_live_evidence is true and honestly so. Like organ 44 this cannot carry a release/phase4 artifact (scripts/phase4_live_evidence.py deliberately does not claim outside-machine organs), so its evidence will be operator-attested when it exists. |
+| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
