@@ -347,6 +347,11 @@ class EmergencyStopController:
         return "completed"
 
 
+#: Turn ids already recorded as incomplete, so the pipeline and the coordinator
+#: cannot both write a row for the same turn.
+_RECORDED_TURNS: list[str] = []
+
+
 def latch_is_engaged() -> bool:
     """True when the emergency stop is currently engaged.
 
@@ -383,6 +388,17 @@ def record_turn_incomplete_if_revoked(
     """
     if not latch_is_engaged():
         return False
+    # Idempotent per turn. Both the pipeline (when it stops itself at a step
+    # boundary) and the coordinator's `finally` may reach here for the same
+    # turn, and a governance audit must see one row per interrupted turn, not
+    # two contradictory ones.
+    key = str(turn_id)
+    if key and key in _RECORDED_TURNS:
+        return False
+    if key:
+        _RECORDED_TURNS.append(key)
+        if len(_RECORDED_TURNS) > 512:  # bounded; this is a dedupe cache
+            del _RECORDED_TURNS[:256]
     if bus is None:
         try:
             from aios.api.deps import get_cortex_observation_bus

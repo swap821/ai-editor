@@ -1022,6 +1022,66 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
 
     mastered_levels: list[tuple[str, int]] = []
 
+    _verdict_emitted: list[bool] = []
+
+    def _emit_verification_verdict() -> None:
+        """Record the verifier's verdict wherever the turn happens to end.
+
+        The emission used to live ONLY inside `record_outcome`, behind a gate
+        that fires just for `verified_success`/`verified_failure`. A turn that
+        PAUSES for approval therefore threw its verdict away: cohort 37 shows
+        the verifier producing `[VERIFY FAIL] 0 passed, 1 failed` twice, with
+        ZERO `verification.completed` rows on the bus, so organ 55's M2 read
+        "no verification verdict was recorded" while an authoritative failing
+        verdict sat in the turn's own state.
+
+        That is the same family as the revocation-disposition gap: a real result
+        the system produced, lost because the turn ended on a path that does not
+        record. A verdict that exists but is unobservable cannot be audited, and
+        auditing verdicts is exactly what M2 is for.
+
+        Idempotent -- a duplicate observation is far less harmful than a missing
+        one, and both callers may legitimately fire.
+        """
+        if _verdict_emitted or not _cortex_bus or not verify_verdicts:
+            return
+        _verdict_emitted.append(True)
+        passed = not any(v == "FAIL" for v in verify_verdicts.values())
+        prefix = "[VERIFY PASS]" if passed else "[VERIFY FAIL]"
+        evidence = next(
+            (
+                item
+                for item in reversed(verification_evidence)
+                if item.startswith(prefix)
+            ),
+            "",
+        )
+        try:
+            _cortex_bus.append(
+                CanonicalEvent(
+                    event_type=CanonicalEventType.VERIFICATION_COMPLETED.value,
+                    phase=EventPhase.REFLEX.value,
+                    status="success" if passed else "failed",
+                    trust=TrustLevel.VERIFIED.value,
+                    source="generate",
+                    session_id=session_id,
+                    turn_id=ctx.turn_id,
+                    payload={
+                        "passed": passed,
+                        "evidence": evidence[:2000],
+                        "strength": str(
+                            min(
+                                verify_strengths.values(),
+                                key=lambda st: getattr(st, "value", 0),
+                                default="",
+                            )
+                        ),
+                    },
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - observation is best-effort
+            logger.warning("Failed to record verification verdict", exc_info=exc)
+
     def _record_incomplete_if_revoked() -> None:
         """Record the disposition of in-flight turn work when the latch is engaged.
 
@@ -1722,6 +1782,10 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             # be counted -- otherwise every YELLOW-gated turn (a large share
             # of real traffic) silently vanishes from telemetry entirely.
             _record_telemetry(telemetry.OUTCOME_ABORTED)
+            # A paused turn may already have produced an authoritative verdict
+            # (the forced auto-verify runs before any approval pause). Recording
+            # it here is what stops that verdict vanishing with the pause.
+            _emit_verification_verdict()
             yield sse("human_required", payload)
         elif kind == "done":
             # A turn where the model produced NOTHING is a failure, and until
