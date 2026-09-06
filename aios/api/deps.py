@@ -974,6 +974,15 @@ def get_capability_authority() -> CapabilityAuthority:
         capabilities.emergency_stop = get_emergency_stop()
     if capabilities.constitution_authority is None:
         capabilities.constitution_authority = get_constitution_authority()
+    if capabilities.authentication_event_lookup is None:
+        # INVARIANT III: lets `consume` ask whether the human authenticated
+        # AFTER the action was requested. Resolved lazily through
+        # `get_identity_service()` rather than captured, so a later identity
+        # rebuild is respected -- the same reason the constitution store is
+        # reached through its getter above.
+        capabilities.authentication_event_lookup = (
+            lambda event_id: get_identity_service().store.authentication_event(event_id)
+        )
     return capabilities
 
 

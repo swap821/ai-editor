@@ -210,7 +210,7 @@ class YellowOllama:
                 {
                     "function": {
                         "name": "execute_terminal",
-                        "arguments": {"command": "pip install flask"},
+                        "arguments": {"command": "mkdir training_ground/build"},
                     }
                 }
             ],
