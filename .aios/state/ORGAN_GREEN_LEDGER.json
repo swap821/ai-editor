@@ -816,12 +816,13 @@
       "C5": "PASS - a malformed known event is rejected before it can mutate the read model or fire a reaction, and unknown event families are ignored rather than applied as healthy. Proven by frontend/src/superbrain/lib/livingMirrorRegistry.test.ts::\"rejects malformed known events before read-model mutation or reaction\"",
       "C6": "PASS — focused_tests resolve on disk: ['frontend/src/superbrain/lib/livingMirrorRegistry.test.ts']",
       "C7": "PASS — integration_tests resolve on disk: ['frontend/src/superbrain/lib/aiosMirror.test.ts']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL — yellow with named residual(s): ['browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
       "C10": "N/A/FAIL — no live evidence; named residual: browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
       "C11": "PASS — last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS — f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 21,
@@ -1288,12 +1289,13 @@
       "C5": "PASS - Read on disk (lines 680-689), exercising HumanStateAccuracyReport whose class docstring (lines 468-474) says 'total_corrected is the only trustworthy denominator: an un-corrected hypothesis is not evidence of either correctness or error, so it is excluded rather than assumed correct.' The test asserts accuracy_report().accuracy is None (not a fabricated 0.0 or 1.0) when nothing has been corrected -- an honest 'unmeasurable' signal rather than an invented number, matching C5's fail-safe-reporting requirement. Proven by tests/test_human_representation_store.py::test_accuracy_report_empty_when_nothing_corrected_yet",
       "C6": "PASS — focused_tests resolve on disk: ['tests/test_human_representation.py', 'tests/test_human_representation_store.py']",
       "C7": "PASS — integration_tests resolve on disk: ['tests/test_conversation_pipeline.py', 'tests/test_api_main_gaps.py', 'tests/test_chat_human_state_correction.py', 'frontend/src/superbrain/lib/aiosAdapter.humanState.test.ts']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS — last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C12": "PASS — 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 31,
@@ -1772,12 +1774,13 @@
       "C5": "PASS - IsolatedExecutorLiveAuthority.project() returns configured=False, reachable with MetricStatus.UNAVAILABLE, and an explicit reason ('private executor service is not configured') rather than fabricating a health value when the client is unconfigured; this test asserts exactly that through the real /api/v1/mirror/executor route. A sibling test in the same file, test_executor_status_reports_an_honest_reason_when_configured_but_unreachable, proves the same fail-safe behavior for a live timeout (reachable=False, runtime unavailable, honest reason string). Proven by tests/test_mirror.py::test_executor_status_is_honestly_unconfigured_with_no_base_url_or_token",
       "C6": "PASS — focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_executor_service.py', 'tests/test_executor_client.py', 'tests/test_mirror.py']",
       "C7": "PASS — integration_tests resolve on disk: ['tests/test_executor_integration.py']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL — yellow with named residual(s): ['no Docker — Docker Desktop daemon unavailable on this Windows host (npipe dockerDesktopLinuxEngine); historical CI Docker isolation evidence retained, not tip-restamped']",
       "C10": "PASS — live evidence present at commit db0441144db9c7612d9be31cbb7e1a576ccf08d2",
       "C11": "FAIL/N/A — yellow without last_verified_sha (expected until tip attestation)",
       "C12": "FAIL/N/A — yellow; CI tip gate applies to greens only"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 41,
@@ -2188,12 +2191,13 @@
       "C5": "PASS - a total outage is detected and reported as offline rather than painted as a healthy empty state: allUnavailable is true when every payload was rejected. Proven by frontend/src/workbench/SovereignStatePanel.authorities.test.jsx::\"normalizes only truthful mirror payloads and detects total outage\"",
       "C6": "PASS — focused_tests resolve on disk: ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ48.test.jsx']",
       "C7": "PASS — integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL — yellow with named residual(s): ['browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
       "C10": "N/A/FAIL — no live evidence; named residual: browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
       "C11": "PASS — last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
       "C12": "PASS — 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 49,
@@ -2230,12 +2234,13 @@
       "C5": "PASS - pending decisions are counted without treating evidence surfaces as authority, so an evidence panel cannot be miscounted as an approval. Proven by frontend/src/workbench/SovereignStatePanel.authorities.test.jsx::\"owns pending decision counting without treating evidence surfaces as authority\"",
       "C6": "PASS — focused_tests resolve on disk: ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ49.test.jsx']",
       "C7": "PASS — integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL — yellow with named residual(s): ['browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
       "C10": "N/A/FAIL — no live evidence; named residual: browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
       "C11": "PASS — last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
       "C12": "PASS — 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 50,
@@ -2293,12 +2298,13 @@
       "C5": "PASS — durable_status()/verify_durable_chain() report unavailable or tampered rather than inventing an empty, reassuring history; record() never raises into cloud turns. Proven by tests/test_privacy_audit.py::test_durable_load_failure_surfaces_unavailable_not_empty_history",
       "C6": "PASS — focused_tests resolve on disk: ['tests/test_brain_growth.py', 'tests/test_read_model_projections.py', 'tests/test_privacy_audit.py', 'tests/test_gemini.py']",
       "C7": "PASS — integration_tests resolve on disk: ['tests/test_mirror.py', 'tests/test_route_wiring.py', 'frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS — last_verified_sha=5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C12": "PASS — 5d482164707c6c6e62f3da6a37cff79f252f9260 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 51,
@@ -2335,12 +2341,13 @@
       "C5": "PASS - loading and unknown heartbeat states project as reconnecting rather than silently clearing to a healthy badge. Proven by frontend/src/workbench/SovereignStatePanel.authorities.test.jsx::\"projects provenance and heartbeat state through dedicated owners\"",
       "C6": "PASS — focused_tests resolve on disk: ['tests/test_mirror.py', 'frontend/src/workbench/SovereignStatePanel.organ51.test.jsx']",
       "C7": "PASS — integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
-      "C8": "N/A — requires_frontend_error_states is false",
+      "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL — yellow with named residual(s): ['browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
       "C10": "N/A/FAIL — no live evidence; named residual: browser-session — truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
       "C11": "PASS — last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
       "C12": "PASS — 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
-    }
+    },
+    "requires_frontend_error_states": true
   },
   {
     "organ_id": 52,

@@ -849,7 +849,15 @@ jobs:
           AIOS_VERIFICATION_AUTHORITY_KEY: "ci-verification-authority-key-32-bytes-long!"
           AIOS_PROMOTION_AUTHORITY_KEY: "ci-promotion-authority-key-32-bytes-long!!"
         run: |
+          # --enforce-condition-proofs: the budget in
+          # .aios/state/condition_proof_budget.json reached 0 on 2026-09-01
+          # and its own note says 'when it reaches 0,
+          # --enforce-condition-proofs becomes the permanent default'. It was
+          # never flipped, so the gate stayed armed-but-unfired. Any organ
+          # promoted to green from here must name a C3/C4/C5 referent that
+          # runs and passes in THIS invocation, or CI fails.
           python scripts/verify_organ_twelve_conditions.py \
+            --enforce-condition-proofs \
             --allow-unexecuted-frontend \
             --frontend-junit frontend-junit/vitest-junit.xml \
             --extra-junit executor-junit/executor-junit.xml \

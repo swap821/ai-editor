@@ -34,7 +34,10 @@ from aios.agents.rollback_engine import RollbackEngine
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.application.memory import MemoryAuthority
 from aios.application.memory.human_representation import HumanStateInterpreterAuthority
-from aios.application.capabilities.authority import CapabilityAuthority
+from aios.application.capabilities.authority import (
+    CapabilityAuthority,
+    EmergencyStopHardWiringAuthority,
+)
 from aios.application.capabilities.verifier import CapabilityVerifier
 from aios.application.action_broker import ActionBroker
 from aios.application.governance import (
@@ -1076,10 +1079,30 @@ def get_self_apply_engine(
             timeout_s=timeout_s,
         )
 
+    # THE EMERGENCY STOP WAS MISSING HERE, and its absence was silent.
+    #
+    # `aios/core/executor.py` guards with `if self.emergency_stop is not None:`
+    # -- so a latch that was never passed is not a refused check, it is NO CHECK
+    # AT ALL. Measured 2026-09-06: with the stop engaged, this executor still
+    # dispatched, meaning self-apply verification kept running after the
+    # operator had said halt. Invariant XIV, on the one control that exists to
+    # make work stop.
+    #
+    # `require_wired` makes the omission impossible to repeat rather than merely
+    # fixed once: a production object built without a latch now fails HERE, at
+    # wiring time, instead of dispatching quietly.
+    #
+    # Only the latch was missing. `Executor.audit_log` defaults to `log_action`
+    # (aios/core/executor.py), so these runs were always recorded -- checked
+    # rather than assumed, because "and it was unaudited too" was the kind of
+    # extra claim that is easy to make and wrong.
     verify_executor = Executor(
         runner=project_root_runner,
         timeout_s=120,
         actor="self-apply-verifier",
+        emergency_stop=EmergencyStopHardWiringAuthority.require_wired(
+            get_emergency_stop(), boundary="self-apply-verify-executor"
+        ),
     )
     return SelfApplyEngine(verifier=Verifier(verify_executor))
 

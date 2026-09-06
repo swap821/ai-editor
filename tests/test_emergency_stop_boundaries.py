@@ -412,3 +412,84 @@ def test_one_interrupted_turn_records_exactly_one_row_under_concurrency(
         f"{sum(results)} threads each believed they were the sole recorder of "
         "one interrupted turn"
     )
+
+# A governed production object must be haltable
+# --------------------------------------------------------------------------- #
+
+
+def test_the_self_apply_verifier_can_be_halted() -> None:
+    """Measured 2026-09-06: it could not.
+
+    `get_self_apply_engine` built its verify executor with no emergency stop,
+    and `aios/core/executor.py` guards with `if self.emergency_stop is not
+    None:`. An absent latch is therefore not a refused check -- it is NO CHECK
+    AT ALL, and the executor dispatches. Engaging the emergency stop did not
+    halt self-apply verification, which runs `python -m pytest tests/ -q`.
+
+    Invariant XIV, on the one control whose whole purpose is to make work stop
+    when the human says stop.
+    """
+    from aios.api.deps import get_executor, get_self_apply_engine
+
+    engine = get_self_apply_engine(get_executor())
+    verifier = engine.verifier
+    executor = getattr(verifier, "executor", None) or getattr(
+        verifier, "_executor", None
+    )
+
+    assert executor is not None
+    assert executor.emergency_stop is not None, (
+        "the self-apply verify executor cannot be halted by the emergency stop"
+    )
+
+
+def test_wiring_a_governed_object_without_a_latch_fails_loudly() -> None:
+    """Absence must be an error at wiring time, not silence at dispatch.
+
+    Fixing the one instance would leave the shape that produced it: `None` and
+    "deliberately ungoverned" were the same value, so nothing could tell an
+    omission from a choice. The next construction that forgot would be equally
+    silent.
+    """
+    from aios.application.capabilities.authority import (
+        EmergencyStopHardWiringAuthority as HW,
+    )
+
+    with pytest.raises(RuntimeError) as refusal:
+        HW.require_wired(None, boundary="test-boundary")
+
+    assert "without an emergency stop" in str(refusal.value)
+    assert "test-boundary" in str(refusal.value)
+
+
+def test_a_fixture_can_still_opt_out_but_must_say_so() -> None:
+    """The escape hatch has to exist, and has to be named.
+
+    Hundreds of unit fixtures legitimately construct governed objects with no
+    latch. If the only way to satisfy the check were to wire a real one, the
+    check would be reverted within a week. The sentinel keeps the opt-out
+    available while making it visible in the diff.
+    """
+    from aios.application.capabilities.authority import (
+        EmergencyStopHardWiringAuthority as HW,
+    )
+
+    assert HW.require_wired(HW.UNGOVERNED_FIXTURE, boundary="fixture") is None
+
+
+def test_require_wired_still_rejects_a_latch_it_cannot_check() -> None:
+    """A latch-shaped object that cannot be asked is not a latch.
+
+    Passing something merely non-None must not satisfy the requirement, or the
+    check degrades into "is this field set" -- which is the presence-not-truth
+    failure the ledger already suffered from.
+    """
+    from aios.application.capabilities.authority import (
+        EmergencyStopHardWiringAuthority as HW,
+    )
+
+    class _NotALatch:
+        pass
+
+    with pytest.raises(TypeError):
+        HW.require_wired(_NotALatch(), boundary="bogus")
