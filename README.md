@@ -712,22 +712,54 @@ cd ai-editor
 #### Windows PowerShell
 
 ```powershell
-py -3.11 -m venv .venv
+py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
 ```
 
+`py -3` uses your default interpreter. Any Python 3.11 or newer works --
+`requires-python` is `>=3.11`, and 3.12 is verified end to end. `py -3.11`
+pinned the exact version and fails outright when 3.11 is registered under a
+non-standard tag (for example a uv-managed runtime), even though a usable 3.11
+is installed.
+
 #### Linux or macOS
 
 ```bash
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
 ```
 
-### 3. Optional local clerk model
+Any Python 3.11 or newer works; `python3.11` fails on a machine that has a
+supported 3.12 or 3.13 but no 3.11.
+
+### 3. Configure the environment
+
+The repo ships a `.env.example` documenting every setting:
+
+```bash
+cp .env.example .env
+```
+
+Then generate the one value that is genuinely required:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Put it in `.env` as `AIOS_VERIFICATION_AUTHORITY_KEY`. Council missions and the
+verification integrity chain refuse to run without it -- minimum 32 characters,
+and known placeholder values are rejected deliberately. Everything else in
+`.env.example` is optional.
+
+Note on the API edge: with no `AIOS_API_TOKEN` set, unauthenticated **loopback**
+requests are served as the operator, so on a default install any local process
+holds operator authority. Set a token if anything untrusted runs on the machine.
+
+### 4. Optional local clerk model
 
 Install Ollama, then pull a compact local model.
 
@@ -748,7 +780,7 @@ This is an example model, not a claim that every role or installation is already
 
 Production roles should depend on actual qualification evidence.
 
-### 4. Start the backend
+### 5. Start the backend
 
 ```bash
 python -m aios
@@ -760,7 +792,7 @@ The default local API address is:
 http://127.0.0.1:8000
 ```
 
-### 5. Start the frontend
+### 6. Start the frontend
 
 Open another terminal:
 
