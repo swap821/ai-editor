@@ -219,9 +219,33 @@ def test_check_bearer_token_accepts_a_rotated_token_and_its_predecessor_in_grace
         edge_security.get_api_token_authority = orig_getter
 
 
-def test_check_api_token_or_loopback_accepts_loopback_without_token():
+def test_check_api_token_or_loopback_refuses_loopback_without_a_bond():
+    """UPDATED 2026-09-06 (Invariant I).
+
+    This asserted that a loopback caller holding NOTHING was allowed through --
+    which is precisely the hole that was closed. Being on the machine was the
+    credential, and 39 of 54 privileged GET routes answered 200 to a bare local
+    process. The test was not wrong; it documented the contract we changed.
+    """
     request = _request(client_host="127.0.0.1", path="/api/v1/status")
-    assert edge_security.check_api_token_or_loopback(request) is None
+    response = edge_security.check_api_token_or_loopback(request)
+    assert response is not None
+    assert response.status_code == 401
+
+
+def test_the_bond_gate_leaves_the_ceremony_and_mutations_alone():
+    """The gate is scoped to privileged READS, and both halves matter.
+
+    A public path must stay open or nobody can bond in the first place, and a
+    mutation must not be judged here -- `check_mutation_origin_or_token` and
+    `action_guard` own that, and chat deliberately still works with the legacy
+    conversation cookie.
+    """
+    public = _request(client_host="127.0.0.1", path="/api/v1/auth/session")
+    assert edge_security.check_api_token_or_loopback(public) is None
+
+    mutation = _request(client_host="127.0.0.1", method="POST", path="/api/v1/chat")
+    assert edge_security.check_api_token_or_loopback(mutation) is None
 
 
 def test_check_api_token_or_loopback_rejects_remote_without_token():
