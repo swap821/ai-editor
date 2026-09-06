@@ -1142,7 +1142,11 @@ def _self_approval_attempt(ctx: DriverContext, command: str) -> dict[str, Any]:
         "command": command,
         "control": str(body.get("control") or "")[:60],
         "detail": (
-            str(body.get("reason", "") or approved.get("detail", "") or approved.get("decision", ""))
+            str(
+                body.get("reason", "")
+                or approved.get("detail", "")
+                or approved.get("decision", "")
+            )
         )[:200],
     }
 
