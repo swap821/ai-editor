@@ -1646,7 +1646,7 @@ def test_generate_rejects_replayed_or_cross_session_token(client: TestClient) ->
     session_id = _cookie_session_id(client)
     principal = get_identity_service().get_authenticated_principal(session_id)
     assert principal is not None
-    payload = {"command": "pip install flask"}
+    payload = {"command": "mkdir training_ground/build"}
     cross_binding = _generate_capability_binding(
         replace(principal, session_id="session-a"), "command", payload
     )
@@ -1803,7 +1803,7 @@ def test_execute_over_rate_limit_still_issues_fresh_human_capability(
 
 def test_approval_req_reject_does_not_run(client: TestClient) -> None:
     session_id = _cookie_session_id(client)
-    token = _issue_command_capability(client, "pip install flask")
+    token = _issue_command_capability(client, "mkdir training_ground/build")
     response = client.post(
         "/api/v1/approval/req",
         json={"approvalToken": token, "sessionId": session_id, "approve": False},
@@ -2914,7 +2914,7 @@ def test_an_orphaned_grant_does_not_ride_into_the_next_turn(
 
     # A turn that consumed an approval and then died: consumed, still live as a
     # grant, with nothing stashed because it never paused cleanly.
-    orphan_payload = {"command": "pip install flask"}
+    orphan_payload = {"command": "mkdir training_ground/build"}
     orphan_token = _issue_generate_capability(client, "command", orphan_payload)
     authority = get_capability_authority()
     authority.consume(
@@ -2942,7 +2942,7 @@ def test_an_orphaned_grant_does_not_ride_into_the_next_turn(
 
     assert response.status_code == 200
     body = response.text
-    assert "ran: pip install flask" not in body, (
+    assert "ran: mkdir training_ground/build" not in body, (
         "the orphaned approval rode forward into a turn that never asked for "
         "it -- the grant chain is not bound to one turn"
     )

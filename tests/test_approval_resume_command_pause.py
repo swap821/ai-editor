@@ -35,7 +35,22 @@ from tests.test_api import FakeIndexer, FakeLLM, FakeOllamaYellow, RecordingAudi
 class ScriptedCommandOllama(FakeOllamaYellow):
     """Records messages; issues the SAME YELLOW command every call so we can
     inspect whether the resume call's messages carry the paused turn's own
-    assistant tool_call forward as continuation."""
+    assistant tool_call forward as continuation.
+
+    Emits `pytest -q` rather than inheriting the parent's `pip install flask`.
+    Two independent reasons, and both matter:
+
+    * This is a RESUME test -- the point is that an approved command goes on to
+      RUN -- and since Invariant III a supply-chain fetch can only be approved
+      after a NEW authentication event, which no test client can mint mid-flow.
+    * The fixture below re-roots the scope lock at a temp sandbox, so any
+      command carrying a path (`mkdir training_ground/build`) is a SCOPE
+      VIOLATION here and classifies RED, refusing outright instead of pausing.
+      `pytest -q` is YELLOW, carries no path, and fetches nothing.
+    """
+
+    #: YELLOW, pathless, and not a network fetch -- see the class docstring.
+    COMMAND = "pytest -q"
 
     def __init__(self) -> None:
         self.calls: list[list] = []
@@ -43,8 +58,19 @@ class ScriptedCommandOllama(FakeOllamaYellow):
     def chat(self, messages, *, tools=None, model=None) -> dict:
         self.calls.append(list(messages))
         if len(self.calls) >= 2:
-            return {"role": "assistant", "content": "Installed and verified."}
-        return super().chat(messages, tools=tools, model=model)
+            return {"role": "assistant", "content": "Ran and verified."}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "execute_terminal",
+                        "arguments": {"command": self.COMMAND},
+                    }
+                }
+            ],
+        }
 
 
 @pytest.fixture()
@@ -116,7 +142,7 @@ def test_command_pause_also_replays_convo_tail_on_resume(client: TestClient) -> 
             fn = tc.get("function", {})
             if fn.get("name") == "execute_terminal":
                 cmd = str(fn.get("arguments", {}).get("command", ""))
-                if "pip install flask" in cmd:
+                if ScriptedCommandOllama.COMMAND in cmd:
                     found_own_tool_call = True
     assert found_own_tool_call, (
         "the command-approval pause must also stash and replay its own "

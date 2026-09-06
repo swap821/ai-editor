@@ -186,6 +186,7 @@ class CapabilityAuthority:
         clock: Callable[[], float] = time.time,
         emergency_stop: Any | None = None,
         constitution_authority: Any | None = None,
+        authentication_event_lookup: Callable[[str], Any] | None = None,
     ) -> None:
         self.store = CapabilityStore(db_path)
         self.ttl_seconds = max(float(ttl_seconds), 0.001)
@@ -194,6 +195,11 @@ class CapabilityAuthority:
         #: Organ 25. Late-bindable, matching `emergency_stop`'s existing
         #: convention -- `aios/api/deps.py` sets it on the singleton.
         self.constitution_authority = constitution_authority
+        #: INVARIANT III. Resolves an authentication_event_id to its stored
+        #: record so `consume` can ask whether the human authenticated AFTER
+        #: the action was requested. Late-bound the same way, because the
+        #: identity store lives a layer above this one.
+        self.authentication_event_lookup = authentication_event_lookup
 
     @staticmethod
     def _token_digest(token: str) -> str:
@@ -243,6 +249,84 @@ class CapabilityAuthority:
             raise CapabilityError("capability is unknown")
         return capability
 
+    def _requires_fresh_authentication(self, capability: Capability) -> bool:
+        """True when approving this action must follow a NEW human authentication.
+
+        Scoped to actions that FETCH AND EXECUTE REMOTE CODE (`pip install`,
+        `npm install`, `git clone` ...), by operator decision on 2026-09-06.
+        Ordinary YELLOW work -- `mkdir`, `touch`, `pytest` -- stays one click,
+        because requiring a re-authentication per `mkdir` would be unusable and
+        an unusable control gets switched off.
+
+        The other half of the high-risk class needs nothing here: writes outside
+        the sandbox are already RED, and RED is refused even under approval
+        (measured -- `touch ../../outside.txt` returns control=execute_approved).
+        So the class reduces to network fetches.
+
+        This deliberately reads the ACTION, not the zone. Zone answers "how
+        destructive locally"; this asks "does approving it also approve running
+        someone else's code", which is a different question.
+        """
+        payload = capability.action_payload or {}
+        command = payload.get("command")
+        if not isinstance(command, str) or not command.strip():
+            return False
+        # Imported lazily: the policy kernel sits above this layer, and a
+        # module-level import would couple the capability authority to it.
+        from aios.policy.kernel import requires_network_capability
+
+        return requires_network_capability(command)
+
+    def _assert_authentication_is_newer(
+        self, issued: CapabilityBinding, presented: CapabilityBinding
+    ) -> None:
+        """The approving human must have authenticated AFTER the request.
+
+        An agent replaying the token it was just handed still holds the auth
+        event that made the request, so it cannot satisfy this. A human who
+        re-authenticates creates a newer one and proceeds. That is the whole
+        difference between consent and replay.
+
+        "Newer", not merely "different": without the timestamp check, an
+        attacker holding any OTHER event -- an older one, or one from an
+        unrelated session -- would satisfy a difference test.
+        """
+        if issued.authentication_event_id == presented.authentication_event_id:
+            raise CapabilityError(
+                "this action fetches and executes remote code, so approving it "
+                "requires a NEW privileged authentication event: the principal "
+                "that requested it cannot also authorise it"
+            )
+        lookup = self.authentication_event_lookup
+        if lookup is None:
+            # FAIL CLOSED. Unable to compare is not permission to proceed --
+            # and this path is exactly where a mis-wired singleton would
+            # otherwise silently restore the behaviour being fixed.
+            raise CapabilityError(
+                "authentication-event freshness cannot be verified; refusing a "
+                "high-risk capability rather than assuming consent"
+            )
+        try:
+            issued_event = lookup(issued.authentication_event_id)
+            presented_event = lookup(presented.authentication_event_id)
+        except Exception as exc:  # noqa: BLE001 - a degraded store is not consent
+            raise CapabilityError(
+                "authentication-event lookup is degraded; refusing a high-risk "
+                "capability"
+            ) from exc
+        if not issued_event or not presented_event:
+            raise CapabilityError(
+                "authentication events for this capability are unknown; "
+                "refusing a high-risk capability"
+            )
+        issued_at = float(issued_event.get("created_at") or 0.0)
+        presented_at = float(presented_event.get("created_at") or 0.0)
+        if presented_at <= issued_at:
+            raise CapabilityError(
+                "the authentication presented is not newer than the one that "
+                "requested this action; re-authenticate to approve it"
+            )
+
     def consume(
         self, token: str, binding: CapabilityBinding
     ) -> ConsumedCapabilityProof:
@@ -251,6 +335,13 @@ class CapabilityAuthority:
         )
         capability = self.inspect(token)
         now = self.clock()
+        # INVARIANT III: the principal that REQUESTS an action must not be able
+        # to authorise it. `action_guard` hands the approval token back to the
+        # caller that just asked, so for high-risk actions one principal could
+        # request and approve with no human anywhere -- and the resulting audit
+        # row was indistinguishable from genuine operator consent. Both wrote
+        # "approved". A record that cannot tell those apart is not consent.
+        fresh_required = self._requires_fresh_authentication(capability)
         # constitution_digest reflects "what was live when this side was
         # built" for both the stored binding (issue time) and the caller's
         # freshly-reconstructed one (this consume request, from a live
@@ -259,10 +350,23 @@ class CapabilityAuthority:
         # so a real callable amendment during the TTL window surfaces as
         # the specific stale-constitution error rather than a generic
         # binding mismatch.
-        if replace(capability.binding, constitution_digest=None) != replace(
-            binding, constitution_digest=None
-        ):
+        #
+        # authentication_event_id is excluded for high-risk actions, and that
+        # exclusion is the WHOLE fix rather than a loosening. The binding
+        # normally pins the exact auth event, so a human who re-authenticated
+        # would find their approval REJECTED as a mismatch -- meaning the only
+        # way to approve was to still hold the event that made the request.
+        # The rule that looked like strictness was what forced self-approval.
+        # Here it is inverted: the event must differ, and differ by being NEWER
+        # (asserted immediately below, so "differ" cannot be met by an older
+        # or unrelated event).
+        _ignored: dict[str, Any] = {"constitution_digest": None}
+        if fresh_required:
+            _ignored["authentication_event_id"] = "*"
+        if replace(capability.binding, **_ignored) != replace(binding, **_ignored):
             raise CapabilityError("capability binding mismatch")
+        if fresh_required:
+            self._assert_authentication_is_newer(capability.binding, binding)
         if capability.binding.constitution_digest is not None:
             # Organ 24/25: reject outright rather than downgrade -- a
             # capability issued under a constitution that has since been
