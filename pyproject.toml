@@ -39,6 +39,15 @@ dependencies = [
     "prometheus-client>=0.20",
     "pydantic>=2.0",
     "python-dotenv>=1.0",
+    # Required at IMPORT time, not just at request time: FastAPI raises
+    # "Form data requires python-multipart to be installed" while building the
+    # route table for `/api/v1/knowledge/ingest` (aios/api/routes/memory.py),
+    # so the whole app fails to start without it. It was present in the
+    # requirements.txt freeze but never declared here -- and the README installs
+    # from THIS file, so a fresh clone could not start the backend at all.
+    # Found by the 2026-09-06 self-stranger test; a working local venv hid it
+    # completely.
+    "python-multipart>=0.0.9",
     "rank-bm25>=0.2",
     "requests>=2.28",
     "scikit-learn>=1.0",
