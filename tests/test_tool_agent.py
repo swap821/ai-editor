@@ -617,20 +617,20 @@ def test_agent_runs_approved_yellow_command() -> None:
     # The same YELLOW command, now whitelisted, runs via execute_approved instead
     # of pausing again — this is what makes in-chat approval resumable.
     chat = ScriptedChat([
-        _tool_call("execute_terminal", {"command": "pip install flask"}),
+        _tool_call("execute_terminal", {"command": "mkdir training_ground/build"}),
         {"role": "assistant", "content": "Installed."},
     ])
     events = list(
         ToolAgent(
             chat, _executor(), max_iters=3,
-            approved_commands=["pip install flask"],
+            approved_commands=["mkdir training_ground/build"],
         ).run([{"role": "user", "content": "install flask"}])
     )
     types = [e["type"] for e in events]
 
     assert "human_required" not in types, "an authorised command must not pause again"
     results = [e for e in events if e["type"] == "tool_result"]
-    assert results and "ran: pip install flask" in results[0]["output"]
+    assert results and "ran: mkdir training_ground/build" in results[0]["output"]
     assert types[-1] == "done"
 
 
