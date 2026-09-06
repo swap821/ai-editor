@@ -376,3 +376,159 @@ def test_resource_metadata_named_secret_is_still_rejected(tmp_path):
 
     with pytest.raises(CapabilityError, match="credential-like"):
         authority.issue(binding, action_payload=payload)
+
+
+# --------------------------------------------------------------------------- #
+# INVARIANT III -- approval must follow a fresh human act
+# --------------------------------------------------------------------------- #
+#
+# Measured 2026-09-06: `action_guard` returns the approval token to the
+# principal that just requested the action, so one principal could request AND
+# approve with no human anywhere. The damning part was never that the action
+# ran -- it is that the resulting audit row was indistinguishable from one
+# where an operator genuinely consented. Both wrote "approved".
+#
+# The rule that LOOKED like strictness was what forced this: the binding pinned
+# the exact authentication_event_id, so a human who re-authenticated had their
+# approval rejected as a mismatch. The only way to approve was to still hold the
+# event that made the request. These tests pin the inversion.
+
+#: Authentication events, oldest first. `created_at` is what the fix compares.
+_AUTH_EVENTS = {
+    "event:older": {"created_at": 500.0},
+    "event:strong": {"created_at": 1000.0},
+    "event:reauthenticated": {"created_at": 2000.0},
+}
+
+_FETCH = {"command": "pip install evil-package"}
+_ORDINARY = {"command": "mkdir training_ground/build"}
+
+
+def _fresh_auth_authority(tmp_path, **kwargs) -> CapabilityAuthority:
+    return CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db",
+        authentication_event_lookup=_AUTH_EVENTS.get,
+        **kwargs,
+    )
+
+
+def _fetch_binding(**overrides) -> CapabilityBinding:
+    return _binding(payload_digest=payload_digest(_FETCH), **overrides)
+
+
+def test_the_requester_cannot_approve_its_own_supply_chain_fetch(tmp_path):
+    """The exact replay organ 55's M7 measures, refused.
+
+    An agent handed the token in the REQUIRE_APPROVAL body still holds the
+    authentication event that made the request, so it cannot satisfy this. No
+    payload, no timing trick: it simply has nothing newer to present.
+    """
+    authority = _fresh_auth_authority(tmp_path)
+    token = authority.issue(_fetch_binding(), action_payload=_FETCH)
+
+    with pytest.raises(CapabilityError) as refusal:
+        authority.consume(token, _fetch_binding())
+
+    assert "NEW privileged authentication event" in str(refusal.value)
+
+
+def test_a_human_who_reauthenticates_can_approve_the_fetch(tmp_path):
+    """The control must not be a denial of service against the operator.
+
+    Before the fix a re-authentication INVALIDATED the approval (binding
+    mismatch on authentication_event_id). This asserts the inversion actually
+    landed -- that the newer event is now the thing that works.
+    """
+    authority = _fresh_auth_authority(tmp_path)
+    token = authority.issue(_fetch_binding(), action_payload=_FETCH)
+
+    proof = authority.consume(
+        token, _fetch_binding(authentication_event_id="event:reauthenticated")
+    )
+
+    assert proof.capability_id
+
+
+def test_an_older_authentication_event_does_not_count_as_fresh(tmp_path):
+    """"Newer", not merely "different" -- the difference is the whole control.
+
+    A difference test would be satisfied by ANY other event: an older one, or
+    one lifted from an unrelated session. Only a strictly newer event proves a
+    human authenticated AFTER this action was requested.
+    """
+    authority = _fresh_auth_authority(tmp_path)
+    token = authority.issue(_fetch_binding(), action_payload=_FETCH)
+
+    with pytest.raises(CapabilityError) as refusal:
+        authority.consume(token, _fetch_binding(authentication_event_id="event:older"))
+
+    assert "not newer" in str(refusal.value)
+
+
+def test_ordinary_yellow_work_still_approves_in_one_click(tmp_path):
+    """The operator's explicit scope decision, pinned.
+
+    YELLOW covers `mkdir`, `touch` and `pytest`. Requiring a re-authentication
+    per `mkdir` would be unusable, and an unusable control gets switched off.
+    So the fresh-auth requirement is scoped to actions that fetch and execute
+    REMOTE CODE. This is a deliberate residual, not an oversight: an agent
+    inside a privileged window can still self-approve ordinary YELLOW work.
+    """
+    authority = _fresh_auth_authority(tmp_path)
+    binding = _binding(payload_digest=payload_digest(_ORDINARY))
+    token = authority.issue(binding, action_payload=_ORDINARY)
+
+    proof = authority.consume(token, binding)
+
+    assert proof.capability_id
+
+
+def test_freshness_that_cannot_be_verified_is_refused(tmp_path):
+    """Fail closed. Unable to compare is not permission to proceed.
+
+    This is exactly where a mis-wired singleton would otherwise restore the
+    behaviour being fixed -- silently, and only for the high-risk class.
+    """
+    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    token = authority.issue(_fetch_binding(), action_payload=_FETCH)
+
+    with pytest.raises(CapabilityError) as refusal:
+        authority.consume(
+            token, _fetch_binding(authentication_event_id="event:reauthenticated")
+        )
+
+    assert "cannot be verified" in str(refusal.value)
+
+
+def test_an_unknown_authentication_event_is_refused(tmp_path):
+    """A forged event id must not pass by being unresolvable."""
+    authority = _fresh_auth_authority(tmp_path)
+    token = authority.issue(_fetch_binding(), action_payload=_FETCH)
+
+    with pytest.raises(CapabilityError) as refusal:
+        authority.consume(token, _fetch_binding(authentication_event_id="event:forged"))
+
+    assert "unknown" in str(refusal.value)
+
+
+def test_the_fetch_binding_is_still_exact_apart_from_the_auth_event(tmp_path):
+    """Relaxing one field must not relax the rest.
+
+    `authentication_event_id` is excluded from the equality check for high-risk
+    actions so a re-authentication can approve. Every other field must still
+    pin exactly -- otherwise the fix for Invariant III would have opened a
+    capability-substitution hole.
+    """
+    authority = _fresh_auth_authority(tmp_path)
+    token = authority.issue(_fetch_binding(), action_payload=_FETCH)
+
+    with pytest.raises(CapabilityError) as refusal:
+        authority.consume(
+            token,
+            _fetch_binding(
+                authentication_event_id="event:reauthenticated",
+                route="/api/v1/something-else",
+            ),
+        )
+
+    assert "binding mismatch" in str(refusal.value)
