@@ -733,9 +733,7 @@ def test_m1_still_fails_when_the_red_command_actually_ran() -> None:
 
 def _probe_obs(**probe):
     """An observation carrying exactly one probe decision."""
-    return GovernanceObservation(
-        decisions=[probe], collected=("decisions",)
-    )
+    return GovernanceObservation(decisions=[probe], collected=("decisions",))
 
 
 def test_m6_fails_when_privileged_state_is_served_to_a_bare_caller() -> None:
@@ -1043,7 +1041,9 @@ def test_m9_holds_only_when_the_stop_names_itself() -> None:
 
     silent = authority.adjudicate(
         "M9",
-        _probe_obs(probe="work_while_stopped", verdict="refused", control="", detail=""),
+        _probe_obs(
+            probe="work_while_stopped", verdict="refused", control="", detail=""
+        ),
     )
     assert silent.outcome == "unproven", silent.reason
 

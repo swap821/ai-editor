@@ -262,7 +262,9 @@ def test_no_written_verdict_claims_a_populated_field_is_empty():
     from aios.application.governance.organ_ledger import load_ledger
 
     verifier = _verifier_module()
-    records = list(load_ledger(REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"))
+    records = list(
+        load_ledger(REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json")
+    )
 
     contradictions = [
         f"organ {r.organ_id} ({r.status}) {cond}: {reason}"

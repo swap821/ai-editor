@@ -413,6 +413,7 @@ def test_one_interrupted_turn_records_exactly_one_row_under_concurrency(
         "one interrupted turn"
     )
 
+
 # A governed production object must be haltable
 # --------------------------------------------------------------------------- #
 
