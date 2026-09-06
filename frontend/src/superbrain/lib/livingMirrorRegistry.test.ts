@@ -206,6 +206,49 @@ describe('Living Mirror reaction registry', () => {
     );
   });
 
+  it('degrades to an explicit unavailable state when a reaction throws, without losing the event', () => {
+    // C8 -- frontend error/unavailable coverage. Until 2026-09-06 organ 20
+    // carried `requires_frontend_error_states: false`, so C8 read
+    // "N/A" and could not fail. It was false on ALL 55 organs: a condition
+    // that never bound on anything.
+    //
+    // The path is real, not a keyword. livingMirrorRegistry wraps every
+    // reaction in try/catch and announces 'Backend event reaction unavailable.'
+    // when one throws. What matters is that it DEGRADES rather than losing the
+    // frame: applyEvent has already run by then, so the portrait still advances
+    // and only the reaction is reported missing. A registry that swallowed the
+    // event too would go quietly stale instead of saying so.
+    vi.mocked(publishCognition).mockImplementationOnce(() => {
+      throw new Error('reaction handler exploded');
+    });
+
+    const handled = dispatchLivingMirrorEvent(
+      event(30, 'skill.mastered', { skill: 'run the suite', level: 2 }),
+    );
+
+    expect(handled).toBe(true);
+    expect(useMirrorStore.getState().lastAnnouncement).toBe(
+      'Backend event reaction unavailable.',
+    );
+    // The frame still landed -- degraded, not dropped.
+    expect(useMirrorStore.getState().lastEventId).toBe(30);
+  });
+
+  it('reports an unsupported schema as unavailable rather than applying it', () => {
+    // The other half of the same honesty rule: a frame the registry cannot
+    // interpret must be named, not silently ignored. `2` is not a schema this
+    // build understands, so nothing may reach the portrait from it.
+    const handled = dispatchLivingMirrorEvent(
+      event(31, 'skill.mastered', { skill: 'x', level: 1 }, '2'),
+    );
+
+    expect(handled).toBe(true);
+    expect(useMirrorStore.getState().lastAnnouncement).toContain(
+      'Unsupported event schema',
+    );
+    expect(useMirrorStore.getState().lastEventId).toBeNull();
+  });
+
   it('routes the public registry API through the LivingMirrorAuthority owner (Organ 20)', () => {
     const authority = getLivingMirrorAuthority();
     expect(authority).toBeInstanceOf(LivingMirrorAuthority);

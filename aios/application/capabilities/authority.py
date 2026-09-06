@@ -163,8 +163,25 @@ class EmergencyStopHardWiringAuthority:
     expose the real ``assert_operational`` method before any side effect.
     """
 
+    #: Explicit opt-out for deliberately ungoverned fixtures.
+    #:
+    #: `None` and "this fixture does not need a latch" used to be the same
+    #: value, so a production path that simply FORGOT the stop was
+    #: indistinguishable from one that had opted out on purpose. That is how
+    #: `get_self_apply_engine` shipped a verify executor with no latch: nothing
+    #: could tell the omission from a choice. Naming the choice makes the
+    #: omission visible.
+    UNGOVERNED_FIXTURE = "ungoverned-fixture"
+
     @staticmethod
     def assert_operational(emergency_stop: Any | None, *, boundary: str) -> None:
+        """Check a latch that MAY legitimately be absent (unchanged behaviour).
+
+        Kept lenient on `None` because hundreds of unit fixtures construct
+        governed objects without a latch and are not production. Use
+        :meth:`require_wired` at the wiring boundary, where absence is always a
+        bug rather than a choice.
+        """
         if emergency_stop is None:
             return
         checker = getattr(emergency_stop, "assert_operational", None)
@@ -173,6 +190,36 @@ class EmergencyStopHardWiringAuthority:
                 f"{boundary} emergency-stop dependency is not operationally checkable"
             )
         checker()
+
+    @classmethod
+    def require_wired(cls, emergency_stop: Any | None, *, boundary: str) -> Any:
+        """Fail at WIRING TIME when a governed production object has no latch.
+
+        `aios/core/executor.py` guards with `if self.emergency_stop is not
+        None:` -- so an absent latch is not a wrong answer, it is *no question
+        asked*, and the executor dispatches. Measured 2026-09-06: the
+        self-apply verify executor was built without one, meaning engaging the
+        emergency stop did not halt self-apply verification at all.
+
+        That file is FOUNDATION_LOCK'd and its guard is correct for the objects
+        that may legitimately lack a latch. The place to make omission
+        impossible is where PRODUCTION objects are built -- `aios/api/deps.py`
+        -- because a production path has no honest reason to be ungoverned.
+
+        Returns the latch so it can be used inline at a construction site.
+        """
+        if emergency_stop is cls.UNGOVERNED_FIXTURE:
+            return None
+        if emergency_stop is None:
+            raise RuntimeError(
+                f"{boundary} was constructed without an emergency stop. A "
+                "governed production object must be able to be halted; pass "
+                "get_emergency_stop(), or "
+                "EmergencyStopHardWiringAuthority.UNGOVERNED_FIXTURE to state "
+                "that ungoverned is deliberate."
+            )
+        cls.assert_operational(emergency_stop, boundary=boundary)
+        return emergency_stop
 
 
 class CapabilityAuthority:
