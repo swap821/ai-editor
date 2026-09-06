@@ -692,6 +692,65 @@ def _condition_proof_failures(
     return failures
 
 
+#: Phrases a written verdict uses to claim a field holds nothing, paired with
+#: the field that would make the claim false. Deliberately literal: this catches
+#: the record drifting behind the mechanism, not every possible wording.
+#: Only phrases that ASSERT the field's state. The bare "no live evidence" is
+#: deliberately ABSENT: five green organs carry the rubric preamble
+#: "N/A/FAIL - no live evidence; named residual: ..." which describes what WOULD
+#: fail C10, not what the record holds. Flagging those would fail CI on correct
+#: entries -- a rule that cries wolf gets deleted, and then the real drift on
+#: organ 55 goes unnoticed again. Measured: with the bare phrase included this
+#: fires 9 times across 6 organs, 5 of them false.
+_EMPTINESS_CLAIMS: tuple[tuple[str, str], ...] = (
+    ("live_evidence is empty", "live_evidence"),
+    ("nothing has been verified live", "live_evidence"),
+    ("none has been produced", "live_evidence"),
+    ("no cohort has been run", "live_evidence"),
+)
+
+
+def _verdict_contradiction_failures(record) -> list[tuple[str, str]]:
+    """A written verdict may not assert a field is empty when it is populated.
+
+    WHY THIS EXISTS. Organ 55 accumulated live evidence across four cohorts
+    while its C9/C10/C11 verdicts still read "live_evidence is empty", "nothing
+    has been verified live yet", and "All five missions are runnable" -- by then
+    there were eight. `known_blockers` simultaneously said the live-evidence
+    blocker was DISCHARGED. Four statements, three of them false, all sitting in
+    the artifact a reader trusts first.
+
+    Nothing caught it. The existing verdict check asserts only that the text is
+    at least 8 characters -- present, not true. And `_mechanical_checks` runs
+    for GREENS only, so a yellow organ's prose could drift indefinitely.
+
+    That is a memory-is-not-truth failure inside the ledger that records this
+    project's memory-is-not-truth thesis, which is the worst possible place for
+    it. The text is cheap to fix; a rule that makes it fail loudly next time is
+    the part worth having.
+
+    Runs for EVERY organ regardless of status -- the drift happened on a yellow.
+    """
+    failures: list[tuple[str, str]] = []
+    verdicts = record.condition_verdicts or {}
+    for key, raw in verdicts.items():
+        text = str(raw or "").lower()
+        for claim, field in _EMPTINESS_CLAIMS:
+            if claim not in text:
+                continue
+            value = getattr(record, field, None)
+            if value:
+                failures.append(
+                    (
+                        str(key),
+                        f"verdict claims {claim!r} but {field} holds "
+                        f"{len(value)} entr{'y' if len(value) == 1 else 'ies'} "
+                        "-- the record is behind the mechanism",
+                    )
+                )
+    return failures
+
+
 def _mechanical_checks(
     record,
     root: Path,
@@ -1182,6 +1241,23 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
                 file=sys.stderr,
             )
             return 1
+
+    # Applies to every organ, green or yellow: the drift this catches happened
+    # on a yellow, where no mechanical check runs at all.
+    contradictions = [
+        f"organ {record.organ_id} ({record.name}) {cond}: {reason}"
+        for record in records
+        for cond, reason in _verdict_contradiction_failures(record)
+    ]
+    if contradictions:
+        print(
+            "LEDGER CONTRADICTS ITSELF -- a written verdict asserts a field is "
+            "empty while that field holds data:",
+            file=sys.stderr,
+        )
+        for msg in contradictions:
+            print(f"  - {msg}", file=sys.stderr)
+        return 1
 
     print(f"green mechanical failures: {len(green_failures)}")
     if green_failures and not args.demote:

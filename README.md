@@ -755,9 +755,28 @@ verification integrity chain refuse to run without it -- minimum 32 characters,
 and known placeholder values are rejected deliberately. Everything else in
 `.env.example` is optional.
 
-Note on the API edge: with no `AIOS_API_TOKEN` set, unauthenticated **loopback**
-requests are served as the operator, so on a default install any local process
-holds operator authority. Set a token if anything untrusted runs on the machine.
+Note on the API edge (corrected 2026-09-06): this used to say that with no
+`AIOS_API_TOKEN` set, unauthenticated **loopback** requests are served as the
+operator. That was true, and measured: 39 of 68 privileged `GET` routes answered
+200 to a caller holding no token, no cookie and no Origin.
+
+It no longer is. Privileged reads now require a **bonded operator session** (the
+Sovereign Bond ceremony in the UI). Re-measured against a fresh unbonded
+instance:
+
+```
+6 of 59 probeable GET routes served    /api/v1/auth/session
+                                       /api/v1/models/{auto,bedrock,gemini,local}
+                                       /api/v1/mirror/governance  (self-censoring)
+53 refused                             401
+```
+
+Two honest caveats. The refusal count reflects a **default-deny edge** rather
+than 53 individual authorization decisions -- `/api/v1/no-such-route` returns 401
+too. That is the better architecture, since it cannot be forgotten on route 54,
+but the load-bearing claim is the numerator: only those six are served.
+And this covers **reads**; what a process can do once it holds a real operator
+credential is a separate question.
 
 ### 4. Optional local clerk model
 

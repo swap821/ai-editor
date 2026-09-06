@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import json
 import hashlib
+import logging
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -347,9 +349,22 @@ class EmergencyStopController:
         return "completed"
 
 
+_LOGGER = logging.getLogger(__name__)
+
 #: Turn ids already recorded as incomplete, so the pipeline and the coordinator
 #: cannot both write a row for the same turn.
 _RECORDED_TURNS: list[str] = []
+
+#: Guards the check-then-append on _RECORDED_TURNS above.
+#:
+#: The two callers are on DIFFERENT THREADS. `generate_pipeline` runs inside a
+#: threadpool (the sync generator is iterated via `iterate_in_threadpool` so it
+#: cannot block the event loop), while `TurnCoordinator`'s `finally` runs on the
+#: loop. Without this lock both can pass the membership test before either
+#: appends, and both write a row -- for the one fact the function's own
+#: docstring says must appear exactly once. A governance audit would then see
+#: two rows for one interrupted turn and could not tell which was authoritative.
+_RECORDED_TURNS_LOCK = threading.Lock()
 
 
 def latch_is_engaged() -> bool:
@@ -365,6 +380,41 @@ def latch_is_engaged() -> bool:
         return bool(getattr(get_emergency_stop().state(), "engaged", False))
     except Exception:  # noqa: BLE001 - unknown latch state is not a claim
         return False
+
+
+def halt_requires_stop() -> bool:
+    """True when in-flight work MUST stop. Fails CLOSED, unlike the observation.
+
+    THE SPLIT THIS FUNCTION EXISTS TO MAKE. `latch_is_engaged` is an
+    observation and fails OPEN on purpose: an unreadable latch is not evidence
+    that work was revoked, and recording a revocation that never happened would
+    put a false row in the governance record.
+
+    Deciding whether to STOP is the opposite question, and the same answer is
+    wrong for it. `generate_pipeline` used the observation to make its
+    step-boundary halt decision, so an unreadable latch meant "keep working" --
+    on the one control that exists to make work stop when the human says stop.
+    Nobody has to attack anything for that to matter: a locked SQLite file
+    during a checkpoint is enough.
+
+    So: engaged -> stop. Unreadable -> ALSO stop, loudly. The cost of a false
+    stop is an aborted turn the operator can retry; the cost of a false
+    continue is work proceeding after a human said halt. Those are not
+    comparable, and this follows the precedent
+    `EmergencyStopHardWiringAuthority.assert_operational` already sets, which
+    refuses rather than proceeding when the stop dependency cannot be checked.
+    """
+    try:
+        from aios.api.deps import get_emergency_stop
+
+        return bool(getattr(get_emergency_stop().state(), "engaged", False))
+    except Exception:  # noqa: BLE001 - unreadable stop control means STOP
+        _LOGGER.warning(
+            "emergency-stop state unreadable; halting in-flight work rather "
+            "than assuming it may continue",
+            exc_info=True,
+        )
+        return True
 
 
 def record_turn_incomplete_if_revoked(
@@ -393,12 +443,14 @@ def record_turn_incomplete_if_revoked(
     # turn, and a governance audit must see one row per interrupted turn, not
     # two contradictory ones.
     key = str(turn_id)
-    if key and key in _RECORDED_TURNS:
-        return False
+    # Check and claim ATOMICALLY -- see _RECORDED_TURNS_LOCK.
     if key:
-        _RECORDED_TURNS.append(key)
-        if len(_RECORDED_TURNS) > 512:  # bounded; this is a dedupe cache
-            del _RECORDED_TURNS[:256]
+        with _RECORDED_TURNS_LOCK:
+            if key in _RECORDED_TURNS:
+                return False
+            _RECORDED_TURNS.append(key)
+            if len(_RECORDED_TURNS) > 512:  # bounded; this is a dedupe cache
+                del _RECORDED_TURNS[:256]
     if bus is None:
         try:
             from aios.api.deps import get_cortex_observation_bus
@@ -446,6 +498,7 @@ __all__ = [
     "EmergencyStopController",
     "EmergencyStopError",
     "EmergencyStopHooks",
+    "halt_requires_stop",
     "latch_is_engaged",
     "record_turn_incomplete_if_revoked",
 ]

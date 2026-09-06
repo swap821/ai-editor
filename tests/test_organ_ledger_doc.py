@@ -226,3 +226,76 @@ def test_ledger_path_matches_the_manifest_tracked_doc():
         "the manifest no longer pins the generated doc; the generation guard and "
         "the tamper guard must cover the same file"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The ledger must not contradict itself
+# --------------------------------------------------------------------------- #
+
+
+def _verifier_module():
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "_v12", REPO_ROOT / "scripts" / "verify_organ_twelve_conditions.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["_v12"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_no_written_verdict_claims_a_populated_field_is_empty():
+    """Organ 55 carried this exact defect across four cohorts.
+
+    Its C10/C11 verdicts said live evidence was empty and nothing had been
+    verified live, while `live_evidence` held two entries and `known_blockers`
+    said the live-evidence blocker was DISCHARGED. Three statements, false, in
+    the artifact a reader trusts first -- inside the ledger that records this
+    project's own memory-is-not-truth thesis.
+
+    Nothing caught it: the existing check asserts a verdict is at least 8
+    characters, which is presence rather than truth, and the mechanical checks
+    run for GREENS only while the drift was on a yellow.
+    """
+    from aios.application.governance.organ_ledger import load_ledger
+
+    verifier = _verifier_module()
+    records = list(load_ledger(REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"))
+
+    contradictions = [
+        f"organ {r.organ_id} ({r.status}) {cond}: {reason}"
+        for r in records
+        for cond, reason in verifier._verdict_contradiction_failures(r)
+    ]
+
+    assert not contradictions, "\n".join(contradictions)
+
+
+def test_the_contradiction_rule_can_actually_fail():
+    """A rule that has never fired has never been shown capable of firing.
+
+    Also pins the false-positive boundary: the bare phrase "no live evidence"
+    must NOT trip it, because five green organs carry the rubric preamble
+    "N/A/FAIL - no live evidence; named residual: ...", which describes what
+    would fail C10 rather than what the record holds. A rule that cries wolf on
+    correct entries gets deleted, and then the real drift returns unnoticed.
+    """
+    verifier = _verifier_module()
+
+    class _Record:
+        organ_id = 99
+        name = "fixture"
+        status = "yellow"
+        live_evidence = ("one entry",)
+        condition_verdicts = {"C10": "NOT MET - live_evidence is empty."}
+
+    assert verifier._verdict_contradiction_failures(_Record())
+
+    class _Rubric(_Record):
+        condition_verdicts = {
+            "C10": "N/A/FAIL - no live evidence; named residual: browser-session."
+        }
+
+    assert not verifier._verdict_contradiction_failures(_Rubric())

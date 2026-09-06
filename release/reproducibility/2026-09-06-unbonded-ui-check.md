@@ -62,15 +62,40 @@ ceremony could not have reported bond status at all.
 The full read surface, same tree, unauthenticated:
 
 ```
-readable unauthenticated:  5 / 54   (was 39 / 54 before the fix)
+served 200:  6 of 59 probeable   (68 GET routes under /api/ in total)
   /api/v1/auth/session
   /api/v1/models/{auto,bedrock,gemini,local}
+  /api/v1/mirror/governance      <- self-censoring: constitution.version = unavailable
+refused:     53                  401
 
-/api/v1/mirror/governance  200 but self-censoring (constitution.version = unavailable)
 /api/v1/mirror/snapshot    401
 /api/v1/mirror/executor    401
 ```
 
-Exactly the declared allowlist, and the mirror exemption behaves as designed:
-the one route that authorises per field is served, its siblings that authorise
-nothing are refused.
+**Corrected 2026-09-06 after external review.** This first read `5 / 54`, wrong
+on both sides. The denominator came from grepping `@router.get` in
+`aios/api/routes/*.py`, which misses routers mounted with a prefix -- the real
+count is 68. The numerator dropped `/api/v1/mirror/governance` into prose two
+lines down as "200 but self-censoring", which is defensible reasoning and a bad
+number: the figure that travels is the one in the code block, and the route it
+omitted is the one that discloses emergency-stop state. `6, one self-censoring`
+costs nothing and cannot be misread.
+
+**Two traps, both of which made the surface look SAFER than it is.** This app
+mounts routers through a lazy `_IncludedRouter` wrapper, so a naive `app.routes`
+walk finds **1** route rather than 68 -- a reviewer enumerating the obvious way
+measures almost nothing. And a walker that re-applies a router's prefix to a
+path that already carries it probes
+`/api/v1/mirror/api/v1/mirror/governance`, which 401s and scores as *refused*.
+Both bugs subtract from the served count, which is the direction that flatters.
+
+**What the refusal count does and does not mean.** `/api/v1/no-such-route`
+returns 401 as well: the edge default-denies before route resolution, so 53 is
+the edge refusing everything off the allowlist, not 53 individual authorization
+decisions. That is the better architecture -- it cannot be forgotten on route 54
+-- but the honest sentence is *everything not on the allowlist is refused*, and
+the load-bearing half is the numerator, which is verified route by route.
+
+The mirror exemption behaves as designed: the one route that authorises per
+field is served and self-censors, its siblings that authorise nothing are
+refused.
