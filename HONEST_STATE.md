@@ -39,13 +39,35 @@ Verification strength follows the taxonomy in `aios/core/verification_strength.p
 
 - It is NOT a foundation model. The system does not generate text, reason about
   novel concepts, or produce creative output without an LLM.
-- It is NOT autonomous. The operator has final authority on all YELLOW actions.
-  The cerebellum replays through the same approval gate as LLM-proposed actions.
+- It is NOT autonomous. Every YELLOW action stops for an approval, and the
+  cerebellum replays through the same gate as LLM-proposed actions.
+
+  **Measured correction, 2026-09-06.** This bullet used to read "the operator
+  has final authority on all YELLOW actions". Organ 55's mission M7 measures
+  that claim and it FAILS: the approval token is returned to the principal that
+  requested the action, so one principal can request and approve the same
+  action with no human anywhere in the loop. The gate is real -- nothing runs
+  without an approval -- but the system cannot presently prove the approval came
+  from the operator rather than from the requester. The audit rows are
+  identical. "Final authority" was a stronger claim than the evidence supports,
+  and this document is the wrong place to make one.
 - It is NOT omniscient. The knowledge graph contains only verified facts. Its
   horizon is visible and honest.
 - It is NOT permanent. A compiled playbook decompiles after 2 consecutive
   failures. A demoted skill invalidates its playbook. Sovereignty is earned
   and can be lost.
+
+## Decided, not yet built
+
+**The learning loop, Option A** (operator decision, 2026-09-06). Stage 1 is a
+content-identical, idempotent `create_file`: replay checks the target digest and
+abstains if it differs. The blocker is `_COMPILABLE_TOOLS` in
+`aios/core/cerebellum.py`, which excludes writes, so a compiled playbook can
+today replay only reads and commands.
+
+Recorded here rather than built because it is roughly a three-week effort. The
+alternative considered and rejected was Option B: narrow the public claim to
+match what the loop actually does. The claim stays; the work is owed.
 
 ## How to prove it
 
