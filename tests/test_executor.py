@@ -216,7 +216,7 @@ def test_bounded_runner_rejects_unsafe_structured_argv() -> None:
 
 def test_execute_approved_runs_yellow_command() -> None:
     runner = RecordingRunner(out="installed")
-    result = _executor(runner).execute_approved("pip install flask")
+    result = _executor(runner).execute_approved("mkdir training_ground/build")
     assert result.status == "OK"
     assert result.zone == "YELLOW"
     assert len(runner.calls) == 1
@@ -248,13 +248,13 @@ def test_execute_approved_uses_kernel_policy_for_isolation_flag(monkeypatch) -> 
         approved_runner=isolated,
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
-    ).execute_approved("pip install flask")
+    ).execute_approved("mkdir training_ground/build")
 
     assert result.status == "OK"
     assert result.stdout == "host"
     assert "Executed within configured scope" in result.reason
     assert len(host.calls) == 1
-    assert host.calls[0]["command"] == "pip install flask"
+    assert host.calls[0]["command"] == "mkdir training_ground/build"
     assert isolated.calls == []
 
 
@@ -481,7 +481,7 @@ def test_container_default_routes_approved_command_through_container_not_host(
         audit_log=RecordingAudit(),
     )
 
-    result = executor.execute_approved("pip install flask")
+    result = executor.execute_approved("mkdir training_ground/build")
 
     assert result.status == "OK"
     assert (
@@ -514,7 +514,7 @@ def test_container_backend_fails_closed_when_runner_raises(monkeypatch) -> None:
         audit_log=RecordingAudit(),
     )
 
-    result = executor.execute_approved("pip install flask")
+    result = executor.execute_approved("mkdir training_ground/build")
 
     assert result.status == "ERROR"
     assert host.calls == []  # fail closed, never the host

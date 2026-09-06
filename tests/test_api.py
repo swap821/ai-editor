@@ -239,6 +239,42 @@ class FakeOllamaYellow:
         }
 
 
+class FakeOllamaYellowLocal:
+    """YELLOW stand-in whose command does NOT fetch remote code.
+
+    `FakeOllamaYellow` above uses `pip install flask`, which since the
+    Invariant IV change needs the operator's `network.fetch` grant on top of
+    the per-command approval. That still makes it a perfect fixture for the
+    PAUSE path -- it is YELLOW, so the turn pauses -- but it can no longer
+    demonstrate the RESUME path, where the point is that an approved command
+    goes on to run. This fixture keeps that half testable with a command that
+    is equally YELLOW and equally scope-checked, minus the network.
+    """
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "execute_terminal",
+                        "arguments": {"command": "mkdir training_ground/build"},
+                    }
+                }
+            ],
+        }
+
+
 class FakeOllamaSecretEdit:
     """Ollama stand-in whose edit payload must be refused before token issue."""
 
@@ -780,7 +816,7 @@ def test_terminal_yellow_issues_capability_and_runs_after_approval(
     session_id = _cookie_session_id(client)
     pending = client.post(
         "/api/terminal",
-        json={"command": "pip install flask", "sessionId": session_id},
+        json={"command": "mkdir training_ground/build", "sessionId": session_id},
     )
     assert pending.status_code == 200
     body = pending.json()
@@ -804,7 +840,7 @@ def test_terminal_capability_rejects_altered_command_without_consuming(
 ) -> None:
     pending = client.post(
         "/api/terminal",
-        json={"command": "pip install flask"},
+        json={"command": "mkdir training_ground/build"},
     )
     token = pending.json()["approvalToken"]
 
@@ -812,7 +848,7 @@ def test_terminal_capability_rejects_altered_command_without_consuming(
         "/api/v1/approval/req",
         json={
             "approvalToken": token,
-            "command": "pip install requests",
+            "command": "mkdir training_ground/other",
             "approve": True,
         },
     )
@@ -1572,10 +1608,10 @@ def test_generate_routes_cloud_model_to_bedrock(client: TestClient) -> None:
 def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     # Re-sending the turn with the command whitelisted runs it via the sandbox
     # (FakeRunner), so the turn now completes instead of pausing.
-    app.dependency_overrides[get_ollama_client] = FakeOllamaYellow
+    app.dependency_overrides[get_ollama_client] = FakeOllamaYellowLocal
     session_id = _cookie_session_id(client)
     token = _issue_generate_capability(
-        client, "command", {"command": "pip install flask"}
+        client, "command", {"command": "mkdir training_ground/build"}
     )
     response = client.post(
         "/api/generate",
@@ -1589,7 +1625,7 @@ def test_generate_runs_approved_yellow_command(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.text
     assert "event: human_required" not in body
-    assert "ran: pip install flask" in body  # executed in the sandbox
+    assert "ran: mkdir training_ground/build" in body  # executed in the sandbox
     assert "event: done" in body
 
 
@@ -1682,7 +1718,7 @@ def test_execute_issues_capability_then_approval_runs_yellow(
     session_id = _cookie_session_id(client)
     escalated = client.post(
         "/api/v1/execute",
-        json={"command": "pip install flask", "sessionId": session_id},
+        json={"command": "mkdir training_ground/build", "sessionId": session_id},
     )
     assert escalated.status_code == 200
     pending = escalated.json()
@@ -1694,7 +1730,7 @@ def test_execute_issues_capability_then_approval_runs_yellow(
         "/api/v1/approval/req",
         json={
             "approvalToken": pending["approvalToken"],
-            "command": "pip install flask",
+            "command": "mkdir training_ground/build",
             "sessionId": session_id,
             "approve": True,
         },
@@ -1710,7 +1746,7 @@ def test_execute_capability_rejects_altered_command_without_consuming(
     client: TestClient,
 ) -> None:
     session_id = _cookie_session_id(client)
-    original = "pip install flask"
+    original = "mkdir training_ground/build"
     pending = client.post(
         "/api/v1/execute",
         json={"command": original, "sessionId": session_id},
@@ -1720,7 +1756,7 @@ def test_execute_capability_rejects_altered_command_without_consuming(
         "/api/v1/approval/req",
         json={
             "approvalToken": pending["approvalToken"],
-            "command": "pip install requests",
+            "command": "mkdir training_ground/other",
             "approve": True,
         },
     )

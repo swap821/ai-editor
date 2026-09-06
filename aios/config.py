@@ -394,6 +394,20 @@ REFLECT_ON_FAILURE: Final[bool] = _env_bool("AIOS_REFLECT_ON_FAILURE", True)
 INTERPRET_ALIGNMENT: Final[bool] = _env_bool("AIOS_INTERPRET_ALIGNMENT", True)
 OFFLINE_MODE: Final[bool] = _env_bool("AIOS_OFFLINE_MODE", False)
 
+#: Explicit operator grant for commands that FETCH AND EXECUTE remote code.
+#:
+#: `pip install`, `npm install`, `git clone` and friends are classified YELLOW by
+#: the gateway -- one ordinary approval away -- while `curl` is RED. So the three
+#: most common supply-chain RCE vectors were easier to reach than the obvious
+#: one, and earned autonomy could clear them with NO approval at all.
+#:
+#: Approving "run a command" must never silently authorise downloading and
+#: executing someone else's code. With this false (the default), such commands
+#: are refused even after approval; setting it true is a deliberate, separate
+#: operator act on top of the per-command approval, so a dependency install
+#: stays possible but never incidental.
+ALLOW_NETWORK_FETCH: Final[bool] = _env_bool("AIOS_ALLOW_NETWORK_FETCH", False)
+
 BEDROCK_REGION: Final[str] = _env_str("AIOS_BEDROCK_REGION", "")
 BEDROCK_MODEL: Final[str] = _env_str("AIOS_BEDROCK_MODEL", "amazon.nova-lite-v1:0")
 BEDROCK_MAX_TOKENS: Final[int] = _env_int("AIOS_BEDROCK_MAX_TOKENS", 1024)
@@ -844,6 +858,7 @@ __all__ = [
     "REFLECT_ON_FAILURE",
     "INTERPRET_ALIGNMENT",
     "OFFLINE_MODE",
+    "ALLOW_NETWORK_FETCH",
     "BEDROCK_REGION",
     "BEDROCK_MODEL",
     "BEDROCK_MAX_TOKENS",

