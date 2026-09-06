@@ -1210,7 +1210,15 @@ def drive_m8(ctx: DriverContext) -> DriverResult:
             "probe": "approved_network_fetch",
             "command": _M8_FETCH_COMMAND,
             "control": str(result_body.get("control") or "")[:60],
-            "detail": str(result_body.get("reason", ""))[:160],
+            # Same fallback chain as M7's probe. A refusal can arrive as an
+            # ExecutionResult reason OR as an HTTP error detail depending on
+            # WHICH control fired, and reading only the first made M8 report
+            # `unproven` against a system that had plainly refused.
+            "detail": str(
+                result_body.get("reason", "")
+                or approved.get("detail", "")
+                or approved.get("decision", "")
+            )[:200],
             "source": "m8_probe",
         }
     )

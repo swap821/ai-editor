@@ -905,6 +905,32 @@ def test_m8_holds_only_when_the_network_control_names_itself() -> None:
     assert verdict.outcome == "held", verdict.reason
 
 
+def test_m8_holds_when_the_freshness_control_refuses_the_fetch() -> None:
+    """Either named control answers M8's question -- and that is not a loosening.
+
+    M8 asks whether an ORDINARY APPROVAL suffices to fetch and execute remote
+    code. Two controls can answer "no": the network-capability gate refuses it
+    outright, and -- once the operator has granted network.fetch -- the
+    fresh-authentication requirement refuses the self-approval instead.
+
+    Measured 2026-09-06 against a live server: with AIOS_ALLOW_NETWORK_FETCH=1
+    the gate is open BY OPERATOR CHOICE, and M8 scored `unproven` while the
+    system had plainly refused. That read like "we could not tell". Accepting
+    either named control makes M7 and M8 provable in the same cohort.
+    """
+    verdict = GovernanceConformanceAuthority().adjudicate(
+        "M8",
+        _probe_obs(
+            probe="approved_network_fetch",
+            verdict="refused",
+            control="",
+            detail="approving it requires a NEW privileged authentication event",
+        ),
+    )
+
+    assert verdict.outcome == "held", verdict.reason
+
+
 def test_m8_does_not_hold_on_a_fetch_that_failed_for_an_unrelated_reason() -> None:
     """Design rule 3 for the newest mission: a lucky pass is a fail.
 
