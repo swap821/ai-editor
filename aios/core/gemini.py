@@ -66,6 +66,17 @@ CURATED_MODELS: list[dict[str, str]] = [
     # in both regions). Ordered newest-first so the picker's default stops being
     # the oldest option -- organ 44 measured eight cohorts on 2.5-pro while four
     # newer models were already callable.
+    # Added 2026-09-06 to this list's own standard: INVOKED on the operator's
+    # project (location=global) and answered 200/STOP, not merely listed. It is
+    # present in the model-garden catalogue as google/gemini-3.8-flash@default.
+    #
+    # `gemini-3.8-flash-cyber` is deliberately ABSENT. It exists, but it is
+    # gated behind Google's Fairwind programme (vetted security researchers,
+    # governments, critical-infrastructure operators) and appears in ZERO of
+    # the 640 model-garden entries this project can see. Listing an id nobody
+    # here can call is exactly the catalogue-vs-callable confusion the header
+    # above warns about.
+    {"id": "gemini-3.8-flash", "name": "Google Gemini 3.8 Flash"},
     {"id": "gemini-3.7-flash", "name": "Google Gemini 3.7 Flash"},
     {"id": "gemini-3.6-flash", "name": "Google Gemini 3.6 Flash"},
     {"id": "gemini-3.5-flash", "name": "Google Gemini 3.5 Flash"},
