@@ -873,6 +873,10 @@ class ToolAgent:
         #: Populated by _guard_tool_output at every site that feeds tool
         #: output into the model's context.
         self._pending_injections: list[dict[str, Any]] = []
+        #: Secret-scan findings from the most recent verify, awaiting emission.
+        #: Same shape and lifecycle as `_pending_injections`: the scan happens
+        #: deep in the handler, but only the run loop can yield an event.
+        self._pending_scan_findings: list[dict[str, Any]] = []
         #: Control identity of the most recent refusal, surfaced on the
         #: `tool_blocked` event so a governance audit can tell a RED
         #: refusal from an incidental one.
@@ -1323,6 +1327,7 @@ class ToolAgent:
                         "reason": _det["reason"],
                         "id": call_id,
                     }
+                yield from self._drain_scan_findings(call_id)
 
                 if name == "execute_terminal":
                     if failed and self.on_failure is not None:
@@ -1670,6 +1675,7 @@ class ToolAgent:
         if _inj is not None:
             self._pending_injections.append({"tool": "verify", "reason": _inj})
         convo.append({"role": "tool", "content": _guarded})
+        yield from self._drain_scan_findings(f"autoverify-{index}")
         # Fold the authoritative verdict into the earned-autonomy evidence for
         # this write class: a PASS extends the streak (eventually graduating the
         # class to autonomous), a FAIL revokes it instantly. This is the ONLY
@@ -1911,6 +1917,7 @@ class ToolAgent:
         blocked/required approval, or recorded nothing.
         """
         lesson_sink: dict[str, Any] = {}
+        scan_sink: dict[str, Any] = {}
         output = tool_handlers.verify_command(
             command,
             approved=approved,
@@ -1918,7 +1925,19 @@ class ToolAgent:
             verifier=self._verifier,
             session_id=self.session_id,
             lesson_sink=lesson_sink,
+            scan_sink=scan_sink,
         )
+        # A secret in verifier output is an OBSERVATION, exactly like an
+        # injection found in tool output: it says something happened that the
+        # operator needs to know, and it is not the model's word for it. The
+        # redaction already happened; this is the part that makes it legible.
+        if scan_sink.get("detected"):
+            self._pending_scan_findings.append(
+                {
+                    "command": command,
+                    "findings": list(scan_sink.get("findings") or ()),
+                }
+            )
         mistake_id = lesson_sink.get("mistake_id")
         self._last_verify_lesson = (
             (mistake_id, str(lesson_sink.get("lesson_summary", "")))
@@ -1926,6 +1945,27 @@ class ToolAgent:
             else None
         )
         return output
+
+    def _drain_scan_findings(self, call_id: str) -> Iterator[dict[str, Any]]:
+        """Emit one event per verify whose output carried credential-like data.
+
+        Shared by both verify paths -- the `verify` tool call and the forced
+        auto-verify after a write -- because a signal that only one of them
+        emits is the differential gap this repo keeps rediscovering.
+
+        Labels only. The matched value is the suspected secret; naming it in an
+        event would undo the redaction that just happened.
+        """
+        while self._pending_scan_findings:
+            found = self._pending_scan_findings.pop(0)
+            yield {
+                "type": "secret_detected",
+                "source": "verifier_output",
+                "tool": "verify",
+                "command": found["command"],
+                "findings": found["findings"],
+                "id": call_id,
+            }
 
     def _browse(self, url: str) -> tuple[str, str, bool]:
         """Thin wrapper around :func:`tool_handlers.browse_url`."""

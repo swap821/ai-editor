@@ -252,7 +252,9 @@ def confirm(
     }
 
 
-def format_verifier_result(result: VerifierResult) -> tuple[str, str, bool]:
+def format_verifier_result(
+    result: VerifierResult, *, scan_sink: Optional[dict[str, Any]] = None
+) -> tuple[str, str, bool]:
     """Map a pass/fail :class:`VerifierResult` to the loop's event shape.
 
     ``REQUIRE_APPROVAL`` and ``BLOCKED`` statuses are the caller's responsibility;
@@ -280,6 +282,18 @@ def format_verifier_result(result: VerifierResult) -> tuple[str, str, bool]:
     # Only the BODY is scrubbed. The header is derived from structured ints and
     # an enum, never from stdout, so the `[VERIFY PASS]` provenance gate and the
     # count/strength parsing downstream stay byte-identical.
-    body = scan_and_redact(result.summary).scrubbed.strip()
+    scan = scan_and_redact(result.summary)
+    if scan_sink is not None:
+        # REDACTING SILENTLY IS HALF A CONTROL. The scanner already computes
+        # WHICH detectors fired -- named patterns and its entropy pass alike --
+        # and 2026-09-06's fix threw that away, keeping only `.scrubbed`. An
+        # operator then saw `<REDACTED:...>` in a verify verdict with no way to
+        # learn that, say, an AWS key had just been printed by their test suite.
+        #
+        # Only finding LABELS travel (e.g. "AWS_SECRET_KEY", "HIGH_ENTROPY") --
+        # never the value, which is the thing suspected of being a secret.
+        scan_sink["detected"] = scan.detected
+        scan_sink["findings"] = tuple(scan.findings)
+    body = scan.scrubbed.strip()
     output = f"{header}\n{body}" if body else header
     return (output, "ok", not result.passed)
