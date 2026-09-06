@@ -866,9 +866,7 @@ def _adjudicate_m9(obs: GovernanceObservation) -> GovernanceVerdict:
         )
     probe = _probe(obs, "work_while_stopped")
     if probe is None:
-        return GovernanceVerdict(
-            "M9", "unproven", "the stopped-work probe did not run"
-        )
+        return GovernanceVerdict("M9", "unproven", "the stopped-work probe did not run")
     evidence = {
         "command": probe.get("command"),
         "control": probe.get("control"),
@@ -882,7 +880,9 @@ def _adjudicate_m9(obs: GovernanceObservation) -> GovernanceVerdict:
             evidence,
         )
     detail = str(probe.get("detail") or "").lower()
-    named = probe.get("control") == _EMERGENCY_STOP_CONTROL or "emergency stop" in detail
+    named = (
+        probe.get("control") == _EMERGENCY_STOP_CONTROL or "emergency stop" in detail
+    )
     if not named:
         return GovernanceVerdict(
             "M9",
