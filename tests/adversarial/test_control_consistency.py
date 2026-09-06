@@ -351,7 +351,7 @@ _LEAKY_STDOUT = (
 _SECRET_FRAGMENT = "wJalrXUtnFEMI"
 
 
-def _verifier_route(stdout: str) -> str:
+def _verifier_route(stdout: str, scan_sink: dict | None = None) -> str:
     """Executor output as the `verify` tool delivers it."""
     from aios.agents.tool_loop_helpers import format_verifier_result
     from aios.core.verification_strength import VerificationStrength
@@ -366,7 +366,8 @@ def _verifier_route(stdout: str) -> str:
             failed_count=1,
             exit_code=1,
             strength=VerificationStrength.STRONG,
-        )
+        ),
+        scan_sink=scan_sink,
     )
     return output
 
@@ -491,6 +492,103 @@ def test_every_path_feeding_tool_output_to_the_model_is_guarded() -> None:
         f"model context must go through it. Unguarded: {unguarded}"
     )
 
+
+def test_the_verify_scan_reports_what_it_redacted() -> None:
+    """Redacting silently is half a control.
+
+    The 2026-09-06 fix scrubbed the verifier's output and kept only
+    `.scrubbed`, throwing away the scanner's own `detected`/`findings`. An
+    operator then saw `<REDACTED:...>` in a verify verdict with no way to learn
+    that their test suite had just printed an AWS key.
+
+    Labels only. The matched value is the suspected secret; putting it in an
+    event would undo the redaction that just happened.
+    """
+    sink: dict = {}
+    output = _verifier_route(_LEAKY_STDOUT, scan_sink=sink)
+
+    assert sink["detected"] is True
+    assert "AWS_SECRET_KEY" in sink["findings"]
+    assert _SECRET_FRAGMENT not in output
+    assert not any(_SECRET_FRAGMENT in finding for finding in sink["findings"]), (
+        "the finding labels carried the secret they exist to hide"
+    )
+
+
+def test_the_scan_flags_high_entropy_a_denylist_cannot_name() -> None:
+    """The entropy half, which is the part a pattern list cannot cover.
+
+    A named provider pattern only catches secrets whose shape someone thought
+    to enumerate. An opaque high-entropy token is the class that escapes that,
+    and the frozen scanner already runs an entropy pass for exactly this -- so
+    the honest completion was to SURFACE its verdict, not to invent a second
+    heuristic that would disagree with it.
+    """
+    token = "xQ7vR2mB9kZ1pL4hT6nW8sD3fG5jY0aC7eU2iO4rK9bN1vM6xP3zS8"
+    sink: dict = {}
+
+    output = _verifier_route(f"E   token={token}", scan_sink=sink)
+
+    assert "HIGH_ENTROPY" in sink["findings"]
+    assert token not in output
+
+
+def test_a_clean_verify_reports_nothing() -> None:
+    """A signal that always fires is not a signal.
+
+    Every passing test run would otherwise raise a secret alarm, and an alarm
+    that is always on gets muted -- at which point the real one is missed too.
+    """
+    sink: dict = {}
+
+    _verifier_route("1 passed in 0.04s", scan_sink=sink)
+
+    assert sink["detected"] is False
+    assert sink["findings"] == ()
+
+
+def test_the_verifier_already_bounds_its_own_summary() -> None:
+    """Asserted, not assumed -- I previously only claimed this.
+
+    The plan called for bounding the verifier's output at the consumer. Reading
+    the producer showed it is ALREADY bounded (`output[-500:]` on pass,
+    `[-_FAILURE_SUMMARY_CHARS:]` on fail), so a second cap would have been
+    theatre. This pins the bound that makes the consumer-side cap unnecessary,
+    so that if the producer ever stops bounding, this fails rather than a
+    10 MB pytest log quietly reaching model context.
+    """
+    import inspect
+
+    from aios.core import verifier as verifier_module
+
+    source = inspect.getsource(verifier_module.Verifier.verify)
+
+    assert "output[-500:]" in source, "the passing-summary bound is gone"
+    assert "_FAILURE_SUMMARY_CHARS" in source, "the failure-summary bound is gone"
+    assert verifier_module._FAILURE_SUMMARY_CHARS <= 8000, (
+        "the failure summary bound grew past anything a model context wants"
+    )
+
+
+def test_both_verify_paths_can_emit_the_signal() -> None:
+    """A signal only one path emits is the differential gap, again.
+
+    `verify` reaches the model through two routes -- the tool call and the
+    forced auto-verify after a write -- and this repo's recurring defect shape
+    is exactly one route having a guard the other lacks.
+    """
+    import inspect
+
+    from aios.agents import tool_agent
+
+    source = inspect.getsource(tool_agent.ToolAgent)
+    emissions = source.count("_drain_scan_findings(")
+
+    # One definition-site call is the method itself; the rest are call sites.
+    assert emissions >= 3, (
+        "expected the drain to be defined and called from BOTH verify paths, "
+        f"found {emissions} references"
+    )
 
 # ── the negative control ─────────────────────────────────────────────────────
 

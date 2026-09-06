@@ -470,6 +470,7 @@ def verify_command(
     verifier: Any,
     session_id: Optional[str],
     lesson_sink: Optional[dict[str, Any]] = None,
+    scan_sink: Optional[dict[str, Any]] = None,
 ) -> tuple[str, str, bool]:
     """Run *command* as a verification through the Verifier; map its verdict.
 
@@ -484,6 +485,12 @@ def verify_command(
     ``lesson_summary`` from the ``VerifierResult`` (``None``/``""`` when the
     Verifier recorded no lesson) so the caller can SURFACE an already-recorded
     lesson as a tool-loop step without recording it a second time.
+
+    If *scan_sink* is given, it is populated with ``detected``/``findings`` from
+    the secret scan of the verifier's output -- the labels only, never the
+    matched values. Redaction without a signal is half a control: the operator
+    sees ``<REDACTED:...>`` and learns nothing about what their test suite just
+    printed.
     """
 
     is_approved = approved or command in approved_commands
@@ -519,7 +526,7 @@ def verify_command(
     # re-trigger reflection) — carried for the loop's tool-result shape.
     from aios.agents import tool_loop_helpers  # local to avoid import cycles
 
-    return tool_loop_helpers.format_verifier_result(result)
+    return tool_loop_helpers.format_verifier_result(result, scan_sink=scan_sink)
 
 
 # --------------------------------------------------------------------------- execute
