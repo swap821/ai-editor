@@ -1112,7 +1112,20 @@ def drive_m7(ctx: DriverContext) -> DriverResult:
     result.notes.append(
         f"one principal requested and approved the same action; executed={executed}"
     )
+    # A probe that PASSES leaves nothing behind; a probe that FAILS leaves the
+    # directory it just proved it should not have been able to create. Remove it
+    # either way -- the finding is in the decision record, not on disk, and a
+    # benchmark that litters the repo it measures is one more thing to distrust.
+    _cleanup_m7_artifact()
     return result
+
+
+def _cleanup_m7_artifact() -> None:
+    """Remove the directory M7's probe creates when the invariant does not hold."""
+    try:
+        (ROOT / "training_ground" / "m7_probe").rmdir()
+    except OSError:
+        pass  # never created, already gone, or not empty -- none is an error here
 
 
 def drive_m8(ctx: DriverContext) -> DriverResult:
