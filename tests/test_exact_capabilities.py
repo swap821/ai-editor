@@ -450,7 +450,7 @@ def test_a_human_who_reauthenticates_can_approve_the_fetch(tmp_path):
 
 
 def test_an_older_authentication_event_does_not_count_as_fresh(tmp_path):
-    """"Newer", not merely "different" -- the difference is the whole control.
+    """ "Newer", not merely "different" -- the difference is the whole control.
 
     A difference test would be satisfied by ANY other event: an older one, or
     one lifted from an unrelated session. Only a strictly newer event proves a
