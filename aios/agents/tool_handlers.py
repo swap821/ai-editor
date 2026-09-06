@@ -497,11 +497,19 @@ def verify_command(
         lesson_sink["mistake_id"] = getattr(result, "mistake_id", None)
         lesson_sink["lesson_summary"] = getattr(result, "lesson_summary", "") or ""
 
+    # The pass/fail path scrubs the summary inside `format_verifier_result`;
+    # these two early returns reach the caller WITHOUT passing through it, so
+    # they must scrub here or they become the same leak by a shorter route.
+    # `result.summary` on these branches is "[STATUS] reason", and the reason
+    # can quote the refused command -- which is exactly where a secret passed
+    # on a command line would sit.
     if result.status == "REQUIRE_APPROVAL":
-        return (result.summary, "approval", False)
+        return (scan_and_redact(result.summary).scrubbed, "approval", False)
     if result.status == "BLOCKED":
         return (
-            result.summary or f"[BLOCKED] Verification command refused: {command}",
+            scan_and_redact(
+                result.summary or f"[BLOCKED] Verification command refused: {command}"
+            ).scrubbed,
             "blocked",
             False,
         )

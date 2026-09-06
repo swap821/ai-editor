@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 
 from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
 from aios.core.verifier import VerifierResult
+from aios.security.secret_scanner import scan_and_redact
 
 #: A failure hook: given (command, error_output), return a lesson dict or None.
 FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
@@ -263,6 +264,22 @@ def format_verifier_result(result: VerifierResult) -> tuple[str, str, bool]:
         f"[VERIFY {verdict}] {result.passed_count} passed, "
         f"{result.failed_count} failed (exit {exit_str}) (strength={result.strength.name})"
     )
-    body = result.summary.strip()
+    # THE VERIFIER'S SUMMARY IS UNTRUSTED CONTENT -- it is raw stdout/stderr from
+    # the command under test, which routinely prints config, environment and
+    # assertion diffs.
+    #
+    # Measured 2026-09-06, the same bytes got two different answers:
+    #     execute_terminal -> _format_exec_result -> scan_and_redact   scrubbed
+    #     verify           -> format_verifier_result                   LEAKED
+    # Both run the SAME Executor. Redaction lived in the tool-handler layer, so
+    # the verify path -- which reaches the executor through the Verifier --
+    # walked straight past it, carrying secrets into model context, the SSE
+    # stream and the audit record. A differential "do these two layers agree?"
+    # gap: the shape that has produced real containment escapes in this repo.
+    #
+    # Only the BODY is scrubbed. The header is derived from structured ints and
+    # an enum, never from stdout, so the `[VERIFY PASS]` provenance gate and the
+    # count/strength parsing downstream stay byte-identical.
+    body = scan_and_redact(result.summary).scrubbed.strip()
     output = f"{header}\n{body}" if body else header
     return (output, "ok", not result.passed)

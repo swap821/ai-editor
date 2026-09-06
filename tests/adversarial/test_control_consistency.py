@@ -340,6 +340,158 @@ def test_the_translated_tool_really_is_translated() -> None:
     )
 
 
+# ── executor output reaches the model by two routes ───────────────────
+
+#: A secret of a shape the scanner already recognises, embedded the way a test
+#: failure actually surfaces one: inside an assertion diff.
+_LEAKY_STDOUT = (
+    'E   assert cfg == {"aws_secret_access_key": '
+    '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}'
+)
+_SECRET_FRAGMENT = "wJalrXUtnFEMI"
+
+
+def _verifier_route(stdout: str) -> str:
+    """Executor output as the `verify` tool delivers it."""
+    from aios.agents.tool_loop_helpers import format_verifier_result
+    from aios.core.verification_strength import VerificationStrength
+    from aios.core.verifier import VerifierResult
+
+    output, _status, _failed = format_verifier_result(
+        VerifierResult(
+            passed=False,
+            summary=stdout,
+            confidence_delta=-0.5,
+            passed_count=0,
+            failed_count=1,
+            exit_code=1,
+            strength=VerificationStrength.STRONG,
+        )
+    )
+    return output
+
+
+def _terminal_route(stdout: str) -> str:
+    """The same bytes as the `execute_terminal` tool delivers them."""
+    from aios.agents.tool_handlers import _format_exec_result
+
+    class _Result:
+        status, stdout, stderr, exit_code, reason = "OK", "", "", 1, ""
+
+    result = _Result()
+    result.stdout = stdout
+    output, _status, _failed = _format_exec_result(result)
+    return output
+
+
+def test_both_routes_out_of_the_executor_redact_identically() -> None:
+    """`verify` and `execute_terminal` run the SAME executor. They must agree.
+
+    Redaction lived in the tool-handler layer, so `execute_terminal` scrubbed
+    its stdout while `verify` -- which reaches the executor through the
+    Verifier -- walked straight past it. Identical bytes, two answers:
+
+        execute_terminal  ->  <REDACTED:AWS_SECRET_KEY:...>
+        verify            ->  wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+    The verify verdict is not a side channel: it goes into the model's context,
+    the SSE stream the UI renders, and the audit record. No payload was needed
+    to exploit this -- a test that prints its config leaks it by accident.
+    """
+    terminal = _terminal_route(_LEAKY_STDOUT)
+    verifier = _verifier_route(_LEAKY_STDOUT)
+
+    assert _SECRET_FRAGMENT not in terminal, "the terminal route regressed"
+    assert _SECRET_FRAGMENT not in verifier, (
+        "the verify route carried a secret the terminal route scrubbed -- the "
+        "two consumers of one executor disagree about redaction"
+    )
+    assert "REDACTED" in verifier
+
+
+def test_redaction_leaves_the_verify_provenance_gate_byte_identical() -> None:
+    """Scrubbing must not disturb the header the rest of the system parses.
+
+    `[VERIFY PASS]`/`[VERIFY FAIL]` is a provenance gate -- generate_pipeline
+    reads it to tell a real verdict from a model that merely echoed the words,
+    and `strength_from_text` parses the same line. The header is built from
+    structured ints and an enum, never from stdout, so redacting only the body
+    must leave it untouched.
+    """
+    header = _verifier_route(_LEAKY_STDOUT).splitlines()[0]
+    assert header == (
+        "[VERIFY FAIL] 0 passed, 1 failed (exit 1) (strength=STRONG)"
+    )
+    assert _verifier_route("").splitlines()[0] == header
+
+
+def test_the_blocked_verify_route_redacts_too() -> None:
+    """The refusal paths return before the formatter, so they scrub separately.
+
+    A secret passed on a command line is quoted back in the refusal reason; a
+    shorter route to the same leak is still the leak.
+    """
+    from aios.agents import tool_handlers
+
+    class _Verifier:
+        def verify(self, command, *, session_id=None, approved=False):
+            from aios.core.verifier import VerifierResult
+
+            return VerifierResult(
+                passed=False,
+                summary=f"[BLOCKED] refused: {_LEAKY_STDOUT}",
+                confidence_delta=-1.0,
+                status="BLOCKED",
+            )
+
+    output, status, _failed = tool_handlers.verify_command(
+        "pytest -q",
+        approved=False,
+        approved_commands=set(),
+        verifier=_Verifier(),
+        session_id=None,
+    )
+    assert status == "blocked"
+    assert _SECRET_FRAGMENT not in output
+    assert "REDACTED" in output
+
+
+def test_every_path_feeding_tool_output_to_the_model_is_guarded() -> None:
+    """No route into the model's context may skip `_guard_tool_output`.
+
+    The redaction fix above closed the `verify` route into the model's context;
+    this asserts nothing has QUIETLY OPENED a new one. Both verify paths --
+    the `verify` tool call and the forced auto-verify after a write -- append
+    through the guard today, and a seventh site added later must too.
+
+    The one exception is deliberate and named: the `[VERIFY SKIPPED]` note is
+    composed entirely by this module (only a filename the model itself supplied
+    is interpolated), so it carries no executor output and nothing to redact.
+    Asserting the exact count is what makes a NEW unguarded site fail here
+    rather than pass unnoticed.
+    """
+    from aios.agents import tool_agent
+
+    source = inspect.getsource(tool_agent)
+    appends = [
+        line.strip()
+        for line in source.splitlines()
+        if 'convo.append({"role": "tool"' in line
+    ]
+    guarded = [line for line in appends if "_guarded" in line]
+    unguarded = [line for line in appends if "_guarded" not in line]
+
+    assert len(appends) == 7, (
+        f"the number of tool-output append sites changed ({len(appends)}); "
+        "confirm the new one is guarded, then update this count"
+    )
+    assert len(guarded) == 6
+    assert unguarded == ['convo.append({"role": "tool", "content": note})'], (
+        "a tool-output append bypassed _guard_tool_output; every route into "
+        f"model context must go through it. Unguarded: {unguarded}"
+    )
+
+
 # ── the negative control ─────────────────────────────────────────────────────
 
 def test_the_family_can_fail(declared_roots, monkeypatch) -> None:
