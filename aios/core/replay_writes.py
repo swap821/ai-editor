@@ -193,3 +193,109 @@ def is_approved_write(
             (decision_signature(path, digest),),
         ).fetchone()
     return row is not None
+
+
+# --------------------------------------------------------------------------- #
+# Edits (stage 2 slice 4)
+# --------------------------------------------------------------------------- #
+#
+# An edit is a different claim from a create. A create says "this file should
+# contain these bytes"; an edit says "this exact snippet should become that
+# exact snippet, in this file". The resulting whole-file content is not
+# knowable from a compiled step, so approving an edit by a whole-file digest
+# would approve it by a value that does not describe it.
+
+
+def edit_signature(
+    path: str,
+    old_digest: str,
+    new_digest: str,
+    *,
+    workspace: Optional[str] = None,
+) -> str:
+    """Key for one exact edit decision: this workspace, this path, this change.
+
+    Commits BOTH digests, in order. Committing only the replacement would let
+    the same approved `new_string` be applied over a different `old_string` --
+    a different edit to a different part of the file, wearing an approval it
+    never received.
+    """
+    ws = workspace if workspace is not None else workspace_id()
+    return hashlib.sha256(
+        f"{ws}|{path}|{old_digest}|{new_digest}".encode("utf-8")
+    ).hexdigest()
+
+
+def record_edit_approval(
+    path: str,
+    old_string: str,
+    new_string: str,
+    *,
+    db_path,
+    approval_ref: Optional[str] = None,
+) -> StoreResult:
+    """Remember that a human approved this exact edit at this exact path.
+
+    BOTH snippets must store cleanly. If either carries secrets the decision is
+    not recorded at all -- a half-stored edit is unreplayable, and recording it
+    anyway would leave an approval whose other half cannot be found.
+    """
+    old_result = store_content(old_string, db_path=db_path)
+    if not old_result.stored:
+        return old_result
+    new_result = store_content(new_string, db_path=db_path)
+    if not new_result.stored:
+        return new_result
+
+    signature = edit_signature(path, old_result.digest, new_result.digest)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO approved_edit_decisions "
+            "(signature, workspace, path, old_sha256, new_sha256, approval_ref) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                signature,
+                workspace_id(),
+                path,
+                old_result.digest,
+                new_result.digest,
+                approval_ref,
+            ),
+        )
+    return new_result
+
+
+def is_approved_edit(
+    path: str,
+    old_digest: str,
+    new_digest: str,
+    *,
+    db_path,
+    enabled: Optional[bool] = None,
+    emergency_stop=None,
+) -> bool:
+    """Has a human already approved exactly this edit at exactly this path?
+
+    Fail-closed on the same axes as :func:`is_approved_write`, and gated by the
+    same flag: enabling replayed writes and replayed edits separately would
+    imply they carry different risk, and they do not -- both put bytes on disk
+    that no human is looking at right now.
+    """
+    if enabled is None:
+        enabled = config.REPLAY_APPROVED_WRITES_ENABLED
+    if not enabled:
+        return False
+
+    if emergency_stop is not None:
+        try:
+            emergency_stop.assert_operational()
+        except Exception:  # noqa: BLE001 - an engaged or unreadable latch denies
+            return False
+
+    init_memory_db(db_path)
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM approved_edit_decisions WHERE signature = ?",
+            (edit_signature(path, old_digest, new_digest),),
+        ).fetchone()
+    return row is not None

@@ -1489,6 +1489,22 @@ class ToolAgent:
             output, status, _ = self._edit_file(filepath, "", "")
             call_id = f"grant-edit-{index}"
             if status in ("ok", "noop"):
+                # Remember the exact transformation the human just approved, so
+                # a later compiled replay of the identical edit can reuse it.
+                # Best-effort for the same reason as the create side: the edit
+                # already landed and was audited, and failing the turn because a
+                # convenience record could not be written would be the wrong
+                # trade.
+                try:
+                    _old, _new = _grant
+                    replay_writes.record_edit_approval(
+                        filepath, _old, _new, db_path=config.MEMORY_DB_PATH
+                    )
+                except Exception as exc:  # noqa: BLE001 - never break an applied grant
+                    logger.warning(
+                        "could not record the approved edit for replay",
+                        exc_info=exc,
+                    )
                 # Same workflow-step accounting as granted creations above.
                 yield {
                     "type": "tool_call",
@@ -1862,6 +1878,8 @@ class ToolAgent:
             )
         if name == "create_file":
             return self._replay_create_file(args)
+        if name == "edit_file":
+            return self._replay_edit_file(args)
         # read_file / read_directory have no approval gate; dispatch normally.
         #
         # NOTE: this method's blanket "already approved" reasoning applies to
@@ -1873,6 +1891,70 @@ class ToolAgent:
         # reinstate the broad, content-blind grant that was deliberately
         # rejected when this was designed.
         return self._dispatch(name, args)
+
+    def _replay_edit_file(self, args: dict[str, Any]) -> tuple[str, str, bool]:
+        """Re-apply an edit ONLY if a human approved this exact transformation.
+
+        The create analogue, with one extra thing to get right: BOTH snippets
+        are bound to the decision. Approving only the replacement would let an
+        approved `new_string` be applied over a different `old_string` -- a
+        different edit, to a different part of the file, wearing an approval it
+        never received.
+
+        As with creates, the write goes through the SAME `edit_file` handler a
+        human grant uses, with a one-off approval set scoped to this call, so
+        scope lock, the credential denylist, the snapshot and the audit entry
+        all still apply.
+        """
+        filepath = str(args.get("filepath", ""))
+        old_string = args.get("old_string")
+        new_string = args.get("new_string")
+        old_digest = str(args.get("old_sha256", ""))
+        new_digest = str(args.get("new_sha256", ""))
+        if not filepath or old_string is None or new_string is None:
+            return (
+                "[BLOCKED] replayed edit is missing its target or snippets.",
+                "blocked",
+                False,
+            )
+
+        if not replay_writes.is_approved_edit(
+            filepath,
+            old_digest,
+            new_digest,
+            db_path=config.MEMORY_DB_PATH,
+            emergency_stop=getattr(self.autonomy, "emergency_stop", None),
+        ):
+            return (
+                f"[BLOCKED] no human has approved this exact edit to {filepath}; "
+                "the replay must not apply it.",
+                "blocked",
+                False,
+            )
+
+        # The digests must be OF the snippets, not merely lookup keys. Without
+        # this, an approved pair of digests carries arbitrary replacement text
+        # straight through the audited path -- the same hole slice 2 closed for
+        # creates, which would have been trivial to reintroduce here.
+        if (
+            replay_writes.content_digest(old_string) != old_digest
+            or replay_writes.content_digest(new_string) != new_digest
+        ):
+            return (
+                "[BLOCKED] replayed edit does not match the approved digests.",
+                "blocked",
+                False,
+            )
+
+        return tool_handlers.edit_file(
+            filepath,
+            str(old_string),
+            str(new_string),
+            read_root=self.read_root,
+            approved_edits={filepath: (str(old_string), str(new_string))},
+            snapshot=self.snapshot,
+            audit=self._audit,
+        )
 
     def _replay_create_file(self, args: dict[str, Any]) -> tuple[str, str, bool]:
         """Re-perform a write ONLY if a human approved these exact bytes here.
