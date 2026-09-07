@@ -254,6 +254,52 @@ CREATE TABLE IF NOT EXISTS compiled_playbooks (
 CREATE INDEX IF NOT EXISTS idx_compiled_skill ON compiled_playbooks(skill_id);
 CREATE INDEX IF NOT EXISTS idx_compiled_status ON compiled_playbooks(status);
 
+-- == Replayable write content (learning loop, stage 2 slice 1) ===============
+-- A compiled write step carries a DIGEST, never content: step summaries flow
+-- into L3 semantic memory, so file bodies there would be a standing
+-- secret-leak surface with the scrubber as the only thing in the way. To
+-- replay a write rather than merely confirm one, the bytes have to live
+-- somewhere addressed by that digest. This is that somewhere.
+--
+-- Content is inserted ONLY when the secret scanner finds nothing. A detection
+-- means no row, and the playbook stays confirm-only -- stage 1 behaviour is the
+-- fallback, not an error path.
+CREATE TABLE IF NOT EXISTS playbook_blobs (
+    sha256      TEXT PRIMARY KEY,
+    content     BLOB NOT NULL,
+    byte_length INTEGER NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- == Exact write decisions a human already made =============================
+-- DELIBERATELY NOT `earned_autonomy`, and the distinction is the whole point.
+--
+-- `earned_autonomy` answers "has this action CLASS proved safe over N trials?"
+-- and its write signatures collapse a target to `<dir>/*<.ext>` -- so once
+-- `src/*.py` is earned, ANY content to ANY .py under src/ runs unattended.
+-- Both `signature()` and `scoped_signature()` normalise that way, so neither
+-- can express what is wanted here.
+--
+-- This table answers a different and much narrower question: "did a human
+-- already approve writing EXACTLY these bytes to EXACTLY this path, in this
+-- workspace?" One prior approval, one row, and any drift in path or content
+-- simply misses -- there is no glob to widen and no streak to accumulate.
+--
+-- Keyed by workspace as well, for the reason `signature()` learned on
+-- 2026-08-31: a decision made in one project must not grant anything in
+-- another.
+CREATE TABLE IF NOT EXISTS approved_write_decisions (
+    signature      TEXT PRIMARY KEY,  -- sha256(workspace | path | content_sha256)
+    workspace      TEXT NOT NULL,
+    path           TEXT NOT NULL,
+    content_sha256 TEXT NOT NULL,
+    approved_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    approval_ref   TEXT,              -- audit/capability id of the human decision
+    FOREIGN KEY (content_sha256) REFERENCES playbook_blobs(sha256)
+);
+CREATE INDEX IF NOT EXISTS idx_approved_write_path
+    ON approved_write_decisions(workspace, path);
+
 -- == Safe curriculum =========================================================
 -- Curriculum tasks never auto-execute. Verified live outcomes matching a task
 -- update its evidence; a level is mastered only after training passes plus a
