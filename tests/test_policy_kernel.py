@@ -6,7 +6,7 @@ import pytest
 from starlette.requests import Request
 
 from aios import config
-from aios.core.autonomy import AutonomyLedger
+from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
 from aios.memory.db import get_connection
 from aios.policy.kernel import PolicyKernel, _ROUTE_AUTHORITY
 from aios.security.gateway import RateLimiter, Zone
@@ -17,7 +17,13 @@ def kernel(tmp_path):
     """Fresh policy kernel with isolated autonomy ledger."""
     return PolicyKernel(
         rate_limiter=RateLimiter(max_per_session=100),
-        autonomy_ledger=AutonomyLedger(db_path=tmp_path / "autonomy.db"),
+        autonomy_ledger=AutonomyLedger(
+            db_path=tmp_path / "autonomy.db",
+            # The kernel's own fallback is now wired; this fixture is testing
+            # the earned-autonomy short-circuit, not the latch, so it opts out
+            # of the stop requirement visibly rather than by default.
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ),
     )
 
 

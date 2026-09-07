@@ -43,6 +43,50 @@ from aios.security.secret_scanner import scan_and_redact
 _WRITE_ACTIONS = frozenset({"create", "edit", "create_file", "edit_file"})
 
 
+#: The one way to say "this caller deliberately has no emergency stop".
+#:
+#: Defined HERE, in the lowest-level module that needs it, and re-exported by
+#: `aios.core.replay_writes`. There were three separate definitions of this
+#: string, and because "ungoverned-fixture" contains a hyphen CPython does not
+#: intern it -- so an `is` comparison against a different module's copy would
+#: silently fail. It failed CLOSED (a string has no `assert_operational`, the
+#: exception is caught, the answer is deny), so it was a correctness wart rather
+#: than a hole, but three copies of a sentinel compared by identity is a hole
+#: waiting for someone to reorder the checks.
+UNGOVERNED_FIXTURE = "ungoverned-fixture"
+
+
+def stop_permits_autonomy(emergency_stop) -> bool:
+    """May autonomy be granted, given this stop control?
+
+    ABSENCE IS A REFUSAL. `is_earned` used to read
+    `if self.emergency_stop is not None:` -- so a ledger built without a latch
+    granted autonomy with the stop never consulted. Measured 2026-09-07:
+
+        stopless ledger, is_earned("command", ...)  ->  True
+
+    and `aios/policy/kernel.py` builds exactly such a ledger as a fallback
+    (`autonomy_ledger or AutonomyLedger()`), so an engaged emergency stop did
+    not deny COMMAND autonomy when the kernel had none injected.
+
+    That is the FOURTH appearance of this shape. The write path was fixed a
+    cycle ago; the command path carried the identical guard and was not. It
+    survived because the wiring rule that would have caught it scanned
+    `deps.py` only -- the rule is now repo-wide for that reason.
+
+    `is_earned_scoped` had no stop check at ALL and now uses this too.
+    """
+    if emergency_stop is UNGOVERNED_FIXTURE:
+        return True
+    if emergency_stop is None:
+        return False
+    try:
+        emergency_stop.assert_operational()
+    except Exception:  # noqa: BLE001 - engaged, unreadable, or not a latch: deny
+        return False
+    return True
+
+
 def workspace_id() -> str:
     """Stable id for the workspace this process is currently confined to.
 
@@ -238,11 +282,8 @@ class AutonomyLedger:
         When *enabled* is supplied it overrides the global config, allowing the
         active runtime profile to drive the decision through ``PolicyKernel``.
         """
-        if self.emergency_stop is not None:
-            try:
-                self.emergency_stop.assert_operational()
-            except Exception:  # noqa: BLE001 - emergency latch denies grants
-                return False
+        if not stop_permits_autonomy(self.emergency_stop):
+            return False
         if enabled is None:
             enabled = config.EARNED_AUTONOMY_ENABLED
         if not enabled:
@@ -270,7 +311,16 @@ class AutonomyLedger:
         return dict(row) if row is not None else None
 
     def is_earned_scoped(self, signature: str, *, enabled: bool) -> bool:
-        """Read an already scoped entry from the same durable ledger."""
+        """Read an already scoped entry from the same durable ledger.
+
+        Consults the stop, which it never did. This variant gates an
+        ALLOW_AUTONOMOUS decision in `aios/application/autonomy/governed.py`
+        and had no latch check of any kind -- not even the optional one. That
+        subsystem is not wired to production today, which is the only reason
+        it was not a live hole; a future wiring would have inherited it.
+        """
+        if not stop_permits_autonomy(self.emergency_stop):
+            return False
         if not enabled:
             return False
         with get_connection(self.db_path) as conn:

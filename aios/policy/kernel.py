@@ -24,7 +24,6 @@ from aios.application.governance.constitution_authority import ConstitutionAutho
 
 from aios.runtime import profiles
 from aios.security.gateway import (
-    GatewayDecision,
     RateLimiter,
     Zone,
     classify,
@@ -908,6 +907,29 @@ def _route_match(route: str, path: str) -> bool:
     return True
 
 
+def _default_autonomy_ledger() -> AutonomyLedger:
+    """A fallback ledger that is WIRED, not bare.
+
+    `autonomy_ledger or AutonomyLedger()` built a ledger with no emergency
+    stop, and `is_earned` used to skip its latch check when none was present --
+    so an engaged stop did not deny command autonomy on a kernel that had none
+    injected. The ledger now refuses when unwired, which closes it from the
+    other side; this wires it so the fallback is correct on its own merits
+    rather than relying on that refusal.
+
+    Imported lazily: `aios.api.deps` imports the kernel, so a module-level
+    import would be circular.
+    """
+    try:
+        from aios.api.deps import get_emergency_stop
+
+        return AutonomyLedger(emergency_stop=get_emergency_stop())
+    except Exception:  # noqa: BLE001 - an unavailable stop must not crash setup
+        # No stop obtainable: return a bare ledger, which now REFUSES rather
+        # than grants. Failing closed beats failing to construct.
+        return AutonomyLedger()  # refuses-when-unwired: fails closed, never grants
+
+
 class PolicyKernelAuthority:
     """Runtime authority facade for the AI-OS API."""
 
@@ -920,7 +942,7 @@ class PolicyKernelAuthority:
         constitution_authority: ConstitutionAuthority | None = None,
     ) -> None:
         self.rate_limiter = rate_limiter or RateLimiter()
-        self.autonomy = autonomy_ledger or AutonomyLedger()
+        self.autonomy = autonomy_ledger or _default_autonomy_ledger()
         self.constitution = constitution or build_constitution()
         self.constitution_authority = constitution_authority
 
@@ -1509,7 +1531,7 @@ def get_policy_kernel(
                 _KERNEL = PolicyKernel(
                     rate_limiter=rate_limiter
                     or RateLimiter(db_path=config.APPROVAL_DB_PATH),
-                    autonomy_ledger=autonomy_ledger or AutonomyLedger(),
+                    autonomy_ledger=autonomy_ledger or _default_autonomy_ledger(),
                     constitution=constitution,
                     constitution_authority=get_constitution_authority(),
                 )
