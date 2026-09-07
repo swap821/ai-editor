@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -38,6 +39,7 @@ from typing import Any, Callable, Iterator, Optional
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
+from aios.security.scope_lock import is_path_in_scope
 from aios.security.secret_scanner import scan_and_redact
 
 _COMPILABLE_TOOLS = frozenset(
@@ -46,8 +48,24 @@ _COMPILABLE_TOOLS = frozenset(
         "read_directory",
         "execute_terminal",
         "verify",
+        # Stage 1 only: compiled as a CHECK, never as a write. See
+        # `_CONFIRM_ONLY_TOOLS` and `Cerebellum._confirm_write`.
+        "create_file",
     }
 )
+
+#: Tools a replay may only CONFIRM, never perform.
+#:
+#: Stage 1 of the learning loop makes write-containing playbooks compilable
+#: without making replay able to write. The whole point is that this is true by
+#: CONSTRUCTION rather than by a careful implementation: `replay` intercepts
+#: these names before `dispatch_fn` is reached, so there is no path from a
+#: replayed step to the filesystem. A future stage that wants real writes has to
+#: delete this set, which is a visible change rather than a silent one.
+_CONFIRM_ONLY_TOOLS = frozenset({"create_file"})
+
+#: A recorded content digest: `_workflow_step` writes fixed-width lowercase hex.
+_CONTENT_DIGEST = re.compile(r",\s*content_sha256=([0-9a-f]{64})\s*$")
 
 DispatchFn = Callable[[str, dict[str, Any]], tuple[str, str, bool]]
 
@@ -118,6 +136,21 @@ def _parse_step(step_desc: str) -> Optional[PlaybookStep]:
     if tool_name == "verify":
         return PlaybookStep(
             tool_name="verify", args={"command": _arg_value(arg, "command")}
+        )
+    if tool_name == "create_file":
+        # `filepath=x, content_sha256=<64 hex>`. Taken off the END so a comma
+        # inside a filepath cannot split the step wrongly. A step recorded
+        # before digests existed has no digest, and stays uncompilable --
+        # confirming a write against an unknown digest would confirm nothing.
+        match = _CONTENT_DIGEST.search(arg)
+        if match is None:
+            return None
+        filepath = _arg_value(arg[: match.start()].strip(), "filepath")
+        if not filepath:
+            return None
+        return PlaybookStep(
+            tool_name="create_file",
+            args={"filepath": filepath, "content_sha256": match.group(1)},
         )
     return None
 
@@ -262,7 +295,7 @@ def _step_targets_are_clean(step: "PlaybookStep") -> bool:
     verdict for a different file. Refusing to compile is safe — that skill simply
     keeps running through the LLM instead of the reflex fast-path.
     """
-    if step.tool_name in ("read_file", "read_directory"):
+    if step.tool_name in ("read_file", "read_directory", "create_file"):
         value = str(step.args.get("filepath") or step.args.get("path") or "")
         return _is_clean_target(value)
     if step.tool_name in ("execute_terminal", "verify"):
@@ -542,6 +575,30 @@ class Cerebellum:
                 "args": step.args,
             }
 
+            if step.tool_name in _CONFIRM_ONLY_TOOLS:
+                confirmed, detail = self._confirm_write(step)
+                if not confirmed:
+                    # ABSTAIN. Not a replay failure to be counted toward a
+                    # threshold -- the playbook is simply wrong for this state,
+                    # and the LLM must do the work. Decompile immediately so it
+                    # is not offered again for a file it cannot produce.
+                    self.decompile(playbook.id)
+                    yield {
+                        "type": "cerebellum_abort",
+                        "step_index": i,
+                        "reason": "abstained",
+                        "tool": step.tool_name,
+                        "output": detail,
+                    }
+                    return
+                yield {
+                    "type": "cerebellum_step_done",
+                    "tool": step.tool_name,
+                    "step_index": i,
+                    "output": detail,
+                }
+                continue
+
             output, status, failed = dispatch_fn(step.tool_name, step.args)
 
             if status in ("blocked", "approval"):
@@ -573,6 +630,76 @@ class Cerebellum:
             }
 
         self._record_replay_success(playbook.id)
+
+    # ------------------------------------------------------------------
+    # Confirm-only steps (learning loop, stage 1)
+    # ------------------------------------------------------------------
+
+    def _confirm_write(self, step: PlaybookStep) -> tuple[bool, str]:
+        """Is the file this step would have written ALREADY exactly right?
+
+        Stage 1 replays a write as a no-op check and nothing else:
+
+            target exists AND digest matches -> success, no write
+            target missing OR digest differs -> abstain, decompile
+
+        It can only confirm what is already correct, which is what makes it
+        safe by construction rather than by care. The value is real even so:
+        today a workflow containing any `create_file` is entirely uncompilable,
+        so the whole playbook is discarded and every step re-runs through the
+        LLM. This makes those playbooks usable with the write step as a
+        verified no-op.
+
+        Read against the same scope root the gateway enforces, so a step can
+        never confirm a file outside the sandbox -- it does not get to widen
+        its own reach just because it is only reading.
+        """
+        filepath = str(step.args.get("filepath", ""))
+        expected = str(step.args.get("content_sha256", ""))
+        if not filepath or not expected:
+            return False, "step carries no target or no digest"
+
+        # ONE derivation, not a second copy. `config.SCOPE_ROOTS` is the
+        # process-start default; `is_path_in_scope` reads the LIVE, re-declarable
+        # authority. Deriving containment from the former while the executor uses
+        # the latter is exactly the drift that was a real escape (see
+        # `ScopeLockAuthority._default_base`), so this asks the same function the
+        # gateway asks rather than reimplementing it.
+        verdict = is_path_in_scope(filepath)
+        if not verdict.in_scope:
+            return False, "target resolves outside the sandbox"
+        target = Path(verdict.resolved)
+
+        if not target.is_file():
+            return False, f"{filepath} does not exist"
+        try:
+            actual = hashlib.sha256(target.read_bytes()).hexdigest()
+        except OSError as exc:
+            return False, f"{filepath} could not be read: {exc}"
+
+        if actual != expected:
+            return False, f"{filepath} exists but its content differs"
+        return True, f"{filepath} already matches (no write)"
+
+    def decompile(self, playbook_id: int) -> None:
+        """Retire one playbook immediately, without waiting for a threshold.
+
+        Distinct from `_record_replay_failure`, which counts toward
+        `max_consecutive_failures`: an abstention is not evidence the playbook
+        is bad, only that it does not fit the current state, so it is retired
+        rather than accumulated against.
+        """
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            conn.execute(
+                """UPDATE compiled_playbooks
+                   SET status = 'decompiled', updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ?""",
+                (playbook_id,),
+            )
+        pb = self._cache.get(playbook_id)
+        if pb is not None:
+            pb.status = "decompiled"
 
     # ------------------------------------------------------------------
     # Replay bookkeeping
