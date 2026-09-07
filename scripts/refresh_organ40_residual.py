@@ -11,7 +11,9 @@ import json
 from pathlib import Path
 
 
-LEDGER = Path(__file__).resolve().parents[1] / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
+LEDGER = (
+    Path(__file__).resolve().parents[1] / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
+)
 OLD = "no Docker — Docker Desktop daemon unavailable on this Windows host (npipe dockerDesktopLinuxEngine); historical CI Docker isolation evidence retained, not tip-restamped"
 NEW = "Phase 4 absolute residual — Docker Desktop daemon is available, but the current-tip control-plane image build exceeded the 20-minute local evidence bound; no tip-valid organ 40 integration proof was produced"
 

@@ -7,6 +7,7 @@ prevents such an id from ever reaching them. That upstream gate is real, but
 these direct tests exist so a regression in either layer fails on its own,
 independent of the other.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -19,6 +20,7 @@ from fastapi import HTTPException
 
 
 # ── path_sanitizer.sanitize_path ─────────────────────────────────────────────
+
 
 def test_sanitize_path_rejects_dotdot_escape(tmp_path) -> None:
     base = tmp_path / "missions"
@@ -51,6 +53,7 @@ def test_sanitize_path_allows_base_itself(tmp_path) -> None:
 
 # ── KingReportStore / RunLedgerStore.path_for ───────────────────────────────
 
+
 @pytest.mark.parametrize("escaping_id", ["../../evil", "..", "..\\..\\evil"])
 def test_king_report_path_for_rejects_escape(tmp_path, escaping_id) -> None:
     store = KingReportStore(tmp_path)
@@ -61,7 +64,9 @@ def test_king_report_path_for_rejects_escape(tmp_path, escaping_id) -> None:
 def test_king_report_path_for_allows_legit_mission_id(tmp_path) -> None:
     store = KingReportStore(tmp_path)
     path = store.path_for("mission-abc")
-    assert path == (tmp_path / "missions" / "mission-abc" / "king_report.json").resolve()
+    assert (
+        path == (tmp_path / "missions" / "mission-abc" / "king_report.json").resolve()
+    )
 
 
 @pytest.mark.parametrize("escaping_id", ["../../evil", "..", "..\\..\\evil"])
@@ -78,6 +83,7 @@ def test_run_ledger_path_for_allows_legit_mission_id(tmp_path) -> None:
 
 
 # ── council.py's own mission-id containment (defense in depth) ─────────────
+
 
 def test_validate_council_mission_id_rejects_traversal_shapes() -> None:
     for bad_id in ("../../evil", "..", "a/b", "a\\b", ""):

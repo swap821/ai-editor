@@ -53,7 +53,9 @@ def normalize(path: Path) -> None:
 
     by_model = {candidate["model"]: candidate for candidate in candidates}
     passed = {
-        model for model, candidate in by_model.items() if candidate.get("status") == "passed"
+        model
+        for model, candidate in by_model.items()
+        if candidate.get("status") == "passed"
     }
     recommendations = []
     for model in ORDER:
@@ -79,7 +81,15 @@ def normalize(path: Path) -> None:
         "Web/library metadata is advisory; local qualification is the admission evidence.",
     ]
     path.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"artifact": str(path), "recommendations": [item["model"] for item in recommendations]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "artifact": str(path),
+                "recommendations": [item["model"] for item in recommendations],
+            },
+            indent=2,
+        )
+    )
 
 
 def main() -> int:

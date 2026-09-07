@@ -207,6 +207,7 @@ from aios.core.verification_strength import (
 )
 from aios.security.audit_logger import init_audit_db, log_action
 from aios.core.injection_scan import detect_injection
+
 # Re-exported, not dead: aios/application/turns/generate_pipeline.py pulls
 # `Zone` (and other names) off this module at runtime via _LIVE_NAMES /
 # _refresh_main_bindings, a deliberate mutable API seam. ruff cannot see

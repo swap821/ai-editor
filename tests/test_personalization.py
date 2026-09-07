@@ -4,6 +4,7 @@ confidence strengthening, and cortex bus observability.
 Collaborators are overridden via FastAPI dependency injection so no real
 LLM or embedder is loaded.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -28,6 +29,7 @@ from aios.memory.fact_extraction import extract_candidates
 
 # ── Fakes ─────────────────────────────────────────────────────────────────────
 
+
 class _DeterministicOllama:
     host: str = "http://127.0.0.1:11434"
 
@@ -48,6 +50,7 @@ class _FakeIndexer:
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def tmp_facts(tmp_path: Path) -> SemanticFacts:
@@ -75,6 +78,7 @@ def chat_client_with_facts(tmp_facts: SemanticFacts) -> Iterator[TestClient]:
 
 # ── Tests: chat endpoint extracts facts ──────────────────────────────────────
 
+
 def test_chat_endpoint_extracts_facts(
     chat_client_with_facts: TestClient, tmp_facts: SemanticFacts
 ) -> None:
@@ -85,10 +89,7 @@ def test_chat_endpoint_extracts_facts(
     assert resp.status_code == 200
     proposals = tmp_facts.pending_proposals()
     assert len(proposals) >= 1
-    found = any(
-        str(row["object"]).lower().startswith("dark mode")
-        for row in proposals
-    )
+    found = any(str(row["object"]).lower().startswith("dark mode") for row in proposals)
     assert found, f"Expected 'dark mode' proposal, got: {proposals}"
 
 
@@ -107,10 +108,14 @@ def test_chat_extraction_disabled_when_flag_off(
 
 # ── Tests: strengthen_or_propose ─────────────────────────────────────────────
 
+
 def test_strengthen_bumps_confidence(tmp_facts: SemanticFacts) -> None:
     from aios.memory.db import init_memory_db
+
     init_memory_db(tmp_facts.db_path)
-    tmp_facts.add_fact("operator", "prefers", "dark mode", approved_by="human", confidence=0.8)
+    tmp_facts.add_fact(
+        "operator", "prefers", "dark mode", approved_by="human", confidence=0.8
+    )
     result = tmp_facts.strengthen_or_propose("operator", "prefers", "dark mode")
     assert result.reason == "strengthened"
     rows = tmp_facts.facts_for("operator", "prefers")
@@ -128,6 +133,7 @@ def test_strengthen_proposes_new_fact(tmp_facts: SemanticFacts) -> None:
 
 
 # ── Tests: cortex bus event ──────────────────────────────────────────────────
+
 
 def test_cortex_bus_event_emitted_on_extraction(
     chat_client_with_facts: TestClient, tmp_path: Path
@@ -150,6 +156,7 @@ def test_cortex_bus_event_emitted_on_extraction(
 
 # ── Tests: no double proposals ───────────────────────────────────────────────
 
+
 def test_repeated_extraction_does_not_double_propose(tmp_facts: SemanticFacts) -> None:
     r1 = tmp_facts.strengthen_or_propose("operator", "likes", "coffee")
     assert r1.proposed is True
@@ -161,6 +168,7 @@ def test_repeated_extraction_does_not_double_propose(tmp_facts: SemanticFacts) -
 
 
 # ── Tests: /api/v1/operator/model ────────────────────────────────────────────
+
 
 @pytest.fixture()
 def operator_model_client(tmp_facts: SemanticFacts) -> Iterator[TestClient]:
@@ -183,9 +191,15 @@ def test_operator_model_returns_approved_facts(
     from aios.memory.db import init_memory_db
 
     init_memory_db(tmp_facts.db_path)
-    tmp_facts.add_fact("operator", "prefers", "dark mode", approved_by="human", confidence=0.9)
-    tmp_facts.add_fact("operator.role", "is", "engineer", approved_by="human", confidence=0.9)
-    tmp_facts.add_fact("project", "uses", "FastAPI", approved_by="human", confidence=0.9)
+    tmp_facts.add_fact(
+        "operator", "prefers", "dark mode", approved_by="human", confidence=0.9
+    )
+    tmp_facts.add_fact(
+        "operator.role", "is", "engineer", approved_by="human", confidence=0.9
+    )
+    tmp_facts.add_fact(
+        "project", "uses", "FastAPI", approved_by="human", confidence=0.9
+    )
 
     resp = operator_model_client.get("/api/v1/operator/model")
     assert resp.status_code == 200

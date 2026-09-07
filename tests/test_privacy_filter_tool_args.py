@@ -14,6 +14,7 @@ already JSON), so the provider received single-quoted "JSON" and answered
 -- a message that names neither the tool call nor the filter. Measured on Vertex
 MaaS; it applies to every OpenAI-compatible provider.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,7 +34,10 @@ def _args_after_filter(arguments: dict) -> object:
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"id": "c1", "function": {"name": "create_file", "arguments": arguments}}
+                    {
+                        "id": "c1",
+                        "function": {"name": "create_file", "arguments": arguments},
+                    }
                 ],
             },
         ]
@@ -53,7 +57,14 @@ def _args_after_filter(arguments: dict) -> object:
         "d = {'k': 'v'}",
         "",
     ],
-    ids=["single-quotes", "mixed-quotes", "windows-path", "regex", "dict-literal", "empty"],
+    ids=[
+        "single-quotes",
+        "mixed-quotes",
+        "windows-path",
+        "regex",
+        "dict-literal",
+        "empty",
+    ],
 )
 def test_arguments_survive_as_json(content: str) -> None:
     """The shapes an agent actually writes. Each one broke the quote swap."""
@@ -69,7 +80,10 @@ def test_arguments_survive_as_json(content: str) -> None:
 def test_redaction_still_happens() -> None:
     """The fix must not buy valid JSON by skipping the redaction."""
     args = _args_after_filter(
-        {"filepath": "a.py", "content": "p = 'C:" + BS + BS + "secret" + BS + BS + "path'"}
+        {
+            "filepath": "a.py",
+            "content": "p = 'C:" + BS + BS + "secret" + BS + BS + "path'",
+        }
     )
 
     assert "REDACTED" in json.dumps(args), "the path was not redacted"

@@ -1,4 +1,5 @@
 """Regression guards for FRONTEND_BEAUTIFICATION_BLUEPRINT wave 2."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,14 +34,19 @@ def test_wave2_forms_are_etched_controls_with_bespoke_action_focus() -> None:
     assert ".council-dashboard__originate button:focus-visible," in css
     assert ".council-dashboard__decision-actions button:focus-visible," in css
     assert ".council-dashboard__recovery button:focus-visible" in css
-    assert "box-shadow: 0 0 0 3px rgba(123, 245, 251, 0.18), 0 0 24px rgba(123, 245, 251, 0.26);" in css
+    assert (
+        "box-shadow: 0 0 0 3px rgba(123, 245, 251, 0.18), 0 0 24px rgba(123, 245, 251, 0.26);"
+        in css
+    )
 
 
 def test_wave2_mission_cards_empty_state_and_danger_glow() -> None:
     css = COUNCIL_DASHBOARD_CSS.read_text(encoding="utf-8")
 
     assert "inset 0 0 16px rgba(123, 245, 251, 0.04)" in css
-    assert "0 0 0 1px rgba(123, 245, 251, 0.32), 0 0 24px rgba(123, 245, 251, 0.18)" in css
+    assert (
+        "0 0 0 1px rgba(123, 245, 251, 0.32), 0 0 24px rgba(123, 245, 251, 0.18)" in css
+    )
     assert "border: 1px dashed rgba(123, 245, 251, 0.26);" in css
     assert ".council-dashboard__badge.is-danger," in css
     assert ".council-dashboard__verdict.is-danger" in css

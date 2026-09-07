@@ -5,6 +5,7 @@ or replace human approval. It prevents simultaneous writers, balances builder
 assignments equally, records messages, and hash-pins handoffs so reviews cannot
 approve a different tree than the one they inspected.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -209,7 +210,9 @@ def create_task(
         builder, reviewer = route(conn, category)
         if builder_override is not None:
             if builder_override not in AGENTS:
-                raise CoordinationError(f"unsupported builder override: {builder_override}")
+                raise CoordinationError(
+                    f"unsupported builder override: {builder_override}"
+                )
             builder = builder_override
             reviewer = _reviewer_for(conn, builder)
         now = _iso()
@@ -219,7 +222,11 @@ def create_task(
             (task_id, title, category, builder, reviewer, now, now),
         )
         _event(
-            conn, task_id, "operator", "routed", f"builder={builder}; reviewer={reviewer}"
+            conn,
+            task_id,
+            "operator",
+            "routed",
+            f"builder={builder}; reviewer={reviewer}",
         )
         conn.commit()
         return {
@@ -420,7 +427,9 @@ def release(
         ):
             raise CoordinationError("release requires the task's active writer lease")
         if worktree_dirty(root=root) and not allow_dirty:
-            raise CoordinationError("worktree is dirty; use handoff or explicit --allow-dirty")
+            raise CoordinationError(
+                "worktree is dirty; use handoff or explicit --allow-dirty"
+            )
         conn.execute(
             "DELETE FROM leases WHERE resource = 'worktree' AND agent = ? AND task_id = ?",
             (agent, task_id),
@@ -549,7 +558,9 @@ def record_verdict(
             raise CoordinationError("builder cannot approve their own handoff")
         current = tree_snapshot(root=root)
         if current != str(handoff_row["snapshot"]):
-            raise CoordinationError("worktree changed after handoff; reviewer verdict refused")
+            raise CoordinationError(
+                "worktree changed after handoff; reviewer verdict refused"
+            )
         conn.execute(
             "INSERT INTO verdicts (task_id, reviewer, verdict, summary, snapshot, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
@@ -594,7 +605,11 @@ def record_verdict(
 
 
 def inbox(
-    conn: sqlite3.Connection, agent: str, *, unread_only: bool = False, mark_read: bool = False
+    conn: sqlite3.Connection,
+    agent: str,
+    *,
+    unread_only: bool = False,
+    mark_read: bool = False,
 ) -> list[dict[str, Any]]:
     query = "SELECT * FROM messages WHERE recipient = ?"
     params: list[Any] = [agent]
@@ -613,7 +628,9 @@ def inbox(
 
 def status(conn: sqlite3.Connection, *, root: Path = ROOT) -> dict[str, Any]:
     active = _active_writer(conn, commit_expiry=True)
-    tasks = [dict(row) for row in conn.execute("SELECT * FROM tasks ORDER BY created_at")]
+    tasks = [
+        dict(row) for row in conn.execute("SELECT * FROM tasks ORDER BY created_at")
+    ]
     return {
         "active_writer": dict(active) if active is not None else None,
         "worktree_dirty": worktree_dirty(root=root),
@@ -749,12 +766,21 @@ def main(argv: list[str] | None = None) -> int:
             result = heartbeat(conn, args.agent, ttl_minutes=args.ttl_minutes)
         elif args.command == "release":
             result = release(
-                conn, args.task_id, args.agent, allow_dirty=args.allow_dirty, root=args.root
+                conn,
+                args.task_id,
+                args.agent,
+                allow_dirty=args.allow_dirty,
+                root=args.root,
             )
         elif args.command == "message":
             result = {
                 "message_id": send_message(
-                    conn, args.task_id, args.sender, args.recipient, args.kind, args.body
+                    conn,
+                    args.task_id,
+                    args.sender,
+                    args.recipient,
+                    args.kind,
+                    args.body,
                 )
             }
         elif args.command == "handoff":
@@ -769,7 +795,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "verdict":
             result = record_verdict(
-                conn, args.task_id, args.reviewer, args.verdict, args.summary, root=args.root
+                conn,
+                args.task_id,
+                args.reviewer,
+                args.verdict,
+                args.summary,
+                root=args.root,
             )
         elif args.command == "inbox":
             result = inbox(

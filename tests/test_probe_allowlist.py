@@ -15,6 +15,7 @@ smallest possible change: `-v` alters pytest output verbosity and nothing else.
 So this file is written refusal-first. The permissions are the easy half; the
 point is that everything the old pattern refused, the new one still refuses.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -36,7 +37,10 @@ REFUSED = [
     # --tb=<style> is now admitted: it formats tracebacks and changes nothing
     # about what runs. A value-taking flag that DOES change behaviour is
     # covered by the --rootdir and -c cases below.
-    ("a value flag that changes behaviour", "pytest --rootdir=/tmp training_ground/x.py"),
+    (
+        "a value flag that changes behaviour",
+        "pytest --rootdir=/tmp training_ground/x.py",
+    ),
     ("test selection by keyword", "pytest -k secret training_ground/x.py"),
     ("plugin loading", "pytest -p evil training_ground/x.py"),
     ("bundled -s with -k", "pytest -sk sel training_ground/x.py"),
@@ -44,7 +48,10 @@ REFUSED = [
     # `-o addopts=` (EMPTY) is admitted; every other use of -o is not. -o
     # overrides ANY ini option, so a non-empty value is arbitrary flag
     # injection wearing the costume of the one form the harness needs.
-    ("-o addopts= with an injected value", "pytest -o addopts=--pdb training_ground/x.py"),
+    (
+        "-o addopts= with an injected value",
+        "pytest -o addopts=--pdb training_ground/x.py",
+    ),
     ("-o addopts= smuggling -x", "pytest -o addopts=-x training_ground/x.py"),
     ("-o addopts= smuggling -k", "pytest -o addopts=-k sel training_ground/x.py"),
     ("bare -o", "pytest -o training_ground/x.py"),
@@ -144,6 +151,7 @@ def test_only_the_named_short_flags_are_admitted() -> None:
             f"{sorted(admitted)} and changing that set is a security decision"
         )
 
+
 def test_the_file_allowlist_was_not_touched() -> None:
     """This change is about commands. The write gate must be unchanged."""
     assert ALLOWED_FILE_RE.match("training_ground/x.py")
@@ -162,9 +170,19 @@ def test_only_output_flags_are_admitted() -> None:
     from aios.probe_common import ALLOWED_CMD_RE
 
     execution_changing = [
-        "-k sel", "-x", "-p plug", "--pdb", "--noconftest", "--rootdir=/",
-        "-o junit_suite_name=x", "--pdbcls=IPython:TerminalPdb",
-        "-c setup.cfg", "--import-mode=importlib", "-n 4", "--lf", "--ff",
+        "-k sel",
+        "-x",
+        "-p plug",
+        "--pdb",
+        "--noconftest",
+        "--rootdir=/",
+        "-o junit_suite_name=x",
+        "--pdbcls=IPython:TerminalPdb",
+        "-c setup.cfg",
+        "--import-mode=importlib",
+        "-n 4",
+        "--lf",
+        "--ff",
     ]
     for flag in execution_changing:
         cmd = f"pytest {flag} training_ground/x.py"
@@ -211,6 +229,7 @@ def test_the_harness_own_verify_command_is_admitted_by_its_own_gate() -> None:
 
 
 # -- the policy the harness states must match the gate it describes -----------
+
 
 def test_every_policy_example_is_actually_admitted() -> None:
     """A policy that promises more than the gate allows is a trap.

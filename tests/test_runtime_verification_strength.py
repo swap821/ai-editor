@@ -6,6 +6,7 @@ KingReport carry the verification STRENGTH, and a positive recommendation that
 rests on below-floor (weak/hollow) evidence is visibly flagged. Fail-closed:
 missing/failed/empty verification reads NONE, never STRONG.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -17,9 +18,15 @@ from aios.runtime.run_ledger import build_run_ledger
 _HANDLE = SimpleNamespace(worker_id="worker-1")
 _CREATED = "2026-06-28T00:00:00+00:00"
 
-STRONG_V = [{"command": ["pytest", "-q"], "returncode": 0, "stdout": "3 passed", "stderr": ""}]
-WEAK_V = [{"command": ["echo", "done"], "returncode": 0, "stdout": "done", "stderr": ""}]
-FAILED_V = [{"command": ["pytest", "-q"], "returncode": 1, "stdout": "1 failed", "stderr": ""}]
+STRONG_V = [
+    {"command": ["pytest", "-q"], "returncode": 0, "stdout": "3 passed", "stderr": ""}
+]
+WEAK_V = [
+    {"command": ["echo", "done"], "returncode": 0, "stdout": "done", "stderr": ""}
+]
+FAILED_V = [
+    {"command": ["pytest", "-q"], "returncode": 1, "stdout": "1 failed", "stderr": ""}
+]
 # A strong AND a weak check: weakest-link wins (one strong cannot launder a weak).
 MIXED_V = STRONG_V + WEAK_V
 
@@ -48,7 +55,9 @@ def _result(verification: list, *, status: str = "completed") -> WorkerResult:
     )
 
 
-def _ledger(verification: list, *, status: str = "completed", requires_approval: bool = True):
+def _ledger(
+    verification: list, *, status: str = "completed", requires_approval: bool = True
+):
     return build_run_ledger(
         contract=_contract(requires_approval=requires_approval),
         handle=_HANDLE,
@@ -58,6 +67,7 @@ def _ledger(verification: list, *, status: str = "completed", requires_approval:
 
 
 # --- ledger carries typed strength (weakest-link, fail-closed) ----------------
+
 
 def test_run_ledger_strong_verification_is_strong() -> None:
     assert _ledger(STRONG_V).verification["strength"] == "STRONG"
@@ -86,6 +96,7 @@ def test_run_ledger_preserves_the_command_evidence() -> None:
 
 
 # --- King report flags below-floor approvals (the acceptance) -----------------
+
 
 def test_king_report_flags_approve_on_weak_evidence() -> None:
     report = build_king_report(ledger=_ledger(WEAK_V), result=_result(WEAK_V))

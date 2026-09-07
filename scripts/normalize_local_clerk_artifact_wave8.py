@@ -8,7 +8,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PATH = ROOT / "release" / "phase4" / "local-clerk-candidate-cohort-qwen15-wave8-20260801.json"
+PATH = (
+    ROOT
+    / "release"
+    / "phase4"
+    / "local-clerk-candidate-cohort-qwen15-wave8-20260801.json"
+)
 
 
 def main() -> int:
@@ -33,8 +38,12 @@ def main() -> int:
     }
     for candidate in artifact.get("candidates", []):
         if candidate["model"] in metadata:
-            candidate["source_url"], candidate["library_size_gb"] = metadata[candidate["model"]]
-    by_model = {candidate["model"]: candidate for candidate in artifact.get("candidates", [])}
+            candidate["source_url"], candidate["library_size_gb"] = metadata[
+                candidate["model"]
+            ]
+    by_model = {
+        candidate["model"]: candidate for candidate in artifact.get("candidates", [])
+    }
     order = list(metadata)
     artifact["recommendations"] = [
         {
@@ -56,7 +65,17 @@ def main() -> int:
         "Web/library metadata is advisory; local qualification is the admission evidence.",
     ]
     PATH.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"artifact": str(PATH), "recommendations": [item["model"] for item in artifact["recommendations"]]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "artifact": str(PATH),
+                "recommendations": [
+                    item["model"] for item in artifact["recommendations"]
+                ],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

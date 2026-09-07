@@ -4,6 +4,7 @@ A fake-runner Executor exercises the real security gateway, so blocking is
 genuine; the runner returns scripted pytest/jest-style output to drive the
 pass/fail/delta logic deterministically — no shell, no model.
 """
+
 from __future__ import annotations
 
 from aios.core.executor import Executor
@@ -12,7 +13,9 @@ from aios.security.gateway import RateLimiter
 
 
 def _executor(runner):
-    return Executor(runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+    return Executor(
+        runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
 
 
 def test_verify_pass_has_zero_delta() -> None:
@@ -25,9 +28,13 @@ def test_verify_pass_has_zero_delta() -> None:
 
 
 def test_verify_fail_has_negative_delta_and_reflects() -> None:
-    ex = _executor(lambda command, *, cwd, env, timeout_s: ("", "1 failed, 2 passed", 1))
+    ex = _executor(
+        lambda command, *, cwd, env, timeout_s: ("", "1 failed, 2 passed", 1)
+    )
     seen: list[tuple[str, str]] = []
-    res = Verifier(ex, on_failure=lambda c, o: seen.append((c, o))).verify("pytest", approved=True)
+    res = Verifier(ex, on_failure=lambda c, o: seen.append((c, o))).verify(
+        "pytest", approved=True
+    )
     assert res.passed is False
     assert res.confidence_delta < 0
     assert res.failed_count == 1
@@ -56,7 +63,9 @@ def test_verify_nonzero_exit_without_counts_is_fail() -> None:
 def test_verify_does_not_reflect_on_pass() -> None:
     ex = _executor(lambda command, *, cwd, env, timeout_s: ("5 passed", "", 0))
     seen: list[tuple[str, str]] = []
-    res = Verifier(ex, on_failure=lambda c, o: seen.append((c, o))).verify("pytest", approved=True)
+    res = Verifier(ex, on_failure=lambda c, o: seen.append((c, o))).verify(
+        "pytest", approved=True
+    )
     assert res.passed is True
     assert seen == [], "a passing verification must not trigger reflection"
 
@@ -72,7 +81,13 @@ def test_verify_blocked_command_does_not_reflect() -> None:
 
 def test_verify_pass_not_fooled_by_incidental_error_text() -> None:
     # Exit 0 is authoritative; an incidental "error" in output must not flip it.
-    ex = _executor(lambda command, *, cwd, env, timeout_s: ("5 passed; cleaned up 1 error log", "", 0))
+    ex = _executor(
+        lambda command, *, cwd, env, timeout_s: (
+            "5 passed; cleaned up 1 error log",
+            "",
+            0,
+        )
+    )
     res = Verifier(ex).verify("pytest", approved=True)
     assert res.passed is True
     assert res.confidence_delta == 0.0

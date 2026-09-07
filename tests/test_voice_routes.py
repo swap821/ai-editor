@@ -9,6 +9,7 @@ Covered: 501 gating when disabled, real singleton construction when
 enabled, ImportError → VoiceError → 503 mapping, 413 oversize guard,
 wav/json response formats, and the models-introspection endpoint.
 """
+
 from __future__ import annotations
 
 import base64
@@ -78,7 +79,9 @@ def test_transcribe_builds_singleton_then_503_without_dependency(client, monkeyp
 def test_transcribe_413_when_audio_too_large(client, monkeypatch):
     monkeypatch.setattr(config, "VOICE_STT_ENABLED", True)
     monkeypatch.setattr(config, "VOICE_MAX_AUDIO_BYTES", 4)
-    response = client.post("/api/v1/voice/transcribe", files=_wav_upload(b"way too large"))
+    response = client.post(
+        "/api/v1/voice/transcribe", files=_wav_upload(b"way too large")
+    )
     assert response.status_code == 413
 
 

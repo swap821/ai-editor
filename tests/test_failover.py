@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from aios.application.models.health import ProviderHealthTracker
-from aios.core.failover import FailoverChatClient, _is_cloud_provider, _is_local_provider
+from aios.core.failover import (
+    FailoverChatClient,
+    _is_cloud_provider,
+    _is_local_provider,
+)
 from aios.core.llm import LLMError
 from aios.core.stream_protocol import StreamFinished
 
@@ -54,6 +58,7 @@ def test_failover_chat_fallback_on_llm_error():
     client2.chat.return_value = {"content": "response 2"}
 
     hook_calls = []
+
     def on_failover(failed_p, failed_m, next_p, next_m, exc):
         hook_calls.append((failed_p, failed_m, next_p, next_m, str(exc)))
 
@@ -343,14 +348,11 @@ def test_failover_chat_privacy_audit_tracker_untouched_for_local_only_candidates
 
 def test_failover_stream_chat_with_tools():
     client1 = MagicMock()
-    client1.stream_chat_with_tools.return_value = iter([
-        "text",
-        StreamFinished(tool_calls=[], content="text")
-    ])
+    client1.stream_chat_with_tools.return_value = iter(
+        ["text", StreamFinished(tool_calls=[], content="text")]
+    )
 
-    candidates = [
-        (client1, "m1", "ollama")
-    ]
+    candidates = [(client1, "m1", "ollama")]
 
     fc = FailoverChatClient(candidates)
     items = list(fc.stream_chat_with_tools([{"role": "user", "content": "hi"}]))

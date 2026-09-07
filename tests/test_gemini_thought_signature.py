@@ -14,6 +14,7 @@ reads exactly like a weak model and is nothing of the kind.
 The signature rides on the tool-call dict, which ToolAgent stores verbatim, so
 it survives the round trip without the agent knowing it exists.
 """
+
 from __future__ import annotations
 
 import base64
@@ -59,7 +60,10 @@ def test_the_signature_is_replayed_on_the_request() -> None:
             "tool_calls": [
                 {
                     "id": None,
-                    "function": {"name": "read_file", "arguments": {"filepath": "x.py"}},
+                    "function": {
+                        "name": "read_file",
+                        "arguments": {"filepath": "x.py"},
+                    },
                     "thought_signature": SIG_B64,
                 }
             ],
@@ -93,7 +97,11 @@ def test_a_call_without_a_signature_replays_without_the_field() -> None:
     _system, contents = _to_gemini(messages)
 
     fc_parts = [
-        p for c in contents if c["role"] == "model" for p in c["parts"] if "function_call" in p
+        p
+        for c in contents
+        if c["role"] == "model"
+        for p in c["parts"]
+        if "function_call" in p
     ]
     assert fc_parts and "thought_signature" not in fc_parts[0]
 
@@ -122,12 +130,18 @@ def test_the_exact_bytes_reach_the_wire() -> None:
     call = _tool_call_from_part(part, fc)
 
     _system, contents = _to_gemini(
-        [{"role": "user", "content": "go"},
-         {"role": "assistant", "content": "", "tool_calls": [call]}]
+        [
+            {"role": "user", "content": "go"},
+            {"role": "assistant", "content": "", "tool_calls": [call]},
+        ]
     )
 
     fc_part = [
-        p for c in contents if c["role"] == "model" for p in c["parts"] if "function_call" in p
+        p
+        for c in contents
+        if c["role"] == "model"
+        for p in c["parts"]
+        if "function_call" in p
     ][0]
     assert fc_part["thought_signature"] == SIG, "signature corrupted in transit"
 
@@ -153,8 +167,6 @@ def test_history_never_ends_on_a_model_turn() -> None:
 
 def test_a_normal_history_is_not_padded() -> None:
     """The guard must not append to a conversation that already ends correctly."""
-    _system, contents = _to_gemini(
-        [{"role": "user", "content": "go"}]
-    )
+    _system, contents = _to_gemini([{"role": "user", "content": "go"}])
 
     assert len(contents) == 1 and contents[-1]["role"] == "user"

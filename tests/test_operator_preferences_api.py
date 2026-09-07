@@ -38,6 +38,7 @@ def test_preference_routes_require_an_authenticated_operator(tmp_path: Path) -> 
     finally:
         app.dependency_overrides.clear()
 
+
 def test_save_preference_persists_as_explicit_and_active(tmp_path: Path) -> None:
     client = _client_with_isolated_store(tmp_path)
     try:

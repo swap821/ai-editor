@@ -54,6 +54,7 @@ router = APIRouter(dependencies=[Depends(enforce_action_boundary)])
 #: from aios.core.metrics, so this is the SAME object main's middleware uses).
 _METRICS = get_collector()
 
+
 def _episodic() -> Any:
     """Authority-owned episodic facade over the shared chronological store.
 

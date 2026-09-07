@@ -23,6 +23,7 @@ Assertions: exactly 2 ``human_required`` pauses total, both files land on
 disk, the outcome chain completes with ``done``, and the final turn mints
 exactly one skill whose recorded recipe carries both writes.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -50,20 +51,10 @@ from aios.security.gateway import RateLimiter
 from tests.test_api import FakeIndexer, FakeLLM, RecordingAudit
 
 _ALPHA_CONTENT = (
-    "def add(a, b):\n"
-    "    return a + b\n"
-    "\n"
-    "\n"
-    "def test_add():\n"
-    "    assert add(2, 3) == 5\n"
+    "def add(a, b):\n    return a + b\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
 )
 _BETA_CONTENT = (
-    "def sub(a, b):\n"
-    "    return a - b\n"
-    "\n"
-    "\n"
-    "def test_sub():\n"
-    "    assert sub(5, 3) == 2\n"
+    "def sub(a, b):\n    return a - b\n\n\ndef test_sub():\n    assert sub(5, 3) == 2\n"
 )
 
 
@@ -145,7 +136,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = lambda: fake_ollama
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_skill_memory] = lambda: skills
-    app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": None)
+    app.dependency_overrides[get_edit_snapshot] = lambda: lambda message="": None
     _runner = lambda command, *, cwd, env, timeout_s: ("1 passed", "", 0)  # noqa: E731
     app.dependency_overrides[get_executor] = lambda: Executor(
         runner=_runner,
@@ -167,9 +158,10 @@ def client(monkeypatch) -> Iterator[TestClient]:
 
 def _extract_approval_token(body: str) -> str:
     import json as _json
+
     for line in body.splitlines():
         if line.startswith("data:"):
-            payload = _json.loads(line[len("data:"):].strip())
+            payload = _json.loads(line[len("data:") :].strip())
             token = (payload.get("input") or {}).get("approvalToken")
             if token:
                 return str(token)
@@ -186,13 +178,23 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     sandbox: Path = client._sandbox  # type: ignore[attr-defined]
 
     # --- Turn 1: fresh directive, no tokens -> plans file A -> pauses. ---
-    resp1 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [
-            {"text": "create test_a.py, then create test_b.py, then verify both"}
-        ]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": SESSION_ID,
-    })
+    resp1 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": "create test_a.py, then create test_b.py, then verify both"
+                        }
+                    ],
+                }
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": SESSION_ID,
+        },
+    )
     assert resp1.status_code == 200
     body1 = resp1.text
     assert "event: human_required" in body1
@@ -200,14 +202,24 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     assert len(fake_ollama.calls) == 1
 
     # --- Turn 2: resume with token 1. ---
-    resp2 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [
-            {"text": "create test_a.py, then create test_b.py, then verify both"}
-        ]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": SESSION_ID,
-        "approvalTokens": [token1],
-    })
+    resp2 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": "create test_a.py, then create test_b.py, then verify both"
+                        }
+                    ],
+                }
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": SESSION_ID,
+            "approvalTokens": [token1],
+        },
+    )
     assert resp2.status_code == 200
     body2 = resp2.text
 
@@ -239,21 +251,33 @@ def test_two_pause_chain_replays_convo_tail_and_teaches_one_skill(
     token2 = _extract_approval_token(body2)
 
     # --- Turn 3: resume with token 2 -> model concludes. ---
-    resp3 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [
-            {"text": "create test_a.py, then create test_b.py, then verify both"}
-        ]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": SESSION_ID,
-        "approvalTokens": [token2],
-    })
+    resp3 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": "create test_a.py, then create test_b.py, then verify both"
+                        }
+                    ],
+                }
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": SESSION_ID,
+            "approvalTokens": [token2],
+        },
+    )
     assert resp3.status_code == 200
     body3 = resp3.text
     assert "event: done" in body3
     assert len(fake_ollama.calls) == 3
 
     # Exactly 2 human_required pauses total across the whole chain.
-    total_pauses = body1.count("event: human_required") + body2.count("event: human_required")
+    total_pauses = body1.count("event: human_required") + body2.count(
+        "event: human_required"
+    )
     assert total_pauses == 2, f"expected exactly 2 pauses, counted {total_pauses}"
     assert "event: human_required" not in body3
 

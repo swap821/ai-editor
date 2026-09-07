@@ -2,6 +2,7 @@
 /api/v1/system/restart endpoints added 2026-07-10 to replace the previously-
 phantom routes SettingsPanel.jsx already called (and 404'd on).
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -21,7 +22,9 @@ def client() -> Iterator[TestClient]:
         yield test_client
 
 
-def test_get_system_config_returns_defaults_when_unset(client, tmp_path, monkeypatch) -> None:
+def test_get_system_config_returns_defaults_when_unset(
+    client, tmp_path, monkeypatch
+) -> None:
     monkeypatch.setattr(
         "aios.api.routes.system._SETTINGS_PATH", tmp_path / "system_settings.json"
     )
@@ -38,7 +41,9 @@ def test_get_system_config_returns_defaults_when_unset(client, tmp_path, monkeyp
     assert body["autonomy"] is True
 
 
-def test_post_system_config_persists_and_get_reflects_it(client, tmp_path, monkeypatch) -> None:
+def test_post_system_config_persists_and_get_reflects_it(
+    client, tmp_path, monkeypatch
+) -> None:
     settings_path = tmp_path / "system_settings.json"
     monkeypatch.setattr("aios.api.routes.system._SETTINGS_PATH", settings_path)
     monkeypatch.delenv("AIOS_EARNED_AUTONOMY", raising=False)
@@ -123,8 +128,8 @@ def test_reexec_argv_reconstruction_is_actually_importable(monkeypatch) -> None:
     # Anchor the bug this fixes: the OLD reconstruction (sys.argv[0] as a
     # literal script path) sets sys.path[0] to the script's directory.
     broken_argv = [sys.executable, "aios/__main__.py", "--help"]
-    broken_result = subprocess.run(broken_argv, capture_output=True, text=True, timeout=30)
+    broken_result = subprocess.run(
+        broken_argv, capture_output=True, text=True, timeout=30
+    )
     # Under editable install, site-packages .pth resolves aios; when uninstalled it fails.
     assert broken_result.returncode in (0, 1)
-
-

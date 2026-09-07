@@ -33,7 +33,15 @@ def main() -> int:
     if artifact not in qualification:
         qualification.append(artifact)
     INVENTORY.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"admitted_clerks": clerks, "disk_free_bytes": inventory["disk_free_bytes_after_cleanup"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "admitted_clerks": clerks,
+                "disk_free_bytes": inventory["disk_free_bytes_after_cleanup"],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

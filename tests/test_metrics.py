@@ -3,6 +3,7 @@
 Covers P1-5: the observability surface re-emits DevelopmentTracker data plus
 approval, earned-autonomy, and audit-chain counters.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -70,7 +71,9 @@ def test_metrics_endpoint_returns_prometheus_text(client: TestClient) -> None:
     assert "aios_audit_verify_failures_total" in body
 
 
-def test_metrics_reflect_development_summary(client: TestClient, tmp_path: Path) -> None:
+def test_metrics_reflect_development_summary(
+    client: TestClient, tmp_path: Path
+) -> None:
     tracker = DevelopmentTracker(db_path=tmp_path / "memory.db")
     tracker.record("test task", "verified_success", blocked_actions=1)
 
@@ -135,7 +138,9 @@ def test_audit_verify_increments_failure_counter_and_sets_gauge(
     raw.commit()
     raw.close()
 
-    def _verify_with_temp_db(*, from_id: int = 1, to_id: int | None = None, db_path=None):
+    def _verify_with_temp_db(
+        *, from_id: int = 1, to_id: int | None = None, db_path=None
+    ):
         return audit_mod.verify_chain(from_id=from_id, to_id=to_id, db_path=audit_db)
 
     # audit_verify lives in aios.api.routes.system since the monolith split
@@ -165,8 +170,14 @@ def test_middleware_records_http_request_metrics(client: TestClient) -> None:
 
     metrics_response = client.get("/metrics")
     body = metrics_response.text
-    assert 'aios_http_requests_total{method="GET",route="/health",status_code="200"} 1.0' in body
-    assert 'aios_http_request_duration_seconds_count{method="GET",route="/health"} 1.0' in body
+    assert (
+        'aios_http_requests_total{method="GET",route="/health",status_code="200"} 1.0'
+        in body
+    )
+    assert (
+        'aios_http_request_duration_seconds_count{method="GET",route="/health"} 1.0'
+        in body
+    )
 
 
 def test_metrics_endpoint_is_not_self_counted(client: TestClient) -> None:

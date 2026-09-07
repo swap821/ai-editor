@@ -4,11 +4,17 @@ A fake bedrock-runtime client is injected, so the suite never imports boto3,
 makes a network call, or needs AWS credentials — the conversion logic is what's
 under test, not AWS itself.
 """
+
 from __future__ import annotations
 
 import pytest
 
-from aios.core.bedrock import BedrockClient, _parse_output, _to_converse, _to_tool_config
+from aios.core.bedrock import (
+    BedrockClient,
+    _parse_output,
+    _to_converse,
+    _to_tool_config,
+)
 from aios.core.llm import LLMError
 
 pytestmark = [pytest.mark.cloud]
@@ -33,20 +39,34 @@ class FakeBedrock:
 
 
 def test_to_converse_splits_system_and_pairs_tools() -> None:
-    system, conv = _to_converse([
-        {"role": "system", "content": "you are an agent"},
-        {"role": "user", "content": "list files"},
-        {"role": "assistant", "content": "",
-         "tool_calls": [{"function": {"name": "execute_terminal", "arguments": {"command": "ls"}}}]},
-        {"role": "tool", "content": "ran: ls"},
-    ])
+    system, conv = _to_converse(
+        [
+            {"role": "system", "content": "you are an agent"},
+            {"role": "user", "content": "list files"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "execute_terminal",
+                            "arguments": {"command": "ls"},
+                        }
+                    }
+                ],
+            },
+            {"role": "tool", "content": "ran: ls"},
+        ]
+    )
     assert system == [{"text": "you are an agent"}]
     assert conv[0] == {"role": "user", "content": [{"text": "list files"}]}
     tool_use = conv[1]["content"][-1]["toolUse"]
     assert tool_use["name"] == "execute_terminal"
     assert tool_use["input"] == {"command": "ls"}
     tool_result = conv[2]["content"][0]["toolResult"]
-    assert tool_result["toolUseId"] == tool_use["toolUseId"]   # result paired to its call
+    assert (
+        tool_result["toolUseId"] == tool_use["toolUseId"]
+    )  # result paired to its call
     assert tool_result["content"] == [{"text": "ran: ls"}]
 
 
@@ -56,24 +76,42 @@ def test_to_converse_merges_multiple_tool_results_into_one_user_turn() -> None:
     SINGLE following user message (reproduces a live ValidationException: "Expected
     toolResult blocks at messages.N.content for the following Ids: [...]").
     """
-    _, conv = _to_converse([
-        {"role": "user", "content": "do two things"},
-        {"role": "assistant", "content": "",
-         "tool_calls": [
-             {"function": {"name": "create_file", "arguments": {"filepath": "a.py"}}},
-             {"function": {"name": "run_command", "arguments": {"command": "pytest"}}},
-         ]},
-        {"role": "tool", "content": "created a.py"},
-        {"role": "tool", "content": "pytest: 2 passed"},
-    ])
+    _, conv = _to_converse(
+        [
+            {"role": "user", "content": "do two things"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "create_file",
+                            "arguments": {"filepath": "a.py"},
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "run_command",
+                            "arguments": {"command": "pytest"},
+                        }
+                    },
+                ],
+            },
+            {"role": "tool", "content": "created a.py"},
+            {"role": "tool", "content": "pytest: 2 passed"},
+        ]
+    )
     assert len(conv) == 3  # user, assistant(2 toolUse), ONE user(2 toolResult)
-    tool_use_ids = [b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b]
+    tool_use_ids = [
+        b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b
+    ]
     result_msg = conv[2]
     assert result_msg["role"] == "user"
     result_ids = [b["toolResult"]["toolUseId"] for b in result_msg["content"]]
     assert result_ids == tool_use_ids
     assert [b["toolResult"]["content"] for b in result_msg["content"]] == [
-        [{"text": "created a.py"}], [{"text": "pytest: 2 passed"}],
+        [{"text": "created a.py"}],
+        [{"text": "pytest: 2 passed"}],
     ]
 
 
@@ -90,18 +128,37 @@ def test_to_converse_orphans_extra_tool_result_when_unpaired() -> None:
     toolResult blocks at messages.N.content exceeds the number of toolUse
     blocks of previous turn."
     """
-    _, conv = _to_converse([
-        {"role": "user", "content": "edit and verify a.py"},
-        {"role": "assistant", "content": "",
-         "tool_calls": [
-             {"function": {"name": "edit_file", "arguments": {"filepath": "a.py"}}},
-         ]},
-        {"role": "tool", "content": "edit applied"},            # paired to the real toolUse
-        {"role": "tool", "content": "[VERIFY PASS] 2 passed"},   # auto-verify's unpaired append
-    ])
-    tool_use_ids = [b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b]
+    _, conv = _to_converse(
+        [
+            {"role": "user", "content": "edit and verify a.py"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "edit_file",
+                            "arguments": {"filepath": "a.py"},
+                        }
+                    },
+                ],
+            },
+            {"role": "tool", "content": "edit applied"},  # paired to the real toolUse
+            {
+                "role": "tool",
+                "content": "[VERIFY PASS] 2 passed",
+            },  # auto-verify's unpaired append
+        ]
+    )
+    tool_use_ids = [
+        b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b
+    ]
     result_msg = conv[2]
-    result_ids = [b["toolResult"]["toolUseId"] for b in result_msg.get("content", []) if "toolResult" in b]
+    result_ids = [
+        b["toolResult"]["toolUseId"]
+        for b in result_msg.get("content", [])
+        if "toolResult" in b
+    ]
     assert len(result_ids) == len(tool_use_ids), (
         f"{len(result_ids)} toolResult blocks for only {len(tool_use_ids)} toolUse id(s) -- "
         "Bedrock rejects this with 'number of toolResult blocks exceeds toolUse blocks'"
@@ -125,14 +182,28 @@ def test_to_converse_never_mixes_toolresult_and_text_in_one_user_turn() -> None:
     ValidationException at messages.2 (right after the first assistant toolUse
     block) even with Defects 1 and 2 already fixed.
     """
-    _, conv = _to_converse([
-        {"role": "user", "content": "create pipeline.py"},
-        {"role": "assistant", "content": "",
-         "tool_calls": [{"function": {"name": "create_file",
-                                       "arguments": {"filepath": "pipeline.py"}}}]},
-        {"role": "tool", "content": "Created pipeline.py (120 bytes, 5 line(s))"},
-        {"role": "tool", "content": "[VERIFY SKIPPED] no sibling test for pipeline.py"},
-    ])
+    _, conv = _to_converse(
+        [
+            {"role": "user", "content": "create pipeline.py"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "create_file",
+                            "arguments": {"filepath": "pipeline.py"},
+                        }
+                    }
+                ],
+            },
+            {"role": "tool", "content": "Created pipeline.py (120 bytes, 5 line(s))"},
+            {
+                "role": "tool",
+                "content": "[VERIFY SKIPPED] no sibling test for pipeline.py",
+            },
+        ]
+    )
     result_msg = conv[-1]
     assert result_msg["role"] == "user"
     kinds = {tuple(block.keys())[0] for block in result_msg["content"]}
@@ -154,20 +225,41 @@ def test_to_converse_drops_toolresult_for_dangling_tooluse() -> None:
     Reproduces the live ValidationException: "Expected toolResult blocks at
     messages.N.content for the following Ids: [...]."
     """
-    _, conv = _to_converse([
-        {"role": "user", "content": "edit two files"},
-        {"role": "assistant", "content": "",
-         "tool_calls": [
-             {"id": "callB", "function": {"name": "edit_file", "arguments": {"filepath": "x.py"}}},
-             {"id": "callC", "function": {"name": "edit_file", "arguments": {"filepath": "y.py"}}},
-         ]},
-        # Only callB ever gets a result (approved+applied on resume); callC was
-        # never dispatched -- its toolUse is left permanently dangling.
-        {"role": "tool", "content": "edit x.py applied"},
-        {"role": "user", "content": "continue"},
-    ])
-    tool_use_ids = [b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b]
-    result_ids = [b["toolResult"]["toolUseId"] for b in conv[2]["content"] if "toolResult" in b]
+    _, conv = _to_converse(
+        [
+            {"role": "user", "content": "edit two files"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "callB",
+                        "function": {
+                            "name": "edit_file",
+                            "arguments": {"filepath": "x.py"},
+                        },
+                    },
+                    {
+                        "id": "callC",
+                        "function": {
+                            "name": "edit_file",
+                            "arguments": {"filepath": "y.py"},
+                        },
+                    },
+                ],
+            },
+            # Only callB ever gets a result (approved+applied on resume); callC was
+            # never dispatched -- its toolUse is left permanently dangling.
+            {"role": "tool", "content": "edit x.py applied"},
+            {"role": "user", "content": "continue"},
+        ]
+    )
+    tool_use_ids = [
+        b["toolUse"]["toolUseId"] for b in conv[1]["content"] if "toolUse" in b
+    ]
+    result_ids = [
+        b["toolResult"]["toolUseId"] for b in conv[2]["content"] if "toolResult" in b
+    ]
     assert set(result_ids) == set(tool_use_ids), (
         f"toolUse ids {tool_use_ids} vs answered ids {result_ids} -- Bedrock rejects this "
         "with 'Expected toolResult blocks ... for the following Ids'"
@@ -175,21 +267,42 @@ def test_to_converse_drops_toolresult_for_dangling_tooluse() -> None:
 
 
 def test_to_converse_coerces_stringified_arguments() -> None:
-    _, conv = _to_converse([
-        {"role": "assistant", "content": "",
-         "tool_calls": [{"function": {"name": "read_file", "arguments": '{"filepath": "a.py"}'}}]},
-    ])
+    _, conv = _to_converse(
+        [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "read_file",
+                            "arguments": '{"filepath": "a.py"}',
+                        }
+                    }
+                ],
+            },
+        ]
+    )
     assert conv[0]["content"][0]["toolUse"]["input"] == {"filepath": "a.py"}
 
 
 def test_to_tool_config_maps_function_specs() -> None:
-    cfg = _to_tool_config([
-        {"type": "function", "function": {
-            "name": "read_file", "description": "read it",
-            "parameters": {"type": "object", "properties": {"filepath": {"type": "string"}},
-                           "required": ["filepath"]},
-        }}
-    ])
+    cfg = _to_tool_config(
+        [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "read it",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"filepath": {"type": "string"}},
+                        "required": ["filepath"],
+                    },
+                },
+            }
+        ]
+    )
     spec = cfg["tools"][0]["toolSpec"]
     assert spec["name"] == "read_file"
     assert spec["description"] == "read it"
@@ -202,14 +315,26 @@ def test_to_tool_config_none_when_empty() -> None:
 
 
 def test_parse_output_extracts_text_and_tool_calls() -> None:
-    parsed = _parse_output({"role": "assistant", "content": [
-        {"text": "On it."},
-        {"toolUse": {"toolUseId": "x1", "name": "execute_terminal",
-                     "input": {"command": "pip install flask"}}},
-    ]})
+    parsed = _parse_output(
+        {
+            "role": "assistant",
+            "content": [
+                {"text": "On it."},
+                {
+                    "toolUse": {
+                        "toolUseId": "x1",
+                        "name": "execute_terminal",
+                        "input": {"command": "pip install flask"},
+                    }
+                },
+            ],
+        }
+    )
     assert parsed["content"] == "On it."
     assert parsed["tool_calls"][0]["function"]["name"] == "execute_terminal"
-    assert parsed["tool_calls"][0]["function"]["arguments"] == {"command": "pip install flask"}
+    assert parsed["tool_calls"][0]["function"]["arguments"] == {
+        "command": "pip install flask"
+    }
 
 
 def test_parse_output_text_only_has_no_tool_calls() -> None:
@@ -218,17 +343,39 @@ def test_parse_output_text_only_has_no_tool_calls() -> None:
 
 
 def test_chat_calls_converse_and_returns_agent_shape() -> None:
-    reply = {"output": {"message": {"role": "assistant", "content": [
-        {"toolUse": {"toolUseId": "x", "name": "execute_terminal",
-                     "input": {"command": "pip install flask"}}},
-    ]}}}
+    reply = {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "x",
+                            "name": "execute_terminal",
+                            "input": {"command": "pip install flask"},
+                        }
+                    },
+                ],
+            }
+        }
+    }
     fake = FakeBedrock(reply)
     client = BedrockClient(model="model-x", region="us-east-1", client=fake)
     out = client.chat(
         [{"role": "user", "content": "install flask"}],
-        tools=[{"function": {"name": "execute_terminal", "description": "", "parameters": {}}}],
+        tools=[
+            {
+                "function": {
+                    "name": "execute_terminal",
+                    "description": "",
+                    "parameters": {},
+                }
+            }
+        ],
     )
-    assert out["tool_calls"][0]["function"]["arguments"] == {"command": "pip install flask"}
+    assert out["tool_calls"][0]["function"]["arguments"] == {
+        "command": "pip install flask"
+    }
     # Converse was handed the model id, a tool config, and an inference config.
     assert fake.last["modelId"] == "model-x"
     assert "toolConfig" in fake.last
@@ -238,18 +385,24 @@ def test_chat_calls_converse_and_returns_agent_shape() -> None:
 def test_stream_chat_calls_converse_stream_and_yields_text_chunks() -> None:
     fake = FakeBedrock(
         {},
-        stream_reply={"stream": [
-            {"messageStart": {"role": "assistant"}},
-            {"contentBlockDelta": {"delta": {"text": "hel"}}},
-            {"contentBlockDelta": {"delta": {"text": "lo"}}},
-            {"messageStop": {"stopReason": "end_turn"}},
-        ]},
+        stream_reply={
+            "stream": [
+                {"messageStart": {"role": "assistant"}},
+                {"contentBlockDelta": {"delta": {"text": "hel"}}},
+                {"contentBlockDelta": {"delta": {"text": "lo"}}},
+                {"messageStop": {"stopReason": "end_turn"}},
+            ]
+        },
     )
     client = BedrockClient(model="model-x", region="us-east-1", client=fake)
-    chunks = list(client.stream_chat(
-        [{"role": "user", "content": "say hello"}],
-        tools=[{"function": {"name": "read_file", "description": "", "parameters": {}}}],
-    ))
+    chunks = list(
+        client.stream_chat(
+            [{"role": "user", "content": "say hello"}],
+            tools=[
+                {"function": {"name": "read_file", "description": "", "parameters": {}}}
+            ],
+        )
+    )
     assert chunks == ["hel", "lo"]
     assert fake.stream_last["modelId"] == "model-x"
     assert "toolConfig" in fake.stream_last
@@ -275,7 +428,9 @@ def test_chat_records_the_real_privacy_audit_when_a_tracker_is_supplied() -> Non
     reply = {"output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}}}
     fake = FakeBedrock(reply)
     tracker = PrivacyAuditTracker()
-    client = BedrockClient(model="m", region="r", client=fake, privacy_audit_tracker=tracker)
+    client = BedrockClient(
+        model="m", region="r", client=fake, privacy_audit_tracker=tracker
+    )
 
     client.chat([{"role": "user", "content": f"read {raw_path}"}])
 
@@ -306,23 +461,46 @@ class FakeCtrl:
 
 
 def test_list_models_filters_sorts_and_dedups() -> None:
-    ctrl = FakeCtrl([
-        {"modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0", "providerName": "Anthropic",
-         "modelName": "Claude 3.5 Sonnet", "outputModalities": ["TEXT"]},
-        {"modelId": "amazon.nova-pro-v1:0", "providerName": "Amazon",
-         "modelName": "Nova Pro", "outputModalities": ["TEXT"]},
-        {"modelId": "amazon.nova-pro-v1:0", "providerName": "Amazon",
-         "modelName": "Nova Pro", "outputModalities": ["TEXT"]},               # duplicate
-        {"modelId": "amazon.titan-embed-text-v2:0", "providerName": "Amazon",
-         "modelName": "Titan Embed", "outputModalities": ["EMBEDDING"]},        # not chat
-    ])
-    client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=ctrl)
+    ctrl = FakeCtrl(
+        [
+            {
+                "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                "providerName": "Anthropic",
+                "modelName": "Claude 3.5 Sonnet",
+                "outputModalities": ["TEXT"],
+            },
+            {
+                "modelId": "amazon.nova-pro-v1:0",
+                "providerName": "Amazon",
+                "modelName": "Nova Pro",
+                "outputModalities": ["TEXT"],
+            },
+            {
+                "modelId": "amazon.nova-pro-v1:0",
+                "providerName": "Amazon",
+                "modelName": "Nova Pro",
+                "outputModalities": ["TEXT"],
+            },  # duplicate
+            {
+                "modelId": "amazon.titan-embed-text-v2:0",
+                "providerName": "Amazon",
+                "modelName": "Titan Embed",
+                "outputModalities": ["EMBEDDING"],
+            },  # not chat
+        ]
+    )
+    client = BedrockClient(
+        model="m", region="r", client=FakeBedrock({}), ctrl_client=ctrl
+    )
     models = client.list_models()
     ids = [m["id"] for m in models]
 
-    assert "amazon.titan-embed-text-v2:0" not in ids       # embeddings excluded
-    assert ids.count("amazon.nova-pro-v1:0") == 1          # deduped
-    assert [m["name"] for m in models] == ["Amazon Nova Pro", "Anthropic Claude 3.5 Sonnet"]  # sorted
+    assert "amazon.titan-embed-text-v2:0" not in ids  # embeddings excluded
+    assert ids.count("amazon.nova-pro-v1:0") == 1  # deduped
+    assert [m["name"] for m in models] == [
+        "Amazon Nova Pro",
+        "Anthropic Claude 3.5 Sonnet",
+    ]  # sorted
 
 
 def test_list_models_falls_back_to_curated_range_on_control_plane_error() -> None:
@@ -336,7 +514,9 @@ def test_list_models_falls_back_to_curated_range_on_control_plane_error() -> Non
         def list_foundation_models(self, **kwargs):
             raise RuntimeError("AccessDeniedException")
 
-    client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=Boom())
+    client = BedrockClient(
+        model="m", region="r", client=FakeBedrock({}), ctrl_client=Boom()
+    )
     models = client.list_models()
     assert len(models) > 1  # a RANGE, never just the one default
     assert models == CURATED_MODELS

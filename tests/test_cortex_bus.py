@@ -4,6 +4,7 @@ Carries cold-path OBSERVATIONS off the hot path; never authority (that stays
 synchronous on the verifier's return value — guarded in W3). W1 wires no
 producers or consumers; these tests exercise the substrate directly.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -37,9 +38,7 @@ def _event(event_type: str, signature: str, payload: dict) -> CanonicalEvent:
     )
 
 
-def _append(
-    bus: CortexBus, event_type: str, signature: str, payload: dict
-) -> int:
+def _append(bus: CortexBus, event_type: str, signature: str, payload: dict) -> int:
     return bus.append(_event(event_type, signature, payload))
 
 
@@ -59,6 +58,7 @@ def test_connect_closes_the_underlying_connection_after_the_with_block(
 
 # --- Task 1: config -----------------------------------------------------------
 
+
 def test_cortex_bus_defaults_are_on_and_bounded() -> None:
     # Wonder phase: the bus is on by default (W2 cold-path dispatcher active).
     assert config.CORTEX_BUS is True
@@ -68,6 +68,7 @@ def test_cortex_bus_defaults_are_on_and_bounded() -> None:
 
 
 # --- Task 2: durable append ---------------------------------------------------
+
 
 def test_append_is_durable_and_returns_monotonic_ids(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
@@ -103,9 +104,7 @@ def test_append_requires_the_canonical_event_schema(tmp_path: Path) -> None:
 
 def test_append_round_trips_the_event_payload(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
-    eid = _append(
-        bus, "turn.completed", "session-1", {"latency_ms": 12.5, "ok": True}
-    )
+    eid = _append(bus, "turn.completed", "session-1", {"latency_ms": 12.5, "ok": True})
     pending = bus.peek_pending()
     assert len(pending) == 1
     event = pending[0]
@@ -126,6 +125,7 @@ def test_empty_or_bad_append_is_rejected(tmp_path: Path) -> None:
 
 
 # --- Task 3: dispatch, ordering, replay --------------------------------------
+
 
 def test_dispatch_delivers_pending_and_marks_them(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
@@ -184,6 +184,7 @@ def test_a_failing_handler_leaves_its_event_pending_for_replay(tmp_path: Path) -
 
 # --- Task 4: durability across a simulated crash -----------------------------
 
+
 def test_crash_between_append_and_dispatch_replays_on_restart(tmp_path: Path) -> None:
     db = tmp_path / "bus.db"
     # Process 1 appends, then "crashes" before any dispatch.
@@ -200,6 +201,7 @@ def test_crash_between_append_and_dispatch_replays_on_restart(tmp_path: Path) ->
 
 
 # --- Task 5: retention sweep + fail-soft --------------------------------------
+
 
 def test_sweep_ages_out_old_dispatched_but_keeps_pending(tmp_path: Path) -> None:
     # append's fail-soft cap already bounds COUNT, so sweep's real job is the
@@ -257,6 +259,7 @@ def test_full_bus_of_pending_fails_soft_dropping_oldest(tmp_path: Path) -> None:
 
 
 # --- Task 6: wake-hint + poll_once -------------------------------------------
+
 
 def test_hint_is_raised_on_append_and_cleared_on_poll(tmp_path: Path) -> None:
     bus = CortexBus(db_path=tmp_path / "bus.db")

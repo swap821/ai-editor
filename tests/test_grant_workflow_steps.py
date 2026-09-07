@@ -10,6 +10,7 @@ operator approves -> grant applies -> forced auto-verify passes STRONG ->
 verified_success) taught the organism nothing, ever, unless the model
 happened to re-issue redundant tool calls on the resume turn.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -32,15 +33,15 @@ from aios.core.executor import Executor
 from aios.memory.skills import SkillMemory
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
-from tests.test_api import FakeIndexer, FakeLLM, RecordingAudit, _issue_generate_capability
+from tests.test_api import (
+    FakeIndexer,
+    FakeLLM,
+    RecordingAudit,
+    _issue_generate_capability,
+)
 
 _SELF_TESTING_FILE = (
-    "def add(a, b):\n"
-    "    return a + b\n"
-    "\n"
-    "\n"
-    "def test_add():\n"
-    "    assert add(2, 3) == 5\n"
+    "def add(a, b):\n    return a + b\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
 )
 
 
@@ -65,6 +66,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     # test targets the workflow_steps seam, not that one.
     import shutil
     import tempfile
+
     project_root = Path(tempfile.mkdtemp(prefix="ag")).resolve()
     sandbox = project_root / "training_ground"
     sandbox.mkdir()
@@ -77,7 +79,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_ollama_client] = FakeOllamaConcludes
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_skill_memory] = lambda: skills
-    app.dependency_overrides[get_edit_snapshot] = lambda: (lambda message="": None)
+    app.dependency_overrides[get_edit_snapshot] = lambda: lambda message="": None
     # A recognized runner reporting a genuine pass -> the forced auto-verify
     # is STRONG. approved_runner is injected too: the FORCED auto-verify runs
     # approved=True -> approved_runner, which fail-closes on the container
@@ -110,14 +112,24 @@ def test_granted_write_mints_skill_evidence(client: TestClient) -> None:
         "create",
         {"filepath": "training_ground/test_add.py", "content": _SELF_TESTING_FILE},
     )
-    response = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [
-            {"text": "create test_add.py with an add function and its test, then verify"}
-        ]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-        "approvalTokens": [token],
-    })
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": "create test_add.py with an add function and its test, then verify"
+                        }
+                    ],
+                }
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
     assert response.status_code == 200
     body = response.text
     assert "event: human_required" not in body, "token was granted; no pause expected"

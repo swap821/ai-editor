@@ -15,6 +15,7 @@ is caught by the gate, not discovered in production. They read the config
 module as imported (env-driven): CI and fresh installs run with none of these
 AIOS_* variables set.
 """
+
 from __future__ import annotations
 
 from aios import config

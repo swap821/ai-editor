@@ -4,6 +4,7 @@ Note: Starlette's TestClient runs BackgroundTasks to completion before the POST
 returns, so after originate the deliberation has run, and after approve the
 execution (real deterministic worker subprocess) has run.
 """
+
 from __future__ import annotations
 
 import sys
@@ -44,14 +45,20 @@ def _client_overrides(runtime_root: Path, monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(config, "COUNCIL_REASONING", False)
 
 
-def test_originate_disabled_returns_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_originate_disabled_returns_404(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", False)
     _client_overrides(tmp_path / "runtime", monkeypatch)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             r = client.post(
                 "/api/v1/council/missions",
-                json={"goal": "improve login", "allowedFiles": ["x.txt"], "sessionId": "s-off"},
+                json={
+                    "goal": "improve login",
+                    "allowedFiles": ["x.txt"],
+                    "sessionId": "s-off",
+                },
             )
     finally:
         app.dependency_overrides.clear()
@@ -81,7 +88,11 @@ def test_originate_refuses_with_503_when_emergency_stop_engaged(
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             r = client.post(
                 "/api/v1/council/missions",
-                json={"goal": "improve login", "allowedFiles": ["x.txt"], "sessionId": "s-stop"},
+                json={
+                    "goal": "improve login",
+                    "allowedFiles": ["x.txt"],
+                    "sessionId": "s-stop",
+                },
             )
     finally:
         app.dependency_overrides.clear()
@@ -158,9 +169,12 @@ def test_approve_triggers_execution_and_worker_acts(
                 },
             )
             mission_id = originated.json()["missionId"]
-            assert client.get(
-                f"/api/v1/council/missions/{mission_id}"
-            ).json()["report"]["status"] == "awaiting_approval"
+            assert (
+                client.get(f"/api/v1/council/missions/{mission_id}").json()["report"][
+                    "status"
+                ]
+                == "awaiting_approval"
+            )
             contract_digest = client.get(
                 f"/api/v1/council/missions/{mission_id}"
             ).json()["missionAuthority"]["contractDigest"]
@@ -208,7 +222,9 @@ def test_approve_triggers_execution_and_worker_acts(
     assert rolled_back.json()["summary"]["rollbackAvailable"] is False
 
 
-def test_reject_does_not_execute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_reject_does_not_execute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -244,7 +260,9 @@ def test_reject_does_not_execute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert (workspace / "target.txt").read_text(encoding="utf-8") == "original\n"
 
 
-def test_second_decision_is_rejected_409(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_second_decision_is_rejected_409(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """One-shot King decision: a second approve/reject after the first is 409
     (closes the double-execute race and makes a decision final)."""
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
@@ -282,7 +300,9 @@ def test_second_decision_is_rejected_409(tmp_path: Path, monkeypatch: pytest.Mon
     assert second.status_code == 409  # decision is one-shot
 
 
-def test_reject_blocks_a_later_approve(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_reject_blocks_a_later_approve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A rejected mission is terminal: a later approve is 409 and never executes."""
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
     workspace = tmp_path / "ws"
@@ -322,7 +342,9 @@ def test_reject_blocks_a_later_approve(tmp_path: Path, monkeypatch: pytest.Monke
     assert (workspace / "target.txt").read_text(encoding="utf-8") == "original\n"
 
 
-def test_originate_rejects_glob_scope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_originate_rejects_glob_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "ws")
     (tmp_path / "ws").mkdir()
@@ -338,7 +360,9 @@ def test_originate_rejects_glob_scope(tmp_path: Path, monkeypatch: pytest.Monkey
     assert r.status_code == 422
 
 
-def test_originate_rejects_escaping_scope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_originate_rejects_escaping_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(config, "COUNCIL_ORIGINATION", True)
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "ws")
     (tmp_path / "ws").mkdir()
@@ -347,7 +371,11 @@ def test_originate_rejects_escaping_scope(tmp_path: Path, monkeypatch: pytest.Mo
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             escape = client.post(
                 "/api/v1/council/missions",
-                json={"goal": "x", "allowedFiles": ["../escape.txt"], "sessionId": "s-esc"},
+                json={
+                    "goal": "x",
+                    "allowedFiles": ["../escape.txt"],
+                    "sessionId": "s-esc",
+                },
             )
             empty = client.post(
                 "/api/v1/council/missions",

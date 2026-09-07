@@ -3,6 +3,7 @@
 Verifies streaming-with-tools yields text chunks and StreamFinished,
 applies privacy filter for cloud candidates, and does first-chunk failover.
 """
+
 from __future__ import annotations
 
 from typing import Any, Iterator, Optional
@@ -75,10 +76,14 @@ class TestBasicStreaming:
         client = FailoverChatClient(
             [(FakeStreamingClient(chunks), "model-1", "bedrock")]
         )
-        result = list(client.stream_chat_with_tools(
-            [{"role": "user", "content": "hi"}],
-            tools=[{"function": {"name": "t", "description": "d", "parameters": {}}}],
-        ))
+        result = list(
+            client.stream_chat_with_tools(
+                [{"role": "user", "content": "hi"}],
+                tools=[
+                    {"function": {"name": "t", "description": "d", "parameters": {}}}
+                ],
+            )
+        )
         text_chunks = [r for r in result if isinstance(r, str)]
         finished = [r for r in result if isinstance(r, StreamFinished)]
         assert text_chunks == ["Hello ", "there!"]
@@ -95,10 +100,20 @@ class TestBasicStreaming:
         client = FailoverChatClient(
             [(FakeStreamingClient(chunks), "model-1", "bedrock")]
         )
-        result = list(client.stream_chat_with_tools(
-            [{"role": "user", "content": "read"}],
-            tools=[{"function": {"name": "read_file", "description": "d", "parameters": {}}}],
-        ))
+        result = list(
+            client.stream_chat_with_tools(
+                [{"role": "user", "content": "read"}],
+                tools=[
+                    {
+                        "function": {
+                            "name": "read_file",
+                            "description": "d",
+                            "parameters": {},
+                        }
+                    }
+                ],
+            )
+        )
         finished = [r for r in result if isinstance(r, StreamFinished)]
         assert len(finished) == 1
         assert finished[0].tool_calls == tool_calls
@@ -120,12 +135,17 @@ class TestFailover:
             failover_calls.append((fp, fm, sp, sm))
 
         client = FailoverChatClient(
-            [(bad_client, "bad-model", "bedrock"), (good_client, "good-model", "ollama")],
+            [
+                (bad_client, "bad-model", "bedrock"),
+                (good_client, "good-model", "ollama"),
+            ],
             on_failover=on_failover,
         )
-        result = list(client.stream_chat_with_tools(
-            [{"role": "user", "content": "hi"}],
-        ))
+        result = list(
+            client.stream_chat_with_tools(
+                [{"role": "user", "content": "hi"}],
+            )
+        )
         text_chunks = [r for r in result if isinstance(r, str)]
         assert "ok" in text_chunks
         assert len(failover_calls) == 1
@@ -139,9 +159,11 @@ class TestFailover:
             [(bad1, "m1", "bedrock"), (bad2, "m2", "ollama")],
         )
         with pytest.raises(LLMError, match="failed"):
-            list(client.stream_chat_with_tools(
-                [{"role": "user", "content": "hi"}],
-            ))
+            list(
+                client.stream_chat_with_tools(
+                    [{"role": "user", "content": "hi"}],
+                )
+            )
 
 
 class TestNonStreamingFallback:
@@ -151,9 +173,11 @@ class TestNonStreamingFallback:
         client = FailoverChatClient(
             [(FakeNonStreamingClient(response), "local-model", "ollama")]
         )
-        result = list(client.stream_chat_with_tools(
-            [{"role": "user", "content": "hi"}],
-        ))
+        result = list(
+            client.stream_chat_with_tools(
+                [{"role": "user", "content": "hi"}],
+            )
+        )
         # Should get content as a text chunk + StreamFinished
         text_chunks = [r for r in result if isinstance(r, str)]
         finished = [r for r in result if isinstance(r, StreamFinished)]
@@ -167,10 +191,20 @@ class TestNonStreamingFallback:
         client = FailoverChatClient(
             [(FakeNonStreamingClient(response), "local-model", "ollama")]
         )
-        result = list(client.stream_chat_with_tools(
-            [{"role": "user", "content": "hi"}],
-            tools=[{"function": {"name": "read_file", "description": "d", "parameters": {}}}],
-        ))
+        result = list(
+            client.stream_chat_with_tools(
+                [{"role": "user", "content": "hi"}],
+                tools=[
+                    {
+                        "function": {
+                            "name": "read_file",
+                            "description": "d",
+                            "parameters": {},
+                        }
+                    }
+                ],
+            )
+        )
         finished = [r for r in result if isinstance(r, StreamFinished)]
         assert len(finished) == 1
         assert finished[0].tool_calls == tool_calls
@@ -188,12 +222,12 @@ class TestPrivacyFilter:
                 received_messages.append(messages)
                 yield StreamFinished(tool_calls=[], content="")
 
-        client = FailoverChatClient(
-            [(SpyClient(), "model", "bedrock")]
+        client = FailoverChatClient([(SpyClient(), "model", "bedrock")])
+        list(
+            client.stream_chat_with_tools(
+                [{"role": "user", "content": "my secret is sk-abc123"}],
+            )
         )
-        list(client.stream_chat_with_tools(
-            [{"role": "user", "content": "my secret is sk-abc123"}],
-        ))
         # The privacy filter should have processed the messages
         assert len(received_messages) == 1
         # The exact redaction depends on the filter, but the call should succeed

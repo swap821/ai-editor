@@ -17,6 +17,7 @@ Coverage:
   A7: SSE endpoint security
   A8: Approval flow security
 """
+
 from __future__ import annotations
 
 import json
@@ -40,6 +41,7 @@ from aios.security.gateway import classify, Zone
 # --------------------------------------------------------------------------- #
 # Fixtures
 # --------------------------------------------------------------------------- #
+
 
 @pytest.fixture
 def client():
@@ -211,6 +213,7 @@ class TestRateLimiting:
         except Exception as e:
             # If rate limit exceeded, that's an HTTPException which is expected behavior
             from fastapi import HTTPException
+
             assert isinstance(e, HTTPException)
 
     def test_rate_limit_on_api_endpoint(self):
@@ -247,7 +250,11 @@ class TestCORSValidation:
 
     def test_cors_preflight_allowed_origin(self, client):
         """TC-SEC-421: CORS preflight from allowed origin must succeed."""
-        allowed_origin = config.API_CORS_ORIGINS[0] if config.API_CORS_ORIGINS else "http://localhost:5173"
+        allowed_origin = (
+            config.API_CORS_ORIGINS[0]
+            if config.API_CORS_ORIGINS
+            else "http://localhost:5173"
+        )
         response = client.options(
             "/health",
             headers={
@@ -261,7 +268,11 @@ class TestCORSValidation:
 
     def test_cors_origin_header_in_response(self, client):
         """TC-SEC-422: CORS response may include access-control headers."""
-        allowed_origin = config.API_CORS_ORIGINS[0] if config.API_CORS_ORIGINS else "http://localhost:5173"
+        allowed_origin = (
+            config.API_CORS_ORIGINS[0]
+            if config.API_CORS_ORIGINS
+            else "http://localhost:5173"
+        )
         response = client.get(
             "/health",
             headers={"Origin": allowed_origin},
@@ -313,7 +324,7 @@ class TestInputValidation:
 
     def test_intent_preview_unicode(self, client):
         """TC-SEC-428: Unicode input must be handled."""
-        unicode_text = "Hello \U0001F600 \u4e16\u754c"
+        unicode_text = "Hello \U0001f600 \u4e16\u754c"
         response = client.post("/api/v1/intent/preview", json={"text": unicode_text})
         assert response.status_code == 200
 
@@ -386,11 +397,14 @@ class TestHealthMetricsSecurity:
             response = client.get("/metrics")
             if response.status_code == 200:
                 body = response.text.lower()
-                assert "token" not in body or "tokens" in body  # prometheus may have "tokens"
+                assert (
+                    "token" not in body or "tokens" in body
+                )  # prometheus may have "tokens"
 
     def test_health_fast_response(self, client):
         """TC-SEC-438: /health must respond quickly (liveness probe)."""
         import time
+
         start = time.time()
         response = client.get("/health")
         elapsed = time.time() - start
@@ -409,8 +423,10 @@ class TestProxyHeaderTrust:
     def test_real_client_ip_from_request(self):
         """TC-SEC-439: Client IP extraction from request."""
         from starlette.testclient import TestClient as StarletteClient
+
         # Create a minimal app to test IP extraction
         test_app = FastAPI()
+
         @test_app.get("/test-ip")
         def test_ip(request: Request):
             ip = _real_client_ip(request)
@@ -459,7 +475,9 @@ class TestClassificationEndpoint:
 
     def test_classify_intent_command(self, client):
         """TC-SEC-444: Command-like text must classify as command."""
-        response = client.post("/api/v1/intent/preview", json={"text": "run python script"})
+        response = client.post(
+            "/api/v1/intent/preview", json={"text": "run python script"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["intent"] == "command"
@@ -473,21 +491,27 @@ class TestClassificationEndpoint:
 
     def test_classify_intent_browse(self, client):
         """TC-SEC-446: URL-like text must classify as browse."""
-        response = client.post("/api/v1/intent/preview", json={"text": "https://example.com"})
+        response = client.post(
+            "/api/v1/intent/preview", json={"text": "https://example.com"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["intent"] == "browse"
 
     def test_classify_intent_code(self, client):
         """TC-SEC-447: Code-like text must classify as code."""
-        response = client.post("/api/v1/intent/preview", json={"text": "write a function"})
+        response = client.post(
+            "/api/v1/intent/preview", json={"text": "write a function"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["intent"] == "code"
 
     def test_classify_intent_swarm(self, client):
         """TC-SEC-448: Swarm-like text must classify as swarm."""
-        response = client.post("/api/v1/intent/preview", json={"text": "decompose this task into workers"})
+        response = client.post(
+            "/api/v1/intent/preview", json={"text": "decompose this task into workers"}
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["intent"] == "swarm"

@@ -36,9 +36,7 @@ def test_validate_na_cites_rejects_missing_file(tmp_path: Path) -> None:
         name="Test",
         status="yellow",
         authority_owner="NobodyAuthority",
-        known_blockers=(
-            "C4: N/A-BY-DESIGN — aios/missing/module.py::MissingClass",
-        ),
+        known_blockers=("C4: N/A-BY-DESIGN — aios/missing/module.py::MissingClass",),
     )
     violations = validate_na_cites([record], repo_root=tmp_path)
     assert any("file does not exist" in v for v in violations)
@@ -53,9 +51,7 @@ def test_validate_na_cites_rejects_unresolvable_symbol(tmp_path: Path) -> None:
         name="Test",
         status="yellow",
         authority_owner="NobodyAuthority",
-        known_blockers=(
-            "C4: N/A-BY-DESIGN — aios/probe.py::GhostClass",
-        ),
+        known_blockers=("C4: N/A-BY-DESIGN — aios/probe.py::GhostClass",),
     )
     violations = validate_na_cites([record], repo_root=tmp_path)
     assert any("GhostClass" in v for v in violations)
@@ -84,7 +80,9 @@ def test_validate_na_cites_accepts_class_method_and_wildcard(tmp_path: Path) -> 
     assert validate_na_cites([record], repo_root=tmp_path) == ()
 
 
-def test_validate_na_cites_ignores_blockers_without_na_by_design(tmp_path: Path) -> None:
+def test_validate_na_cites_ignores_blockers_without_na_by_design(
+    tmp_path: Path,
+) -> None:
     record = OrganRecord(
         organ_id=1,
         name="Test",

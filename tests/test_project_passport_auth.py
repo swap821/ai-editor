@@ -16,7 +16,9 @@ def test_project_passport_scan_and_status_require_authenticated_operator(
     monkeypatch.chdir(tmp_path)
 
     def _deny_principal():
-        raise HTTPException(status_code=401, detail="authenticated operator session required")
+        raise HTTPException(
+            status_code=401, detail="authenticated operator session required"
+        )
 
     app.dependency_overrides[get_authenticated_principal] = _deny_principal
     try:

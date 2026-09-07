@@ -7,6 +7,7 @@ coverage-honesty pass) deleted the tree outright: 26 tracked files, zero
 importers, containing broken test files that any repo-root collector tripped
 over. These guards keep the tree gone and the import ban standing.
 """
+
 import re
 from pathlib import Path
 
@@ -45,8 +46,12 @@ def test_legacy_module_names_stay_out_of_live_code() -> None:
                     rf"^\s*import\s+{re.escape(mod)}\b",
                     rf"^\s*from\s+{re.escape(mod)}\s+import\b",
                 ]
-                if any(re.search(pattern, text, flags=re.MULTILINE) for pattern in patterns):
-                    violations.append(f"{py_file.relative_to(PROJECT_ROOT)} imports legacy {mod}")
+                if any(
+                    re.search(pattern, text, flags=re.MULTILINE) for pattern in patterns
+                ):
+                    violations.append(
+                        f"{py_file.relative_to(PROJECT_ROOT)} imports legacy {mod}"
+                    )
     assert not violations, (
         "Live code must not import deleted legacy modules:\n" + "\n".join(violations)
     )

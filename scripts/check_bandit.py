@@ -124,14 +124,18 @@ def main() -> int:
         BUDGET_PATH.write_text(
             json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8"
         )
-        print(f"wrote {BUDGET_PATH.relative_to(REPO_ROOT)}: {sum(counts.values())} findings")
+        print(
+            f"wrote {BUDGET_PATH.relative_to(REPO_ROOT)}: {sum(counts.values())} findings"
+        )
         return 0
 
     if not BUDGET_PATH.exists():
         raise SystemExit(
             f"{BUDGET_PATH} is missing; generate it with --write and commit it"
         )
-    budget: dict[str, int] = json.loads(BUDGET_PATH.read_text(encoding="utf-8"))["budget"]
+    budget: dict[str, int] = json.loads(BUDGET_PATH.read_text(encoding="utf-8"))[
+        "budget"
+    ]
 
     failures: list[str] = []
 

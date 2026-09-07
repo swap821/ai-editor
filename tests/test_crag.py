@@ -7,6 +7,7 @@ Pure + deterministic by default (uses aios.memory.relevance); an optional `keep`
 callback can override the filter. See
 docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -112,6 +113,7 @@ def test_refine_spans_multiple_documents_in_order() -> None:
 
 # ── Slice 2: evaluate_retrieval + tripartite gate ───────────────────────────
 
+
 def test_evaluate_correct_when_a_hit_exceeds_upper() -> None:
     hits = [_Hit("irrelevant note", faiss=0.1), _Hit("strong semantic hit", faiss=0.9)]
     verdict = evaluate_retrieval("q", hits, upper=0.6, lower=0.2)
@@ -182,6 +184,7 @@ def test_retrieval_verdict_exposes_per_hit_scores() -> None:
 
 # ── Slice 2: wiring into _recall_memory (opt-in, AIOS_CRAG) ──────────────────
 
+
 def _patch_recall(monkeypatch, hits, *, crag: bool):
     from aios import config
     from aios.api import main, turn_pipeline
@@ -194,11 +197,19 @@ def _patch_recall(monkeypatch, hits, *, crag: bool):
 
 
 def test_recall_memory_crag_off_is_legacy_bullets(monkeypatch) -> None:
-    hits = [_Hit("the alpha beta result is here and relevant", faiss=0.9, verification_status="verified")]
+    hits = [
+        _Hit(
+            "the alpha beta result is here and relevant",
+            faiss=0.9,
+            verification_status="verified",
+        )
+    ]
     main = _patch_recall(monkeypatch, hits, crag=False)
     out = main._recall_memory("alpha beta")
     assert out is not None
-    assert "- the alpha beta result is here and relevant" in out  # unrefined bullet form
+    assert (
+        "- the alpha beta result is here and relevant" in out
+    )  # unrefined bullet form
 
 
 def test_recall_memory_crag_drops_incorrect_retrieval(monkeypatch) -> None:
@@ -230,6 +241,7 @@ def test_recall_memory_crag_refines_and_preserves_trust(monkeypatch) -> None:
 
 # ── Slice 3: external corrective retrieval (pluggable sources) ───────────────
 
+
 def test_external_retrieve_aggregates_sources_in_order() -> None:
     cloud = lambda _q: ["cloud doc one", "cloud doc two"]
     web = lambda _q: ["web doc one"]
@@ -248,7 +260,10 @@ def test_external_retrieve_skips_failing_source() -> None:
 
 def test_external_retrieve_dedupes_and_drops_blank() -> None:
     a = lambda _q: ["Same Doc", "  ", ""]
-    b = lambda _q: ["same doc", "unique doc"]  # case/space-insensitive dup of "Same Doc"
+    b = lambda _q: [
+        "same doc",
+        "unique doc",
+    ]  # case/space-insensitive dup of "Same Doc"
     docs = external_retrieve("q", [a, b])
     assert docs == ["Same Doc", "unique doc"]
 
@@ -278,7 +293,9 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
 
 def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
     hits = [_Hit("totally unrelated banana note here", faiss=0.05)]
-    sources = [lambda _q: ["The quantum entanglement phenomenon links particle states."]]
+    sources = [
+        lambda _q: ["The quantum entanglement phenomenon links particle states."]
+    ]
     main = _patch_recall_external(monkeypatch, hits, sources=sources)
     out = main._recall_memory("quantum entanglement")
     assert out is not None
@@ -296,7 +313,12 @@ def test_recall_incorrect_without_external_returns_none(monkeypatch) -> None:
 def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
     # faiss 0.4 + only partial lexical overlap → score stays in the ambiguous band
     # (not pushed to CORRECT), so local is kept AND external supplements it.
-    hits = [_Hit("the alpha section discusses several unrelated longer concepts here", faiss=0.4)]
+    hits = [
+        _Hit(
+            "the alpha section discusses several unrelated longer concepts here",
+            faiss=0.4,
+        )
+    ]
     sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
     main = _patch_recall_external(monkeypatch, hits, sources=sources)
     out = main._recall_memory("alpha topic")
@@ -306,6 +328,7 @@ def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
 
 
 # ── Local-LLM judge (opt-in, AIOS_CRAG_LLM_JUDGE) ───────────────────────────
+
 
 class _FakeOllama:
     def __init__(self, reply: str) -> None:
@@ -325,7 +348,9 @@ def test_crag_llm_judge_parses_score(monkeypatch) -> None:
 def test_crag_llm_judge_extracts_and_clamps(monkeypatch) -> None:
     from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("I'd say 1.5 relevance"))
+    monkeypatch.setattr(
+        turn_pipeline, "get_ollama_client", lambda: _FakeOllama("I'd say 1.5 relevance")
+    )
     assert main._crag_llm_judge("q", "p") == 1.0  # parsed + clamped to [0,1]
 
 
@@ -334,7 +359,9 @@ def test_crag_llm_judge_raises_on_unparseable(monkeypatch) -> None:
 
     from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("no number at all"))
+    monkeypatch.setattr(
+        turn_pipeline, "get_ollama_client", lambda: _FakeOllama("no number at all")
+    )
     with pytest.raises(Exception):  # noqa: B017 - evaluate_retrieval catches & ignores
         main._crag_llm_judge("q", "p")
 
@@ -358,12 +385,17 @@ def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
 
 # ── Threshold calibration harness (tune AIOS_CRAG_UPPER/LOWER from real data) ─
 
+
 def test_calibrate_finds_separating_thresholds() -> None:
     # Cleanly separable: relevant recalls score high, junk scores low → the harness
     # finds thresholds that drop no relevant and accept no junk.
     labeled = [
-        (0.85, True), (0.78, True), (0.82, True),
-        (0.05, False), (0.10, False), (0.15, False),
+        (0.85, True),
+        (0.78, True),
+        (0.82, True),
+        (0.05, False),
+        (0.10, False),
+        (0.15, False),
     ]
     result = calibrate_thresholds(labeled)
     assert isinstance(result, CalibrationResult)
@@ -383,8 +415,12 @@ def test_calibrate_weight_shifts_lower_to_protect_relevant() -> None:
     # Overlapping scores. Heavily weighting false-drops should push `lower` down so
     # relevant recalls are not dropped (trading more junk into the ambiguous band).
     labeled = [
-        (0.30, True), (0.35, True), (0.45, True),
-        (0.25, False), (0.40, False), (0.50, False),
+        (0.30, True),
+        (0.35, True),
+        (0.45, True),
+        (0.25, False),
+        (0.40, False),
+        (0.50, False),
     ]
     protect = calibrate_thresholds(labeled, drop_weight=10.0, accept_weight=1.0)
     assert protect.false_drop_rate == 0.0  # the heavily-weighted error is driven out

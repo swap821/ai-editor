@@ -126,9 +126,10 @@ def _activate_an_amendment(client: TestClient, proposal_id: str) -> str:
         "migration_plan": "roll out behind a flag",
         "rollback_plan": "flip the flag back",
     }
-    assert client.post(
-        "/api/v1/governance/amendments/propose", json=body
-    ).status_code == 200
+    assert (
+        client.post("/api/v1/governance/amendments/propose", json=body).status_code
+        == 200
+    )
     ratified = client.post(
         f"/api/v1/governance/amendments/{proposal_id}/ratify", json={}
     )
@@ -192,9 +193,7 @@ def test_an_activated_amendment_reaches_every_authority_and_survives_restart(
     )
     from aios.policy.kernel import PolicyKernel
 
-    rebuilt_kernel = PolicyKernel(
-        constitution_authority=get_constitution_authority()
-    )
+    rebuilt_kernel = PolicyKernel(constitution_authority=get_constitution_authority())
     assert rebuilt_kernel.constitution_snapshot().snapshot_digest == after
 
     # 4. a capability issued under the OLD constitution is refused
@@ -233,6 +232,7 @@ def test_the_mirror_reports_the_amended_constitution(client) -> None:
     Before organ 25 this panel rebuilt its own snapshot per request, so it
     displayed version 1 forever no matter how many amendments were ratified.
     """
+
     def _reported_digest(response) -> str | None:
         # Every field is a MetricEnvelope: a missing constitution must render
         # as `unavailable`, never as a silently absent or guessed value.

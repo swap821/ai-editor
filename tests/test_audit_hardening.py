@@ -6,6 +6,7 @@ Two properties on top of the existing Ed25519 + hash-chain ledger:
   2. a signed tip-anchor so tail-truncation (lopping the latest entries) is detected.
 Strengthen-only; the runtime frozen-spine refusal is untouched.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -34,6 +35,7 @@ def db(tmp_path: Path) -> Path:
 
 # --- collision-resistant preimage (versioned) -------------------------------
 
+
 def test_v1_preimage_has_the_field_boundary_collision() -> None:
     # Documents WHY v2 exists: the legacy concat is ambiguous at field boundaries.
     a = compute_entry_hash(_GENESIS, "ts", "ab", "c", "GREEN", version=1)
@@ -59,6 +61,7 @@ def test_compute_entry_hash_defaults_to_v2() -> None:
 
 # --- versioned verify (a legacy v1 entry still verifies) --------------------
 
+
 def test_legacy_v1_entry_still_verifies(db: Path) -> None:
     # Simulate a pre-migration entry: written with the v1 preimage + hash_version=1,
     # unsigned. verify_chain must recompute it under its own version and pass.
@@ -80,6 +83,7 @@ def test_legacy_v1_entry_still_verifies(db: Path) -> None:
 
 # --- tail-truncation detection (signed tip-anchor) --------------------------
 
+
 def test_intact_chain_has_valid_tip_anchor(db: Path) -> None:
     log_action("actor", "a1", Zone.GREEN, db_path=db)
     log_action("actor", "a2", Zone.GREEN, db_path=db)
@@ -93,7 +97,9 @@ def test_tail_truncation_is_detected(db: Path) -> None:
     entry2 = log_action("actor", "a2", Zone.GREEN, db_path=db)
     # Lop off the latest entry WITHOUT re-signing the anchor.
     conn = sqlite3.connect(str(db))
-    conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,))
+    conn.execute(
+        "DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,)
+    )
     conn.commit()
     conn.close()
     status = verify_chain(db_path=db)
@@ -122,7 +128,9 @@ def test_truncation_with_anchor_deletion_is_detected(db: Path) -> None:
     log_action("actor", "a2", Zone.GREEN, db_path=db)
     entry3 = log_action("actor", "a3", Zone.GREEN, db_path=db)
     conn = sqlite3.connect(str(db))
-    conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry3.entry_id,))
+    conn.execute(
+        "DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry3.entry_id,)
+    )
     conn.execute("DELETE FROM audit_tip_anchor")
     conn.commit()
     conn.close()
@@ -164,10 +172,14 @@ def test_anchor_tamper_is_detected(db: Path) -> None:
 def test_fresh_db_has_no_anchor_and_is_valid(db: Path) -> None:
     status = verify_chain(db_path=db)
     assert status.valid is True
-    assert status.tip_anchor_valid is None  # never written -> no anchor (not a truncation)
+    assert (
+        status.tip_anchor_valid is None
+    )  # never written -> no anchor (not a truncation)
 
 
-def test_pre_signature_db_is_migrated_so_guarded_writes_do_not_brick(tmp_path: Path) -> None:
+def test_pre_signature_db_is_migrated_so_guarded_writes_do_not_brick(
+    tmp_path: Path,
+) -> None:
     # A PRE-SIGNATURE ledger (created before Ed25519 support): core columns +
     # hash_version, but NO signature/key_id. init_audit_db must ALTER-add them, else
     # every guarded write fail-closes on "no column named signature" — bricking all
@@ -213,7 +225,9 @@ def test_append_re_anchors_after_a_deletion(db: Path) -> None:
     log_action("actor", "a1", Zone.GREEN, db_path=db)
     entry2 = log_action("actor", "a2", Zone.GREEN, db_path=db)
     conn = sqlite3.connect(str(db))
-    conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,))
+    conn.execute(
+        "DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,)
+    )
     conn.commit()
     conn.close()
     log_action("actor", "a3", Zone.GREEN, db_path=db)  # re-anchors to the new tip

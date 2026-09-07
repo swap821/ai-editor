@@ -6,6 +6,7 @@ instantly; signatures are a scope-bound CLASS (not per-file) and never embed a
 secret. RED is out of scope here by construction — the bridge only consults
 this ledger on YELLOW, and the gateway/executor refuse RED regardless.
 """
+
 from __future__ import annotations
 
 from aios import config
@@ -61,9 +62,13 @@ def test_re_earning_requires_a_fresh_streak(tmp_path, monkeypatch):
     led.record_outcome("create_file", "training_ground/foo.py", success=True)
     led.record_outcome("create_file", "training_ground/foo.py", success=True)
     led.record_outcome("create_file", "training_ground/foo.py", success=False)  # revoke
-    led.record_outcome("create_file", "training_ground/foo.py", success=True)  # streak 1
+    led.record_outcome(
+        "create_file", "training_ground/foo.py", success=True
+    )  # streak 1
     assert not led.is_earned("create_file", "training_ground/foo.py")
-    led.record_outcome("create_file", "training_ground/foo.py", success=True)  # streak 2
+    led.record_outcome(
+        "create_file", "training_ground/foo.py", success=True
+    )  # streak 2
     assert led.is_earned("create_file", "training_ground/foo.py")
 
 
@@ -87,7 +92,9 @@ def test_command_signature_strips_values_keeps_shape(tmp_path):
 
 def test_secret_is_redacted_out_of_the_signature(tmp_path):
     led = _ledger(tmp_path)
-    norm = led._normalize("execute_terminal", "deploy --token sk-aaaaaaaaaaaaaaaaaaaaaaaa")
+    norm = led._normalize(
+        "execute_terminal", "deploy --token sk-aaaaaaaaaaaaaaaaaaaaaaaa"
+    )
     assert "sk-aaaa" not in norm  # raw secret never enters the shape
     # two different secrets collapse to the same value-stripped shape
     a = led.signature("execute_terminal", "deploy --token sk-aaaaaaaaaaaaaaaaaaaaaaaa")
@@ -109,7 +116,9 @@ def test_ledger_map_is_observable(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "EARNED_AUTONOMY_ENABLED", True)
     led = _ledger(tmp_path, 1)
     led.record_outcome("create_file", "training_ground/foo.py", success=True)
-    led.record_outcome("verify", "python -m pytest training_ground/foo.py -q", success=False)
+    led.record_outcome(
+        "verify", "python -m pytest training_ground/foo.py -q", success=False
+    )
     snapshot = led.ledger_map()
     assert snapshot["enabled"] is True
     assert snapshot["summary"]["earned"] == 1

@@ -1,4 +1,5 @@
 """Tests for Phase 3A durable Council deliberation state."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -51,7 +52,9 @@ def test_records_and_replays_verdicts_per_mission(tmp_path: Path) -> None:
 
 def test_records_and_replays_events(tmp_path: Path) -> None:
     state = CouncilState(db_path=tmp_path / "s.db")
-    state.record_event("m1", event_type="worker_spawned", snapshot_id="snap-1", risk="YELLOW")
+    state.record_event(
+        "m1", event_type="worker_spawned", snapshot_id="snap-1", risk="YELLOW"
+    )
     state.record_event("m1", event_type="report", payload={"k": "v"})
 
     events = state.events_for("m1")

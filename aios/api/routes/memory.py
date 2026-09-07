@@ -249,8 +249,7 @@ def restore_conversation_session(
         "activeCorrection": state.active_correction(session_id),
         "correctionHistory": state.correction_history(session_id),
         "correctionRecords": [
-            r.as_dict()
-            for r in correction_authority.lineage_for_session(session_id)
+            r.as_dict() for r in correction_authority.lineage_for_session(session_id)
         ],
         "messages": messages,
     }
@@ -275,10 +274,7 @@ def correct_conversation_alignment(
     the prior state and this route fails closed.
     """
     session_id = _require_cookie_session(request)
-    if (
-        principal.session_id != session_id
-        or not principal.authentication_event_id
-    ):
+    if principal.session_id != session_id or not principal.authentication_event_id:
         raise HTTPException(
             status_code=403, detail="authenticated session does not own this correction"
         )
@@ -401,19 +397,14 @@ def clear_conversation_alignment_correction(
 ) -> dict[str, Any]:
     """Append an authenticated clear event and restore the base interpretation."""
     session_id = _require_cookie_session(request)
-    if (
-        principal.session_id != session_id
-        or not principal.authentication_event_id
-    ):
+    if principal.session_id != session_id or not principal.authentication_event_id:
         raise HTTPException(
             status_code=403, detail="authenticated session does not own this correction"
         )
     try:
         restored = state.clear_correction(session_id)
         frames = state.correction_lineage_frames(session_id, limit=2)
-        cleared_frame = next(
-            frame for frame in frames if frame["status"] == "cleared"
-        )
+        cleared_frame = next(frame for frame in frames if frame["status"] == "cleared")
         prior_frame = next(
             (
                 frame

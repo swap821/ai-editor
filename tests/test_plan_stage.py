@@ -9,6 +9,7 @@ and assert the stage's contract: default-OFF, structured emission when ON,
 fail-open on planner failure, gate ordering, and coexistence with the
 approval surface.
 """
+
 from __future__ import annotations
 
 import json
@@ -47,7 +48,9 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
 from aios.memory.skills import SkillMemory
 from aios.security.gateway import RateLimiter
-from aios.infrastructure.intelligence.representative_context_store import RepresentativeContextStore
+from aios.infrastructure.intelligence.representative_context_store import (
+    RepresentativeContextStore,
+)
 from aios.domain.memory import MemoryHit
 
 
@@ -71,7 +74,9 @@ class RecordingAudit:
 
 
 def _fake_executor() -> Executor:
-    return Executor(runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit())
+    return Executor(
+        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
 
 
 _ALIGNMENT_JSON = json.dumps(
@@ -104,8 +109,16 @@ class PlanningAlignedLLM:
             return json.dumps(
                 {
                     "steps": [
-                        {"step_id": "1", "description": "inspect the target", "confidence": 0.95},
-                        {"step_id": "2", "description": "apply the risky change", "confidence": 0.05},
+                        {
+                            "step_id": "1",
+                            "description": "inspect the target",
+                            "confidence": 0.95,
+                        },
+                        {
+                            "step_id": "2",
+                            "description": "apply the risky change",
+                            "confidence": 0.05,
+                        },
                     ]
                 }
             )
@@ -151,7 +164,13 @@ class CragJudgeOllama(PlainOllama):
 class CragCloudProvider:
     """Cloud chat fake used only to prove the authenticated CRAG cloud path."""
 
-    def chat(self, messages: list, *, tools: Optional[list] = None, model: Optional[str] = None) -> dict:
+    def chat(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+    ) -> dict:
         return {"role": "assistant", "content": "A governed external CRAG answer."}
 
 
@@ -310,9 +329,9 @@ def _sse_events(text: str) -> list[tuple[str, dict]]:
                 events.append((event, payload))
             event, data_lines = None, []
         elif raw.startswith("event:"):
-            event = raw[len("event:"):].strip()
+            event = raw[len("event:") :].strip()
         elif raw.startswith("data:"):
-            data_lines.append(raw[len("data:"):].strip())
+            data_lines.append(raw[len("data:") :].strip())
     return events
 
 
@@ -343,7 +362,9 @@ def _generate(client: TestClient, session_id: str, text: str):
     )
 
 
-def test_plan_stage_suppressed_when_disabled(stage_client: TestClient, monkeypatch) -> None:
+def test_plan_stage_suppressed_when_disabled(
+    stage_client: TestClient, monkeypatch
+) -> None:
     """Flag OFF: no `plan` event. (Pinned via monkeypatch rather than asserting
     the env-derived literal, so a dev/CI environment exporting AIOS_PLAN_STAGE
     while dogfooding cannot fail the opt-out behavior test.)"""
@@ -563,7 +584,9 @@ def test_plan_stage_fails_open_on_unusable_plan(tmp_path, monkeypatch) -> None:
     _isolate_turn_memory(tmp_path, AlignedOnlyLLM)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
-            response = _generate(client, "plan-stage-fail-open", "plan stage probe xyzzy quux")
+            response = _generate(
+                client, "plan-stage-fail-open", "plan stage probe xyzzy quux"
+            )
     finally:
         app.dependency_overrides.clear()
 
@@ -587,7 +610,9 @@ def test_confidence_gated_turn_skips_plan_stage(tmp_path, monkeypatch) -> None:
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
-            response = _generate(client, "plan-stage-gated", "plan stage probe xyzzy quux")
+            response = _generate(
+                client, "plan-stage-gated", "plan stage probe xyzzy quux"
+            )
     finally:
         app.dependency_overrides.clear()
 
@@ -608,14 +633,18 @@ def test_plan_stage_coexists_with_approval_pause(tmp_path, monkeypatch) -> None:
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
-            response = _generate(client, "plan-stage-approval", "plan stage probe xyzzy quux")
+            response = _generate(
+                client, "plan-stage-approval", "plan stage probe xyzzy quux"
+            )
 
             assert response.status_code == 200
             assert len(_plan_events(response.text)) == 1
             assert "event: human_required" in response.text
 
             # Keep the same cookie-bound principal for the approval resume.
-            paused = [p for name, p in _sse_events(response.text) if name == "human_required"]
+            paused = [
+                p for name, p in _sse_events(response.text) if name == "human_required"
+            ]
             token = paused[0].get("input", {}).get("approvalToken")
             assert token
             app.dependency_overrides[get_ollama_client] = lambda: YellowOllama()
@@ -625,7 +654,10 @@ def test_plan_stage_coexists_with_approval_pause(tmp_path, monkeypatch) -> None:
                 "/api/generate",
                 json={
                     "messages": [
-                        {"role": "user", "content": [{"text": "plan stage probe xyzzy quux"}]}
+                        {
+                            "role": "user",
+                            "content": [{"text": "plan stage probe xyzzy quux"}],
+                        }
                     ],
                     "modelId": "ollama.llama3.2:3b",
                     "sessionId": str(client.cookies.get("session_id")),
@@ -656,7 +688,9 @@ def test_plan_stage_runs_with_alignment_interpreter_disabled(
     app.dependency_overrides[get_alignment_interpreter] = lambda: None
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
-            response = _generate(client, "plan-stage-no-align", "plan stage probe xyzzy quux")
+            response = _generate(
+                client, "plan-stage-no-align", "plan stage probe xyzzy quux"
+            )
     finally:
         app.dependency_overrides.clear()
 

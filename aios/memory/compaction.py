@@ -340,4 +340,3 @@ class MemoryCompactor:
             )
         except Exception as exc:  # noqa: BLE001 - audit failure is logged but does not rollback memory
             logger.warning("Compaction audit entry failed", exc_info=exc)
-

@@ -50,7 +50,9 @@ def test_same_source_state_creates_the_same_digest() -> None:
     assert len(first.context_digest) == 64
 
 
-def test_two_cloud_compilations_are_semantically_identical_regardless_of_provider() -> None:
+def test_two_cloud_compilations_are_semantically_identical_regardless_of_provider() -> (
+    None
+):
     """The compiler never branches on *which* cloud provider will be used --
     only on local-vs-cloud target -- so two providers of the same target
     receive byte-identical compiled context."""
@@ -109,7 +111,9 @@ def test_fresh_passport_is_not_labelled_stale() -> None:
 
 def test_contradicted_or_superseded_preference_is_not_silently_selected() -> None:
     active = _preference(preference_id="pref-active", status="active")
-    superseded = _preference(preference_id="pref-old", status="superseded", value="unittest")
+    superseded = _preference(
+        preference_id="pref-old", status="superseded", value="unittest"
+    )
     rejected = _preference(preference_id="pref-bad", status="rejected", value="nose")
     ctx = _compile(active_preferences=[active, superseded, rejected])
     assert len(ctx.approved_preferences) == 1

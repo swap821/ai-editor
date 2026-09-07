@@ -1,4 +1,5 @@
 """Tests for the global worker-subprocess concurrency cap (fail-closed DoS guard)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -58,6 +59,8 @@ def test_spawner_fails_closed_at_global_capacity(tmp_path: Path) -> None:
     try:
         with concurrency.WORKER_POOL.slot():  # occupy the only slot
             with pytest.raises(WorkerCapacityError):
-                asyncio.run(WorkerSpawner(runtime_root=tmp_path / "runtime").run(contract))
+                asyncio.run(
+                    WorkerSpawner(runtime_root=tmp_path / "runtime").run(contract)
+                )
     finally:
         concurrency.WORKER_POOL.configure(config.COUNCIL_MAX_CONCURRENT_WORKERS)

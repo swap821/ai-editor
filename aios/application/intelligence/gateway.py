@@ -80,6 +80,7 @@ class StreamingIntelligenceGatewayResult:
     chunks: Iterator[str]
     receipt: RepresentativeContextReceiptV1 | None = None
 
+
 @dataclass(frozen=True, slots=True)
 class CompatibilityStreamingIntelligenceGatewayResult:
     """A redacted local-only stream for anonymous compatibility callers."""
@@ -678,7 +679,6 @@ class CompatibilityAdvisoryCompletionClient:
             secret_policy=self._secret_policy,
         )
 
-
     def running_model_metrics(self) -> Mapping[str, Any] | None:
         """Expose provider metrics without exposing a second completion path.
 
@@ -692,6 +692,7 @@ class CompatibilityAdvisoryCompletionClient:
             return None
         value = probe()
         return value if isinstance(value, Mapping) else None
+
 
 class AdvisoryChatCompletionAdapter:
     """Normalize a provider's chat contract for advisory completion routing.

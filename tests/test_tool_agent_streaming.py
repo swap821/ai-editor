@@ -5,6 +5,7 @@ Verifies that:
 - When stream_fn yields tool_calls, they are dispatched normally
 - When stream_fn is None, existing behavior is unchanged (word-split)
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -49,7 +50,9 @@ class FakeExecutor:
 def _make_stream_fn(chunks: list[str | StreamFinished]):
     """Create a stream_fn that yields the given chunks."""
 
-    def stream_fn(messages: Any, *, tools: Any = None, model: Any = None) -> Iterator[Any]:
+    def stream_fn(
+        messages: Any, *, tools: Any = None, model: Any = None
+    ) -> Iterator[Any]:
         yield from chunks
 
     return stream_fn
@@ -103,7 +106,10 @@ class TestStreamingWithToolCalls:
     def test_tool_calls_dispatched_after_stream(self, executor: FakeExecutor) -> None:
         """When stream yields tool_calls, they are processed normally."""
         tool_calls = [
-            {"id": "tc-0", "function": {"name": "read_file", "arguments": {"filepath": "test.py"}}}
+            {
+                "id": "tc-0",
+                "function": {"name": "read_file", "arguments": {"filepath": "test.py"}},
+            }
         ]
         # First iteration: streaming returns tool_calls
         first_chunks: list[str | StreamFinished] = [
@@ -118,7 +124,9 @@ class TestStreamingWithToolCalls:
 
         call_count = [0]
 
-        def stream_fn(messages: Any, *, tools: Any = None, model: Any = None) -> Iterator[Any]:
+        def stream_fn(
+            messages: Any, *, tools: Any = None, model: Any = None
+        ) -> Iterator[Any]:
             idx = call_count[0]
             call_count[0] += 1
             if idx == 0:
@@ -150,7 +158,15 @@ class TestStreamingWithToolCalls:
         chunks_with_tools: list[str | StreamFinished] = [
             "Thinking about tools...",
             StreamFinished(
-                tool_calls=[{"id": "t1", "function": {"name": "read_file", "arguments": {"filepath": "x.py"}}}],
+                tool_calls=[
+                    {
+                        "id": "t1",
+                        "function": {
+                            "name": "read_file",
+                            "arguments": {"filepath": "x.py"},
+                        },
+                    }
+                ],
                 content="Thinking about tools...",
             ),
         ]
@@ -161,7 +177,9 @@ class TestStreamingWithToolCalls:
 
         call_count = [0]
 
-        def stream_fn(messages: Any, *, tools: Any = None, model: Any = None) -> Iterator[Any]:
+        def stream_fn(
+            messages: Any, *, tools: Any = None, model: Any = None
+        ) -> Iterator[Any]:
             idx = call_count[0]
             call_count[0] += 1
             if idx == 0:

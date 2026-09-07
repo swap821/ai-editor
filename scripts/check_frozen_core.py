@@ -103,7 +103,9 @@ def changed_paths(base: str) -> list[str]:
     """Files changed between the merge base and HEAD, as POSIX repo paths."""
     merge_base = _git("merge-base", base, "HEAD").strip()
     raw = _git("diff", "--name-only", f"{merge_base}...HEAD")
-    return [line.strip().replace("\\", "/") for line in raw.splitlines() if line.strip()]
+    return [
+        line.strip().replace("\\", "/") for line in raw.splitlines() if line.strip()
+    ]
 
 
 def is_frozen(path: str) -> bool:

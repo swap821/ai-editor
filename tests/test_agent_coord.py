@@ -1,4 +1,5 @@
 """Tests for the shared Claude/Codex/Kimi coordination control plane."""
+
 from __future__ import annotations
 
 import json
@@ -22,12 +23,12 @@ def repo(tmp_path: Path) -> Path:
         cwd=path,
         check=True,
     )
-    subprocess.run(
-        ["git", "config", "user.name", "Coord Test"], cwd=path, check=True
-    )
+    subprocess.run(["git", "config", "user.name", "Coord Test"], cwd=path, check=True)
     (path / "tracked.txt").write_text("base\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=path, check=True)
-    subprocess.run(["git", "commit", "-m", "base"], cwd=path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "base"], cwd=path, check=True, capture_output=True
+    )
     return path
 
 
@@ -39,12 +40,20 @@ def conn(tmp_path: Path):
 
 
 def test_routes_work_with_equal_50_50_priority(conn) -> None:
-    coding = agent_coord.create_task(conn, "code-1", "Implement parser", "implementation")
+    coding = agent_coord.create_task(
+        conn, "code-1", "Implement parser", "implementation"
+    )
     policy = agent_coord.create_task(conn, "policy-1", "Review policy", "policy")
-    security = agent_coord.create_task(conn, "security-1", "Threat model API", "security")
+    security = agent_coord.create_task(
+        conn, "security-1", "Threat model API", "security"
+    )
     testing = agent_coord.create_task(conn, "testing-1", "Test parser", "testing")
     override = agent_coord.create_task(
-        conn, "override-1", "Implement parser", "implementation", builder_override="claude"
+        conn,
+        "override-1",
+        "Implement parser",
+        "implementation",
+        builder_override="claude",
     )
 
     assert coding["builder"] == "codex"
@@ -57,7 +66,9 @@ def test_routes_work_with_equal_50_50_priority(conn) -> None:
     assert testing["reviewer"] == "kimi"
     assert override["builder"] == "claude"
     assert override["reviewer"] == "kimi"
-    inferred = agent_coord.create_task(conn, "inferred-1", "Threat model API auth", None)
+    inferred = agent_coord.create_task(
+        conn, "inferred-1", "Threat model API auth", None
+    )
     assert inferred["builder"] == "kimi"
     assert inferred["reviewer"] == "claude"
 
@@ -65,7 +76,9 @@ def test_routes_work_with_equal_50_50_priority(conn) -> None:
 def test_either_agent_can_review_the_other_at_any_time(conn, repo: Path) -> None:
     first = agent_coord.create_task(conn, "first", "Build feature", "implementation")
     agent_coord.claim(conn, "first", first["builder"], "builder", root=repo)
-    first_review = agent_coord.claim(conn, "first", first["reviewer"], "reviewer", root=repo)
+    first_review = agent_coord.claim(
+        conn, "first", first["reviewer"], "reviewer", root=repo
+    )
 
     assert first_review == {
         "task_id": "first",
@@ -75,7 +88,9 @@ def test_either_agent_can_review_the_other_at_any_time(conn, repo: Path) -> None
     }
     agent_coord.release(conn, "first", first["builder"], root=repo)
 
-    second = agent_coord.create_task(conn, "second", "Review architecture", "architecture")
+    second = agent_coord.create_task(
+        conn, "second", "Review architecture", "architecture"
+    )
     agent_coord.claim(conn, "second", second["builder"], "builder", root=repo)
     second_review = agent_coord.claim(
         conn, "second", second["reviewer"], "reviewer", root=repo
@@ -109,14 +124,17 @@ def test_one_writer_lease_and_dirty_adoption_are_fail_closed(conn, repo: Path) -
     (repo / "tracked.txt").write_text("dirty\n", encoding="utf-8")
     with pytest.raises(agent_coord.CoordinationError, match="adopt-dirty"):
         agent_coord.claim(conn, "second", "claude", "builder", root=repo)
-    assert agent_coord.claim(
-        conn,
-        "second",
-        "claude",
-        "builder",
-        root=repo,
-        adopt_dirty=True,
-    )["agent"] == "claude"
+    assert (
+        agent_coord.claim(
+            conn,
+            "second",
+            "claude",
+            "builder",
+            root=repo,
+            adopt_dirty=True,
+        )["agent"]
+        == "claude"
+    )
 
 
 def test_handoff_is_hash_pinned_and_stale_verdict_is_refused(conn, repo: Path) -> None:
@@ -179,7 +197,9 @@ def test_brief_combines_writer_state_and_unread_inbox(conn, repo: Path) -> None:
     assert result["inbox"][0]["body"] == "Review this"
 
 
-def test_release_requires_clean_tree_unless_explicitly_allowed(conn, repo: Path) -> None:
+def test_release_requires_clean_tree_unless_explicitly_allowed(
+    conn, repo: Path
+) -> None:
     agent_coord.create_task(conn, "task", "Implement feature", "implementation")
     agent_coord.claim(conn, "task", "codex", "builder", root=repo)
     (repo / "tracked.txt").write_text("dirty\n", encoding="utf-8")
@@ -187,9 +207,12 @@ def test_release_requires_clean_tree_unless_explicitly_allowed(conn, repo: Path)
     with pytest.raises(agent_coord.CoordinationError, match="use handoff"):
         agent_coord.release(conn, "task", "codex", root=repo)
 
-    assert agent_coord.release(
-        conn, "task", "codex", allow_dirty=True, root=repo
-    )["status"] == "queued"
+    assert (
+        agent_coord.release(conn, "task", "codex", allow_dirty=True, root=repo)[
+            "status"
+        ]
+        == "queued"
+    )
 
 
 def test_wrong_agent_cannot_heartbeat_or_release_writer_lease(conn, repo: Path) -> None:
@@ -235,11 +258,17 @@ def _isolated_worktree(tmp_path: Path) -> Path:
     root = tmp_path / "worktree"
     root.mkdir()
     (root / "seed.txt").write_text("seed", encoding="utf-8")
-    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+    }
     for cmd in (["init"], ["add", "-A"], ["commit", "-m", "seed"]):
-        subprocess.run(["git", *cmd], cwd=root, env=env, check=True,
-                       capture_output=True)
+        subprocess.run(
+            ["git", *cmd], cwd=root, env=env, check=True, capture_output=True
+        )
     return root
 
 
@@ -249,68 +278,78 @@ def test_cli_lifecycle_uses_the_same_control_plane(tmp_path: Path, capsys) -> No
     base = ["--db", str(db), "--root", str(root)]
 
     assert agent_coord.main([*base, "init"]) == 0
-    assert agent_coord.main(
-        [*base, "route", "task", "Implement coordination"]
-    ) == 0
-    assert agent_coord.main(
-        [
-            *base,
-            "claim",
-            "task",
-            "--agent",
-            "codex",
-            "--role",
-            "builder",
-            "--adopt-dirty",
-        ]
-    ) == 0
-    assert agent_coord.main(
-        [
-            *base,
-            "message",
-            "task",
-            "--from",
-            "codex",
-            "--to",
-            "claude",
-            "--kind",
-            "question",
-            "--body",
-            "Review this",
-        ]
-    ) == 0
+    assert agent_coord.main([*base, "route", "task", "Implement coordination"]) == 0
+    assert (
+        agent_coord.main(
+            [
+                *base,
+                "claim",
+                "task",
+                "--agent",
+                "codex",
+                "--role",
+                "builder",
+                "--adopt-dirty",
+            ]
+        )
+        == 0
+    )
+    assert (
+        agent_coord.main(
+            [
+                *base,
+                "message",
+                "task",
+                "--from",
+                "codex",
+                "--to",
+                "claude",
+                "--kind",
+                "question",
+                "--body",
+                "Review this",
+            ]
+        )
+        == 0
+    )
     capsys.readouterr()
     assert agent_coord.main([*base, "brief", "--agent", "claude"]) == 0
     brief_payload = json.loads(capsys.readouterr().out)
     assert brief_payload["agent"] == "claude"
-    assert agent_coord.main(
-        [
-            *base,
-            "handoff",
-            "task",
-            "--from",
-            "codex",
-            "--to",
-            "claude",
-            "--summary",
-            "ready",
-            "--evidence",
-            "tests pass",
-        ]
-    ) == 0
-    assert agent_coord.main(
-        [
-            *base,
-            "verdict",
-            "task",
-            "--reviewer",
-            "claude",
-            "--verdict",
-            "approve",
-            "--summary",
-            "no blockers",
-        ]
-    ) == 0
+    assert (
+        agent_coord.main(
+            [
+                *base,
+                "handoff",
+                "task",
+                "--from",
+                "codex",
+                "--to",
+                "claude",
+                "--summary",
+                "ready",
+                "--evidence",
+                "tests pass",
+            ]
+        )
+        == 0
+    )
+    assert (
+        agent_coord.main(
+            [
+                *base,
+                "verdict",
+                "task",
+                "--reviewer",
+                "claude",
+                "--verdict",
+                "approve",
+                "--summary",
+                "no blockers",
+            ]
+        )
+        == 0
+    )
     assert agent_coord.main([*base, "status"]) == 0
 
 

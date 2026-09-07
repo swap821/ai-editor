@@ -6,6 +6,7 @@ SSE path. All transport is faked by patching ``urllib.request.urlopen`` —
 no network, model, shell, or file side effects (conftest.py isolates
 ``AIOS_DATA_DIR``).
 """
+
 from __future__ import annotations
 
 import json
@@ -118,11 +119,21 @@ def test_to_tools_maps_openai_specs_and_defaults_schema():
     assert _to_tools(None) is None
     specs = _to_tools(
         [
-            {"function": {"name": "f", "description": "d", "parameters": {"type": "object"}}},
+            {
+                "function": {
+                    "name": "f",
+                    "description": "d",
+                    "parameters": {"type": "object"},
+                }
+            },
             {"function": {"name": "g"}},
         ]
     )
-    assert specs[0] == {"name": "f", "description": "d", "input_schema": {"type": "object"}}
+    assert specs[0] == {
+        "name": "f",
+        "description": "d",
+        "input_schema": {"type": "object"},
+    }
     assert specs[1]["input_schema"] == {"type": "object", "properties": {}}
 
 
@@ -184,7 +195,9 @@ def test_post_http_error_with_unreadable_body_still_raises_llm_error():
 
 
 def test_post_non_json_response_raises_llm_error():
-    with patch("urllib.request.urlopen", return_value=_RawResponse(b"<html>oops</html>")):
+    with patch(
+        "urllib.request.urlopen", return_value=_RawResponse(b"<html>oops</html>")
+    ):
         with pytest.raises(LLMError, match="non-JSON"):
             _client().complete("hi")
 
@@ -224,7 +237,10 @@ def test_stream_chat_yields_text_deltas_and_ignores_noise():
     with patch("urllib.request.urlopen", side_effect=fake_urlopen):
         chunks = list(
             client.stream_chat(
-                [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+                [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "hi"},
+                ],
                 tools=tools,
             )
         )

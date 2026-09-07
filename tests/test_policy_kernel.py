@@ -230,7 +230,9 @@ def test_evaluate_action_earned_autonomy_short_circuits_yellow(kernel, monkeypat
     # Earned autonomy is now governed by the active runtime profile, not raw config.
     from aios.runtime import profiles
 
-    monkeypatch.setattr(kernel, "_active_profile", profiles.RUNTIME_PROFILES["operator"])
+    monkeypatch.setattr(
+        kernel, "_active_profile", profiles.RUNTIME_PROFILES["operator"]
+    )
 
     decision = kernel.evaluate_action(command)
     assert decision.allowed
@@ -389,7 +391,9 @@ def test_execution_policy_for_green_action_is_host(kernel):
     assert "host scope" in policy.reason
 
 
-def test_execution_policy_for_approved_action_is_container_by_default(kernel, monkeypatch):
+def test_execution_policy_for_approved_action_is_container_by_default(
+    kernel, monkeypatch
+):
     monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "container")
     policy = kernel.execution_policy(approved=True)
     assert policy.backend == "container"
@@ -415,7 +419,9 @@ def test_execution_policy_unknown_backend_fail_closed(kernel, monkeypatch):
     assert "fail closed" in policy.reason.lower()
 
 
-def test_build_approved_runner_returns_docker_runner_when_container(kernel, monkeypatch):
+def test_build_approved_runner_returns_docker_runner_when_container(
+    kernel, monkeypatch
+):
     monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "container")
     from aios.core.executor import DockerRunner
 
@@ -437,7 +443,9 @@ def test_validate_execution_backend_warns_for_host(kernel, monkeypatch):
 
 def test_validate_execution_backend_raises_for_unknown_backend(kernel, monkeypatch):
     monkeypatch.setattr(config, "APPROVED_EXECUTION_BACKEND", "unknown")
-    with pytest.raises(RuntimeError, match="unsupported AIOS_APPROVED_EXECUTION_BACKEND"):
+    with pytest.raises(
+        RuntimeError, match="unsupported AIOS_APPROVED_EXECUTION_BACKEND"
+    ):
         kernel.validate_execution_backend()
 
 

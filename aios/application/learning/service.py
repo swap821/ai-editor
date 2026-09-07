@@ -130,7 +130,9 @@ class LearningService:
         self.reuse_outcome_repository = (
             reuse_outcome_repository
             if reuse_outcome_repository is not None
-            else ReuseOutcomeRepository(_default_reuse_outcome_db(trajectory_repository))
+            else ReuseOutcomeRepository(
+                _default_reuse_outcome_db(trajectory_repository)
+            )
         )
         self.applicability = SkillApplicabilityEngine(minimum_confidence)
         self.reuse = SkillReuseOrchestrator(self.applicability)
@@ -526,7 +528,9 @@ class LearningService:
             lineage_valid = False
         if reference.source_trajectory_id not in skill.source_trajectory_ids:
             lineage_valid = False
-        source_trajectory = self.trajectory_repository.get(reference.source_trajectory_id)
+        source_trajectory = self.trajectory_repository.get(
+            reference.source_trajectory_id
+        )
         if source_trajectory is None:
             lineage_valid = False
 

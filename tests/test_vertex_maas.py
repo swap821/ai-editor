@@ -10,6 +10,7 @@ These tests are offline. The live two-turn tool round-trip was checked by hand;
 what is pinned here is the wiring that would silently rot: token freshness, the
 quota-project header, the global-vs-regional host, and reasoning-block stripping.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -22,8 +23,11 @@ from aios.core.vertex_maas import VertexMaaSClient, maas_base_url, strip_reasoni
 
 # ── reasoning blocks ─────────────────────────────────────────────────────────
 
+
 def test_a_closed_reasoning_block_is_removed() -> None:
-    assert strip_reasoning("<think>chain of thought</think>The answer.") == "The answer."
+    assert (
+        strip_reasoning("<think>chain of thought</think>The answer.") == "The answer."
+    )
 
 
 def test_a_truncated_reasoning_block_is_removed() -> None:
@@ -38,11 +42,16 @@ def test_ordinary_content_is_untouched() -> None:
 
 def test_reasoning_is_stripped_from_chat_content(monkeypatch) -> None:
     """It must not reach the operator's narrative or be replayed as a statement."""
-    client = VertexMaaSClient(project="p", credentials=SimpleNamespace(valid=True, token="t"))
+    client = VertexMaaSClient(
+        project="p", credentials=SimpleNamespace(valid=True, token="t")
+    )
     monkeypatch.setattr(
-        type(client).__bases__[0], "chat",
+        type(client).__bases__[0],
+        "chat",
         lambda self, m, *, tools=None, model=None: {
-            "role": "assistant", "content": "<think>hmm</think>Done.", "tool_calls": [],
+            "role": "assistant",
+            "content": "<think>hmm</think>Done.",
+            "tool_calls": [],
         },
     )
 
@@ -50,6 +59,7 @@ def test_reasoning_is_stripped_from_chat_content(monkeypatch) -> None:
 
 
 # ── the endpoint ─────────────────────────────────────────────────────────────
+
 
 def test_global_has_no_region_prefix() -> None:
     """The asymmetry that made every gemini-3.x id look like it did not exist."""
@@ -67,6 +77,7 @@ def test_the_project_is_in_the_path() -> None:
 
 
 # ── auth ─────────────────────────────────────────────────────────────────────
+
 
 def test_the_token_is_minted_per_request_not_cached_at_construction() -> None:
     """ADC tokens expire. A key captured once dies mid-run.
@@ -88,7 +99,9 @@ def test_the_token_is_minted_per_request_not_cached_at_construction() -> None:
 
     # request_factory: the fake ignores the transport, but SOMETHING must be
     # constructed, and google-auth is optional. See the regression test below.
-    client = VertexMaaSClient(project="p", credentials=Creds(), request_factory=lambda: None)
+    client = VertexMaaSClient(
+        project="p", credentials=Creds(), request_factory=lambda: None
+    )
     first = client._headers()["Authorization"]
     client._credentials.valid = False  # simulate expiry
     second = client._headers()["Authorization"]
@@ -132,14 +145,18 @@ def test_injected_credentials_do_not_need_google_auth() -> None:
 def test_the_quota_project_header_is_sent() -> None:
     """Without it ADC gets 403 'requires a quota project' -- which reads as a
     permissions failure and is not one."""
-    client = VertexMaaSClient(project="my-proj", credentials=SimpleNamespace(valid=True, token="t"))
+    client = VertexMaaSClient(
+        project="my-proj", credentials=SimpleNamespace(valid=True, token="t")
+    )
 
     assert client._headers()["x-goog-user-project"] == "my-proj"
 
 
 def test_the_static_api_key_path_is_not_used() -> None:
     """Inherited api_key must stay empty so the parent cannot send a stale key."""
-    client = VertexMaaSClient(project="p", credentials=SimpleNamespace(valid=True, token="t"))
+    client = VertexMaaSClient(
+        project="p", credentials=SimpleNamespace(valid=True, token="t")
+    )
 
     assert client.api_key == ""
     assert client._headers()["Authorization"] == "Bearer t"
@@ -152,6 +169,7 @@ def test_a_missing_project_fails_loudly() -> None:
 
 
 # ── routing ──────────────────────────────────────────────────────────────────
+
 
 class _FakeVertex:
     model = "deepseek-ai/deepseek-r1-0528-maas"
@@ -169,7 +187,9 @@ def test_an_explicit_vertexmaas_id_reaches_the_provider() -> None:
 
     client, model = _select_chat_client(
         "vertexmaas.deepseek-ai/deepseek-r1-0528-maas",
-        None, None, vertex_maas=_FakeVertex(),
+        None,
+        None,
+        vertex_maas=_FakeVertex(),
     )
 
     assert isinstance(client, _FakeVertex)
@@ -225,4 +245,6 @@ def test_it_cannot_be_routed_to_when_no_task_is_cloud_eligible() -> None:
     providers = _build_providers(None, None, None, vertex_maas=_FakeVertex())
     vm = [p for p in providers if p.name == router.PROVIDER_VERTEX_MAAS][0]
 
-    assert not router.policy_allows(router.Policy(cloud_tasks=frozenset()), "coding", vm)
+    assert not router.policy_allows(
+        router.Policy(cloud_tasks=frozenset()), "coding", vm
+    )

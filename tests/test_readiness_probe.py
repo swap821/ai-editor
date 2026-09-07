@@ -72,7 +72,12 @@ def test_no_reachable_model_anywhere_is_not_ready(monkeypatch) -> None:
     """
     from aios.api.routes import system as system_routes
 
-    for flag in ("BEDROCK_ENABLED", "GEMINI_ENABLED", "OPENAI_ENABLED", "ANTHROPIC_ENABLED"):
+    for flag in (
+        "BEDROCK_ENABLED",
+        "GEMINI_ENABLED",
+        "OPENAI_ENABLED",
+        "ANTHROPIC_ENABLED",
+    ):
         monkeypatch.setattr(system_routes.config, flag, False, raising=False)
 
     app.dependency_overrides[get_ollama_client] = _OllamaDown

@@ -1,4 +1,5 @@
 """Tests for PolicyKernel.decide() ActionEnvelope -> PolicyDecision."""
+
 from __future__ import annotations
 
 import pytest

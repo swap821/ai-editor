@@ -74,7 +74,9 @@ def test_enforcer_cannot_override_red_gateway_decisions() -> None:
     assert "BLOCK" in decision.reason
 
 
-def test_cloud_request_follows_router_policy_and_resource_budget(tmp_path: Path) -> None:
+def test_cloud_request_follows_router_policy_and_resource_budget(
+    tmp_path: Path,
+) -> None:
     contract = _contract(tmp_path)
     constitution = build_constitution(router_cloud_tasks=("reasoning",))
 

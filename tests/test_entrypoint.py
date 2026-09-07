@@ -4,6 +4,7 @@ Pins that the canonical launch binds exactly ``config.API_HOST`` / ``config.API_
 — the host the lifespan token-policy validates — so the real bind can't decouple from
 the policy (the failure mode the entrypoint exists to prevent).
 """
+
 from __future__ import annotations
 
 import sys
@@ -32,8 +33,9 @@ def test_entrypoint_proxy_flag_enables_trust_and_passes_to_uvicorn(monkeypatch):
     import aios.__main__ as entry
 
     monkeypatch.setattr(config, "TRUST_PROXY_HEADERS", False)
-    with patch("uvicorn.run") as run, patch.object(
-        sys, "argv", ["python -m aios", "--proxy-headers"]
+    with (
+        patch("uvicorn.run") as run,
+        patch.object(sys, "argv", ["python -m aios", "--proxy-headers"]),
     ):
         entry.main()
 

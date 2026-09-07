@@ -9,7 +9,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LEDGER_PATH = REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
-ARTIFACT_PATH = REPO_ROOT / "release" / "phase4" / "organ40-live-proof-92d871616ce6.json"
+ARTIFACT_PATH = (
+    REPO_ROOT / "release" / "phase4" / "organ40-live-proof-92d871616ce6.json"
+)
 
 
 def main() -> int:
@@ -44,13 +46,25 @@ def main() -> int:
         "proof_level": "live",
     }
     row["live_evidence"] = [
-        item for item in (row.get("live_evidence") or []) if item.get("commit_sha") != tip
+        item
+        for item in (row.get("live_evidence") or [])
+        if item.get("commit_sha") != tip
     ] + [evidence]
     row["known_blockers"] = residual
     row["status"] = "green"
     row["last_verified_sha"] = tip
     LEDGER_PATH.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"organ_id": 40, "status": "green", "tip_sha": tip, "artifact": artifact_rel}, indent=2))
+    print(
+        json.dumps(
+            {
+                "organ_id": 40,
+                "status": "green",
+                "tip_sha": tip,
+                "artifact": artifact_rel,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

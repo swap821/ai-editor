@@ -179,6 +179,7 @@ def test_a_huge_argument_is_truncated_in_the_reason(agent) -> None:
 
 # ── the step budget must fit the recovery path the system recommends ──────────
 
+
 def test_the_step_budget_can_walk_the_recovery_path_it_recommends() -> None:
     """A way forward the budget cannot reach is not a way forward.
 

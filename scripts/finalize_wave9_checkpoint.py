@@ -52,7 +52,17 @@ def main() -> int:
     }
     with EXPERIENCES.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(experience, ensure_ascii=False) + "\n")
-    print(json.dumps({"resume": str(RESUME), "experience": experience["task_id"], "status": "42 green / 12 yellow", "headed_evidence": True}, indent=2))
+    print(
+        json.dumps(
+            {
+                "resume": str(RESUME),
+                "experience": experience["task_id"],
+                "status": "42 green / 12 yellow",
+                "headed_evidence": True,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

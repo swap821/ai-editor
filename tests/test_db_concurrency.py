@@ -1,4 +1,5 @@
 """Verify SQLite concurrency hardening: WAL mode + retry-on-locked."""
+
 import sqlite3
 import threading
 from pathlib import Path
@@ -103,10 +104,7 @@ class TestConcurrentWrites:
                 except Exception as e:
                     errors.append(e)
 
-        threads = [
-            threading.Thread(target=writer, args=(t,))
-            for t in range(n_threads)
-        ]
+        threads = [threading.Thread(target=writer, args=(t,)) for t in range(n_threads)]
         for t in threads:
             t.start()
         for t in threads:

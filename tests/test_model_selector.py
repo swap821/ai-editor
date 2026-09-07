@@ -3,6 +3,7 @@
 The selector is a pure, deterministic heuristic — no Ollama, no network — so the
 "which model is best" policy is pinned by tests instead of living in the UI.
 """
+
 from __future__ import annotations
 
 from aios.core.model_selector import (

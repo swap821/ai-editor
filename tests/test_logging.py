@@ -7,6 +7,7 @@ Covers the Phase 1-4 logging upgrades:
 * Audit-chain verification emits a CRITICAL log when tampering is detected.
 * Previously swallowed best-effort exceptions on the turn path now warn.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,7 +24,9 @@ from starlette.testclient import TestClient as StarletteTestClient
 from aios import logging_config
 from aios.api import main as api_main
 from aios.api.main import app
-from aios.api.routes.system import audit_verify  # moved in the monolith split (tranche 2)
+from aios.api.routes.system import (
+    audit_verify,
+)  # moved in the monolith split (tranche 2)
 from aios.security import audit_logger as audit_mod
 from aios.security.audit_logger import init_audit_db, log_action
 from aios.security.gateway import Zone
@@ -162,6 +165,7 @@ def test_middleware_hashes_session_id_before_logging(
 
     caplog.set_level(logging.WARNING)
     import aios.api.routes.system as system_routes
+
     monkeypatch.setattr(system_routes, "_classify_intent", _classify_with_log)
 
     response = client.post(
@@ -183,7 +187,9 @@ def test_audit_verify_logs_critical_when_chain_tampered(
     caplog.set_level(logging.CRITICAL)
     original_verify = audit_mod.verify_chain
 
-    def _verify_with_temp_db(*, from_id: int, to_id: int | None) -> audit_mod.ChainStatus:
+    def _verify_with_temp_db(
+        *, from_id: int, to_id: int | None
+    ) -> audit_mod.ChainStatus:
         return original_verify(from_id=from_id, to_id=to_id, db_path=tampered_audit_db)
 
     # audit_verify lives in aios.api.routes.system since the monolith split

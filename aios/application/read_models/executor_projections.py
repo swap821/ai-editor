@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from aios.application.executor.service import IsolationUnavailable, StructuredExecutorClient
+from aios.application.executor.service import (
+    IsolationUnavailable,
+    StructuredExecutorClient,
+)
 from aios.domain.read_models.contracts import (
     ExecutorStatusProjection,
     MetricEnvelope,
@@ -22,11 +25,15 @@ from aios.domain.read_models.contracts import (
 
 
 def _measured(value: Any, source: str) -> MetricEnvelope:
-    return MetricEnvelope(value=value, status=MetricStatus.MEASURED, source=source, freshness=0)
+    return MetricEnvelope(
+        value=value, status=MetricStatus.MEASURED, source=source, freshness=0
+    )
 
 
 def _unavailable(source: str) -> MetricEnvelope:
-    return MetricEnvelope(value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None)
+    return MetricEnvelope(
+        value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None
+    )
 
 
 class IsolatedExecutorLiveAuthority:
@@ -37,7 +44,9 @@ class IsolatedExecutorLiveAuthority:
     its authenticated ``/health`` call before reachability is measured.
     """
 
-    def project(self, client: StructuredExecutorClient | None) -> ExecutorStatusProjection:
+    def project(
+        self, client: StructuredExecutorClient | None
+    ) -> ExecutorStatusProjection:
         """Return measured executor state or an explicit unavailable envelope."""
         source = "executor_service_health"
         if client is None or not client.base_url or not client.token:
@@ -71,7 +80,9 @@ def get_isolated_executor_live_authority() -> IsolatedExecutorLiveAuthority:
     return _ISOLATED_EXECUTOR_LIVE_AUTHORITY
 
 
-def project_executor_status(client: StructuredExecutorClient | None) -> ExecutorStatusProjection:
+def project_executor_status(
+    client: StructuredExecutorClient | None,
+) -> ExecutorStatusProjection:
     """Compatibility function for existing projection callers and tests."""
     return _ISOLATED_EXECUTOR_LIVE_AUTHORITY.project(client)
 

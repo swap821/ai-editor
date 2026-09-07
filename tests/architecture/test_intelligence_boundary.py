@@ -1,9 +1,10 @@
 """Architecture tests for the Canonical Intelligence Boundary.
 
-This test enforces that intelligence providers (cloud and local LLMs) are 
-not instantiated directly by application or agent code, bypassing the 
+This test enforces that intelligence providers (cloud and local LLMs) are
+not instantiated directly by application or agent code, bypassing the
 governed ModelRouter and PrivacyBroker.
 """
+
 import ast
 import os
 import pytest
@@ -26,8 +27,8 @@ ALLOWED_CLIENT_IMPORTERS = {
     # is application/agent code constructing providers directly, which this is
     # not.
     "aios/core/vertex_maas.py",
-    "aios/api/main.py",          # Legacy compat, needs migration
-    "aios/api/routes/models.py", # Legacy compat, needs migration
+    "aios/api/main.py",  # Legacy compat, needs migration
+    "aios/api/routes/models.py",  # Legacy compat, needs migration
     "aios/core/failover.py",
     # Slice 30: local-model adapters. Each constructs an OllamaClient bound
     # to one specific local model/host/params combination -- there is no
@@ -58,43 +59,50 @@ FORBIDDEN_CLASSES = {
     "OllamaClient",
 }
 
+
 def _iter_python_files(root_dir: str):
     for dirpath, _, filenames in os.walk(root_dir):
         for filename in filenames:
             if filename.endswith(".py"):
                 yield os.path.join(dirpath, filename)
 
+
 @pytest.mark.architecture
 def test_no_direct_cloud_client_instantiation():
     """Ensure that application code does not bypass the hiring broker.
 
-    Cloud clients must be obtained through the ModelRouter or the 
+    Cloud clients must be obtained through the ModelRouter or the
     legacy _select_chat_client, never instantiated directly.
     """
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../aios"))
     violations = []
-    
+
     for filepath in _iter_python_files(root):
         rel_path = os.path.relpath(filepath, os.path.dirname(root)).replace("\\", "/")
         if rel_path in ALLOWED_CLIENT_IMPORTERS:
             continue
-            
+
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
-            
+
         try:
             tree = ast.parse(content)
         except SyntaxError:
             continue
-            
+
         # Check imports
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 for alias in node.names:
                     if alias.name in FORBIDDEN_CLASSES:
-                        violations.append(f"{rel_path}:{node.lineno} imports {alias.name}")
+                        violations.append(
+                            f"{rel_path}:{node.lineno} imports {alias.name}"
+                        )
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
                 if node.id in FORBIDDEN_CLASSES:
                     violations.append(f"{rel_path}:{node.lineno} references {node.id}")
-                    
-    assert not violations, "Direct cloud client usage detected outside allowed boundaries:\n" + "\n".join(violations)
+
+    assert not violations, (
+        "Direct cloud client usage detected outside allowed boundaries:\n"
+        + "\n".join(violations)
+    )

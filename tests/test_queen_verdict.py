@@ -8,6 +8,7 @@ through the orchestrator — these tests pin its contract directly, most
 importantly the fail-closed rule that an UNRECOGNIZED risk string ranks as
 RED, never silently as GREEN.
 """
+
 from __future__ import annotations
 
 import json

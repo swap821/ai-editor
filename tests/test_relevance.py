@@ -1,4 +1,5 @@
 """Tests for deterministic developmental-memory relevance helpers."""
+
 from __future__ import annotations
 
 from aios.memory.relevance import content_hash, relevance, signature, tokens

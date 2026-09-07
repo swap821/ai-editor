@@ -34,7 +34,12 @@ def main() -> int:
         "diagnosis": "The MCP browser recorder runs in an isolated runtime that does not inherit the repository or Windows Node PATH.",
     }
     OUT.write_text(json.dumps(attempt, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"output": str(OUT), "promoted": False, "diagnosis": attempt["diagnosis"]}, indent=2))
+    print(
+        json.dumps(
+            {"output": str(OUT), "promoted": False, "diagnosis": attempt["diagnosis"]},
+            indent=2,
+        )
+    )
     return 0
 
 

@@ -16,6 +16,7 @@ as the operator's explicitly-delegated approver with a hard allowlist:
 The driver never writes to the product database directly: all progression
 flows through the same HTTP surface the human UI uses.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -62,9 +63,9 @@ def parse_sse(resp: requests.Response) -> Iterator[tuple[str, dict[str, Any]]]:
                 yield event, payload
             event, data_lines = None, []
         elif raw.startswith("event:"):
-            event = raw[len("event:"):].strip()
+            event = raw[len("event:") :].strip()
         elif raw.startswith("data:"):
-            data_lines.append(raw[len("data:"):].strip())
+            data_lines.append(raw[len("data:") :].strip())
     if event is not None and data_lines:
         yield event, json.loads("\n".join(data_lines))
 
@@ -75,29 +76,51 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     if inp.get("creations"):
         paths = [str(c.get("filepath", "")) for c in inp["creations"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"create {paths}" if not bad else f"creation outside allowlist: {bad}")
+        return (
+            not bad,
+            f"create {paths}" if not bad else f"creation outside allowlist: {bad}",
+        )
     if inp.get("edits"):
         paths = [str(e.get("filepath", "")) for e in inp["edits"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"edit {paths}" if not bad else f"edit outside allowlist: {bad}")
+        return (
+            not bad,
+            f"edit {paths}" if not bad else f"edit outside allowlist: {bad}",
+        )
     if inp.get("commands"):
         cmds = [str(c) for c in inp["commands"]]
         bad = [c for c in cmds if not ALLOWED_CMD_RE.match(c)]
-        return (not bad, f"run {cmds}" if not bad else f"command outside allowlist: {bad}")
+        return (
+            not bad,
+            f"run {cmds}" if not bad else f"command outside allowlist: {bad}",
+        )
     return False, "unrecognized approval payload shape"
 
 
-def reject_and_abort(token: str | None, session_id: str, reason: str, payload: dict[str, Any]) -> None:
+def reject_and_abort(
+    token: str | None, session_id: str, reason: str, payload: dict[str, Any]
+) -> None:
     if token:
         try:
             requests.post(
                 f"{BASE}/api/v1/approval/req",
-                json={"approvalToken": token, "sessionId": session_id, "approve": False},
+                json={
+                    "approvalToken": token,
+                    "sessionId": session_id,
+                    "approve": False,
+                },
                 timeout=60,
             )
         except requests.RequestException:
             pass
-    log_event({"kind": "approval-rejected", "session": session_id, "reason": reason, "payload": payload})
+    log_event(
+        {
+            "kind": "approval-rejected",
+            "session": session_id,
+            "reason": reason,
+            "payload": payload,
+        }
+    )
     sys.exit(f"FAIL-CLOSED: rejected out-of-allowlist action — {reason}")
 
 
@@ -109,8 +132,15 @@ def run_prompt(
     approvals_granted: list[str] = []
     evidence: list[str] = []
     answer_parts: list[str] = []
-    log_event({"kind": "turn-start", "session": session_id, "prompt": prompt,
-               "model": model_id, "role_pass": role_pass})
+    log_event(
+        {
+            "kind": "turn-start",
+            "session": session_id,
+            "prompt": prompt,
+            "model": model_id,
+            "role_pass": role_pass,
+        }
+    )
     for replay in range(MAX_REPLAYS):
         body = {
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
@@ -119,29 +149,54 @@ def run_prompt(
             "approvalTokens": tokens,
             "rolePass": role_pass,
         }
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        resp = requests.post(
+            f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S
+        )
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False
         for event, data in parse_sse(resp):
             if event == "step":
                 output = str(data.get("output", ""))
-                if output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")):
+                if output.startswith(
+                    ("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")
+                ):
                     evidence.append(output)
                     print(f"    {output[:120]}")
-                log_event({"kind": "step", "session": session_id, "replay": replay, "step": data})
+                log_event(
+                    {
+                        "kind": "step",
+                        "session": session_id,
+                        "replay": replay,
+                        "step": data,
+                    }
+                )
             elif event == "text_chunk":
                 answer_parts.append(str(data.get("text", "")))
             elif event == "human_required":
                 paused = data
                 break
             elif event == "error":
-                log_event({"kind": "turn-error", "session": session_id, "replay": replay, "error": data})
-                return {"outcome": "error", "error": data, "evidence": evidence, "replays": replay}
+                log_event(
+                    {
+                        "kind": "turn-error",
+                        "session": session_id,
+                        "replay": replay,
+                        "error": data,
+                    }
+                )
+                return {
+                    "outcome": "error",
+                    "error": data,
+                    "evidence": evidence,
+                    "replays": replay,
+                }
             elif event == "done":
                 finished = True
         if finished and paused is None:
-            counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+            counted = [
+                e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
+            ]
             if not counted:
                 outcome = "unverified"
             elif counted[-1].startswith("[VERIFY PASS]"):
@@ -156,26 +211,34 @@ def run_prompt(
                 "evidence": evidence,
                 "answer_preview": "".join(answer_parts)[:400],
             }
-            log_event({"kind": "turn-done", "session": session_id, "prompt": prompt, **result})
+            log_event(
+                {"kind": "turn-done", "session": session_id, "prompt": prompt, **result}
+            )
             return result
         if paused is None:
-            log_event({"kind": "turn-truncated", "session": session_id, "replay": replay})
+            log_event(
+                {"kind": "turn-truncated", "session": session_id, "replay": replay}
+            )
             return {"outcome": "truncated", "replays": replay, "evidence": evidence}
         ok, why = check_allowlist(paused)
         token = paused.get("input", {}).get("approvalToken")
         if not ok or not token:
             reject_and_abort(token, session_id, why, paused)
         approvals_granted.append(why)
-        log_event({
-            "kind": "approval-granted",
-            "session": session_id,
-            "replay": replay,
-            "action": why,
-            "diff": paused.get("input", {}).get("diff", ""),
-        })
+        log_event(
+            {
+                "kind": "approval-granted",
+                "session": session_id,
+                "replay": replay,
+                "action": why,
+                "diff": paused.get("input", {}).get("diff", ""),
+            }
+        )
         print(f"    approved[{replay}]: {why}")
         tokens = [token]
-    sys.exit(f"FAIL-CLOSED: exceeded {MAX_REPLAYS} replays without done for session {session_id}")
+    sys.exit(
+        f"FAIL-CLOSED: exceeded {MAX_REPLAYS} replays without done for session {session_id}"
+    )
 
 
 def get_curriculum() -> list[dict[str, Any]]:
@@ -212,7 +275,14 @@ def cmd_seed(_: argparse.Namespace) -> None:
         resp.raise_for_status()
         data = resp.json()
         print(f"{task['key']}: id={data['id']} executed={data['executed']}")
-        log_event({"kind": "seeded", "task": task["key"], "id": data["id"], "prompt": task["prompt"]})
+        log_event(
+            {
+                "kind": "seeded",
+                "task": task["key"],
+                "id": data["id"],
+                "prompt": task["prompt"],
+            }
+        )
     print("\nCurriculum state:")
     for line in curriculum_brief(get_curriculum()):
         print(f"  {line}")
@@ -243,10 +313,19 @@ def reset_task_files(task: dict[str, Any], rep: int) -> None:
         if target.exists():
             target.unlink()
             print(f"    reset: deleted {rel}")
-            log_event({"kind": "sandbox-reset", "deleted": rel, "task": task["key"], "rep": rep})
+            log_event(
+                {
+                    "kind": "sandbox-reset",
+                    "deleted": rel,
+                    "task": task["key"],
+                    "rep": rep,
+                }
+            )
 
 
-def run_one_task(task: dict[str, Any], rep: int = 0, model_id: str = "auto") -> dict[str, Any]:
+def run_one_task(
+    task: dict[str, Any], rep: int = 0, model_id: str = "auto"
+) -> dict[str, Any]:
     reset_task_files(task, rep)
     before = find_row(get_curriculum(), task["prompt"])
     attempt = (before or {}).get("attempts", 0)
@@ -258,19 +337,25 @@ def run_one_task(task: dict[str, Any], rep: int = 0, model_id: str = "auto") -> 
     progressed = bool(before and after and after["attempts"] > before["attempts"])
     print(f"    outcome={result['outcome']} curriculum_attempt_recorded={progressed}")
     if after:
-        print(f"    row now: status={after['status']} attempts={after['attempts']} successes={after['successes']}")
+        print(
+            f"    row now: status={after['status']} attempts={after['attempts']} successes={after['successes']}"
+        )
     if result["outcome"] == "verified_success" and not progressed:
-        print("    !! WARNING: verified success but NO curriculum increment — "
-              "silent record_matching mismatch (check prompt verbatim equality)")
-    log_event({
-        "kind": "task-progress-check",
-        "task": task["key"],
-        "rep": rep,
-        "outcome": result["outcome"],
-        "curriculum_attempt_recorded": progressed,
-        "row_before": before,
-        "row_after": after,
-    })
+        print(
+            "    !! WARNING: verified success but NO curriculum increment — "
+            "silent record_matching mismatch (check prompt verbatim equality)"
+        )
+    log_event(
+        {
+            "kind": "task-progress-check",
+            "task": task["key"],
+            "rep": rep,
+            "outcome": result["outcome"],
+            "curriculum_attempt_recorded": progressed,
+            "row_before": before,
+            "row_after": after,
+        }
+    )
     result["progressed"] = progressed
     return result
 
@@ -316,7 +401,9 @@ def cmd_trails(_: argparse.Namespace) -> None:
             f"{t['reuse_failure_count']}-]) :: {t['goal_pattern'][:70]}"
         )
     for f in data["superseded_fragments"]:
-        print(f"  [s] #{f['skill_id']} -> #{f['superseded_by']} ({f['success_count']}/{f['failure_count']})")
+        print(
+            f"  [s] #{f['skill_id']} -> #{f['superseded_by']} ({f['success_count']}/{f['failure_count']})"
+        )
 
 
 def cmd_plan_proof(_: argparse.Namespace) -> None:
@@ -328,30 +415,63 @@ def cmd_plan_proof(_: argparse.Namespace) -> None:
     plan = resp.json()
     print(json.dumps(plan, indent=2)[:4000])
     rewarded = [
-        c for c in plan.get("calibrations", [])
+        c
+        for c in plan.get("calibrations", [])
         if float(c.get("skill_adjustment", 0) or 0) > 0
     ]
     print(f"\ncalibrations with skill_adjustment > 0: {len(rewarded)}")
     for c in rewarded:
-        print(f"  step={c.get('step_description', '')!r} adj={c['skill_adjustment']} skills={c.get('skill_ids')}")
-    log_event({"kind": "plan-proof", "goal": goal, "plan": plan, "rewarded_steps": len(rewarded)})
+        print(
+            f"  step={c.get('step_description', '')!r} adj={c['skill_adjustment']} skills={c.get('skill_ids')}"
+        )
+    log_event(
+        {
+            "kind": "plan-proof",
+            "goal": goal,
+            "plan": plan,
+            "rewarded_steps": len(rewarded),
+        }
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("seed", help="define the curriculum tasks (idempotent, never executes)")
-    sub.add_parser("status", help="print curriculum rows, skills, and development metrics")
-    p_run = sub.add_parser("run", help="run available curriculum task(s) through the live loop")
+    sub.add_parser(
+        "seed", help="define the curriculum tasks (idempotent, never executes)"
+    )
+    sub.add_parser(
+        "status", help="print curriculum rows, skills, and development metrics"
+    )
+    p_run = sub.add_parser(
+        "run", help="run available curriculum task(s) through the live loop"
+    )
     p_run.add_argument("--task", default="all", help="task key (e.g. L1-T1) or 'all'")
-    p_run.add_argument("--model", default="auto", help="modelId for the turn (e.g. ollama.llama3.1:8b)")
-    p_reps = sub.add_parser("reps", help="extra runs of the promotion task (resets its sandbox files)")
-    p_reps.add_argument("--model", default="auto", help="modelId for the turn (e.g. ollama.llama3.1:8b)")
-    sub.add_parser("plan-proof", help="show the planner's live skill_adjustment for the proof goal")
-    sub.add_parser("trails", help="print the pheromone map (computed strengths, decay, reuse, lineage)")
+    p_run.add_argument(
+        "--model", default="auto", help="modelId for the turn (e.g. ollama.llama3.1:8b)"
+    )
+    p_reps = sub.add_parser(
+        "reps", help="extra runs of the promotion task (resets its sandbox files)"
+    )
+    p_reps.add_argument(
+        "--model", default="auto", help="modelId for the turn (e.g. ollama.llama3.1:8b)"
+    )
+    sub.add_parser(
+        "plan-proof", help="show the planner's live skill_adjustment for the proof goal"
+    )
+    sub.add_parser(
+        "trails",
+        help="print the pheromone map (computed strengths, decay, reuse, lineage)",
+    )
     args = parser.parse_args()
-    {"seed": cmd_seed, "status": cmd_status, "run": cmd_run,
-     "reps": cmd_reps, "plan-proof": cmd_plan_proof, "trails": cmd_trails}[args.cmd](args)
+    {
+        "seed": cmd_seed,
+        "status": cmd_status,
+        "run": cmd_run,
+        "reps": cmd_reps,
+        "plan-proof": cmd_plan_proof,
+        "trails": cmd_trails,
+    }[args.cmd](args)
 
 
 if __name__ == "__main__":

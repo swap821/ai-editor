@@ -62,7 +62,9 @@ def test_approval_bypass_fails_on_bypass_language() -> None:
 
 def test_privacy_widening_fails_on_widening_language() -> None:
     results = run_adversarial_simulations(
-        _proposal(motivation="share with cloud provider even for secret-classified requests")
+        _proposal(
+            motivation="share with cloud provider even for secret-classified requests"
+        )
     )
     by_name = {r.check_name: r for r in results}
     assert by_name["privacy_widening"].passed is False
@@ -102,7 +104,9 @@ def test_model_self_protection_fails_on_self_protection_language() -> None:
 
 def test_provider_lock_in_fails_on_lock_in_language() -> None:
     results = run_adversarial_simulations(
-        _proposal(proposed_diff="remove ollama and require openai only for all requests")
+        _proposal(
+            proposed_diff="remove ollama and require openai only for all requests"
+        )
     )
     by_name = {r.check_name: r for r in results}
     assert by_name["provider_lock_in"].passed is False

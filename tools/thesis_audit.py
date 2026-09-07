@@ -4,6 +4,7 @@ This script intentionally starts narrow. It guards claims that are easy to let
 rot and expensive to misunderstand: cloud routing defaults and documented
 egress controls. It is local-only and reads repository files plus `aios.config`.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,7 +50,9 @@ STALE_LOCAL_ONLY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"local-only\s+by\s+default", re.IGNORECASE),
     re.compile(r"default\s+local-only", re.IGNORECASE),
     re.compile(r"cloud\s+is\s+opt-in,\s+not\s+default", re.IGNORECASE),
-    re.compile(r"cloud\s+route\s+requires\s+per-task-class\s+operator\s+opt-in", re.IGNORECASE),
+    re.compile(
+        r"cloud\s+route\s+requires\s+per-task-class\s+operator\s+opt-in", re.IGNORECASE
+    ),
     re.compile(r"default\s+empty\s+`?ROUTER_CLOUD_TASKS`?", re.IGNORECASE),
 )
 
@@ -96,10 +99,21 @@ POST_V7_FEATURE_RULES: tuple[FeatureDocRule, ...] = (
             "tests/test_project_passport.py",
         ),
         stale_patterns=(
-            re.compile(r"Project Knowledge\s*\|[^\n]*designed[^\n]*Project Passport[^\n]*roadmap", re.IGNORECASE),
-            re.compile(r"P3\s*[-\u2013\u2014]\s*Project Knowledge\s*\(Roadmap\)", re.IGNORECASE),
-            re.compile(r"\*{0,2}DESIGNED,\s*not built:\*{0,2}\s*Project Passport", re.IGNORECASE),
-            re.compile(r"Project Passport harvester\s*\(P3,\s*XL,\s*local-only enforced\)", re.IGNORECASE),
+            re.compile(
+                r"Project Knowledge\s*\|[^\n]*designed[^\n]*Project Passport[^\n]*roadmap",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"P3\s*[-\u2013\u2014]\s*Project Knowledge\s*\(Roadmap\)", re.IGNORECASE
+            ),
+            re.compile(
+                r"\*{0,2}DESIGNED,\s*not built:\*{0,2}\s*Project Passport",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"Project Passport harvester\s*\(P3,\s*XL,\s*local-only enforced\)",
+                re.IGNORECASE,
+            ),
         ),
     ),
     FeatureDocRule(
@@ -148,8 +162,14 @@ POST_V7_FEATURE_RULES: tuple[FeatureDocRule, ...] = (
             "tests/test_meta_loop.py",
         ),
         stale_patterns=(
-            re.compile(r"Phase 6\s*[-\u2013\u2014]\s*Meta Loop\s*\|[^\n]*Planned", re.IGNORECASE),
-            re.compile(r"Phase 6\s*[-\u2013\u2014]\s*Runtime Wiring And UI Truth", re.IGNORECASE),
+            re.compile(
+                r"Phase 6\s*[-\u2013\u2014]\s*Meta Loop\s*\|[^\n]*Planned",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"Phase 6\s*[-\u2013\u2014]\s*Runtime Wiring And UI Truth",
+                re.IGNORECASE,
+            ),
             re.compile(r"Phase 6\s*[-\u2013\u2014][^\n]*UI Truth", re.IGNORECASE),
         ),
     ),
@@ -189,7 +209,8 @@ def _has_local_only_override(text: str) -> bool:
         'AIOS_ROUTER_CLOUD_TASKS=""' in compact
         or "AIOS_ROUTER_CLOUD_TASKS=''" in compact
         or "emptystring" in compact.lower()
-        or "blank" in text.lower() and "AIOS_ROUTER_CLOUD_TASKS" in text
+        or "blank" in text.lower()
+        and "AIOS_ROUTER_CLOUD_TASKS" in text
     )
 
 
@@ -327,13 +348,10 @@ def audit_repo(root: Path) -> list[Finding]:
             docs[rel] = path.read_text(encoding="utf-8")
         except FileNotFoundError:
             docs[rel] = ""
-    return (
-        audit_cloud_routing_docs(
-            docs,
-            cloud_tasks_default=config._ROUTER_CLOUD_TASKS_DEFAULT,
-        )
-        + audit_post_v7_feature_docs(docs, root=root)
-    )
+    return audit_cloud_routing_docs(
+        docs,
+        cloud_tasks_default=config._ROUTER_CLOUD_TASKS_DEFAULT,
+    ) + audit_post_v7_feature_docs(docs, root=root)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

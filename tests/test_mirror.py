@@ -625,8 +625,8 @@ class _HealthResponse:
 
 def test_executor_status_is_honestly_unconfigured_with_no_base_url_or_token() -> None:
     client = StructuredExecutorClient(base_url="", token="")
-    app.dependency_overrides[get_private_executor_service] = lambda: types.SimpleNamespace(
-        client=client
+    app.dependency_overrides[get_private_executor_service] = lambda: (
+        types.SimpleNamespace(client=client)
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
@@ -635,20 +635,27 @@ def test_executor_status_is_honestly_unconfigured_with_no_base_url_or_token() ->
             data = response.json()["executor"]
             assert data["configured"]["value"] is False
             assert data["reachable"]["status"] == "unavailable"
-            assert data["reason"]["value"] == "private executor service is not configured"
+            assert (
+                data["reason"]["value"] == "private executor service is not configured"
+            )
     finally:
         app.dependency_overrides.clear()
 
 
 def test_executor_status_reflects_a_real_reachable_service() -> None:
     transport = lambda request, timeout: _HealthResponse(
-        {"status": "ok", "service": "executor", "runtime": "docker", "token_configured": True}
+        {
+            "status": "ok",
+            "service": "executor",
+            "runtime": "docker",
+            "token_configured": True,
+        }
     )
     client = StructuredExecutorClient(
         base_url="http://executor:8081", token="private-token", transport=transport
     )
-    app.dependency_overrides[get_private_executor_service] = lambda: types.SimpleNamespace(
-        client=client
+    app.dependency_overrides[get_private_executor_service] = lambda: (
+        types.SimpleNamespace(client=client)
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
@@ -663,15 +670,17 @@ def test_executor_status_reflects_a_real_reachable_service() -> None:
         app.dependency_overrides.clear()
 
 
-def test_executor_status_reports_an_honest_reason_when_configured_but_unreachable() -> None:
+def test_executor_status_reports_an_honest_reason_when_configured_but_unreachable() -> (
+    None
+):
     def transport(request, timeout):
         raise TimeoutError()
 
     client = StructuredExecutorClient(
         base_url="http://executor:8081", token="private-token", transport=transport
     )
-    app.dependency_overrides[get_private_executor_service] = lambda: types.SimpleNamespace(
-        client=client
+    app.dependency_overrides[get_private_executor_service] = lambda: (
+        types.SimpleNamespace(client=client)
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:

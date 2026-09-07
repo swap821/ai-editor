@@ -15,6 +15,7 @@ no real subprocess spawns except where asyncio.create_subprocess_exec itself is
 monkeypatched (mirrors how test_runtime_worker_container.py monkeypatches the
 executor's process runner rather than shelling out for real).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -218,30 +219,40 @@ class TestStripCodeFences:
 class TestRunLlmWorkerDirectCalls:
     """_run_llm_worker branches reached by calling the function directly."""
 
-    def test_missing_allowed_files_raises_contract_violation(self, tmp_path: Path) -> None:
+    def test_missing_allowed_files_raises_contract_violation(
+        self, tmp_path: Path
+    ) -> None:
         workspace = _workspace(tmp_path)
         contract = _contract(
             workspace,
             allowed_files=[],
             allowed_tools=["read_file", "write_file", "run_command", "request_change"],
         )
-        runtime = _runtime(contract, tmp_path, intelligence_gateway=QueuedGateway(["x"]))
+        runtime = _runtime(
+            contract, tmp_path, intelligence_gateway=QueuedGateway(["x"])
+        )
 
         code = _run_llm_worker(
             runtime=runtime, contract=contract, worker_id="worker-gaps", started_at="t0"
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(runtime.result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            runtime.result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
         assert "at least one allowed file" in result.summary
 
-    def test_gateway_fails_on_repair_after_one_recorded_attempt(self, tmp_path: Path) -> None:
+    def test_gateway_fails_on_repair_after_one_recorded_attempt(
+        self, tmp_path: Path
+    ) -> None:
         """attempt 0 succeeds (writes content) but verification fails, then attempt 1
         (repair) raises IntelligenceGatewayError -> the "attempts already recorded"
         branch (gateway_error set with non-empty attempts)."""
         workspace = _workspace(tmp_path)
-        (workspace / "check_fail.py").write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+        (workspace / "check_fail.py").write_text(
+            "import sys\nsys.exit(1)\n", encoding="utf-8"
+        )
         contract = _contract(
             workspace,
             allowed_tools=["read_file", "write_file", "run_command", "request_change"],
@@ -264,7 +275,9 @@ class TestRunLlmWorkerDirectCalls:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(runtime.result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            runtime.result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "failed"
         assert "reasoning failed after 1 attempt(s)" in result.summary
         assert gateway.calls == 2
@@ -306,7 +319,9 @@ class TestRunLlmWorkerDirectCalls:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(runtime.result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            runtime.result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
         assert "Forbidden probe was not blocked" in result.summary
         assert result.risk_after == "RED"
@@ -342,7 +357,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
 
     def test_deterministic_worker_requires_allowed_files(self, tmp_path: Path) -> None:
@@ -360,11 +377,15 @@ class TestRunWorkerDispatchAndDeterministicPath:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
         assert "needs one allowed file" in result.summary
 
-    def test_deterministic_worker_requires_verification_commands(self, tmp_path: Path) -> None:
+    def test_deterministic_worker_requires_verification_commands(
+        self, tmp_path: Path
+    ) -> None:
         workspace = _workspace(tmp_path)
         contract = _contract(workspace, verification_commands=[])
         contract_path = tmp_path / "contract.json"
@@ -379,7 +400,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
         assert "requires verification_commands" in result.summary
 
@@ -428,7 +451,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
         )
 
         assert code == 0
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "completed"
         content = target.read_text(encoding="utf-8")
         assert "plan: Line one of the plan." in content
@@ -440,7 +465,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
             "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
         )
         workspace = _workspace(tmp_path)
-        (workspace / "fail.py").write_text("import sys\nsys.exit(2)\n", encoding="utf-8")
+        (workspace / "fail.py").write_text(
+            "import sys\nsys.exit(2)\n", encoding="utf-8"
+        )
         contract = _contract(
             workspace,
             verification_commands=[f"{sys.executable} fail.py"],
@@ -457,7 +484,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "failed"
         assert "verification failed" in result.summary
 
@@ -491,7 +520,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
         )
 
         assert code == 1
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
         assert result.risk_after == "RED"
         assert "not/allowed/path.txt" in json.dumps(result.evidence)
@@ -500,7 +531,9 @@ class TestRunWorkerDispatchAndDeterministicPath:
 class TestMainEntrypoint:
     """Lines 372-379: argparse wiring in main()."""
 
-    def test_main_parses_argv_and_returns_run_worker_exit_code(self, tmp_path: Path) -> None:
+    def test_main_parses_argv_and_returns_run_worker_exit_code(
+        self, tmp_path: Path
+    ) -> None:
         workspace = _workspace(tmp_path)
         # allowed_files empty -> fast, deterministic ContractViolation, no reasoning.
         contract = _contract(workspace, allowed_files=[])
@@ -524,7 +557,9 @@ class TestMainEntrypoint:
 
         assert code == 1
         assert result_path.exists()
-        result = WorkerResult.model_validate_json(result_path.read_text(encoding="utf-8"))
+        result = WorkerResult.model_validate_json(
+            result_path.read_text(encoding="utf-8")
+        )
         assert result.status == "contract_violation"
         assert result.worker_id == "worker-main"
 
@@ -535,7 +570,9 @@ class TestMainEntrypoint:
 
 
 class TestRunnerForBackendAndRunCommand:
-    def test_unsupported_backend_yields_failed_closed_result(self, tmp_path: Path) -> None:
+    def test_unsupported_backend_yields_failed_closed_result(
+        self, tmp_path: Path
+    ) -> None:
         """_runner_for_backend returns None for anything other than "container";
         run_command must then fail closed rather than silently falling back."""
         workspace = _workspace(tmp_path)
@@ -705,9 +742,7 @@ class TestRequestApprovalPolling:
         import uuid
 
         fixed = uuid.UUID("12345678123456781234567812345678")
-        monkeypatch.setattr(
-            "aios.runtime.worker_api.uuid.uuid4", lambda: fixed
-        )
+        monkeypatch.setattr("aios.runtime.worker_api.uuid.uuid4", lambda: fixed)
         approval_dir = runtime.approval_dir
         approval_dir.mkdir(parents=True, exist_ok=True)
         request_id = f"approval-{fixed.hex[:12]}"
@@ -721,7 +756,9 @@ class TestRequestApprovalPolling:
 
 
 class TestFinishValidation:
-    def _base_result(self, contract: MissionContract, **overrides: object) -> WorkerResult:
+    def _base_result(
+        self, contract: MissionContract, **overrides: object
+    ) -> WorkerResult:
         data: dict[str, object] = {
             "mission_id": contract.mission_id,
             "worker_id": "worker-gaps",
@@ -775,7 +812,9 @@ class TestBeginToolGuards:
 
 
 class TestMatchesAndResolveAllowedPath:
-    def test_path_not_covered_by_any_allowed_rule_is_blocked(self, tmp_path: Path) -> None:
+    def test_path_not_covered_by_any_allowed_rule_is_blocked(
+        self, tmp_path: Path
+    ) -> None:
         workspace = _workspace(tmp_path)
         (workspace / "other.txt").write_text("x", encoding="utf-8")
         contract = _contract(
@@ -1066,7 +1105,10 @@ class TestBudgetGuardCheckCloudRequest:
     def test_denied_when_request_token_budget_exceeded(self) -> None:
         guard = BudgetGuard()
         contract = _budget_contract(
-            mode="hybrid", allow_cloud=True, max_tokens_per_request=100, max_cloud_calls=5
+            mode="hybrid",
+            allow_cloud=True,
+            max_tokens_per_request=100,
+            max_cloud_calls=5,
         )
 
         decision = guard.check_cloud_request(contract, estimated_tokens=500)
@@ -1270,12 +1312,16 @@ class TestIntelligenceGatewayCloudFallback:
             allow_cloud=False,
         )
 
-        with pytest.raises(IntelligenceGatewayError, match="local reasoning provider failed"):
+        with pytest.raises(
+            IntelligenceGatewayError, match="local reasoning provider failed"
+        ):
             gateway.request(request, contract=contract)
 
 
 class TestCloudAllowedBranches:
-    def test_cloud_denied_when_request_does_not_allow_cloud(self, tmp_path: Path) -> None:
+    def test_cloud_denied_when_request_does_not_allow_cloud(
+        self, tmp_path: Path
+    ) -> None:
         gateway = IntelligenceGateway(local_client=_FakeReasoner("plan"))
         contract = _gateway_contract(tmp_path, risk_level="GREEN")
         request = IntelligenceRequest(

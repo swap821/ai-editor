@@ -11,6 +11,7 @@ same three conversational protections as ``/api/v1/chat``:
 All collaborators are faked so the suite never calls Ollama, loads an embedder,
 or touches the real store. The in-process throttle dict is reset per test.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -88,7 +89,9 @@ class _FakeInjectionShield:
 
 
 def _fake_executor() -> Executor:
-    return Executor(runner=_FakeRunner(), rate_limiter=RateLimiter(), audit_log=_RecordingAudit())
+    return Executor(
+        runner=_FakeRunner(), rate_limiter=RateLimiter(), audit_log=_RecordingAudit()
+    )
 
 
 def _fake_privileged_principal(request: Request) -> Principal:
@@ -264,7 +267,9 @@ def test_throttle_window_expiry_lets_traffic_resume(
     monkeypatch.setattr(main.time, "monotonic", lambda: clock["t"])
     for _ in range(3):
         assert (
-            shield_client.post("/api/generate", json=_generate("hi", session)).status_code
+            shield_client.post(
+                "/api/generate", json=_generate("hi", session)
+            ).status_code
             == 200
         )
     assert (

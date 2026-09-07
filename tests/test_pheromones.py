@@ -68,7 +68,9 @@ def test_decay_formula(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     base_time = 1_800_000_000.0
     monkeypatch.setattr(time, "time", lambda: base_time)
     store = _store(tmp_path, lambda_decay=0.02, floor=0.01)
-    pid = store.deposit(PheromoneType.SUCCESS_TRAIL, "src/bar.py", "worker-2", strength=1.0)
+    pid = store.deposit(
+        PheromoneType.SUCCESS_TRAIL, "src/bar.py", "worker-2", strength=1.0
+    )
 
     hours_elapsed = 35.0
     monkeypatch.setattr(time, "time", lambda: base_time + hours_elapsed * 3600.0)
@@ -84,7 +86,9 @@ def test_reinforce(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     base_time = 1_800_000_000.0
     monkeypatch.setattr(time, "time", lambda: base_time)
     store = _store(tmp_path)
-    pid = store.deposit(PheromoneType.SUCCESS_TRAIL, "src/baz.py", "worker-3", strength=0.5)
+    pid = store.deposit(
+        PheromoneType.SUCCESS_TRAIL, "src/baz.py", "worker-3", strength=0.5
+    )
 
     monkeypatch.setattr(time, "time", lambda: base_time + 10 * 3600.0)
     before = store.query(resource="src/baz.py", min_strength=0.0)[0]
@@ -98,7 +102,9 @@ def test_reinforce(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert after.strength == pytest.approx(0.8, rel=1e-9)
 
 
-def test_query_min_strength_filter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_query_min_strength_filter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     base_time = 1_800_000_000.0
     monkeypatch.setattr(time, "time", lambda: base_time)
     store = _store(tmp_path, lambda_decay=0.02, floor=0.01)
@@ -116,8 +122,12 @@ def test_decay_all_prunes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     base_time = 1_800_000_000.0
     monkeypatch.setattr(time, "time", lambda: base_time)
     store = _store(tmp_path, lambda_decay=0.02, floor=0.01)
-    store.deposit(PheromoneType.FAILURE_WARNING, "src/expired.py", "worker-5", strength=0.5)
-    store.deposit(PheromoneType.FAILURE_WARNING, "src/fresh.py", "worker-5", strength=1.0)
+    store.deposit(
+        PheromoneType.FAILURE_WARNING, "src/expired.py", "worker-5", strength=0.5
+    )
+    store.deposit(
+        PheromoneType.FAILURE_WARNING, "src/fresh.py", "worker-5", strength=1.0
+    )
 
     monkeypatch.setattr(time, "time", lambda: base_time + 400 * 3600.0)
     pruned = store.decay_all()
@@ -125,7 +135,9 @@ def test_decay_all_prunes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr(time, "time", lambda: base_time)
     store2 = _store(tmp_path, lambda_decay=0.02, floor=0.01)
-    store2.deposit(PheromoneType.FAILURE_WARNING, "src/keep.py", "worker-6", strength=1.0)
+    store2.deposit(
+        PheromoneType.FAILURE_WARNING, "src/keep.py", "worker-6", strength=1.0
+    )
     monkeypatch.setattr(time, "time", lambda: base_time + 3600.0)
     pruned2 = store2.decay_all()
     assert pruned2 == 0
@@ -150,10 +162,14 @@ def test_for_contract(tmp_path: Path) -> None:
 def test_query_by_type(tmp_path: Path) -> None:
     store = _store(tmp_path)
     store.deposit(PheromoneType.SUCCESS_TRAIL, "src/mixed.py", "worker-8", strength=0.9)
-    store.deposit(PheromoneType.FAILURE_WARNING, "src/mixed.py", "worker-8", strength=0.9)
+    store.deposit(
+        PheromoneType.FAILURE_WARNING, "src/mixed.py", "worker-8", strength=0.9
+    )
     store.deposit(PheromoneType.FILE_LOCK, "src/mixed.py", "worker-8", strength=0.9)
 
-    success_only = store.query(resource="src/mixed.py", ptype=PheromoneType.SUCCESS_TRAIL)
+    success_only = store.query(
+        resource="src/mixed.py", ptype=PheromoneType.SUCCESS_TRAIL
+    )
     assert len(success_only) == 1
     assert success_only[0].ptype == PheromoneType.SUCCESS_TRAIL
 
@@ -186,7 +202,9 @@ def test_multiple_resources(tmp_path: Path) -> None:
     assert len(all_results) == 2
 
 
-def test_council_loads_pheromone_context_into_contract(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_council_loads_pheromone_context_into_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from aios import config
     from aios.council.council_orchestrator import CouncilOrchestrator
     from aios.council.queens.planner import CouncilMissionRequest
@@ -215,13 +233,19 @@ def test_council_loads_pheromone_context_into_contract(tmp_path: Path, monkeypat
         )
     )
 
-    assert any("similar edit verified twice" in item for item in run.contract.pheromone_context)
+    assert any(
+        "similar edit verified twice" in item for item in run.contract.pheromone_context
+    )
     assert run.contract.metadata["pheromone_context_non_authoritative"] is True
     memory_verdict = next(v for v in run.verdicts if v.queen == "memory")
-    assert any("[success-trail] src/foo.py" in item for item in memory_verdict.constraints)
+    assert any(
+        "[success-trail] src/foo.py" in item for item in memory_verdict.constraints
+    )
 
 
-def test_council_prefers_authority_pheromone_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_council_prefers_authority_pheromone_adapter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from aios import config
     from aios.council.council_orchestrator import CouncilOrchestrator
     from aios.runtime.contracts import MissionContract
@@ -302,7 +326,10 @@ def test_pheromone_context_cannot_override_red_security_decision(
         )
     )
 
-    assert any("previous protected edit claimed success" in item for item in run.contract.pheromone_context)
+    assert any(
+        "previous protected edit claimed success" in item
+        for item in run.contract.pheromone_context
+    )
     security_verdict = next(v for v in run.verdicts if v.queen == "security")
     assert security_verdict.verdict == "deny"
     assert security_verdict.risk == "RED"

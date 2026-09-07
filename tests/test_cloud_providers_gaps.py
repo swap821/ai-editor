@@ -9,6 +9,7 @@ Follows the established patterns in tests/test_bedrock.py, tests/test_gemini.py,
 tests/test_openai_compat.py, tests/test_failover.py, tests/test_failover_stream_tools.py,
 and tests/test_anthropic_direct_coverage.py.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,7 +38,10 @@ from aios.core.gemini import (
     _to_gemini,
 )
 from aios.core.llm import LLMError
-from aios.core.openai_compat import OpenAICompatClient, _parse_output as _openai_parse_output
+from aios.core.openai_compat import (
+    OpenAICompatClient,
+    _parse_output as _openai_parse_output,
+)
 from aios.core.stream_protocol import StreamFinished
 
 pytestmark = [pytest.mark.cloud]
@@ -74,13 +78,17 @@ class TestBedrockToConverse:
                 {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{"function": {"name": "read_file", "arguments": "not-json"}}],
+                    "tool_calls": [
+                        {"function": {"name": "read_file", "arguments": "not-json"}}
+                    ],
                 },
             ]
         )
         assert conv[0]["content"][0]["toolUse"]["input"] == {}
 
-    def test_assistant_with_no_text_and_no_tool_calls_gets_empty_text_block(self) -> None:
+    def test_assistant_with_no_text_and_no_tool_calls_gets_empty_text_block(
+        self,
+    ) -> None:
         # Line 92-93: Converse rejects empty content -> synthesize {"text": ""}.
         _, conv = _to_converse([{"role": "assistant", "content": ""}])
         assert conv[0] == {"role": "assistant", "content": [{"text": ""}]}
@@ -110,7 +118,9 @@ class TestBedrockParseOutput:
 class TestBedrockStreamTextFromConverse:
     def test_non_dict_stream_events_are_skipped(self) -> None:
         # Lines 156-157: `if not isinstance(event, dict): continue`.
-        response = {"stream": ["garbage", {"contentBlockDelta": {"delta": {"text": "ok"}}}]}
+        response = {
+            "stream": ["garbage", {"contentBlockDelta": {"delta": {"text": "ok"}}}]
+        }
         assert list(_stream_text_from_converse(response)) == ["ok"]
 
     def test_response_without_stream_key_iterates_the_object_directly(self) -> None:
@@ -131,7 +141,11 @@ class TestBedrockStreamFromConverse:
                 "garbage-non-dict",
                 {"contentBlockDelta": {"delta": {"text": "Let "}}},
                 {"contentBlockDelta": {"delta": {"text": "me check."}}},
-                {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "t1", "name": "read_file"}}}},
+                {
+                    "contentBlockStart": {
+                        "start": {"toolUse": {"toolUseId": "t1", "name": "read_file"}}
+                    }
+                },
                 {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"path"'}}}},
                 {"contentBlockDelta": {"delta": {"toolUse": {"input": ': "a.py"}'}}}},
                 {"contentBlockStop": {}},
@@ -143,7 +157,10 @@ class TestBedrockStreamFromConverse:
         assert text_items == ["Let ", "me check."]
         assert len(finished) == 1
         assert finished[0].tool_calls == [
-            {"id": "t1", "function": {"name": "read_file", "arguments": {"path": "a.py"}}}
+            {
+                "id": "t1",
+                "function": {"name": "read_file", "arguments": {"path": "a.py"}},
+            }
         ]
         assert finished[0].content == "Let me check."
 
@@ -151,9 +168,17 @@ class TestBedrockStreamFromConverse:
         # Lines 194-199: a new contentBlockStart while current_tool is set finishes it first.
         response = {
             "stream": [
-                {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "a", "name": "one"}}}},
+                {
+                    "contentBlockStart": {
+                        "start": {"toolUse": {"toolUseId": "a", "name": "one"}}
+                    }
+                },
                 {"contentBlockDelta": {"delta": {"toolUse": {"input": "{}"}}}},
-                {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "b", "name": "two"}}}},
+                {
+                    "contentBlockStart": {
+                        "start": {"toolUse": {"toolUseId": "b", "name": "two"}}
+                    }
+                },
                 {"contentBlockStop": {}},
             ]
         }
@@ -167,13 +192,19 @@ class TestBedrockStreamFromConverse:
         # still finalized after the stream ends.
         response = {
             "stream": [
-                {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "x", "name": "run"}}}},
+                {
+                    "contentBlockStart": {
+                        "start": {"toolUse": {"toolUseId": "x", "name": "run"}}
+                    }
+                },
                 {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"a": 1}'}}}},
             ]
         }
         items = list(_stream_from_converse(response))
         finished = [i for i in items if isinstance(i, StreamFinished)][0]
-        assert finished.tool_calls == [{"id": "x", "function": {"name": "run", "arguments": {"a": 1}}}]
+        assert finished.tool_calls == [
+            {"id": "x", "function": {"name": "run", "arguments": {"a": 1}}}
+        ]
 
     def test_empty_stream_yields_only_stream_finished_with_no_content(self) -> None:
         items = list(_stream_from_converse({"stream": []}))
@@ -190,7 +221,9 @@ class TestFinishTool:
         _finish_tool({"toolUseId": "z", "name": "n"}, ["{not valid"], out)
         assert out == [{"id": "z", "function": {"name": "n", "arguments": {}}}]
 
-    def test_empty_input_fragments_yield_empty_args_without_calling_json_loads(self) -> None:
+    def test_empty_input_fragments_yield_empty_args_without_calling_json_loads(
+        self,
+    ) -> None:
         out: list[dict[str, Any]] = []
         _finish_tool({"toolUseId": "z2", "name": "n2"}, [], out)
         assert out == [{"id": "z2", "function": {"name": "n2", "arguments": {}}}]
@@ -209,7 +242,12 @@ class TestBedrockClientChat:
         # Line 293-294: `if system: kwargs["system"] = system`.
         fake = FakeBedrock({"output": {"message": {"content": [{"text": "ok"}]}}})
         client = BedrockClient(model="m", region="r", client=fake)
-        client.chat([{"role": "system", "content": "be terse"}, {"role": "user", "content": "hi"}])
+        client.chat(
+            [
+                {"role": "system", "content": "be terse"},
+                {"role": "user", "content": "hi"},
+            ]
+        )
         assert fake.last["system"] == [{"text": "be terse"}]
 
     def test_chat_omits_system_key_when_absent(self) -> None:
@@ -237,15 +275,28 @@ class TestBedrockClientStreamChat:
         # Line 346-347.
         fake = FakeBedrock({}, stream_reply={"stream": []})
         client = BedrockClient(model="m", region="r", client=fake)
-        list(client.stream_chat([{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]))
+        list(
+            client.stream_chat(
+                [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "hi"},
+                ]
+            )
+        )
         assert fake.stream_last["system"] == [{"text": "sys"}]
 
-    def test_stream_chat_logs_privacy_filter_when_redaction_occurred(self, caplog) -> None:
+    def test_stream_chat_logs_privacy_filter_when_redaction_occurred(
+        self, caplog
+    ) -> None:
         # Line 337-338.
         fake = FakeBedrock({}, stream_reply={"stream": []})
         client = BedrockClient(model="m", region="r", client=fake)
         with caplog.at_level("INFO"):
-            list(client.stream_chat([{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]))
+            list(
+                client.stream_chat(
+                    [{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]
+                )
+            )
         assert any("privacy filter applied" in rec.message for rec in caplog.records)
 
     def test_stream_chat_wraps_provider_failure_as_llm_error(self) -> None:
@@ -273,8 +324,13 @@ class TestBedrockClientStreamChatWithTools:
         client = BedrockClient(model="m", region="r", client=fake)
         items = list(
             client.stream_chat_with_tools(
-                [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
-                tools=[{"function": {"name": "t", "description": "d", "parameters": {}}}],
+                [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "hi"},
+                ],
+                tools=[
+                    {"function": {"name": "t", "description": "d", "parameters": {}}}
+                ],
             )
         )
         assert "hi" in items
@@ -282,12 +338,18 @@ class TestBedrockClientStreamChatWithTools:
         assert fake.stream_last["system"] == [{"text": "sys"}]
         assert "toolConfig" in fake.stream_last
 
-    def test_stream_chat_with_tools_logs_privacy_filter_when_redaction_occurred(self, caplog) -> None:
+    def test_stream_chat_with_tools_logs_privacy_filter_when_redaction_occurred(
+        self, caplog
+    ) -> None:
         # Line 382-383.
         fake = FakeBedrock({}, stream_reply={"stream": []})
         client = BedrockClient(model="m", region="r", client=fake)
         with caplog.at_level("INFO"):
-            list(client.stream_chat_with_tools([{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]))
+            list(
+                client.stream_chat_with_tools(
+                    [{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]
+                )
+            )
         assert any("privacy filter applied" in rec.message for rec in caplog.records)
 
     def test_stream_chat_with_tools_wraps_provider_failure_as_llm_error(self) -> None:
@@ -313,7 +375,9 @@ class TestBedrockDiscoverModels:
     def test_discover_models_falls_back_when_ctrl_client_creation_fails(self) -> None:
         # Lines 425-432: ctrl is None and boto3.client(...) raises -> [].
         with patch("boto3.client", side_effect=RuntimeError("no boto3 creds")):
-            client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=None)
+            client = BedrockClient(
+                model="m", region="r", client=FakeBedrock({}), ctrl_client=None
+            )
             models = client._discover_models()
         assert models == []
 
@@ -325,13 +389,19 @@ class TestBedrockDiscoverModels:
             def list_foundation_models(self, **kwargs):
                 raise RuntimeError("AccessDeniedException")
 
-        client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=Boom())
+        client = BedrockClient(
+            model="m", region="r", client=FakeBedrock({}), ctrl_client=Boom()
+        )
         assert client.list_models() == CURATED_MODELS
 
     def test_discover_models_skips_non_dict_summaries_and_missing_ids(self) -> None:
         # Lines 442-446: `if not isinstance(summary, dict): continue` and missing modelId.
-        ctrl = FakeCtrl(["not-a-dict", {"providerName": "X"}, {"modelId": "", "providerName": "Y"}])
-        client = BedrockClient(model="m", region="r", client=FakeBedrock({}), ctrl_client=ctrl)
+        ctrl = FakeCtrl(
+            ["not-a-dict", {"providerName": "X"}, {"modelId": "", "providerName": "Y"}]
+        )
+        client = BedrockClient(
+            model="m", region="r", client=FakeBedrock({}), ctrl_client=ctrl
+        )
         assert client._discover_models() == []
 
 
@@ -406,13 +476,17 @@ class TestGeminiToGemini:
                 {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{"function": {"name": "read_file", "arguments": "not-json"}}],
+                    "tool_calls": [
+                        {"function": {"name": "read_file", "arguments": "not-json"}}
+                    ],
                 }
             ]
         )
         assert contents[0]["parts"][0]["function_call"]["args"] == {}
 
-    def test_assistant_with_no_text_and_no_tool_calls_gets_empty_text_part(self) -> None:
+    def test_assistant_with_no_text_and_no_tool_calls_gets_empty_text_part(
+        self,
+    ) -> None:
         # Lines 92-93: Gemini rejects empty content -> synthesize {"text": ""}.
         _, contents = _to_gemini([{"role": "assistant", "content": ""}])
         assert contents[0] == {"role": "model", "parts": [{"text": ""}]}
@@ -444,11 +518,17 @@ class TestGeminiCoerceArgs:
 
 class TestGeminiParseOutput:
     def test_empty_candidates_returns_empty_assistant(self) -> None:
-        assert _gemini_parse_output(_Response([])) == {"role": "assistant", "content": ""}
+        assert _gemini_parse_output(_Response([])) == {
+            "role": "assistant",
+            "content": "",
+        }
 
     def test_none_content_yields_no_parts(self) -> None:
         candidate = _Candidate(None)
-        assert _gemini_parse_output(_Response([candidate])) == {"role": "assistant", "content": ""}
+        assert _gemini_parse_output(_Response([candidate])) == {
+            "role": "assistant",
+            "content": "",
+        }
 
 
 class TestGeminiStreamTextFromGemini:
@@ -474,9 +554,17 @@ class TestGeminiStreamFromGemini:
     def test_full_tool_call_accumulation_via_candidates_path(self) -> None:
         # Lines 192-224: chunks with no top-level `.text` but candidates/parts
         # carrying both text and function_call parts.
-        chunk1 = _Response([_Candidate(_Content([_Part(text="Let me "), _Part(text="check.")]))])
+        chunk1 = _Response(
+            [_Candidate(_Content([_Part(text="Let me "), _Part(text="check.")]))]
+        )
         chunk2 = _Response(
-            [_Candidate(_Content([_Part(function_call=_FnCall("read_file", {"path": "a.py"}))]))]
+            [
+                _Candidate(
+                    _Content(
+                        [_Part(function_call=_FnCall("read_file", {"path": "a.py"}))]
+                    )
+                )
+            ]
         )
         items = list(_stream_from_gemini([chunk1, chunk2]))
         text_items = [i for i in items if isinstance(i, str)]
@@ -484,11 +572,16 @@ class TestGeminiStreamFromGemini:
         assert text_items == ["Let me ", "check."]
         assert len(finished) == 1
         assert finished[0].tool_calls == [
-            {"id": None, "function": {"name": "read_file", "arguments": {"path": "a.py"}}}
+            {
+                "id": None,
+                "function": {"name": "read_file", "arguments": {"path": "a.py"}},
+            }
         ]
         assert finished[0].content == "Let me check."
 
-    def test_chunk_with_top_level_text_attribute_short_circuits_candidate_parsing(self) -> None:
+    def test_chunk_with_top_level_text_attribute_short_circuits_candidate_parsing(
+        self,
+    ) -> None:
         # Lines 195-199: `.text` truthy on the chunk itself -> yields and `continue`s
         # (skips candidate/function_call parsing for that chunk).
         class _TextChunk:
@@ -531,19 +624,30 @@ class TestGeminiClientStreamChat:
         client = GeminiClient(project="p", client=fake)
         list(
             client.stream_chat(
-                [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
-                tools=[{"function": {"name": "t", "description": "d", "parameters": {}}}],
+                [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "hi"},
+                ],
+                tools=[
+                    {"function": {"name": "t", "description": "d", "parameters": {}}}
+                ],
             )
         )
         assert fake.models.stream_last["config"]["system_instruction"] == "sys"
         assert "tools" in fake.models.stream_last["config"]
 
-    def test_stream_chat_logs_privacy_filter_when_redaction_occurred(self, caplog) -> None:
+    def test_stream_chat_logs_privacy_filter_when_redaction_occurred(
+        self, caplog
+    ) -> None:
         # Line 341-342.
         fake = FakeGemini(None, stream=[])
         client = GeminiClient(project="p", client=fake)
         with caplog.at_level("INFO"):
-            list(client.stream_chat([{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]))
+            list(
+                client.stream_chat(
+                    [{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]
+                )
+            )
         assert any("privacy filter applied" in rec.message for rec in caplog.records)
 
     def test_stream_chat_wraps_provider_failure_as_llm_error(self) -> None:
@@ -573,8 +677,13 @@ class TestGeminiClientStreamChatWithTools:
         client = GeminiClient(project="p", client=fake)
         items = list(
             client.stream_chat_with_tools(
-                [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
-                tools=[{"function": {"name": "t", "description": "d", "parameters": {}}}],
+                [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "hi"},
+                ],
+                tools=[
+                    {"function": {"name": "t", "description": "d", "parameters": {}}}
+                ],
             )
         )
         assert "hi" in items
@@ -582,7 +691,9 @@ class TestGeminiClientStreamChatWithTools:
         assert fake.models.stream_last["config"]["system_instruction"] == "sys"
         assert "tools" in fake.models.stream_last["config"]
 
-    def test_stream_chat_with_tools_logs_privacy_filter_when_redaction_occurred(self, caplog) -> None:
+    def test_stream_chat_with_tools_logs_privacy_filter_when_redaction_occurred(
+        self, caplog
+    ) -> None:
         # Line 390-391.
         fake = FakeGemini(None, stream=[])
         client = GeminiClient(project="p", client=fake)
@@ -690,7 +801,9 @@ class TestOpenAIParseOutput:
         parsed = _openai_parse_output(message)
         assert parsed == {"role": "assistant", "content": "hi"}
 
-    def test_empty_string_arguments_becomes_empty_dict_without_json_loads_error(self) -> None:
+    def test_empty_string_arguments_becomes_empty_dict_without_json_loads_error(
+        self,
+    ) -> None:
         message = {
             "content": "",
             "tool_calls": [{"id": "c2", "function": {"name": "f", "arguments": ""}}],
@@ -715,7 +828,10 @@ class TestOpenAICompatPostErrorPaths:
     def test_non_json_response_raises_llm_error(self) -> None:
         # Lines 171-172.
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
-        with patch("urllib.request.urlopen", return_value=_FakeHTTPResponse(b"<html>oops</html>")):
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_FakeHTTPResponse(b"<html>oops</html>"),
+        ):
             with pytest.raises(LLMError, match="non-JSON"):
                 client.complete("hi")
 
@@ -732,12 +848,17 @@ class TestOpenAICompatComplete:
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
         with patch("urllib.request.urlopen", side_effect=fake_urlopen):
             client.complete("prompt", system="be brief")
-        assert captured["payload"]["messages"][0] == {"role": "system", "content": "be brief"}
+        assert captured["payload"]["messages"][0] == {
+            "role": "system",
+            "content": "be brief",
+        }
 
     def test_complete_returns_empty_string_when_no_choices(self) -> None:
         # Line 194-195.
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
-        with patch("urllib.request.urlopen", return_value=_json_response({"choices": []})):
+        with patch(
+            "urllib.request.urlopen", return_value=_json_response({"choices": []})
+        ):
             assert client.complete("hi") == ""
 
 
@@ -750,13 +871,17 @@ class TestOpenAICompatClientChat:
             return_value=_json_response({"choices": [{"message": {"content": "ok"}}]}),
         ):
             with caplog.at_level("INFO"):
-                client.chat([{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}])
+                client.chat(
+                    [{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]
+                )
         assert any("privacy filter applied" in rec.message for rec in caplog.records)
 
     def test_chat_returns_empty_assistant_when_no_choices(self) -> None:
         # Line 231-232.
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
-        with patch("urllib.request.urlopen", return_value=_json_response({"choices": []})):
+        with patch(
+            "urllib.request.urlopen", return_value=_json_response({"choices": []})
+        ):
             out = client.chat([{"role": "user", "content": "hi"}])
         assert out == {"role": "assistant", "content": ""}
 
@@ -823,12 +948,18 @@ class TestOpenAICompatStreamChat:
         assert captured["payload"]["stream"] is True
         assert captured["payload"]["tools"][0]["function"]["name"] == "t"
 
-    def test_stream_chat_logs_privacy_filter_when_redaction_occurred(self, caplog) -> None:
+    def test_stream_chat_logs_privacy_filter_when_redaction_occurred(
+        self, caplog
+    ) -> None:
         # Line 256-257.
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
         with patch("urllib.request.urlopen", return_value=self._sse_lines_response([])):
             with caplog.at_level("INFO"):
-                list(client.stream_chat([{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]))
+                list(
+                    client.stream_chat(
+                        [{"role": "user", "content": r"C:\Users\kumar\secrets.txt"}]
+                    )
+                )
         assert any("privacy filter applied" in rec.message for rec in caplog.records)
 
     def test_stream_chat_omits_tools_key_when_not_given(self) -> None:
@@ -865,7 +996,9 @@ class TestOpenAICompatStreamChat:
     def test_stream_chat_network_error_maps_to_llm_error(self) -> None:
         # Lines 306-308.
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
-        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+        with patch(
+            "urllib.request.urlopen", side_effect=urllib.error.URLError("refused")
+        ):
             with pytest.raises(LLMError, match="stream to"):
                 list(client.stream_chat([{"role": "user", "content": "hi"}]))
 
@@ -914,13 +1047,17 @@ class TestFailoverChatUnknownProviderAndPrivacyLog:
         # No cloud candidate present -> raw messages passed through untouched.
         assert weird.seen_messages[0] is MSG
 
-    def test_chat_logs_privacy_filter_when_cloud_candidate_and_redaction_occurred(self, caplog) -> None:
+    def test_chat_logs_privacy_filter_when_cloud_candidate_and_redaction_occurred(
+        self, caplog
+    ) -> None:
         # Line 138-144.
         cloud = OK("cloud-reply")
         fc = FailoverChatClient([(cloud, "m1", "bedrock")])
         with caplog.at_level("INFO"):
             fc.chat(SECRET_MSG)
-        assert any("Failover privacy filter applied" in rec.message for rec in caplog.records)
+        assert any(
+            "Failover privacy filter applied" in rec.message for rec in caplog.records
+        )
 
     def test_cloud_candidate_receives_filtered_messages_not_raw(self) -> None:
         # Line 171: `use_messages = filtered_messages if i in cloud_indices else messages`.
@@ -939,14 +1076,18 @@ class TestFailoverChatOnFailoverHookSwallowsExceptions:
             raise RuntimeError("hook bug")
 
         bad, good = Boom(), OK("served")
-        fc = FailoverChatClient([(bad, "m1", "gemini"), (good, "m2", "bedrock")], on_failover=bad_hook)
+        fc = FailoverChatClient(
+            [(bad, "m1", "gemini"), (good, "m2", "bedrock")], on_failover=bad_hook
+        )
         out = fc.chat(MSG)  # must not raise despite the hook's RuntimeError
         assert out["content"] == "served"
         assert fc.active_provider == "bedrock"
 
 
 class TestFailoverStreamChatToolsDelegatesToChat:
-    def test_stream_chat_with_tools_argument_delegates_to_chat_and_yields_content(self) -> None:
+    def test_stream_chat_with_tools_argument_delegates_to_chat_and_yields_content(
+        self,
+    ) -> None:
         # Lines 213-218: `if tools: result = self.chat(...); yield content`.
         good = OK("tool-delegated-reply")
         fc = FailoverChatClient([(good, "m1", "ollama")])
@@ -954,7 +1095,9 @@ class TestFailoverStreamChatToolsDelegatesToChat:
         assert chunks == ["tool-delegated-reply"]
         assert good.calls == 1
 
-    def test_stream_chat_with_tools_argument_and_empty_content_yields_nothing(self) -> None:
+    def test_stream_chat_with_tools_argument_and_empty_content_yields_nothing(
+        self,
+    ) -> None:
         empty = OK("")
         fc = FailoverChatClient([(empty, "m1", "ollama")])
         chunks = list(fc.stream_chat(MSG, tools=[{"function": {"name": "t"}}]))
@@ -1000,14 +1143,18 @@ class NonStreamingOK:
 
 
 class TestFailoverStreamChatNoToolsPath:
-    def test_provider_classification_and_privacy_log_for_no_tools_stream(self, caplog) -> None:
+    def test_provider_classification_and_privacy_log_for_no_tools_stream(
+        self, caplog
+    ) -> None:
         # Lines 223-241: classification loop + privacy pre-filter + info log.
         cloud = StreamOK(["cloud", "-stream"])
         fc = FailoverChatClient([(cloud, "m1", "gemini")])
         with caplog.at_level("INFO"):
             chunks = list(fc.stream_chat(SECRET_MSG))
         assert chunks == ["cloud", "-stream"]
-        assert any("Failover privacy filter applied" in rec.message for rec in caplog.records)
+        assert any(
+            "Failover privacy filter applied" in rec.message for rec in caplog.records
+        )
         sent = cloud.seen_messages[0]
         assert r"C:\Users\kumar\secrets.txt" not in sent[0]["content"]
 
@@ -1017,24 +1164,36 @@ class TestFailoverStreamChatNoToolsPath:
         other_cloud = StreamOK(["should-not-run"])
         local = StreamOK(["local-served"])
         fc = FailoverChatClient(
-            [(bad_cloud, "g1", "gemini"), (other_cloud, "b1", "bedrock"), (local, "l1", "ollama")]
+            [
+                (bad_cloud, "g1", "gemini"),
+                (other_cloud, "b1", "bedrock"),
+                (local, "l1", "ollama"),
+            ]
         )
         chunks = list(fc.stream_chat(MSG))
         assert chunks == ["local-served"]
         assert other_cloud.calls == 0
         assert local.calls == 1
 
-    def test_no_local_fallback_logs_warning_and_tries_additional_cloud_provider(self, caplog) -> None:
+    def test_no_local_fallback_logs_warning_and_tries_additional_cloud_provider(
+        self, caplog
+    ) -> None:
         # Line 254-257 (the warning branch when has_local_fallback is False).
         bad_cloud = StreamBoom()
         other_cloud = StreamOK(["desperate-cloud-served"])
-        fc = FailoverChatClient([(bad_cloud, "g1", "gemini"), (other_cloud, "b1", "bedrock")])
+        fc = FailoverChatClient(
+            [(bad_cloud, "g1", "gemini"), (other_cloud, "b1", "bedrock")]
+        )
         with caplog.at_level("WARNING"):
             chunks = list(fc.stream_chat(MSG))
         assert chunks == ["desperate-cloud-served"]
-        assert any("no local fallback available" in rec.message for rec in caplog.records)
+        assert any(
+            "no local fallback available" in rec.message for rec in caplog.records
+        )
 
-    def test_streaming_candidate_success_fires_failover_hook_and_yields_all_chunks(self) -> None:
+    def test_streaming_candidate_success_fires_failover_hook_and_yields_all_chunks(
+        self,
+    ) -> None:
         # Lines 264-288: streaming candidate branch — first chunk + hook + remaining chunks.
         events: list[tuple[str, str, str, str]] = []
         bad = StreamBoom()
@@ -1060,7 +1219,9 @@ class TestFailoverStreamChatNoToolsPath:
         fc = FailoverChatClient([(good, "m1", "ollama")])
         assert list(fc.stream_chat(MSG)) == []
 
-    def test_non_streaming_candidate_falls_back_to_chat_and_yields_content(self) -> None:
+    def test_non_streaming_candidate_falls_back_to_chat_and_yields_content(
+        self,
+    ) -> None:
         # Lines 290-305: candidate has no `stream_chat` -> falls back to `.chat()`.
         good = NonStreamingOK("fallback-content")
         fc = FailoverChatClient([(good, "m1", "ollama")])
@@ -1094,7 +1255,9 @@ class TestFailoverStreamChatNoToolsPath:
 
     def test_stream_chat_all_candidates_failing_raises_llmerror(self) -> None:
         # Lines 310-311.
-        fc = FailoverChatClient([(StreamBoom(), "a", "gemini"), (StreamBoom(), "b", "bedrock")])
+        fc = FailoverChatClient(
+            [(StreamBoom(), "a", "gemini"), (StreamBoom(), "b", "bedrock")]
+        )
         with pytest.raises(LLMError, match="all 2 model candidate"):
             list(fc.stream_chat(MSG))
 
@@ -1137,33 +1300,53 @@ class NonStreamingToolsClient:
 class TestFailoverStreamChatWithToolsGaps:
     def test_privacy_log_for_stream_chat_with_tools(self, caplog) -> None:
         # Line 344-350.
-        cloud = FakeStreamingWithToolsClient([StreamFinished(tool_calls=[], content="")])
+        cloud = FakeStreamingWithToolsClient(
+            [StreamFinished(tool_calls=[], content="")]
+        )
         fc = FailoverChatClient([(cloud, "m1", "bedrock")])
         with caplog.at_level("INFO"):
             list(fc.stream_chat_with_tools(SECRET_MSG))
-        assert any("Failover privacy filter applied" in rec.message for rec in caplog.records)
+        assert any(
+            "Failover privacy filter applied" in rec.message for rec in caplog.records
+        )
         sent = cloud.seen_messages[0]
         assert r"C:\Users\kumar\secrets.txt" not in sent[0]["content"]
 
-    def test_h9_skip_and_warning_in_stream_chat_with_tools_no_local_fallback(self, caplog) -> None:
+    def test_h9_skip_and_warning_in_stream_chat_with_tools_no_local_fallback(
+        self, caplog
+    ) -> None:
         # Lines 357-366: H9 skip logic + warning when no local fallback exists.
         bad_cloud = FakeStreamingWithToolsClient([], raise_on=LLMError("gemini down"))
         other_cloud = FakeStreamingWithToolsClient(
             [StreamFinished(tool_calls=[], content="served")]
         )
-        fc = FailoverChatClient([(bad_cloud, "g1", "gemini"), (other_cloud, "b1", "bedrock")])
+        fc = FailoverChatClient(
+            [(bad_cloud, "g1", "gemini"), (other_cloud, "b1", "bedrock")]
+        )
         with caplog.at_level("WARNING"):
             result = list(fc.stream_chat_with_tools(MSG))
         finished = [r for r in result if isinstance(r, StreamFinished)]
         assert finished[0].content == "served"
-        assert any("no local fallback available" in rec.message for rec in caplog.records)
+        assert any(
+            "no local fallback available" in rec.message for rec in caplog.records
+        )
 
-    def test_h9_skips_different_cloud_provider_when_local_exists_stream_with_tools(self) -> None:
+    def test_h9_skips_different_cloud_provider_when_local_exists_stream_with_tools(
+        self,
+    ) -> None:
         bad_cloud = FakeStreamingWithToolsClient([], raise_on=LLMError("gemini down"))
-        other_cloud = FakeStreamingWithToolsClient([StreamFinished(tool_calls=[], content="never")])
-        local = FakeStreamingWithToolsClient([StreamFinished(tool_calls=[], content="local-served")])
+        other_cloud = FakeStreamingWithToolsClient(
+            [StreamFinished(tool_calls=[], content="never")]
+        )
+        local = FakeStreamingWithToolsClient(
+            [StreamFinished(tool_calls=[], content="local-served")]
+        )
         fc = FailoverChatClient(
-            [(bad_cloud, "g1", "gemini"), (other_cloud, "b1", "bedrock"), (local, "l1", "ollama")]
+            [
+                (bad_cloud, "g1", "gemini"),
+                (other_cloud, "b1", "bedrock"),
+                (local, "l1", "ollama"),
+            ]
         )
         result = list(fc.stream_chat_with_tools(MSG))
         finished = [r for r in result if isinstance(r, StreamFinished)][0]
@@ -1173,7 +1356,10 @@ class TestFailoverStreamChatWithToolsGaps:
         # Line 392-393: `if first is not None: yield first` — falsy-but-not-None
         # first item (e.g. empty string) IS yielded here (unlike stream_chat's
         # `if first:` check), and None-sentinel items are filtered downstream.
-        chunks: list[str | StreamFinished] = ["", StreamFinished(tool_calls=[], content="")]
+        chunks: list[str | StreamFinished] = [
+            "",
+            StreamFinished(tool_calls=[], content=""),
+        ]
         client = FakeStreamingWithToolsClient(chunks)
         fc = FailoverChatClient([(client, "m1", "bedrock")])
         result = list(fc.stream_chat_with_tools(MSG))
@@ -1182,7 +1368,12 @@ class TestFailoverStreamChatWithToolsGaps:
 
     def test_streaming_candidate_skips_none_chunks_in_remainder(self) -> None:
         # Line 394-396: `for chunk in iterator: if chunk is not None: yield chunk`.
-        chunks: list[Any] = ["first", None, "third", StreamFinished(tool_calls=[], content="x")]
+        chunks: list[Any] = [
+            "first",
+            None,
+            "third",
+            StreamFinished(tool_calls=[], content="x"),
+        ]
         client = FakeStreamingWithToolsClient(chunks)
         fc = FailoverChatClient([(client, "m1", "bedrock")])
         result = list(fc.stream_chat_with_tools(MSG))
@@ -1202,12 +1393,18 @@ class TestFailoverStreamChatWithToolsGaps:
         assert finished[0].content == "chat-fallback"
         assert client.calls == 1
 
-    def test_non_streaming_fallback_with_tool_calls_does_not_yield_content_text(self) -> None:
+    def test_non_streaming_fallback_with_tool_calls_does_not_yield_content_text(
+        self,
+    ) -> None:
         # Line 414: `if content and not tool_calls: yield content` — when
         # tool_calls are present, content text is NOT yielded as a chunk (only
         # inside StreamFinished), avoiding double-delivery to the agent loop.
         tool_calls = [{"id": "x", "function": {"name": "read_file", "arguments": {}}}]
-        response = {"role": "assistant", "content": "text-plus-tools", "tool_calls": tool_calls}
+        response = {
+            "role": "assistant",
+            "content": "text-plus-tools",
+            "tool_calls": tool_calls,
+        }
         client = NonStreamingToolsClient(response)
         fc = FailoverChatClient([(client, "m1", "ollama")])
         result = list(fc.stream_chat_with_tools(MSG))
@@ -1217,10 +1414,14 @@ class TestFailoverStreamChatWithToolsGaps:
         assert finished[0].tool_calls == tool_calls
         assert finished[0].content == "text-plus-tools"
 
-    def test_non_streaming_fallback_fires_failover_hook_on_provider_switch(self) -> None:
+    def test_non_streaming_fallback_fires_failover_hook_on_provider_switch(
+        self,
+    ) -> None:
         events: list[tuple[str, str, str, str]] = []
         bad = FakeStreamingWithToolsClient([], raise_on=LLMError("down"))
-        good = NonStreamingToolsClient({"role": "assistant", "content": "ok", "tool_calls": []})
+        good = NonStreamingToolsClient(
+            {"role": "assistant", "content": "ok", "tool_calls": []}
+        )
         fc = FailoverChatClient(
             [(bad, "m1", "gemini"), (good, "m2", "ollama")],
             on_failover=lambda fp, fm, np, nm, e: events.append((fp, fm, np, nm)),
@@ -1228,7 +1429,9 @@ class TestFailoverStreamChatWithToolsGaps:
         list(fc.stream_chat_with_tools(MSG))
         assert events == [("gemini", "m1", "ollama", "m2")]
 
-    def test_all_candidates_fail_raises_llmerror_with_stream_with_tools_label(self) -> None:
+    def test_all_candidates_fail_raises_llmerror_with_stream_with_tools_label(
+        self,
+    ) -> None:
         bad1 = FakeStreamingWithToolsClient([], raise_on=LLMError("err1"))
         bad2 = FakeStreamingWithToolsClient([], raise_on=LLMError("err2"))
         fc = FailoverChatClient([(bad1, "m1", "bedrock"), (bad2, "m2", "ollama")])
@@ -1246,5 +1449,7 @@ class TestFailoverListModels:
             def chat(self, *a, **kw):  # pragma: no cover - unused in this test
                 raise AssertionError
 
-        fc = FailoverChatClient([(ListingClient(), "m1", "ollama"), (OK("x"), "m2", "bedrock")])
+        fc = FailoverChatClient(
+            [(ListingClient(), "m1", "ollama"), (OK("x"), "m2", "bedrock")]
+        )
         assert fc.list_models() == [{"id": "m1", "name": "Model One"}]

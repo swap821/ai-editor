@@ -1,4 +1,5 @@
 """R6 acceptance tests for authoritative Human Sovereign mission approval."""
+
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +18,9 @@ from aios.domain.missions.mission_contract import (
 from aios.domain.capabilities.digest import payload_digest
 from aios.domain.missions.mission_repository import MissionTransitionError
 from aios.domain.missions.mission_state import MissionState
-from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    SqliteMissionRepository,
+)
 from aios.runtime.contracts import MissionContract as RuntimeMissionContract
 
 
@@ -35,7 +38,9 @@ def _contract(mission_id: str = "r6-mission-1") -> MissionContract:
     )
 
 
-def _awaiting(tmp_db: Path, mission_id: str = "r6-mission-1") -> tuple[MissionService, MissionContract]:
+def _awaiting(
+    tmp_db: Path, mission_id: str = "r6-mission-1"
+) -> tuple[MissionService, MissionContract]:
     service = MissionService(SqliteMissionRepository(tmp_db))
     contract = _contract(mission_id)
     service.create(contract)
@@ -44,7 +49,9 @@ def _awaiting(tmp_db: Path, mission_id: str = "r6-mission-1") -> tuple[MissionSe
     return service, contract
 
 
-def test_human_approval_validates_contract_and_persists_attribution(tmp_path: Path) -> None:
+def test_human_approval_validates_contract_and_persists_attribution(
+    tmp_path: Path,
+) -> None:
     service, contract = _awaiting(tmp_path / "missions.db")
 
     with pytest.raises(MissionTransitionError, match="contract digest"):
@@ -57,7 +64,10 @@ def test_human_approval_validates_contract_and_persists_attribution(tmp_path: Pa
             session_id="session-1",
         )
 
-    assert service.repository.get(contract.mission_id).state is MissionState.AWAITING_APPROVAL
+    assert (
+        service.repository.get(contract.mission_id).state
+        is MissionState.AWAITING_APPROVAL
+    )
 
     approved = service.approve(
         contract.mission_id,
@@ -79,7 +89,9 @@ def test_human_approval_validates_contract_and_persists_attribution(tmp_path: Pa
     assert approval["session_id"] == "session-1"
 
 
-def test_concurrent_human_approvals_have_one_authoritative_winner(tmp_path: Path) -> None:
+def test_concurrent_human_approvals_have_one_authoritative_winner(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "missions.db"
     _, contract = _awaiting(db_path)
 
@@ -107,7 +119,9 @@ def test_concurrent_human_approvals_have_one_authoritative_winner(tmp_path: Path
     assert record.operator_id in {"human-a", "human-b"}
     approvals = [
         item
-        for item in SqliteMissionRepository(db_path).transition_history(contract.mission_id)
+        for item in SqliteMissionRepository(db_path).transition_history(
+            contract.mission_id
+        )
         if item["to_state"] == MissionState.APPROVED.value
     ]
     assert len(approvals) == 1
@@ -136,7 +150,10 @@ def test_execution_cannot_self_approve_an_awaiting_mission(tmp_path: Path) -> No
     with pytest.raises(MissionTransitionError, match="human approval"):
         asyncio.run(orchestrator.execute(runtime_contract, []))
 
-    assert service.repository.get(domain_contract.mission_id).state is MissionState.AWAITING_APPROVAL
+    assert (
+        service.repository.get(domain_contract.mission_id).state
+        is MissionState.AWAITING_APPROVAL
+    )
 
 
 def test_rejection_is_terminal_and_survives_restart(tmp_path: Path) -> None:
@@ -165,7 +182,9 @@ def test_rejection_is_terminal_and_survives_restart(tmp_path: Path) -> None:
         )
 
 
-def test_tampered_runtime_contract_cannot_be_executed_after_approval(tmp_path: Path) -> None:
+def test_tampered_runtime_contract_cannot_be_executed_after_approval(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "missions.db"
     service = MissionService(SqliteMissionRepository(db_path))
     domain_contract = _contract("r6-tamper-1")
@@ -178,7 +197,9 @@ def test_tampered_runtime_contract_cannot_be_executed_after_approval(tmp_path: P
     )
     service.create(
         domain_contract,
-        runtime_contract_digest=payload_digest(runtime_contract.model_dump(mode="json")),
+        runtime_contract_digest=payload_digest(
+            runtime_contract.model_dump(mode="json")
+        ),
     )
     service.start_deliberation(domain_contract.mission_id)
     service.request_approval(domain_contract.mission_id)
@@ -197,4 +218,7 @@ def test_tampered_runtime_contract_cannot_be_executed_after_approval(tmp_path: P
     with pytest.raises(MissionTransitionError, match="runtime contract digest"):
         asyncio.run(orchestrator.execute(tampered, []))
 
-    assert service.repository.get(domain_contract.mission_id).state is MissionState.APPROVED
+    assert (
+        service.repository.get(domain_contract.mission_id).state
+        is MissionState.APPROVED
+    )

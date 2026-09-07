@@ -130,14 +130,15 @@ class RepresentativeContextStore:
     def list_recent(self, limit: int = 20) -> tuple[RepresentativeContextV1, ...]:
         with closing(self._connect()) as conn:
             rows = conn.execute(
-                "SELECT * FROM representative_contexts "
-                "ORDER BY id DESC LIMIT ?",
+                "SELECT * FROM representative_contexts ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return tuple(_context_from_row(row) for row in rows)
 
     @staticmethod
-    def _insert_context(conn: sqlite3.Connection, context: RepresentativeContextV1) -> None:
+    def _insert_context(
+        conn: sqlite3.Connection, context: RepresentativeContextV1
+    ) -> None:
         conn.execute(
             """
             INSERT INTO representative_contexts (

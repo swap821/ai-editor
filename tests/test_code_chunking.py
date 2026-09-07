@@ -5,6 +5,7 @@ emit time into a growing sequence of snapshots, and finish_stream yields code_ch
 events (incremental reveal) before the final code event. Honest: this is
 emit-time chunking, not raw model tokens.
 """
+
 from __future__ import annotations
 
 import re
@@ -30,7 +31,11 @@ def test_chunk_code_single_line_is_one_snapshot() -> None:
 
 
 def test_finish_stream_emits_code_chunks_before_code() -> None:
-    answer = "Here it is:\n```python\n" + "\n".join(f"x{i} = {i}" for i in range(1, 12)) + "\n```"
+    answer = (
+        "Here it is:\n```python\n"
+        + "\n".join(f"x{i} = {i}" for i in range(1, 12))
+        + "\n```"
+    )
     events = list(finish_stream(answer, code_fence=_FENCE, preview_limit=500))
     kinds = [e["type"] for e in events]
     assert "code_chunk" in kinds

@@ -132,7 +132,9 @@ def test_draft_amendment_from_unknown_lesson_is_404(client) -> None:
     assert resp.status_code == 404
 
 
-def _draft_amendment(client, *, proposal_id: str, proposed_diff: str, rollback_plan: str = "revert") -> None:
+def _draft_amendment(
+    client, *, proposal_id: str, proposed_diff: str, rollback_plan: str = "revert"
+) -> None:
     client.post("/api/v1/governance/lessons/propose", json=_propose_lesson_body())
     resp = client.post(
         "/api/v1/governance/lessons/lesson-1/draft-amendment",
@@ -151,7 +153,9 @@ def test_check_simulations_runs_all_nine_for_real_and_is_ready_for_a_clean_propo
     client,
 ) -> None:
     _draft_amendment(
-        client, proposal_id="amend-clean", proposed_diff="cache reauth for a short trusted window"
+        client,
+        proposal_id="amend-clean",
+        proposed_diff="cache reauth for a short trusted window",
     )
 
     resp = client.post(

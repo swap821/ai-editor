@@ -46,7 +46,9 @@ def _seed_mission(runtime_root: Path, mission_id: str = "mission-api-1") -> None
         files_allowed=list(contract.allowed_files),
         files_touched=["frontend/src/pages/Login.jsx"],
         blocked_attempts=[{"tool": "read_file", "reason": "path forbidden"}],
-        verification={"commands": [{"command": ["python", "-m", "pytest"], "returncode": 0}]},
+        verification={
+            "commands": [{"command": ["python", "-m", "pytest"], "returncode": 0}]
+        },
         council_verdicts=[verdict],
         status="completed",
         created_at="2026-06-27T00:00:00+00:00",
@@ -102,7 +104,16 @@ def _seed_weak_mission(runtime_root: Path, mission_id: str = "mission-weak-1") -
         started_at="2026-06-28T00:00:00+00:00",
         ended_at="2026-06-28T00:00:01+00:00",
         files_touched=["frontend/src/pages/Login.jsx"],
-        evidence={"verification": [{"command": ["echo", "done"], "returncode": 0, "stdout": "done", "stderr": ""}]},
+        evidence={
+            "verification": [
+                {
+                    "command": ["echo", "done"],
+                    "returncode": 0,
+                    "stdout": "done",
+                    "stderr": "",
+                }
+            ]
+        },
     )
     ledger = build_run_ledger(
         contract=contract,
@@ -171,10 +182,14 @@ def test_council_missions_skips_corrupt_artifacts(tmp_path: Path) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["count"] == 1
-    assert [mission["missionId"] for mission in body["missions"]] == ["mission-api-valid"]
+    assert [mission["missionId"] for mission in body["missions"]] == [
+        "mission-api-valid"
+    ]
 
 
-def test_council_detail_and_report_return_422_on_corrupt_artifact(tmp_path: Path) -> None:
+def test_council_detail_and_report_return_422_on_corrupt_artifact(
+    tmp_path: Path,
+) -> None:
     """A corrupt single-mission artifact is a clean 422, not an unhandled 500
     (the list route already skips corrupt artifacts; these routes did not)."""
     runtime_root = tmp_path / "runtime"
@@ -307,7 +322,9 @@ def test_council_reject_writes_pending_approval_response_once(tmp_path: Path) ->
     assert before.json()["pendingApprovals"][0]["requestId"] == request_id
     assert rejected.status_code == 200
     assert rejected.json()["approvalResponseWritten"] is True
-    response = json.loads((approvals_dir / f"{request_id}.response.json").read_text(encoding="utf-8"))
+    response = json.loads(
+        (approvals_dir / f"{request_id}.response.json").read_text(encoding="utf-8")
+    )
     assert response["approved"] is False
     assert response["reason"] == "scope too broad"
     assert repeated.status_code == 409

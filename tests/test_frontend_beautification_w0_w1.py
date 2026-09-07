@@ -1,4 +1,5 @@
 """Regression guards for FRONTEND_BEAUTIFICATION_BLUEPRINT waves 0-1."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -9,10 +10,22 @@ TOKENS_CSS = ROOT / "frontend" / "src" / "styles" / "tokens.css"
 GAGOS_CHROME_CSS = ROOT / "frontend" / "src" / "workbench" / "GagosChrome.css"
 COUNCIL_DASHBOARD_CSS = ROOT / "frontend" / "src" / "workbench" / "CouncilDashboard.css"
 CYBER_CURSOR_CSS = (
-    ROOT / "frontend" / "src" / "superbrain" / "components" / "ui" / "CyberCursor.module.css"
+    ROOT
+    / "frontend"
+    / "src"
+    / "superbrain"
+    / "components"
+    / "ui"
+    / "CyberCursor.module.css"
 )
 BOOT_SEQUENCE_CSS = (
-    ROOT / "frontend" / "src" / "superbrain" / "components" / "ui" / "BootSequence.module.css"
+    ROOT
+    / "frontend"
+    / "src"
+    / "superbrain"
+    / "components"
+    / "ui"
+    / "BootSequence.module.css"
 )
 CSS_CANON_PATH = ROOT / "tools" / "check_css_canon.py"
 
@@ -34,14 +47,16 @@ def test_wave0_defines_poster_tetrad_tokens() -> None:
 def test_wave0_reduced_motion_disables_mic_pseudo_pulse() -> None:
     css = GAGOS_CHROME_CSS.read_text(encoding="utf-8")
 
-    assert ".gagos-mic.is-listening, .gagos-mic.is-listening::after { animation: none; }" in css
+    assert (
+        ".gagos-mic.is-listening, .gagos-mic.is-listening::after { animation: none; }"
+        in css
+    )
 
 
 def test_wave1_removes_off_tetrad_chrome_literals() -> None:
-    workbench_css = (
-        GAGOS_CHROME_CSS.read_text(encoding="utf-8")
-        + COUNCIL_DASHBOARD_CSS.read_text(encoding="utf-8")
-    )
+    workbench_css = GAGOS_CHROME_CSS.read_text(
+        encoding="utf-8"
+    ) + COUNCIL_DASHBOARD_CSS.read_text(encoding="utf-8")
     cyber_cursor_css = CYBER_CURSOR_CSS.read_text(encoding="utf-8")
     boot_sequence_css = BOOT_SEQUENCE_CSS.read_text(encoding="utf-8")
 

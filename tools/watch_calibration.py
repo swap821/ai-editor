@@ -13,6 +13,7 @@ router being conservative (it trusts evidence, not narration). A signature needs
 >= MIN_ATTEMPTS (3, the router default) verified attempts before it goes ACTIVE and
 actually re-ranks the route.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,6 +43,7 @@ def snapshot() -> tuple[dict, dict]:
         ).fetchall()
     finally:
         conn.close()
+
     def route_of(row) -> tuple[str, str, str]:
         try:
             meta = json.loads(row["metadata_json"] or "{}")
@@ -75,15 +77,23 @@ def snapshot() -> tuple[dict, dict]:
 def render(tally: dict, outcomes: dict, recent: list) -> str:
     lines = ["[calib] router evidence (verified per provider/model/task):"]
     if not tally:
-        lines.append("  (no calibrating rows yet — only VERIFIED turns count; chat stays 'unverified')")
+        lines.append(
+            "  (no calibrating rows yet — only VERIFIED turns count; chat stays 'unverified')"
+        )
     for (p, m, t), (s, n) in sorted(tally.items()):
         pct = round(100 * s / n) if n else 0
-        flag = " ✓ ACTIVE (re-ranks the route)" if n >= MIN_ATTEMPTS else f" ({MIN_ATTEMPTS - n} more to activate)"
+        flag = (
+            " ✓ ACTIVE (re-ranks the route)"
+            if n >= MIN_ATTEMPTS
+            else f" ({MIN_ATTEMPTS - n} more to activate)"
+        )
         lines.append(f"  {t} · {p}:{m} · {s}/{n} verified ({pct}%)" + flag)
     if recent:
         lines.append("  recent turns (newest first — task · provider:model → outcome):")
         for e in recent[:6]:
-            lines.append(f"    {e['task']} · {e['provider']}:{e['model']} → {e['outcome']}")
+            lines.append(
+                f"    {e['task']} · {e['provider']}:{e['model']} → {e['outcome']}"
+            )
     oc = ", ".join(f"{k}={v}" for k, v in sorted(outcomes.items())) or "none"
     lines.append(f"  totals: {oc}")
     return "\n".join(lines)
@@ -92,8 +102,10 @@ def render(tally: dict, outcomes: dict, recent: list) -> str:
 def sig_of(tally: dict, outcomes: dict, recent: list) -> str:
     return (
         json.dumps({f"{p}|{m}|{t}": v for (p, m, t), v in sorted(tally.items())})
-        + "||" + json.dumps(outcomes, sort_keys=True)
-        + "||" + json.dumps(recent)
+        + "||"
+        + json.dumps(outcomes, sort_keys=True)
+        + "||"
+        + json.dumps(recent)
     )
 
 

@@ -5,6 +5,7 @@ With ``allow_credentials=True`` the CORS spec forbids a wildcard origin, and a
 credentialed cross-origin access. The app validates origins at import time and
 fails closed; these tests pin that contract so it can't regress.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -35,6 +36,8 @@ def test_live_app_cors_is_credentialed_but_never_wildcard():
     assert cors is not None, "CORS middleware not configured"
     opts = getattr(cors, "kwargs", None) or getattr(cors, "options", {})
     assert opts.get("allow_credentials") is True
-    assert "*" not in opts.get("allow_origins", []), "credentials + wildcard origin is forbidden"
+    assert "*" not in opts.get("allow_origins", []), (
+        "credentials + wildcard origin is forbidden"
+    )
     assert opts.get("allow_methods") != ["*"], "wildcard methods not narrowed"
     assert opts.get("allow_headers") != ["*"], "wildcard headers not narrowed"

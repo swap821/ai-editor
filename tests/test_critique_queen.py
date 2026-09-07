@@ -4,6 +4,7 @@ It is a SECOND-ORDER check on the Testing Queen: even a passing verification can
 insufficient (weak strength, or it never exercised the changed files). Deterministic
 and STRENGTHEN-ONLY — it can only ADD caution (defer), never relax a block.
 """
+
 from __future__ import annotations
 
 from aios.council.queens.critique import CritiqueQueen
@@ -69,7 +70,9 @@ def test_orchestrator_gates_critique_on_flag(tmp_path, monkeypatch) -> None:
     assert CouncilOrchestrator(runtime_root=tmp_path).critique is None
 
     monkeypatch.setattr(config, "COUNCIL_CRITIQUE", True)
-    assert isinstance(CouncilOrchestrator(runtime_root=tmp_path).critique, CritiqueQueen)
+    assert isinstance(
+        CouncilOrchestrator(runtime_root=tmp_path).critique, CritiqueQueen
+    )
 
 
 def test_concurs_when_testing_already_blocks() -> None:

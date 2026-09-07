@@ -92,7 +92,9 @@ def test_builder_cannot_edit_outside_scope(tmp_path: Path) -> None:
     with pytest.raises(ContractViolation, match="not allowed by MissionContract"):
         runtime.write_file("src/outside.txt", "blocked\n")
 
-    assert (workspace / "src" / "outside.txt").read_text(encoding="utf-8") == "outside\n"
+    assert (workspace / "src" / "outside.txt").read_text(
+        encoding="utf-8"
+    ) == "outside\n"
 
 
 def test_soldier_is_read_only(tmp_path: Path) -> None:
@@ -108,7 +110,9 @@ def test_soldier_is_read_only(tmp_path: Path) -> None:
         runtime.write_file("src/allowed.txt", "blocked\n")
 
 
-def test_builder_profile_records_missing_verification_requirement(tmp_path: Path) -> None:
+def test_builder_profile_records_missing_verification_requirement(
+    tmp_path: Path,
+) -> None:
     workspace = _workspace(tmp_path)
     contract = apply_caste_profile(
         _contract(workspace, verification_commands=[], metadata={"caste": "builder"})
@@ -138,4 +142,6 @@ def test_planner_applies_requested_caste_before_security_review(tmp_path: Path) 
     assert "write_file" not in draft.contract.allowed_tools
     assert "run_command" not in draft.contract.allowed_tools
     assert "write_file" in draft.contract.forbidden_tools
-    assert any("soldier caste profile applied" in item for item in draft.verdict.constraints)
+    assert any(
+        "soldier caste profile applied" in item for item in draft.verdict.constraints
+    )

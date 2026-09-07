@@ -210,9 +210,10 @@ def test_a_record_that_does_not_name_the_path_does_not_authorize_it(
     result = _run(repo)
     assert result.returncode == 1, result.stdout + result.stderr
     assert "aios/security/scope_lock.py" in result.stderr
-    assert "aios/security/gateway.py" not in result.stderr.split("FAILED")[-1].split(
-        "\n\nAGENTS.md"
-    )[0]
+    assert (
+        "aios/security/gateway.py"
+        not in result.stderr.split("FAILED")[-1].split("\n\nAGENTS.md")[0]
+    )
 
 
 def test_a_stale_record_from_an_earlier_commit_does_not_authorize(repo: Path) -> None:

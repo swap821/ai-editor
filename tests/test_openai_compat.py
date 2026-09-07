@@ -1,4 +1,5 @@
 """Tests for the OpenAI-compatible LLM client."""
+
 from __future__ import annotations
 
 import json
@@ -28,9 +29,13 @@ class TestToOpenAIMessages:
 
     def test_tool_calls_get_ids_and_stringified_args(self):
         msgs = [
-            {"role": "assistant", "content": "", "tool_calls": [
-                {"function": {"name": "read_file", "arguments": {"path": "/x"}}}
-            ]},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "read_file", "arguments": {"path": "/x"}}}
+                ],
+            },
             {"role": "tool", "content": "file content"},
         ]
         out = _to_openai_messages(msgs)
@@ -46,13 +51,17 @@ class TestOpenAICompatClient:
         response_body = {
             "choices": [{"message": {"role": "assistant", "content": "Hello!"}}]
         }
-        client = OpenAICompatClient(api_key="test-key", base_url="http://localhost:8000/v1")
+        client = OpenAICompatClient(
+            api_key="test-key", base_url="http://localhost:8000/v1"
+        )
 
         class FakeResp:
             def read(self):
                 return json.dumps(response_body).encode()
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 pass
 
@@ -62,25 +71,34 @@ class TestOpenAICompatClient:
 
     def test_chat_with_tools(self):
         response_body = {
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {"name": "read_file", "arguments": '{"path": "/x"}'}
-                    }]
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "read_file",
+                                    "arguments": '{"path": "/x"}',
+                                },
+                            }
+                        ],
+                    }
                 }
-            }]
+            ]
         }
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
 
         class FakeResp:
             def read(self):
                 return json.dumps(response_body).encode()
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 pass
 
@@ -108,8 +126,10 @@ class TestOpenAICompatClient:
         class FakeResp:
             def read(self):
                 return json.dumps(response_body).encode()
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 pass
 
@@ -123,6 +143,7 @@ class TestOpenAICompatClient:
 
     def test_http_error_raises_llm_error(self):
         import urllib.error
+
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
 
         def raise_http(*a, **kw):
@@ -134,8 +155,11 @@ class TestOpenAICompatClient:
 
     def test_network_error_raises_llm_error(self):
         import urllib.error
+
         client = OpenAICompatClient(api_key="k", base_url="http://localhost/v1")
 
-        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
+        with patch(
+            "urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")
+        ):
             with pytest.raises(LLMError):
                 client.complete("hi")

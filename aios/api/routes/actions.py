@@ -21,7 +21,11 @@ from pydantic import BaseModel, Field
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.agents.rollback_engine import RollbackEngine, RollbackError
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
-from aios.application.capabilities.authority import CapabilityAuthority, CapabilityError, EmergencyStopHardWiringAuthority
+from aios.application.capabilities.authority import (
+    CapabilityAuthority,
+    CapabilityError,
+    EmergencyStopHardWiringAuthority,
+)
 from aios.application.intelligence.gateway import GovernedAdvisoryCompletionClient
 from aios.api.deps import (
     _session_id_from_request,

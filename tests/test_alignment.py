@@ -1,4 +1,5 @@
 """Tests for deterministic advisory understanding frames."""
+
 from __future__ import annotations
 
 import json
@@ -37,8 +38,13 @@ def test_intent_inference_is_deterministic() -> None:
 
 
 def test_communication_mode_is_explicit_and_deterministic() -> None:
-    assert infer_communication_mode("Explain this step by step", "teach") == "explanatory"
-    assert infer_communication_mode("Brainstorm the trade-offs", "discuss") == "collaborative"
+    assert (
+        infer_communication_mode("Explain this step by step", "teach") == "explanatory"
+    )
+    assert (
+        infer_communication_mode("Brainstorm the trade-offs", "discuss")
+        == "collaborative"
+    )
     assert infer_communication_mode("Just do it", "execute") == "direct"
     assert infer_communication_mode("Plan the release", "plan") == "collaborative"
 
@@ -52,7 +58,9 @@ def test_ambiguity_policy_asks_only_for_explicit_or_context_free_blockers() -> N
         has_context=True,
     )
     vague = resolve_communication_policy("do it", "unknown", (), (), has_context=False)
-    continued = resolve_communication_policy("do it", "unknown", (), (), has_context=True)
+    continued = resolve_communication_policy(
+        "do it", "unknown", (), (), has_context=True
+    )
 
     assert explicit.ambiguity_action == "ask"
     assert explicit.clarifying_question == "What should I clarify before proceeding?"
@@ -74,7 +82,9 @@ def test_non_blocking_ambiguity_is_stated_before_proceeding() -> None:
     assert frame.communication.mode == "direct"
     assert frame.communication.ambiguity_action == "state_assumptions"
     assert "user_preferred_autonomous_progress" in frame.communication.reasons
-    assert frame.communication_notice().startswith("Unverified assumptions before proceeding:")
+    assert frame.communication_notice().startswith(
+        "Unverified assumptions before proceeding:"
+    )
     assert "Unresolved but treated as non-blocking" in frame.communication_notice()
 
 
@@ -163,23 +173,32 @@ def test_frame_validation_bounds_redacts_and_normalizes_untrusted_proposal() -> 
 
 
 def test_interpreter_uses_recent_dialogue_and_validates_model_json() -> None:
-    llm = FixedLLM(json.dumps({
-        "goal": "Implement UnderstandingFrame",
-        "intent": "execute",
-        "desired_outcome": "An advisory validated frame",
-        "constraints": ["Do not bypass approvals"],
-        "assumptions": [],
-        "unknowns": [],
-        "decisions": ["Start with implementation order slice 1"],
-        "confidence": 0.91,
-        "next_action": "Add the backend module and tests",
-    }))
+    llm = FixedLLM(
+        json.dumps(
+            {
+                "goal": "Implement UnderstandingFrame",
+                "intent": "execute",
+                "desired_outcome": "An advisory validated frame",
+                "constraints": ["Do not bypass approvals"],
+                "assumptions": [],
+                "unknowns": [],
+                "decisions": ["Start with implementation order slice 1"],
+                "confidence": 0.91,
+                "next_action": "Add the backend module and tests",
+            }
+        )
+    )
 
-    frame = AlignmentInterpreter(llm).understand([
-        {"role": "user", "content": "We need better communication."},
-        {"role": "assistant", "content": "I proposed an implementation order."},
-        {"role": "user", "content": "Start your work as per your implementation order."},
-    ])
+    frame = AlignmentInterpreter(llm).understand(
+        [
+            {"role": "user", "content": "We need better communication."},
+            {"role": "assistant", "content": "I proposed an implementation order."},
+            {
+                "role": "user",
+                "content": "Start your work as per your implementation order.",
+            },
+        ]
+    )
 
     assert frame.goal == "Implement UnderstandingFrame"
     assert frame.intent == "execute"
@@ -188,9 +207,11 @@ def test_interpreter_uses_recent_dialogue_and_validates_model_json() -> None:
 
 
 def test_interpreter_failure_falls_back_without_breaking_chat() -> None:
-    frame = AlignmentInterpreter(BrokenLLM()).understand([
-        {"role": "user", "content": "Plan the next release"},
-    ])
+    frame = AlignmentInterpreter(BrokenLLM()).understand(
+        [
+            {"role": "user", "content": "Plan the next release"},
+        ]
+    )
 
     assert frame.intent == "plan"
     assert frame.confidence == 0.4
@@ -201,22 +222,24 @@ def test_interpreter_scrubs_secrets_before_model_interpretation() -> None:
     secret = "sk-" + "b" * 40
     llm = FixedLLM("{}")
 
-    AlignmentInterpreter(llm).understand([
-        {"role": "user", "content": f"Explain {secret} without storing it"},
-    ])
+    AlignmentInterpreter(llm).understand(
+        [
+            {"role": "user", "content": f"Explain {secret} without storing it"},
+        ]
+    )
 
     assert secret not in llm.calls[0][0]
     assert "REDACTED" in llm.calls[0][0]
 
 
 def test_code_like_model_output_is_not_evaluated() -> None:
-    llm = FixedLLM(
-        "{'goal': __import__('os').system('unsafe'), 'intent': 'execute'}"
-    )
+    llm = FixedLLM("{'goal': __import__('os').system('unsafe'), 'intent': 'execute'}")
 
-    frame = AlignmentInterpreter(llm).understand([
-        {"role": "user", "content": "Review the request"},
-    ])
+    frame = AlignmentInterpreter(llm).understand(
+        [
+            {"role": "user", "content": "Review the request"},
+        ]
+    )
 
     assert frame.intent == "review"
     assert frame.confidence == 0.4

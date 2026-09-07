@@ -5,7 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from aios.boot_attestation import attest_boot, compute_spine_hash, verify_spine_integrity
+from aios.boot_attestation import (
+    attest_boot,
+    compute_spine_hash,
+    verify_spine_integrity,
+)
 
 
 class TestComputeSpineHash:

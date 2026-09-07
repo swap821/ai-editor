@@ -115,7 +115,10 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_backup(args: argparse.Namespace) -> int:
-    from aios.operations.doctor import BACKUP_STALE_AFTER_SECONDS, newest_backup_age_seconds
+    from aios.operations.doctor import (
+        BACKUP_STALE_AFTER_SECONDS,
+        newest_backup_age_seconds,
+    )
     from aios.operations.recovery import create_backup, restore_backup, verify_backup
 
     if args.backup_command == "create":

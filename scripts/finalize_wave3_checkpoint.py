@@ -27,7 +27,9 @@ def main() -> int:
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
     inventory["generated_at"] = now
     inventory["installed_after_cleanup"] = installed
-    inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(ROOT.drive + "\\").free
+    inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(
+        ROOT.drive + "\\"
+    ).free
     inventory.setdefault("qualification_artifacts", [])
     for relative in (
         "release/phase4/local-clerk-candidate-cohort-rerun-20260801.json",
@@ -78,7 +80,17 @@ def main() -> int:
     }
     with EXPERIENCES.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(experience, ensure_ascii=False) + "\n")
-    print(json.dumps({"resume": str(RESUME), "experience": experience["task_id"], "status": "42 green / 12 yellow", "installed": installed}, indent=2))
+    print(
+        json.dumps(
+            {
+                "resume": str(RESUME),
+                "experience": experience["task_id"],
+                "status": "42 green / 12 yellow",
+                "installed": installed,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

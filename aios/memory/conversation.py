@@ -124,6 +124,7 @@ class ConversationStateStore:
                 (self._session_key(session_id),),
             ).fetchone()
         return int(row["id"]) if row is not None else None
+
     def refresh_active_correction(
         self,
         session_id: str,

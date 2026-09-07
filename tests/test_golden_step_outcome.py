@@ -17,6 +17,7 @@ The bar is unchanged. These cases are the real evidence strings from the
 2026-08-18 cohort run, kept verbatim so a future "improvement" that converts a
 skip or a trailing failure into a pass fails here.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -38,9 +39,7 @@ _REAL_CASES = [
     ),
     (
         "multi-module s2: a skipped verify is not evidence",
-        [
-            "[VERIFY SKIPPED] no sibling test for training_ground/user_registry.py"
-        ],
+        ["[VERIFY SKIPPED] no sibling test for training_ground/user_registry.py"],
         "unverified",
     ),
 ]

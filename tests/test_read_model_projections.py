@@ -67,8 +67,12 @@ def test_constitution_projection_missing_snapshot_is_unavailable_not_default():
 
 
 def test_constitution_projection_two_operators_differ():
-    a = project_constitution(build_constitution_snapshot(ratified_by_operator_id="op-a"))
-    b = project_constitution(build_constitution_snapshot(ratified_by_operator_id="op-b"))
+    a = project_constitution(
+        build_constitution_snapshot(ratified_by_operator_id="op-a")
+    )
+    b = project_constitution(
+        build_constitution_snapshot(ratified_by_operator_id="op-b")
+    )
     assert a.snapshot_digest.value != b.snapshot_digest.value
 
 
@@ -245,7 +249,9 @@ def test_provider_health_list_omits_providers_with_zero_observations():
     projections = project_provider_health_list(tracker)
 
     assert [p.provider for p in projections] == ["gemini"]
-    assert set(KNOWN_PROVIDER_NAMES) - {"gemini"}  # sanity: others exist and were skipped
+    assert set(KNOWN_PROVIDER_NAMES) - {
+        "gemini"
+    }  # sanity: others exist and were skipped
 
 
 def test_provider_health_list_reflects_a_real_recorded_failure():
@@ -498,10 +504,10 @@ def test_governance_surface_reports_privacy_audits_unavailable_not_empty(
     surface = ReadModelProjectionAuthority().build_governance_surface(
         constitution=None,
         emergency_stop=type("Stop", (), {"state": lambda self: EmergencyStopState()})(),
-        provider_health=type("Health", (), {"has_observations": lambda *a, **k: False})(),
-        capability_authority=type(
-            "Caps", (), {"list_pending": lambda self: []}
+        provider_health=type(
+            "Health", (), {"has_observations": lambda *a, **k: False}
         )(),
+        capability_authority=type("Caps", (), {"list_pending": lambda self: []})(),
         development_tracker=type(
             "Dev", (), {"recent_routing_decisions": lambda self, limit=10: []}
         )(),

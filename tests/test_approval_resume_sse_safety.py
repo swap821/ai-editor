@@ -9,6 +9,7 @@ Covers TDD items 3 and 4 from the ratified plan:
      token-less directive sent after a stale pause does NOT inherit tail
      context (the model sees no continuation from the abandoned pause).
 """
+
 from __future__ import annotations
 
 import json
@@ -61,12 +62,7 @@ from aios.security.gateway import RateLimiter
 from tests.test_api import FakeIndexer, FakeLLM, RecordingAudit
 
 _ALPHA_CONTENT = (
-    "def add(a, b):\n"
-    "    return a + b\n"
-    "\n"
-    "\n"
-    "def test_add():\n"
-    "    assert add(2, 3) == 5\n"
+    "def add(a, b):\n    return a + b\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
 )
 
 
@@ -146,11 +142,11 @@ def client(monkeypatch) -> Iterator[TestClient]:
         mistakes=MistakeMemory(db),
         facts=facts,
     )
-    app.dependency_overrides[get_conversation_state_store] = (
-        lambda: ConversationStateStore(db_path=db)
+    app.dependency_overrides[get_conversation_state_store] = lambda: (
+        ConversationStateStore(db_path=db)
     )
-    app.dependency_overrides[get_alignment_evaluation_store] = (
-        lambda: AlignmentEvaluationStore(db_path=db)
+    app.dependency_overrides[get_alignment_evaluation_store] = lambda: (
+        AlignmentEvaluationStore(db_path=db)
     )
     app.dependency_overrides[get_compactor] = lambda: MemoryCompactor(
         db_path=db, audit_db_path=db
@@ -182,7 +178,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
 def _extract_approval_token(body: str) -> str:
     for line in body.splitlines():
         if line.startswith("data:"):
-            payload = json.loads(line[len("data:"):].strip())
+            payload = json.loads(line[len("data:") :].strip())
             token = (payload.get("input") or {}).get("approvalToken")
             if token:
                 return str(token)
@@ -195,11 +191,16 @@ def test_convo_tail_key_never_appears_in_sse_body_and_token_never_in_stash(
     session_id = str(client.cookies.get("session_id"))
     assert session_id and session_id != "None"
 
-    resp1 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-    })
+    resp1 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "create test_alpha.py"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
     assert resp1.status_code == 200
     body1 = resp1.text
     assert "_convo_tail" not in body1, "the tail key must never reach the SSE wire"
@@ -216,12 +217,17 @@ def test_convo_tail_key_never_appears_in_sse_body_and_token_never_in_stash(
         "it is model context only, never an authorization vector"
     )
 
-    resp2 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-        "approvalTokens": [token],
-    })
+    resp2 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "create test_alpha.py"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
     assert resp2.status_code == 200
     body2 = resp2.text
     assert "_convo_tail" not in body2, "the tail key must never reach the SSE wire"
@@ -232,21 +238,31 @@ def test_done_clears_turn_state(client: TestClient) -> None:
     session_id = str(client.cookies.get("session_id"))
     assert session_id and session_id != "None"
 
-    resp1 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-    })
+    resp1 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "create test_alpha.py"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
     token = _extract_approval_token(resp1.text)
     assert turn_state._TURN_STATE._store.get(session_id) is not None, (
         "pause must have stashed a tail for this session"
     )
-    resp2 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-        "approvalTokens": [token],
-    })
+    resp2 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "create test_alpha.py"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
     assert "event: done" in resp2.text
     assert turn_state.take(session_id) is None, (
         "after the final done, turn_state must hold nothing for this session"
@@ -259,11 +275,16 @@ def test_stale_pause_then_tokenless_directive_does_not_inherit_tail(
     session_id = str(client.cookies.get("session_id"))
     assert session_id and session_id != "None"
 
-    resp1 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "create test_alpha.py"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-    })
+    resp1 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "create test_alpha.py"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
     assert "event: human_required" in resp1.text, (
         f"expected human_required in SSE body; got events: "
         f"{[l.split('data:')[0].strip() for l in resp1.text.splitlines() if l.startswith('event:')]}"
@@ -274,11 +295,16 @@ def test_stale_pause_then_tokenless_directive_does_not_inherit_tail(
 
     # A fresh, token-LESS directive on the SAME session must not carry the
     # stale tail forward -- it must be cleared, not replayed.
-    resp2 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "unrelated fresh request"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-    })
+    resp2 = client.post(
+        "/api/generate",
+        json={
+            "messages": [
+                {"role": "user", "content": [{"text": "unrelated fresh request"}]}
+            ],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
     assert resp2.status_code == 200
     assert turn_state._TURN_STATE._store.get(session_id) is None, (
         "a token-less fresh directive must clear any stale stashed tail, "

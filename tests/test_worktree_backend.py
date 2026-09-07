@@ -12,7 +12,9 @@ from aios.runtime.worktree_backend import (
 
 
 def _git(args: list[str], cwd) -> None:
-    subprocess.run(["git", *args], cwd=str(cwd), check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", *args], cwd=str(cwd), check=True, capture_output=True, text=True
+    )
 
 
 @pytest.fixture

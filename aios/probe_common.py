@@ -44,7 +44,7 @@ def probe_headers() -> dict[str, str]:
 ALLOWED_FILE_RE = re.compile(r"^(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py$")
 #: Output-only pytest flags. Each changes what is PRINTED, never what runs:
 #:   -q/-qq/-v/-vv  verbosity      --no-header   suppress the header block
-#:   -s             show print()   
+#:   -s             show print()
 #:   --collect-only list, run none  --tb=<style>  traceback format
 #:
 #: Widened 2026-08-18 by operator decision, twice. First for -v, after a cohort
@@ -95,9 +95,12 @@ _ALLOWED_FLAG = f"(?:{_PYTEST_READ_ONLY_FLAG}|{_PYTEST_CLEAR_ADDOPTS})"
 _SANDBOX_TEST_FILE = r"(?: \"?(?:training_ground|lab)[/\\][A-Za-z0-9_\-]+\.py\"?)"
 ALLOWED_CMD_RE = re.compile(
     r"^(?:python -m )?pytest"
-    + _ALLOWED_FLAG + "*"
-    + _SANDBOX_TEST_FILE + "?"
-    + _ALLOWED_FLAG + "*$"
+    + _ALLOWED_FLAG
+    + "*"
+    + _SANDBOX_TEST_FILE
+    + "?"
+    + _ALLOWED_FLAG
+    + "*$"
 )
 
 

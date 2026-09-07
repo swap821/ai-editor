@@ -132,7 +132,11 @@ def test_agreement_produces_no_disagreement_entries() -> None:
 def test_minority_security_concern_blocks_promotion_until_resolved() -> None:
     positions = (
         _position(role="primary", security_concerns=()),
-        _position(role="critic", answer="do not approve", security_concerns=("possible injection",)),
+        _position(
+            role="critic",
+            answer="do not approve",
+            security_concerns=("possible injection",),
+        ),
     )
     record = synthesize_deliberation(
         deliberation_id="delib-3",
@@ -154,7 +158,9 @@ def test_minority_security_concern_blocks_promotion_until_resolved() -> None:
     assert blocks_promotion(resolved) is False
 
 
-def test_synthesis_never_drops_a_minority_concern_even_with_a_final_disposition() -> None:
+def test_synthesis_never_drops_a_minority_concern_even_with_a_final_disposition() -> (
+    None
+):
     """A local clerk (Slice 32) may summarise disagreement for a human, but
     the underlying record must still carry every reported concern."""
     positions = (
@@ -174,7 +180,9 @@ def test_synthesis_never_drops_a_minority_concern_even_with_a_final_disposition(
 # --- truthful degradation -------------------------------------------------
 
 
-def test_cloud_outage_degrades_truthfully_not_a_fake_single_model_deliberation() -> None:
+def test_cloud_outage_degrades_truthfully_not_a_fake_single_model_deliberation() -> (
+    None
+):
     with pytest.raises(DeliberationError):
         synthesize_deliberation(
             deliberation_id="delib-6",
@@ -185,7 +193,10 @@ def test_cloud_outage_degrades_truthfully_not_a_fake_single_model_deliberation()
 
 
 def test_deliberation_digest_is_deterministic() -> None:
-    positions = (_position(role="primary"), _position(role="critic", provider="bedrock"))
+    positions = (
+        _position(role="primary"),
+        _position(role="critic", provider="bedrock"),
+    )
     first = synthesize_deliberation(
         deliberation_id="delib-7",
         trigger_reasons=("high_consequence",),

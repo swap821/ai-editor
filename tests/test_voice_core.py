@@ -8,6 +8,7 @@ double-checked model loading, ImportError → VoiceError guards, transcription
 result shaping, WAV synthesis framing/duration math, the auto-download
 fallback, and voice discovery.
 """
+
 from __future__ import annotations
 
 import struct
@@ -64,16 +65,24 @@ def fake_faster_whisper(monkeypatch):
 def test_stt_transcribe_joins_segments_and_rounds_confidence(fake_faster_whisper):
     svc = STTService(model_size="base", device="cpu", compute_type="int8")
     result = svc.transcribe(b"RIFFfakeaudio")
-    assert result == TranscribeResult(text="hello world", language="en", confidence=0.988)
+    assert result == TranscribeResult(
+        text="hello world", language="en", confidence=0.988
+    )
     model = _FakeWhisperModel.created[0]
-    assert (model.model_size, model.device, model.compute_type) == ("base", "cpu", "int8")
+    assert (model.model_size, model.device, model.compute_type) == (
+        "base",
+        "cpu",
+        "int8",
+    )
 
 
 def test_stt_language_hint_forwarded_and_model_loaded_once(fake_faster_whisper):
     svc = STTService(device="cpu")
     svc.transcribe(b"a", language="de")
     svc.transcribe(b"b")
-    assert len(_FakeWhisperModel.created) == 1, "double-checked lazy load must build once"
+    assert len(_FakeWhisperModel.created) == 1, (
+        "double-checked lazy load must build once"
+    )
     assert _FakeWhisperModel.created[0].calls[0] == {"language": "de"}
     assert _FakeWhisperModel.created[0].calls[1] == {}
 
@@ -154,7 +163,9 @@ def test_tts_zero_sample_rate_reports_zero_duration(fake_piper, tmp_path):
     assert svc.speak("x").duration_ms == 0
 
 
-def test_tts_download_fallback_invoked_when_model_missing(fake_piper, tmp_path, monkeypatch):
+def test_tts_download_fallback_invoked_when_model_missing(
+    fake_piper, tmp_path, monkeypatch
+):
     calls: dict = {}
 
     def fake_ensure(name, data_dirs, download_dir):

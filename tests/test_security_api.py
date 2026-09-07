@@ -4,6 +4,7 @@ to replace the previously-phantom /api/v1/security/audit,
 /api/v1/security/sandbox/clear, and /api/v1/security/tokens/rotate calls the
 frontend SecurityAuditPanel already shipped (and 404'd on).
 """
+
 from __future__ import annotations
 
 from typing import Iterator
@@ -76,13 +77,17 @@ def test_tokens_rotate_returns_new_key_id(client) -> None:
     assert "rotated audit signing key" in audit_resp.json()["entries"][0]["payload"]
 
 
-def test_api_token_rotate_requires_explicit_confirm(client, isolated_api_token_authority) -> None:
+def test_api_token_rotate_requires_explicit_confirm(
+    client, isolated_api_token_authority
+) -> None:
     resp = client.post("/api/v1/security/api-token/rotate", json={"confirm": False})
     assert resp.status_code == 422
     assert isolated_api_token_authority.current_state() is None
 
 
-def test_api_token_rotate_returns_a_new_token_once(client, isolated_api_token_authority) -> None:
+def test_api_token_rotate_returns_a_new_token_once(
+    client, isolated_api_token_authority
+) -> None:
     resp = client.post(
         "/api/v1/security/api-token/rotate",
         json={"confirm": True},
@@ -128,7 +133,9 @@ def test_sandbox_clear_requires_explicit_confirm(client) -> None:
     assert resp2.status_code == 403
 
 
-def test_sandbox_clear_removes_only_scope_root_contents(client, tmp_path, monkeypatch) -> None:
+def test_sandbox_clear_removes_only_scope_root_contents(
+    client, tmp_path, monkeypatch
+) -> None:
     sandbox = tmp_path / "training_ground"
     sandbox.mkdir()
     (sandbox / "leftover.txt").write_text("scratch", encoding="utf-8")
@@ -149,7 +156,9 @@ def test_sandbox_clear_removes_only_scope_root_contents(client, tmp_path, monkey
 
 def test_sandbox_clear_refuses_project_root(client, monkeypatch) -> None:
     monkeypatch.setattr(
-        "aios.api.routes.security.config.SCOPE_ROOTS", (config.PROJECT_ROOT,), raising=False
+        "aios.api.routes.security.config.SCOPE_ROOTS",
+        (config.PROJECT_ROOT,),
+        raising=False,
     )
 
     resp = client.post("/api/v1/security/sandbox/clear", json={"confirm": True})

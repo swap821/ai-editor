@@ -25,7 +25,9 @@ from aios.application.read_models.governance_projections import (
     project_pending_approvals,
     project_provider_health_list,
 )
-from aios.application.read_models.executor_projections import get_isolated_executor_live_authority
+from aios.application.read_models.executor_projections import (
+    get_isolated_executor_live_authority,
+)
 from aios.application.read_models.provenance_projections import (
     project_privacy_audits,
     project_routing_decisions,
@@ -289,10 +291,7 @@ def get_governance_projection(
             key: (
                 value.model_dump(mode="json")
                 if hasattr(value, "model_dump")
-                else [
-                    item.model_dump(mode="json")
-                    for item in value
-                ]
+                else [item.model_dump(mode="json") for item in value]
             )
             for key, value in surface.items()
         }

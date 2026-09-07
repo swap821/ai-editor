@@ -1,4 +1,5 @@
 """Behavioral tests for the evidence-gated Brain Growth Loop v1."""
+
 from __future__ import annotations
 
 import json
@@ -45,13 +46,25 @@ class PlanningLLM:
         )
 
 
-def test_verified_lessons_recall_cross_session_but_pending_do_not(tmp_path: Path) -> None:
+def test_verified_lessons_recall_cross_session_but_pending_do_not(
+    tmp_path: Path,
+) -> None:
     mistakes = MistakeMemory(_db(tmp_path))
     pending = mistakes.record(
-        "old-session", "Timeout", "api deploy timed out", "retry", "set deploy timeout", -0.2
+        "old-session",
+        "Timeout",
+        "api deploy timed out",
+        "retry",
+        "set deploy timeout",
+        -0.2,
     )
     verified = mistakes.record(
-        "other-session", "DeployFailure", "api deploy failed", "rollback", "verify api deploy", -0.3
+        "other-session",
+        "DeployFailure",
+        "api deploy failed",
+        "rollback",
+        "verify api deploy",
+        -0.3,
     )
     mistakes.promote(verified)
 
@@ -76,9 +89,9 @@ def test_planner_calibrates_with_verified_lessons_and_explains_adjustment() -> N
         def relevant_success_rate(self, query: str):
             return None
 
-    plan = Planner(
-        PlanningLLM(), mistakes=Lessons(), development=NoHistory()
-    ).plan("deploy the api")
+    plan = Planner(PlanningLLM(), mistakes=Lessons(), development=NoHistory()).plan(
+        "deploy the api"
+    )
 
     assert plan.steps[0].confidence == 0.6
     assert plan.requires_human is True
@@ -253,16 +266,38 @@ def test_model_task_success_rates_aggregates_by_provider_model_task(
     tracker = DevelopmentTracker(_db(tmp_path))
     md = lambda p, m, t: {"provider": p, "model": m, "task": t}  # noqa: E731
     # gemini on reasoning: 2 of 3 verified -> 0.667
-    tracker.record("analyze x", "verified_success", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
-    tracker.record("analyze y", "verified_failure", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
-    tracker.record("analyze z", "verified_success", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
+    tracker.record(
+        "analyze x",
+        "verified_success",
+        metadata=md("gemini", "gemini-2.5-flash", "reasoning"),
+    )
+    tracker.record(
+        "analyze y",
+        "verified_failure",
+        metadata=md("gemini", "gemini-2.5-flash", "reasoning"),
+    )
+    tracker.record(
+        "analyze z",
+        "verified_success",
+        metadata=md("gemini", "gemini-2.5-flash", "reasoning"),
+    )
     # local coder on coding: 1 verified attempt -> below min_attempts, excluded
-    tracker.record("fix bug", "verified_success", metadata=md("ollama", "qwen2.5-coder:7b", "coding"))
+    tracker.record(
+        "fix bug",
+        "verified_success",
+        metadata=md("ollama", "qwen2.5-coder:7b", "coding"),
+    )
     # unverified outcomes never calibrate
-    tracker.record("analyze q", "unverified", metadata=md("gemini", "gemini-2.5-flash", "reasoning"))
+    tracker.record(
+        "analyze q",
+        "unverified",
+        metadata=md("gemini", "gemini-2.5-flash", "reasoning"),
+    )
 
     rates = tracker.model_task_success_rates(min_attempts=3)
-    assert rates == {("gemini", "gemini-2.5-flash", "reasoning"): pytest.approx(2 / 3, abs=1e-6)}
+    assert rates == {
+        ("gemini", "gemini-2.5-flash", "reasoning"): pytest.approx(2 / 3, abs=1e-6)
+    }
     # a lower bar surfaces the single-attempt local key too
     low = tracker.model_task_success_rates(min_attempts=1)
     assert low[("ollama", "qwen2.5-coder:7b", "coding")] == 1.0
@@ -451,15 +486,24 @@ def test_curriculum_requires_training_and_held_out_verifier_evidence(
     next_id = curriculum.add_task("python", 2, "advanced task")
 
     curriculum.record_matching(
-        "training task", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
+        "training task",
+        passed=True,
+        evidence="[VERIFY PASS] 1 passed (strength=STRONG)",
     )
     curriculum.record_matching(
-        "training task", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
+        "training task",
+        passed=True,
+        evidence="[VERIFY PASS] 1 passed (strength=STRONG)",
     )
-    assert next(item for item in curriculum.list() if item["id"] == next_id)["status"] == "locked"
+    assert (
+        next(item for item in curriculum.list() if item["id"] == next_id)["status"]
+        == "locked"
+    )
 
     curriculum.record_matching(
-        "held out task", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
+        "held out task",
+        passed=True,
+        evidence="[VERIFY PASS] 1 passed (strength=STRONG)",
     )
     rows = curriculum.list()
     assert all(item["status"] == "mastered" for item in rows if item["level"] == 1)
@@ -478,7 +522,9 @@ def test_curriculum_locks_missing_prerequisites_and_refuses_ambiguous_evidence(
     curriculum.add_task("javascript", 1, "shared prompt")
     with pytest.raises(ValueError, match="ambiguous"):
         curriculum.record_matching(
-            "shared prompt", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
+            "shared prompt",
+            passed=True,
+            evidence="[VERIFY PASS] 1 passed (strength=STRONG)",
         )
 
 
@@ -490,7 +536,9 @@ def test_curriculum_requires_coverage_of_every_defined_task(tmp_path: Path) -> N
 
     for _ in range(2):
         curriculum.record_matching(
-            "training one", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
+            "training one",
+            passed=True,
+            evidence="[VERIFY PASS] 1 passed (strength=STRONG)",
         )
     curriculum.record_matching(
         "held out", passed=True, evidence="[VERIFY PASS] 1 passed (strength=STRONG)"
@@ -578,7 +626,9 @@ def test_reuse_success_reinforces_recalled_trail(tmp_path: Path) -> None:
 
     after = skills.relevant_verified("fix parser bug", now=later)[0]
     assert after["reuse_success_count"] == 2
-    assert after["success_count"] == 4 and after["failure_count"] == 1  # direct untouched
+    assert (
+        after["success_count"] == 4 and after["failure_count"] == 1
+    )  # direct untouched
     expected = min(1.0, 0.8 * SkillMemory._reuse_factor(2, 0))
     assert after["strength"] == pytest.approx(expected, abs=2e-6)
     assert after["strength"] > baseline["strength"]
@@ -588,7 +638,9 @@ def test_reuse_factor_exact_asymmetry() -> None:
     assert SkillMemory._reuse_factor(0, 1) == pytest.approx(0.70805, abs=1e-4)
     assert SkillMemory._reuse_factor(1, 0) == pytest.approx(1.04252, abs=1e-4)
     # One failure bites more than six successes' worth of reward.
-    assert (1 - SkillMemory._reuse_factor(0, 1)) > 6 * (SkillMemory._reuse_factor(1, 0) - 1)
+    assert (1 - SkillMemory._reuse_factor(0, 1)) > 6 * (
+        SkillMemory._reuse_factor(1, 0) - 1
+    )
 
 
 def test_reuse_credit_cannot_promote_candidate(tmp_path: Path) -> None:
@@ -616,7 +668,7 @@ def test_reuse_failures_quarantine_verified_trail(tmp_path: Path) -> None:
         skills.record_reuse([skill_id], success=False, now=moment)
 
     row = skills.list()[0]
-    assert row["status"] == "candidate"          # quarantined
+    assert row["status"] == "candidate"  # quarantined
     assert row["success_count"] == 3 and row["failure_count"] == 0  # direct untouched
     assert row["reuse_failure_count"] == 3
     assert skills.relevant_verified("fix parser bug") == []
@@ -630,12 +682,14 @@ def test_direct_success_restores_quarantined_trail(tmp_path: Path) -> None:
         skills.record_reuse([skill_id], success=False)
     assert skills.list()[0]["status"] == "candidate"
 
-    skills.record_attempt("fix parser bug", steps, success=True)  # fresh DIRECT evidence
+    skills.record_attempt(
+        "fix parser bug", steps, success=True
+    )  # fresh DIRECT evidence
 
     recalled = skills.relevant_verified("fix parser bug")
     assert recalled and recalled[0]["skill_id"] == skill_id
     assert recalled[0]["success_count"] == 4
-    assert recalled[0]["reuse_failure_count"] == 3              # the stain persists
+    assert recalled[0]["reuse_failure_count"] == 3  # the stain persists
     assert recalled[0]["reuse_factor"] == pytest.approx(
         SkillMemory._reuse_factor(0, 3), abs=1e-6
     )
@@ -660,7 +714,7 @@ def test_reuse_success_refreshes_clock_failure_does_not(tmp_path: Path) -> None:
 
     skills.record_reuse([skill_id], success=False, now=far)
     row = skills.list()[0]
-    assert row["updated_at"] == created_at                      # keeps evaporating
+    assert row["updated_at"] == created_at  # keeps evaporating
     assert row["last_reused_at"] == far.strftime("%Y-%m-%d %H:%M:%S")
 
     skills.record_reuse([skill_id], success=True, now=far)
@@ -685,7 +739,7 @@ def test_redaction_noise_consolidates_to_one_signature(tmp_path: Path) -> None:
     assert len(active) == 1
     assert active[0]["success_count"] == 3
     assert active[0]["status"] == "verified"
-    assert "<REDACTED:" not in active[0]["steps_json"]          # recipe refreshed
+    assert "<REDACTED:" not in active[0]["steps_json"]  # recipe refreshed
 
 
 def test_different_length_arcs_stay_distinct(tmp_path: Path) -> None:
@@ -696,36 +750,56 @@ def test_different_length_arcs_stay_distinct(tmp_path: Path) -> None:
     skills.record_attempt("create the shout helper", flail_arc, success=False)
 
     rows = {row["id"]: row for row in skills.list()}
-    assert len(rows) == 2                                       # arcs stay distinct
+    assert len(rows) == 2  # arcs stay distinct
     assert rows[verified_id]["status"] == "verified"
     assert rows[verified_id]["success_count"] == 3
-    assert rows[verified_id]["failure_count"] == 0              # failure never bleeds over
+    assert rows[verified_id]["failure_count"] == 0  # failure never bleeds over
 
 
 def test_migration_backfills_live_shape_as_noop(tmp_path: Path) -> None:
     path = _old_schema_db(tmp_path)
-    _insert_old_skill(path, "s1", "create the shout helper",
-                      ["create_file: a", "create_file: b"],
-                      status="verified", successes=3, failures=0)
-    _insert_old_skill(path, "s2", "create the shout helper",
-                      ["create_file: a", "create_file: b", "edit_file: c"],
-                      status="candidate", successes=0, failures=1)
-    _insert_old_skill(path, "s3", "create the clamp helper",
-                      ["create_file: a", "create_file: b"],
-                      status="candidate", successes=1, failures=0)
+    _insert_old_skill(
+        path,
+        "s1",
+        "create the shout helper",
+        ["create_file: a", "create_file: b"],
+        status="verified",
+        successes=3,
+        failures=0,
+    )
+    _insert_old_skill(
+        path,
+        "s2",
+        "create the shout helper",
+        ["create_file: a", "create_file: b", "edit_file: c"],
+        status="candidate",
+        successes=0,
+        failures=1,
+    )
+    _insert_old_skill(
+        path,
+        "s3",
+        "create the clamp helper",
+        ["create_file: a", "create_file: b"],
+        status="candidate",
+        successes=1,
+        failures=0,
+    )
 
     init_memory_db(path)
 
     with get_connection(path) as conn:
         rows = conn.execute("SELECT * FROM procedural_skills ORDER BY id").fetchall()
-    assert all(row["signature_v2"] for row in rows)             # backfilled
+    assert all(row["signature_v2"] for row in rows)  # backfilled
     assert [row["status"] for row in rows] == ["verified", "candidate", "candidate"]
     assert [(row["success_count"], row["failure_count"]) for row in rows] == [
-        (3, 0), (0, 1), (1, 0)
-    ]                                                            # byte-identical counts
-    assert all(row["superseded_by"] is None for row in rows)     # zero merges
+        (3, 0),
+        (0, 1),
+        (1, 0),
+    ]  # byte-identical counts
+    assert all(row["superseded_by"] is None for row in rows)  # zero merges
 
-    init_memory_db(path)                                         # idempotent
+    init_memory_db(path)  # idempotent
     with get_connection(path) as conn:
         again = conn.execute("SELECT * FROM procedural_skills ORDER BY id").fetchall()
     assert [dict(row) for row in again] == [dict(row) for row in rows]
@@ -733,47 +807,79 @@ def test_migration_backfills_live_shape_as_noop(tmp_path: Path) -> None:
 
 def test_migration_merges_true_duplicates_preserving_rows(tmp_path: Path) -> None:
     path = _old_schema_db(tmp_path)
-    keeper_id = _insert_old_skill(path, "s1", "create the shout helper",
-                                  ["create_file: noisy-arg", "create_file: b"],
-                                  status="candidate", successes=2, failures=0)
-    dupe_id = _insert_old_skill(path, "s2", "create the shout helper",
-                                ["create_file: clean-arg", "create_file: b"],
-                                status="candidate", successes=1, failures=0)
-    other_id = _insert_old_skill(path, "s3", "create the clamp helper",
-                                 ["create_file: a", "create_file: b"],
-                                 status="verified", successes=3, failures=0)
+    keeper_id = _insert_old_skill(
+        path,
+        "s1",
+        "create the shout helper",
+        ["create_file: noisy-arg", "create_file: b"],
+        status="candidate",
+        successes=2,
+        failures=0,
+    )
+    dupe_id = _insert_old_skill(
+        path,
+        "s2",
+        "create the shout helper",
+        ["create_file: clean-arg", "create_file: b"],
+        status="candidate",
+        successes=1,
+        failures=0,
+    )
+    other_id = _insert_old_skill(
+        path,
+        "s3",
+        "create the clamp helper",
+        ["create_file: a", "create_file: b"],
+        status="verified",
+        successes=3,
+        failures=0,
+    )
 
     init_memory_db(path)
 
     with get_connection(path) as conn:
-        rows = {int(r["id"]): dict(r) for r in conn.execute(
-            "SELECT * FROM procedural_skills"
-        ).fetchall()}
-    assert len(rows) == 3                                        # nothing deleted
-    assert rows[keeper_id]["status"] == "verified"               # 3/0 direct sums
+        rows = {
+            int(r["id"]): dict(r)
+            for r in conn.execute("SELECT * FROM procedural_skills").fetchall()
+        }
+    assert len(rows) == 3  # nothing deleted
+    assert rows[keeper_id]["status"] == "verified"  # 3/0 direct sums
     assert rows[keeper_id]["success_count"] == 3
     assert rows[dupe_id]["status"] == "superseded"
     assert rows[dupe_id]["superseded_by"] == keeper_id
-    assert rows[dupe_id]["success_count"] == 1                   # provenance intact
-    assert rows[other_id]["status"] == "verified"                # untouched
+    assert rows[dupe_id]["success_count"] == 1  # provenance intact
+    assert rows[other_id]["status"] == "verified"  # untouched
 
 
 def test_migration_prefers_verified_keeper(tmp_path: Path) -> None:
     path = _old_schema_db(tmp_path)
-    fragment_id = _insert_old_skill(path, "s1", "create the shout helper",
-                                    ["create_file: x", "create_file: y"],
-                                    status="candidate", successes=0, failures=2)
-    verified_id = _insert_old_skill(path, "s2", "create the shout helper",
-                                    ["create_file: p", "create_file: q"],
-                                    status="verified", successes=3, failures=0)
+    fragment_id = _insert_old_skill(
+        path,
+        "s1",
+        "create the shout helper",
+        ["create_file: x", "create_file: y"],
+        status="candidate",
+        successes=0,
+        failures=2,
+    )
+    verified_id = _insert_old_skill(
+        path,
+        "s2",
+        "create the shout helper",
+        ["create_file: p", "create_file: q"],
+        status="verified",
+        successes=3,
+        failures=0,
+    )
 
     init_memory_db(path)
 
     with get_connection(path) as conn:
-        rows = {int(r["id"]): dict(r) for r in conn.execute(
-            "SELECT * FROM procedural_skills"
-        ).fetchall()}
-    assert rows[verified_id]["superseded_by"] is None            # verified row is keeper
+        rows = {
+            int(r["id"]): dict(r)
+            for r in conn.execute("SELECT * FROM procedural_skills").fetchall()
+        }
+    assert rows[verified_id]["superseded_by"] is None  # verified row is keeper
     assert rows[fragment_id]["status"] == "superseded"
     assert rows[fragment_id]["superseded_by"] == verified_id
     # Absorbing the sibling's failures recomputes honestly: 3/2 -> candidate.
@@ -798,26 +904,30 @@ def test_record_reuse_skips_superseded_ids(tmp_path: Path) -> None:
 
 def test_weakened_trail_outcompeted_not_deleted(tmp_path: Path) -> None:
     skills = SkillMemory(_db(tmp_path))
-    stained = _verified_trail(skills, "fix parser bug alpha", ["read_file: a", "verify: p"])
+    stained = _verified_trail(
+        skills, "fix parser bug alpha", ["read_file: a", "verify: p"]
+    )
     _verified_trail(skills, "fix parser bug beta", ["edit_file: b", "verify: p"])
 
     moment = datetime.now(timezone.utc)
     skills.record_reuse([stained], success=False, now=moment)
-    skills.record_reuse([stained], success=False, now=moment)   # net 2: below quarantine
+    skills.record_reuse([stained], success=False, now=moment)  # net 2: below quarantine
 
     recalled = skills.relevant_verified("fix parser bug", now=moment)
-    assert len(recalled) == 2                                    # still recallable
-    assert recalled[-1]["skill_id"] == stained                   # but ranks last
+    assert len(recalled) == 2  # still recallable
+    assert recalled[-1]["skill_id"] == stained  # but ranks last
     assert recalled[-1]["reuse_factor"] == pytest.approx(
         SkillMemory._reuse_factor(0, 2), abs=1e-6
     )
-    assert len(skills.list()) == 2                               # never deleted
+    assert len(skills.list()) == 2  # never deleted
 
 
 def test_trail_map_reports_computed_field_and_quarantine(tmp_path: Path) -> None:
     skills = SkillMemory(_db(tmp_path))
     healthy = _verified_trail(skills, "fix parser bug", ["read_file: a", "verify: p"])
-    quarantined = _verified_trail(skills, "tune the cache", ["edit_file: b", "verify: p"])
+    quarantined = _verified_trail(
+        skills, "tune the cache", ["edit_file: b", "verify: p"]
+    )
     moment = datetime.now(timezone.utc)
     skills.record_reuse([healthy], success=True, now=moment)
     for _ in range(3):
@@ -833,7 +943,7 @@ def test_trail_map_reports_computed_field_and_quarantine(tmp_path: Path) -> None
         abs=2e-6,
     )
     assert by_id[quarantined]["status"] == "candidate"
-    assert by_id[quarantined]["quarantined"] is True        # demoted by reuse, not evidence
+    assert by_id[quarantined]["quarantined"] is True  # demoted by reuse, not evidence
     assert trail_map["summary"]["quarantined"] == 1
     assert trail_map["summary"]["verified"] == 1
     assert trail_map["constants"]["reuse_demote_net_failures"] == (
@@ -845,21 +955,35 @@ def test_trail_map_reports_computed_field_and_quarantine(tmp_path: Path) -> None
 
 def test_trail_map_lists_superseded_fragments_with_lineage(tmp_path: Path) -> None:
     path = _old_schema_db(tmp_path)
-    keeper = _insert_old_skill(path, "s1", "create the shout helper",
-                               ["create_file: noisy", "create_file: b"],
-                               status="candidate", successes=2, failures=0)
-    dupe = _insert_old_skill(path, "s2", "create the shout helper",
-                             ["create_file: clean", "create_file: b"],
-                             status="candidate", successes=1, failures=0)
+    keeper = _insert_old_skill(
+        path,
+        "s1",
+        "create the shout helper",
+        ["create_file: noisy", "create_file: b"],
+        status="candidate",
+        successes=2,
+        failures=0,
+    )
+    dupe = _insert_old_skill(
+        path,
+        "s2",
+        "create the shout helper",
+        ["create_file: clean", "create_file: b"],
+        status="candidate",
+        successes=1,
+        failures=0,
+    )
     init_memory_db(path)
 
     trail_map = SkillMemory(path).trail_map()
 
     assert [t["skill_id"] for t in trail_map["trails"]] == [keeper]
-    assert trail_map["superseded_fragments"] == [{
-        "skill_id": dupe,
-        "goal_pattern": "create the shout helper",
-        "superseded_by": keeper,
-        "success_count": 1,
-        "failure_count": 0,
-    }]
+    assert trail_map["superseded_fragments"] == [
+        {
+            "skill_id": dupe,
+            "goal_pattern": "create the shout helper",
+            "superseded_by": keeper,
+            "success_count": 1,
+            "failure_count": 0,
+        }
+    ]

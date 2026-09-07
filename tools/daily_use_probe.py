@@ -4,6 +4,7 @@ This exercises the real backend (/api/generate), the approval gate, and the
 sandbox write path in training_ground/. It does NOT drive the browser; it
 validates the agentic loop that the frontend relies on.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.probe_common import BASE
+
 SESSION_ID = "daily-use-probe-2026-06-24"
 TARGET = Path("training_ground/daily_use_probe_result.py")
 
@@ -76,7 +78,9 @@ def generate(prompt: str, tokens: list[str] | None = None) -> dict:
     # Print all step events for debugging.
     for ev in events:
         if ev["event"] == "step":
-            print(f"[probe step] {ev['data'].get('type')} {ev['data'].get('tool')}: {str(ev['data'].get('output', ''))[:120]}")
+            print(
+                f"[probe step] {ev['data'].get('type')} {ev['data'].get('tool')}: {str(ev['data'].get('output', ''))[:120]}"
+            )
     return {"events": events, "approvalToken": approval_token, "text": text}
 
 

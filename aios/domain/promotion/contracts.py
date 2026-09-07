@@ -101,8 +101,10 @@ class PromotionRollbackLiveAuthority:
         if not isinstance(checkpoint_id, str):
             return False
         value = checkpoint_id.strip()
-        return bool(value) and len(value) <= 200 and not any(
-            char in value for char in "\\/:\r\n\x00"
+        return (
+            bool(value)
+            and len(value) <= 200
+            and not any(char in value for char in "\\/:\r\n\x00")
         )
 
 

@@ -7,6 +7,7 @@ NEVER flip a block (revise/rollback/reject) into a go (approve/observe), never s
 a reject, and any LLM/parse error fails closed to the deterministic recommendation.
 The LLM's rationale is advisory (always surfaced); the DECISION is clamped.
 """
+
 from __future__ import annotations
 
 from aios.council.king_reasoning import clamp_recommendation, reason_king
@@ -14,6 +15,7 @@ from aios.runtime.contracts import KingReport, MissionContract, QueenVerdict
 
 
 # ── the clamp: the safety core ───────────────────────────────────────────────
+
 
 def test_clamp_never_downgrades_a_block_to_a_go() -> None:
     # The critical invariant: a block can never become a go.
@@ -45,13 +47,20 @@ def test_clamp_equal_and_unknown_failsafe() -> None:
 
 # ── reason_king: clamp + advisory rationale + fail-closed ────────────────────
 
+
 def _contract() -> MissionContract:
     return MissionContract(
-        mission_id="m1", goal="g", worker_type="editor", created_by="t", workspace_root="/ws"
+        mission_id="m1",
+        goal="g",
+        worker_type="editor",
+        created_by="t",
+        workspace_root="/ws",
     )
 
 
-def _report(rec: str, summary: str = "baseline summary", status: str = "completed") -> KingReport:
+def _report(
+    rec: str, summary: str = "baseline summary", status: str = "completed"
+) -> KingReport:
     return KingReport(
         mission_id="m1",
         mission="g",
@@ -65,7 +74,9 @@ def _report(rec: str, summary: str = "baseline summary", status: str = "complete
 
 
 def _verdicts() -> list[QueenVerdict]:
-    return [QueenVerdict(queen="security", verdict="allow", risk="GREEN", reason="clean")]
+    return [
+        QueenVerdict(queen="security", verdict="allow", risk="GREEN", reason="clean")
+    ]
 
 
 def test_reason_king_clamps_unsafe_upgrade_but_surfaces_rationale() -> None:
@@ -86,7 +97,9 @@ def test_reason_king_accepts_added_caution() -> None:
         base,
         contract=_contract(),
         verdicts=_verdicts(),
-        complete=lambda _p: "RECOMMENDATION: revise\nRATIONALE: the verification was thin",
+        complete=lambda _p: (
+            "RECOMMENDATION: revise\nRATIONALE: the verification was thin"
+        ),
     )
     assert out.recommendation == "revise"
     assert "thin" in out.human_summary.lower()
@@ -107,7 +120,9 @@ def test_orchestrator_stores_injected_king_complete(tmp_path) -> None:
     from aios.council.council_orchestrator import CouncilOrchestrator
 
     fn = lambda _p: "RECOMMENDATION: reject\nRATIONALE: nope"
-    assert CouncilOrchestrator(runtime_root=tmp_path, king_complete=fn).king_complete is fn
+    assert (
+        CouncilOrchestrator(runtime_root=tmp_path, king_complete=fn).king_complete is fn
+    )
     assert CouncilOrchestrator(runtime_root=tmp_path).king_complete is None
 
 

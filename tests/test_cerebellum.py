@@ -10,6 +10,7 @@ Each test uses an isolated temporary SQLite database (via ``tmp_path``), so
 the suite never touches real ``data/`` artifacts and has no network, model,
 or shell side effects.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -49,7 +50,9 @@ def _insert_verified_skill(
         return cur.lastrowid
 
 
-def _mark_already_compiled(db_path: Path, skill_id: int, *, status: str = "compiled") -> int:
+def _mark_already_compiled(
+    db_path: Path, skill_id: int, *, status: str = "compiled"
+) -> int:
     """Insert a compiled_playbooks row for *skill_id* directly."""
     with get_connection(db_path) as conn:
         cur = conn.execute(
@@ -71,6 +74,7 @@ def db_path(tmp_path: Path) -> Path:
 def _ok_dispatch(output: str = "ok") -> "callable":
     def _fn(tool_name: str, args: dict) -> tuple[str, str, bool]:
         return (output, "ok", False)
+
     return _fn
 
 
@@ -477,16 +481,25 @@ def test_conflicting_targets_normalizes_path_spelling() -> None:
     from aios.core.cerebellum import _conflicting_targets
 
     steps = [PlaybookStep("verify", {"command": "pytest tests/test_cortex_bus.py -q"})]
-    assert _conflicting_targets(
-        "run exactly this command: pytest tests\\test_cortex_bus.py -q", steps
-    ) is False
-    assert _conflicting_targets(
-        "run exactly this command: pytest ./tests/test_cortex_bus.py -q", steps
-    ) is False
+    assert (
+        _conflicting_targets(
+            "run exactly this command: pytest tests\\test_cortex_bus.py -q", steps
+        )
+        is False
+    )
+    assert (
+        _conflicting_targets(
+            "run exactly this command: pytest ./tests/test_cortex_bus.py -q", steps
+        )
+        is False
+    )
     # ...but a genuinely different file is still a conflict.
-    assert _conflicting_targets(
-        "run exactly this command: pytest tests/test_other.py -q", steps
-    ) is True
+    assert (
+        _conflicting_targets(
+            "run exactly this command: pytest tests/test_other.py -q", steps
+        )
+        is True
+    )
 
 
 def test_step_targets_are_clean_predicate() -> None:
@@ -494,24 +507,40 @@ def test_step_targets_are_clean_predicate() -> None:
     # spaced / non-ASCII / quoted / absolute targets do not.
     from aios.core.cerebellum import _step_targets_are_clean
 
-    assert _step_targets_are_clean(
-        PlaybookStep("verify", {"command": "pytest lab/test_x.py -q"})
-    ) is True
-    assert _step_targets_are_clean(
-        PlaybookStep("read_file", {"filepath": "lab/notes.md"})
-    ) is True
-    assert _step_targets_are_clean(
-        PlaybookStep("read_file", {"filepath": "sales report.xlsx"})
-    ) is False  # space
-    assert _step_targets_are_clean(
-        PlaybookStep("verify", {"command": "pytest 报告.py -q"})
-    ) is False  # non-ASCII
-    assert _step_targets_are_clean(
-        PlaybookStep("verify", {"command": 'mv "Q1 report.pdf" out/'})
-    ) is False  # quoted spaced filename
-    assert _step_targets_are_clean(
-        PlaybookStep("verify", {"command": "pytest /abs/root/x.py -q"})
-    ) is False  # absolute
+    assert (
+        _step_targets_are_clean(
+            PlaybookStep("verify", {"command": "pytest lab/test_x.py -q"})
+        )
+        is True
+    )
+    assert (
+        _step_targets_are_clean(PlaybookStep("read_file", {"filepath": "lab/notes.md"}))
+        is True
+    )
+    assert (
+        _step_targets_are_clean(
+            PlaybookStep("read_file", {"filepath": "sales report.xlsx"})
+        )
+        is False
+    )  # space
+    assert (
+        _step_targets_are_clean(
+            PlaybookStep("verify", {"command": "pytest 报告.py -q"})
+        )
+        is False
+    )  # non-ASCII
+    assert (
+        _step_targets_are_clean(
+            PlaybookStep("verify", {"command": 'mv "Q1 report.pdf" out/'})
+        )
+        is False
+    )  # quoted spaced filename
+    assert (
+        _step_targets_are_clean(
+            PlaybookStep("verify", {"command": "pytest /abs/root/x.py -q"})
+        )
+        is False
+    )  # absolute
 
 
 def test_compile_skips_skill_with_unclean_target(db_path: Path) -> None:
@@ -609,7 +638,9 @@ def test_replay_failure_then_success_resets_consecutive_failures(db_path: Path) 
     cerebellum, pb = _compile_two_step_playbook(db_path)
 
     # First replay fails on step 0.
-    list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)])))
+    list(
+        cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)]))
+    )
     [pb_after_failure] = cerebellum.playbook_map()
     assert pb_after_failure["consecutive_failures"] == 1
 
@@ -624,10 +655,14 @@ def test_replay_decompiles_after_max_consecutive_failures(db_path: Path) -> None
     cerebellum, pb = _compile_two_step_playbook(db_path)
     assert cerebellum.max_consecutive_failures == 2
 
-    list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)])))
+    list(
+        cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)]))
+    )
     assert cerebellum.compiled_count() == 1  # still active after 1 failure
 
-    list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)])))
+    list(
+        cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)]))
+    )
     # Second consecutive failure hits max_consecutive_failures=2 -> decompiled.
     assert cerebellum.compiled_count() == 0
 
@@ -644,7 +679,11 @@ def test_decompiled_playbook_does_not_match(db_path: Path) -> None:
     cerebellum, pb = _compile_two_step_playbook(db_path)
 
     for _ in range(2):
-        list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)])))
+        list(
+            cerebellum.replay(
+                pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)])
+            )
+        )
 
     assert cerebellum.match("run the tests") is None
 
@@ -659,7 +698,9 @@ def test_replay_custom_max_consecutive_failures(db_path: Path) -> None:
     cerebellum.try_compile_all()
     [pb] = cerebellum._cache.values()
 
-    list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)])))
+    list(
+        cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("", "blocked", False)]))
+    )
 
     # A single failure already reaches the (lowered) threshold.
     assert cerebellum.compiled_count() == 0

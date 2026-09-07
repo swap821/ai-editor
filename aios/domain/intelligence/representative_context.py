@@ -60,8 +60,6 @@ class RepresentativeContextV1(BaseModel):
         return self.model_dump(mode="json")
 
 
-
-
 class ContextExclusionV1(BaseModel):
     """A privacy-safe reason a candidate human-representation source was
     deliberately kept out of a request's compiled context.

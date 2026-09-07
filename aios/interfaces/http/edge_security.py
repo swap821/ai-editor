@@ -94,7 +94,9 @@ def get_api_token_authority() -> "ApiTokenAuthority":
     global _API_TOKEN_AUTHORITY
     if _API_TOKEN_AUTHORITY is None:
         from aios import config as _real_config
-        from aios.application.security.api_token_authority import InstallationConfigurationAuthority
+        from aios.application.security.api_token_authority import (
+            InstallationConfigurationAuthority,
+        )
 
         # Read the db path from the REAL config module rather than this
         # module's `config` name. The path is process-lifetime-stable (see
@@ -345,7 +347,9 @@ class EdgeTrustAuthority:
         forwarded = request.headers.get("x-forwarded-for", "")
         if not forwarded:
             return direct
-        chain = [str(parsed) for raw in forwarded.split(",") if (parsed := _parse_ip(raw))]
+        chain = [
+            str(parsed) for raw in forwarded.split(",") if (parsed := _parse_ip(raw))
+        ]
         for ip in reversed(chain):
             if ip not in trusted_proxies:
                 return ip
@@ -400,7 +404,9 @@ class EdgeTrustAuthority:
                 if config.TRUST_PROXY_HEADERS or client_ip not in LOOPBACK_HOSTS:
                     return JSONResponse(
                         status_code=403,
-                        content={"detail": "unauthenticated API access is loopback-only"},
+                        content={
+                            "detail": "unauthenticated API access is loopback-only"
+                        },
                     )
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
         protected = path.startswith("/api/") or path in docs_paths

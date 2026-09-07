@@ -71,9 +71,9 @@ class MissionTransitionEntry(BaseModel):
     transition: MissionTransitionName
     sequence: int = Field(ge=0)
     recorded_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
+        default_factory=lambda: (
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        )
     )
 
 

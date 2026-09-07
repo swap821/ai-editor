@@ -10,6 +10,7 @@ Earned autonomy is ON: as verified writes accrue past the threshold, the
 ``create_file:training_ground/*.py`` class graduates to ``earned`` and later
 writes auto-grant without a human pause — the bridge firing on real evidence.
 """
+
 from __future__ import annotations
 
 import sys
@@ -54,8 +55,10 @@ def autonomy() -> dict:
 def main() -> None:
     session = "swarm-build-demo"
     before = autonomy()
-    print(f"earned-autonomy: enabled={before.get('enabled')} "
-          f"min_successes={before.get('min_successes')} summary={before.get('summary')}\n")
+    print(
+        f"earned-autonomy: enabled={before.get('enabled')} "
+        f"min_successes={before.get('min_successes')} summary={before.get('summary')}\n"
+    )
 
     tokens: list[str] = []
     approvals = 0
@@ -69,7 +72,9 @@ def main() -> None:
             "swarm": True,
         }
         print(f"--- swarm turn (replay {replay}) ---")
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        resp = requests.post(
+            f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S
+        )
         resp.raise_for_status()
         paused = None
         finished = False
@@ -83,8 +88,12 @@ def main() -> None:
                     print(f"  caste: {role}")
                 elif typ == "earned_autonomy":
                     earned_grants += 1
-                    print(f"  *** EARNED-AUTONOMY auto-grant [{role}]: {data.get('command')}")
-                elif out.startswith(("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")):
+                    print(
+                        f"  *** EARNED-AUTONOMY auto-grant [{role}]: {data.get('command')}"
+                    )
+                elif out.startswith(
+                    ("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")
+                ):
                     print(f"    [{role}] {out[:90]}")
             elif event == "human_required":
                 paused = data
@@ -113,9 +122,13 @@ def main() -> None:
     print("\n=== earned-autonomy ledger AFTER ===")
     print("summary:", after.get("summary"))
     for entry in after.get("entries", []):
-        print(f"  {entry['status']:>9}  {entry['action_type']}:{entry['target_shape']}  "
-              f"succ={entry['success_count']} streak={entry['streak']}")
-    print(f"\nhuman approvals (delegated): {approvals} | earned-autonomy auto-grants: {earned_grants}")
+        print(
+            f"  {entry['status']:>9}  {entry['action_type']}:{entry['target_shape']}  "
+            f"succ={entry['success_count']} streak={entry['streak']}"
+        )
+    print(
+        f"\nhuman approvals (delegated): {approvals} | earned-autonomy auto-grants: {earned_grants}"
+    )
 
 
 if __name__ == "__main__":

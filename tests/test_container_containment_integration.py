@@ -67,9 +67,7 @@ pytestmark = [
         os.getenv("AIOS_EXECUTOR_INTEGRATION") != "1",
         reason="needs a real Docker daemon; set AIOS_EXECUTOR_INTEGRATION=1",
     ),
-    pytest.mark.skipif(
-        shutil.which("docker") is None, reason="docker CLI not on PATH"
-    ),
+    pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not on PATH"),
 ]
 
 #: Paths a sandboxed command must never be able to create or modify. Both were

@@ -51,9 +51,10 @@ def test_real_client_ip_with_private_proxy_chain():
     try:
         config.TRUST_PROXY_HEADERS = True
         config.TRUSTED_PROXIES = frozenset({"10.0.0.2"})
-        request = _request(headers={
-            "x-forwarded-for": "10.0.0.1, 192.168.1.1, 8.8.8.8"
-        }, client_host="10.0.0.2")
+        request = _request(
+            headers={"x-forwarded-for": "10.0.0.1, 192.168.1.1, 8.8.8.8"},
+            client_host="10.0.0.2",
+        )
         assert edge_security.real_client_ip(request) == "8.8.8.8"
     finally:
         config.TRUST_PROXY_HEADERS = orig
@@ -66,9 +67,10 @@ def test_real_client_ip_picks_first_untrusted_chain_link():
     try:
         config.TRUST_PROXY_HEADERS = True
         config.TRUSTED_PROXIES = frozenset({"10.0.0.2"})
-        request = _request(headers={
-            "x-forwarded-for": "8.8.8.8, 192.168.1.1, 10.0.0.1"
-        }, client_host="10.0.0.2")
+        request = _request(
+            headers={"x-forwarded-for": "8.8.8.8, 192.168.1.1, 10.0.0.1"},
+            client_host="10.0.0.2",
+        )
         assert edge_security.real_client_ip(request) == "10.0.0.1"
     finally:
         config.TRUST_PROXY_HEADERS = orig
@@ -95,7 +97,9 @@ def test_real_client_ip_ignores_untrusted_proxy_headers():
     orig = config.TRUST_PROXY_HEADERS
     try:
         config.TRUST_PROXY_HEADERS = False
-        request = _request(headers={"x-forwarded-for": "8.8.8.8"}, client_host="192.168.1.5")
+        request = _request(
+            headers={"x-forwarded-for": "8.8.8.8"}, client_host="192.168.1.5"
+        )
         assert edge_security.real_client_ip(request) == "192.168.1.5"
     finally:
         config.TRUST_PROXY_HEADERS = orig
@@ -105,7 +109,10 @@ def test_validate_cors_origins_parses_and_deduplicates():
     orig = config.API_CORS_ORIGINS
     try:
         config.API_CORS_ORIGINS = ("http://localhost:5173", "https://app.example.com")
-        assert set(edge_security.validate_cors_origins(config.API_CORS_ORIGINS)) == {"http://localhost:5173", "https://app.example.com"}
+        assert set(edge_security.validate_cors_origins(config.API_CORS_ORIGINS)) == {
+            "http://localhost:5173",
+            "https://app.example.com",
+        }
     finally:
         config.API_CORS_ORIGINS = orig
 
@@ -159,6 +166,7 @@ def test_check_host_header_allows_packaged_gateway_host():
 def test_check_bearer_token_is_case_insensitive():
     class FakeConfig:
         API_TOKEN = "super-secret"
+
     orig = edge_security.config
     edge_security.config = FakeConfig()
     try:
@@ -259,7 +267,11 @@ def test_check_api_token_or_loopback_accepts_valid_token():
     orig = config.API_TOKEN
     try:
         config.API_TOKEN = "secret"
-        request = _request(client_host="8.8.8.8", path="/api/v1/status", headers={"authorization": "bearer secret"})
+        request = _request(
+            client_host="8.8.8.8",
+            path="/api/v1/status",
+            headers={"authorization": "bearer secret"},
+        )
         assert edge_security.check_api_token_or_loopback(request) is None
     finally:
         config.API_TOKEN = orig
@@ -404,10 +416,13 @@ def test_extract_session_id_prefers_cookie():
         orig_manager = edge_security.get_session_manager
         edge_security.get_session_manager = lambda: sm
         try:
-            sid = await edge_security.extract_session_id(request, allow_body_fallback=True)
+            sid = await edge_security.extract_session_id(
+                request, allow_body_fallback=True
+            )
             assert sid == "hashed-session"
         finally:
             edge_security.get_session_manager = orig_manager
+
     asyncio.run(_inner())
 
 
@@ -418,9 +433,10 @@ def test_extract_session_id_body_fallback_allowed():
         request.method = "POST"
         request.url.path = "/api/generate"
         request.headers = {"content-type": "application/json"}
-        request.body = AsyncMock(return_value=b"{\"sessionId\": \"body-session\"}")
+        request.body = AsyncMock(return_value=b'{"sessionId": "body-session"}')
         sid = await edge_security.extract_session_id(request, allow_body_fallback=True)
         assert sid == "body-session"
+
     asyncio.run(_inner())
 
 
@@ -431,9 +447,10 @@ def test_extract_session_id_body_fallback_blocked_by_default():
         request.method = "POST"
         request.url.path = "/api/generate"
         request.headers = {"content-type": "application/json"}
-        request.body = AsyncMock(return_value=b"{\"sessionId\": \"body-session\"}")
+        request.body = AsyncMock(return_value=b'{"sessionId": "body-session"}')
         sid = await edge_security.extract_session_id(request)
         assert sid is None
+
     asyncio.run(_inner())
 
 
@@ -444,7 +461,7 @@ def test_extract_session_id_body_fallback_blocked_for_privileged_route():
         request.method = "POST"
         request.url.path = "/api/v1/rollback"
         request.headers = {"content-type": "application/json"}
-        request.body = AsyncMock(return_value=b"{\"sessionId\": \"body-session\"}")
+        request.body = AsyncMock(return_value=b'{"sessionId": "body-session"}')
         sid = await edge_security.extract_session_id(request, allow_body_fallback=True)
         assert sid is None
         request.body.assert_not_awaited()
@@ -459,7 +476,8 @@ def test_extract_session_id_body_fallback_blocked_for_get():
         request.method = "GET"
         request.url.path = "/api/generate"
         request.headers = {"content-type": "application/json"}
-        request.body = AsyncMock(return_value=b"{\"sessionId\": \"body-session\"}")
+        request.body = AsyncMock(return_value=b'{"sessionId": "body-session"}')
         sid = await edge_security.extract_session_id(request, allow_body_fallback=True)
         assert sid is None
+
     asyncio.run(_inner())

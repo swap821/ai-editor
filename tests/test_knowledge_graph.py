@@ -1,4 +1,5 @@
 """Tests for S2 knowledge graph: confidence-weighted facts and traversal."""
+
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ def facts(tmp_path: Path) -> SemanticFacts:
 
 
 # ── add_fact confidence tests ────────────────────────────────────────────────
+
 
 def test_add_fact_with_confidence(facts: SemanticFacts) -> None:
     result = facts.add_fact("project", "uses", "FastAPI", confidence=0.7)
@@ -50,6 +52,7 @@ def test_add_fact_idempotent_takes_max_confidence(facts: SemanticFacts) -> None:
 
 # ── traverse_weighted tests ─────────────────────────────────────────────────
 
+
 def test_traverse_weighted_no_decay_at_depth_1(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI", confidence=1.0)
     edges = facts.traverse_weighted("project", max_depth=1)
@@ -81,7 +84,9 @@ def test_traverse_weighted_prunes_below_min(facts: SemanticFacts) -> None:
     facts.add_fact("a", "to", "b", confidence=0.3)
     facts.add_fact("b", "to", "c", confidence=0.3)
     facts.add_fact("c", "to", "d", confidence=0.3)
-    edges = facts.traverse_weighted("a", max_depth=3, min_path_confidence=0.1, decay=0.85)
+    edges = facts.traverse_weighted(
+        "a", max_depth=3, min_path_confidence=0.1, decay=0.85
+    )
     for e in edges:
         assert e.path_confidence >= 0.1
 
@@ -126,6 +131,7 @@ def test_traverse_weighted_clamps_depth(facts: SemanticFacts) -> None:
 
 
 # ── cross-store ingestion integration tests ─────────────────────────────────
+
 
 def test_confidence_survives_roundtrip(facts: SemanticFacts) -> None:
     facts.add_fact("error", "caused_by", "null_check", confidence=0.8)

@@ -1,15 +1,26 @@
 """Tests for aios.core.inference — inference composition from graph edges."""
+
 import pytest
 
 from aios.core.inference import InferenceStep, compose_answer, infer
 from aios.memory.facts import WeightedEdge
 
 
-def _edge(subject: str, predicate: str, obj: str, depth: int = 1,
-          confidence: float = 1.0, path_confidence: float = 1.0) -> WeightedEdge:
+def _edge(
+    subject: str,
+    predicate: str,
+    obj: str,
+    depth: int = 1,
+    confidence: float = 1.0,
+    path_confidence: float = 1.0,
+) -> WeightedEdge:
     return WeightedEdge(
-        subject=subject, predicate=predicate, object=obj,
-        depth=depth, confidence=confidence, path_confidence=path_confidence,
+        subject=subject,
+        predicate=predicate,
+        object=obj,
+        depth=depth,
+        confidence=confidence,
+        path_confidence=path_confidence,
         path=f"→{subject}→{obj}→",
     )
 

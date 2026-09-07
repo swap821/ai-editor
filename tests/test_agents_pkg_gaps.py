@@ -17,6 +17,7 @@ file weakens or bypasses aios/security/* — the frozen spine's RED
 classification is only ever *exercised* (e.g. verifying it still blocks),
 never disabled.
 """
+
 from __future__ import annotations
 
 import json
@@ -163,11 +164,15 @@ class TestValidateToolCalls:
         # Lines 451-454: function is a dict -> pull name/arguments from it.
         calls = [{"function": {"name": "read_file", "arguments": {"filepath": "x.py"}}}]
         validated = _validate_tool_calls(calls)
-        assert validated == [{"function": {"name": "read_file", "arguments": {"filepath": "x.py"}}}]
+        assert validated == [
+            {"function": {"name": "read_file", "arguments": {"filepath": "x.py"}}}
+        ]
 
     def test_function_dict_falls_back_to_parameters_key(self) -> None:
         # Line 454: arguments missing -> falls back to "parameters".
-        calls = [{"function": {"name": "read_file", "parameters": {"filepath": "y.py"}}}]
+        calls = [
+            {"function": {"name": "read_file", "parameters": {"filepath": "y.py"}}}
+        ]
         validated = _validate_tool_calls(calls)
         assert validated[0]["function"]["arguments"] == {"filepath": "y.py"}
 
@@ -175,7 +180,9 @@ class TestValidateToolCalls:
         # Line 456-457: no "function" key -> name from "tool", args from "input".
         calls = [{"tool": "read_directory", "input": {"path": "."}}]
         validated = _validate_tool_calls(calls)
-        assert validated == [{"function": {"name": "read_directory", "arguments": {"path": "."}}}]
+        assert validated == [
+            {"function": {"name": "read_directory", "arguments": {"path": "."}}}
+        ]
 
     def test_non_allowlisted_name_is_dropped_and_logged(self) -> None:
         # Lines 459-466: name not in _TOOL_NAMES -> blocked, not returned.
@@ -185,14 +192,21 @@ class TestValidateToolCalls:
     def test_non_primitive_argument_values_are_rejected(self) -> None:
         # Lines 470-476: a nested dict/list value fails the primitives-only check.
         calls = [
-            {"function": {"name": "read_file", "arguments": {"filepath": {"nested": "x"}}}}
+            {
+                "function": {
+                    "name": "read_file",
+                    "arguments": {"filepath": {"nested": "x"}},
+                }
+            }
         ]
         assert _validate_tool_calls(calls) == []
 
     def test_none_argument_value_is_accepted_as_primitive(self) -> None:
         calls = [{"function": {"name": "read_file", "arguments": {"filepath": None}}}]
         validated = _validate_tool_calls(calls)
-        assert validated == [{"function": {"name": "read_file", "arguments": {"filepath": None}}}]
+        assert validated == [
+            {"function": {"name": "read_file", "arguments": {"filepath": None}}}
+        ]
 
 
 class TestParseStructuredToolPayload:
@@ -222,9 +236,7 @@ class TestValidatedFromStructuredPayload:
         assert _validated_from_structured_payload("[1, 2, 3]") == []
 
     def test_list_of_dicts_validates_each(self) -> None:
-        payload = json.dumps(
-            [{"name": "read_file", "arguments": {"filepath": "a.py"}}]
-        )
+        payload = json.dumps([{"name": "read_file", "arguments": {"filepath": "a.py"}}])
         result = _validated_from_structured_payload(payload)
         assert result and result[0]["function"]["name"] == "read_file"
 
@@ -258,10 +270,7 @@ class TestExtractTextToolCalls:
         assert calls and calls[0]["function"]["name"] == "read_file"
 
     def test_tier1_raw_decode_recovers_leading_json_dict(self) -> None:
-        text = (
-            '{"name": "read_directory", "arguments": {"path": "."}} '
-            "trailing prose"
-        )
+        text = '{"name": "read_directory", "arguments": {"path": "."}} trailing prose'
         calls = _extract_text_tool_calls(text)
         assert calls and calls[0]["function"]["name"] == "read_directory"
 
@@ -280,7 +289,7 @@ class TestExtractTextToolCalls:
     def test_tier3_react_non_dict_args_is_skipped(self) -> None:
         # Line 579: raw_decode succeeds but yields a non-dict (e.g. a list) --
         # the ReAct tier only accepts dict args.
-        text = 'Action: read_file [1, 2, 3]'
+        text = "Action: read_file [1, 2, 3]"
         assert _extract_text_tool_calls(text) == []
 
     def test_react_recovery_disabled_flag_skips_tier3(self) -> None:
@@ -353,7 +362,9 @@ class TestCerebellumShortCircuit:
         )
         assert any(e["type"] == "text" for e in events)
         assert events[-1]["type"] == "done"
-        assert len(chat.calls) == 1, "the LLM must still be consulted after the match error"
+        assert len(chat.calls) == 1, (
+            "the LLM must still be consulted after the match error"
+        )
 
     def test_cerebellum_successful_replay_short_circuits_the_llm(self) -> None:
         # Lines 863-882: a matched playbook whose replay never aborts finishes
@@ -375,7 +386,9 @@ class TestCerebellumShortCircuit:
                 return playbook
 
             def replay(self, pb, *, dispatch_fn):
-                output, status, failed = dispatch_fn(pb.steps[0].tool_name, pb.steps[0].args)
+                output, status, failed = dispatch_fn(
+                    pb.steps[0].tool_name, pb.steps[0].args
+                )
                 yield {
                     "type": "tool_result",
                     "tool": pb.steps[0].tool_name,
@@ -385,14 +398,16 @@ class TestCerebellumShortCircuit:
 
         chat = ScriptedChat([])  # the LLM must never be called
         events = list(
-            ToolAgent(chat, _executor(), max_iters=3, cerebellum=MatchingCerebellum()).run(
-                [{"role": "user", "content": "list the directory"}]
-            )
+            ToolAgent(
+                chat, _executor(), max_iters=3, cerebellum=MatchingCerebellum()
+            ).run([{"role": "user", "content": "list the directory"}])
         )
         types = [e["type"] for e in events]
         assert "cerebellum_done" in types
         assert types[-1] == "done"
-        assert len(chat.calls) == 0, "a successful cerebellum replay must skip the LLM entirely"
+        assert len(chat.calls) == 0, (
+            "a successful cerebellum replay must skip the LLM entirely"
+        )
 
     def test_cerebellum_aborted_replay_falls_through_to_llm(self) -> None:
         # Line 869 (`_replay_ok = False`) then falls through past the `return`
@@ -402,7 +417,9 @@ class TestCerebellumShortCircuit:
             skill_id=2,
             goal_pattern="do a risky thing",
             signature_v2="sig2",
-            steps=[PlaybookStep(tool_name="execute_terminal", args={"command": "rm -rf /"})],
+            steps=[
+                PlaybookStep(tool_name="execute_terminal", args={"command": "rm -rf /"})
+            ],
             compiled_at="",
             replay_count=0,
             consecutive_failures=0,
@@ -418,9 +435,9 @@ class TestCerebellumShortCircuit:
 
         chat = ScriptedChat([{"role": "assistant", "content": "handled after abort"}])
         events = list(
-            ToolAgent(chat, _executor(), max_iters=2, cerebellum=AbortingCerebellum()).run(
-                [{"role": "user", "content": "do a risky thing"}]
-            )
+            ToolAgent(
+                chat, _executor(), max_iters=2, cerebellum=AbortingCerebellum()
+            ).run([{"role": "user", "content": "do a risky thing"}])
         )
         assert "cerebellum_done" not in [e["type"] for e in events]
         assert len(chat.calls) == 1, "an aborted replay must fall through to the LLM"
@@ -432,7 +449,9 @@ class TestCerebellumShortCircuit:
         # bypassed (and the LLM path used) when one is present.
         class NeverCalledCerebellum:
             def match(self, user_text):
-                raise AssertionError("cerebellum.match must not be called with pending approvals")
+                raise AssertionError(
+                    "cerebellum.match must not be called with pending approvals"
+                )
 
         chat = ScriptedChat([{"role": "assistant", "content": "answered via LLM"}])
         events = list(
@@ -478,39 +497,59 @@ class TestCerebellumApprovedReplay:
         # human. A compiled playbook step is pre-approved evidence, so replay
         # must run it directly -- pausing (status=="approval") would abort.
         playbook = CompiledPlaybook(
-            id=101, skill_id=101, goal_pattern="commit the change",
-            signature_v2="sig-yellow-exec", compiled_at="",
-            steps=[PlaybookStep(tool_name="execute_terminal",
-                                 args={"command": "git commit -m done"})],
-            replay_count=0, consecutive_failures=0, status="compiled",
+            id=101,
+            skill_id=101,
+            goal_pattern="commit the change",
+            signature_v2="sig-yellow-exec",
+            compiled_at="",
+            steps=[
+                PlaybookStep(
+                    tool_name="execute_terminal", args={"command": "git commit -m done"}
+                )
+            ],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
         )
         captured: list[tuple[str, str, bool]] = []
         chat = ScriptedChat([])  # must not be consulted on a clean replay
 
         events = list(
             ToolAgent(
-                chat, _executor(), max_iters=2,
+                chat,
+                _executor(),
+                max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
             ).run([{"role": "user", "content": "commit the change"}])
         )
 
         assert captured, "dispatch_fn must have been called"
         output, status, failed = captured[0]
-        assert status == "ok", f"a replayed YELLOW step must RUN, not pause (status={status!r})"
+        assert status == "ok", (
+            f"a replayed YELLOW step must RUN, not pause (status={status!r})"
+        )
         assert output.startswith("ran:"), "the command must have actually executed"
         assert "cerebellum_done" in [e["type"] for e in events]
-        assert len(chat.calls) == 0, "a clean pre-approved replay must never consult the LLM"
+        assert len(chat.calls) == 0, (
+            "a clean pre-approved replay must never consult the LLM"
+        )
 
     def test_replay_still_refuses_red_step_despite_pre_approval(self) -> None:
         # A RED step (destructive) is refused EVEN when replayed from a
         # compiled (pre-approved) playbook. This is the invariant FIX 3 must
         # never weaken: approval cannot authorise RED.
         playbook = CompiledPlaybook(
-            id=102, skill_id=102, goal_pattern="wipe everything",
-            signature_v2="sig-red-exec", compiled_at="",
-            steps=[PlaybookStep(tool_name="execute_terminal",
-                                 args={"command": "rm -rf /"})],
-            replay_count=0, consecutive_failures=0, status="compiled",
+            id=102,
+            skill_id=102,
+            goal_pattern="wipe everything",
+            signature_v2="sig-red-exec",
+            compiled_at="",
+            steps=[
+                PlaybookStep(tool_name="execute_terminal", args={"command": "rm -rf /"})
+            ],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
         )
         captured: list[tuple[str, str, bool]] = []
 
@@ -523,19 +562,25 @@ class TestCerebellumApprovedReplay:
                 return "should-not-run", "", 0
 
         runner = RecordingRunner()
-        ex = Executor(runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+        ex = Executor(
+            runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        )
         chat = ScriptedChat([{"role": "assistant", "content": "could not do that"}])
 
         events = list(
             ToolAgent(
-                chat, ex, max_iters=2,
+                chat,
+                ex,
+                max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
             ).run([{"role": "user", "content": "wipe everything"}])
         )
 
         assert captured
         output, status, failed = captured[0]
-        assert status == "blocked", "a RED step must still be refused even on pre-approved replay"
+        assert status == "blocked", (
+            "a RED step must still be refused even on pre-approved replay"
+        )
         assert "RED" in output.upper() or "BLOCK" in output.upper()
         assert runner.calls == [], "a blocked RED command must never reach the runner"
         assert "cerebellum_done" not in [e["type"] for e in events]
@@ -546,34 +591,48 @@ class TestCerebellumApprovedReplay:
         # likewise run directly on replay instead of pausing for approval.
         cmd = "python -m pytest -o addopts= tests -q"
         playbook = CompiledPlaybook(
-            id=103, skill_id=103, goal_pattern="run the tests",
-            signature_v2="sig-yellow-verify", compiled_at="",
+            id=103,
+            skill_id=103,
+            goal_pattern="run the tests",
+            signature_v2="sig-yellow-verify",
+            compiled_at="",
             steps=[PlaybookStep(tool_name="verify", args={"command": cmd})],
-            replay_count=0, consecutive_failures=0, status="compiled",
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
         )
         captured: list[tuple[str, str, bool]] = []
         chat = ScriptedChat([])
 
         events = list(
             ToolAgent(
-                chat, _passing_executor(), max_iters=2,
+                chat,
+                _passing_executor(),
+                max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
             ).run([{"role": "user", "content": "run the tests"}])
         )
 
         assert captured
         output, status, failed = captured[0]
-        assert status != "approval", f"a replayed YELLOW verify step must not pause (status={status!r})"
+        assert status != "approval", (
+            f"a replayed YELLOW verify step must not pause (status={status!r})"
+        )
         assert "cerebellum_done" in [e["type"] for e in events]
 
     def test_replay_still_refuses_red_verify_step_despite_pre_approval(self) -> None:
         # A RED command routed through the verify tool must ALSO still be
         # refused on replay -- the invariant is tool-agnostic.
         playbook = CompiledPlaybook(
-            id=104, skill_id=104, goal_pattern="verify by wiping the disk",
-            signature_v2="sig-red-verify", compiled_at="",
+            id=104,
+            skill_id=104,
+            goal_pattern="verify by wiping the disk",
+            signature_v2="sig-red-verify",
+            compiled_at="",
             steps=[PlaybookStep(tool_name="verify", args={"command": "rm -rf /"})],
-            replay_count=0, consecutive_failures=0, status="compiled",
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
         )
         captured: list[tuple[str, str, bool]] = []
 
@@ -586,25 +645,35 @@ class TestCerebellumApprovedReplay:
                 return "should-not-run", "", 0
 
         runner = RecordingRunner()
-        ex = Executor(runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+        ex = Executor(
+            runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        )
         chat = ScriptedChat([{"role": "assistant", "content": "could not verify that"}])
 
         events = list(
             ToolAgent(
-                chat, ex, max_iters=2,
+                chat,
+                ex,
+                max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
             ).run([{"role": "user", "content": "verify by wiping the disk"}])
         )
 
         assert captured
         output, status, failed = captured[0]
-        assert status == "blocked", "a RED verify command must still be refused on pre-approved replay"
-        assert runner.calls == [], "a blocked RED verify command must never reach the runner"
+        assert status == "blocked", (
+            "a RED verify command must still be refused on pre-approved replay"
+        )
+        assert runner.calls == [], (
+            "a blocked RED verify command must never reach the runner"
+        )
         assert "cerebellum_done" not in [e["type"] for e in events]
 
 
 class TestOfflineModeGuard:
-    def test_offline_mode_short_circuits_with_a_clear_message(self, monkeypatch) -> None:
+    def test_offline_mode_short_circuits_with_a_clear_message(
+        self, monkeypatch
+    ) -> None:
         # Lines 886-894: OFFLINE_MODE True -> immediate _finish, no LLM call.
         monkeypatch.setattr(config, "OFFLINE_MODE", True)
         chat = ScriptedChat([])
@@ -640,14 +709,18 @@ class TestStreamingIterationErrors:
         # (msg, False) without flushing any text events.
         def stream_fn(convo, *, tools=None, model=None):
             yield StreamFinished(
-                tool_calls=[{"function": {"name": "read_directory", "arguments": {"path": "."}}}],
+                tool_calls=[
+                    {"function": {"name": "read_directory", "arguments": {"path": "."}}}
+                ],
                 content="",
             )
 
         chat = ScriptedChat([{"role": "assistant", "content": "done after tool"}])
         agent = ToolAgent(chat, _executor(), max_iters=3, stream_fn=stream_fn)
         events = list(agent.run([{"role": "user", "content": "list files"}]))
-        assert any(e["type"] == "tool_call" and e["tool"] == "read_directory" for e in events)
+        assert any(
+            e["type"] == "tool_call" and e["tool"] == "read_directory" for e in events
+        )
         assert events[-1]["type"] == "done"
 
     def test_stream_finished_final_answer_flushes_buffered_text(self) -> None:
@@ -707,7 +780,9 @@ class TestNativePlanEvent:
         assert native_events[0]["goal"] == "known goal"
         assert native_events[0]["source"] == "verified_skill"
         assert native_events[0]["step_count"] == 2
-        assert agent._last_native_source is None, "the native source must be consumed once"
+        assert agent._last_native_source is None, (
+            "the native source must be consumed once"
+        )
 
 
 class TestDispatchUnknownTool:
@@ -813,11 +888,15 @@ class TestReadDirectoryHandler:
         # Lines 105-106: resolved exists but is_dir() is False.
         f = tmp_path / "a_file.txt"
         f.write_text("x", encoding="utf-8")
-        output, status, failed = tool_handlers.read_directory("a_file.txt", read_root=tmp_path)
+        output, status, failed = tool_handlers.read_directory(
+            "a_file.txt", read_root=tmp_path
+        )
         assert status == "blocked"
         assert "Not a directory" in output
 
-    def test_read_directory_listing_failure_reports_cleanly(self, tmp_path, monkeypatch) -> None:
+    def test_read_directory_listing_failure_reports_cleanly(
+        self, tmp_path, monkeypatch
+    ) -> None:
         # Lines 111-112: iterdir() raising is caught.
         subdir = tmp_path / "sub"
         subdir.mkdir()
@@ -833,7 +912,9 @@ class TestReadDirectoryHandler:
     def test_read_directory_empty_dir_reports_empty(self, tmp_path) -> None:
         subdir = tmp_path / "empty"
         subdir.mkdir()
-        output, status, failed = tool_handlers.read_directory("empty", read_root=tmp_path)
+        output, status, failed = tool_handlers.read_directory(
+            "empty", read_root=tmp_path
+        )
         assert status == "ok"
         assert output == "(empty)"
 
@@ -863,7 +944,9 @@ class TestEditFileHandlerGaps:
         )
         assert status == "blocked"
         assert "snapshot failed" in output.lower()
-        assert f.read_text(encoding="utf-8") == "x = 1\n", "an unsnapshotted edit must not land"
+        assert f.read_text(encoding="utf-8") == "x = 1\n", (
+            "an unsnapshotted edit must not land"
+        )
 
     def test_edit_audit_failure_blocks_the_write(self, sandbox) -> None:
         f = sandbox / "conf2.txt"
@@ -883,7 +966,9 @@ class TestEditFileHandlerGaps:
         )
         assert status == "blocked"
         assert "audit failed" in output.lower()
-        assert f.read_text(encoding="utf-8") == "x = 1\n", "an unaudited edit must not land"
+        assert f.read_text(encoding="utf-8") == "x = 1\n", (
+            "an unaudited edit must not land"
+        )
 
     def test_edit_write_failure_is_reported(self, sandbox, monkeypatch) -> None:
         f = sandbox / "conf3.txt"
@@ -1096,7 +1181,9 @@ class TestBrowseUrlHandlerGaps:
         assert status == "blocked"
         assert "redirect" in output.lower()
 
-    def test_browse_html_response_strips_tags_and_returns_text(self, monkeypatch) -> None:
+    def test_browse_html_response_strips_tags_and_returns_text(
+        self, monkeypatch
+    ) -> None:
         # Lines 516-527: text/html content-type -> BeautifulSoup extraction path.
         import socket as socket_mod
 
@@ -1126,7 +1213,9 @@ class TestBrowseUrlHandlerGaps:
         )
         assert status == "ok"
         assert "Hello Page" in output
-        assert "evil()" not in output, "script tags must be stripped before returning text"
+        assert "evil()" not in output, (
+            "script tags must be stripped before returning text"
+        )
 
     def test_browse_fetch_exception_is_a_soft_error(self, monkeypatch) -> None:
         # Lines 528-529: any exception during the fetch -> ERROR, status ok, failed True.
@@ -1162,7 +1251,9 @@ class TestPlanTaskHandlerGaps:
             def plan(self, goal):
                 raise LLMError("completion model unavailable")
 
-        output, status, failed = tool_handlers.plan_task("do a thing", planner=ExplodingPlanner())
+        output, status, failed = tool_handlers.plan_task(
+            "do a thing", planner=ExplodingPlanner()
+        )
         assert status == "ok"
         assert failed is False
         assert "planner failed" in output.lower()
@@ -1187,7 +1278,9 @@ class TestSelfAnalyzeHandlerGaps:
         assert status == "blocked"
         assert "Not a directory" in output
 
-    def test_self_analyze_agent_exception_is_caught(self, tmp_path, monkeypatch) -> None:
+    def test_self_analyze_agent_exception_is_caught(
+        self, tmp_path, monkeypatch
+    ) -> None:
         # Lines 617-621: agent.analyze()/write_report() raising is caught.
         pkg = tmp_path / "pkg"
         pkg.mkdir()
@@ -1212,7 +1305,9 @@ class TestSelfAnalyzeHandlerGaps:
         pkg.mkdir()
         # Ten orphan modules with no test -> 10 missing_test findings.
         for i in range(10):
-            (pkg / f"orphan_{i}.py").write_text(f"def f{i}():\n    return {i}\n", encoding="utf-8")
+            (pkg / f"orphan_{i}.py").write_text(
+                f"def f{i}():\n    return {i}\n", encoding="utf-8"
+            )
         output, status, failed = tool_handlers.self_analyze(
             "pkg2",
             read_root=tmp_path,
@@ -1249,7 +1344,9 @@ class TestProposeFixesHandlerGaps:
         assert status == "ok"
         assert "Proposed fixes" in output
 
-    def test_propose_fixes_agent_exception_is_caught(self, tmp_path, monkeypatch) -> None:
+    def test_propose_fixes_agent_exception_is_caught(
+        self, tmp_path, monkeypatch
+    ) -> None:
         # Lines 664-673: propose_open raising is caught -> advisory error.
         (tmp_path / "aios").mkdir()
 
@@ -1325,7 +1422,9 @@ class TestSwarmFormatRecallAndLabels:
 
 
 class TestRunLegPlanArtifactHandoff:
-    def test_plan_artifact_becomes_the_handoff_when_answer_is_empty(self, sandbox) -> None:
+    def test_plan_artifact_becomes_the_handoff_when_answer_is_empty(
+        self, sandbox
+    ) -> None:
         # Lines 261-267: a leg that only ever calls `plan` (no final text
         # answer beyond the step-limit sentinel) hands off the plan artifact
         # text instead of an empty string.
@@ -1338,9 +1437,13 @@ class TestRunLegPlanArtifactHandoff:
             ]
         )
         make_agent = _factory(chat, _executor())
-        agent = make_agent(system_prompt=DECOMPOSER_PROMPT, allowed_tools=DECOMPOSER_TOOLS, max_iters=1)
+        agent = make_agent(
+            system_prompt=DECOMPOSER_PROMPT, allowed_tools=DECOMPOSER_TOOLS, max_iters=1
+        )
         result = _run_leg_direct(agent, [{"role": "user", "content": "plan this"}])
-        assert result.answer, "an all-plan leg must hand off the plan artifact, not nothing"
+        assert result.answer, (
+            "an all-plan leg must hand off the plan artifact, not nothing"
+        )
         assert result.answer != STEP_LIMIT_TEXT
 
     def test_step_limit_sentinel_answer_becomes_empty_handoff(self, sandbox) -> None:
@@ -1395,7 +1498,15 @@ class TestSwarmScoutAndDecomposerStopPropagation:
 
         class RecallingPatternMemory:
             def recall(self, goal, *, limit=3):
-                return [{"pattern_id": 1, "goal_pattern": goal, "success_count": 3, "success_rate": 0.9, "subtasks": ["x"]}]
+                return [
+                    {
+                        "pattern_id": 1,
+                        "goal_pattern": goal,
+                        "success_count": 3,
+                        "success_rate": 0.9,
+                        "subtasks": ["x"],
+                    }
+                ]
 
             def bump_use(self, pattern_id):
                 pass
@@ -1419,7 +1530,9 @@ class TestSwarmScoutAndDecomposerStopPropagation:
         )
         types = [e["type"] for e in events]
         assert "error" in types
-        assert "swarm_plan" not in types, "a scout pause must stop before any plan is emitted"
+        assert "swarm_plan" not in types, (
+            "a scout pause must stop before any plan is emitted"
+        )
         assert "done" not in types
 
     def test_decomposer_pause_stops_the_swarm(self, sandbox) -> None:
@@ -1437,7 +1550,9 @@ class TestSwarmScoutAndDecomposerStopPropagation:
         assert "swarm_plan" not in types
         assert "done" not in types
 
-    def test_empty_decomposition_degrades_to_a_single_worker_over_the_goal(self, sandbox) -> None:
+    def test_empty_decomposition_degrades_to_a_single_worker_over_the_goal(
+        self, sandbox
+    ) -> None:
         # Lines 373-375: the decomposer produces NO parseable subtasks (it hits
         # its own step-limit cap -- max_iters=4 in swarm.py's decomposer leg --
         # whose STEP_LIMIT_TEXT sentinel `_parse_subtasks` deliberately treats
@@ -1497,7 +1612,9 @@ class TestSwarmScoutAndDecomposerStopPropagation:
                 pattern_memory=ExplodingBumpMemory(),
             )
         )
-        assert events[-1]["type"] == "done", "a bump_use failure must not abort the swarm"
+        assert events[-1]["type"] == "done", (
+            "a bump_use failure must not abort the swarm"
+        )
 
 
 class TestSwarmCloudBrokerStopPropagation:
@@ -1516,7 +1633,9 @@ class TestSwarmCloudBrokerStopPropagation:
 
         class DummyCloudAgent:
             def __call__(self, **overrides):
-                raise AssertionError("cloud agent must never be constructed if the broker paused")
+                raise AssertionError(
+                    "cloud agent must never be constructed if the broker paused"
+                )
 
         events = list(
             run_swarm(
@@ -1534,7 +1653,9 @@ class TestSwarmCloudBrokerStopPropagation:
 
 
 class TestSwarmQuorumAndSynthesizerStopPropagation:
-    def test_quorum_pause_stops_the_sequential_swarm(self, sandbox, monkeypatch) -> None:
+    def test_quorum_pause_stops_the_sequential_swarm(
+        self, sandbox, monkeypatch
+    ) -> None:
         # Lines 448-452: replicas>1 -> quorum leg runs; if IT pauses, return.
         # QUORUM_TOOLS is {read_file, read_directory, verify, plan} -- an
         # unapproved `verify` pauses the leg (verify_command's REQUIRE_APPROVAL
@@ -1565,7 +1686,9 @@ class TestSwarmQuorumAndSynthesizerStopPropagation:
         assert "synthesizer" not in _castes(events)
         assert "done" not in types
 
-    def test_quorum_pause_stops_the_concurrent_swarm(self, sandbox, monkeypatch) -> None:
+    def test_quorum_pause_stops_the_concurrent_swarm(
+        self, sandbox, monkeypatch
+    ) -> None:
         # Lines 475-481: same as above but on the worker_concurrency>1 path.
         monkeypatch.setattr(config, "SWARM_REDUNDANCY", 2)
         chat = ScriptedChat(
@@ -1614,7 +1737,9 @@ class TestSwarmQuorumAndSynthesizerStopPropagation:
             )
         )
         types = [e["type"] for e in events]
-        assert "human_required" in types, "synthesizer's own unapproved write must pause"
+        assert "human_required" in types, (
+            "synthesizer's own unapproved write must pause"
+        )
         assert "done" not in types
 
 
@@ -1662,20 +1787,34 @@ class TestClassifyTarget:
     def test_frozen_subdir_exact_match_is_red(self) -> None:
         from aios.agents.self_analysis_agent import classify_target
 
-        assert classify_target("aios/security", package="aios", frozen_subdirs=("security",)) == "RED"
+        assert (
+            classify_target(
+                "aios/security", package="aios", frozen_subdirs=("security",)
+            )
+            == "RED"
+        )
 
     def test_frozen_subdir_nested_path_is_red(self) -> None:
         from aios.agents.self_analysis_agent import classify_target
 
         assert (
-            classify_target("aios/security/gateway.py", package="aios", frozen_subdirs=("security",))
+            classify_target(
+                "aios/security/gateway.py", package="aios", frozen_subdirs=("security",)
+            )
             == "RED"
         )
 
     def test_non_frozen_path_is_yellow(self) -> None:
         from aios.agents.self_analysis_agent import classify_target
 
-        assert classify_target("aios/agents/tool_agent.py", package="aios", frozen_subdirs=("security",)) == "YELLOW"
+        assert (
+            classify_target(
+                "aios/agents/tool_agent.py",
+                package="aios",
+                frozen_subdirs=("security",),
+            )
+            == "YELLOW"
+        )
 
     def test_similarly_named_but_not_nested_dir_is_yellow(self) -> None:
         # A directory that merely STARTS with the frozen name (e.g.
@@ -1683,7 +1822,9 @@ class TestClassifyTarget:
         from aios.agents.self_analysis_agent import classify_target
 
         assert (
-            classify_target("aios/security_extra/x.py", package="aios", frozen_subdirs=("security",))
+            classify_target(
+                "aios/security_extra/x.py", package="aios", frozen_subdirs=("security",)
+            )
             == "YELLOW"
         )
 
@@ -1694,7 +1835,9 @@ class TestSelfAnalysisAgentGaps:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "broken.py").write_text("def f(:\n  pass\n", encoding="utf-8")
-        agent = SelfAnalysisAgent(scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path)
+        agent = SelfAnalysisAgent(
+            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path
+        )
         result = agent.scan_module(pkg / "broken.py")
         assert result is None
 
@@ -1729,7 +1872,9 @@ class TestSelfAnalysisAgentGaps:
         tests = tmp_path / "tests"
         tests.mkdir()
         (tests / "test_broken.py").write_text("def test(:\n  pass\n", encoding="utf-8")
-        (tests / "test_ok.py").write_text("import os\n\ndef test_x():\n    assert os\n", encoding="utf-8")
+        (tests / "test_ok.py").write_text(
+            "import os\n\ndef test_x():\n    assert os\n", encoding="utf-8"
+        )
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         agent = SelfAnalysisAgent(scope_root=pkg, tests_root=tests, path_root=tmp_path)
@@ -1744,13 +1889,17 @@ class TestSelfAnalysisAgentGaps:
         )
         assert agent._test_imports() == set()
 
-    def test_scan_source_findings_skips_unreadable_source(self, tmp_path, monkeypatch) -> None:
+    def test_scan_source_findings_skips_unreadable_source(
+        self, tmp_path, monkeypatch
+    ) -> None:
         # Lines 405-406: path.read_text() raising OSError -> [].
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         f = pkg / "m.py"
         f.write_text("x = 1\n", encoding="utf-8")
-        agent = SelfAnalysisAgent(scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path)
+        agent = SelfAnalysisAgent(
+            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path
+        )
 
         def exploding_read_text(self, encoding="utf-8"):
             raise OSError("simulated read failure")
@@ -1758,14 +1907,18 @@ class TestSelfAnalysisAgentGaps:
         monkeypatch.setattr(type(f), "read_text", exploding_read_text)
         assert agent._scan_source_findings(f, "pkg/m.py") == []
 
-    def test_scan_source_findings_tokenize_error_returns_partial(self, tmp_path) -> None:
+    def test_scan_source_findings_tokenize_error_returns_partial(
+        self, tmp_path
+    ) -> None:
         # Lines 420-421: a TokenizeError during comment scanning returns early.
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         # An unterminated string literal breaks tokenize with a TokenError.
         f = pkg / "unterminated.py"
         f.write_text('x = "unterminated string\n', encoding="utf-8")
-        agent = SelfAnalysisAgent(scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path)
+        agent = SelfAnalysisAgent(
+            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path
+        )
         findings = agent._scan_source_findings(f, "pkg/unterminated.py")
         assert findings == []
 
@@ -1778,14 +1931,18 @@ class TestSelfAnalysisAgentGaps:
         pkg.mkdir()
         f = pkg / "bad_syntax.py"
         f.write_text("def f(:\n    # TODO fix this\n    pass\n", encoding="utf-8")
-        agent = SelfAnalysisAgent(scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path)
+        agent = SelfAnalysisAgent(
+            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path
+        )
         findings = agent._scan_source_findings(f, "pkg/bad_syntax.py")
         # Whatever tokenize found (e.g. the TODO) may be present, but nothing
         # from AST-based analysis (complexity/long-function) can be, and the
         # call must not raise.
         assert all(f.finding_type != "complexity" for f in findings)
 
-    def test_complexity_findings_radon_exception_falls_back_to_proxy(self, tmp_path, monkeypatch) -> None:
+    def test_complexity_findings_radon_exception_falls_back_to_proxy(
+        self, tmp_path, monkeypatch
+    ) -> None:
         # Lines 455-456: radon's cc_visit raising -> blocks stays None -> proxy path.
         import aios.agents.self_analysis_agent as saa
 
@@ -1805,7 +1962,9 @@ class TestSelfAnalysisAgentGaps:
         if saa._radon_cc_visit is not None:
             monkeypatch.setattr(saa, "_radon_cc_visit", exploding_cc_visit)
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
             complexity_threshold=5,
         )
         src = f.read_text(encoding="utf-8")
@@ -1820,8 +1979,12 @@ class TestSelfAnalysisAgentGaps:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "m.py").write_text("x = 1\n", encoding="utf-8")
-        agent = SelfAnalysisAgent(scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path)
-        result = agent.propose_fix(target_path="pkg/m.py", finding_type="smell", evidence="ev")
+        agent = SelfAnalysisAgent(
+            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path
+        )
+        result = agent.propose_fix(
+            target_path="pkg/m.py", finding_type="smell", evidence="ev"
+        )
         assert result is None
 
     def test_propose_fix_unreadable_target_returns_none(self, tmp_path) -> None:
@@ -1829,7 +1992,9 @@ class TestSelfAnalysisAgentGaps:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
             llm=FakePlannerLLM("--- a\n+++ b\n"),
         )
         result = agent.propose_fix(
@@ -1848,9 +2013,14 @@ class TestSelfAnalysisAgentGaps:
                 raise LLMError("completion backend down")
 
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path, llm=ExplodingLLM()
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
+            llm=ExplodingLLM(),
         )
-        result = agent.propose_fix(target_path="pkg/m.py", finding_type="smell", evidence="ev")
+        result = agent.propose_fix(
+            target_path="pkg/m.py", finding_type="smell", evidence="ev"
+        )
         assert result is None
 
     def test_propose_fix_generic_exception_returns_none(self, tmp_path) -> None:
@@ -1863,9 +2033,14 @@ class TestSelfAnalysisAgentGaps:
                 raise RuntimeError("unexpected failure")
 
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path, llm=ExplodingLLM()
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
+            llm=ExplodingLLM(),
         )
-        result = agent.propose_fix(target_path="pkg/m.py", finding_type="smell", evidence="ev")
+        result = agent.propose_fix(
+            target_path="pkg/m.py", finding_type="smell", evidence="ev"
+        )
         assert result is None
 
     def test_propose_fix_empty_diff_returns_none(self, tmp_path) -> None:
@@ -1874,10 +2049,14 @@ class TestSelfAnalysisAgentGaps:
         pkg.mkdir()
         (pkg / "m.py").write_text("x = 1\n", encoding="utf-8")
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
             llm=FakePlannerLLM("   \n  "),
         )
-        result = agent.propose_fix(target_path="pkg/m.py", finding_type="smell", evidence="ev")
+        result = agent.propose_fix(
+            target_path="pkg/m.py", finding_type="smell", evidence="ev"
+        )
         assert result is None
 
     def test_propose_fix_success_returns_scrubbed_diff(self, tmp_path) -> None:
@@ -1885,10 +2064,16 @@ class TestSelfAnalysisAgentGaps:
         pkg.mkdir()
         (pkg / "m.py").write_text("x = 1\n", encoding="utf-8")
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
-            llm=FakePlannerLLM("--- a/pkg/m.py\n+++ b/pkg/m.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"),
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
+            llm=FakePlannerLLM(
+                "--- a/pkg/m.py\n+++ b/pkg/m.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+            ),
         )
-        result = agent.propose_fix(target_path="pkg/m.py", finding_type="smell", evidence="ev")
+        result = agent.propose_fix(
+            target_path="pkg/m.py", finding_type="smell", evidence="ev"
+        )
         assert result is not None
         assert "x = 2" in result
 
@@ -1908,10 +2093,15 @@ class TestSelfAnalysisAgentGaps:
         # Lines 734-753: end-to-end open->proposed happy path.
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        (pkg / "orphan.py").write_text("def lonely():\n    return 1\n", encoding="utf-8")
+        (pkg / "orphan.py").write_text(
+            "def lonely():\n    return 1\n", encoding="utf-8"
+        )
         db_path = tmp_path / "report.db"
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path, db_path=db_path,
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
+            db_path=db_path,
             llm=FakePlannerLLM("--- a\n+++ b\n@@\n-x\n+y\n"),
         )
         report = agent.analyze()
@@ -1925,10 +2115,15 @@ class TestSelfAnalysisAgentGaps:
         # Line 744-745: propose_fix returning None for a row -> stays open.
         pkg = tmp_path / "pkg"
         pkg.mkdir()
-        (pkg / "orphan.py").write_text("def lonely():\n    return 1\n", encoding="utf-8")
+        (pkg / "orphan.py").write_text(
+            "def lonely():\n    return 1\n", encoding="utf-8"
+        )
         db_path = tmp_path / "report.db"
         agent = SelfAnalysisAgent(
-            scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path, db_path=db_path,
+            scope_root=pkg,
+            tests_root=tmp_path / "tests",
+            path_root=tmp_path,
+            db_path=db_path,
             llm=FakePlannerLLM("   "),  # blank -> propose_fix returns None
         )
         report = agent.analyze()
@@ -1962,9 +2157,13 @@ class TestFinishStreamAndCodeOnly:
     def test_finish_stream_with_blank_content_uses_placeholder(self) -> None:
         import re
 
-        code_fence = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", __import__("re").DOTALL)
+        code_fence = re.compile(
+            r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", __import__("re").DOTALL
+        )
         events = list(
-            tool_loop_helpers.finish_stream("   ", code_fence=code_fence, preview_limit=400)
+            tool_loop_helpers.finish_stream(
+                "   ", code_fence=code_fence, preview_limit=400
+            )
         )
         joined = "".join(e["text"] for e in events if e["type"] == "text")
         assert "(no answer)" in joined
@@ -1976,7 +2175,9 @@ class TestFinishStreamAndCodeOnly:
         code_fence = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
         content = "Here you go:\n```python\nline1\nline2\nline3\n```"
         events = list(
-            tool_loop_helpers.finish_stream(content, code_fence=code_fence, preview_limit=400)
+            tool_loop_helpers.finish_stream(
+                content, code_fence=code_fence, preview_limit=400
+            )
         )
         assert any(e["type"] == "code_chunk" for e in events)
         code_events = [e for e in events if e["type"] == "code"]
@@ -1989,7 +2190,9 @@ class TestFinishStreamAndCodeOnly:
         code_fence = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
         content = "answer\n```text\n   \n```"
         events = list(
-            tool_loop_helpers.finish_stream(content, code_fence=code_fence, preview_limit=400)
+            tool_loop_helpers.finish_stream(
+                content, code_fence=code_fence, preview_limit=400
+            )
         )
         assert not any(e["type"] == "code" for e in events)
         assert events[-1]["type"] == "done"
@@ -2007,7 +2210,9 @@ class TestFinishStreamAndCodeOnly:
 
         code_fence = re.compile(r"```([a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
         content = "```js\nconsole.log(1)\n```"
-        events = list(tool_loop_helpers.finish_code_only(content, code_fence=code_fence))
+        events = list(
+            tool_loop_helpers.finish_code_only(content, code_fence=code_fence)
+        )
         assert not any(e["type"] == "text" for e in events)
         code_events = [e for e in events if e["type"] == "code"]
         assert code_events and code_events[0]["language"] == "js"
@@ -2030,7 +2235,11 @@ class TestFormatHumanRequiredEvent:
             "call-1",
         )
         assert event["command"] == "edit a.py"
-        assert event["edit"] == {"filepath": "a.py", "old_string": "x", "new_string": "y"}
+        assert event["edit"] == {
+            "filepath": "a.py",
+            "old_string": "x",
+            "new_string": "y",
+        }
 
     def test_create_file_shape_includes_creation_payload(self) -> None:
         event = tool_loop_helpers.format_human_required_event(
@@ -2066,7 +2275,10 @@ class TestGrantEarned:
         approved_edits: dict = {}
         approved_creations: dict = {}
         tool_loop_helpers.grant_earned(
-            "create_file", {"filepath": "n.py", "content": "z = 1"}, approved_edits, approved_creations
+            "create_file",
+            {"filepath": "n.py", "content": "z = 1"},
+            approved_edits,
+            approved_creations,
         )
         assert approved_creations == {"n.py": "z = 1"}
         assert approved_edits == {}
@@ -2085,7 +2297,9 @@ class TestGrantEarned:
     def test_grant_earned_unknown_tool_mutates_neither_dict(self) -> None:
         approved_edits: dict = {}
         approved_creations: dict = {}
-        tool_loop_helpers.grant_earned("verify", {"command": "pytest"}, approved_edits, approved_creations)
+        tool_loop_helpers.grant_earned(
+            "verify", {"command": "pytest"}, approved_edits, approved_creations
+        )
         assert approved_edits == {} and approved_creations == {}
 
 
@@ -2108,7 +2322,11 @@ class TestReflectHelper:
         pending: list[tuple[int, str]] = []
 
         def hook(command, error_output):
-            return {"mistake_id": 42, "error_type": "AssertionError", "lesson_text": "check x"}
+            return {
+                "mistake_id": 42,
+                "error_type": "AssertionError",
+                "lesson_text": "check x",
+            }
 
         events = list(tool_loop_helpers.reflect("pytest -q", "boom", 1, pending, hook))
         assert pending == [(42, "pytest -q")]
@@ -2136,9 +2354,7 @@ class TestReflectHelper:
 
 class TestConfirmHelper:
     def test_confirm_no_hook_yields_nothing(self) -> None:
-        events = list(
-            tool_loop_helpers.confirm([(1, "cmd")], "cmd", 0, None)
-        )
+        events = list(tool_loop_helpers.confirm([(1, "cmd")], "cmd", 0, None))
         assert events == []
 
     def test_confirm_no_promoted_lessons_yields_nothing(self) -> None:
@@ -2167,12 +2383,17 @@ class TestConfirmHelper:
         pending = [(1, "cmd"), (2, "other")]
         events = list(
             tool_loop_helpers.confirm(
-                pending, "cmd", 0, lambda mid: promoted.append(mid),
+                pending,
+                "cmd",
+                0,
+                lambda mid: promoted.append(mid),
                 strength=VerificationStrength.STRONG,
             )
         )
         assert promoted == [1]
-        assert pending == [(2, "other")], "only the matching command's lesson is cleared"
+        assert pending == [(2, "other")], (
+            "only the matching command's lesson is cleared"
+        )
         assert events and "Verified 1 earlier lesson" in events[0]["output"]
 
     def test_confirm_swallows_confirm_lesson_exception(self) -> None:
@@ -2182,7 +2403,11 @@ class TestConfirmHelper:
 
         events = list(
             tool_loop_helpers.confirm(
-                [(1, "cmd")], "cmd", 0, exploding_confirm, strength=VerificationStrength.STRONG,
+                [(1, "cmd")],
+                "cmd",
+                0,
+                exploding_confirm,
+                strength=VerificationStrength.STRONG,
             )
         )
         # Still yields the summary event even though the persistence call failed.
@@ -2236,7 +2461,9 @@ class TestFormatVerifierResult:
             strength=VerificationStrength.WEAK,
         )
         output, _, _ = tool_loop_helpers.format_verifier_result(result)
-        assert "\n" not in output, "a blank summary body must not add a trailing newline"
+        assert "\n" not in output, (
+            "a blank summary body must not add a trailing newline"
+        )
 
 
 # =========================================================================== #
@@ -2245,7 +2472,9 @@ class TestFormatVerifierResult:
 # is exercised, never weakened).
 # =========================================================================== #
 class TestVerifyCommandIntegration:
-    def test_verify_command_require_approval_maps_to_approval_status(self, sandbox) -> None:
+    def test_verify_command_require_approval_maps_to_approval_status(
+        self, sandbox
+    ) -> None:
         verifier = Verifier(_executor())
         output, status, failed = tool_handlers.verify_command(
             "pip install something-unapproved",
@@ -2257,7 +2486,9 @@ class TestVerifyCommandIntegration:
         # pip install is a YELLOW action needing human approval in this project.
         assert status in ("approval", "blocked", "ok")  # environment-dependent gate
 
-    def test_verify_command_blocked_red_command_maps_to_blocked_status(self, sandbox) -> None:
+    def test_verify_command_blocked_red_command_maps_to_blocked_status(
+        self, sandbox
+    ) -> None:
         verifier = Verifier(_executor())
         output, status, failed = tool_handlers.verify_command(
             "rm -rf /",

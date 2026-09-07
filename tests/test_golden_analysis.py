@@ -16,6 +16,7 @@ Regenerate the golden deliberately, AFTER an intended change, with::
 
     AIOS_UPDATE_GOLDEN=1 .venv/Scripts/python -m pytest tests/test_golden_analysis.py -q
 """
+
 from __future__ import annotations
 
 import json
@@ -35,7 +36,9 @@ _LONG_FUNCTION_THRESHOLD = 15
 _COMPLEXITY_THRESHOLD = 5
 
 
-def _agent(tmp_path, *, complexity_threshold: int = _COMPLEXITY_THRESHOLD) -> SelfAnalysisAgent:
+def _agent(
+    tmp_path, *, complexity_threshold: int = _COMPLEXITY_THRESHOLD
+) -> SelfAnalysisAgent:
     return SelfAnalysisAgent(
         scope_root=_FIXTURE / "pkg",
         tests_root=_FIXTURE / "tests",
@@ -67,7 +70,9 @@ def test_golden_findings_match(tmp_path) -> None:
     actual = _sorted_findings(_agent(tmp_path))
 
     if os.environ.get("AIOS_UPDATE_GOLDEN") == "1":
-        _GOLDEN.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _GOLDEN.write_text(
+            json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         print(f"golden updated: wrote {len(actual)} findings to {_GOLDEN}")
         return
 
@@ -88,7 +93,7 @@ def test_golden_findings_match(tmp_path) -> None:
 def test_golden_t0_map_invariants(tmp_path) -> None:
     # A cheap drift signal on the T0 map: module count + a known intra-package edge.
     report = _agent(tmp_path).analyze()
-    assert len(report.modules) == 5   # __init__, orphan, tidy, bloated, tangled
+    assert len(report.modules) == 5  # __init__, orphan, tidy, bloated, tangled
     assert "pkg.tidy" in report.import_map["pkg/orphan.py"]
 
 

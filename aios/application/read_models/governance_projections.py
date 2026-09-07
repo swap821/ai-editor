@@ -42,14 +42,20 @@ from aios.domain.read_models.contracts import (
 
 
 def _measured(value: Any, source: str) -> MetricEnvelope:
-    return MetricEnvelope(value=value, status=MetricStatus.MEASURED, source=source, freshness=0)
+    return MetricEnvelope(
+        value=value, status=MetricStatus.MEASURED, source=source, freshness=0
+    )
 
 
 def _unavailable(source: str) -> MetricEnvelope:
-    return MetricEnvelope(value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None)
+    return MetricEnvelope(
+        value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None
+    )
 
 
-def project_constitution(snapshot: ConstitutionSnapshotV1 | None) -> ConstitutionProjection:
+def project_constitution(
+    snapshot: ConstitutionSnapshotV1 | None,
+) -> ConstitutionProjection:
     """Project the active constitution, or all-`UNAVAILABLE` when none is loaded.
 
     A missing snapshot must never render as version 0 or an empty-but-present
@@ -84,7 +90,9 @@ def project_emergency_stop(state: EmergencyStopState) -> EmergencyStopProjection
     return EmergencyStopProjection(
         engaged=_measured(state.engaged, source),
         generation=_measured(state.generation, source),
-        reason=_measured(state.reason, source) if state.reason else _unavailable(source),
+        reason=_measured(state.reason, source)
+        if state.reason
+        else _unavailable(source),
         engaged_at=(
             _measured(state.engaged_at, source)
             if state.engaged_at is not None
@@ -93,7 +101,9 @@ def project_emergency_stop(state: EmergencyStopState) -> EmergencyStopProjection
     )
 
 
-def project_provider_health(snapshot: ProviderHealthSnapshot) -> ProviderHealthProjection:
+def project_provider_health(
+    snapshot: ProviderHealthSnapshot,
+) -> ProviderHealthProjection:
     """Project one provider's circuit-breaker health from a real, reported snapshot.
 
     `budget_remaining=None` on the source snapshot means unknown cost (the
@@ -141,16 +151,22 @@ def project_approval(
     return ApprovalProjection(
         requested_action=_measured(action.action_type, source),
         requesting_model=(
-            _measured(requesting_model, source) if requesting_model else _unavailable(source)
+            _measured(requesting_model, source)
+            if requesting_model
+            else _unavailable(source)
         ),
-        mission_id=_measured(mission_id, source) if mission_id else _unavailable(source),
+        mission_id=_measured(mission_id, source)
+        if mission_id
+        else _unavailable(source),
         risk=_measured(risk, source) if risk else _unavailable(source),
         scope=_measured(scope, source) if scope else _unavailable(source),
         reversibility=(
             _measured(reversibility, source) if reversibility else _unavailable(source)
         ),
         verification_plan=(
-            _measured(verification_plan, source) if verification_plan else _unavailable(source)
+            _measured(verification_plan, source)
+            if verification_plan
+            else _unavailable(source)
         ),
         constitution_version=(
             _measured(constitution_version, source)
@@ -260,10 +276,10 @@ class ReadModelProjectionAuthority:
     ) -> dict[str, Any]:
         """Project one coherent surface from the live authoritative inputs."""
         try:
-            privacy_audits = project_privacy_audits(
-                privacy_audit_tracker, limit=limit
+            privacy_audits = project_privacy_audits(privacy_audit_tracker, limit=limit)
+            privacy_audits_status = _measured(
+                len(privacy_audits), "privacy_audit_tracker"
             )
-            privacy_audits_status = _measured(len(privacy_audits), "privacy_audit_tracker")
         except PrivacyAuditUnavailableError as exc:
             privacy_audits = ()
             privacy_audits_status = _unavailable("privacy_audit_tracker.unavailable")

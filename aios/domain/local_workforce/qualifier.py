@@ -174,7 +174,7 @@ def _cases() -> tuple[_Case, ...]:
         _Case(
             "structure_validation",
             "A record must contain fields 'id' and 'status'. Given the record "
-            "{\"id\": \"R-1\"}, validate it. Return exactly valid=false and "
+            '{"id": "R-1"}, validate it. Return exactly valid=false and '
             "missing_fields=['status'].",
             lambda data: _exact_fields(
                 data, {"valid": False, "missing_fields": ["status"]}

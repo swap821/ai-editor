@@ -3,6 +3,7 @@
 Only the subprocess-free aggregation is tested here; the checks themselves shell out
 to npm/canon tools and are exercised by running the script, not in the suite.
 """
+
 from tools.frontend_health import (
     FAIL,
     OK,
@@ -27,7 +28,13 @@ def test_all_ok_rolls_up_to_ok() -> None:
 def test_worst_status_wins_and_findings_flatten() -> None:
     checks = [
         CheckResult("eslint", "correctness", OK, "clean"),
-        CheckResult("css-canon", "canon", FAIL, "violations", findings=["css-canon: off-canon hex"]),
+        CheckResult(
+            "css-canon",
+            "canon",
+            FAIL,
+            "violations",
+            findings=["css-canon: off-canon hex"],
+        ),
         CheckResult("bundle-size", "build", WARN, "large"),
         CheckResult("a11y-static", "a11y", UNAVAILABLE, "not wired"),
     ]

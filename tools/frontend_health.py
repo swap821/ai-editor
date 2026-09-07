@@ -22,6 +22,7 @@ Usage:
   python tools/frontend_health.py --json PATH      # write report (default .aios/state/FRONTEND_HEALTH.json)
   python tools/frontend_health.py --gate           # exit 1 if any check failed
 """
+
 from __future__ import annotations
 
 import argparse
@@ -91,7 +92,9 @@ def _npm_check(name: str, axis: str, script: str, *, timeout: int) -> CheckResul
         return CheckResult(name, axis, UNAVAILABLE, "npm not on PATH")
     if not (FRONTEND / "node_modules").is_dir():
         return CheckResult(
-            name, axis, UNAVAILABLE,
+            name,
+            axis,
+            UNAVAILABLE,
             "frontend/node_modules missing — run `cd frontend; npm install`",
         )
     rc, tail = _run([npm, "run", script], cwd=FRONTEND, timeout=timeout)
@@ -99,10 +102,17 @@ def _npm_check(name: str, axis: str, script: str, *, timeout: int) -> CheckResul
     if rc is None:
         return CheckResult(name, axis, UNAVAILABLE, tail, duration_s=dur)
     if rc == 0:
-        return CheckResult(name, axis, OK, f"`npm run {script}` clean", tail[-600:], duration_s=dur)
+        return CheckResult(
+            name, axis, OK, f"`npm run {script}` clean", tail[-600:], duration_s=dur
+        )
     return CheckResult(
-        name, axis, FAIL, f"`npm run {script}` exited {rc}", tail[-2000:],
-        findings=[f"{name}: non-zero exit ({rc}) — see evidence"], duration_s=dur,
+        name,
+        axis,
+        FAIL,
+        f"`npm run {script}` exited {rc}",
+        tail[-2000:],
+        findings=[f"{name}: non-zero exit ({rc}) — see evidence"],
+        duration_s=dur,
     )
 
 
@@ -115,10 +125,17 @@ def _canon_check(name: str, script: Path, args: list[str]) -> CheckResult:
     if rc is None:
         return CheckResult(name, "canon", UNAVAILABLE, tail, duration_s=dur)
     if rc == 0:
-        return CheckResult(name, "canon", OK, f"{script.name} clean", tail[-600:], duration_s=dur)
+        return CheckResult(
+            name, "canon", OK, f"{script.name} clean", tail[-600:], duration_s=dur
+        )
     return CheckResult(
-        name, "canon", FAIL, f"{script.name} reported violations (exit {rc})",
-        tail[-2000:], findings=[f"{name}: canon violation — see evidence"], duration_s=dur,
+        name,
+        "canon",
+        FAIL,
+        f"{script.name} reported violations (exit {rc})",
+        tail[-2000:],
+        findings=[f"{name}: canon violation — see evidence"],
+        duration_s=dur,
     )
 
 
@@ -127,7 +144,9 @@ def _bundle_size() -> CheckResult:
     dist = FRONTEND / "dist"
     if not dist.is_dir():
         return CheckResult(
-            "bundle-size", "build", UNAVAILABLE,
+            "bundle-size",
+            "build",
+            UNAVAILABLE,
             "no frontend/dist — run with --full (needs a build first)",
         )
     assets = list(dist.rglob("*.js")) + list(dist.rglob("*.css"))
@@ -140,7 +159,9 @@ def _bundle_size() -> CheckResult:
     # Advisory budget only — a WARN prompt to look, never a hard fail (no baseline yet).
     status = WARN if total_kb > 3000 else OK
     return CheckResult(
-        "bundle-size", "build", status,
+        "bundle-size",
+        "build",
+        status,
         f"{total_kb} KB across {len(assets)} JS/CSS assets"
         + (" (over 3 MB advisory budget)" if status == WARN else ""),
         evidence,
@@ -156,7 +177,9 @@ def collect(full: bool) -> list[CheckResult]:
         _canon_check("canon-frozen", REPO_ROOT / "tools" / "check_canon_frozen.py", []),
         # a11y is an open decision (spec §9.3): no eslint-jsx-a11y / axe wired yet.
         CheckResult(
-            "a11y-static", "a11y", UNAVAILABLE,
+            "a11y-static",
+            "a11y",
+            UNAVAILABLE,
             "no eslint-jsx-a11y configured — spec §9.3 open decision (recommend static-first)",
         ),
     ]
@@ -194,7 +217,9 @@ def _print_summary(report: dict[str, Any]) -> None:
         f"unavailable={s['counts'][UNAVAILABLE]}  fail={s['counts'][FAIL]}\n"
     )
     for c in report["checks"]:
-        print(f"  {icon.get(c['status'], '[?]'):7} {c['axis']:11} {c['name']:14} {c['summary']}")
+        print(
+            f"  {icon.get(c['status'], '[?]'):7} {c['axis']:11} {c['name']:14} {c['summary']}"
+        )
     if s["actionable_findings"]:
         print("\n  Actionable findings (evidence-backed):")
         for f in s["actionable_findings"]:
@@ -204,7 +229,9 @@ def _print_summary(report: dict[str, Any]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Frontend health detector (CRW P0)")
-    ap.add_argument("--full", action="store_true", help="also run tests + build + bundle size")
+    ap.add_argument(
+        "--full", action="store_true", help="also run tests + build + bundle size"
+    )
     ap.add_argument("--json", type=Path, default=DEFAULT_OUT, help="report output path")
     ap.add_argument("--gate", action="store_true", help="exit 1 if any check failed")
     args = ap.parse_args(argv)

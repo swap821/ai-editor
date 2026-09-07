@@ -18,6 +18,7 @@ Same dead end #215/#238 fixed for no-op writes and #240 fixed for edit_file.
 The gate does not move: the command is still blocked, nothing new is permitted.
 Only the message gains a next step.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -104,8 +105,12 @@ def test_the_refusal_itself_is_unchanged() -> None:
     from aios.agents.tool_handlers import _format_exec_result
 
     blocked = SimpleNamespace(
-        status="BLOCKED", reason="RED zone command refused.",
-        command="cat training_ground/x.py", stdout="", stderr="", exit_code=1,
+        status="BLOCKED",
+        reason="RED zone command refused.",
+        command="cat training_ground/x.py",
+        stdout="",
+        stderr="",
+        exit_code=1,
     )
     output, status, failed = _format_exec_result(blocked)
 

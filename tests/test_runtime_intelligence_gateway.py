@@ -219,6 +219,7 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
     contract_path.write_text(contract.model_dump_json(), encoding="utf-8")
 
     seen_prompts: list[str] = []
+
     class PatchedGateway:
         def __init__(self, **_kwargs):
             pass
@@ -235,7 +236,9 @@ def test_hybrid_worker_entry_requests_plan_before_allowed_edit(
             )
 
     monkeypatch.setattr("aios.runtime.worker_api.IntelligenceGateway", PatchedGateway)
-    monkeypatch.setattr("aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host")
+    monkeypatch.setattr(
+        "aios.runtime.worker_api.config.APPROVED_EXECUTION_BACKEND", "host"
+    )
 
     exit_code = run_worker(
         contract_path=contract_path,
@@ -273,6 +276,8 @@ def gateway_request(
         risk=contract.risk_level,
         allow_cloud=allow_cloud,
     )
+
+
 def test_governed_gateway_routes_local_reasoning_through_universal_context(
     tmp_path: Path,
 ) -> None:

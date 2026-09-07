@@ -6,6 +6,7 @@ whose verdict is parametrizable — so no real shell, model, or test suite runs.
 single REAL operation under test is the file write itself (``git apply``), against
 the throwaway temp root.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -34,10 +35,13 @@ class _FakeVerifier:
         self.summary = summary
         self.calls: list[str] = []
 
-    def verify(self, command: str, *, session_id=None, approved=False) -> VerifierResult:
+    def verify(
+        self, command: str, *, session_id=None, approved=False
+    ) -> VerifierResult:
         self.calls.append(command)
         return VerifierResult(
-            passed=self._passed, summary=self.summary,
+            passed=self._passed,
+            summary=self.summary,
             confidence_delta=0.0 if self._passed else -0.2,
         )
 
@@ -150,11 +154,13 @@ def test_apply_refuses_credential_like_approver_identity(tmp_path) -> None:
 def test_apply_verify_fail_rolls_back(tmp_path) -> None:
     pr, db, pid = _seed(tmp_path)
     audit = _FakeAudit()
-    res = _engine(pr, db, verifier=_FakeVerifier(passed=False, summary="1 failed"), audit=audit).apply(
-        pid, approved_by="alice"
-    )
+    res = _engine(
+        pr, db, verifier=_FakeVerifier(passed=False, summary="1 failed"), audit=audit
+    ).apply(pid, approved_by="alice")
     assert res.status == "rolled_back"
-    assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE  # restored byte-identical
+    assert (pr / _TARGET).read_text(
+        encoding="utf-8"
+    ) == _BEFORE  # restored byte-identical
     assert _row(db, pid)["status"] == "rolled_back"
     # Both the apply and the rollback are on the ledger.
     payloads = " ".join(p for _, p, _ in audit.entries)
@@ -175,7 +181,9 @@ def test_apply_no_self_approval_refused(tmp_path, approver) -> None:
 def test_apply_red_frozen_core_refused(tmp_path) -> None:
     # A proposal under aios/security/ is RED -> refused (that is T4); verify never runs.
     diff = _GOOD_DIFF.replace("aios/widget.py", "aios/security/gate.py")
-    pr, db, pid = _seed(tmp_path, target_rel="aios/security/gate.py", diff=diff, proposed_zone="RED")
+    pr, db, pid = _seed(
+        tmp_path, target_rel="aios/security/gate.py", diff=diff, proposed_zone="RED"
+    )
     fake_v = _FakeVerifier(passed=True)
     res = _engine(pr, db, verifier=fake_v).apply(pid, approved_by="alice")
     assert res.status == "refused" and "RED" in res.reason
@@ -195,7 +203,9 @@ def test_apply_diff_does_not_apply_cleanly_refused(tmp_path) -> None:
 
 
 def test_apply_multi_file_diff_refused(tmp_path) -> None:
-    multi = _GOOD_DIFF + "--- a/aios/other.py\n+++ b/aios/other.py\n@@ -1 +1 @@\n-a\n+b\n"
+    multi = (
+        _GOOD_DIFF + "--- a/aios/other.py\n+++ b/aios/other.py\n@@ -1 +1 @@\n-a\n+b\n"
+    )
     pr, db, pid = _seed(tmp_path, diff=multi)
     res = _engine(pr, db).apply(pid, approved_by="alice")
     assert res.status == "refused" and "exactly" in res.reason
@@ -245,7 +255,9 @@ def test_apply_blocked_when_audit_fails(tmp_path) -> None:
         raise RuntimeError("ledger locked")
 
     fake_v = _FakeVerifier(passed=True)
-    res = _engine(pr, db, verifier=fake_v, audit=boom_audit).apply(pid, approved_by="alice")
+    res = _engine(pr, db, verifier=fake_v, audit=boom_audit).apply(
+        pid, approved_by="alice"
+    )
     assert res.status == "refused" and "audit failed" in res.reason
     assert (pr / _TARGET).read_text(encoding="utf-8") == _BEFORE  # never written
     assert _row(db, pid)["status"] == "proposed"
@@ -276,7 +288,9 @@ def test_apply_reports_rollback_failure_honestly(tmp_path, monkeypatch) -> None:
     assert "restored" not in res.reason
 
 
-def test_atomic_restore_publish_failure_preserves_current_file(tmp_path, monkeypatch) -> None:
+def test_atomic_restore_publish_failure_preserves_current_file(
+    tmp_path, monkeypatch
+) -> None:
     pr, db, _ = _seed(tmp_path, content=_AFTER)
     eng = _engine(pr, db)
     target = pr / _TARGET
@@ -295,7 +309,11 @@ def test_atomic_restore_publish_failure_preserves_current_file(tmp_path, monkeyp
 def test_apply_restores_when_status_persistence_fails(tmp_path, monkeypatch) -> None:
     pr, db, pid = _seed(tmp_path)
     eng = _engine(pr, db, verifier=_FakeVerifier(passed=True))
-    monkeypatch.setattr(eng, "_set_status", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db locked")))
+    monkeypatch.setattr(
+        eng,
+        "_set_status",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db locked")),
+    )
 
     res = eng.apply(pid, approved_by="alice")
 

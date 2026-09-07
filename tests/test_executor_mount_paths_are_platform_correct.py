@@ -44,6 +44,7 @@ import pytest
 from aios.core import executor as executor_module
 from aios.core.executor import _is_windows_style, _writable_scope_mounts
 
+
 def _mount_sources(mounts: list[str]) -> list[str]:
     """The `src=` value of every `--mount` spec."""
     sources: list[str] = []
@@ -90,8 +91,6 @@ def test_the_predicate_is_not_ntpath_isabs() -> None:
         "ntpath.isabs() says True here, and using it as the discriminator is "
         f"what emitted {ntpath.normpath(posix)!r} to Docker"
     )
-
-
 
 
 # --------------------------------------------------------------------------- #

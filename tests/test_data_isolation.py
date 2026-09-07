@@ -6,6 +6,7 @@ rollback DB) resolves under that temp dir and the real ``data/`` is untouched. W
 an empty isolated index, ``hybrid_search`` also short-circuits to ``[]`` without
 loading the embedder — which is why the API tests no longer need a stub.
 """
+
 from __future__ import annotations
 
 import os
@@ -31,7 +32,9 @@ def test_derived_paths_live_under_the_temp_data_dir() -> None:
         config.FAISS_INDEX_PATH,
         config.ROLLBACK_DIR,
     ):
-        assert path.parent == config.DATA_DIR, f"{path} must live under the temp DATA_DIR"
+        assert path.parent == config.DATA_DIR, (
+            f"{path} must live under the temp DATA_DIR"
+        )
     # Concretely: none of them point at the real project data/ artifacts.
     real_data = config.PROJECT_ROOT / "data"
     assert config.MEMORY_DB_PATH != real_data / "aios_memory.db"
@@ -63,6 +66,4 @@ def test_hybrid_search_short_circuits_empty_without_loading_embedder(
     monkeypatch.setattr(EmbeddingModel, "instance", staticmethod(_boom))
     empty_index = VectorIndex(path=tmp_path / "empty_isolation_check.faiss")
     assert empty_index.size == 0
-    assert (
-        retrieval.hybrid_search("anything at all", top_k=3, index=empty_index) == []
-    )
+    assert retrieval.hybrid_search("anything at all", top_k=3, index=empty_index) == []

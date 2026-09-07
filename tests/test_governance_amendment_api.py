@@ -143,9 +143,7 @@ def test_ratify_a_foundation_law_touching_proposal_is_refused(client) -> None:
         ),
     )
 
-    resp = client.post(
-        "/api/v1/governance/amendments/amend-foundation/ratify", json={}
-    )
+    resp = client.post("/api/v1/governance/amendments/amend-foundation/ratify", json={})
 
     assert resp.status_code == 409
     assert "foundation" in resp.json()["detail"].lower()
@@ -179,9 +177,7 @@ def test_ratify_then_activate_chains_a_real_next_constitution_snapshot(client) -
 
 def test_cannot_critique_an_already_rejected_proposal(client) -> None:
     client.post("/api/v1/governance/amendments/propose", json=_propose_body())
-    client.post(
-        "/api/v1/governance/amendments/amend-1/reject", json={"reason": "no"}
-    )
+    client.post("/api/v1/governance/amendments/amend-1/reject", json={"reason": "no"})
 
     resp = client.post(
         "/api/v1/governance/amendments/amend-1/critique",
@@ -222,9 +218,7 @@ def test_two_activations_chain_against_the_real_persisted_current_snapshot(
 def test_rollback_reverts_to_the_exact_predecessor_digest(client) -> None:
     client.post("/api/v1/governance/amendments/propose", json=_propose_body())
     client.post("/api/v1/governance/amendments/amend-1/ratify", json={})
-    activated = client.post(
-        "/api/v1/governance/amendments/amend-1/activate", json={}
-    )
+    activated = client.post("/api/v1/governance/amendments/amend-1/activate", json={})
     activated_digest = activated.json()["newConstitutionDigest"]
 
     resp = client.post("/api/v1/governance/amendments/amend-1/rollback", json={})

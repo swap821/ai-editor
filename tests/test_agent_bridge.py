@@ -10,6 +10,7 @@ The honest limit is stated in the module docstring and asserted below: this is
 adjudication an external agent CHOOSES to consult, not containment it cannot
 escape. A patched client simply does not ask.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -56,6 +57,7 @@ def test_a_command_tool_with_no_command_fails_closed() -> None:
 
 # -- writes ------------------------------------------------------------------
 
+
 def test_a_write_inside_the_sandbox_is_allowed() -> None:
     assert authorize("Write", {"file_path": "training_ground/x.py"}).allowed
 
@@ -99,13 +101,21 @@ def test_a_bare_relative_write_resolves_where_the_agent_stands() -> None:
 
 # -- reads -------------------------------------------------------------------
 
+
 def test_reading_source_inside_the_repo_is_allowed() -> None:
     assert authorize("Read", {"file_path": "aios/security/gateway.py"}).allowed
 
 
 @pytest.mark.parametrize(
-    "path", [".env", "config/.env.local", "keys/id_rsa", "gcp/credentials.json",
-             "certs/server.pem", "secrets/api.key"]
+    "path",
+    [
+        ".env",
+        "config/.env.local",
+        "keys/id_rsa",
+        "gcp/credentials.json",
+        "certs/server.pem",
+        "secrets/api.key",
+    ],
 )
 def test_credential_bearing_reads_are_refused(path: str) -> None:
     """A read is not harmless when the bytes are a key.
@@ -129,6 +139,7 @@ def test_secret_detection_looks_at_the_filename_not_the_directory() -> None:
 
 
 # -- fail-closed -------------------------------------------------------------
+
 
 @pytest.mark.parametrize("tool", ["WebFetch", "Task", "KillShell", "", "NotARealTool"])
 def test_an_unmodelled_tool_is_refused(tool: str) -> None:

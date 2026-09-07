@@ -61,7 +61,15 @@ def main() -> int:
         "Web/library metadata is advisory; local qualification is the admission evidence.",
     ]
     path.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"artifact": str(path), "recommendations": [item["model"] for item in recommendations]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "artifact": str(path),
+                "recommendations": [item["model"] for item in recommendations],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

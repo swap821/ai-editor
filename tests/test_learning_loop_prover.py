@@ -5,6 +5,7 @@ running backend + local LLM and is exercised by the harness itself; these
 tests CI-gate everything deterministic: sandbox-allowlist compliance,
 outcome/evidence classification, and the strict/lenient check semantics.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -98,7 +99,9 @@ class TestApprovalAllowlist:
         assert ok
 
     def test_outside_edit_rejected(self):
-        ok, why = check_allowlist({"input": {"edits": [{"filepath": "aios/config.py"}]}})
+        ok, why = check_allowlist(
+            {"input": {"edits": [{"filepath": "aios/config.py"}]}}
+        )
         assert not ok and "outside allowlist" in why
 
     def test_pytest_command_approved(self):
@@ -118,22 +121,30 @@ class TestApprovalAllowlist:
 
 class TestEvidenceClassification:
     def test_fail_before_pass_true_on_recovery(self):
-        result = {"evidence": [
-            "[VERIFY FAIL] 0 passed, 2 failed (exit 1) (strength=NONE)",
-            "[VERIFY PASS] 2 passed, 0 failed (exit 0) (strength=STRONG)",
-        ]}
+        result = {
+            "evidence": [
+                "[VERIFY FAIL] 0 passed, 2 failed (exit 1) (strength=NONE)",
+                "[VERIFY PASS] 2 passed, 0 failed (exit 0) (strength=STRONG)",
+            ]
+        }
         assert fail_before_pass(result)
 
     def test_fail_before_pass_false_without_failure(self):
         assert not fail_before_pass(
-            {"evidence": ["[VERIFY PASS] 2 passed, 0 failed (exit 0) (strength=STRONG)"]}
+            {
+                "evidence": [
+                    "[VERIFY PASS] 2 passed, 0 failed (exit 0) (strength=STRONG)"
+                ]
+            }
         )
 
     def test_fail_before_pass_false_when_ending_failed(self):
-        result = {"evidence": [
-            "[VERIFY PASS] 2 passed, 0 failed (exit 0) (strength=STRONG)",
-            "[VERIFY FAIL] 0 passed, 2 failed (exit 1) (strength=NONE)",
-        ]}
+        result = {
+            "evidence": [
+                "[VERIFY PASS] 2 passed, 0 failed (exit 0) (strength=STRONG)",
+                "[VERIFY FAIL] 0 passed, 2 failed (exit 1) (strength=NONE)",
+            ]
+        }
         assert not fail_before_pass(result)
 
     def test_fail_before_pass_ignores_skipped(self):
@@ -141,7 +152,11 @@ class TestEvidenceClassification:
 
     def test_strong_pass_requires_strong_label(self):
         assert strong_pass(
-            {"evidence": ["[VERIFY PASS] 3 passed, 0 failed (exit 0) (strength=STRONG)"]}
+            {
+                "evidence": [
+                    "[VERIFY PASS] 3 passed, 0 failed (exit 0) (strength=STRONG)"
+                ]
+            }
         )
         assert not strong_pass(
             {"evidence": ["[VERIFY PASS] 0 passed, 0 failed (exit 0) (strength=WEAK)"]}
@@ -161,8 +176,10 @@ class TestEvidenceClassification:
         # reflect-tagged one is the lesson-promotion step.
         plain_verify = {"step_ids": ["verify-2"], "step_tools": ["verify"]}
         assert not has_confirm_step(plain_verify)
-        confirm = {"step_ids": ["reflect-1", "verify-4"],
-                   "step_tools": ["reflect", "reflect"]}
+        confirm = {
+            "step_ids": ["reflect-1", "verify-4"],
+            "step_tools": ["reflect", "reflect"],
+        }
         assert has_confirm_step(confirm)
 
     def test_used_write_tools(self):

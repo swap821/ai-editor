@@ -30,17 +30,17 @@ def fake_ollama():
             "details": {
                 "family": "llama",
                 "parameter_size": "3B",
-                "quantization_level": "Q4_K_M"
-            }
+                "quantization_level": "Q4_K_M",
+            },
         },
         {
             "name": "qwen2.5:3b",
             "details": {
                 "family": "qwen",
                 "parameter_size": "3B",
-                "quantization_level": "Q4_K_M"
-            }
-        }
+                "quantization_level": "Q4_K_M",
+            },
+        },
     ]
     return client
 
@@ -48,16 +48,16 @@ def fake_ollama():
 def test_registry_reconciliation_discovery(memory_db, fake_ollama):
     """Test that reconcile() discovers and inserts new models."""
     registry = LocalWorkforceRegistry(fake_ollama)
-    
+
     # Initially empty
     assert len(registry.list_models()) == 0
-    
+
     # Reconcile should discover the two models
     registry.reconcile()
-    
+
     models = registry.list_models()
     assert len(models) == 2
-    
+
     # Verify defaults
     llama = registry.get_model("llama3.2:3b")
     assert llama is not None
@@ -73,7 +73,7 @@ def test_registry_reconciliation_uninstalls(memory_db, fake_ollama):
     """Test that models no longer reported by Ollama are marked uninstalled but not deleted."""
     registry = LocalWorkforceRegistry(fake_ollama)
     registry.reconcile()
-    
+
     # Now simulate qwen being deleted from Ollama
     fake_ollama.list_detailed_models.return_value = [
         {
@@ -81,19 +81,19 @@ def test_registry_reconciliation_uninstalls(memory_db, fake_ollama):
             "details": {
                 "family": "llama",
                 "parameter_size": "3B",
-                "quantization_level": "Q4_K_M"
-            }
+                "quantization_level": "Q4_K_M",
+            },
         }
     ]
-    
+
     registry.reconcile()
-    
+
     models = registry.list_models()
     assert len(models) == 2  # qwen should still be in the DB
-    
+
     llama = registry.get_model("llama3.2:3b")
     qwen = registry.get_model("qwen2.5:3b")
-    
+
     assert llama.installed is True
     assert qwen.installed is False
 
@@ -103,18 +103,22 @@ def test_registry_preserves_configuration_across_restarts(memory_db, fake_ollama
     # Instance 1: Discovery and manual configuration
     registry1 = LocalWorkforceRegistry(fake_ollama)
     registry1.reconcile()
-    
+
     registry1.update_approval("llama3.2:3b", True)
-    registry1.update_admission("llama3.2:3b", "approved", "Approved for general clerical work")
-    registry1.update_profiles("llama3.2:3b", {LocalJobProfile.CLASSIFY, LocalJobProfile.SUMMARISE})
+    registry1.update_admission(
+        "llama3.2:3b", "approved", "Approved for general clerical work"
+    )
+    registry1.update_profiles(
+        "llama3.2:3b", {LocalJobProfile.CLASSIFY, LocalJobProfile.SUMMARISE}
+    )
     registry1.record_health("llama3.2:3b", "healthy", success=True)
-    
+
     # "Restart": Instance 2 should load identical state
     registry2 = LocalWorkforceRegistry(fake_ollama)
     # The models list should already contain the state without reconciling
     models = registry2.list_models()
     assert len(models) == 2
-    
+
     llama = registry2.get_model("llama3.2:3b")
     assert llama.operator_approved is True
     assert llama.admission_status == "approved"
@@ -129,10 +133,10 @@ def test_registry_records_failure_count(memory_db, fake_ollama):
     """Ensure failures increment the failure count."""
     registry = LocalWorkforceRegistry(fake_ollama)
     registry.reconcile()
-    
+
     registry.record_health("llama3.2:3b", "failing", success=False)
     registry.record_health("llama3.2:3b", "failing", success=False)
-    
+
     llama = registry.get_model("llama3.2:3b")
     assert llama.health == "failing"
     assert llama.failure_count == 2

@@ -59,7 +59,9 @@ class ReceiptCheckingOllama:
     ):
         assert tools is None
         contexts = self.receipts.list_recent()
-        assert contexts, "the provider must not run before representative context persists"
+        assert contexts, (
+            "the provider must not run before representative context persists"
+        )
         assert self.receipts.get_bundle(contexts[0].request_id) is not None
         self.receipt_was_persisted_before_provider = True
         self.messages.append(messages)
@@ -108,12 +110,8 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
     receipts = RepresentativeContextStore(contexts_path)
     provider = ReceiptCheckingOllama(receipts)
     taste_authority = MagicMock(wraps=OperatorTasteModelAuthority(preferences))
-    project_authority = MagicMock(
-        wraps=ProjectUnderstandingAuthority(passports)
-    )
-    correction_authority = MagicMock(
-        wraps=CorrectionLineageAuthority(corrections)
-    )
+    project_authority = MagicMock(wraps=ProjectUnderstandingAuthority(passports))
+    correction_authority = MagicMock(wraps=CorrectionLineageAuthority(corrections))
 
     api_main.app.dependency_overrides[api_main.get_ollama_client] = lambda: provider
     api_main.app.dependency_overrides[api_main.get_bedrock_client] = lambda: None
@@ -122,21 +120,29 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
     api_main.app.dependency_overrides[api_main.get_anthropic_client] = lambda: None
     api_main.app.dependency_overrides[api_main.get_semantic_facts] = lambda: facts
     api_main.app.dependency_overrides[api_main.get_semantic_indexer] = lambda: None
-    api_main.app.dependency_overrides[get_operator_preference_store] = lambda: preferences
-    api_main.app.dependency_overrides[get_operator_taste_model_authority] = (
-        lambda: taste_authority
+    api_main.app.dependency_overrides[get_operator_preference_store] = lambda: (
+        preferences
+    )
+    api_main.app.dependency_overrides[get_operator_taste_model_authority] = lambda: (
+        taste_authority
     )
     api_main.app.dependency_overrides[get_project_passport_store] = lambda: passports
-    api_main.app.dependency_overrides[get_project_understanding_authority] = (
-        lambda: project_authority
+    api_main.app.dependency_overrides[get_project_understanding_authority] = lambda: (
+        project_authority
     )
     api_main.app.dependency_overrides[get_correction_record_store] = lambda: corrections
-    api_main.app.dependency_overrides[
-        api_main.get_correction_lineage_authority
-    ] = lambda: correction_authority
-    api_main.app.dependency_overrides[get_conversation_state_store] = lambda: conversation
-    api_main.app.dependency_overrides[get_human_state_hypothesis_store] = lambda: human_states
-    api_main.app.dependency_overrides[get_representative_context_store] = lambda: receipts
+    api_main.app.dependency_overrides[api_main.get_correction_lineage_authority] = (
+        lambda: correction_authority
+    )
+    api_main.app.dependency_overrides[get_conversation_state_store] = lambda: (
+        conversation
+    )
+    api_main.app.dependency_overrides[get_human_state_hypothesis_store] = lambda: (
+        human_states
+    )
+    api_main.app.dependency_overrides[get_representative_context_store] = lambda: (
+        receipts
+    )
 
     try:
         with TestClient(api_main.app, client=("127.0.0.1", 12345)) as client:
@@ -227,9 +233,11 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
         )
         assert provider.receipt_was_persisted_before_provider is True
         assert "event: representative_context" in response.text
-        assert response.text.index("event: human_state") < response.text.index(
-            "event: representative_context"
-        ) < response.text.index("event: route")
+        assert (
+            response.text.index("event: human_state")
+            < response.text.index("event: representative_context")
+            < response.text.index("event: route")
+        )
         assert "governed reply" in response.text
 
         provider_payload = json.dumps(provider.messages, sort_keys=True)
@@ -272,23 +280,32 @@ def test_authenticated_chat_uses_real_durable_sources_and_receipt_before_provide
         restarted_human_states = HumanStateHypothesisStore(human_state_path)
         restarted_receipts = RepresentativeContextStore(contexts_path)
 
-        assert restarted_preferences.list_active_for_operator_scope(
-            owner_digest, f"project:{project_id}"
-        )[0].preference_id == project_preference_id
-        assert restarted_passports.get_active_for_operator(owner_digest)[0] == project_id
+        assert (
+            restarted_preferences.list_active_for_operator_scope(
+                owner_digest, f"project:{project_id}"
+            )[0].preference_id
+            == project_preference_id
+        )
+        assert (
+            restarted_passports.get_active_for_operator(owner_digest)[0] == project_id
+        )
         assert restarted_receipts.get_bundle(context.request_id) is not None
         assert restarted_human_states.get_history(principal.session_id)
-        assert restarted_corrections.verified_active_projection(
-            session_id=principal.session_id,
-            operator_id=principal.principal_id,
-            operator_identity_digest=owner_digest,
-            authentication_event_id=principal.authentication_event_id,
-            active_revision=restarted_conversation.active_correction_revision(
-                principal.session_id
-            ),
-        ) is not None
+        assert (
+            restarted_corrections.verified_active_projection(
+                session_id=principal.session_id,
+                operator_id=principal.principal_id,
+                operator_identity_digest=owner_digest,
+                authentication_event_id=principal.authentication_event_id,
+                active_revision=restarted_conversation.active_correction_revision(
+                    principal.session_id
+                ),
+            )
+            is not None
+        )
     finally:
         api_main.app.dependency_overrides.clear()
+
 
 class FailingCorrectionLedger:
     """Forces the route's compensating state transition in a real request."""
@@ -304,9 +321,11 @@ def test_correction_route_rolls_back_when_authenticated_ledger_write_fails(
     tmp_path: Path,
 ) -> None:
     conversation = ConversationStateStore(tmp_path / "conversation.db")
-    api_main.app.dependency_overrides[get_conversation_state_store] = lambda: conversation
-    api_main.app.dependency_overrides[get_correction_record_store] = (
-        lambda: FailingCorrectionLedger()
+    api_main.app.dependency_overrides[get_conversation_state_store] = lambda: (
+        conversation
+    )
+    api_main.app.dependency_overrides[get_correction_record_store] = lambda: (
+        FailingCorrectionLedger()
     )
     try:
         with TestClient(api_main.app, client=("127.0.0.1", 12345)) as client:
@@ -340,13 +359,16 @@ def test_correction_route_rolls_back_when_authenticated_ledger_write_fails(
     finally:
         api_main.app.dependency_overrides.clear()
 
+
 def test_clear_route_rolls_back_when_authenticated_ledger_write_fails(
     tmp_path: Path,
 ) -> None:
     conversation = ConversationStateStore(tmp_path / "conversation.db")
-    api_main.app.dependency_overrides[get_conversation_state_store] = lambda: conversation
-    api_main.app.dependency_overrides[get_correction_record_store] = (
-        lambda: FailingCorrectionLedger()
+    api_main.app.dependency_overrides[get_conversation_state_store] = lambda: (
+        conversation
+    )
+    api_main.app.dependency_overrides[get_correction_record_store] = lambda: (
+        FailingCorrectionLedger()
     )
     try:
         with TestClient(api_main.app, client=("127.0.0.1", 12345)) as client:
@@ -375,7 +397,10 @@ def test_clear_route_rolls_back_when_authenticated_ledger_write_fails(
             )
 
         assert response.status_code == 503, response.text
-        assert conversation.active_correction_revision(principal.session_id) == active_revision
+        assert (
+            conversation.active_correction_revision(principal.session_id)
+            == active_revision
+        )
         restored = conversation.get(principal.session_id)
         assert restored is not None
         assert restored["goal"] == persisted["goal"]

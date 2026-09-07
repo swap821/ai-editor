@@ -194,6 +194,7 @@ def test_a_bare_thread_does_not_inherit_the_binding(
     seen: dict[str, tuple[Path, ...]] = {}
 
     with scope_lock.scope_context([a]) as ctx:
+
         def in_thread() -> None:
             seen["ambient"] = scope_lock.get_scope_roots()
             seen["explicit"] = scope_lock.get_scope_roots(ctx)

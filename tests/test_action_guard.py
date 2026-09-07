@@ -1,4 +1,5 @@
 """Adversarial proof for the universal ordinary-route ActionBroker boundary."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -73,5 +74,11 @@ def test_yellow_capability_replay_is_single_use(client) -> None:
     token = first.json()["detail"]["approvalToken"]
     headers = {"X-AIOS-Capability": token}
 
-    assert client.post("/api/v1/system/config", json=payload, headers=headers).status_code == 200
-    assert client.post("/api/v1/system/config", json=payload, headers=headers).status_code == 403
+    assert (
+        client.post("/api/v1/system/config", json=payload, headers=headers).status_code
+        == 200
+    )
+    assert (
+        client.post("/api/v1/system/config", json=payload, headers=headers).status_code
+        == 403
+    )

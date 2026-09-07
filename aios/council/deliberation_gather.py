@@ -196,7 +196,7 @@ class DeliberationCouncilAuthority:
     """Own the advisory second-reviewer gather and synthesis boundary."""
 
     def maybe_deliberate(
-            self,
+        self,
         report: KingReport,
         *,
         mission_id: str,
@@ -280,8 +280,6 @@ def maybe_deliberate(
         dissent_provider=dissent_provider,
         dissent_exact_model_id=dissent_exact_model_id,
     )
-
-
 
 
 __all__ = ["DeliberationCouncilAuthority", "maybe_deliberate"]

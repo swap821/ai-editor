@@ -1,4 +1,5 @@
 """P3-5: shared probe helpers — env-overridable BASE and sandbox allowlist."""
+
 from __future__ import annotations
 
 import re

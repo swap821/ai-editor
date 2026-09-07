@@ -118,7 +118,7 @@ def explain_reusable_enrollment(operator_id: str | None) -> None:
         "[probe]     -H 'Origin: http://localhost:5173' \\",
         "[probe]     -H 'Host: '\"$AIOS_PROBE_HOST\" \\",
         "[probe]     -H 'Content-Type: application/json' \\",
-        "[probe]     -d '{\"display_name\":\"operator\"}'",
+        '[probe]     -d \'{"display_name":"operator"}\'',
         "[probe]",
         "[probe] Put enrollmentCredential in your password manager, then export",
         "[probe] AIOS_OPERATOR_CREDENTIAL before each run. Never write it to a",

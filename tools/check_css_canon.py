@@ -47,6 +47,7 @@ Usage:
   python tools/check_css_canon.py --check FILE...  # scan explicit files
 Exit code 1 if any violation is found; 0 otherwise.
 """
+
 from __future__ import annotations
 
 import re
@@ -66,7 +67,9 @@ RENOVATABLE_GLOBS = (
     "frontend/src/components/*.css",
     "frontend/src/superbrain/components/**/*.css",
 )
-FROZEN_NEVER_SCAN = (ROOT / "frontend" / "src" / "superbrain" / "superbrain.css").resolve()
+FROZEN_NEVER_SCAN = (
+    ROOT / "frontend" / "src" / "superbrain" / "superbrain.css"
+).resolve()
 
 # ── SCOPE: govern the SUPERBRAIN RENOVATION surfaces, not the classic fallback ──
 # The Design-System Law (blueprint §2) is the canon of the SUPERBRAIN UI — the
@@ -101,9 +104,7 @@ DEAD_FILES_EXCLUDED = {
 # Map: resolved-file-path → tuple of substrings; a violation line containing any
 # substring for its file is suppressed (with a one-line scope note).
 CLASSIC_LEGACY_RULE_EXCLUSIONS = {
-    (ROOT / "frontend" / "src" / "index.css").resolve(): (
-        "@keyframes approvalGlow",
-    ),
+    (ROOT / "frontend" / "src" / "index.css").resolve(): ("@keyframes approvalGlow",),
 }
 
 # Paint properties that, when animated on a backdrop-filtered element, re-blur
@@ -111,7 +112,7 @@ CLASSIC_LEGACY_RULE_EXCLUSIONS = {
 PAINT_PROPS = (
     "box-shadow",
     "border-color",
-    "border",            # any border shorthand / longhand that carries color
+    "border",  # any border shorthand / longhand that carries color
     "background-color",
     "background",
     "top",
@@ -157,7 +158,7 @@ def _norm_rgba(call: str) -> str | None:
     # Normalize alpha "0.50" -> "0.5", "1.0" -> "1".
     try:
         af = float(a)
-        a = ("%g" % af)
+        a = "%g" % af
     except ValueError:
         pass
     return f"{r},{g},{b},{a}"
@@ -188,7 +189,9 @@ _RGBA_RE = re.compile(r"rgba?\([^)]*\)", re.IGNORECASE)
 
 
 def strip_comments(text: str) -> str:
-    return re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.DOTALL)
+    return re.sub(
+        r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.DOTALL
+    )
 
 
 def line_of(text: str, idx: int) -> int:
@@ -216,7 +219,7 @@ def iter_rules(text: str):
                 elif text[j] == "}":
                     d -= 1
                 j += 1
-            body = text[i + 1:j - 1]
+            body = text[i + 1 : j - 1]
             yield selector, body, i + 1
             # recurse into body for nested @keyframes frames / nested rules
             yield from ((s, b, off + (i + 1)) for s, b, off in iter_rules(body))
@@ -317,7 +320,9 @@ def lint_file(path: Path, canon_by_value: dict[str, str]) -> list[str]:
         # (b) animation: <name> where <name> is a paint-touching @keyframes
         for m in re.finditer(r"(?<![\w-])animation(?:-name)?\s*:\s*([^;]+);?", body_l):
             for kf_name, touched in kf_paint.items():
-                if re.search(rf"(?<![\w-]){re.escape(kf_name.lower())}(?![\w-])", m.group(1)):
+                if re.search(
+                    rf"(?<![\w-]){re.escape(kf_name.lower())}(?![\w-])", m.group(1)
+                ):
                     violations.append(
                         f"{rel}:{ln}: PAINT-TRAP `{sel.strip()[:70]}` has backdrop-filter AND "
                         f"runs @keyframes {kf_name} which animates paint {touched} — "
@@ -339,8 +344,11 @@ def lint_file(path: Path, canon_by_value: dict[str, str]) -> list[str]:
             if not m or s == base:
                 continue
             set_props = _dedup_border(
-                [p for p in PAINT_PROPS
-                 if re.search(rf"(?<![\w-]){re.escape(p)}\s*:", body.lower())]
+                [
+                    p
+                    for p in PAINT_PROPS
+                    if re.search(rf"(?<![\w-]){re.escape(p)}\s*:", body.lower())
+                ]
             )
             # only the props the parent actually transitions matter for the trap
             trapped = [p for p in set_props if p in trans_props]
@@ -402,13 +410,19 @@ def lint_file(path: Path, canon_by_value: dict[str, str]) -> list[str]:
                 blur_m = re.search(r"blur\(\s*(\d+(?:\.\d+)?)px\s*\)", val)
                 sat_m = re.search(r"saturate\(\s*([0-9.]+%?)\s*\)", val)
                 bad_blur = blur_m and float(blur_m.group(1)) != CANON_BLUR_PX
-                bad_sat = sat_m and not sat_m.group(1).endswith("%")  # bare 1.4 not 140%
+                bad_sat = sat_m and not sat_m.group(1).endswith(
+                    "%"
+                )  # bare 1.4 not 140%
                 if bad_blur or bad_sat:
                     detail = []
                     if bad_blur:
-                        detail.append(f"blur({blur_m.group(1)}px)≠blur({CANON_BLUR_PX}px)")
+                        detail.append(
+                            f"blur({blur_m.group(1)}px)≠blur({CANON_BLUR_PX}px)"
+                        )
                     if bad_sat:
-                        detail.append(f"saturate({sat_m.group(1)}) should be percent (140%)")
+                        detail.append(
+                            f"saturate({sat_m.group(1)}) should be percent (140%)"
+                        )
                     violations.append(
                         f"{path.as_posix()}:{abs_line}: OFF-CANON GLASS `backdrop-filter: "
                         f"{bf.group(1).strip()}` [{', '.join(detail)}] — {GLASS_RECIPE_HINT}."
@@ -476,7 +490,9 @@ def main(argv: list[str]) -> int:
         all_violations.extend(lint_file(f, canon_by_value))
 
     if all_violations:
-        print("CSS CANON VIOLATIONS — the Design-System Law (blueprint §2) is broken:\n")
+        print(
+            "CSS CANON VIOLATIONS — the Design-System Law (blueprint §2) is broken:\n"
+        )
         for v in all_violations:
             print(f"  ✗ {v}")
         print(

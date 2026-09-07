@@ -1,4 +1,5 @@
 """Tests for the streaming protocol types (C4)."""
+
 from aios.core.stream_protocol import StreamFinished
 
 
@@ -9,7 +10,9 @@ def test_stream_finished_default_fields() -> None:
 
 
 def test_stream_finished_with_tool_calls() -> None:
-    calls = [{"id": "1", "function": {"name": "read_file", "arguments": {"path": "a.py"}}}]
+    calls = [
+        {"id": "1", "function": {"name": "read_file", "arguments": {"path": "a.py"}}}
+    ]
     sf = StreamFinished(tool_calls=calls, content="thinking...")
     assert sf.tool_calls == calls
     assert sf.content == "thinking..."

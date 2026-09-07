@@ -4,6 +4,7 @@ Covers the blueprint's "altering any audit entry breaks verify_chain()" case,
 the genesis linkage, deterministic hashing, the fail-closed invalid-zone guard,
 and the no-secret-persistence guarantee.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -66,12 +67,18 @@ def test_tampering_breaks_chain_at_offending_entry(audit_db: Path) -> None:
 
 
 def test_hash_is_deterministic_and_64_hex() -> None:
-    h1 = compute_entry_hash("0" * 64, "2026-01-01T00:00:00+00:00", "actor", "payload", "GREEN")
-    h2 = compute_entry_hash("0" * 64, "2026-01-01T00:00:00+00:00", "actor", "payload", "GREEN")
+    h1 = compute_entry_hash(
+        "0" * 64, "2026-01-01T00:00:00+00:00", "actor", "payload", "GREEN"
+    )
+    h2 = compute_entry_hash(
+        "0" * 64, "2026-01-01T00:00:00+00:00", "actor", "payload", "GREEN"
+    )
     assert h1 == h2
     assert len(h1) == 64
     # A single-field change must produce a different hash.
-    h3 = compute_entry_hash("0" * 64, "2026-01-01T00:00:00+00:00", "actor", "payload", "RED")
+    h3 = compute_entry_hash(
+        "0" * 64, "2026-01-01T00:00:00+00:00", "actor", "payload", "RED"
+    )
     assert h3 != h1
 
 
@@ -120,7 +127,9 @@ def test_concurrent_appends_keep_one_valid_chain(audit_db: Path) -> None:
         except Exception as exc:  # pragma: no cover - asserted below
             errors.append(exc)
 
-    threads = [threading.Thread(target=append_many, args=(f"worker-{i}",)) for i in range(4)]
+    threads = [
+        threading.Thread(target=append_many, args=(f"worker-{i}",)) for i in range(4)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:

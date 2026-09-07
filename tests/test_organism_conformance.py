@@ -20,6 +20,7 @@ Contract under test:
   5. Narrative leg: an operator preference statement lands in the
      QUARANTINED fact_proposals queue — and never directly in active facts.
 """
+
 from __future__ import annotations
 
 import json
@@ -136,7 +137,9 @@ def test_every_frame_carries_the_typed_spine(client: TestClient) -> None:
     turn_ids = set()
     last_seq = -1
     for event, data in frames:
-        assert data.get("phase") in PHASES, f"{event} frame missing/unknown phase: {data.get('phase')!r}"
+        assert data.get("phase") in PHASES, (
+            f"{event} frame missing/unknown phase: {data.get('phase')!r}"
+        )
         seq = data.get("seq")
         assert isinstance(seq, int), f"{event} frame missing integer seq"
         assert seq >= last_seq, f"seq regressed at {event}: {seq} < {last_seq}"
@@ -145,7 +148,9 @@ def test_every_frame_carries_the_typed_spine(client: TestClient) -> None:
     assert len(turn_ids) == 1 and None not in turn_ids, "one constant turn_id per turn"
 
 
-def test_done_is_singular_and_final_and_route_precedes_tokens(client: TestClient) -> None:
+def test_done_is_singular_and_final_and_route_precedes_tokens(
+    client: TestClient,
+) -> None:
     frames = _turn(client, "make a button")
     events = [event for event, _ in frames]
 
@@ -169,7 +174,9 @@ def test_low_confidence_turn_pauses_asks_and_runs_no_tools(client: TestClient) -
     assert gated[0].get("phase") == "emotion"
 
     assert "step" not in events, "a gated turn must execute NO tools"
-    question_text = "".join(data.get("text", "") for event, data in frames if event == "text_chunk")
+    question_text = "".join(
+        data.get("text", "") for event, data in frames if event == "text_chunk"
+    )
     assert question_text, "the clarifying question must reach the reply stream"
     assert events[-1] == "done"
 
@@ -214,9 +221,14 @@ def test_bus_carries_only_observations_on_a_real_turn(
                     )
                 }
             assert "turn.completed" in types, f"expected 'turn.completed', got: {types}"
-            
+
             authority_prefixes = (
-                "skill.", "autonomy.", "approval.", "verdict.", "zone.", "grant.",
+                "skill.",
+                "autonomy.",
+                "approval.",
+                "verdict.",
+                "zone.",
+                "grant.",
             )
             leaked = {t for t in types if t.startswith(authority_prefixes)}
             assert not leaked, (
@@ -248,9 +260,12 @@ def test_operator_preference_lands_quarantined_never_active(
 
     proposals = facts_db.pending_proposals()
     matches = [
-        row for row in proposals
-        if row["subject"] == "operator" and row["predicate"] == "prefers"
-        and row["object"] == "dark mode" and row["status"] == "pending"
+        row
+        for row in proposals
+        if row["subject"] == "operator"
+        and row["predicate"] == "prefers"
+        and row["object"] == "dark mode"
+        and row["status"] == "pending"
     ]
     assert matches, (
         "the narrative organ must propose the operator's preference; "
@@ -302,7 +317,12 @@ class FakeOllamaVerifyStrongPass:
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "verify", "arguments": {"command": "pytest -q"}}}
+                    {
+                        "function": {
+                            "name": "verify",
+                            "arguments": {"command": "pytest -q"},
+                        }
+                    }
                 ],
             }
         return {"role": "assistant", "content": "Verified."}
@@ -359,7 +379,9 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             session_id = str(client.cookies.get("session_id"))
             assert session_id and session_id != "None"
-            token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
+            token = _issue_generate_capability(
+                client, "command", {"command": "pytest -q"}
+            )
             user_text = "verify the project"
             # SAME user text + SAME token id/session each turn -> the SAME
             # goal/steps trail (signature_v2) reinforces across all 3 attempts.
@@ -367,7 +389,9 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
                 frames = _turn_with_session(client, user_text, session_id, [token])
                 assert [e for e, _ in frames][-1] == "done"
                 # Re-issue a fresh token for the next turn (tokens are single-use).
-                token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
+                token = _issue_generate_capability(
+                    client, "command", {"command": "pytest -q"}
+                )
 
             # --- Assert A: the authority outcome landed SYNCHRONOUSLY -------
             with sql.connect(tmp_path / "w3_skills.db") as conn:
@@ -408,14 +432,21 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
             with sql.connect(tmp_path / "w3_bus.db") as conn:
                 types = {
                     row[0]
-                    for row in conn.execute("SELECT DISTINCT event_type FROM cortex_events")
+                    for row in conn.execute(
+                        "SELECT DISTINCT event_type FROM cortex_events"
+                    )
                 }
             assert "turn.completed" in types, (
                 f"the outbox must carry the 'turn.completed' observation "
                 f"type; got {types}"
             )
             authority_prefixes = (
-                "skill.", "autonomy.", "approval.", "verdict.", "zone.", "grant.",
+                "skill.",
+                "autonomy.",
+                "approval.",
+                "verdict.",
+                "zone.",
+                "grant.",
             )
             leaked = {t for t in types if t.startswith(authority_prefixes)}
             assert not leaked, (
