@@ -16,6 +16,7 @@ import importlib.util
 import re
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -119,14 +120,58 @@ def test_the_spine_is_still_linted() -> None:
 
 @requires_ruff
 def test_the_repo_is_format_clean() -> None:
-    """What the gate asserts, asserted locally so it fails before CI does."""
+    """What the gate asserts, asserted locally so it fails before CI does.
+
+    Any file the working tree flags is re-checked against its COMMITTED bytes.
+    On Windows `core.autocrlf` rewrites line endings on checkout, and a file
+    can end up `w/mixed` while the index is clean `lf` -- measured on
+    tests/test_local_workforce_service_provenance.py, which ruff reported
+    locally and passed in CI. That is a false failure about a file the
+    developer never touched, and it is exactly the kind of confusing gate
+    result that teaches people to ignore gates.
+
+    CI checks out the committed bytes, so this asks the same question. The
+    re-check only runs on failures, so the ordinary path costs nothing.
+    """
     result = subprocess.run(
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0, result.stdout
+    if result.returncode == 0:
+        return
+
+    flagged = [
+        line.split(": ", 1)[1].strip().replace("\\", "/")
+        for line in result.stdout.splitlines()
+        if line.startswith("Would reformat: ")
+    ]
+    assert flagged, result.stdout
+
+    genuinely_dirty = []
+    for rel in flagged:
+        blob = subprocess.run(
+            ["git", "show", f"HEAD:{rel}"], cwd=REPO_ROOT, capture_output=True
+        )
+        if blob.returncode != 0:
+            genuinely_dirty.append(f"{rel} (untracked)")
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / Path(rel).name
+            probe.write_bytes(blob.stdout)
+            committed = subprocess.run(
+                [sys.executable, "-m", "ruff", "format", "--check", str(probe)],
+                capture_output=True,
+                text=True,
+            )
+        if committed.returncode != 0:
+            genuinely_dirty.append(rel)
+
+    assert not genuinely_dirty, (
+        "these files are unformatted in the repository, not just locally: "
+        f"{genuinely_dirty}"
+    )
 
 
 @requires_ruff
