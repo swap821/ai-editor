@@ -9,6 +9,7 @@ and that content carrying secrets never reaches disk.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -249,3 +250,74 @@ def test_a_decision_does_not_cross_workspaces(db_path, monkeypatch) -> None:
 
     monkeypatch.setattr(rw, "workspace_id", lambda: "project-b")
     assert not is_approved_write("src/util.py", _DIGEST, db_path=db_path, enabled=True)
+
+
+# --------------------------------------------------------------------------- #
+# The new tables must reach databases that already exist
+# --------------------------------------------------------------------------- #
+
+
+def test_an_existing_database_gains_the_new_tables(tmp_path) -> None:
+    """A schema addition that only works on FRESH databases breaks every install.
+
+    Nobody running this system has an empty memory DB, so "the tests pass" and
+    "the upgrade works" are different claims. Build a database from the schema
+    with these two tables stripped out -- an install that predates this change --
+    seed it, then open it the way the application does.
+    """
+    import sqlite3
+
+    schema = (Path(__file__).resolve().parents[1] / "aios/memory/schema.sql").read_text(
+        encoding="utf-8"
+    )
+    # Strip the two statements this change added, leaving the older schema.
+    older = re.sub(
+        r"CREATE (TABLE|INDEX) IF NOT EXISTS (playbook_blobs|approved_write_decisions|idx_approved_write_path)\b.*?;",
+        "",
+        schema,
+        flags=re.S,
+    )
+    assert "playbook_blobs" not in older, "the strip did not remove the new tables"
+
+    db = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(older)
+    conn.commit()
+    existing = {
+        r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    conn.close()
+    assert "playbook_blobs" not in existing, "precondition: the legacy DB lacks them"
+
+    init_memory_db(db)
+
+    with get_connection(db) as c:
+        tables = {
+            r["name"]
+            for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+    assert "playbook_blobs" in tables
+    assert "approved_write_decisions" in tables
+
+
+def test_the_upgrade_preserves_what_was_already_there(tmp_path) -> None:
+    """Adding tables must not disturb existing rows.
+
+    Asserted separately because "the new tables exist" would still pass if the
+    upgrade had rebuilt the database from scratch.
+    """
+    db = tmp_path / "kept.db"
+    init_memory_db(db)
+    with get_connection(db) as c:
+        c.execute(
+            "INSERT INTO playbook_blobs (sha256, content, byte_length) VALUES (?,?,?)",
+            ("a" * 64, b"payload", 7),
+        )
+
+    init_memory_db(db)  # a second startup
+
+    with get_connection(db) as c:
+        row = c.execute(
+            "SELECT content FROM playbook_blobs WHERE sha256 = ?", ("a" * 64,)
+        ).fetchone()
+    assert row is not None and bytes(row["content"]) == b"payload"
