@@ -18,6 +18,20 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # ONE ruff pin for the whole workflow. It was written in two places, and the
+  # two disagreed in a way that mattered: release-authority pinned 0.9.10 while
+  # the repo was swept with 0.15.22, and the two versions format a long lambda
+  # parameter list DIFFERENTLY -- each undoes the other, so no single byte-state
+  # satisfies both. That was invisible while the gate only checked ~22 files.
+  # Widening it repo-wide surfaced exactly one disagreement
+  # (tests/test_conversation_pipeline.py), which is why this is now one value.
+  #
+  # Bumping 0.9.10 -> 0.15.22 was verified to cost nothing on the lint side:
+  # `ruff check` over release-authority's list passes identically on both.
+  RUFF_VERSION: "0.15.22"
+
+
 jobs:
   backend-tests:
     strategy:
@@ -376,6 +390,37 @@ jobs:
       - name: Frontend gate
         run: echo "Frontend tests and build passed"
 
+  format-gate:
+    # The repo-wide formatting check, as its OWN job so it can be a required
+    # check without dragging a heavyweight one in behind it.
+    #
+    # release-authority also runs this check, but it needs backend-tests,
+    # frontend-tests and local-clerk-live first, then does docker compose and
+    # the executor topology. Requiring THAT to gate a formatting slip would add
+    # roughly twenty minutes to every merge. This job needs nothing, installs
+    # one tool, and answers in seconds.
+    #
+    # It deliberately does NOT duplicate release-authority's `ruff check` path
+    # list. Copying that list into a second place would recreate the exact
+    # staleness this change removes -- and the format check needs no list at
+    # all, which is the point.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        # Pinned. An unpinned formatter is a gate whose verdict can change
+        # without anyone editing the repo.
+        run: pip install "ruff==${{ env.RUFF_VERSION }}"
+
+      - name: Repo-wide format check
+        run: ruff format --check .
+
   release-authority:
     # This job is intentionally separate from the platform matrix: it checks
     # the shipped topology and architecture invariants once on Linux, where
@@ -403,7 +448,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pip-licenses ruff==0.9.10 bandit==1.9.4 mypy==2.3.1
+          pip install pip-licenses "ruff==${{ env.RUFF_VERSION }}" bandit==1.9.4 mypy==2.3.1
 
       - name: Tracked-source secret scan
         run: python scripts/security_scan.py
@@ -581,24 +626,13 @@ jobs:
             tests/test_executor_service.py tests/test_executor_client.py \
             tests/test_executor_integration.py tests/test_runtime_worker_container.py \
             tests/test_organ_release_conformance.py
-          ruff format --check \
-            scripts/security_scan.py scripts/generate_sbom.py \
-            scripts/build_release_manifest.py scripts/verify_organ_contracts.py \
-            scripts/build_organ_ledger_doc.py tests/test_organ_ledger_doc.py \
-            scripts/check_organism_seam.py tests/test_organism_seam.py \
-            scripts/spine_mutation_probe.py tests/test_spine_mutation_probe.py \
-            tests/test_spine_invariants.py \
-            tests/test_governance_red_team_corpus.py \
-            tests/test_release_conformance.py tests/test_ledger_verification_sha.py \
-            tests/test_launcher.py \
-            tests/test_governance.py tests/test_v1_declaration.py \
-            tests/test_operations.py tests/test_executor_service.py \
-            tests/test_executor_client.py tests/test_executor_integration.py \
-            tests/test_runtime_worker_container.py \
-            tests/test_organ_release_conformance.py \
-            aios/executor_service.py aios/launcher.py \
-            aios/application/governance aios/application/executor \
-            aios/infrastructure/executor
+          # Repo-wide. This was a hand-maintained list of ~22 paths, and
+          # that is exactly how this gate went red: six files drifted and
+          # only one of them was on the list. The frozen spine and the
+          # golden fixture are excluded in pyproject's [tool.ruff.format],
+          # so the exclusion is enforced by the formatter itself rather
+          # than by remembering to pass a flag here.
+          ruff format --check .
 
       - name: Validate production Compose topology
         env:
