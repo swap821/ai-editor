@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from aios import config
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 from aios.policy.kernel import PolicyKernel
 from aios.runtime import profiles
 from aios.security.gateway import RateLimiter
@@ -277,10 +278,13 @@ def _seed_earned_command(ledger, command: str) -> None:
 def test_executor_authority_uses_kernel_for_earned_autonomy(
     kernel, monkeypatch, isolated_profiles, tmp_path
 ):
-    from aios.core.autonomy import AutonomyLedger
+    from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
     from aios.core.executor import Executor
 
-    ledger = AutonomyLedger(db_path=tmp_path / "autonomy.db")
+    ledger = AutonomyLedger(
+        db_path=tmp_path / "autonomy.db",
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     kernel.autonomy = ledger
     monkeypatch.setenv("AIOS_RUNTIME_PROFILE", "operator")
     monkeypatch.setattr(kernel, "_active_profile", None)
@@ -299,7 +303,10 @@ def test_executor_authority_respects_profile_without_autonomy(
     from aios.core.autonomy import AutonomyLedger
     from aios.core.executor import Executor
 
-    ledger = AutonomyLedger(db_path=tmp_path / "autonomy.db")
+    ledger = AutonomyLedger(
+        db_path=tmp_path / "autonomy.db",
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     kernel.autonomy = ledger
     monkeypatch.setenv("AIOS_RUNTIME_PROFILE", "local-first")
     monkeypatch.setattr(kernel, "_active_profile", None)

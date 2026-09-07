@@ -26,7 +26,7 @@ from typing import Iterator
 
 import pytest
 
-from aios.core.autonomy import AutonomyLedger, workspace_id
+from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger, workspace_id
 from aios.core.verification_strength import VerificationStrength
 from aios.security import scope_lock
 
@@ -56,7 +56,11 @@ def test_a_streak_earned_in_one_workspace_does_not_grant_in_another(
     workspace_b = tmp_path / "project-b"
     workspace_a.mkdir()
     workspace_b.mkdir()
-    ledger = AutonomyLedger(tmp_path / "autonomy.db", min_successes=2)
+    ledger = AutonomyLedger(
+        tmp_path / "autonomy.db",
+        min_successes=2,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
     scope_lock.set_scope_roots([workspace_a])
     _earn(ledger, "create_file", "project-a/app.py", times=3)
@@ -85,7 +89,11 @@ def test_returning_to_the_original_workspace_restores_the_grant(
     workspace_b = tmp_path / "b"
     workspace_a.mkdir()
     workspace_b.mkdir()
-    ledger = AutonomyLedger(tmp_path / "autonomy.db", min_successes=2)
+    ledger = AutonomyLedger(
+        tmp_path / "autonomy.db",
+        min_successes=2,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
     scope_lock.set_scope_roots([workspace_a])
     _earn(ledger, "create_file", "a/app.py", times=3)
@@ -112,7 +120,11 @@ def test_a_failure_in_one_workspace_does_not_revoke_another(
     workspace_b = tmp_path / "b"
     workspace_a.mkdir()
     workspace_b.mkdir()
-    ledger = AutonomyLedger(tmp_path / "autonomy.db", min_successes=2)
+    ledger = AutonomyLedger(
+        tmp_path / "autonomy.db",
+        min_successes=2,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
     scope_lock.set_scope_roots([workspace_a])
     _earn(ledger, "create_file", "shared/app.py", times=3)
@@ -146,7 +158,11 @@ def test_the_workspace_id_is_resolved_per_call_not_at_construction(
     workspace_b.mkdir()
 
     scope_lock.set_scope_roots([workspace_a])
-    ledger = AutonomyLedger(tmp_path / "autonomy.db", min_successes=2)
+    ledger = AutonomyLedger(
+        tmp_path / "autonomy.db",
+        min_successes=2,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     signature_a = ledger.signature("create_file", "x.py")
 
     scope_lock.set_scope_roots([workspace_b])
@@ -234,7 +250,11 @@ def test_an_existing_ledger_migrates_and_its_rows_go_inert(tmp_path: Path) -> No
     conn.commit()
     conn.close()
 
-    ledger = AutonomyLedger(db, min_successes=2)
+    ledger = AutonomyLedger(
+        db,
+        min_successes=2,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
     columns = {
         row[1]
@@ -254,7 +274,11 @@ def test_a_fresh_ledger_records_the_workspace_on_the_row(tmp_path: Path) -> None
     infer it from an opaque digest.
     """
     db = tmp_path / "fresh.db"
-    ledger = AutonomyLedger(db, min_successes=2)
+    ledger = AutonomyLedger(
+        db,
+        min_successes=2,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     ledger.record_outcome(
         "create_file",
         "training_ground/a.py",

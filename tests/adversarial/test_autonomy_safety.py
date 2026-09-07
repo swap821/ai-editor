@@ -26,7 +26,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from aios import config
-from aios.core.autonomy import AutonomyLedger
+from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
 from aios.core.verification_strength import VerificationStrength
 from aios.memory.db import get_connection
 
@@ -46,14 +46,22 @@ def tmp_memory_db(tmp_path):
 @pytest.fixture
 def ledger(tmp_memory_db):
     """Create a fresh AutonomyLedger with a temporary DB."""
-    return AutonomyLedger(db_path=tmp_memory_db, min_successes=3)
+    return AutonomyLedger(
+        db_path=tmp_memory_db,
+        min_successes=3,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
 
 @pytest.fixture
 def enabled_ledger(tmp_memory_db):
     """Create an AutonomyLedger with earned autonomy feature enabled."""
     # Use monkeypatch in individual tests to enable the feature
-    return AutonomyLedger(db_path=tmp_memory_db, min_successes=3)
+    return AutonomyLedger(
+        db_path=tmp_memory_db,
+        min_successes=3,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
 
 # ============================================================================ #

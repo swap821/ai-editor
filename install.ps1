@@ -63,6 +63,17 @@ try {
 
     Write-Step "Installing locked dependencies (this may take a few minutes)..."
     & $pip -m pip install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) {
+        # MEASURED 2026-09-07 on a fresh-clone run: pip died with an OSError
+        # (a Windows MAX_PATH overrun inside torch's headers) and this script
+        # carried on, wrote the .env, and printed "Installation complete."
+        # with exit 0. `bootstrap` correctly reported eight missing packages
+        # -- and that was a WARNING, so anything automating this saw success.
+        #
+        # An installer that reports success on a failed install is worse than
+        # one that crashes: the crash is honest.
+        throw "Dependency installation FAILED (pip exit $LASTEXITCODE). The install is incomplete -- do not start the server. Scroll up for pip's error. On Windows a long repository path can exceed MAX_PATH; try a shorter one such as C:\src\ai-editor, or enable LongPathsEnabled."
+    }
 
     $envPath = Join-Path $repoRoot ".env"
     if (-not (Test-Path $envPath)) {
@@ -89,7 +100,11 @@ try {
         Write-Step "Running bootstrap health check..."
         & $pip -m aios bootstrap
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Bootstrap reported issues. Review the output above and edit .env before running the server."
+            # Also fatal. A failing bootstrap means a required check did not
+            # pass -- the same run that exposed the pip bug above reported
+            # "Missing packages: boto3, cryptography, fastapi, ..." and still
+            # exited 0.
+            throw "Bootstrap health check FAILED. The install is not usable as it stands; fix the blocking checks above before starting the server."
         }
     }
 
@@ -99,6 +114,12 @@ try {
     Write-Host "  1. Edit .env if you need a real API token or different Ollama URL."
     Write-Host "  2. Start the API: .venv\Scripts\python -m aios"
     Write-Host "  3. Start the UI:  cd frontend; npm run dev"
+    Write-Host ""
+    # `install.sh` has printed this since the clean-box run and this script did
+    # not, so a Windows newcomer was never told the diagnostic exists. `doctor`
+    # checks RUNTIME health -- audit chain, backups, model runtime, executor --
+    # which is a different question from `bootstrap`'s install-time checks.
+    Write-Host "  Diagnose: .venv\Scripts\python -m aios doctor"
 } finally {
     Pop-Location
 }

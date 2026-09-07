@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from aios.application.autonomy import GovernedAutonomy
-from aios.core.autonomy import AutonomyLedger
+from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
 from aios.core.verification_strength import VerificationStrength
 from aios.domain.autonomy import (
     ActionClassKey,
@@ -47,7 +47,11 @@ def _governed(
     tmp_path: Path, *, profile: str = "test", enabled: bool = True
 ) -> GovernedAutonomy:
     return GovernedAutonomy(
-        ledger=AutonomyLedger(db_path=tmp_path / "autonomy.db", min_successes=3),
+        ledger=AutonomyLedger(
+            db_path=tmp_path / "autonomy.db",
+            min_successes=3,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ),
         enabled=enabled,
         profile_name=profile,
         production_gate_open=profile != "production",
