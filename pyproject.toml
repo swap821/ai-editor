@@ -82,3 +82,46 @@ version = { attr = "aios.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["aios*"]
+
+[tool.ruff.format]
+# FORMAT-ONLY exclusions. `formatter.exclude` is a different setting from
+# `linter.exclude`, which is the whole reason this is expressible: `ruff check`
+# still lints both paths below, so excluding them costs no lint coverage on the
+# most security-critical code in the repo.
+#
+# Why these two, and why config rather than a list in CI:
+#
+#   aios/security/*.py    boot_attestation.compute_spine_hash reads every .py
+#                         here with read_bytes() and hashes it. Reformatting one
+#                         changes the spine hash and breaks
+#                         verify_spine_integrity. AGENTS.md SS VIII also makes
+#                         them RED to touch.
+#
+#   tests/golden/fixture  The golden harness calls this fixture "COMMITTED,
+#                         never-changing". SelfAnalysisAgent flags long
+#                         functions by LINE COUNT, so reformatting tangled.py
+#                         moved it across the threshold and the analyzer's
+#                         diagnosis changed. Measured 2026-09-07 as a CI failure
+#                         (test_golden_findings_match) that an AST-equivalence
+#                         check could not see -- the AST was identical; what
+#                         changed was something that MEASURES the formatting.
+#
+# Declared here rather than as CI arguments so a local `ruff format .` cannot
+# touch them either. The gate this replaces was a hand-maintained path list, and
+# it went red because a file nobody remembered to add drifted. Config that the
+# formatter itself honours cannot fall behind the same way.
+#   training_ground/, lab/  These are the RUNTIME SANDBOX scope roots
+#                         (aios/config.py SCOPE_ROOTS) -- the directories the
+#                         agent creates files in while it works. Gating CI on
+#                         their formatting would make the build fail on what a
+#                         curriculum run happened to write, which is a fact
+#                         about a mission, not about the repo. .gitignore
+#                         already ignores new files there for the same reason;
+#                         the ~29 tracked survivors predate that rule and stay
+#                         tracked because gitignore never affects tracked files.
+exclude = [
+    "aios/security/*.py",
+    "tests/golden/fixture/**/*.py",
+    "training_ground/**/*.py",
+    "lab/**/*.py",
+]
