@@ -256,6 +256,26 @@ SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_
 EARNED_AUTONOMY_ENABLED: Final[bool] = _limits.EARNED_AUTONOMY_ENABLED
 EARNED_AUTONOMY_MIN_SUCCESSES: Final[int] = _limits.EARNED_AUTONOMY_MIN_SUCCESSES
 
+# Learning loop stage 2: may a compiled playbook re-perform a write a human
+# already approved, byte-for-byte, at the same path?
+#
+# A SEPARATE flag from EARNED_AUTONOMY_ENABLED on purpose. That one governs the
+# glob-scoped, content-blind write grant in `tool_agent` -- once `src/*.py` is
+# earned, any content to any .py under src/ runs unattended. This one governs a
+# single exact decision a human already made. They are different claims with
+# different blast radii, and an operator must be able to disable either without
+# the other.
+#
+# Read from the environment here rather than from `aios.security.limits`
+# because every .py in that package is hashed byte-for-byte by
+# `compute_spine_hash`; adding a flag there would move the spine hash, which is
+# operator-attested (SS VIII).
+#
+# Default OFF. A write path that turns itself on is not what was decided.
+REPLAY_APPROVED_WRITES_ENABLED: Final[bool] = _env_bool(
+    "AIOS_REPLAY_APPROVED_WRITES", False
+)
+
 # Mandatory plan stage (Product-Phase-1 close-out): run the deterministic
 # Planner unconditionally on every non-reflex /api/generate turn and surface
 # the confidence-partitioned plan as a `plan` SSE event + advisory context.
@@ -813,6 +833,7 @@ __all__ = [
     "SKILL_REUSE_FACTOR_FLOOR",
     "SKILL_REUSE_DEMOTE_NET_FAILURES",
     "EARNED_AUTONOMY_ENABLED",
+    "REPLAY_APPROVED_WRITES_ENABLED",
     "EARNED_AUTONOMY_MIN_SUCCESSES",
     "NARRATIVE_SELF_ENABLED",
     "SWARM_MAX_WORKERS",
