@@ -1,4 +1,5 @@
 """Tests for the Anthropic direct API client."""
+
 from __future__ import annotations
 
 import json
@@ -24,9 +25,13 @@ class TestToAnthropicMessages:
 
     def test_tool_calls_converted_to_content_blocks(self):
         msgs = [
-            {"role": "assistant", "content": "Calling tool", "tool_calls": [
-                {"function": {"name": "read_file", "arguments": {"path": "/x"}}}
-            ]},
+            {
+                "role": "assistant",
+                "content": "Calling tool",
+                "tool_calls": [
+                    {"function": {"name": "read_file", "arguments": {"path": "/x"}}}
+                ],
+            },
             {"role": "tool", "content": "file content"},
         ]
         system, out = _to_anthropic_messages(msgs)
@@ -40,7 +45,9 @@ class TestToAnthropicMessages:
 
         user_msg = out[1]
         assert user_msg["role"] == "user"
-        result_block = next(b for b in user_msg["content"] if b["type"] == "tool_result")
+        result_block = next(
+            b for b in user_msg["content"] if b["type"] == "tool_result"
+        )
         assert result_block["tool_use_id"] == tool_use_block["id"]
 
 
@@ -56,8 +63,10 @@ class TestAnthropicDirectClient:
         class FakeResp:
             def read(self):
                 return json.dumps(response_body).encode()
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 pass
 
@@ -69,7 +78,12 @@ class TestAnthropicDirectClient:
         response_body = {
             "content": [
                 {"type": "text", "text": "I'll read that."},
-                {"type": "tool_use", "id": "tu_1", "name": "read_file", "input": {"path": "/x"}}
+                {
+                    "type": "tool_use",
+                    "id": "tu_1",
+                    "name": "read_file",
+                    "input": {"path": "/x"},
+                },
             ],
             "role": "assistant",
             "stop_reason": "tool_use",
@@ -79,8 +93,10 @@ class TestAnthropicDirectClient:
         class FakeResp:
             def read(self):
                 return json.dumps(response_body).encode()
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 pass
 
@@ -106,8 +122,10 @@ class TestAnthropicDirectClient:
         class FakeResp:
             def read(self):
                 return json.dumps(response_body).encode()
+
             def __enter__(self):
                 return self
+
             def __exit__(self, *a):
                 pass
 
@@ -121,10 +139,13 @@ class TestAnthropicDirectClient:
 
     def test_http_error_raises_llm_error(self):
         import urllib.error
+
         client = AnthropicDirectClient(api_key="k")
 
         def raise_http(*a, **kw):
-            raise urllib.error.HTTPError("url", 429, "Rate limit", {}, BytesIO(b"slow down"))
+            raise urllib.error.HTTPError(
+                "url", 429, "Rate limit", {}, BytesIO(b"slow down")
+            )
 
         with patch("urllib.request.urlopen", side_effect=raise_http):
             with pytest.raises(LLMError, match="429"):
@@ -132,8 +153,11 @@ class TestAnthropicDirectClient:
 
     def test_network_error_raises_llm_error(self):
         import urllib.error
+
         client = AnthropicDirectClient(api_key="k")
 
-        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("conn refused")):
+        with patch(
+            "urllib.request.urlopen", side_effect=urllib.error.URLError("conn refused")
+        ):
             with pytest.raises(LLMError):
                 client.complete("hi")

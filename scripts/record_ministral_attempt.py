@@ -49,16 +49,27 @@ def main() -> int:
     inventory["generated_at"] = now
     inventory["machine"] = platform.node()
     inventory["installed_after_cleanup"] = installed
-    inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(ROOT.drive + "\\").free
-    inventory.setdefault("aborted_unqualified_downloads", {})[
-        "ministral-3:3b"
-    ] = (
+    inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(
+        ROOT.drive + "\\"
+    ).free
+    inventory.setdefault("aborted_unqualified_downloads", {})["ministral-3:3b"] = (
         "official 3.0 GB pull hit the 10-minute bound before Ollama registration; "
         "qualification was not run and all verified partial blobs were removed"
     )
-    inventory.setdefault("candidate_attempt_artifacts", []).append(str(ATTEMPT.relative_to(ROOT)))
+    inventory.setdefault("candidate_attempt_artifacts", []).append(
+        str(ATTEMPT.relative_to(ROOT))
+    )
     INVENTORY.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"attempt": str(ATTEMPT), "inventory": str(INVENTORY), "installed": installed}, indent=2))
+    print(
+        json.dumps(
+            {
+                "attempt": str(ATTEMPT),
+                "inventory": str(INVENTORY),
+                "installed": installed,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

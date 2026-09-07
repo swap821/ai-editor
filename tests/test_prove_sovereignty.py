@@ -2,6 +2,7 @@
 
 Exercises the full sovereignty proof as part of the test suite.
 """
+
 from __future__ import annotations
 
 import os

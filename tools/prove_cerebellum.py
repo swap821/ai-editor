@@ -17,6 +17,7 @@ Evidence chain:
 
 Every assertion is a falsifiable claim.  "Sovereign" is a testable property.
 """
+
 from __future__ import annotations
 
 import json
@@ -206,7 +207,8 @@ def main() -> None:
         match = cb.match("read and verify the foo module")
         _evidence(
             "exact goal text matches",
-            match is not None and match.goal_pattern == "read and verify the foo module",
+            match is not None
+            and match.goal_pattern == "read and verify the foo module",
         )
 
         match = cb.match("verify the foo module please")

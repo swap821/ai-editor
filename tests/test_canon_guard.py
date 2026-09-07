@@ -9,6 +9,7 @@ guarded separately by check_css_canon.py. The break-glass `--allow-canon` flag
 permits AUTHORIZED, operator-reviewed asset edits. These pin both behaviours via
 the `--check` path (no git needed).
 """
+
 from __future__ import annotations
 
 import importlib.util

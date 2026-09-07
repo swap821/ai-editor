@@ -260,9 +260,7 @@ _MEM_EXTERNAL_HEADER = (
 )
 
 
-def _crag_cloud_source(
-    query: str, *, completion: Any | None = None
-) -> list[str]:
+def _crag_cloud_source(query: str, *, completion: Any | None = None) -> list[str]:
     """CRAG external source A — the configured cloud model.
 
     The compatibility call shape remains available for the existing helper

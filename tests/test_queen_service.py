@@ -44,7 +44,10 @@ class DummyQueenService(QueenService):
         if self._delay:
             await asyncio.sleep(self._delay)
         return QueenVerdict(
-            queen=self.name, verdict=self._verdict, risk=self._risk, reason="dummy handled"
+            queen=self.name,
+            verdict=self._verdict,
+            risk=self._risk,
+            reason="dummy handled",
         )
 
 
@@ -123,7 +126,9 @@ def test_drain_loop_binds_a_trace_context_derived_from_the_queued_mission_id() -
 def test_backpressure_returns_defer_when_queue_full() -> None:
     async def _run():
         service = DummyQueenService(queue_depth=1)
-        placeholder: asyncio.Future[QueenVerdict] = asyncio.get_event_loop().create_future()
+        placeholder: asyncio.Future[QueenVerdict] = (
+            asyncio.get_event_loop().create_future()
+        )
         service._inbox.put_nowait((_contract(), placeholder))
 
         verdict = await service.submit(_contract())

@@ -119,7 +119,10 @@ def test_a_failure_in_one_workspace_does_not_revoke_another(
 
     scope_lock.set_scope_roots([workspace_b])
     ledger.record_outcome(
-        "create_file", "shared/app.py", success=False, strength=VerificationStrength.STRONG
+        "create_file",
+        "shared/app.py",
+        success=False,
+        strength=VerificationStrength.STRONG,
     )
 
     scope_lock.set_scope_roots([workspace_a])
@@ -178,13 +181,16 @@ def test_an_empty_scope_is_a_distinct_workspace_not_a_wildcard(
         autonomy_module.scope_lock.get_scope_roots = original
 
     assert fallback != scoped
-    assert fallback == autonomy_module.hashlib.sha256(
-        str(Path(config.PROJECT_ROOT).resolve())
-        .replace("\\", "/")
-        .rstrip("/")
-        .lower()
-        .encode("utf-8")
-    ).hexdigest()[:16]
+    assert (
+        fallback
+        == autonomy_module.hashlib.sha256(
+            str(Path(config.PROJECT_ROOT).resolve())
+            .replace("\\", "/")
+            .rstrip("/")
+            .lower()
+            .encode("utf-8")
+        ).hexdigest()[:16]
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -231,13 +237,13 @@ def test_an_existing_ledger_migrates_and_its_rows_go_inert(tmp_path: Path) -> No
     ledger = AutonomyLedger(db, min_successes=2)
 
     columns = {
-        row[1] for row in sqlite3.connect(db).execute("PRAGMA table_info(earned_autonomy)")
+        row[1]
+        for row in sqlite3.connect(db).execute("PRAGMA table_info(earned_autonomy)")
     }
     assert "workspace_id" in columns, "the migration did not add the column"
-    assert ledger.is_earned("create_file", "training_ground/x.py", enabled=True) is False, (
-        "a legacy earned row still grants autonomy; the old signature is still "
-        "reachable"
-    )
+    assert (
+        ledger.is_earned("create_file", "training_ground/x.py", enabled=True) is False
+    ), "a legacy earned row still grants autonomy; the old signature is still reachable"
 
 
 def test_a_fresh_ledger_records_the_workspace_on_the_row(tmp_path: Path) -> None:
@@ -250,13 +256,17 @@ def test_a_fresh_ledger_records_the_workspace_on_the_row(tmp_path: Path) -> None
     db = tmp_path / "fresh.db"
     ledger = AutonomyLedger(db, min_successes=2)
     ledger.record_outcome(
-        "create_file", "training_ground/a.py", success=True,
+        "create_file",
+        "training_ground/a.py",
+        success=True,
         strength=VerificationStrength.STRONG,
     )
 
-    rows = sqlite3.connect(db).execute(
-        "SELECT workspace_id FROM earned_autonomy"
-    ).fetchall()
+    rows = (
+        sqlite3.connect(db)
+        .execute("SELECT workspace_id FROM earned_autonomy")
+        .fetchall()
+    )
     assert rows, "no ledger row was written"
     assert rows[0][0] == workspace_id(), (
         "the row does not carry the workspace that earned it"

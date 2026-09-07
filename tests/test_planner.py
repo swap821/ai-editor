@@ -1,4 +1,5 @@
 """Planner tests — confidence-gated decomposition with an injected fake LLM."""
+
 from __future__ import annotations
 
 import json
@@ -57,8 +58,8 @@ def test_plan_partitions_by_confidence() -> None:
     llm = StepLLM(_steps_json(0.95, 0.5, 0.72))
     plan = _planner(llm).plan("build a todo app")
     assert len(plan.steps) == 3
-    assert len(plan.approved) == 2          # 0.95 and 0.72 (>= threshold)
-    assert len(plan.escalate) == 1          # 0.5 is below
+    assert len(plan.approved) == 2  # 0.95 and 0.72 (>= threshold)
+    assert len(plan.escalate) == 1  # 0.5 is below
     assert plan.requires_human is True
     assert plan.escalate[0]["step"].confidence == 0.5
 

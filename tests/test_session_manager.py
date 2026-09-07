@@ -5,6 +5,7 @@ its core logic (create / validate / invalidate / upgrade / expiry / cleanup) was
 unit-untested (~46%). These characterization tests pin the real behavior, especially
 the session-fixation-prevention path.
 """
+
 from __future__ import annotations
 
 import hashlib

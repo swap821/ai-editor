@@ -64,8 +64,8 @@ def _make_runtime(*, extra_overrides: dict[str, object] | None = None) -> Runtim
             "ollama",
             model,
         ),
-        "stream_chat_chunks": lambda chat_client, messages, *, model: chat_client.stream_chat(
-            messages, tools=None, model=model
+        "stream_chat_chunks": lambda chat_client, messages, *, model: (
+            chat_client.stream_chat(messages, tools=None, model=model)
         ),
         "record_episode": lambda session_id, role, content: None,
         "record_human_state": lambda sid, tid, hyp: recorded_human_state.append(
@@ -94,9 +94,7 @@ def test_stream_conversation_emits_a_human_state_frame_before_route() -> None:
     context = _make_context()
     runtime = _make_runtime()
 
-    events = [
-        e.split(":", 1)[0] for e in stream_conversation(context, runtime)
-    ]
+    events = [e.split(":", 1)[0] for e in stream_conversation(context, runtime)]
 
     assert "human_state" in events
     assert events.index("human_state") < events.index("route")
@@ -151,7 +149,9 @@ def test_stream_conversation_yields_human_state_before_calling_record_human_stat
     context = _make_context()
     call_order: list[str] = []
 
-    def _tracking_record_human_state(sid: str, tid: str, hyp: HumanStateHypothesis) -> None:
+    def _tracking_record_human_state(
+        sid: str, tid: str, hyp: HumanStateHypothesis
+    ) -> None:
         call_order.append("record_human_state")
 
     runtime = _make_runtime(
@@ -166,6 +166,7 @@ def test_stream_conversation_yields_human_state_before_calling_record_human_stat
 
     assert "human_state_before_persist" in frames
     assert call_order == ["record_human_state"]
+
 
 def test_stream_conversation_authenticated_representation_uses_gateway_before_route() -> (
     None
@@ -221,11 +222,12 @@ def test_stream_conversation_authenticated_representation_uses_gateway_before_ro
     assert "a" * 64 in receipt_frame
     assert "b" * 64 in receipt_frame
     text = "".join(
-        frame.split("'text': ", 1)[1].rstrip("}") .strip("'")
+        frame.split("'text': ", 1)[1].rstrip("}").strip("'")
         for frame in frames
         if frame.startswith("text_chunk:")
     )
     assert text == "governed reply"
+
 
 def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -> None:
     context = _make_context(session_id="session-compat")
@@ -242,8 +244,21 @@ def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -
     local_client = _Client("local")
     cloud_client = _Client("cloud")
 
-    def _active_route(chat_client, bedrock, gemini, model, *, openai=None, anthropic=None, vertex_maas=None):
-        return ("cloud", "cloud-model") if chat_client is cloud_client else ("ollama", "local-model")
+    def _active_route(
+        chat_client,
+        bedrock,
+        gemini,
+        model,
+        *,
+        openai=None,
+        anthropic=None,
+        vertex_maas=None,
+    ):
+        return (
+            ("cloud", "cloud-model")
+            if chat_client is cloud_client
+            else ("ollama", "local-model")
+        )
 
     def _stream_chat_chunks(chat_client, messages, *, model):
         yield from chat_client.stream_chat(messages, tools=None, model=model)

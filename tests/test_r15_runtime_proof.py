@@ -18,6 +18,7 @@ def test_r15_runtime_proof_runner_exposes_the_complete_matrix(tmp_path: Path) ->
     assert all(report.proofs[name].evidence for name in R15_REQUIRED_PROOFS)
     assert report.as_dict()["all_passed"] is True
 
+
 def test_r15_runtime_proof_report_has_boolean_map_and_failures(tmp_path: Path) -> None:
     report = run_r15_runtime_proofs(tmp_path)
 
@@ -27,12 +28,13 @@ def test_r15_runtime_proof_report_has_boolean_map_and_failures(tmp_path: Path) -
     assert report.as_dict()["failures"] == []
 
 
-def test_r15_runtime_proof_evidence_is_executable_not_placeholder(tmp_path: Path) -> None:
+def test_r15_runtime_proof_evidence_is_executable_not_placeholder(
+    tmp_path: Path,
+) -> None:
     report = run_r15_runtime_proofs(tmp_path)
 
     assert all(report.boolean_map().values())
     assert all(
-        evidence
-        and evidence != f"{name} proven"
+        evidence and evidence != f"{name} proven"
         for name, evidence in report.evidence_map().items()
     )

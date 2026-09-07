@@ -136,5 +136,7 @@ def test_council_origination_complex_task_uses_royal_decree_and_waits_for_approv
     assert payload["ledger"]["status"] == "awaiting_approval"
     assert payload["ledger"]["workers_created"] == []
     assert payload["summary"]["royalDecree"]["advisory"] is True
-    assert payload["ledger"]["contract"]["metadata"]["royal_decree"]["scout_first"] is True
+    assert (
+        payload["ledger"]["contract"]["metadata"]["royal_decree"]["scout_first"] is True
+    )
     assert (workspace / "target.txt").read_text(encoding="utf-8") == "original\n"

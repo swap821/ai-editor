@@ -181,7 +181,9 @@ def test_operator_model_route_uses_authority_when_facts_store_owned() -> None:
     }
 
 
-def test_system_metrics_route_uses_authority_when_tracker_store_owned(monkeypatch) -> None:
+def test_system_metrics_route_uses_authority_when_tracker_store_owned(
+    monkeypatch,
+) -> None:
     from aios.api.routes import system
 
     class Authority:
@@ -228,8 +230,13 @@ def test_specialist_dependency_providers_return_authority_stores() -> None:
     facts = get_semantic_facts()
 
     assert facts is authority.adapters["facts"].store
-    assert get_development_tracker(facts, authority) is authority.adapters["development"].store
-    assert get_skill_memory(None, facts, authority) is authority.adapters["skills"].store
+    assert (
+        get_development_tracker(facts, authority)
+        is authority.adapters["development"].store
+    )
+    assert (
+        get_skill_memory(None, facts, authority) is authority.adapters["skills"].store
+    )
     assert get_mistake_memory(facts, authority) is authority.adapters["lessons"].store
 
 
@@ -325,6 +332,6 @@ def test_reflection_recall_preserves_noncanonical_lesson_fake() -> None:
         object(), mistakes=Lessons(), memory_authority=Authority()
     )
 
-    assert _recall_lessons(reflector, "session", "query", authority=reflector.memory_authority) == [
-        {"mistake_id": 7, "error_type": "Bug", "lesson_text": "verify"}
-    ]
+    assert _recall_lessons(
+        reflector, "session", "query", authority=reflector.memory_authority
+    ) == [{"mistake_id": 7, "error_type": "Bug", "lesson_text": "verify"}]

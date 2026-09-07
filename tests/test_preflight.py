@@ -5,6 +5,7 @@ tools/preflight.py directly (see AGENTS.md / GAGOS_SEASON_ONE_KICKOFF.md P0.1),
 not in this suite -- these tests cover provider selection, config-gating, and
 result formatting with fake clients only.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -32,7 +33,9 @@ def test_select_provider_honors_override(monkeypatch: pytest.MonkeyPatch) -> Non
     assert select_provider() == PROVIDER_BEDROCK
 
 
-def test_build_client_rejects_unconfigured_bedrock(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_client_rejects_unconfigured_bedrock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr("aios.config.BEDROCK_ENABLED", False)
     with pytest.raises(PreflightConfigError, match="Bedrock"):
         build_client(PROVIDER_BEDROCK)
@@ -75,7 +78,9 @@ def test_run_roundtrip_reports_llm_error_as_failure_not_exception() -> None:
 
 
 def test_format_result_ok() -> None:
-    r = PreflightResult(ok=True, provider="ollama", model="llama3.1:8b", latency_ms=123.4, detail="OK")
+    r = PreflightResult(
+        ok=True, provider="ollama", model="llama3.1:8b", latency_ms=123.4, detail="OK"
+    )
     line = format_result(r)
     assert "OK" in line
     assert "ollama" in line
@@ -83,7 +88,9 @@ def test_format_result_ok() -> None:
 
 
 def test_format_result_fail() -> None:
-    r = PreflightResult(ok=False, provider="ollama", model="llama3.1:8b", latency_ms=None, detail="boom")
+    r = PreflightResult(
+        ok=False, provider="ollama", model="llama3.1:8b", latency_ms=None, detail="boom"
+    )
     line = format_result(r)
     assert "FAIL" in line
     assert "boom" in line

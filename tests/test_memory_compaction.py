@@ -1,4 +1,5 @@
 """Tests for the memory compaction sweep."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -62,7 +63,9 @@ def _add_unverified_chat(sem: SemanticMemory, text: str) -> int:
     return sem.add(text, memory_type="chat", verification_status="unverified")
 
 
-def test_preview_returns_compaction_preview(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_preview_returns_compaction_preview(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     wm = WorkingMemory()
     wm.set("s1", "k", "v")
     comp = MemoryCompactor(
@@ -105,7 +108,9 @@ def test_preview_never_mutates(db_path: Path, audit_db: Path, tmp_path: Path) ->
     assert sem.count() == 1
 
 
-def test_dry_run_reports_but_does_not_delete(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_dry_run_reports_but_does_not_delete(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     wm = WorkingMemory()
     wm.set("s1", "k", "v")
     comp = MemoryCompactor(
@@ -123,7 +128,9 @@ def test_dry_run_reports_but_does_not_delete(db_path: Path, audit_db: Path, tmp_
     assert wm.get("s1", "k") == "v"
 
 
-def test_compact_removes_idle_working_session(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_removes_idle_working_session(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     wm = WorkingMemory()
     wm.set("s1", "k", "v")
     comp = MemoryCompactor(
@@ -141,13 +148,13 @@ def test_compact_removes_idle_working_session(db_path: Path, audit_db: Path, tmp
     assert wm.get("s1", "k") is None
 
 
-def test_compact_deletes_old_episodic_rows(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_deletes_old_episodic_rows(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     ep = EpisodicMemory(db_path)
     ep.record("s", "user", "hello")
     with memdb.get_connection(db_path) as conn:
-        conn.execute(
-            "UPDATE episodic_memory SET timestamp = '1970-01-01 00:00:00'"
-        )
+        conn.execute("UPDATE episodic_memory SET timestamp = '1970-01-01 00:00:00'")
 
     comp = MemoryCompactor(
         db_path=db_path,
@@ -163,7 +170,9 @@ def test_compact_deletes_old_episodic_rows(db_path: Path, audit_db: Path, tmp_pa
     assert ep.count() == 0
 
 
-def test_compact_deletes_old_unverified_chat(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_deletes_old_unverified_chat(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     fake = FakeIndex(tmp_path)
     sem = SemanticMemory(db_path, index=fake, embedder=FakeEmbedder())
     _add_unverified_chat(sem, "old chat")
@@ -188,7 +197,9 @@ def test_compact_deletes_old_unverified_chat(db_path: Path, audit_db: Path, tmp_
     assert sem.count() == 0
 
 
-def test_compact_keeps_verified_rows(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_keeps_verified_rows(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     fake = FakeIndex(tmp_path)
     sem = SemanticMemory(db_path, index=fake, embedder=FakeEmbedder())
     sem.add("verified fact", memory_type="fact", verification_status="verified")
@@ -208,7 +219,9 @@ def test_compact_keeps_verified_rows(db_path: Path, audit_db: Path, tmp_path: Pa
     assert sem.count() == 1
 
 
-def test_compact_caps_unverified_per_type(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_caps_unverified_per_type(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     fake = FakeIndex(tmp_path)
     sem = SemanticMemory(db_path, index=fake, embedder=FakeEmbedder())
     ids = [_add_unverified_chat(sem, f"chat {i}") for i in range(3)]
@@ -230,7 +243,9 @@ def test_compact_caps_unverified_per_type(db_path: Path, audit_db: Path, tmp_pat
     assert sem.count() == 1
 
 
-def test_compact_cleans_vector_index(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_cleans_vector_index(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     fake = FakeIndex(tmp_path)
     sem = SemanticMemory(db_path, index=fake, embedder=FakeEmbedder())
     _add_unverified_chat(sem, "old chat")
@@ -254,7 +269,9 @@ def test_compact_cleans_vector_index(db_path: Path, audit_db: Path, tmp_path: Pa
     assert fake.removed
 
 
-def test_compact_writes_one_audit_entry(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_writes_one_audit_entry(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     wm = WorkingMemory()
     wm.set("s1", "k", "v")
     comp = MemoryCompactor(
@@ -272,7 +289,9 @@ def test_compact_writes_one_audit_entry(db_path: Path, audit_db: Path, tmp_path:
     assert status.total_entries == 1  # the single action entry
 
 
-def test_compact_no_audit_entry_on_dry_run(db_path: Path, audit_db: Path, tmp_path: Path) -> None:
+def test_compact_no_audit_entry_on_dry_run(
+    db_path: Path, audit_db: Path, tmp_path: Path
+) -> None:
     wm = WorkingMemory()
     wm.set("s1", "k", "v")
     comp = MemoryCompactor(
@@ -288,7 +307,6 @@ def test_compact_no_audit_entry_on_dry_run(db_path: Path, audit_db: Path, tmp_pa
     status = audit_logger.verify_chain(db_path=audit_db)
     assert status.valid is True
     assert status.total_entries == 0  # nothing written
-
 
 
 def test_get_compactor_returns_singleton_and_shared_last_seen() -> None:

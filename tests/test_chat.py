@@ -5,6 +5,7 @@ router + memory + REAL personalization facts and streams a reply, running NO
 file-write/coding tools. Collaborators are overridden via dependency injection
 so the suite never calls Ollama, loads an embedder, or touches the real store.
 """
+
 from __future__ import annotations
 
 from typing import Iterator, Optional
@@ -148,7 +149,6 @@ class StreamingChatOllama(CapturingChatOllama):
         raise AssertionError("streaming chat endpoint should consume stream_chat")
 
 
-
 def test_chat_consumes_real_stream_chunks_when_available() -> None:
     ollama = StreamingChatOllama()
     indexer = FakeIndexer()
@@ -201,8 +201,16 @@ def test_chat_injects_operator_facts_when_present() -> None:
     ollama = CapturingChatOllama()
     facts = FakeFacts(
         rows=[
-            {"subject": "operator", "predicate": "prefers", "object": "concise Hinglish"},
-            {"subject": "operator", "predicate": "is", "object": "an independent developer"},
+            {
+                "subject": "operator",
+                "predicate": "prefers",
+                "object": "concise Hinglish",
+            },
+            {
+                "subject": "operator",
+                "predicate": "is",
+                "object": "an independent developer",
+            },
         ]
     )
     app.dependency_overrides[get_ollama_client] = lambda: ollama
@@ -212,7 +220,9 @@ def test_chat_injects_operator_facts_when_present() -> None:
     app.dependency_overrides[get_semantic_facts] = lambda: facts
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
-            response = client.post("/api/v1/chat", json={"transcript": "yaad hai mujhe?"})
+            response = client.post(
+                "/api/v1/chat", json={"transcript": "yaad hai mujhe?"}
+            )
         assert response.status_code == 200
         system_content = ollama.calls[0][0]["content"]
         assert "KNOWN FACTS ABOUT THE OPERATOR" in system_content
@@ -239,7 +249,9 @@ def test_chat_runs_no_file_write_tools(
     """Conversation, not the forge: the chat client is called with tools=None
     (no tool loop) and the stream carries NO step/code/file-write frames."""
     client, ollama = chat_setup
-    response = client.post("/api/v1/chat", json={"transcript": "kuch likhna mat, bas baat kar"})
+    response = client.post(
+        "/api/v1/chat", json={"transcript": "kuch likhna mat, bas baat kar"}
+    )
     assert response.status_code == 200
     # exactly one model call, and it advertised NO tools.
     assert len(ollama.tools_seen) == 1

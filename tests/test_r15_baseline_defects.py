@@ -14,17 +14,21 @@ from aios.api.routes import maintenance as maintenance_routes
 def test_defect1_canonical_maintenance_has_admitted_scanner() -> None:
     """Defect 1: Canonical maintenance dependency constructs VerifierRegistry(scanner_adapters={})."""
     service = get_maintenance_convergence_service()
-    assert (
-        len(service.verifier_registry.scanner_adapters) > 0
-    ), "Production VerifierRegistry has no admitted scanner adapters registered"
+    assert len(service.verifier_registry.scanner_adapters) > 0, (
+        "Production VerifierRegistry has no admitted scanner adapters registered"
+    )
 
 
 def test_defect2_canonical_worker_foundry_can_execute_code_work() -> None:
     """Defect 2: Canonical WorkerFoundry cannot execute repair code work."""
     service = get_maintenance_convergence_service()
     foundry = service.worker_foundry
-    assert getattr(foundry, "runtime_root", None) is not None, "WorkerFoundry has no runtime_root configured"
-    assert getattr(foundry, "spawner", None) is not None, "WorkerFoundry has no spawner configured"
+    assert getattr(foundry, "runtime_root", None) is not None, (
+        "WorkerFoundry has no runtime_root configured"
+    )
+    assert getattr(foundry, "spawner", None) is not None, (
+        "WorkerFoundry has no spawner configured"
+    )
 
 
 def test_defect3_maintenance_invokes_executor_service() -> None:
@@ -50,7 +54,13 @@ def test_defect4_production_executor_composition_is_valid() -> None:
 def test_defect5_mounted_repair_route_uses_canonical_callbacks() -> None:
     """Defect 5: Mounted repair route must not supply dummy lambda callbacks to run_approved_repair."""
     source = inspect.getsource(maintenance_routes.run_approved_repair)
-    assert "capability_consumer=lambda" not in source, "Route supplies dummy capability_consumer lambda"
-    assert "create_checkpoint=lambda" not in source, "Route supplies dummy create_checkpoint lambda"
-    assert "restore_checkpoint=lambda" not in source, "Route supplies dummy restore_checkpoint lambda"
+    assert "capability_consumer=lambda" not in source, (
+        "Route supplies dummy capability_consumer lambda"
+    )
+    assert "create_checkpoint=lambda" not in source, (
+        "Route supplies dummy create_checkpoint lambda"
+    )
+    assert "restore_checkpoint=lambda" not in source, (
+        "Route supplies dummy restore_checkpoint lambda"
+    )
     assert "smoke_test=lambda" not in source, "Route supplies dummy smoke_test lambda"

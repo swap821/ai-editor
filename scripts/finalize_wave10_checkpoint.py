@@ -45,7 +45,9 @@ def main() -> int:
             "interpretation": "The official candidate never completed download, so it has no qualification result and is not a clerk recommendation.",
         },
     )
-    gemma_pointer = "release/phase4/local-clerk-candidate-cohort-gemma1-wave10-20260801.json"
+    gemma_pointer = (
+        "release/phase4/local-clerk-candidate-cohort-gemma1-wave10-20260801.json"
+    )
     auth_pointer = write_json(
         RELEASE / "browser-evidence-auth-boundary-wave10-20260801.json",
         {
@@ -135,7 +137,17 @@ def main() -> int:
     }
     with EXPERIENCES.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(experience, ensure_ascii=False) + "\n")
-    print(json.dumps({"auth_artifact": auth_pointer, "granite_artifact": granite_pointer, "status": "42 green / 12 yellow", "qualified_clerks": 7}, indent=2))
+    print(
+        json.dumps(
+            {
+                "auth_artifact": auth_pointer,
+                "granite_artifact": granite_pointer,
+                "status": "42 green / 12 yellow",
+                "qualified_clerks": 7,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

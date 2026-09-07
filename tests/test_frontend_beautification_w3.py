@@ -26,11 +26,17 @@ def test_w3_status_chips_are_materialized_state_tokens() -> None:
     assert "box-shadow:" in pill
 
     assert ".gagos-pill--model" in css
-    assert ".gagos-pill--model" in css and "var(--neon-purple)" in _block(css, ".gagos-pill--model {")
+    assert ".gagos-pill--model" in css and "var(--neon-purple)" in _block(
+        css, ".gagos-pill--model {"
+    )
     assert ".gagos-pill--supervised" in css
     assert "var(--neon-green)" in _block(css, ".gagos-pill--supervised {")
-    assert ".gagos-pill__main" in css and "text-overflow: ellipsis" in _block(css, ".gagos-pill__main {")
-    assert ".gagos-pill__meta" in css and "opacity: 0.6" in _block(css, ".gagos-pill__meta {")
+    assert ".gagos-pill__main" in css and "text-overflow: ellipsis" in _block(
+        css, ".gagos-pill__main {"
+    )
+    assert ".gagos-pill__meta" in css and "opacity: 0.6" in _block(
+        css, ".gagos-pill__meta {"
+    )
 
     mobile = css[css.index("@media (max-width: 640px)") :]
     assert ".gagos-pill { padding:" not in mobile
@@ -52,7 +58,9 @@ def test_w3_thinking_echo_is_visible_above_dock_and_reuses_typing_dots() -> None
 
 def test_w3_adapter_humanizes_redaction_markers_before_body_labels() -> None:
     source = AIOS_ADAPTER.read_text(encoding="utf-8")
-    mirror_source = (ROOT / "frontend" / "src" / "superbrain" / "lib" / "aiosMirror.ts").read_text(encoding="utf-8")
+    mirror_source = (
+        ROOT / "frontend" / "src" / "superbrain" / "lib" / "aiosMirror.ts"
+    ).read_text(encoding="utf-8")
 
     assert "BACKEND_REDACTION_MARKER_RE" in source
     assert "function humanizeRedactionMarkers" in source

@@ -6,7 +6,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-ARTIFACT = Path(__file__).resolve().parents[1] / "release" / "phase4" / "local-clerk-candidate-cohort-92d871616ce6.json"
+ARTIFACT = (
+    Path(__file__).resolve().parents[1]
+    / "release"
+    / "phase4"
+    / "local-clerk-candidate-cohort-92d871616ce6.json"
+)
 SOURCES = {
     "gemma3": "https://ollama.com/library/gemma3",
     "granite3.2": "https://ollama.com/library/granite3.2",
@@ -33,7 +38,16 @@ def main() -> int:
         recommendation["measured_elapsed_seconds"] = candidate["elapsed_seconds"]
         recommendation["library_size_gb"] = candidate.get("library_size_gb")
     ARTIFACT.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"passing_recommendations": [item["model"] for item in artifact["recommendations"]]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "passing_recommendations": [
+                    item["model"] for item in artifact["recommendations"]
+                ]
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

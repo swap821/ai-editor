@@ -124,9 +124,14 @@ class OperatorPreferenceStore:
                 "SELECT operator_identity_digest FROM operator_preference_sidecar WHERE preference_id = ?",
                 (pref.preference_id,),
             ).fetchone()
-            if existing is not None and existing["operator_identity_digest"] is not None:
+            if (
+                existing is not None
+                and existing["operator_identity_digest"] is not None
+            ):
                 if existing["operator_identity_digest"] != operator_identity_digest:
-                    return OperatorPreferenceSaveResult(saved=False, reason="owner_mismatch")
+                    return OperatorPreferenceSaveResult(
+                        saved=False, reason="owner_mismatch"
+                    )
 
         subject = f"operator.{pref.scope}.{pref.domain}.{pref.key}"
         value_json = json.dumps(pref.value, sort_keys=True, separators=(",", ":"))
@@ -310,9 +315,7 @@ class ProjectPassportStore:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def save_and_diff(
-        self, passport: ProjectPassportV1
-    ) -> tuple[int, dict[str, Any]]:
+    def save_and_diff(self, passport: ProjectPassportV1) -> tuple[int, dict[str, Any]]:
         """Save a new passport revision and return (revision, passport_diff)
         atomically under an IMMEDIATE transaction lock.
 
@@ -891,9 +894,7 @@ class CorrectionRecordStore:
             ).fetchone()
         return row["event_digest"] if row else None
 
-    def _save_authenticated_event(
-        self, event: AuthenticatedCorrectionEventV1
-    ) -> None:
+    def _save_authenticated_event(self, event: AuthenticatedCorrectionEventV1) -> None:
         values_json = json.dumps(
             [item.model_dump(mode="json") for item in event.corrected_values]
         )
@@ -949,7 +950,10 @@ class CorrectionRecordStore:
             ).fetchone()
         if not row:
             return None
-        if row["event_kind"] == "cleared" or row["correction_revision"] != active_revision:
+        if (
+            row["event_kind"] == "cleared"
+            or row["correction_revision"] != active_revision
+        ):
             return None
 
         raw_values = json.loads(row["corrected_values_json"])

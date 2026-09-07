@@ -342,7 +342,11 @@ def _select_chat_client(
     """
     if model_id in _AUTO_IDS:
         providers = _build_providers(
-            ollama, bedrock, gemini, openai=openai, anthropic=anthropic,
+            ollama,
+            bedrock,
+            gemini,
+            openai=openai,
+            anthropic=anthropic,
             vertex_maas=vertex_maas,
         )
         policy = _router_policy()

@@ -29,6 +29,7 @@ Usage:
 Exit code 0 iff every step is PROVED. Never leaves a spawned server process
 running on exit.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -120,8 +121,18 @@ class Checklist:
     mode_label: str
     steps: list[Step] = field(default_factory=list)
 
-    def record(self, number: int, name: str, *, proved: bool, evidence: str = "", error: str = "") -> Step:
-        step = Step(number=number, name=name, proved=proved, evidence=evidence, error=error)
+    def record(
+        self,
+        number: int,
+        name: str,
+        *,
+        proved: bool,
+        evidence: str = "",
+        error: str = "",
+    ) -> Step:
+        step = Step(
+            number=number, name=name, proved=proved, evidence=evidence, error=error
+        )
         self.steps.append(step)
         prefix = "PROVED" if proved else "FAILED"
         print(f"[{prefix}] {number}. {name}")
@@ -159,7 +170,9 @@ _NEVER_TOUCH_DIRS = {".git"}
 
 def _walk_scope_files(scope_root: Path):
     for p in scope_root.rglob("*"):
-        if any(part in _NEVER_TOUCH_DIRS for part in p.relative_to(scope_root).parts[:-1]):
+        if any(
+            part in _NEVER_TOUCH_DIRS for part in p.relative_to(scope_root).parts[:-1]
+        ):
             continue
         yield p
 
@@ -183,7 +196,11 @@ def restore_training_ground(scope_root: Path, before: set[str]) -> list[str]:
     """
     if not scope_root.exists():
         return []
-    after = {str(p.relative_to(scope_root)) for p in _walk_scope_files(scope_root) if p.is_file()}
+    after = {
+        str(p.relative_to(scope_root))
+        for p in _walk_scope_files(scope_root)
+        if p.is_file()
+    }
     added = after - before
     deleted: list[str] = []
     for rel in sorted(added):
@@ -196,7 +213,9 @@ def restore_training_ground(scope_root: Path, before: set[str]) -> list[str]:
             pass
     # Clean up now-empty directories the demo may have created (never the root,
     # never anything under a never-touch dir).
-    for d in sorted(_walk_scope_files(scope_root), key=lambda p: len(p.parts), reverse=True):
+    for d in sorted(
+        _walk_scope_files(scope_root), key=lambda p: len(p.parts), reverse=True
+    ):
         if d.is_dir():
             try:
                 next(d.iterdir())
@@ -256,7 +275,7 @@ def cleanup_stale_rollback_pointer(scope_root: Path) -> None:
     prefix = "gitdir:"
     if not text.lower().startswith(prefix):
         return
-    raw_target = text[len(prefix):].strip()
+    raw_target = text[len(prefix) :].strip()
     if not raw_target:
         return
     target = Path(raw_target)
@@ -303,7 +322,9 @@ def wait_for_health(base_url: str, *, timeout_s: float = 30.0) -> dict[str, Any]
             except httpx.HTTPError as exc:
                 last_error = str(exc)
             time.sleep(0.4)
-    raise ProveItFailure(f"server never answered /health within {timeout_s}s: {last_error}")
+    raise ProveItFailure(
+        f"server never answered /health within {timeout_s}s: {last_error}"
+    )
 
 
 def detect_live_model(timeout_s: float = 2.0) -> Optional[str]:
@@ -339,9 +360,9 @@ def parse_sse(raw_text: str) -> list[tuple[str, dict[str, Any]]]:
         data_line = None
         for line in block.split("\n"):
             if line.startswith("event:"):
-                event_name = line[len("event:"):].strip()
+                event_name = line[len("event:") :].strip()
             elif line.startswith("data:"):
-                data_line = line[len("data:"):].strip()
+                data_line = line[len("data:") :].strip()
         if event_name is None or data_line is None:
             continue
         try:
@@ -360,7 +381,9 @@ def parse_sse(raw_text: str) -> list[tuple[str, dict[str, Any]]]:
 class LiveServer:
     """Spawns ``.venv\\Scripts\\python -m aios`` as a child and guarantees cleanup."""
 
-    def __init__(self, host: str, port: int, *, extra_env: Optional[dict[str, str]] = None) -> None:
+    def __init__(
+        self, host: str, port: int, *, extra_env: Optional[dict[str, str]] = None
+    ) -> None:
         self.host = host
         self.port = port
         self.proc: Optional[subprocess.Popen] = None
@@ -414,7 +437,8 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
     model_name = detect_live_model()
     if not model_name:
         checklist.record(
-            1, "BOOT",
+            1,
+            "BOOT",
             proved=False,
             error=(
                 "No reachable/tool-capable local Ollama model detected at "
@@ -445,7 +469,8 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
             return 1
 
         checklist.record(
-            1, "BOOT",
+            1,
+            "BOOT",
             proved=True,
             evidence=(
                 f"server {mode} at {server.base_url} (child pid="
@@ -458,7 +483,7 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
         directive = (
             DEMO_DIRECTIVE
             + f" Use exactly this path for the source file: {DEMO_FILE_REL} "
-              f"and exactly this path for the test file: {DEMO_TEST_REL}."
+            f"and exactly this path for the test file: {DEMO_TEST_REL}."
         )
         body = {
             "messages": [{"role": "user", "content": [{"text": directive}]}],
@@ -468,13 +493,16 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
 
         client = httpx.Client(timeout=180.0)
         try:
-            frames, human_required = _post_generate_collect(client, server.base_url, body)
+            frames, human_required = _post_generate_collect(
+                client, server.base_url, body
+            )
         except ProveItFailure as exc:
             checklist.record(2, "DIRECTIVE", proved=False, error=str(exc))
             return 1
 
         checklist.record(
-            2, "DIRECTIVE",
+            2,
+            "DIRECTIVE",
             proved=True,
             evidence=(
                 f"POST {server.base_url}/api/generate body.modelId={model_id} "
@@ -489,20 +517,22 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
         while human_required is None and attempts < max_attempts:
             attempts += 1
             nudge = (
-                directive
-                + f" Remember: call create_file with filepath="
-                  f"'{DEMO_FILE_REL}', then create_file with "
-                  f"filepath='{DEMO_TEST_REL}'."
+                directive + f" Remember: call create_file with filepath="
+                f"'{DEMO_FILE_REL}', then create_file with "
+                f"filepath='{DEMO_TEST_REL}'."
             )
             body["messages"].append({"role": "user", "content": [{"text": nudge}]})
             try:
-                frames, human_required = _post_generate_collect(client, server.base_url, body)
+                frames, human_required = _post_generate_collect(
+                    client, server.base_url, body
+                )
             except ProveItFailure:
                 break
 
         if human_required is None:
             checklist.record(
-                3, "SUPERVISION",
+                3,
+                "SUPERVISION",
                 proved=False,
                 error=(
                     f"the live model did not attempt a gated write after {attempts} "
@@ -516,18 +546,23 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
         pre_write_exists = (scope_root / f"{DEMO_BASENAME}.py").exists() and (
             f"{DEMO_BASENAME}.py" not in before_files
         )
-        if (scope_root / f"{DEMO_BASENAME}.py").exists() and f"{DEMO_BASENAME}.py" in before_files:
+        if (
+            scope_root / f"{DEMO_BASENAME}.py"
+        ).exists() and f"{DEMO_BASENAME}.py" in before_files:
             pre_write_exists = False
         approval_token = human_required["input"].get("approvalToken", "")
         checklist.record(
-            3, "SUPERVISION",
+            3,
+            "SUPERVISION",
             proved=not pre_write_exists and bool(approval_token),
             evidence=(
                 f"event: human_required text={human_required.get('text', '')!r} "
                 f"approvalToken={approval_token[:12]}... "
                 f"file-exists-before-approval={pre_write_exists}"
             ),
-            error="" if not pre_write_exists else "file existed on disk BEFORE approval was granted",
+            error=""
+            if not pre_write_exists
+            else "file existed on disk BEFORE approval was granted",
         )
         if pre_write_exists or not approval_token:
             return 1
@@ -540,7 +575,9 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
             "approvalTokens": [approval_token],
         }
         try:
-            resume_frames, second_pause = _post_generate_collect(client, server.base_url, resume_body)
+            resume_frames, second_pause = _post_generate_collect(
+                client, server.base_url, resume_body
+            )
         except ProveItFailure as exc:
             checklist.record(4, "APPROVAL", proved=False, error=str(exc))
             return 1
@@ -555,12 +592,15 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
                 break
             resume_body["approvalTokens"] = [token2]
             try:
-                resume_frames, second_pause = _post_generate_collect(client, server.base_url, resume_body)
+                resume_frames, second_pause = _post_generate_collect(
+                    client, server.base_url, resume_body
+                )
             except ProveItFailure:
                 break
 
         checklist.record(
-            4, "APPROVAL",
+            4,
+            "APPROVAL",
             proved=True,
             evidence=(
                 f"POST {server.base_url}/api/generate (in-turn resume) with "
@@ -580,7 +620,9 @@ def run_live(checklist: Checklist, *, host: str, port: int, keep_server: bool) -
             server.kill()
         deleted = restore_training_ground(scope_root, before_files)
         if deleted:
-            print(f"[cleanup] removed demo artifacts from training_ground/: {', '.join(deleted)}")
+            print(
+                f"[cleanup] removed demo artifacts from training_ground/: {', '.join(deleted)}"
+            )
 
 
 def _post_generate_collect(
@@ -591,7 +633,9 @@ def _post_generate_collect(
     except httpx.HTTPError as exc:
         raise ProveItFailure(f"POST /api/generate failed: {exc}") from exc
     if resp.status_code != 200:
-        raise ProveItFailure(f"POST /api/generate -> HTTP {resp.status_code}: {resp.text[:300]}")
+        raise ProveItFailure(
+            f"POST /api/generate -> HTTP {resp.status_code}: {resp.text[:300]}"
+        )
     frames = parse_sse(resp.text)
     human_required = None
     for event, payload in frames:
@@ -602,20 +646,27 @@ def _post_generate_collect(
     return frames, human_required
 
 
-def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]], scope_root: Path) -> None:
+def _finish_common(
+    checklist: Checklist, frames: list[tuple[str, dict[str, Any]]], scope_root: Path
+) -> None:
     """Steps 5-7, shared by live and scripted once the resumed turn has run."""
     # --- ACTION ---
     demo_file = scope_root / f"{DEMO_BASENAME}.py"
     if demo_file.exists():
-        first_line = demo_file.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+        first_line = demo_file.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()[0]
         checklist.record(
-            5, "ACTION",
+            5,
+            "ACTION",
             proved=True,
             evidence=f"{demo_file} exists; first line: {first_line!r}",
         )
     else:
         checklist.record(
-            5, "ACTION", proved=False,
+            5,
+            "ACTION",
+            proved=False,
             error=f"expected file not found on disk: {demo_file}",
         )
 
@@ -629,7 +680,8 @@ def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]
     verify_frames = [p for e, p in frames if e == "verify_result"]
     any_pass = next(
         (
-            p for p in verify_frames
+            p
+            for p in verify_frames
             if p.get("verdict") == "pass" and "[VERIFY PASS]" in p.get("output", "")
         ),
         None,
@@ -641,13 +693,16 @@ def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]
     )
     if strong_pass is not None:
         checklist.record(
-            6, "VERIFY",
+            6,
+            "VERIFY",
             proved=True,
             evidence=f"event: verify_result target={strong_pass.get('target')!r} output={strong_pass.get('output')!r}",
         )
     elif any_pass is not None:
         checklist.record(
-            6, "VERIFY", proved=False,
+            6,
+            "VERIFY",
+            proved=False,
             evidence=f"event: verify_result target={any_pass.get('target')!r} output={any_pass.get('output')!r}",
             error=(
                 "[VERIFY PASS] was real but strength was NOT STRONG (see evidence line above). "
@@ -667,7 +722,9 @@ def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]
         )
     else:
         checklist.record(
-            6, "VERIFY", proved=False,
+            6,
+            "VERIFY",
+            proved=False,
             error=(
                 "no verify_result frame with verdict=pass and '[VERIFY PASS]' found. "
                 f"verify frames seen: {verify_frames}"
@@ -676,7 +733,9 @@ def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]
 
     # --- LEARNING ---
     try:
-        from aios import config as aios_config  # local import: only after env is set (scripted) or real (live)
+        from aios import (
+            config as aios_config,
+        )  # local import: only after env is set (scripted) or real (live)
         import sqlite3
 
         skills_count = 0
@@ -690,7 +749,9 @@ def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]
                         "SELECT id FROM procedural_skills ORDER BY id DESC LIMIT 5"
                     ).fetchall()
                     skill_ids = [r[0] for r in rows]
-                    skills_count = conn.execute("SELECT COUNT(*) FROM procedural_skills").fetchone()[0]
+                    skills_count = conn.execute(
+                        "SELECT COUNT(*) FROM procedural_skills"
+                    ).fetchone()[0]
                 except sqlite3.OperationalError:
                     pass
                 try:
@@ -698,21 +759,28 @@ def _finish_common(checklist: Checklist, frames: list[tuple[str, dict[str, Any]]
                         "SELECT id FROM development_events ORDER BY id DESC LIMIT 5"
                     ).fetchall()
                     dev_ids = [r[0] for r in rows]
-                    dev_count = conn.execute("SELECT COUNT(*) FROM development_events").fetchone()[0]
+                    dev_count = conn.execute(
+                        "SELECT COUNT(*) FROM development_events"
+                    ).fetchone()[0]
                 except sqlite3.OperationalError:
                     pass
         proved = skills_count > 0 and dev_count > 0
         checklist.record(
-            7, "LEARNING",
+            7,
+            "LEARNING",
             proved=proved,
             evidence=(
                 f"db={aios_config.MEMORY_DB_PATH} procedural_skills rows={skills_count} "
                 f"(recent ids={skill_ids}); development_events rows={dev_count} (recent ids={dev_ids})"
             ),
-            error="" if proved else "expected at least one skill attempt row and one development row",
+            error=""
+            if proved
+            else "expected at least one skill attempt row and one development row",
         )
     except Exception as exc:  # noqa: BLE001 - report, don't crash the checklist
-        checklist.record(7, "LEARNING", proved=False, error=f"could not inspect memory DB: {exc}")
+        checklist.record(
+            7, "LEARNING", proved=False, error=f"could not inspect memory DB: {exc}"
+        )
 
 
 # --------------------------------------------------------------------------
@@ -902,7 +970,8 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
             }
 
             checklist.record(
-                1, "BOOT",
+                1,
+                "BOOT",
                 proved=True,
                 evidence=(
                     "in-process TestClient against the REAL FastAPI app object "
@@ -913,7 +982,9 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
             resp = client.post("/api/generate", json=body)
             if resp.status_code != 200:
                 checklist.record(
-                    2, "DIRECTIVE", proved=False,
+                    2,
+                    "DIRECTIVE",
+                    proved=False,
                     error=f"POST /api/generate -> HTTP {resp.status_code}: {resp.text[:300]}",
                 )
                 return 1
@@ -921,7 +992,8 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
             human_required = next((p for e, p in frames if e == "human_required"), None)
             errors = [p for e, p in frames if e == "error"]
             checklist.record(
-                2, "DIRECTIVE",
+                2,
+                "DIRECTIVE",
                 proved=not errors,
                 evidence=(
                     f"POST /api/generate (TestClient, real app) sessionId={session_id} -> "
@@ -936,10 +1008,15 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
                 human_required = None  # simulate the pause never happening
 
             pre_exists = (scope_root / f"{DEMO_BASENAME}.py").exists()
-            approval_token = (human_required or {}).get("input", {}).get("approvalToken", "")
-            supervision_ok = human_required is not None and not pre_exists and bool(approval_token)
+            approval_token = (
+                (human_required or {}).get("input", {}).get("approvalToken", "")
+            )
+            supervision_ok = (
+                human_required is not None and not pre_exists and bool(approval_token)
+            )
             checklist.record(
-                3, "SUPERVISION",
+                3,
+                "SUPERVISION",
                 proved=supervision_ok,
                 evidence=(
                     f"event: human_required text={(human_required or {}).get('text', '')!r} "
@@ -948,7 +1025,9 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
                     if human_required is not None
                     else "no human_required frame was emitted for a create_file call"
                 ),
-                error="" if supervision_ok else "expected a YELLOW pause with an approval token before any write",
+                error=""
+                if supervision_ok
+                else "expected a YELLOW pause with an approval token before any write",
             )
             if not supervision_ok:
                 return 1
@@ -965,7 +1044,9 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
             resp2 = client.post("/api/generate", json=resume_body)
             if resp2.status_code != 200:
                 checklist.record(
-                    4, "APPROVAL", proved=False,
+                    4,
+                    "APPROVAL",
+                    proved=False,
                     error=f"resume POST -> HTTP {resp2.status_code}: {resp2.text[:300]}",
                 )
                 return 1
@@ -986,12 +1067,15 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
                     break
                 frames_n = parse_sse(resp_n.text)
                 all_frames = frames_n
-                second_pause = next((p for e, p in frames_n if e == "human_required"), None)
+                second_pause = next(
+                    (p for e, p in frames_n if e == "human_required"), None
+                )
                 errors2 = [p for e, p in frames_n if e == "error"]
 
             approval_ok = not errors2
             checklist.record(
-                4, "APPROVAL",
+                4,
+                "APPROVAL",
                 proved=approval_ok,
                 evidence=(
                     f"POST /api/generate (in-turn resume) approvalTokens=[{approval_token[:12]}...] "
@@ -1018,7 +1102,10 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
                 # sabotage was masked until the workflow_steps fix made LEARNING
                 # genuinely pass; its own self-test then exposed the inert env flip.)
                 from aios import config as _sab_config
-                _sab_config.MEMORY_DB_PATH = tmp_dir / "empty_data_dir_sabotage" / "aios_memory.db"
+
+                _sab_config.MEMORY_DB_PATH = (
+                    tmp_dir / "empty_data_dir_sabotage" / "aios_memory.db"
+                )
 
             _finish_common(checklist, all_frames, scope_root)
             return 0 if checklist.all_proved else 1
@@ -1029,7 +1116,9 @@ def run_scripted(checklist: Checklist, *, sabotage: Optional[str] = None) -> int
         deleted = restore_training_ground(scope_root, before_files)
         cleanup_stale_rollback_pointer(scope_root)
         if deleted:
-            print(f"[cleanup] removed demo artifacts from training_ground/: {', '.join(deleted)}")
+            print(
+                f"[cleanup] removed demo artifacts from training_ground/: {', '.join(deleted)}"
+            )
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
@@ -1051,7 +1140,9 @@ def print_footer(checklist: Checklist, mode: str) -> None:
     for step in checklist.steps:
         status = "PROVED" if step.proved else "FAILED"
         print(f"  [{status}] {step.number}. {step.name}")
-    overall = "ALL STEPS PROVED" if checklist.all_proved else "RUN FAILED — see WHY above"
+    overall = (
+        "ALL STEPS PROVED" if checklist.all_proved else "RUN FAILED — see WHY above"
+    )
     print("-" * 72)
     print(overall)
     print("=" * 72)
@@ -1061,15 +1152,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument("--live", action="store_true", help="Force LIVE mode.")
-    mode_group.add_argument("--scripted", action="store_true", help="Force SCRIPTED mode.")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port for LIVE mode's server.")
-    parser.add_argument("--host", type=str, default=DEFAULT_HOST, help="Host for LIVE mode's server.")
+    mode_group.add_argument(
+        "--scripted", action="store_true", help="Force SCRIPTED mode."
+    )
     parser.add_argument(
-        "--keep-server", action="store_true",
+        "--port", type=int, default=DEFAULT_PORT, help="Port for LIVE mode's server."
+    )
+    parser.add_argument(
+        "--host", type=str, default=DEFAULT_HOST, help="Host for LIVE mode's server."
+    )
+    parser.add_argument(
+        "--keep-server",
+        action="store_true",
         help="Do not kill a server this run spawned (LIVE mode only). Never leaves a leftover if we did not spawn it.",
     )
     parser.add_argument(
-        "--sabotage", type=str, default=None, choices=["supervision", "approval", "action", "verify", "learning"],
+        "--sabotage",
+        type=str,
+        default=None,
+        choices=["supervision", "approval", "action", "verify", "learning"],
         help=argparse.SUPPRESS,  # internal: tests/test_prove_it.py proves the prover can honestly fail.
     )
     args = parser.parse_args(argv)
@@ -1085,7 +1186,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     checklist = Checklist(mode_label=mode)
 
     if mode == "live":
-        code = run_live(checklist, host=args.host, port=args.port, keep_server=args.keep_server)
+        code = run_live(
+            checklist, host=args.host, port=args.port, keep_server=args.keep_server
+        )
     else:
         code = run_scripted(checklist, sabotage=args.sabotage)
 

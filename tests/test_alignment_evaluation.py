@@ -1,4 +1,5 @@
 """Tests for diagnostic, human-labelled alignment evaluation evidence."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -129,17 +130,21 @@ def test_explicit_observation_id_must_belong_to_session(
     first_id = store.record("first", frame())
     second_id = store.record("second", frame())
 
-    assert store.mark_latest_corrected(
-        "first", ["goal"], observation_id=second_id
-    ) is False
+    assert (
+        store.mark_latest_corrected("first", ["goal"], observation_id=second_id)
+        is False
+    )
     with pytest.raises(ValueError, match="no alignment observation"):
         store.record_feedback(
             "first",
             outcome="aligned",
             observation_id=second_id,
         )
-    assert store.record_feedback(
-        "first",
-        outcome="aligned",
-        observation_id=first_id,
-    ) == first_id
+    assert (
+        store.record_feedback(
+            "first",
+            outcome="aligned",
+            observation_id=first_id,
+        )
+        == first_id
+    )

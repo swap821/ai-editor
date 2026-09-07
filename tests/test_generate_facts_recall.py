@@ -1,4 +1,5 @@
 """Tests that the agentic forge recalls semantic facts into memory_context."""
+
 from pathlib import Path
 
 import pytest

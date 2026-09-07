@@ -73,9 +73,7 @@ def _authority(tmp_path: Path) -> MemoryAuthority:
 
 def test_consolidator_refuses_implicit_legacy_stores() -> None:
     """Consolidation must not open a parallel memory graph by default."""
-    with pytest.raises(
-        RuntimeError, match="MemoryAuthority or explicit memory stores"
-    ):
+    with pytest.raises(RuntimeError, match="MemoryAuthority or explicit memory stores"):
         MemoryConsolidator()
 
 

@@ -148,7 +148,6 @@ class HumanStateHypothesis(BaseModel):
         return self.model_dump(mode="json")
 
 
-
 def _authenticated_correction_digest(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -189,7 +188,9 @@ class AuthenticatedCorrectionEventV1(BaseModel):
     event_kind: Literal["applied", "cleared"] = "applied"
     corrected_values: tuple[CorrectionProjectionV1, ...] = ()
     reason: str = Field(min_length=1, max_length=500)
-    previous_correction_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    previous_correction_digest: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
     recorded_at: str = Field(default_factory=_utc_now)
     grants_authority: Literal[False] = False
     event_digest: str = Field(min_length=64, max_length=64)
@@ -235,7 +236,9 @@ class AuthenticatedCorrectionEventV1(BaseModel):
             "authentication_event_id": authentication_event_id,
             "authentication_verifier": "identity_service_session",
             "event_kind": event_kind,
-            "corrected_values": [value.model_dump(mode="json") for value in corrected_values],
+            "corrected_values": [
+                value.model_dump(mode="json") for value in corrected_values
+            ],
             "reason": reason,
             "previous_correction_digest": previous_correction_digest,
             "recorded_at": recorded_at or _utc_now(),
@@ -256,6 +259,8 @@ def authenticated_correction_event_digest_from_record(
     return _authenticated_correction_digest(
         event.model_dump(mode="json", exclude={"event_digest"})
     )
+
+
 __all__ = [
     "OperatorPreferenceV1",
     "ProjectPassportV1",

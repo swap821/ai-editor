@@ -1,4 +1,5 @@
 """Policy engine tests — versioned chain, queen voting, additive-only gate."""
+
 from __future__ import annotations
 
 import pytest
@@ -73,9 +74,7 @@ def test_suspend_policy(engine: PolicyEngine) -> None:
     assert suspended.status == PolicyStatus.SUSPENDED
 
     chain = engine.policy_chain()
-    suspension_records = [
-        p for p in chain if p.constraint == f"SUSPEND: {policy_id}"
-    ]
+    suspension_records = [p for p in chain if p.constraint == f"SUSPEND: {policy_id}"]
     assert len(suspension_records) == 1
     assert suspension_records[0].status == PolicyStatus.ENACTED
 

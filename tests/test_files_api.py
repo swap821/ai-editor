@@ -4,6 +4,7 @@ despite being an arbitrary-path file-read/tree/edit surface gated only by
 ``is_path_in_scope``. These pin the traversal-rejection behavior so a future
 refactor that drops the scope check fails CI instead of shipping silently.
 """
+
 from __future__ import annotations
 
 from typing import Iterator
@@ -118,7 +119,9 @@ def test_edit_file_proposes_for_legit_path_in_scope(client, scoped_workspace) ->
     assert body["requiresHuman"] is True
 
 
-def test_edit_file_rejects_when_constitution_enforcer_blocks(client, scoped_workspace, monkeypatch) -> None:
+def test_edit_file_rejects_when_constitution_enforcer_blocks(
+    client, scoped_workspace, monkeypatch
+) -> None:
     """Proves the route actually respects ConstitutionEnforcer's verdict (the
     frozen-core check itself is unit-tested directly against
     ConstitutionEnforcer in test_constitution.py; scope_lock's SCOPE_ROOTS
@@ -131,6 +134,7 @@ def test_edit_file_rejects_when_constitution_enforcer_blocks(client, scoped_work
 
     target = scoped_workspace / "gateway.py"
     target.write_text("# pretend security module", encoding="utf-8")
+
     # The route builds its enforcer per request now, so that an amendment
     # ratified after start-up can reach it -- the import-time singleton this
     # used to patch could never see one. Patch the factory instead.

@@ -14,10 +14,14 @@ OUT = ROOT / "release" / "phase4" / "organ46-local-simulation-92d871616ce6.json"
 
 
 def main() -> int:
-    from aios.application.governance.adversarial_simulations import run_adversarial_simulations
+    from aios.application.governance.adversarial_simulations import (
+        run_adversarial_simulations,
+    )
     from aios.application.governance.amendment_authority import propose_amendment
 
-    tip = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    tip = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+    ).strip()
     proposal = propose_amendment(
         proposal_id="organ46-local-live-proof",
         target_articles=("article-9-reauth-policy",),
@@ -57,11 +61,23 @@ def main() -> int:
         "proof_level": "live",
     }
     row["live_evidence"] = [
-        item for item in (row.get("live_evidence") or []) if item.get("commit_sha") != tip
+        item
+        for item in (row.get("live_evidence") or [])
+        if item.get("commit_sha") != tip
     ] + [evidence]
     row["last_verified_sha"] = tip
     LEDGER.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"organ_id": 46, "all_nine_passed": True, "tip_sha": tip, "artifact": str(OUT)}, indent=2))
+    print(
+        json.dumps(
+            {
+                "organ_id": 46,
+                "all_nine_passed": True,
+                "tip_sha": tip,
+                "artifact": str(OUT),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

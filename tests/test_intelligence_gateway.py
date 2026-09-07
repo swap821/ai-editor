@@ -97,9 +97,7 @@ def test_governed_advisory_completion_routes_through_gateway() -> None:
         json_mode=True,
     )
 
-    assert provider_calls == [
-        ("draft a bounded plan", "planner system", True)
-    ]
+    assert provider_calls == [("draft a bounded plan", "planner system", True)]
     assert len(recorded_contexts) == 1
     assert recorded_contexts[0].goal == "draft a bounded plan"
     assert "AKIAABCDEFGHIJKLMNOP" not in output
@@ -586,6 +584,8 @@ def test_buffering_is_bounded_against_a_hostile_stream() -> None:
         _REDACTION_MAX_BUFFER_CHARS + len(hostile[0])
     )
     assert total_in > _REDACTION_MAX_BUFFER_CHARS
+
+
 def test_anonymous_compatibility_gateway_is_local_only_and_redacts_output() -> None:
     secret = "AKIAABCDEFGHIJKLMNOP"
     result = stream_compatibility_intelligence_request(
@@ -617,6 +617,8 @@ def test_anonymous_compatibility_gateway_refuses_cloud_before_provider_call() ->
         )
 
     assert calls == []
+
+
 def test_anonymous_compatibility_gateway_honors_emergency_stop(tmp_path: Path) -> None:
     stopped = _controller(tmp_path)
     stopped.engage(

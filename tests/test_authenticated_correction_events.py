@@ -29,6 +29,7 @@ def _record(**overrides: object) -> CorrectionRecordV1:
     payload.update(overrides)
     return CorrectionRecordV1(**payload)
 
+
 def test_authenticated_correction_event_replays_only_verified_immutable_values(
     tmp_path: Path,
 ) -> None:
@@ -115,6 +116,8 @@ def test_authenticated_projection_is_excluded_when_state_revision_no_longer_matc
         )
         is None
     )
+
+
 def test_authenticated_clear_event_is_immutable_and_revokes_the_projection(
     tmp_path: Path,
 ) -> None:

@@ -85,7 +85,9 @@ def _valid_skill_record() -> SkillRecord:
     )
 
 
-def _build_real_service(tmp_path: Path, *, autonomy_enabled: bool = True) -> LearningService:
+def _build_real_service(
+    tmp_path: Path, *, autonomy_enabled: bool = True
+) -> LearningService:
     """Build the REAL production LearningService via the canonical dependency.
 
     Patches:
@@ -112,11 +114,16 @@ def _build_real_service(tmp_path: Path, *, autonomy_enabled: bool = True) -> Lea
 
         if service.local_workforce_service is not None:
             from aios.domain.local_workforce.contracts import LocalJobResult
+
             service.local_workforce_service.run_advisory_job = MagicMock(
                 return_value=LocalJobResult(
                     job_id="test-advisory-job",
                     model_id="granite3.2:2b",
-                    structured_output={"applicable": True, "confidence": 0.9, "reason": "ok"},
+                    structured_output={
+                        "applicable": True,
+                        "confidence": 0.9,
+                        "reason": "ok",
+                    },
                     schema_valid=True,
                     evidence_references_preserved=True,
                     unsupported_claims=(),
@@ -174,9 +181,9 @@ def test_01_valid_active_skill_produces_mission_draft(tmp_path: Path) -> None:
     service = _build_real_service(tmp_path)
     directive = _reuse_attempt(service, _valid_skill_record())
 
-    assert isinstance(
-        directive, LocalExecutionDirective
-    ), f"expected LocalExecutionDirective, got {type(directive).__name__}: {directive}"
+    assert isinstance(directive, LocalExecutionDirective), (
+        f"expected LocalExecutionDirective, got {type(directive).__name__}: {directive}"
+    )
     assert directive.directive_type == "local_execute"
     assert directive.mission_id == "reuse-mission-1"
 
@@ -297,7 +304,9 @@ def test_07_empty_observations_escalates(tmp_path: Path) -> None:
         minimum_strength = 2
 
     result = service.verification_plan_validator(_FakeSkillWithPlan(_EmptyObsPlan()))
-    assert result is False, "validator must return False for empty required_observations"
+    assert result is False, (
+        "validator must return False for empty required_observations"
+    )
 
 
 def test_08_weak_minimum_strength_escalates(tmp_path: Path) -> None:
@@ -311,7 +320,9 @@ def test_08_weak_minimum_strength_escalates(tmp_path: Path) -> None:
         required_observations = ("ok",)
         minimum_strength = 0  # below policy floor (1)
 
-    result = service.verification_plan_validator(_FakeSkillWithPlan(_WeakStrengthPlan()))
+    result = service.verification_plan_validator(
+        _FakeSkillWithPlan(_WeakStrengthPlan())
+    )
     assert result is False, "validator must return False for minimum_strength=0"
 
 
@@ -331,7 +342,9 @@ def test_09_legacy_string_plan_is_quarantined_and_escalates(tmp_path: Path) -> N
         for k, v in skill.model_dump(mode="python").items()
         if k not in ("created_at", "updated_at")
     }
-    contract_payload["verification_plan"] = "pytest tests/test_parser.py"  # legacy string
+    contract_payload["verification_plan"] = (
+        "pytest tests/test_parser.py"  # legacy string
+    )
 
     quarantined_contract = SkillContract.model_validate(contract_payload)
     assert quarantined_contract.verification_plan is None, (
@@ -398,7 +411,9 @@ def test_11_unknown_extra_fields_refused(tmp_path: Path) -> None:
         model_fields = {**SkillVerifierSpec.model_fields, "unknown_extra_field": None}
 
     result = service.verification_plan_validator(_FakeSkillWithPlan(_ExtraFieldPlan()))
-    assert result is False, "validator must return False for plan with unknown extra fields"
+    assert result is False, (
+        "validator must return False for plan with unknown extra fields"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -439,7 +454,9 @@ def test_13_dependency_survives_reconstruction(tmp_path: Path) -> None:
         skill = _valid_skill_record()
         service.skill_repository.save(skill)
 
-        directive = _reuse_attempt(service, skill, mission_id=f"reuse-restart-{attempt}")
+        directive = _reuse_attempt(
+            service, skill, mission_id=f"reuse-restart-{attempt}"
+        )
         assert isinstance(directive, LocalExecutionDirective), (
             f"Reconstruction attempt {attempt} failed: got {type(directive).__name__}"
         )

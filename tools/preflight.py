@@ -4,6 +4,7 @@ end-to-end (config present -> client constructs -> one real chat() round-trip
 default engine; set AIOS_PREFLIGHT_PROVIDER to check a specific cloud provider
 instead. Exits non-zero with a plain-language fix hint on any failure.
 """
+
 from __future__ import annotations
 
 import os
@@ -99,18 +100,27 @@ def run_roundtrip(client, provider: str, model: str) -> PreflightResult:
         message = client.chat([{"role": "user", "content": _ROUND_TRIP_PROMPT}])
     except LLMError as exc:
         return PreflightResult(
-            ok=False, provider=provider, model=model, latency_ms=None,
+            ok=False,
+            provider=provider,
+            model=model,
+            latency_ms=None,
             detail=f"{provider} chat() round-trip failed: {exc}",
         )
     except Exception as exc:  # noqa: BLE001 - surface anything unexpected as a clear failure
         return PreflightResult(
-            ok=False, provider=provider, model=model, latency_ms=None,
+            ok=False,
+            provider=provider,
+            model=model,
+            latency_ms=None,
             detail=f"unexpected error calling {provider}.chat(): {exc}",
         )
     latency_ms = (time.monotonic() - started) * 1000
     content = message.get("content", "") if isinstance(message, dict) else str(message)
     return PreflightResult(
-        ok=True, provider=provider, model=model, latency_ms=latency_ms,
+        ok=True,
+        provider=provider,
+        model=model,
+        latency_ms=latency_ms,
         detail=str(content).strip(),
     )
 

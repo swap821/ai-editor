@@ -81,7 +81,9 @@ def test_list_pending_survives_restart_and_never_exposes_the_raw_token(
     assert token not in str(pending[0].session_id)
 
 
-def test_connect_closes_the_underlying_connection_after_the_with_block(tmp_path) -> None:
+def test_connect_closes_the_underlying_connection_after_the_with_block(
+    tmp_path,
+) -> None:
     # Regression: ``with self._connect() as conn:`` only commits-or-rolls-back
     # (that's all sqlite3.Connection.__enter__/__exit__ do) -- it never closes
     # the connection. Every DB-backed call therefore leaked one open sqlite3
@@ -141,7 +143,13 @@ def test_durable_store_migrates_legacy_raw_session_ids(tmp_path) -> None:
             "INSERT INTO approval_pending "
             "(token_digest, action_type, payload_json, session_id, expires_at) "
             "VALUES (?, ?, ?, ?, ?)",
-            ("digest", "command", '{"command":"echo ok"}', "legacy-session", 9999999999),
+            (
+                "digest",
+                "command",
+                '{"command":"echo ok"}',
+                "legacy-session",
+                9999999999,
+            ),
         )
 
     ApprovalStore(timeout_ms=1000, db_path=path)

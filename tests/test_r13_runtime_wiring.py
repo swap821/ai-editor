@@ -61,7 +61,5 @@ def test_capability_issuance_fails_closed_when_the_latch_is_engaged(tmp_path) ->
 
 
 def test_earned_autonomy_cannot_be_reused_when_the_latch_is_engaged(tmp_path) -> None:
-    ledger = AutonomyLedger(
-        db_path=tmp_path / "autonomy.db", emergency_stop=_Stopped()
-    )
+    ledger = AutonomyLedger(db_path=tmp_path / "autonomy.db", emergency_stop=_Stopped())
     assert ledger.is_earned("create_file", "training_ground/example.py") is False

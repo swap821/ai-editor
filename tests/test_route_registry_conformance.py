@@ -1,4 +1,5 @@
 """Architecture conformance: every mutating API route must declare policy metadata."""
+
 from __future__ import annotations
 
 import ast
@@ -64,7 +65,9 @@ def _application_routes(routes) -> Iterable[APIRoute]:
 def _application_route(path: str) -> APIRoute:
     from aios.api.main import app
 
-    return next(route for route in _application_routes(app.routes) if route.path == path)
+    return next(
+        route for route in _application_routes(app.routes) if route.path == path
+    )
 
 
 @pytest.fixture
@@ -146,4 +149,6 @@ def test_every_ordinary_mutation_route_has_universal_action_guard():
         "/api/v1/council/missions/{mission_id}/rollback",
         "/api/generate",
     }
-    assert set(missing) <= exact, f"ordinary mutating routes missing action guard: {missing}"
+    assert set(missing) <= exact, (
+        f"ordinary mutating routes missing action guard: {missing}"
+    )

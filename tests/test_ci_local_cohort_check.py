@@ -15,6 +15,7 @@ green when the model is merely small.
 create pressure to pick a model that flatters the suite or to loosen the suite
 until something passes".
 """
+
 from __future__ import annotations
 
 import pytest
@@ -25,6 +26,7 @@ _STEPS = "step 1/2: first\nstep 2/2: second\n"
 
 
 # -- a weak model is not a broken harness ------------------------------------
+
 
 @pytest.mark.parametrize("score", ["0/5", "1/5", "3/5", "5/5"])
 def test_any_score_passes_when_the_harness_ran(score: str) -> None:
@@ -59,7 +61,9 @@ HARNESS_FAULTS = [
 ]
 
 
-@pytest.mark.parametrize("label,line", HARNESS_FAULTS, ids=[c[0] for c in HARNESS_FAULTS])
+@pytest.mark.parametrize(
+    "label,line", HARNESS_FAULTS, ids=[c[0] for c in HARNESS_FAULTS]
+)
 def test_a_harness_fault_fails_the_gate(label: str, line: str) -> None:
     ok, notes = check(_STEPS + line + "\n[golden] FINAL: 4/5 mission runs passed\n")
 
@@ -84,7 +88,8 @@ def test_a_run_that_never_reached_a_model_fails() -> None:
 def test_the_score_is_reported_even_when_the_harness_failed() -> None:
     """A reader needs both facts, not just the verdict."""
     ok, notes = check(
-        _STEPS + "Local inference error: boom\n[golden] FINAL: 2/5 mission runs passed\n"
+        _STEPS
+        + "Local inference error: boom\n[golden] FINAL: 2/5 mission runs passed\n"
     )
 
     assert not ok
@@ -94,12 +99,17 @@ def test_the_score_is_reported_even_when_the_harness_failed() -> None:
 # -- the gate once passed the very run it existed to fail ---------------------
 
 _REAL_MISSING_IMAGE = (
-    "step 1/2: write the tests" + chr(10)
-    + "      evidence: [VERIFY FAIL] 0 passed, 0 failed (exit 125) (strength=NONE)" + chr(10)
-    + "Unable to find image 'aios-worker:local' locally" + chr(10)
+    "step 1/2: write the tests"
+    + chr(10)
+    + "      evidence: [VERIFY FAIL] 0 passed, 0 failed (exit 125) (strength=NONE)"
+    + chr(10)
+    + "Unable to find image 'aios-worker:local' locally"
+    + chr(10)
     + "docker: Error response from daemon: pull access denied for aios-worker, "
-    "repository does not exist" + chr(10)
-    + "[golden] FINAL: 0/1 mission runs passed (0%)" + chr(10)
+    "repository does not exist"
+    + chr(10)
+    + "[golden] FINAL: 0/1 mission runs passed (0%)"
+    + chr(10)
 )
 
 
@@ -131,8 +141,12 @@ def test_docker_reserved_exit_codes_fail_the_gate(code: str) -> None:
     """125/126/127 mean the container never ran. pytest returns 0-5, never these."""
     log = (
         _STEPS
-        + "      evidence: [VERIFY FAIL] 0 passed, 0 failed (exit " + code + ") (strength=NONE)" + chr(10)
-        + "FINAL: 0/5 mission runs passed" + chr(10)
+        + "      evidence: [VERIFY FAIL] 0 passed, 0 failed (exit "
+        + code
+        + ") (strength=NONE)"
+        + chr(10)
+        + "FINAL: 0/5 mission runs passed"
+        + chr(10)
     )
     ok, notes = check(log)
 
@@ -148,8 +162,10 @@ def test_a_real_pytest_failure_still_passes_the_gate() -> None:
     """
     log = (
         _STEPS
-        + "      evidence: [VERIFY FAIL] 3 passed, 1 failed (exit 1) (strength=NONE)" + chr(10)
-        + "FINAL: 0/5 mission runs passed" + chr(10)
+        + "      evidence: [VERIFY FAIL] 3 passed, 1 failed (exit 1) (strength=NONE)"
+        + chr(10)
+        + "FINAL: 0/5 mission runs passed"
+        + chr(10)
     )
     ok, _ = check(log)
 

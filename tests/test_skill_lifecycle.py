@@ -108,9 +108,13 @@ def test_repeated_verification_failures_demote_active_to_degraded_then_suspended
     repo.save(_record())  # confidence=0.9; 0.2 penalty per failure
     for _ in range(3):
         # 0.9 -> 0.7 (active) -> 0.5 (active, boundary: not < floor) -> 0.3 (< floor)
-        record = apply_reuse_outcome(repo, "skill-1", 1, success=False, reason="verification")
+        record = apply_reuse_outcome(
+            repo, "skill-1", 1, success=False, reason="verification"
+        )
     assert record.state == "degraded"
-    record = apply_reuse_outcome(repo, "skill-1", 1, success=False, reason="verification")
+    record = apply_reuse_outcome(
+        repo, "skill-1", 1, success=False, reason="verification"
+    )
     assert record.state == "suspended"
 
 
@@ -129,7 +133,9 @@ def test_applicability_failure_immediately_suspends_a_highly_confident_skill(
 ) -> None:
     repo = _repo(tmp_path)
     repo.save(_record(confidence=0.95, success_count=20, failure_count=0))
-    updated = apply_reuse_outcome(repo, "skill-1", 1, success=False, reason="applicability")
+    updated = apply_reuse_outcome(
+        repo, "skill-1", 1, success=False, reason="applicability"
+    )
     assert updated.state == "suspended"
 
 
@@ -153,7 +159,15 @@ def test_human_revocation_is_reachable_from_every_non_terminal_state(
     tmp_path: Path,
 ) -> None:
     repo = _repo(tmp_path)
-    for state in ("candidate", "human_reviewed", "probation", "active", "degraded", "suspended", "blocked"):
+    for state in (
+        "candidate",
+        "human_reviewed",
+        "probation",
+        "active",
+        "degraded",
+        "suspended",
+        "blocked",
+    ):
         skill_id = f"skill-{state}"
         repo.save(_record(skill_id=skill_id, state=state))
         revoked = human_revoke(repo, skill_id, 1)

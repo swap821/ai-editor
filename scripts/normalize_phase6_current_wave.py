@@ -6,7 +6,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parents[1] / "release" / "phase6" / "organ23-shortfall.json"
+OUT = (
+    Path(__file__).resolve().parents[1]
+    / "release"
+    / "phase6"
+    / "organ23-shortfall.json"
+)
 
 
 def main() -> int:
@@ -17,7 +22,15 @@ def main() -> int:
     )
     phase5["never_flipped"] = [oid for oid in phase5["never_flipped"] if oid != 40]
     OUT.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"flipped_green_this_wave": phase5["flipped_green_this_wave"], "never_flipped": phase5["never_flipped"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "flipped_green_this_wave": phase5["flipped_green_this_wave"],
+                "never_flipped": phase5["never_flipped"],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

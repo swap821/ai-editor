@@ -14,6 +14,7 @@ enabled-path tests monkeypatch the flag plus the subsystem's DB path to an
 isolated tmp_path (or, for QUEEN_SERVICES, monkeypatch the module-level
 QUEEN_SERVICES registry dict directly) so nothing touches real on-disk state.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -94,7 +95,9 @@ def _seed_mission(
         files_allowed=list(contract.allowed_files),
         files_touched=["frontend/src/pages/Login.jsx"],
         blocked_attempts=[],
-        verification={"commands": [{"command": ["python", "-m", "pytest"], "returncode": 0}]},
+        verification={
+            "commands": [{"command": ["python", "-m", "pytest"], "returncode": 0}]
+        },
         council_verdicts=[verdict],
         snapshot_id=ledger_snapshot_id,
         rollback_id=ledger_rollback_id,
@@ -127,7 +130,9 @@ def _seed_mission(
 # --------------------------------------------------------------------------- #
 
 
-def test_council_mission_detail_rejects_invalid_mission_id_charset(tmp_path: Path) -> None:
+def test_council_mission_detail_rejects_invalid_mission_id_charset(
+    tmp_path: Path,
+) -> None:
     """A mission id with characters outside [A-Za-z0-9_.-] is a 422, not a 404/500."""
     runtime_root = tmp_path / "runtime"
     _client_overrides(runtime_root)
@@ -246,14 +251,18 @@ def test_council_approve_409_when_approval_already_decided(tmp_path: Path) -> No
 # --------------------------------------------------------------------------- #
 
 
-def test_council_dashboard_skips_corrupt_pending_approval_payload(tmp_path: Path) -> None:
+def test_council_dashboard_skips_corrupt_pending_approval_payload(
+    tmp_path: Path,
+) -> None:
     """A pending approval request.json that is valid JSON but not a dict (or is
     corrupt) must be skipped by the dashboard summary, not crash it."""
     runtime_root = tmp_path / "runtime"
     _seed_mission(runtime_root)
     approvals_dir = runtime_root / "missions" / "mission-gap-1" / "approvals"
     approvals_dir.mkdir(parents=True)
-    (approvals_dir / "corrupt-json.request.json").write_text("not json{{{", encoding="utf-8")
+    (approvals_dir / "corrupt-json.request.json").write_text(
+        "not json{{{", encoding="utf-8"
+    )
     (approvals_dir / "non-dict.request.json").write_text("[1, 2, 3]", encoding="utf-8")
     _client_overrides(runtime_root)
     try:
@@ -328,7 +337,9 @@ def test_council_missions_empty_when_missions_root_absent(tmp_path: Path) -> Non
     assert response.json() == {"missions": [], "count": 0}
 
 
-def test_council_missions_skips_non_directory_and_missing_report(tmp_path: Path) -> None:
+def test_council_missions_skips_non_directory_and_missing_report(
+    tmp_path: Path,
+) -> None:
     """A stray file under missions/ (not a directory) and a mission directory with
     no king_report.json yet (still deliberating) are both skipped, not errors."""
     runtime_root = tmp_path / "runtime"
@@ -383,7 +394,11 @@ def test_council_originate_404_when_origination_disabled(
         with TestClient(app, client=("127.0.0.1", 12345)) as client:
             response = client.post(
                 "/api/v1/council/missions",
-                json={"goal": "improve login", "allowedFiles": ["x.txt"], "sessionId": "s-off"},
+                json={
+                    "goal": "improve login",
+                    "allowedFiles": ["x.txt"],
+                    "sessionId": "s-off",
+                },
             )
     finally:
         app.dependency_overrides.clear()
@@ -453,7 +468,10 @@ def test_council_originate_adds_request_change_tool_when_worker_reasoning_enable
     assert ledger is not None
     contract = ledger["contract"]
     assert "request_change" in contract["allowed_tools"]
-    assert contract["metadata"]["model_policy"] == {"mode": "local", "allow_cloud": False}
+    assert contract["metadata"]["model_policy"] == {
+        "mode": "local",
+        "allow_cloud": False,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -585,7 +603,9 @@ def test_council_rollback_422_when_no_session_available(tmp_path: Path) -> None:
     assert response.status_code == 403
 
 
-def test_council_rollback_403_when_requested_snapshot_mismatches(tmp_path: Path) -> None:
+def test_council_rollback_403_when_requested_snapshot_mismatches(
+    tmp_path: Path,
+) -> None:
     """req.snapshot_id disagreeing with the mission's real rollback target is a 403
     (line 626-629), well before any approval token is issued."""
     runtime_root = tmp_path / "runtime"
@@ -603,7 +623,9 @@ def test_council_rollback_403_when_requested_snapshot_mismatches(tmp_path: Path)
     assert "does not match" in response.json()["detail"]
 
 
-def test_council_rollback_issues_approval_token_when_none_supplied(tmp_path: Path) -> None:
+def test_council_rollback_issues_approval_token_when_none_supplied(
+    tmp_path: Path,
+) -> None:
     """No approvalToken in the body -> a token is issued and nothing executes yet."""
     runtime_root = tmp_path / "runtime"
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
@@ -645,7 +667,9 @@ def test_council_rollback_403_on_invalid_approval_token(tmp_path: Path) -> None:
     assert response.status_code == 403
 
 
-def test_council_rollback_400_when_token_is_for_a_different_action(tmp_path: Path) -> None:
+def test_council_rollback_400_when_token_is_for_a_different_action(
+    tmp_path: Path,
+) -> None:
     """A real, valid token issued for a non-rollback action type is a 400 (line 650)."""
     runtime_root = tmp_path / "runtime"
     _seed_mission(runtime_root, rollback_id="snap-real", ledger_rollback_id="snap-real")
@@ -663,7 +687,10 @@ def test_council_rollback_400_when_token_is_for_a_different_action(tmp_path: Pat
             original = authority.inspect(pending.json()["approvalToken"])
             token = authority.issue(
                 replace(original.binding, action_type="edit"),
-                action_payload={"mission_id": "mission-gap-1", "snapshot_id": "snap-real"},
+                action_payload={
+                    "mission_id": "mission-gap-1",
+                    "snapshot_id": "snap-real",
+                },
             )
             response = client.post(
                 "/api/v1/council/missions/mission-gap-1/rollback",
@@ -697,7 +724,10 @@ def test_council_rollback_403_when_token_payload_mismatches(tmp_path: Path) -> N
             assert pending.status_code == 200
             authority = get_capability_authority()
             original = authority.inspect(pending.json()["approvalToken"])
-            other_payload = {"mission_id": "some-other-mission", "snapshot_id": "snap-real"}
+            other_payload = {
+                "mission_id": "some-other-mission",
+                "snapshot_id": "snap-real",
+            }
             token = authority.issue(
                 replace(
                     original.binding,
@@ -778,7 +808,9 @@ def test_council_rollback_500_when_result_not_restored(
     _client_overrides(runtime_root)
 
     def _not_restored(self, workspace_root, snapshot_id):
-        return _FakeResult(restored=False, head_sha="deadbeef", reason="no snapshot commit found")
+        return _FakeResult(
+            restored=False, head_sha="deadbeef", reason="no snapshot commit found"
+        )
 
     monkeypatch.setattr(
         council_module.SnapshotManager, "rollback_snapshot", _not_restored, raising=True
@@ -825,7 +857,9 @@ def test_council_rollback_succeeds_and_updates_artifacts(
     _client_overrides(runtime_root)
 
     def _restored(self, workspace_root, snapshot_id):
-        return _FakeResult(restored=True, head_sha="cafef00d", reason="restored cleanly")
+        return _FakeResult(
+            restored=True, head_sha="cafef00d", reason="restored cleanly"
+        )
 
     monkeypatch.setattr(
         council_module.SnapshotManager, "rollback_snapshot", _restored, raising=True
@@ -1151,7 +1185,12 @@ def test_pheromone_reinforce_and_decay_enabled(
 
     deposited = sovereignty_client.post(
         "/api/v1/pheromones/deposit",
-        json={"ptype": "attention-signal", "resource": "r", "depositor": "d", "strength": 0.1},
+        json={
+            "ptype": "attention-signal",
+            "resource": "r",
+            "depositor": "d",
+            "strength": 0.1,
+        },
     )
     pid = deposited.json()["pheromone_id"]
 
@@ -1282,7 +1321,9 @@ def test_rollback_registry_enabled_register_query_health_prune(
 ) -> None:
     """Enabled path across all four routes (lines 60-70, 79-80, 275-292)."""
     monkeypatch.setattr(config, "ROLLBACK_REGISTRY", True)
-    monkeypatch.setattr(config, "ROLLBACK_REGISTRY_DB", tmp_path / "rollback_registry.db")
+    monkeypatch.setattr(
+        config, "ROLLBACK_REGISTRY_DB", tmp_path / "rollback_registry.db"
+    )
 
     registered = sovereignty_client.post(
         "/api/v1/runtime/rollbacks/register",
@@ -1346,7 +1387,9 @@ def test_audit_anchor_enabled_get_and_verify(
 
     monkeypatch.setattr(config, "AUDIT_ANCHOR_API", True)
     monkeypatch.setattr(
-        audit_anchor_module, "get_external_anchor", lambda: {"hash": "abc123", "height": 7}
+        audit_anchor_module,
+        "get_external_anchor",
+        lambda: {"hash": "abc123", "height": 7},
     )
 
     captured: dict[str, Any] = {}
@@ -1384,7 +1427,9 @@ def test_audit_anchor_history_enabled_with_limit(
 
     monkeypatch.setattr(audit_anchor_module, "anchor_history", _fake_history)
 
-    response = sovereignty_client.get("/api/v1/audit/anchor/history", params={"limit": 2})
+    response = sovereignty_client.get(
+        "/api/v1/audit/anchor/history", params={"limit": 2}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["count"] == 2
@@ -1463,7 +1508,10 @@ def test_policy_full_lifecycle_enabled(
 
     proposed = sovereignty_client.post(
         "/api/v1/policy/propose",
-        json={"constraint": "additionally require 2 approvals for RED actions", "proposedBy": "security_queen"},
+        json={
+            "constraint": "additionally require 2 approvals for RED actions",
+            "proposedBy": "security_queen",
+        },
     )
     assert proposed.status_code == 200
     policy_id = proposed.json()["policy_id"]

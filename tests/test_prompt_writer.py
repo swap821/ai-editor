@@ -1,9 +1,15 @@
 """Tests for the composable prompt assembly module."""
+
 from __future__ import annotations
 
 import pytest
 
-from aios.core.prompt_writer import PromptSection, PromptWriter, _estimate_tokens, _truncate_to_tokens
+from aios.core.prompt_writer import (
+    PromptSection,
+    PromptWriter,
+    _estimate_tokens,
+    _truncate_to_tokens,
+)
 
 
 class TestEstimateTokens:
@@ -87,7 +93,11 @@ class TestPromptWriter:
         long_text = " ".join(f"word{i}" for i in range(100))
         writer = PromptWriter(
             "P.",
-            [PromptSection(name="long", priority=50, render=lambda: long_text, max_tokens=10)],
+            [
+                PromptSection(
+                    name="long", priority=50, render=lambda: long_text, max_tokens=10
+                )
+            ],
             total_budget=4000,
         )
         result = writer.assemble("q")
@@ -100,7 +110,9 @@ class TestPromptWriter:
             "Short persona.",
             [
                 PromptSection(name="big", priority=90, render=lambda: big_section),
-                PromptSection(name="extra", priority=10, render=lambda: "Should be cut"),
+                PromptSection(
+                    name="extra", priority=10, render=lambda: "Should be cut"
+                ),
             ],
             total_budget=20,
         )

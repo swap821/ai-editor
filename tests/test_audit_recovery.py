@@ -13,6 +13,7 @@ every signed entry of every real database, flagging honest signatures as
 bug-reproducers run red until the (RED-gated, operator-approved) two-line fix
 lands in the frozen file.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -49,6 +50,7 @@ def _log(db: Path, n: int, actor: str = "tester") -> None:
 
 
 # --- THE LIVE BUG: signed chains must verify end-to-end from disk ------------
+
 
 def test_fresh_ledger_signed_chain_verifies(db: Path) -> None:
     """Baseline: a ledger born on current schema (INTEGER key_id) verifies."""
@@ -116,6 +118,7 @@ def test_a_failed_verification_always_states_its_reason(db: Path) -> None:
 
 # --- key rotation -------------------------------------------------------------
 
+
 def test_rotation_issues_a_new_key_and_old_entries_still_verify(db: Path) -> None:
     _log(db, 2)
     old_key = get_active_public_key(db_path=db)
@@ -132,6 +135,7 @@ def test_rotation_issues_a_new_key_and_old_entries_still_verify(db: Path) -> Non
 
 
 # --- retroactive signing --------------------------------------------------------
+
 
 def _insert_legacy_unsigned(db: Path, count: int) -> None:
     """Simulate a pre-signing ledger: hash-chained v1 rows with no signatures."""
@@ -165,6 +169,7 @@ def test_retroactive_signing_upgrades_a_legacy_ledger(db: Path) -> None:
 
 
 # --- anchors --------------------------------------------------------------------
+
 
 def test_get_anchor_on_an_empty_ledger_returns_genesis(db: Path) -> None:
     anchor = get_anchor(db_path=db)
@@ -213,6 +218,7 @@ def test_pure_legacy_ledger_without_anchor_is_not_flagged(db: Path) -> None:
 
 
 # --- verify_chain failure branches ----------------------------------------------
+
 
 def test_broken_linkage_names_the_entry_and_the_reason(db: Path) -> None:
     _log(db, 3)
@@ -270,6 +276,7 @@ def test_tampered_anchor_signature_is_detected(db: Path) -> None:
 
 # --- signing-key lifecycle --------------------------------------------------------
 
+
 def test_operator_seed_yields_a_deterministic_key_across_ledgers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -312,6 +319,7 @@ def test_wrong_length_seed_falls_back_to_ephemeral(
 
 # --- key export -----------------------------------------------------------------
 
+
 def test_active_public_key_is_exported_for_external_verification(db: Path) -> None:
     _log(db, 1)
     key = get_active_public_key(db_path=db)
@@ -320,4 +328,6 @@ def test_active_public_key_is_exported_for_external_verification(db: Path) -> No
 
 
 def test_active_key_export_is_none_before_any_signing(db: Path) -> None:
-    assert get_active_public_key(db_path=db) is None  # keys register on first signed write
+    assert (
+        get_active_public_key(db_path=db) is None
+    )  # keys register on first signed write

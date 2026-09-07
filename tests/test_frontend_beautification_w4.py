@@ -5,6 +5,7 @@ Path.read_text() + substring/regex assertions against the raw source. No JS
 runtime execution here — behavior-level coverage (spin-on-manual-not-poll,
 leaving-state timing, key-remount) lives in the *.test.tsx vitest files.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -44,9 +45,10 @@ def _balanced_block(css: str, needle: str) -> str:
 
 def test_w4_1_verify_toast_has_authored_exit_with_reduced_motion_skip() -> None:
     css = GAGOS_CSS.read_text(encoding="utf-8")
-    cog_bus = (ROOT / "frontend" / "src" / "workbench" / "hooks" / "useCognitionBus.js").read_text(encoding="utf-8")
+    cog_bus = (
+        ROOT / "frontend" / "src" / "workbench" / "hooks" / "useCognitionBus.js"
+    ).read_text(encoding="utf-8")
     jsx = GAGOS_JSX.read_text(encoding="utf-8") + "\n" + cog_bus
-
 
     # Mirrored exit keyframe: opacity 1->0, translateY(0)->-6px.
     assert "@keyframes gagos-verify-out" in css
@@ -83,7 +85,7 @@ def test_w4_2_manual_refresh_spin_never_fires_on_background_poll() -> None:
 
     assert "manualRefreshing" in jsx
     # The manual button's onClick must set it; the poll effect must not reference it.
-    button_idx = jsx.index("aria-label=\"Refresh council reports\"")
+    button_idx = jsx.index('aria-label="Refresh council reports"')
     button_block = jsx[max(0, button_idx - 400) : button_idx + 100]
     assert "manualRefreshing" in button_block
 
@@ -104,7 +106,9 @@ def test_w4_2_manual_refresh_spin_never_fires_on_background_poll() -> None:
 def test_w4_3_tone_changes_get_luminance_settle_transition_only() -> None:
     css = COUNCIL_CSS.read_text(encoding="utf-8")
 
-    badge_verdict_base = _block(css, ".council-dashboard__badge,\n.council-dashboard__verdict {")
+    badge_verdict_base = _block(
+        css, ".council-dashboard__badge,\n.council-dashboard__verdict {"
+    )
     assert "transition:" in badge_verdict_base
     assert "background" in badge_verdict_base
     assert "border-color" in badge_verdict_base
@@ -124,7 +128,7 @@ def test_w4_4_mission_detail_cross_fades_on_selection_change() -> None:
     jsx = COUNCIL_JSX.read_text(encoding="utf-8")
     css = COUNCIL_CSS.read_text(encoding="utf-8")
 
-    assert 'key={selectedSummary.missionId}' in jsx
+    assert "key={selectedSummary.missionId}" in jsx
     # B3 added sibling dashboard views (Self-Analysis / Sovereign State) that
     # legitimately reuse the council-dashboard__detail class for the same
     # cross-fade treatment; the mission-key invariant applies to the MISSION

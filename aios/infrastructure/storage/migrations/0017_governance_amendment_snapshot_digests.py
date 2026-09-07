@@ -12,7 +12,10 @@ class GovernanceAmendmentSnapshotDigestsMigration:
 
     @staticmethod
     def apply(conn: sqlite3.Connection) -> None:
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(governance_amendment_proposals)")}
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(governance_amendment_proposals)")
+        }
         if "activated_snapshot_digest" not in columns:
             conn.execute(
                 "ALTER TABLE governance_amendment_proposals ADD COLUMN activated_snapshot_digest TEXT"

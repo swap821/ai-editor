@@ -26,7 +26,9 @@ def main() -> int:
         {
             o["organ_id"]
             for o in ledger
-            if any(e.get("proof_level") == "live" for e in (o.get("live_evidence") or []))
+            if any(
+                e.get("proof_level") == "live" for e in (o.get("live_evidence") or [])
+            )
         }
     )
     named = []
@@ -75,9 +77,7 @@ def main() -> int:
 
     doc = {
         "schema": "phase6-organ23-shortfall-v1",
-        "generated_at": datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat(),
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "evaluated_at_commit": sha,
         "evidence_tip_sha": evidence_tip,
         "verdict": (

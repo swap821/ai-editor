@@ -19,6 +19,7 @@ Coverage:
   E8: Docker runner mount spec validation
   E9: Output truncation / bounded memory
 """
+
 from __future__ import annotations
 
 import os
@@ -47,11 +48,14 @@ from aios.security.gateway import Zone
 # Fixtures
 # --------------------------------------------------------------------------- #
 
+
 @pytest.fixture
 def mock_runner():
     """Return a mock runner that returns predictable output."""
+
     def runner(command, *, cwd, env, timeout_s):
         return f"output for: {command}", "", 0
+
     return runner
 
 
@@ -136,7 +140,9 @@ class TestLDPreloadBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"DYLD_INSERT_LIBRARIES": "/tmp/evil.dylib", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"DYLD_INSERT_LIBRARIES": "/tmp/evil.dylib", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -148,7 +154,9 @@ class TestLDPreloadBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"DYLD_LIBRARY_PATH": "/tmp/evil/lib", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"DYLD_LIBRARY_PATH": "/tmp/evil/lib", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -160,7 +168,9 @@ class TestLDPreloadBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"DYLD_FRAMEWORK_PATH": "/tmp/evil/fw", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"DYLD_FRAMEWORK_PATH": "/tmp/evil/fw", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -172,13 +182,15 @@ class TestLDPreloadBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({
-                "LD_PRELOAD": "/tmp/1.so",
-                "LD_LIBRARY_PATH": "/tmp/lib",
-                "LD_AUDIT": "/tmp/audit.so",
-                "PATH": "/usr/bin",
-                "SAFE": "kept",
-            })
+            os.environ.update(
+                {
+                    "LD_PRELOAD": "/tmp/1.so",
+                    "LD_LIBRARY_PATH": "/tmp/lib",
+                    "LD_AUDIT": "/tmp/audit.so",
+                    "PATH": "/usr/bin",
+                    "SAFE": "kept",
+                }
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -239,7 +251,9 @@ class TestPythonPathBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"PYTHONIOENCODING": "utf-8:surrogateescape", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"PYTHONIOENCODING": "utf-8:surrogateescape", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -251,10 +265,12 @@ class TestPythonPathBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({
-                "PYTHONPATH": "/home/user/lib:/usr/local/lib",
-                "PATH": "/usr/bin:/bin",
-            })
+            os.environ.update(
+                {
+                    "PYTHONPATH": "/home/user/lib:/usr/local/lib",
+                    "PATH": "/usr/bin:/bin",
+                }
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -267,7 +283,9 @@ class TestPythonPathBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"PYTHONPATH": "/usr/lib/python3/dist-packages:/tmp/evil"})
+            os.environ.update(
+                {"PYTHONPATH": "/usr/lib/python3/dist-packages:/tmp/evil"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -312,7 +330,9 @@ class TestIdentityPropagationBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"SSH_AUTH_SOCK": "/tmp/ssh-XXXX/agent.1234", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"SSH_AUTH_SOCK": "/tmp/ssh-XXXX/agent.1234", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -336,7 +356,9 @@ class TestIdentityPropagationBlocking:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"HISTFILE": "/home/user/.bash_history", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"HISTFILE": "/home/user/.bash_history", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -417,7 +439,12 @@ class TestSecretNameHintStripping:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "PATH": "/usr/bin"})
+            os.environ.update(
+                {
+                    "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                    "PATH": "/usr/bin",
+                }
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -429,7 +456,9 @@ class TestSecretNameHintStripping:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"AWS_SESSION_TOKEN": "FwoGZXIvYXdzEBYaDK...", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"AWS_SESSION_TOKEN": "FwoGZXIvYXdzEBYaDK...", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -441,7 +470,9 @@ class TestSecretNameHintStripping:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"DATABASE_URL": "postgres://user:pass@host/db", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"DATABASE_URL": "postgres://user:pass@host/db", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -453,7 +484,9 @@ class TestSecretNameHintStripping:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({"AWS_BEARER_TOKEN_BEDROCK": "ABSK1234567890", "PATH": "/usr/bin"})
+            os.environ.update(
+                {"AWS_BEARER_TOKEN_BEDROCK": "ABSK1234567890", "PATH": "/usr/bin"}
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -465,12 +498,14 @@ class TestSecretNameHintStripping:
         original_env = os.environ.copy()
         try:
             os.environ.clear()
-            os.environ.update({
-                "PATH": "/usr/bin",
-                "TERM": "xterm",
-                "LANG": "en_US.UTF-8",
-                "USER": "testuser",
-            })
+            os.environ.update(
+                {
+                    "PATH": "/usr/bin",
+                    "TERM": "xterm",
+                    "LANG": "en_US.UTF-8",
+                    "USER": "testuser",
+                }
+            )
             sanitized = _sanitise_env()
         finally:
             os.environ.clear()
@@ -550,6 +585,7 @@ class TestPathScopeValidation:
         """TC-SEC-340: set_scope_roots changes allowed scope."""
         # Arrange: set a custom scope root
         from pathlib import Path
+
         new_root = Path(config.PROJECT_ROOT / "test_workspace").resolve()
         new_root.mkdir(parents=True, exist_ok=True)
         try:

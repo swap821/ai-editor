@@ -124,7 +124,11 @@ class DevelopmentTracker:
                 meta = json.loads(row["metadata_json"] or "{}")
             except (TypeError, json.JSONDecodeError):
                 continue
-            if not isinstance(meta, dict) or "provider" not in meta or "model" not in meta:
+            if (
+                not isinstance(meta, dict)
+                or "provider" not in meta
+                or "model" not in meta
+            ):
                 continue
             decisions.append(
                 {

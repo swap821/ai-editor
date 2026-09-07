@@ -27,11 +27,15 @@ from aios.memory.development import DevelopmentTracker
 
 
 def _measured(value: object, source: str) -> MetricEnvelope:
-    return MetricEnvelope(value=value, status=MetricStatus.MEASURED, source=source, freshness=0)
+    return MetricEnvelope(
+        value=value, status=MetricStatus.MEASURED, source=source, freshness=0
+    )
 
 
 def _unavailable(source: str) -> MetricEnvelope:
-    return MetricEnvelope(value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None)
+    return MetricEnvelope(
+        value=None, status=MetricStatus.UNAVAILABLE, source=source, freshness=None
+    )
 
 
 def project_routing_decisions(
@@ -106,9 +110,13 @@ def project_privacy_audits(
                 provider=_measured(record.provider, source),
                 redacted_system=_measured(audit.get("redacted_system", 0), source),
                 redacted_paths=_measured(audit.get("redacted_paths", 0), source),
-                redacted_credentials=_measured(audit.get("redacted_credentials", 0), source),
+                redacted_credentials=_measured(
+                    audit.get("redacted_credentials", 0), source
+                ),
                 redacted_secrets=_measured(audit.get("redacted_secrets", 0), source),
-                redacted_tool_files=_measured(audit.get("redacted_tool_files", 0), source),
+                redacted_tool_files=_measured(
+                    audit.get("redacted_tool_files", 0), source
+                ),
                 truncated_history=_measured(audit.get("truncated_history", 0), source),
                 dropped_messages=_measured(audit.get("dropped_messages", 0), source),
                 recorded_at=_measured(record.recorded_at, source),

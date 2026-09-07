@@ -1,4 +1,5 @@
 """Tests for sovereign roadmap Wave 2B write/mutation API endpoints."""
+
 from __future__ import annotations
 
 import pytest
@@ -28,13 +29,16 @@ def test_pheromone_deposit(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "PHEROMONE_LAMBDA_DECAY", 0.02)
     monkeypatch.setattr(config, "PHEROMONE_FLOOR", 0.01)
 
-    resp = client.post("/api/v1/pheromones/deposit", json={
-        "ptype": "success-trail",
-        "resource": "src/main.py",
-        "depositor": "worker-1",
-        "strength": 0.8,
-        "payload": {"note": "completed"},
-    })
+    resp = client.post(
+        "/api/v1/pheromones/deposit",
+        json={
+            "ptype": "success-trail",
+            "resource": "src/main.py",
+            "depositor": "worker-1",
+            "strength": 0.8,
+            "payload": {"note": "completed"},
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert "pheromone_id" in data
@@ -45,11 +49,14 @@ def test_pheromone_deposit_invalid_type(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
     monkeypatch.setattr(config, "PHEROMONE_DB", tmp_path / "ph.db")
 
-    resp = client.post("/api/v1/pheromones/deposit", json={
-        "ptype": "not-a-real-type",
-        "resource": "x.py",
-        "depositor": "w",
-    })
+    resp = client.post(
+        "/api/v1/pheromones/deposit",
+        json={
+            "ptype": "not-a-real-type",
+            "resource": "x.py",
+            "depositor": "w",
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -59,17 +66,23 @@ def test_pheromone_reinforce(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "PHEROMONE_LAMBDA_DECAY", 0.02)
     monkeypatch.setattr(config, "PHEROMONE_FLOOR", 0.01)
 
-    deposit_resp = client.post("/api/v1/pheromones/deposit", json={
-        "ptype": "file-lock",
-        "resource": "a.py",
-        "depositor": "w",
-    })
+    deposit_resp = client.post(
+        "/api/v1/pheromones/deposit",
+        json={
+            "ptype": "file-lock",
+            "resource": "a.py",
+            "depositor": "w",
+        },
+    )
     pid = deposit_resp.json()["pheromone_id"]
 
-    resp = client.post("/api/v1/pheromones/reinforce", json={
-        "pheromoneId": pid,
-        "boost": 0.3,
-    })
+    resp = client.post(
+        "/api/v1/pheromones/reinforce",
+        json={
+            "pheromoneId": pid,
+            "boost": 0.3,
+        },
+    )
     assert resp.status_code == 200
     assert resp.json()["reinforced"] is True
 
@@ -87,9 +100,14 @@ def test_pheromone_decay(client, monkeypatch, tmp_path):
 
 def test_pheromone_disabled(client, monkeypatch):
     monkeypatch.setattr(config, "PHEROMONE_ENABLED", False)
-    resp = client.post("/api/v1/pheromones/deposit", json={
-        "ptype": "file-lock", "resource": "x", "depositor": "w",
-    })
+    resp = client.post(
+        "/api/v1/pheromones/deposit",
+        json={
+            "ptype": "file-lock",
+            "resource": "x",
+            "depositor": "w",
+        },
+    )
     assert resp.status_code == 404
 
 
@@ -100,13 +118,16 @@ def test_live_surface_emit(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "LIVE_SURFACE", True)
     monkeypatch.setattr(config, "LIVE_SURFACE_DB", tmp_path / "ls.db")
 
-    resp = client.post("/api/v1/runtime/surface/emit", json={
-        "stype": "worker-active",
-        "resource": "src/app.py",
-        "workerId": "worker-7",
-        "ttlSeconds": 60,
-        "payload": {"progress": 0.5},
-    })
+    resp = client.post(
+        "/api/v1/runtime/surface/emit",
+        json={
+            "stype": "worker-active",
+            "resource": "src/app.py",
+            "workerId": "worker-7",
+            "ttlSeconds": 60,
+            "payload": {"progress": 0.5},
+        },
+    )
     assert resp.status_code == 200
     assert resp.json()["signal_id"] >= 1
 
@@ -115,11 +136,14 @@ def test_live_surface_emit_invalid_type(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "LIVE_SURFACE", True)
     monkeypatch.setattr(config, "LIVE_SURFACE_DB", tmp_path / "ls.db")
 
-    resp = client.post("/api/v1/runtime/surface/emit", json={
-        "stype": "bogus-type",
-        "resource": "x",
-        "workerId": "w",
-    })
+    resp = client.post(
+        "/api/v1/runtime/surface/emit",
+        json={
+            "stype": "bogus-type",
+            "resource": "x",
+            "workerId": "w",
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -127,11 +151,14 @@ def test_live_surface_revoke(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "LIVE_SURFACE", True)
     monkeypatch.setattr(config, "LIVE_SURFACE_DB", tmp_path / "ls.db")
 
-    emit_resp = client.post("/api/v1/runtime/surface/emit", json={
-        "stype": "file-lock",
-        "resource": "x.py",
-        "workerId": "w1",
-    })
+    emit_resp = client.post(
+        "/api/v1/runtime/surface/emit",
+        json={
+            "stype": "file-lock",
+            "resource": "x.py",
+            "workerId": "w1",
+        },
+    )
     signal_id = emit_resp.json()["signal_id"]
 
     resp = client.delete(f"/api/v1/runtime/surface/{signal_id}")
@@ -158,9 +185,14 @@ def test_live_surface_sweep(client, monkeypatch, tmp_path):
 
 def test_live_surface_disabled(client, monkeypatch):
     monkeypatch.setattr(config, "LIVE_SURFACE", False)
-    resp = client.post("/api/v1/runtime/surface/emit", json={
-        "stype": "file-lock", "resource": "x", "workerId": "w",
-    })
+    resp = client.post(
+        "/api/v1/runtime/surface/emit",
+        json={
+            "stype": "file-lock",
+            "resource": "x",
+            "workerId": "w",
+        },
+    )
     assert resp.status_code == 404
 
 
@@ -172,13 +204,16 @@ def test_rollback_register(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "ROLLBACK_REGISTRY_DB", tmp_path / "rr.db")
     monkeypatch.setattr(config, "ROLLBACK_RETENTION_DAYS", 30)
 
-    resp = client.post("/api/v1/runtime/rollbacks/register", json={
-        "snapshotId": "snap-001",
-        "missionId": "mission-42",
-        "workspaceRoot": "/tmp/ws",
-        "filesCovered": ["a.py", "b.py"],
-        "metadata": {"reason": "pre-deploy"},
-    })
+    resp = client.post(
+        "/api/v1/runtime/rollbacks/register",
+        json={
+            "snapshotId": "snap-001",
+            "missionId": "mission-42",
+            "workspaceRoot": "/tmp/ws",
+            "filesCovered": ["a.py", "b.py"],
+            "metadata": {"reason": "pre-deploy"},
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["registered"] is True
@@ -197,9 +232,14 @@ def test_rollback_prune(client, monkeypatch, tmp_path):
 
 def test_rollback_register_disabled(client, monkeypatch):
     monkeypatch.setattr(config, "ROLLBACK_REGISTRY", False)
-    resp = client.post("/api/v1/runtime/rollbacks/register", json={
-        "snapshotId": "s", "missionId": "m", "workspaceRoot": "/w",
-    })
+    resp = client.post(
+        "/api/v1/runtime/rollbacks/register",
+        json={
+            "snapshotId": "s",
+            "missionId": "m",
+            "workspaceRoot": "/w",
+        },
+    )
     assert resp.status_code == 404
 
 
@@ -230,18 +270,24 @@ def test_policy_vote(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
 
-    propose_resp = client.post("/api/v1/policy/propose", json={
-        "constraint": "All workers MUST log actions",
-        "proposedBy": "security-queen",
-    })
+    propose_resp = client.post(
+        "/api/v1/policy/propose",
+        json={
+            "constraint": "All workers MUST log actions",
+            "proposedBy": "security-queen",
+        },
+    )
     assert propose_resp.status_code == 200
     policy_id = propose_resp.json()["policy_id"]
 
-    resp = client.post(f"/api/v1/policy/{policy_id}/vote", json={
-        "queen": "critique",
-        "approve": True,
-        "reason": "good constraint",
-    })
+    resp = client.post(
+        f"/api/v1/policy/{policy_id}/vote",
+        json={
+            "queen": "critique",
+            "approve": True,
+            "reason": "good constraint",
+        },
+    )
     assert resp.status_code == 200
     assert resp.json()["voted"] is True
 
@@ -250,18 +296,29 @@ def test_policy_vote_duplicate(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
 
-    propose_resp = client.post("/api/v1/policy/propose", json={
-        "constraint": "Workers MUST use snapshots",
-        "proposedBy": "planner-queen",
-    })
+    propose_resp = client.post(
+        "/api/v1/policy/propose",
+        json={
+            "constraint": "Workers MUST use snapshots",
+            "proposedBy": "planner-queen",
+        },
+    )
     policy_id = propose_resp.json()["policy_id"]
 
-    client.post(f"/api/v1/policy/{policy_id}/vote", json={
-        "queen": "security", "approve": True,
-    })
-    resp = client.post(f"/api/v1/policy/{policy_id}/vote", json={
-        "queen": "security", "approve": False,
-    })
+    client.post(
+        f"/api/v1/policy/{policy_id}/vote",
+        json={
+            "queen": "security",
+            "approve": True,
+        },
+    )
+    resp = client.post(
+        f"/api/v1/policy/{policy_id}/vote",
+        json={
+            "queen": "security",
+            "approve": False,
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -269,20 +326,30 @@ def test_policy_enact(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
 
-    propose_resp = client.post("/api/v1/policy/propose", json={
-        "constraint": "Workers MUST verify output",
-        "proposedBy": "testing-queen",
-    })
+    propose_resp = client.post(
+        "/api/v1/policy/propose",
+        json={
+            "constraint": "Workers MUST verify output",
+            "proposedBy": "testing-queen",
+        },
+    )
     policy_id = propose_resp.json()["policy_id"]
 
     for queen in ("security", "critique", "planner"):
-        client.post(f"/api/v1/policy/{policy_id}/vote", json={
-            "queen": queen, "approve": True,
-        })
+        client.post(
+            f"/api/v1/policy/{policy_id}/vote",
+            json={
+                "queen": queen,
+                "approve": True,
+            },
+        )
 
-    resp = client.post(f"/api/v1/policy/{policy_id}/enact", json={
-        "requiredApprovals": 3,
-    })
+    resp = client.post(
+        f"/api/v1/policy/{policy_id}/enact",
+        json={
+            "requiredApprovals": 3,
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["enacted"] is True
@@ -293,19 +360,29 @@ def test_policy_enact_insufficient_votes(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
 
-    propose_resp = client.post("/api/v1/policy/propose", json={
-        "constraint": "Workers MUST audit trail",
-        "proposedBy": "memory-queen",
-    })
+    propose_resp = client.post(
+        "/api/v1/policy/propose",
+        json={
+            "constraint": "Workers MUST audit trail",
+            "proposedBy": "memory-queen",
+        },
+    )
     policy_id = propose_resp.json()["policy_id"]
 
-    client.post(f"/api/v1/policy/{policy_id}/vote", json={
-        "queen": "security", "approve": True,
-    })
+    client.post(
+        f"/api/v1/policy/{policy_id}/vote",
+        json={
+            "queen": "security",
+            "approve": True,
+        },
+    )
 
-    resp = client.post(f"/api/v1/policy/{policy_id}/enact", json={
-        "requiredApprovals": 3,
-    })
+    resp = client.post(
+        f"/api/v1/policy/{policy_id}/enact",
+        json={
+            "requiredApprovals": 3,
+        },
+    )
     assert resp.status_code == 400
 
 
@@ -313,21 +390,31 @@ def test_policy_suspend(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
 
-    propose_resp = client.post("/api/v1/policy/propose", json={
-        "constraint": "Workers MUST run tests",
-        "proposedBy": "testing-queen",
-    })
+    propose_resp = client.post(
+        "/api/v1/policy/propose",
+        json={
+            "constraint": "Workers MUST run tests",
+            "proposedBy": "testing-queen",
+        },
+    )
     policy_id = propose_resp.json()["policy_id"]
 
     for queen in ("security", "critique", "planner"):
-        client.post(f"/api/v1/policy/{policy_id}/vote", json={
-            "queen": queen, "approve": True,
-        })
+        client.post(
+            f"/api/v1/policy/{policy_id}/vote",
+            json={
+                "queen": queen,
+                "approve": True,
+            },
+        )
     client.post(f"/api/v1/policy/{policy_id}/enact", json={"requiredApprovals": 3})
 
-    resp = client.post(f"/api/v1/policy/{policy_id}/suspend", json={
-        "suspendedBy": "security-queen",
-    })
+    resp = client.post(
+        f"/api/v1/policy/{policy_id}/suspend",
+        json={
+            "suspendedBy": "security-queen",
+        },
+    )
     assert resp.status_code == 200
     assert resp.json()["suspended"] is True
 
@@ -336,10 +423,13 @@ def test_policy_chain(client, monkeypatch, tmp_path):
     monkeypatch.setattr(config, "POLICY_ENGINE", True)
     monkeypatch.setattr(config, "POLICY_DB", tmp_path / "policy.db")
 
-    client.post("/api/v1/policy/propose", json={
-        "constraint": "Workers MUST sign output",
-        "proposedBy": "security-queen",
-    })
+    client.post(
+        "/api/v1/policy/propose",
+        json={
+            "constraint": "Workers MUST sign output",
+            "proposedBy": "security-queen",
+        },
+    )
 
     resp = client.get("/api/v1/policy/chain")
     assert resp.status_code == 200
@@ -350,13 +440,26 @@ def test_policy_chain(client, monkeypatch, tmp_path):
 
 def test_policy_endpoints_disabled(client, monkeypatch):
     monkeypatch.setattr(config, "POLICY_ENGINE", False)
-    assert client.post("/api/v1/policy/test-id/vote", json={
-        "queen": "x", "approve": True,
-    }).status_code == 404
+    assert (
+        client.post(
+            "/api/v1/policy/test-id/vote",
+            json={
+                "queen": "x",
+                "approve": True,
+            },
+        ).status_code
+        == 404
+    )
     assert client.post("/api/v1/policy/test-id/enact", json={}).status_code == 404
-    assert client.post("/api/v1/policy/test-id/suspend", json={
-        "suspendedBy": "x",
-    }).status_code == 404
+    assert (
+        client.post(
+            "/api/v1/policy/test-id/suspend",
+            json={
+                "suspendedBy": "x",
+            },
+        ).status_code
+        == 404
+    )
     assert client.get("/api/v1/policy/chain").status_code == 404
 
 
@@ -366,7 +469,11 @@ def test_policy_endpoints_disabled(client, monkeypatch):
 def test_queen_service_start_stop(client, monkeypatch):
     monkeypatch.setattr(config, "QUEEN_SERVICES", True)
 
-    from aios.council.queen_service import QUEEN_SERVICES, register_service, unregister_service
+    from aios.council.queen_service import (
+        QUEEN_SERVICES,
+        register_service,
+        unregister_service,
+    )
     from tests.test_queen_service import DummyQueenService
 
     svc = DummyQueenService()
@@ -387,6 +494,7 @@ def test_queen_service_not_found(client, monkeypatch):
     monkeypatch.setattr(config, "QUEEN_SERVICES", True)
 
     from aios.council.queen_service import QUEEN_SERVICES
+
     QUEEN_SERVICES.clear()
 
     resp = client.post("/api/v1/council/services/nonexistent/start")

@@ -98,30 +98,40 @@ def test_forged_unconsumed_capability_fails() -> None:
     proposal = _proposal()
     unconsumed = _real_capability(consumed_at=None)
     with pytest.raises(AmendmentError, match="already-consumed"):
-        ratify_amendment(proposal, capability_proof=unconsumed, operator_id="operator:abc")
+        ratify_amendment(
+            proposal, capability_proof=unconsumed, operator_id="operator:abc"
+        )
 
 
 def test_capability_bound_to_the_wrong_action_fails() -> None:
     proposal = _proposal()
     wrong_action = _real_capability(action_type="approval_resolution")
     with pytest.raises(AmendmentError, match="must be bound to"):
-        ratify_amendment(proposal, capability_proof=wrong_action, operator_id="operator:abc")
+        ratify_amendment(
+            proposal, capability_proof=wrong_action, operator_id="operator:abc"
+        )
 
 
 def test_capability_bound_to_a_different_operator_fails() -> None:
     proposal = _proposal()
     someone_elses = _real_capability(operator_id="operator:xyz")
     with pytest.raises(AmendmentError, match="does not match"):
-        ratify_amendment(proposal, capability_proof=someone_elses, operator_id="operator:abc")
+        ratify_amendment(
+            proposal, capability_proof=someone_elses, operator_id="operator:abc"
+        )
 
 
 def test_stale_already_activated_proposal_cannot_be_ratified_again() -> None:
     proposal = _proposal()
-    proposal = ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+    proposal = ratify_amendment(
+        proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+    )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     activated, _v2 = activate_amendment(proposal, previous_snapshot=v1)
     with pytest.raises(AmendmentError, match="cannot ratify"):
-        ratify_amendment(activated, capability_proof=_real_capability(), operator_id="operator:abc")
+        ratify_amendment(
+            activated, capability_proof=_real_capability(), operator_id="operator:abc"
+        )
 
 
 # --- foundation laws are not amendable -------------------------------------
@@ -133,7 +143,9 @@ def test_amendment_modifying_immutable_article_is_rejected() -> None:
         proposed_diff="allow intelligence to self-approve",
     )
     with pytest.raises(AmendmentError, match="foundation-law"):
-        ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+        ratify_amendment(
+            proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+        )
 
 
 # --- human ratification creates a new version, rollback restores prior ----
@@ -141,7 +153,9 @@ def test_amendment_modifying_immutable_article_is_rejected() -> None:
 
 def test_human_ratification_creates_new_version() -> None:
     proposal = _proposal(proposed_by="operator:abc", proposer_type="human")
-    proposal = ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+    proposal = ratify_amendment(
+        proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+    )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
     assert activated.status == "activated"
@@ -152,7 +166,9 @@ def test_human_ratification_creates_new_version() -> None:
 
 def test_rollback_restores_prior_version_exactly() -> None:
     proposal = _proposal()
-    proposal = ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+    proposal = ratify_amendment(
+        proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+    )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
     rolled_back, restored = rollback_amendment(
@@ -164,13 +180,17 @@ def test_rollback_restores_prior_version_exactly() -> None:
 
 def test_rollback_refuses_a_non_predecessor_snapshot() -> None:
     proposal = _proposal()
-    proposal = ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+    proposal = ratify_amendment(
+        proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+    )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
     unrelated = build_constitution_snapshot(ratified_by_operator_id="operator:xyz")
-    with pytest.raises(AmendmentError, match="does not match proposal predecessor_snapshot_digest|not the exact predecessor"):
+    with pytest.raises(
+        AmendmentError,
+        match="does not match proposal predecessor_snapshot_digest|not the exact predecessor",
+    ):
         rollback_amendment(activated, current_snapshot=v2, previous_snapshot=unrelated)
-
 
 
 # --- emergency stop blocks activation --------------------------------------
@@ -193,7 +213,9 @@ def test_emergency_stop_blocks_activation(tmp_path: Path) -> None:
         )
     )
     proposal = _proposal()
-    proposal = ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+    proposal = ratify_amendment(
+        proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+    )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     from aios.application.governance import EmergencyStopError
 
@@ -229,7 +251,9 @@ def test_old_mission_stays_on_old_constitution_after_activation() -> None:
         constitution_digest=v1.snapshot_digest,
     )
     proposal = _proposal()
-    proposal = ratify_amendment(proposal, capability_proof=_real_capability(), operator_id="operator:abc")
+    proposal = ratify_amendment(
+        proposal, capability_proof=_real_capability(), operator_id="operator:abc"
+    )
     _activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
 
     # The constitution moved on to v2, but the mission's own frozen

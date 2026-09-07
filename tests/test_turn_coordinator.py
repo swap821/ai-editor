@@ -36,7 +36,9 @@ class TestModeClassification:
 
     def test_governance_takes_precedence(self) -> None:
         assert (
-            TurnCoordinator.classify_mode("explain the router", governance_requested=True)
+            TurnCoordinator.classify_mode(
+                "explain the router", governance_requested=True
+            )
             is TurnMode.GOVERNANCE
         )
 

@@ -35,6 +35,7 @@ override. An inconclusive staleness check warns and is recorded in the
 artifact. Results append to .aios/audit/learning-loop-runs.jsonl — the
 demo artifact the README's Product Phase 2 references.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -92,9 +93,9 @@ def parse_sse(resp: requests.Response) -> Iterator[tuple[str, dict[str, Any]]]:
                 yield event, payload
             event, data_lines = None, []
         elif raw.startswith("event:"):
-            event = raw[len("event:"):].strip()
+            event = raw[len("event:") :].strip()
         elif raw.startswith("data:"):
-            data_lines.append(raw[len("data:"):].strip())
+            data_lines.append(raw[len("data:") :].strip())
     if event is not None and data_lines:
         yield event, json.loads("\n".join(data_lines))
 
@@ -104,15 +105,24 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     if inp.get("creations"):
         paths = [str(c.get("filepath", "")) for c in inp["creations"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"create {paths}" if not bad else f"creation outside allowlist: {bad}")
+        return (
+            not bad,
+            f"create {paths}" if not bad else f"creation outside allowlist: {bad}",
+        )
     if inp.get("edits"):
         paths = [str(e.get("filepath", "")) for e in inp["edits"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"edit {paths}" if not bad else f"edit outside allowlist: {bad}")
+        return (
+            not bad,
+            f"edit {paths}" if not bad else f"edit outside allowlist: {bad}",
+        )
     if inp.get("commands"):
         cmds = [str(c) for c in inp["commands"]]
         bad = [c for c in cmds if not ALLOWED_CMD_RE.match(c)]
-        return (not bad, f"run {cmds}" if not bad else f"command outside allowlist: {bad}")
+        return (
+            not bad,
+            f"run {cmds}" if not bad else f"command outside allowlist: {bad}",
+        )
     return False, "unrecognized approval payload shape"
 
 
@@ -137,7 +147,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             "sessionId": session_id,
             "approvalTokens": tokens,
         }
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        resp = requests.post(
+            f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S
+        )
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False
@@ -147,7 +159,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 step_ids.append(str(data.get("id", "")))
                 step_tools.append(str(data.get("tool", "")))
                 output = str(data.get("output", ""))
-                if output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")):
+                if output.startswith(
+                    ("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")
+                ):
                     evidence.append(output)
             elif event.startswith("cerebellum_"):
                 cerebellum_events.append(event)
@@ -155,39 +169,66 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 paused = data
                 break
             elif event == "error":
-                return {"outcome": "error", "error": data, "evidence": evidence,
-                        "step_ids": step_ids, "step_tools": step_tools,
-                        "cerebellum_events": cerebellum_events}
+                return {
+                    "outcome": "error",
+                    "error": data,
+                    "evidence": evidence,
+                    "step_ids": step_ids,
+                    "step_tools": step_tools,
+                    "cerebellum_events": cerebellum_events,
+                }
             elif event == "done":
                 finished = True
 
         if finished and paused is None:
-            counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+            counted = [
+                e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
+            ]
             if not counted:
                 outcome = "unverified"
             elif counted[-1].startswith("[VERIFY PASS]"):
                 outcome = "verified_success"
             else:
                 outcome = "verified_failure"
-            return {"outcome": outcome, "approvals": approvals_granted, "evidence": evidence,
-                    "step_ids": step_ids, "step_tools": step_tools,
-                    "cerebellum_events": cerebellum_events}
+            return {
+                "outcome": outcome,
+                "approvals": approvals_granted,
+                "evidence": evidence,
+                "step_ids": step_ids,
+                "step_tools": step_tools,
+                "cerebellum_events": cerebellum_events,
+            }
 
         if paused is None:
-            return {"outcome": "truncated", "evidence": evidence, "step_ids": step_ids,
-                    "step_tools": step_tools, "cerebellum_events": cerebellum_events}
+            return {
+                "outcome": "truncated",
+                "evidence": evidence,
+                "step_ids": step_ids,
+                "step_tools": step_tools,
+                "cerebellum_events": cerebellum_events,
+            }
 
         ok, why = check_allowlist(paused)
         token = paused.get("input", {}).get("approvalToken")
         if not ok or not token:
-            return {"outcome": "rejected", "reason": why, "evidence": evidence,
-                    "step_ids": step_ids, "step_tools": step_tools,
-                    "cerebellum_events": cerebellum_events}
+            return {
+                "outcome": "rejected",
+                "reason": why,
+                "evidence": evidence,
+                "step_ids": step_ids,
+                "step_tools": step_tools,
+                "cerebellum_events": cerebellum_events,
+            }
         approvals_granted.append(why)
         tokens = [token]
 
-    return {"outcome": "max_replays", "evidence": evidence, "step_ids": step_ids,
-            "step_tools": step_tools, "cerebellum_events": cerebellum_events}
+    return {
+        "outcome": "max_replays",
+        "evidence": evidence,
+        "step_ids": step_ids,
+        "step_tools": step_tools,
+        "cerebellum_events": cerebellum_events,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -209,10 +250,15 @@ def preflight(allow_stale: bool) -> dict[str, Any]:
 
     result: dict[str, Any] = {"backend": BASE, "staleness": "inconclusive"}
     try:
-        commit_epoch = int(subprocess.run(
-            ["git", "log", "-1", "--format=%ct"],
-            cwd=ROOT, capture_output=True, text=True, check=True,
-        ).stdout.strip())
+        commit_epoch = int(
+            subprocess.run(
+                ["git", "log", "-1", "--format=%ct"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        )
         result["head_commit_epoch"] = commit_epoch
     except Exception:  # noqa: BLE001 - not a git checkout: nothing to compare against
         print("[prover] WARNING: cannot read HEAD commit time; staleness unverified")
@@ -224,7 +270,12 @@ def preflight(allow_stale: bool) -> dict[str, Any]:
         import psutil
 
         for conn in psutil.net_connections(kind="tcp"):
-            if conn.laddr and conn.laddr.port == port and conn.status == "LISTEN" and conn.pid:
+            if (
+                conn.laddr
+                and conn.laddr.port == port
+                and conn.status == "LISTEN"
+                and conn.pid
+            ):
                 proc_start = psutil.Process(conn.pid).create_time()
                 result["serving_pid"] = conn.pid
                 break
@@ -232,16 +283,20 @@ def preflight(allow_stale: bool) -> dict[str, Any]:
         proc_start = None
 
     if proc_start is None:
-        print("[prover] WARNING: could not identify the serving process "
-              f"on port {port}; staleness unverified (install psutil, or check "
-              "manually per the backend-staleness gotcha in RESUME.md)")
+        print(
+            "[prover] WARNING: could not identify the serving process "
+            f"on port {port}; staleness unverified (install psutil, or check "
+            "manually per the backend-staleness gotcha in RESUME.md)"
+        )
         return result
 
     result["serving_process_start_epoch"] = int(proc_start)
     if proc_start < commit_epoch:
         result["staleness"] = "STALE"
-        msg = ("[prover] backend process predates HEAD commit — it is serving OLD code. "
-               "Restart the backend, or pass --allow-stale to override.")
+        msg = (
+            "[prover] backend process predates HEAD commit — it is serving OLD code. "
+            "Restart the backend, or pass --allow-stale to override."
+        )
         if allow_stale:
             print(msg + " (OVERRIDDEN by --allow-stale)")
         else:
@@ -314,32 +369,44 @@ def seed_files(run_id: str) -> dict[str, str]:
     reflex_test = files["reflex_test"]
     probe_test = files["probe_test"]
 
-    _seed(buggy, (
-        "def add(a, b):\n"
-        "    # BUG (planted by the learning-loop prover): subtraction, not addition.\n"
-        "    return a - b\n"
-    ))
-    _seed(buggy_test, (
-        f"from lab.llp_buggy_{slug} import add\n\n\n"
-        "def test_add_positive():\n"
-        "    assert add(2, 3) == 5\n\n\n"
-        "def test_add_zero():\n"
-        "    assert add(0, 7) == 7\n"
-    ))
-    _seed(reflex_test, (
-        "def test_reflex_one():\n"
-        "    assert 1 + 1 == 2\n\n\n"
-        "def test_reflex_two():\n"
-        "    assert sorted([3, 1, 2]) == [1, 2, 3]\n\n\n"
-        "def test_reflex_three():\n"
-        "    assert 'gagos'.upper() == 'GAGOS'\n"
-    ))
-    _seed(probe_test, (
-        "def test_probe_deliberately_broken():\n"
-        "    # MUTATION PROBE (verification-confidence spec): this MUST fail.\n"
-        "    # If verification reports PASS here, the checks are not checking.\n"
-        "    assert 1 == 2\n"
-    ))
+    _seed(
+        buggy,
+        (
+            "def add(a, b):\n"
+            "    # BUG (planted by the learning-loop prover): subtraction, not addition.\n"
+            "    return a - b\n"
+        ),
+    )
+    _seed(
+        buggy_test,
+        (
+            f"from lab.llp_buggy_{slug} import add\n\n\n"
+            "def test_add_positive():\n"
+            "    assert add(2, 3) == 5\n\n\n"
+            "def test_add_zero():\n"
+            "    assert add(0, 7) == 7\n"
+        ),
+    )
+    _seed(
+        reflex_test,
+        (
+            "def test_reflex_one():\n"
+            "    assert 1 + 1 == 2\n\n\n"
+            "def test_reflex_two():\n"
+            "    assert sorted([3, 1, 2]) == [1, 2, 3]\n\n\n"
+            "def test_reflex_three():\n"
+            "    assert 'gagos'.upper() == 'GAGOS'\n"
+        ),
+    )
+    _seed(
+        probe_test,
+        (
+            "def test_probe_deliberately_broken():\n"
+            "    # MUTATION PROBE (verification-confidence spec): this MUST fail.\n"
+            "    # If verification reports PASS here, the checks are not checking.\n"
+            "    assert 1 == 2\n"
+        ),
+    )
     return files
 
 
@@ -360,8 +427,15 @@ class Check:
 
     def _record(self, name: str, ok: bool, detail: str, *, soft: bool) -> None:
         downgraded = (not ok) and soft and self.lenient
-        self.results.append({"check": name, "ok": ok, "detail": detail,
-                             "soft": soft, "downgraded": downgraded})
+        self.results.append(
+            {
+                "check": name,
+                "ok": ok,
+                "detail": detail,
+                "soft": soft,
+                "downgraded": downgraded,
+            }
+        )
         marker = "PASS" if ok else ("WARN" if downgraded else "FAIL")
         print(f"    [{marker}] {name}: {detail}")
 
@@ -395,14 +469,19 @@ def has_confirm_step(result: dict[str, Any]) -> bool:
 
 
 def fail_before_pass(result: dict[str, Any]) -> bool:
-    kinds = [e[:13] for e in result.get("evidence", [])
-             if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+    kinds = [
+        e[:13]
+        for e in result.get("evidence", [])
+        if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
+    ]
     return "[VERIFY FAIL]" in kinds and kinds[-1] == "[VERIFY PASS]"
 
 
 def strong_pass(result: dict[str, Any]) -> bool:
-    return any(e.startswith("[VERIFY PASS]") and "strength=STRONG" in e
-               for e in result.get("evidence", []))
+    return any(
+        e.startswith("[VERIFY PASS]") and "strength=STRONG" in e
+        for e in result.get("evidence", [])
+    )
 
 
 def used_write_tools(result: dict[str, Any]) -> bool:
@@ -413,8 +492,11 @@ def skill_promoted(marker: str) -> bool:
     """Poll /development/skills for a verified skill whose row mentions marker."""
     for _ in range(PROMOTION_POLL_TRIES):
         try:
-            resp = requests.get(f"{BASE}/api/v1/development/skills",
-                                params={"status": "verified"}, timeout=30)
+            resp = requests.get(
+                f"{BASE}/api/v1/development/skills",
+                params={"status": "verified"},
+                timeout=30,
+            )
             resp.raise_for_status()
             if marker in json.dumps(resp.json()):
                 return True
@@ -438,29 +520,49 @@ def phase_lesson(files: dict[str, str], run_id: str, model: str, check: Check) -
         f"Then read {files['buggy']}, fix the bug in it with a minimal edit so the tests "
         f"pass, and verify again using exactly the same command `{cmd}`. Stop once it "
         "passes. Use that exact command string for both verifications.",
-        session, model_id=model,
+        session,
+        model_id=model,
     )
     log_event({"kind": "turn", "phase": "lesson", "turn": 1, "run_id": run_id, **turn1})
-    check.hard("lesson.turn1-verified-success", turn1["outcome"] == "verified_success",
-               f"outcome={turn1['outcome']}")
-    check.hard("lesson.fail-then-pass", fail_before_pass(turn1),
-               "a [VERIFY FAIL] must precede the final [VERIFY PASS]")
-    check.hard("lesson.reflect-step", has_id(turn1, "reflect-"),
-               "failure hook recorded a structured lesson (reflect-* step)")
-    check.soft("lesson.confirm-step", has_confirm_step(turn1),
-               "confirm hook promoted the lesson after the exact command succeeded "
-               "(reflect-tool step with a verify-* id)")
+    check.hard(
+        "lesson.turn1-verified-success",
+        turn1["outcome"] == "verified_success",
+        f"outcome={turn1['outcome']}",
+    )
+    check.hard(
+        "lesson.fail-then-pass",
+        fail_before_pass(turn1),
+        "a [VERIFY FAIL] must precede the final [VERIFY PASS]",
+    )
+    check.hard(
+        "lesson.reflect-step",
+        has_id(turn1, "reflect-"),
+        "failure hook recorded a structured lesson (reflect-* step)",
+    )
+    check.soft(
+        "lesson.confirm-step",
+        has_confirm_step(turn1),
+        "confirm hook promoted the lesson after the exact command succeeded "
+        "(reflect-tool step with a verify-* id)",
+    )
 
     turn2 = run_prompt(
         f"Use the verify tool to run exactly this command once: `{cmd}` and report the "
         "result. Do not create or edit any files.",
-        session, model_id=model,
+        session,
+        model_id=model,
     )
     log_event({"kind": "turn", "phase": "lesson", "turn": 2, "run_id": run_id, **turn2})
-    check.soft("lesson.recall-step", "lesson-recall" in turn2.get("step_ids", []),
-               "the re-attempt turn recalled the recorded lesson (lesson-recall step)")
-    check.hard("lesson.turn2-verified-success", turn2["outcome"] == "verified_success",
-               f"outcome={turn2['outcome']}")
+    check.soft(
+        "lesson.recall-step",
+        "lesson-recall" in turn2.get("step_ids", []),
+        "the re-attempt turn recalled the recorded lesson (lesson-recall step)",
+    )
+    check.hard(
+        "lesson.turn2-verified-success",
+        turn2["outcome"] == "verified_success",
+        f"outcome={turn2['outcome']}",
+    )
 
 
 def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -> None:
@@ -471,52 +573,85 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
         "result. Do not create or edit any files."
     )
 
-    print(f"  [phase 2/3] reflex loop: {REFLEX_REPS}x verify-only success -> playbook -> replay")
+    print(
+        f"  [phase 2/3] reflex loop: {REFLEX_REPS}x verify-only success -> playbook -> replay"
+    )
     for rep in range(1, REFLEX_REPS + 1):
         result = run_prompt(prompt, f"ll-reflex-{run_id}-r{rep}", model_id=model)
-        log_event({"kind": "turn", "phase": "reflex", "rep": rep, "run_id": run_id, **result})
-        check.hard(f"reflex.rep{rep}-verified-success",
-                   result["outcome"] == "verified_success",
-                   f"outcome={result['outcome']}")
-        check.hard(f"reflex.rep{rep}-strong", strong_pass(result),
-                   "promotion floor requires strength=STRONG evidence")
-        check.soft(f"reflex.rep{rep}-no-writes", not used_write_tools(result),
-                   "write tools would break the cerebellum compile guard")
+        log_event(
+            {"kind": "turn", "phase": "reflex", "rep": rep, "run_id": run_id, **result}
+        )
+        check.hard(
+            f"reflex.rep{rep}-verified-success",
+            result["outcome"] == "verified_success",
+            f"outcome={result['outcome']}",
+        )
+        check.hard(
+            f"reflex.rep{rep}-strong",
+            strong_pass(result),
+            "promotion floor requires strength=STRONG evidence",
+        )
+        check.soft(
+            f"reflex.rep{rep}-no-writes",
+            not used_write_tools(result),
+            "write tools would break the cerebellum compile guard",
+        )
         if result.get("cerebellum_events"):
             # An earlier compiled playbook intercepted a promotion rep — the
             # fixture name was not unique. Fatal: promotion evidence is void.
-            check.hard(f"reflex.rep{rep}-no-early-replay", False,
-                       "cerebellum matched BEFORE promotion completed")
+            check.hard(
+                f"reflex.rep{rep}-no-early-replay",
+                False,
+                "cerebellum matched BEFORE promotion completed",
+            )
 
     promoted = skill_promoted(f"llp_reflex_{_slug(run_id)}")
-    check.hard("reflex.skill-verified", promoted,
-               "a verified skill row for this goal exists in /development/skills")
+    check.hard(
+        "reflex.skill-verified",
+        promoted,
+        "a verified skill row for this goal exists in /development/skills",
+    )
 
     replay = run_prompt(prompt, f"ll-reflex-{run_id}-replay", model_id=model)
-    log_event({"kind": "turn", "phase": "reflex", "rep": "replay", "run_id": run_id, **replay})
-    check.hard("reflex.cerebellum-match", "cerebellum_match" in replay["cerebellum_events"],
-               f"events={replay['cerebellum_events'] or 'none'}")
-    check.hard("reflex.cerebellum-done", "cerebellum_done" in replay["cerebellum_events"],
-               "the compiled playbook replayed to completion")
+    log_event(
+        {"kind": "turn", "phase": "reflex", "rep": "replay", "run_id": run_id, **replay}
+    )
+    check.hard(
+        "reflex.cerebellum-match",
+        "cerebellum_match" in replay["cerebellum_events"],
+        f"events={replay['cerebellum_events'] or 'none'}",
+    )
+    check.hard(
+        "reflex.cerebellum-done",
+        "cerebellum_done" in replay["cerebellum_events"],
+        "the compiled playbook replayed to completion",
+    )
 
 
 def phase_probe(files: dict[str, str], run_id: str, model: str, check: Check) -> None:
     """Minimal verification-confidence mutation probe: broken code MUST fail."""
     cmd = verify_command(files["probe_test"])
 
-    print("  [phase 3/3] mutation probe: deliberately broken code must FAIL verification")
+    print(
+        "  [phase 3/3] mutation probe: deliberately broken code must FAIL verification"
+    )
     result = run_prompt(
         f"Use the verify tool to run exactly this command once: `{cmd}` and report the "
         "result honestly. Do NOT fix, edit, or create anything — reporting the result "
         "is the entire task.",
-        f"ll-probe-{run_id}", model_id=model,
+        f"ll-probe-{run_id}",
+        model_id=model,
     )
     log_event({"kind": "turn", "phase": "probe", "run_id": run_id, **result})
     saw_fail = any(e.startswith("[VERIFY FAIL]") for e in result.get("evidence", []))
     saw_pass = any(e.startswith("[VERIFY PASS]") for e in result.get("evidence", []))
-    check.hard("probe.broken-code-fails", saw_fail and not saw_pass,
-               "VERIFICATION-CONFIDENCE VIOLATION: broken code did not fail verification"
-               if not saw_fail or saw_pass else "verification correctly failed broken code")
+    check.hard(
+        "probe.broken-code-fails",
+        saw_fail and not saw_pass,
+        "VERIFICATION-CONFIDENCE VIOLATION: broken code did not fail verification"
+        if not saw_fail or saw_pass
+        else "verification correctly failed broken code",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -527,8 +662,15 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"[prover] learning-loop prover run {run_id} against {BASE}")
 
     stale = preflight(args.allow_stale)
-    log_event({"kind": "prover-start", "run_id": run_id, "model": args.model,
-               "lenient": args.lenient, **stale})
+    log_event(
+        {
+            "kind": "prover-start",
+            "run_id": run_id,
+            "model": args.model,
+            "lenient": args.lenient,
+            **stale,
+        }
+    )
 
     files = seed_files(run_id)
     check = Check(lenient=args.lenient)
@@ -553,10 +695,14 @@ def cmd_run(args: argparse.Namespace) -> None:
         elif not check.passed:
             print(f"[prover] seeds kept for debugging: {sorted(files.values())}")
 
-    hard_fails = [r["check"] for r in check.results if not r["ok"] and not r["downgraded"]]
+    hard_fails = [
+        r["check"] for r in check.results if not r["ok"] and not r["downgraded"]
+    ]
     verdict = "PASSED" if check.passed else "FAILED"
-    print(f"\n[prover] {verdict} in {elapsed}s "
-          f"({sum(1 for r in check.results if r['ok'])}/{len(check.results)} checks green)")
+    print(
+        f"\n[prover] {verdict} in {elapsed}s "
+        f"({sum(1 for r in check.results if r['ok'])}/{len(check.results)} checks green)"
+    )
     if hard_fails:
         print(f"[prover] failing checks: {', '.join(hard_fails)}")
     print(f"[prover] artifact: {LOG_PATH}")
@@ -580,26 +726,43 @@ def cmd_report(_: argparse.Namespace) -> None:
     for s in summaries:
         greens = sum(1 for r in s.get("checks", []) if r.get("ok"))
         total = len(s.get("checks", []))
-        print(f"  {s['run_id']}: {'PASS' if s.get('passed') else 'FAIL'} "
-              f"({greens}/{total} checks, {s.get('elapsed_s', '?')}s, "
-              f"staleness={s.get('staleness', '?')})")
+        print(
+            f"  {s['run_id']}: {'PASS' if s.get('passed') else 'FAIL'} "
+            f"({greens}/{total} checks, {s.get('elapsed_s', '?')}s, "
+            f"staleness={s.get('staleness', '?')})"
+        )
     latest = summaries[-1]
-    print(f"\n  latest: {'PASS' if latest.get('passed') else 'FAIL'} @ {latest['run_id']}"
-          f" — this is the Product-Phase-2 demo artifact when green.")
+    print(
+        f"\n  latest: {'PASS' if latest.get('passed') else 'FAIL'} @ {latest['run_id']}"
+        f" — this is the Product-Phase-2 demo artifact when green."
+    )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Learning-loop prover (P2 demo artifact)")
+    parser = argparse.ArgumentParser(
+        description="Learning-loop prover (P2 demo artifact)"
+    )
     sub = parser.add_subparsers(dest="command")
 
-    run_p = sub.add_parser("run", help="Drive the full learning chain and record evidence")
+    run_p = sub.add_parser(
+        "run", help="Drive the full learning chain and record evidence"
+    )
     run_p.add_argument("--model", type=str, default="auto", help="Model ID to use")
-    run_p.add_argument("--lenient", action="store_true",
-                       help="Downgrade LLM-obedience-dependent checks to warnings")
-    run_p.add_argument("--allow-stale", action="store_true",
-                       help="Proceed even if the backend provably serves pre-HEAD code")
-    run_p.add_argument("--keep-seeds", action="store_true",
-                       help="Keep the lab fixtures after a green run")
+    run_p.add_argument(
+        "--lenient",
+        action="store_true",
+        help="Downgrade LLM-obedience-dependent checks to warnings",
+    )
+    run_p.add_argument(
+        "--allow-stale",
+        action="store_true",
+        help="Proceed even if the backend provably serves pre-HEAD code",
+    )
+    run_p.add_argument(
+        "--keep-seeds",
+        action="store_true",
+        help="Keep the lab fixtures after a green run",
+    )
     run_p.set_defaults(func=cmd_run)
 
     report_p = sub.add_parser("report", help="Summarize recorded prover runs")

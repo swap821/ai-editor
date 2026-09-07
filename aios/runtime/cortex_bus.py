@@ -235,9 +235,7 @@ class CortexBusAuthority:
                 for row in conn.execute("PRAGMA table_info(cortex_events)").fetchall()
             }
             if "content_digest" not in columns:
-                conn.execute(
-                    "ALTER TABLE cortex_events ADD COLUMN content_digest TEXT"
-                )
+                conn.execute("ALTER TABLE cortex_events ADD COLUMN content_digest TEXT")
 
     # ── Producer side ────────────────────────────────────────────────────────
 

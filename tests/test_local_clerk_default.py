@@ -16,6 +16,7 @@ The endurance run that finally completed used qwen2.5:3b (2.2GB): 37 turns over
 This test does not forbid a bigger clerk. It exists so that raising it is a
 decision someone makes on purpose, with the measurement in front of them.
 """
+
 from __future__ import annotations
 
 from aios import config

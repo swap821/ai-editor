@@ -17,6 +17,7 @@ Evidence chain (18 assertions across 6 phases):
 
 Every assertion is a falsifiable claim.
 """
+
 from __future__ import annotations
 
 import json
@@ -181,6 +182,7 @@ def main() -> None:
 
         # 6. Inference is pure — no LLM parameter
         import inspect
+
         sig = inspect.signature(infer)
         param_names = set(sig.parameters.keys())
         _evidence(
@@ -212,8 +214,7 @@ def main() -> None:
         pattern_plan = native.try_plan("refactor the auth module")
         _evidence(
             "native planner matches swarm pattern (source='swarm_pattern')",
-            pattern_plan is not None
-            and pattern_plan.source == "swarm_pattern",
+            pattern_plan is not None and pattern_plan.source == "swarm_pattern",
         )
 
         # 9. Novel task miss
@@ -250,8 +251,7 @@ def main() -> None:
         step_events = [e for e in events if e.get("type") == "cerebellum_step"]
         _evidence(
             f"replay emits {len(step_events)} step events, no abort",
-            len(step_events) == 3
-            and "cerebellum_abort" not in event_types,
+            len(step_events) == 3 and "cerebellum_abort" not in event_types,
         )
 
         # 13. Novel task does NOT match
@@ -268,6 +268,7 @@ def main() -> None:
 
         # 14. Verify tool handler is callable
         from aios.agents.tool_handlers import verify_command
+
         _evidence(
             "verify_command handler is callable (no LLM required)",
             callable(verify_command),
@@ -275,6 +276,7 @@ def main() -> None:
 
         # 15. Planner native path works in offline mode
         import aios.config as _config
+
         _orig_offline = _config.OFFLINE_MODE
         try:
             _config.OFFLINE_MODE = True
@@ -295,6 +297,7 @@ def main() -> None:
         _separator("Phase 6: Offline Guard Integration")
 
         import aios.config as _config
+
         _orig_offline = _config.OFFLINE_MODE
         try:
             _config.OFFLINE_MODE = True
@@ -313,6 +316,7 @@ def main() -> None:
 
             # 17. Reflection returns None in offline mode
             from aios.agents.reflection_agent import ReflectionAgent
+
             reflector = ReflectionAgent(
                 _OfflineLLM(), mistakes=MistakeMemory(db_path), db_path=db_path
             )

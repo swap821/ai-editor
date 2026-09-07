@@ -1,4 +1,5 @@
 """Tests for aios.core.graph_ingestion — entity extraction and edge generation."""
+
 import pytest
 
 from aios.core.graph_ingestion import (
@@ -10,6 +11,7 @@ from aios.core.graph_ingestion import (
 
 
 # ── find_entities tests ──────────────────────────────────────────────────────
+
 
 def test_find_entities_path() -> None:
     entities = find_entities("read_file: aios/core/router.py")
@@ -43,6 +45,7 @@ def test_find_entities_short_tokens_ignored() -> None:
 
 
 # ── edges_from_skill tests ──────────────────────────────────────────────────
+
 
 def test_edges_from_skill_extracts_tool_target() -> None:
     edges = edges_from_skill(
@@ -82,6 +85,7 @@ def test_edges_from_skill_crosslinks_goal_to_steps() -> None:
 
 # ── edges_from_mistake tests ────────────────────────────────────────────────
 
+
 def test_edges_from_mistake_extracts_cause() -> None:
     edges = edges_from_mistake(
         "FileNotFoundError",
@@ -100,6 +104,7 @@ def test_edges_from_mistake_empty_error_type() -> None:
 
 
 # ── edges_from_outcome tests ────────────────────────────────────────────────
+
 
 def test_edges_from_outcome_verified_success() -> None:
     edges = edges_from_outcome("fix aios/core/router.py", "verified_success", 5)

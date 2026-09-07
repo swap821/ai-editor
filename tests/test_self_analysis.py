@@ -8,6 +8,7 @@ full :class:`ToolAgent` loop with a scripted fake chat client — no model, no s
 DATA_DIR is isolated by tests/conftest.py; the analyser tests use their own temp
 DB path so row-count assertions are exact and independent of other tests.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -51,11 +52,15 @@ def _build_fixture(root) -> dict[str, int]:
         "        return foo(2)\n",
         encoding="utf-8",
     )
-    (tests / "test_covered.py").write_text("def test_foo():\n    assert True\n", encoding="utf-8")
+    (tests / "test_covered.py").write_text(
+        "def test_foo():\n    assert True\n", encoding="utf-8"
+    )
 
     # The import target — short, tested, produces no findings.
     (pkg / "util.py").write_text("def helper():\n    return 7\n", encoding="utf-8")
-    (tests / "test_util.py").write_text("def test_helper():\n    assert True\n", encoding="utf-8")
+    (tests / "test_util.py").write_text(
+        "def test_helper():\n    assert True\n", encoding="utf-8"
+    )
 
     # A testable module with NO corresponding test -> 'missing_test'.
     (pkg / "orphan.py").write_text("def lonely():\n    return 1\n", encoding="utf-8")
@@ -142,16 +147,19 @@ def test_t1_recognizes_domain_named_test_that_imports_module(tmp_path) -> None:
     tests.mkdir()
     (pkg / "domain_agent.py").write_text("def run():\n    return 1\n", encoding="utf-8")
     (tests / "test_workflow.py").write_text(
-        "from pkg.domain_agent import run\n\n"
-        "def test_run():\n"
-        "    assert run() == 1\n",
+        "from pkg.domain_agent import run\n\ndef test_run():\n    assert run() == 1\n",
         encoding="utf-8",
     )
     agent = SelfAnalysisAgent(
-        scope_root=pkg, tests_root=tests, path_root=tmp_path, db_path=tmp_path / "report.db",
+        scope_root=pkg,
+        tests_root=tests,
+        path_root=tmp_path,
+        db_path=tmp_path / "report.db",
     )
 
-    missing = {f.target_path for f in agent.diagnose() if f.finding_type == "missing_test"}
+    missing = {
+        f.target_path for f in agent.diagnose() if f.finding_type == "missing_test"
+    }
 
     assert "pkg/domain_agent.py" not in missing
 
@@ -168,7 +176,10 @@ def test_t1_only_reports_todo_markers_in_comments(tmp_path) -> None:
         encoding="utf-8",
     )
     agent = SelfAnalysisAgent(
-        scope_root=pkg, tests_root=tests, path_root=tmp_path, db_path=tmp_path / "report.db",
+        scope_root=pkg,
+        tests_root=tests,
+        path_root=tmp_path,
+        db_path=tmp_path / "report.db",
     )
 
     todos = [f for f in agent.diagnose() if f.finding_type == "todo"]
@@ -183,15 +194,26 @@ def test_t1_flags_overlong_function_as_smell(tmp_path) -> None:
     pkg.mkdir()
     (tmp_path / "tests").mkdir()
     body = "\n".join(f"    x = {i}" for i in range(20))
-    (pkg / "huge.py").write_text(f"def big():\n{body}\n    return x\n", encoding="utf-8")
-    (tmp_path / "tests" / "test_huge.py").write_text("def test_x():\n    assert True\n", encoding="utf-8")
+    (pkg / "huge.py").write_text(
+        f"def big():\n{body}\n    return x\n", encoding="utf-8"
+    )
+    (tmp_path / "tests" / "test_huge.py").write_text(
+        "def test_x():\n    assert True\n", encoding="utf-8"
+    )
 
     agent = SelfAnalysisAgent(
-        scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
-        db_path=tmp_path / "report.db", long_function_threshold=10,
+        scope_root=pkg,
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "report.db",
+        long_function_threshold=10,
     )
     findings = agent.diagnose()
-    smells = [f for f in findings if f.finding_type == "smell" and f.target_path == "pkg/huge.py"]
+    smells = [
+        f
+        for f in findings
+        if f.finding_type == "smell" and f.target_path == "pkg/huge.py"
+    ]
     assert smells and "big" in smells[0].evidence
 
 
@@ -202,8 +224,10 @@ def test_write_report_persists_open_findings(tmp_path) -> None:
     _build_fixture(tmp_path)
     db_path = tmp_path / "report.db"
     agent = SelfAnalysisAgent(
-        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
-        path_root=tmp_path, db_path=db_path,
+        scope_root=tmp_path / "pkg",
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=db_path,
     )
     report = agent.analyze()
     res = agent.write_report(list(report.findings))
@@ -234,8 +258,10 @@ def test_analyze_never_writes_to_any_source_file(tmp_path) -> None:
     _build_fixture(tmp_path)
     before = _hash_tree(tmp_path)
     agent = SelfAnalysisAgent(
-        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
-        path_root=tmp_path, db_path=tmp_path / "report.db",
+        scope_root=tmp_path / "pkg",
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "report.db",
     )
     report = agent.analyze()
     agent.write_report(list(report.findings))
@@ -252,36 +278,47 @@ def _tangled_module(tmp_path):
     pkg.mkdir()
     (tmp_path / "tests").mkdir()
     src = "def tangled(x):\n"
-    for i in range(6):                      # 6 branches -> cyclomatic complexity ~7
+    for i in range(6):  # 6 branches -> cyclomatic complexity ~7
         src += f"    if x == {i}:\n        return {i}\n"
     src += "    return -1\n"
     (pkg / "m.py").write_text(src, encoding="utf-8")
-    (tmp_path / "tests" / "test_m.py").write_text("def test_x():\n    assert True\n", encoding="utf-8")
+    (tmp_path / "tests" / "test_m.py").write_text(
+        "def test_x():\n    assert True\n", encoding="utf-8"
+    )
     return SelfAnalysisAgent(
-        scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
-        db_path=tmp_path / "r.db", complexity_threshold=3,
+        scope_root=pkg,
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "r.db",
+        complexity_threshold=3,
     )
 
 
 def test_radon_complexity_uses_real_metric(tmp_path) -> None:
     pytest.importorskip("radon")
     agent = _tangled_module(tmp_path)
-    cx = [f for f in agent.diagnose()
-          if f.finding_type == "complexity" and f.target_path == "pkg/m.py"]
+    cx = [
+        f
+        for f in agent.diagnose()
+        if f.finding_type == "complexity" and f.target_path == "pkg/m.py"
+    ]
     assert cx, "radon should flag the high-complexity function"
     assert "cyclomatic complexity" in cx[0].evidence
-    assert cx[0].symbol == "tangled"        # bare name -> fingerprint-stable
+    assert cx[0].symbol == "tangled"  # bare name -> fingerprint-stable
 
 
 def test_complexity_falls_back_to_proxy_without_radon(tmp_path, monkeypatch) -> None:
     # With radon unavailable, the SAME function is still flagged via the AST proxy.
     monkeypatch.setattr(self_analysis_agent, "_radon_cc_visit", None)
     agent = _tangled_module(tmp_path)
-    cx = [f for f in agent.diagnose()
-          if f.finding_type == "complexity" and f.target_path == "pkg/m.py"]
+    cx = [
+        f
+        for f in agent.diagnose()
+        if f.finding_type == "complexity" and f.target_path == "pkg/m.py"
+    ]
     assert cx, "the proxy fallback should still flag the function"
     assert "branch-count proxy" in cx[0].evidence
-    assert cx[0].symbol == "tangled"        # same symbol as radon -> stable identity
+    assert cx[0].symbol == "tangled"  # same symbol as radon -> stable identity
 
 
 def test_coverage_uncovered_flags_unmeasured_module(tmp_path) -> None:
@@ -292,8 +329,12 @@ def test_coverage_uncovered_flags_unmeasured_module(tmp_path) -> None:
     (pkg / "seen.py").write_text("def a():\n    return 1\n", encoding="utf-8")
     (pkg / "unseen.py").write_text("def b():\n    return 2\n", encoding="utf-8")
     # Both are tested by convention, so only the coverage signal differs.
-    (tmp_path / "tests" / "test_seen.py").write_text("def t():\n    assert True\n", encoding="utf-8")
-    (tmp_path / "tests" / "test_unseen.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+    (tmp_path / "tests" / "test_seen.py").write_text(
+        "def t():\n    assert True\n", encoding="utf-8"
+    )
+    (tmp_path / "tests" / "test_unseen.py").write_text(
+        "def t():\n    assert True\n", encoding="utf-8"
+    )
 
     # Synthetic coverage DB: only seen.py was ever executed.
     cov_file = tmp_path / ".coverage"
@@ -302,12 +343,17 @@ def test_coverage_uncovered_flags_unmeasured_module(tmp_path) -> None:
     cd.write()
 
     agent = SelfAnalysisAgent(
-        scope_root=pkg, tests_root=tmp_path / "tests", path_root=tmp_path,
-        db_path=tmp_path / "r.db", coverage_data_path=cov_file,
+        scope_root=pkg,
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "r.db",
+        coverage_data_path=cov_file,
     )
-    uncovered = {f.target_path for f in agent.diagnose() if f.finding_type == "uncovered"}
-    assert "pkg/unseen.py" in uncovered      # never executed -> flagged
-    assert "pkg/seen.py" not in uncovered    # executed -> not flagged
+    uncovered = {
+        f.target_path for f in agent.diagnose() if f.finding_type == "uncovered"
+    }
+    assert "pkg/unseen.py" in uncovered  # never executed -> flagged
+    assert "pkg/seen.py" not in uncovered  # executed -> not flagged
 
 
 def test_coverage_join_dormant_without_data(tmp_path) -> None:
@@ -316,7 +362,9 @@ def test_coverage_join_dormant_without_data(tmp_path) -> None:
     agent = _agent(tmp_path)
     findings = agent.diagnose()
     assert not [f for f in findings if f.finding_type == "uncovered"]
-    assert [f for f in findings if f.finding_type == "missing_test"]   # diagnosis unchanged
+    assert [
+        f for f in findings if f.finding_type == "missing_test"
+    ]  # diagnosis unchanged
 
 
 def test_diagnose_with_coverage_is_read_only(tmp_path) -> None:
@@ -330,8 +378,11 @@ def test_diagnose_with_coverage_is_read_only(tmp_path) -> None:
 
     before = _hash_tree(tmp_path)
     agent = SelfAnalysisAgent(
-        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests", path_root=tmp_path,
-        db_path=tmp_path / "r.db", coverage_data_path=cov_file,
+        scope_root=tmp_path / "pkg",
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "r.db",
+        coverage_data_path=cov_file,
     )
     agent.diagnose()
     after = _hash_tree(tmp_path)
@@ -344,8 +395,10 @@ def test_diagnose_with_coverage_is_read_only(tmp_path) -> None:
 def _agent(tmp_path):
     """A SelfAnalysisAgent over the fixture pkg with a per-test temp DB."""
     return SelfAnalysisAgent(
-        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
-        path_root=tmp_path, db_path=tmp_path / "report.db",
+        scope_root=tmp_path / "pkg",
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "report.db",
     )
 
 
@@ -397,21 +450,31 @@ def test_reconcile_closes_a_vanished_finding(tmp_path) -> None:
 
     # Remove the TODO line so that finding disappears from the scan.
     big = tmp_path / "pkg" / "bigconfig.py"
-    kept = [ln for ln in big.read_text(encoding="utf-8").splitlines() if "TODO" not in ln]
+    kept = [
+        ln for ln in big.read_text(encoding="utf-8").splitlines() if "TODO" not in ln
+    ]
     big.write_text("\n".join(kept) + "\n", encoding="utf-8")
 
     res = agent.write_report(list(agent.analyze().findings))
     assert res.closed >= 1
-    assert not [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
+    assert not [
+        r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"
+    ]
     # Unrelated findings survive.
-    assert [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "missing_test"]
+    assert [
+        r
+        for r in agent.read_findings(limit=1000)
+        if r["finding_type"] == "missing_test"
+    ]
 
 
 def test_fingerprint_stable_when_todo_moves(tmp_path) -> None:
     _build_fixture(tmp_path)
     agent = _agent(tmp_path)
     agent.write_report(list(agent.analyze().findings))
-    todo_before = [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
+    todo_before = [
+        r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"
+    ]
     assert len(todo_before) == 1
     fp_before, ev_before = todo_before[0]["fingerprint"], todo_before[0]["evidence"]
 
@@ -420,11 +483,13 @@ def test_fingerprint_stable_when_todo_moves(tmp_path) -> None:
     big.write_text("\n\n\n" + big.read_text(encoding="utf-8"), encoding="utf-8")
 
     res = agent.write_report(list(agent.analyze().findings))
-    todo_after = [r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"]
-    assert len(todo_after) == 1                          # still ONE open row
-    assert todo_after[0]["fingerprint"] == fp_before     # identity preserved
-    assert todo_after[0]["evidence"] != ev_before        # line number refreshed
-    assert res.inserted == 0 and res.updated >= 1        # an update, not a new insert
+    todo_after = [
+        r for r in agent.read_findings(limit=1000) if r["finding_type"] == "todo"
+    ]
+    assert len(todo_after) == 1  # still ONE open row
+    assert todo_after[0]["fingerprint"] == fp_before  # identity preserved
+    assert todo_after[0]["evidence"] != ev_before  # line number refreshed
+    assert res.inserted == 0 and res.updated >= 1  # an update, not a new insert
 
 
 def test_reconcile_is_scope_confined(tmp_path) -> None:
@@ -444,8 +509,12 @@ def test_reconcile_is_scope_confined(tmp_path) -> None:
 
     agent.write_report(list(agent.analyze().findings))  # analyzes 'pkg' only
 
-    outside = [r for r in agent.read_findings(limit=1000) if r["target_path"] == "other/mod.py"]
-    assert len(outside) == 1 and outside[0]["status"] == "open"  # untouched by an out-of-scope run
+    outside = [
+        r for r in agent.read_findings(limit=1000) if r["target_path"] == "other/mod.py"
+    ]
+    assert (
+        len(outside) == 1 and outside[0]["status"] == "open"
+    )  # untouched by an out-of-scope run
 
 
 def test_migration_adds_fingerprint_to_legacy_db(tmp_path) -> None:
@@ -471,11 +540,15 @@ def test_migration_adds_fingerprint_to_legacy_db(tmp_path) -> None:
     init_memory_db(db_path)  # runs the migration
 
     with get_connection(db_path) as conn:
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")}
+        cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(self_analysis_report)")
+        }
         assert "fingerprint" in cols
         paths = {
             r["target_path"]: r["status"]
-            for r in conn.execute("SELECT target_path, status FROM self_analysis_report")
+            for r in conn.execute(
+                "SELECT target_path, status FROM self_analysis_report"
+            )
         }
     # The legacy OPEN row (NULL fingerprint) is dropped; the DECIDED one is kept.
     assert "legacy/x.py" not in paths
@@ -484,8 +557,10 @@ def test_migration_adds_fingerprint_to_legacy_db(tmp_path) -> None:
     # A subsequent write_report works against the MIGRATED DB (legacy.db).
     _build_fixture(tmp_path)
     agent = SelfAnalysisAgent(
-        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
-        path_root=tmp_path, db_path=db_path,
+        scope_root=tmp_path / "pkg",
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=db_path,
     )
     res = agent.write_report(list(agent.analyze().findings))
     assert res.inserted > 0
@@ -508,25 +583,35 @@ class _NoopRunner:
 
 
 def _executor() -> Executor:
-    return Executor(runner=_NoopRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None)
+    return Executor(
+        runner=_NoopRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+    )
 
 
 def _tool_call(name: str, arguments: dict) -> dict:
-    return {"role": "assistant", "content": "", "tool_calls": [
-        {"function": {"name": name, "arguments": arguments}}
-    ]}
+    return {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{"function": {"name": name, "arguments": arguments}}],
+    }
 
 
 def test_self_analyze_tool_returns_summary(tmp_path) -> None:
     _build_fixture(tmp_path)
-    chat = ScriptedChat([
-        _tool_call("self_analyze", {"path": "pkg"}),
-        {"role": "assistant", "content": "Analysis complete."},
-    ])
+    chat = ScriptedChat(
+        [
+            _tool_call("self_analyze", {"path": "pkg"}),
+            {"role": "assistant", "content": "Analysis complete."},
+        ]
+    )
     agent = ToolAgent(chat, _executor(), max_iters=3, read_root=tmp_path)
     events = list(agent.run([{"role": "user", "content": "audit your own code"}]))
 
-    results = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "self_analyze"]
+    results = [
+        e
+        for e in events
+        if e["type"] == "tool_result" and e.get("tool") == "self_analyze"
+    ]
     assert results, "self_analyze must surface a tool_result"
     out = results[0]["output"]
     assert "Self-analysis of 'pkg'" in out
@@ -536,14 +621,20 @@ def test_self_analyze_tool_returns_summary(tmp_path) -> None:
 
 def test_self_analyze_tool_refuses_path_escape(tmp_path) -> None:
     _build_fixture(tmp_path)
-    chat = ScriptedChat([
-        _tool_call("self_analyze", {"path": "../../etc"}),
-        {"role": "assistant", "content": "Blocked, as expected."},
-    ])
+    chat = ScriptedChat(
+        [
+            _tool_call("self_analyze", {"path": "../../etc"}),
+            {"role": "assistant", "content": "Blocked, as expected."},
+        ]
+    )
     agent = ToolAgent(chat, _executor(), max_iters=3, read_root=tmp_path)
     events = list(agent.run([{"role": "user", "content": "analyze outside"}]))
 
-    blocked = [e for e in events if e["type"] == "tool_blocked" and e.get("tool") == "self_analyze"]
+    blocked = [
+        e
+        for e in events
+        if e["type"] == "tool_blocked" and e.get("tool") == "self_analyze"
+    ]
     assert blocked, "a path escaping the project root must be blocked"
     assert "escapes the project root" in blocked[0]["reason"]
 
@@ -581,13 +672,17 @@ def _build_proposable(root) -> None:
     (root / "pkg" / "__init__.py").write_text("", encoding="utf-8")
     (root / "pkg" / "security" / "__init__.py").write_text("", encoding="utf-8")
     (root / "pkg" / "plain.py").write_text("def f():\n    return 1\n", encoding="utf-8")
-    (root / "pkg" / "security" / "gate.py").write_text("def g():\n    return 2\n", encoding="utf-8")
+    (root / "pkg" / "security" / "gate.py").write_text(
+        "def g():\n    return 2\n", encoding="utf-8"
+    )
 
 
 def _proposable_agent(tmp_path) -> SelfAnalysisAgent:
     return SelfAnalysisAgent(
-        scope_root=tmp_path / "pkg", tests_root=tmp_path / "tests",
-        path_root=tmp_path, db_path=tmp_path / "r.db",
+        scope_root=tmp_path / "pkg",
+        tests_root=tmp_path / "tests",
+        path_root=tmp_path,
+        db_path=tmp_path / "r.db",
     )
 
 
@@ -617,10 +712,12 @@ def test_propose_zone_red_for_frozen_core(tmp_path) -> None:
     agent.write_report(list(agent.analyze().findings))
     agent.propose_open(llm=_FakeLLM())
 
-    zones = {r["target_path"]: r["proposed_zone"]
-             for r in agent.read_findings(status="proposed", limit=100)}
-    assert zones["pkg/security/gate.py"] == "RED"   # frozen core -> RED to apply
-    assert zones["pkg/plain.py"] == "YELLOW"        # ordinary module -> YELLOW
+    zones = {
+        r["target_path"]: r["proposed_zone"]
+        for r in agent.read_findings(status="proposed", limit=100)
+    }
+    assert zones["pkg/security/gate.py"] == "RED"  # frozen core -> RED to apply
+    assert zones["pkg/plain.py"] == "YELLOW"  # ordinary module -> YELLOW
 
 
 def test_propose_open_is_read_only(tmp_path) -> None:
@@ -630,7 +727,9 @@ def test_propose_open_is_read_only(tmp_path) -> None:
     before = _hash_tree(tmp_path)
     agent.propose_open(llm=_FakeLLM())
     after = _hash_tree(tmp_path)
-    assert before == after, "propose must NEVER write a source file (only the report DB)"
+    assert before == after, (
+        "propose must NEVER write a source file (only the report DB)"
+    )
 
 
 def test_propose_open_fail_soft_leaves_findings_open(tmp_path) -> None:
@@ -650,14 +749,22 @@ def test_propose_open_fail_soft_leaves_findings_open(tmp_path) -> None:
 
 def test_propose_fixes_tool_unavailable_without_llm(tmp_path) -> None:
     _build_fixture(tmp_path)
-    chat = ScriptedChat([
-        _tool_call("propose_fixes", {}),
-        {"role": "assistant", "content": "no model"},
-    ])
-    agent = ToolAgent(chat, _executor(), max_iters=3, read_root=tmp_path)  # no self_analysis_llm
+    chat = ScriptedChat(
+        [
+            _tool_call("propose_fixes", {}),
+            {"role": "assistant", "content": "no model"},
+        ]
+    )
+    agent = ToolAgent(
+        chat, _executor(), max_iters=3, read_root=tmp_path
+    )  # no self_analysis_llm
     events = list(agent.run([{"role": "user", "content": "propose fixes"}]))
 
-    res = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "propose_fixes"]
+    res = [
+        e
+        for e in events
+        if e["type"] == "tool_result" and e.get("tool") == "propose_fixes"
+    ]
     assert res and "[propose unavailable]" in res[0]["output"]
     assert events[-1]["type"] == "done"
 
@@ -671,21 +778,35 @@ def test_propose_fixes_tool_with_llm_reports_count(tmp_path) -> None:
     (aios_dir / "__init__.py").write_text("", encoding="utf-8")
     (aios_dir / "plain.py").write_text("def f():\n    return 1\n", encoding="utf-8")
 
-    chat = ScriptedChat([
-        _tool_call("self_analyze", {"path": "aios"}),
-        _tool_call("propose_fixes", {"limit": 10}),
-        {"role": "assistant", "content": "done"},
-    ])
+    chat = ScriptedChat(
+        [
+            _tool_call("self_analyze", {"path": "aios"}),
+            _tool_call("propose_fixes", {"limit": 10}),
+            {"role": "assistant", "content": "done"},
+        ]
+    )
     agent = ToolAgent(
-        chat, _executor(), max_iters=4, read_root=tmp_path, self_analysis_llm=_FakeLLM(),
+        chat,
+        _executor(),
+        max_iters=4,
+        read_root=tmp_path,
+        self_analysis_llm=_FakeLLM(),
     )
     events = list(agent.run([{"role": "user", "content": "audit then propose"}]))
 
-    pf = [e for e in events if e["type"] == "tool_result" and e.get("tool") == "propose_fixes"]
+    pf = [
+        e
+        for e in events
+        if e["type"] == "tool_result" and e.get("tool") == "propose_fixes"
+    ]
     assert pf and "Proposed fixes for" in pf[0]["output"]
     assert "open→proposed" in pf[0]["output"]
     # Our specific finding (aios/plain.py missing_test) is now proposed in the temp DB.
-    check = SelfAnalysisAgent(path_root=tmp_path)  # db_path defaults to the temp MEMORY_DB
-    proposed_paths = {r["target_path"] for r in check.read_findings(status="proposed", limit=1000)}
+    check = SelfAnalysisAgent(
+        path_root=tmp_path
+    )  # db_path defaults to the temp MEMORY_DB
+    proposed_paths = {
+        r["target_path"] for r in check.read_findings(status="proposed", limit=1000)
+    }
     assert "aios/plain.py" in proposed_paths
     assert events[-1]["type"] == "done"

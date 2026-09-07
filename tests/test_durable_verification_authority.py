@@ -128,22 +128,28 @@ def test_is_current_freshness_on_reloaded_instance(db_path: Path) -> None:
     assert reloaded is not None
 
     # Matching workspace and diff digests within 300s window -> current
-    assert authority2.is_current(
-        reloaded,
-        workspace_digest="ws-fresh-1",
-        diff_digest="diff-fresh-1",
-        now="2026-07-19T10:02:00Z",
-        freshness_seconds=300,
-    ) is True
+    assert (
+        authority2.is_current(
+            reloaded,
+            workspace_digest="ws-fresh-1",
+            diff_digest="diff-fresh-1",
+            now="2026-07-19T10:02:00Z",
+            freshness_seconds=300,
+        )
+        is True
+    )
 
     # Mismatched workspace digest -> not current
-    assert authority2.is_current(
-        reloaded,
-        workspace_digest="ws-stale-2",
-        diff_digest="diff-fresh-1",
-        now="2026-07-19T10:02:00Z",
-        freshness_seconds=300,
-    ) is False
+    assert (
+        authority2.is_current(
+            reloaded,
+            workspace_digest="ws-stale-2",
+            diff_digest="diff-fresh-1",
+            now="2026-07-19T10:02:00Z",
+            freshness_seconds=300,
+        )
+        is False
+    )
 
 
 def test_list_results_for_mission_durable(db_path: Path) -> None:

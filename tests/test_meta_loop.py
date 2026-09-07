@@ -31,7 +31,10 @@ def _hibernation_report(**overrides: object) -> HibernationReport:
 def test_meta_loop_assessment_is_local_proposal_evidence_only() -> None:
     snapshot = MetaLoopSnapshot(
         reflections=[
-            {"lesson": "poll exact GitHub run IDs before reporting green", "confidence": 0.87}
+            {
+                "lesson": "poll exact GitHub run IDs before reporting green",
+                "confidence": 0.87,
+            }
         ],
         mistakes=[
             {
@@ -92,8 +95,12 @@ def test_meta_loop_assessment_is_local_proposal_evidence_only() -> None:
         "council",
     }
     assert assessment.proposals
-    assert all(proposal.authority == "proposal/evidence" for proposal in assessment.proposals)
-    assert all(proposal.requires_human_review is True for proposal in assessment.proposals)
+    assert all(
+        proposal.authority == "proposal/evidence" for proposal in assessment.proposals
+    )
+    assert all(
+        proposal.requires_human_review is True for proposal in assessment.proposals
+    )
     assert all(proposal.can_auto_apply is False for proposal in assessment.proposals)
 
 
@@ -119,7 +126,9 @@ def test_meta_loop_collects_policy_evidence_without_mutating_policy_engine(
     assert any(proposal.kind == "policy_review" for proposal in assessment.proposals)
 
 
-def test_meta_loop_blocks_unsafe_hibernation_evidence_without_authorizing_action() -> None:
+def test_meta_loop_blocks_unsafe_hibernation_evidence_without_authorizing_action() -> (
+    None
+):
     snapshot = collect_meta_loop_evidence(
         hibernation_report=_hibernation_report(
             local_only=False,

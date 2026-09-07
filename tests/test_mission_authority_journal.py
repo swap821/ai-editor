@@ -7,8 +7,12 @@ from pathlib import Path
 from aios.application.missions.mission_service import MissionAuthority
 from aios.application.recovery.authority import RecoveryResumptionAuthority
 from aios.domain.missions.mission_contract import MissionContract
-from aios.infrastructure.missions.sqlite_mission_repository import SqliteMissionRepository
-from aios.infrastructure.missions.transition_journal_store import MissionTransitionJournal
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    SqliteMissionRepository,
+)
+from aios.infrastructure.missions.transition_journal_store import (
+    MissionTransitionJournal,
+)
 
 
 def _authority(tmp_path: Path) -> tuple[MissionAuthority, RecoveryResumptionAuthority]:
@@ -44,7 +48,10 @@ def test_mission_authority_journals_mission_created_when_recovery_is_wired(
 
 
 def test_maintenance_mission_service_shares_recovery_journal() -> None:
-    from aios.api.deps import get_maintenance_convergence_service, get_recovery_resumption_authority
+    from aios.api.deps import (
+        get_maintenance_convergence_service,
+        get_recovery_resumption_authority,
+    )
 
     service = get_maintenance_convergence_service()
     recovery = get_recovery_resumption_authority()

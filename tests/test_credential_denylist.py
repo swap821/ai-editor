@@ -210,14 +210,18 @@ def test_the_guard_runs_before_the_file_is_opened() -> None:
         return None
 
     guard_line = _line_of(
-        lambda n: isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Name)
-        and n.func.id == "is_credential_path"
+        lambda n: (
+            isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Name)
+            and n.func.id == "is_credential_path"
+        )
     )
     read_line = _line_of(
-        lambda n: isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Attribute)
-        and n.func.attr == "read_text"
+        lambda n: (
+            isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "read_text"
+        )
     )
     assert guard_line is not None, "read_file no longer checks is_credential_path"
     assert read_line is not None, "read_file no longer reads -- update this test"

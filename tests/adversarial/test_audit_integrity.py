@@ -17,6 +17,7 @@ Coverage:
   I7: Cross-process append safety
   I8: Fail-closed behavior
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -41,6 +42,7 @@ from aios.security.gateway import Zone
 # --------------------------------------------------------------------------- #
 # Fixtures
 # --------------------------------------------------------------------------- #
+
 
 @pytest.fixture
 def tmp_audit_db(tmp_path):
@@ -120,7 +122,9 @@ class TestTamperDetection:
     def test_tampered_entry_detected(self, tmp_audit_db):
         """TC-SEC-606: Modified entry must fail verification."""
         # Arrange: log an entry
-        entry = log_action("test-actor", "original payload", Zone.GREEN, db_path=tmp_audit_db)
+        entry = log_action(
+            "test-actor", "original payload", Zone.GREEN, db_path=tmp_audit_db
+        )
         # Tamper with it in DB
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.execute(
@@ -199,7 +203,9 @@ class TestTamperDetection:
         # Get the last entry id
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT entry_id FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1").fetchone()
+        row = conn.execute(
+            "SELECT entry_id FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1"
+        ).fetchone()
         last_id = row["entry_id"]
         conn.execute(
             "UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id = ?",
@@ -231,8 +237,10 @@ class TestTamperDetection:
         entry3 = log_action("test-actor", "action 3", Zone.GREEN, db_path=tmp_audit_db)
         # Tamper entries 2 and 3
         conn = sqlite3.connect(str(tmp_audit_db))
-        conn.execute("UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id IN (?, ?)",
-                      (entry2.entry_id, entry3.entry_id))
+        conn.execute(
+            "UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id IN (?, ?)",
+            (entry2.entry_id, entry3.entry_id),
+        )
         conn.commit()
         conn.close()
         status = verify_chain(db_path=tmp_audit_db)
@@ -256,7 +264,9 @@ class TestDeletionDetection:
         log_action("test-actor", "action 3", Zone.GREEN, db_path=tmp_audit_db)
         # Delete the middle entry
         conn = sqlite3.connect(str(tmp_audit_db))
-        conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,))
+        conn.execute(
+            "DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,)
+        )
         conn.commit()
         conn.close()
         status = verify_chain(db_path=tmp_audit_db)
@@ -271,7 +281,9 @@ class TestDeletionDetection:
         log_action("test-actor", "action 1", Zone.GREEN, db_path=tmp_audit_db)
         entry2 = log_action("test-actor", "action 2", Zone.GREEN, db_path=tmp_audit_db)
         conn = sqlite3.connect(str(tmp_audit_db))
-        conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,))
+        conn.execute(
+            "DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,)
+        )
         conn.commit()
         conn.close()
         status = verify_chain(db_path=tmp_audit_db)
@@ -298,7 +310,9 @@ class TestDeletionDetection:
         entry2 = log_action("test-actor", "action 2", Zone.GREEN, db_path=tmp_audit_db)
         # Delete entry 2
         conn = sqlite3.connect(str(tmp_audit_db))
-        conn.execute("DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,))
+        conn.execute(
+            "DELETE FROM tamper_audit_trail WHERE entry_id = ?", (entry2.entry_id,)
+        )
         conn.commit()
         conn.close()
         # Append new entry - it correctly chains from entry 1 (the new head)
@@ -384,7 +398,9 @@ class TestGenesisHashAnchoring:
 
     def test_first_entry_previous_is_genesis(self, tmp_audit_db):
         """TC-SEC-624: First entry's previous_hash must be genesis."""
-        entry = log_action("test-actor", "first action", Zone.GREEN, db_path=tmp_audit_db)
+        entry = log_action(
+            "test-actor", "first action", Zone.GREEN, db_path=tmp_audit_db
+        )
         assert entry.previous_hash == config.AUDIT_GENESIS_HASH
 
     def test_genesis_hash_is_zeros(self):
@@ -426,16 +442,28 @@ class TestSecretRedactionBeforeHashing:
 
     def test_secret_redacted_in_stored_payload(self, tmp_audit_db):
         """TC-SEC-629: Secret-containing payload must be redacted before storage."""
-        log_action("test-actor", "api_key = sk-1234567890abcdef", Zone.GREEN, db_path=tmp_audit_db)
+        log_action(
+            "test-actor",
+            "api_key = sk-1234567890abcdef",
+            Zone.GREEN,
+            db_path=tmp_audit_db,
+        )
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT action_payload FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1").fetchone()
+        row = conn.execute(
+            "SELECT action_payload FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1"
+        ).fetchone()
         conn.close()
         assert "sk-" not in row["action_payload"] or "REDACTED" in row["action_payload"]
 
     def test_redaction_does_not_break_chain(self, tmp_audit_db):
         """TC-SEC-630: Redacted payload must still form valid chain."""
-        log_action("test-actor", "api_key = sk-1234567890abcdef", Zone.GREEN, db_path=tmp_audit_db)
+        log_action(
+            "test-actor",
+            "api_key = sk-1234567890abcdef",
+            Zone.GREEN,
+            db_path=tmp_audit_db,
+        )
         log_action("test-actor", "normal action", Zone.GREEN, db_path=tmp_audit_db)
         status = verify_chain(db_path=tmp_audit_db)
         assert status.valid is True
@@ -451,7 +479,9 @@ class TestSecretRedactionBeforeHashing:
         log_action("test-actor", payload_with_secrets, Zone.GREEN, db_path=tmp_audit_db)
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT action_payload FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1").fetchone()
+        row = conn.execute(
+            "SELECT action_payload FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1"
+        ).fetchone()
         conn.close()
         payload = row["action_payload"]
         # None of the raw secrets should appear
@@ -461,16 +491,28 @@ class TestSecretRedactionBeforeHashing:
 
     def test_redacted_marker_in_ledger(self, tmp_audit_db):
         """TC-SEC-632: Redacted marker <REDACTED:...> should be in ledger."""
-        log_action("test-actor", "stripe_key = sk_live_FAKE_TEST_1234567890abcdef", Zone.GREEN, db_path=tmp_audit_db)
+        log_action(
+            "test-actor",
+            "stripe_key = sk_live_FAKE_TEST_1234567890abcdef",
+            Zone.GREEN,
+            db_path=tmp_audit_db,
+        )
         conn = sqlite3.connect(str(tmp_audit_db))
         conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT action_payload FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1").fetchone()
+        row = conn.execute(
+            "SELECT action_payload FROM tamper_audit_trail ORDER BY entry_id DESC LIMIT 1"
+        ).fetchone()
         conn.close()
         assert "REDACTED" in row["action_payload"]
 
     def test_audit_entry_indicates_redaction(self, tmp_audit_db):
         """TC-SEC-633: AuditEntry.redacted must be True for secret payload."""
-        entry = log_action("test-actor", "stripe_key = sk_live_FAKE_TEST_1234567890abcdef", Zone.GREEN, db_path=tmp_audit_db)
+        entry = log_action(
+            "test-actor",
+            "stripe_key = sk_live_FAKE_TEST_1234567890abcdef",
+            Zone.GREEN,
+            db_path=tmp_audit_db,
+        )
         assert entry.redacted is True
 
     def test_audit_entry_not_redacted_for_clean(self, tmp_audit_db):
@@ -537,7 +579,10 @@ class TestChainVerificationRange:
             log_action("test-actor", f"action {i}", Zone.GREEN, db_path=tmp_audit_db)
         # Tamper entry 2
         conn = sqlite3.connect(str(tmp_audit_db))
-        conn.execute("UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id = ?", (entry2.entry_id,))
+        conn.execute(
+            "UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id = ?",
+            (entry2.entry_id,),
+        )
         conn.commit()
         conn.close()
         # Verify range 3-5 should be valid (doesn't include tampered entry 2)
@@ -550,7 +595,9 @@ class TestChainVerificationRange:
             log_action("test-actor", f"action {i}", Zone.GREEN, db_path=tmp_audit_db)
         # Tamper entry 3
         conn = sqlite3.connect(str(tmp_audit_db))
-        conn.execute("UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id = 3")
+        conn.execute(
+            "UPDATE tamper_audit_trail SET action_payload = 'tampered' WHERE entry_id = 3"
+        )
         conn.commit()
         conn.close()
         # Verify range 2-4 should detect tamper at entry 3

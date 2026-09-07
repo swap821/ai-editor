@@ -1,4 +1,5 @@
 """P2-5: config robustness — unparseable env-var warnings + startup security banner."""
+
 from __future__ import annotations
 
 import logging

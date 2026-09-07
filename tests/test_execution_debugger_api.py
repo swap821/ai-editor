@@ -3,6 +3,7 @@ read-only mission-state view that replaced the previously-phantom
 /api/v1/execution/debugger/{state,step,resume} routes ExecutionDebuggerPanel
 already called (and 404'd on).
 """
+
 from __future__ import annotations
 
 from typing import Iterator
@@ -21,11 +22,16 @@ def client() -> Iterator[TestClient]:
         yield test_client
 
 
-def test_debugger_state_is_empty_but_real_when_no_missions(client, tmp_path, monkeypatch) -> None:
+def test_debugger_state_is_empty_but_real_when_no_missions(
+    client, tmp_path, monkeypatch
+) -> None:
     monkeypatch.setattr(
-        "aios.api.routes.council.config.COUNCIL_RUNTIME_DIR", tmp_path / "council_runtime"
+        "aios.api.routes.council.config.COUNCIL_RUNTIME_DIR",
+        tmp_path / "council_runtime",
     )
-    app.dependency_overrides[get_council_runtime_root] = lambda: tmp_path / "council_runtime"
+    app.dependency_overrides[get_council_runtime_root] = lambda: (
+        tmp_path / "council_runtime"
+    )
     try:
         resp = client.get("/api/v1/execution/debugger/state")
         assert resp.status_code == 200
@@ -69,12 +75,16 @@ def test_debugger_state_reflects_real_mission_reports(client, tmp_path) -> None:
 
 
 def test_debugger_step_is_honestly_not_supported(client) -> None:
-    resp = client.post("/api/v1/execution/debugger/step", json={"missionId": "mission-1"})
+    resp = client.post(
+        "/api/v1/execution/debugger/step", json={"missionId": "mission-1"}
+    )
     assert resp.status_code == 501
     assert "no interruptible step-machine" in resp.json()["detail"]
 
 
 def test_debugger_resume_is_honestly_not_supported(client) -> None:
-    resp = client.post("/api/v1/execution/debugger/resume", json={"missionId": "mission-1"})
+    resp = client.post(
+        "/api/v1/execution/debugger/resume", json={"missionId": "mission-1"}
+    )
     assert resp.status_code == 501
     assert "cannot be paused" in resp.json()["detail"]

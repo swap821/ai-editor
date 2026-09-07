@@ -1,4 +1,5 @@
 """Rollback engine tests — snapshot/restore over an isolated temp git repo."""
+
 from __future__ import annotations
 
 import threading
@@ -96,7 +97,9 @@ def test_concurrent_snapshot_workers_share_repository_lock(tmp_path) -> None:
 # --------------------------------------------------------------------------- #
 # FIX #3 — the rollback git DATABASE lives out of the tracked sandbox work-tree
 # --------------------------------------------------------------------------- #
-def test_default_engine_keeps_git_db_out_of_the_tracked_worktree(tmp_path, monkeypatch) -> None:
+def test_default_engine_keeps_git_db_out_of_the_tracked_worktree(
+    tmp_path, monkeypatch
+) -> None:
     # The default engine (no repo_dir) snapshots the sandbox work-tree but stores
     # its git DATABASE under the gitignored ROLLBACK_DIR — so no .git database
     # lands inside the main-repo-tracked training_ground/, only a gitdir pointer.
@@ -146,5 +149,7 @@ def test_injected_repo_dir_keeps_db_in_tree(tmp_path) -> None:
     # An explicitly injected repo_dir (a temp dir, already isolated) keeps its git
     # database in-tree — preserving the original behaviour the other tests rely on.
     engine = RollbackEngine(repo_dir=tmp_path)
-    assert (tmp_path / ".git").is_dir(), "an injected repo_dir uses an in-tree .git database"
+    assert (tmp_path / ".git").is_dir(), (
+        "an injected repo_dir uses an in-tree .git database"
+    )
     assert engine.repo_dir == tmp_path.resolve()

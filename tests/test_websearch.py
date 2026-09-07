@@ -5,6 +5,7 @@ Default off + inert until an endpoint + key are set; network I/O is injectable s
 tests never hit the wire; the query is secret-scrubbed before it leaves the machine;
 all failures are fail-soft. See docs/superpowers/specs/2026-06-29-crag-for-gagos-design.md.
 """
+
 from __future__ import annotations
 
 from aios.core.websearch import web_search
@@ -23,7 +24,10 @@ def test_web_search_parses_result_content() -> None:
         return {"results": [{"content": "doc one"}, {"content": "doc two"}]}
 
     docs = web_search(
-        "what is crag", endpoint="https://api.example/search", api_key="k", fetch=fake_fetch
+        "what is crag",
+        endpoint="https://api.example/search",
+        api_key="k",
+        fetch=fake_fetch,
     )
     assert docs == ["doc one", "doc two"]
 
@@ -80,7 +84,9 @@ def test_default_fetch_builds_request_correctly(monkeypatch) -> None:
 
     monkeypatch.setattr(requests, "post", fake_post)
 
-    docs = web_search("hello world", endpoint="https://api.example/search", api_key="sk-key")
+    docs = web_search(
+        "hello world", endpoint="https://api.example/search", api_key="sk-key"
+    )
 
     assert docs == ["net doc"]
     assert captured["url"] == "https://api.example/search"

@@ -4,6 +4,7 @@ The production allowlist must never contain Starlette's ``testclient`` host, and
 the unauthenticated loopback exemption must be disabled whenever the operator
 configures the API to run behind a trusted reverse proxy.
 """
+
 from __future__ import annotations
 
 import pytest

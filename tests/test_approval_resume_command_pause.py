@@ -7,6 +7,7 @@ alike. This test exercises that same exit point through a command
 (``execute_terminal``) approval rather than a file creation, to confirm the
 convo-tail stash/replay isn't accidentally scoped to writes only.
 """
+
 from __future__ import annotations
 
 import json
@@ -103,7 +104,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
 def _extract_approval_token(body: str) -> str:
     for line in body.splitlines():
         if line.startswith("data:"):
-            payload = json.loads(line[len("data:"):].strip())
+            payload = json.loads(line[len("data:") :].strip())
             token = (payload.get("input") or {}).get("approvalToken")
             if token:
                 return str(token)
@@ -114,22 +115,28 @@ def test_command_pause_also_replays_convo_tail_on_resume(client: TestClient) -> 
     fake_ollama: ScriptedCommandOllama = client._fake_ollama  # type: ignore[attr-defined]
     session_id = "command-pause-session"
 
-    resp1 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-    })
+    resp1 = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+        },
+    )
     assert resp1.status_code == 200
     assert "event: human_required" in resp1.text
     token = _extract_approval_token(resp1.text)
     assert len(fake_ollama.calls) == 1
 
-    resp2 = client.post("/api/generate", json={
-        "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
-        "modelId": "ollama.llama3.2:3b",
-        "sessionId": session_id,
-        "approvalTokens": [token],
-    })
+    resp2 = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
     assert resp2.status_code == 200
     assert len(fake_ollama.calls) == 2
 

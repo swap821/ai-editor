@@ -32,7 +32,9 @@ def _prepared(
     *,
     finding_status: str = "VERIFYING",
     mission_state: MissionState = MissionState.COMPLETED,
-) -> tuple[MaintenanceConvergenceService, MaintenanceFinding, MaintenanceResolutionEvidence]:
+) -> tuple[
+    MaintenanceConvergenceService, MaintenanceFinding, MaintenanceResolutionEvidence
+]:
     service, project = _service(
         tmp_path,
         worker=type("Worker", (), {"workspace_manager": None})(),
@@ -133,7 +135,9 @@ def _prepared(
     return service, finding, evidence
 
 
-def _reject(service: MaintenanceConvergenceService, evidence: MaintenanceResolutionEvidence) -> None:
+def _reject(
+    service: MaintenanceConvergenceService, evidence: MaintenanceResolutionEvidence
+) -> None:
     with pytest.raises((MaintenanceConvergenceError, SecurityViolationError)):
         service.reconcile_rescan(evidence)
 
@@ -150,7 +154,9 @@ def test_manually_bound_open_finding_cannot_resolve(tmp_path: Path) -> None:
 
 def test_missing_mission_cannot_resolve(tmp_path: Path) -> None:
     service, finding, evidence = _prepared(tmp_path)
-    service.finding_repository.save(finding.model_copy(update={"mission_id": "missing"}))
+    service.finding_repository.save(
+        finding.model_copy(update={"mission_id": "missing"})
+    )
     _reject(service, evidence.model_copy(update={"mission_id": "missing"}))
 
 
@@ -252,9 +258,7 @@ def test_stale_verification_cannot_resolve(tmp_path: Path) -> None:
     ("field", "value"),
     [("workspace_digest", "other-workspace"), ("diff_digest", "other-diff")],
 )
-def test_digest_mismatch_cannot_resolve(
-    tmp_path: Path, field: str, value: str
-) -> None:
+def test_digest_mismatch_cannot_resolve(tmp_path: Path, field: str, value: str) -> None:
     service, _, evidence = _prepared(tmp_path)
     _reject(service, evidence.model_copy(update={field: value}))
 
@@ -313,7 +317,9 @@ def test_reappearing_finding_does_not_resolve(tmp_path: Path) -> None:
     scan = service.scan_repository.get(evidence.rescan_id)
     assert scan is not None
     service.scan_repository.save(
-        scan.model_copy(update={"finding_count": 1, "finding_fingerprints": (finding.fingerprint,)})
+        scan.model_copy(
+            update={"finding_count": 1, "finding_fingerprints": (finding.fingerprint,)}
+        )
     )
     assert service.reconcile_rescan(evidence).status == "REOPENED"
 

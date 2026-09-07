@@ -181,9 +181,7 @@ class IntelligenceHiringService:
                 "governed intelligence binding is required before provider call"
             )
         if governed:
-            target = (
-                "local" if route.privacy == router.PRIVACY_LOCAL else "cloud"
-            )
+            target = "local" if route.privacy == router.PRIVACY_LOCAL else "cloud"
             safe_system = (
                 self.secret_policy.redact_text(system)
                 if system is not None and target == "cloud"

@@ -1,4 +1,5 @@
 """Tests for the Rollback Registry (aios.runtime.rollback_registry)."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -38,7 +39,9 @@ def test_register_and_get(tmp_path: Path) -> None:
 def test_register_idempotent(tmp_path: Path) -> None:
     reg = _registry(tmp_path)
     reg.register(
-        "snap-1", "mission-1", "/workspace/a",
+        "snap-1",
+        "mission-1",
+        "/workspace/a",
         created_at="2026-01-01T00:00:00+00:00",
     )
     reg.register(
@@ -89,12 +92,16 @@ def test_query_by_time_range(tmp_path: Path) -> None:
 def test_query_by_file_pattern(tmp_path: Path) -> None:
     reg = _registry(tmp_path)
     reg.register(
-        "snap-1", "mission-1", "/ws",
+        "snap-1",
+        "mission-1",
+        "/ws",
         files_covered=["src/main.py", "README.md"],
         created_at="2026-01-01T00:00:00+00:00",
     )
     reg.register(
-        "snap-2", "mission-1", "/ws",
+        "snap-2",
+        "mission-1",
+        "/ws",
         files_covered=["src/other.ts"],
         created_at="2026-01-02T00:00:00+00:00",
     )
@@ -119,8 +126,10 @@ def test_query_by_workspace(tmp_path: Path) -> None:
 def test_prune_removes_old(tmp_path: Path) -> None:
     reg = _registry(tmp_path, retention_days=30)
     old_ts = (
-        datetime.now(timezone.utc) - timedelta(days=40)
-    ).replace(microsecond=0).isoformat()
+        (datetime.now(timezone.utc) - timedelta(days=40))
+        .replace(microsecond=0)
+        .isoformat()
+    )
     reg.register("snap-old", "mission-1", "/ws", created_at=old_ts)
 
     removed = reg.prune()
@@ -133,8 +142,10 @@ def test_prune_removes_old(tmp_path: Path) -> None:
 def test_prune_keeps_recent(tmp_path: Path) -> None:
     reg = _registry(tmp_path, retention_days=30)
     recent_ts = (
-        datetime.now(timezone.utc) - timedelta(days=1)
-    ).replace(microsecond=0).isoformat()
+        (datetime.now(timezone.utc) - timedelta(days=1))
+        .replace(microsecond=0)
+        .isoformat()
+    )
     reg.register("snap-recent", "mission-1", "/ws", created_at=recent_ts)
 
     removed = reg.prune()

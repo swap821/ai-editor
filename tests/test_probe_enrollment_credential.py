@@ -16,6 +16,7 @@ So the helper now takes ONLY the operator id. It cannot leak what it never
 receives, which is the rule `spine_release_attest.py::cmd_keygen` states for
 signing keys. The operator is told how to enroll themselves instead.
 """
+
 from __future__ import annotations
 
 import contextlib

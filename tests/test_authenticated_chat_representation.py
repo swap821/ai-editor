@@ -30,7 +30,9 @@ class _ReceiptStore:
 
 
 class _PreferenceStore:
-    def __init__(self, global_prefs: tuple[Any, ...], project_prefs: tuple[Any, ...]) -> None:
+    def __init__(
+        self, global_prefs: tuple[Any, ...], project_prefs: tuple[Any, ...]
+    ) -> None:
         self.global_prefs = global_prefs
         self.project_prefs = project_prefs
 
@@ -60,11 +62,15 @@ class _PassportStore:
     def __init__(self, passport: ProjectPassportV1) -> None:
         self.passport = passport
 
-    def get_active_for_operator(self, owner_digest: str) -> tuple[str, dict[str, object]]:
+    def get_active_for_operator(
+        self, owner_digest: str
+    ) -> tuple[str, dict[str, object]]:
         assert owner_digest == credential_digest("operator-a")
         return self.passport.project_id, {"root": "project:chat-proof"}
 
-    def get_current_with_revision(self, project_id: str) -> tuple[int, ProjectPassportV1]:
+    def get_current_with_revision(
+        self, project_id: str
+    ) -> tuple[int, ProjectPassportV1]:
         assert project_id == self.passport.project_id
         return 7, self.passport
 
@@ -139,7 +145,9 @@ def _principal() -> Principal:
     )
 
 
-def _preference(preference_id: str, *, scope: str, value: object) -> OperatorPreferenceV1:
+def _preference(
+    preference_id: str, *, scope: str, value: object
+) -> OperatorPreferenceV1:
     return OperatorPreferenceV1(
         preference_id=preference_id,
         domain="communication",
@@ -165,11 +173,15 @@ def _context() -> TurnContext:
     )
 
 
-def test_authenticated_chat_uses_only_representative_context_and_persists_receipt() -> None:
+def test_authenticated_chat_uses_only_representative_context_and_persists_receipt() -> (
+    None
+):
     order: list[str] = []
     receipts = _ReceiptStore(order)
     preference_authority = _PreferenceAuthority(
-        selected=(_preference("pref-project", scope="project:chat-proof", value="concise"),),
+        selected=(
+            _preference("pref-project", scope="project:chat-proof", value="concise"),
+        ),
         exclusions=(
             (
                 _preference("pref-global", scope="global", value="verbose"),
@@ -212,7 +224,9 @@ def test_authenticated_chat_uses_only_representative_context_and_persists_receip
     )
     provider_messages: list[list[dict[str, object]]] = []
 
-    def _stream_chunks(client: object, messages: list[dict[str, object]], *, model: str):
+    def _stream_chunks(
+        client: object, messages: list[dict[str, object]], *, model: str
+    ):
         assert order == ["receipt"]
         provider_messages.append(messages)
         order.append("provider")

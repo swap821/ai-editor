@@ -68,9 +68,7 @@ class ProviderHealthBudgetAuthority:
         """
         return provider in self._states
 
-    def record_success(
-        self, provider: str, *, latency_ms: float | None = None
-    ) -> None:
+    def record_success(self, provider: str, *, latency_ms: float | None = None) -> None:
         state = self._state(provider)
         state.consecutive_failures = 0
         state.circuit_state = "closed"

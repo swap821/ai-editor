@@ -5,6 +5,7 @@ convergence directive.  They intentionally exercise the domain/application /
 infrastructure seam rather than treating an HTTP field or a local process as
 the operator.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -45,7 +46,9 @@ def test_bootstrap_enrollment_is_single_use_and_never_persists_credentials(tmp_p
         service.enroll_operator(display_name="Second operator")
 
 
-def test_credential_authentication_returns_an_operator_principal_and_records_event(tmp_path):
+def test_credential_authentication_returns_an_operator_principal_and_records_event(
+    tmp_path,
+):
     service = _service(tmp_path)
     enrollment = service.enroll_operator(display_name="Kumar")
 
@@ -55,7 +58,10 @@ def test_credential_authentication_returns_an_operator_principal_and_records_eve
     assert authenticated.principal.principal_id == enrollment.operator_id
     assert authenticated.principal.display_name == "Kumar"
     assert authenticated.principal.device_id.startswith("device:")
-    assert authenticated.principal.authentication_event_id == authenticated.authentication_event_id
+    assert (
+        authenticated.principal.authentication_event_id
+        == authenticated.authentication_event_id
+    )
     assert authenticated.principal.authentication_level == "operator"
     assert authenticated.session_cookie
     assert authenticated.authentication_event_id
@@ -79,7 +85,9 @@ def test_privileged_reauthentication_rotates_and_revokes_the_old_session(tmp_pat
     assert principal.device_id.startswith("device:")
     assert principal.authentication_level == "privileged"
     assert principal.authentication_event_id == reauthenticated.authentication_event_id
-    assert reauthenticated.authentication_event_id != authenticated.authentication_event_id
+    assert (
+        reauthenticated.authentication_event_id != authenticated.authentication_event_id
+    )
     assert service.authentication_event_count() == 2
 
 
@@ -93,7 +101,9 @@ def test_logout_revokes_the_server_side_session(tmp_path):
     assert service.get_authenticated_principal(authenticated.session_cookie) is None
 
 
-def test_http_auth_never_echoes_session_material_and_rotates_cookie(tmp_path, monkeypatch):
+def test_http_auth_never_echoes_session_material_and_rotates_cookie(
+    tmp_path, monkeypatch
+):
     service = _service(tmp_path)
     import aios.api.deps as api_deps
 
@@ -112,9 +122,7 @@ def test_http_auth_never_echoes_session_material_and_rotates_cookie(tmp_path, mo
             credential = enrollment_body["enrollmentCredential"]
 
             client.cookies.clear()
-            login = client.post(
-                "/api/v1/auth/login", json={"credential": credential}
-            )
+            login = client.post("/api/v1/auth/login", json={"credential": credential})
             assert login.status_code == 200
             assert "sessionId" not in login.json()
             assert "session_id" not in login.json()
@@ -125,9 +133,7 @@ def test_http_auth_never_echoes_session_material_and_rotates_cookie(tmp_path, mo
             assert status.json()["operatorId"] == enrollment_body["operatorId"]
             assert "sessionId" not in status.json()
 
-            reauth = client.post(
-                "/api/v1/auth/reauth", json={"credential": credential}
-            )
+            reauth = client.post("/api/v1/auth/reauth", json={"credential": credential})
             assert reauth.status_code == 200
             assert reauth.json()["reauthenticated"] is True
             assert client.cookies.get("session_id") != old_cookie

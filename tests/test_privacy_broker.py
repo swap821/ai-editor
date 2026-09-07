@@ -37,8 +37,12 @@ def _request(
 
 def _providers() -> list[router.Provider]:
     return [
-        router.Provider("ollama", router.PRIVACY_LOCAL, router.COST_FREE, True, ("local",)),
-        router.Provider("openai", router.PRIVACY_CLOUD, router.COST_LOW, True, ("cloud",)),
+        router.Provider(
+            "ollama", router.PRIVACY_LOCAL, router.COST_FREE, True, ("local",)
+        ),
+        router.Provider(
+            "openai", router.PRIVACY_CLOUD, router.COST_LOW, True, ("cloud",)
+        ),
     ]
 
 

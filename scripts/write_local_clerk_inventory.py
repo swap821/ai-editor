@@ -28,12 +28,16 @@ REMOVED = {
 
 
 def _tip() -> str:
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+    ).strip()
 
 
 def main() -> int:
     cohort = json.loads(COHORT.read_text(encoding="utf-8"))
-    admitted = [item["model"] for item in cohort["recommendations"] if item.get("measured_pass")]
+    admitted = [
+        item["model"] for item in cohort["recommendations"] if item.get("measured_pass")
+    ]
     listed = subprocess.check_output(["ollama", "list"], cwd=ROOT, text=True)
     installed = []
     for line in listed.splitlines()[1:]:
@@ -58,7 +62,17 @@ def main() -> int:
         "admission_rule": "Only models with a complete reproducible r15-v2 pass are admitted as clerks; vendor pages and downloads alone never qualify a model.",
     }
     OUT.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"output": str(OUT), "admitted": admitted, "installed": installed, "free_bytes": usage.free}, indent=2))
+    print(
+        json.dumps(
+            {
+                "output": str(OUT),
+                "admitted": admitted,
+                "installed": installed,
+                "free_bytes": usage.free,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

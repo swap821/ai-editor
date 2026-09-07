@@ -1,4 +1,5 @@
 """Regression guards for confirmed dead-code removals."""
+
 from pathlib import Path
 
 
@@ -18,10 +19,11 @@ REMOVED_PRODUCT_DEAD_CODE = (
 
 
 def test_confirmed_orphaned_modules_stay_out_of_product_package() -> None:
-    present = [rel for rel in REMOVED_PRODUCT_DEAD_CODE if (PROJECT_ROOT / rel).exists()]
+    present = [
+        rel for rel in REMOVED_PRODUCT_DEAD_CODE if (PROJECT_ROOT / rel).exists()
+    ]
 
     assert not present, (
         "Confirmed orphaned modules must not quietly re-enter the product package. "
-        "Wire and test the feature, or keep it outside aios/: "
-        + ", ".join(present)
+        "Wire and test the feature, or keep it outside aios/: " + ", ".join(present)
     )

@@ -34,7 +34,9 @@ def _contract(tmp_path: Path) -> MissionContract:
     )
 
 
-def test_resource_modes_block_cloud_when_conserving_or_hibernating(tmp_path: Path) -> None:
+def test_resource_modes_block_cloud_when_conserving_or_hibernating(
+    tmp_path: Path,
+) -> None:
     contract = _contract(tmp_path)
 
     normal = BudgetGuard(mode="normal").check_cloud_request(
@@ -101,7 +103,9 @@ def test_hibernation_cannot_perform_cloud_calls_or_writes(tmp_path: Path) -> Non
     # meta_loop.py's assess_meta_loop wired in for real: local/safe evidence
     # (no cloud calls, no writes) must never read as blocked.
     assert report.meta_loop_assessment["safetyStatus"] == "advisory"
-    assert report.meta_loop_assessment["sources"], "expected at least the hibernation source"
+    assert report.meta_loop_assessment["sources"], (
+        "expected at least the hibernation source"
+    )
     dict_form = report.to_dict()
     assert dict_form["metaLoopAssessment"] == report.meta_loop_assessment
 
@@ -111,7 +115,9 @@ def test_hibernation_cannot_perform_cloud_calls_or_writes(tmp_path: Path) -> Non
         manager.run(allow_writes=True)
 
 
-def test_resource_status_api_reflects_configured_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resource_status_api_reflects_configured_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(config, "RESOURCE_MODE", "conservation")
     with TestClient(app, client=("127.0.0.1", 12345)) as client:
         response = client.get("/api/v1/resource/status")
@@ -158,7 +164,9 @@ def test_hibernation_api_rejects_cloud_and_reports_local_only(
     assert status_payload["lastRun"]["projectPassport"]["skipped"] is True
 
 
-def test_hibernation_status_is_read_only_policy_state(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_hibernation_status_is_read_only_policy_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(sovereignty, "_LAST_HIBERNATION_REPORT", None)
     monkeypatch.setattr(config, "RESOURCE_MODE", "normal")
 

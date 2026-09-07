@@ -4,6 +4,7 @@ These test the harness logic (domain selection, file reset, event parsing)
 without requiring a running backend — the actual supervised-loop integration
 is tested by running the tools against a live server.
 """
+
 from __future__ import annotations
 
 import json
@@ -19,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 class TestExperienceAccumulator:
     def test_domains_are_populated(self):
         from tools.experience_accumulator import DOMAINS
+
         assert len(DOMAINS) >= 4
         for domain, tasks in DOMAINS.items():
             assert isinstance(domain, str)
@@ -30,23 +32,24 @@ class TestExperienceAccumulator:
 
     def test_all_prompts_are_unique(self):
         from tools.experience_accumulator import DOMAINS
-        all_prompts = [
-            task["prompt"]
-            for tasks in DOMAINS.values()
-            for task in tasks
-        ]
+
+        all_prompts = [task["prompt"] for tasks in DOMAINS.values() for task in tasks]
         assert len(all_prompts) == len(set(all_prompts))
 
     def test_all_files_in_training_ground(self):
         from tools.experience_accumulator import DOMAINS
         from aios.probe_common import ALLOWED_FILE_RE
+
         for domain, tasks in DOMAINS.items():
             for task in tasks:
                 for f in task["files"]:
-                    assert ALLOWED_FILE_RE.match(f), f"{domain}: {f} not in training_ground"
+                    assert ALLOWED_FILE_RE.match(f), (
+                        f"{domain}: {f} not in training_ground"
+                    )
 
     def test_pick_sessions_limits_count(self):
         from tools.experience_accumulator import pick_sessions
+
         sessions = pick_sessions(None, 3)
         assert len(sessions) == 3
         for s in sessions:
@@ -55,17 +58,20 @@ class TestExperienceAccumulator:
 
     def test_pick_sessions_filters_domain(self):
         from tools.experience_accumulator import pick_sessions
+
         sessions = pick_sessions("coding", 100)
         for s in sessions:
             assert s["domain"] == "coding"
 
     def test_pick_sessions_unknown_domain_returns_all(self):
         from tools.experience_accumulator import pick_sessions
+
         sessions = pick_sessions("nonexistent", 3)
         assert len(sessions) == 3
 
     def test_reset_files_only_allowed(self, tmp_path):
         from tools.experience_accumulator import reset_files, ROOT
+
         safe = "training_ground/test_file.py"
         unsafe = "aios/config.py"
         with patch.object(
@@ -81,6 +87,7 @@ class TestExperienceAccumulator:
 class TestGoldenMissionRunner:
     def test_missions_are_populated(self):
         from tools.golden_mission_runner import MISSIONS
+
         assert len(MISSIONS) >= 3
         for name, mission in MISSIONS.items():
             assert "description" in mission
@@ -94,13 +101,17 @@ class TestGoldenMissionRunner:
     def test_all_step_files_in_training_ground(self):
         from tools.golden_mission_runner import MISSIONS
         from aios.probe_common import ALLOWED_FILE_RE
+
         for name, mission in MISSIONS.items():
             for step in mission["steps"]:
                 for f in step.get("files", []):
-                    assert ALLOWED_FILE_RE.match(f), f"{name}: {f} not in training_ground"
+                    assert ALLOWED_FILE_RE.match(f), (
+                        f"{name}: {f} not in training_ground"
+                    )
 
     def test_all_prompts_unique_within_mission(self):
         from tools.golden_mission_runner import MISSIONS
+
         for name, mission in MISSIONS.items():
             prompts = [s["prompt"] for s in mission["steps"]]
             assert len(prompts) == len(set(prompts)), f"duplicate prompts in {name}"
@@ -109,6 +120,7 @@ class TestGoldenMissionRunner:
 class TestEnduranceTester:
     def test_prompts_are_populated(self):
         from tools.endurance_tester import ENDURANCE_PROMPTS
+
         assert len(ENDURANCE_PROMPTS) >= 5
         for task in ENDURANCE_PROMPTS:
             assert "prompt" in task
@@ -117,12 +129,14 @@ class TestEnduranceTester:
     def test_all_files_in_training_ground(self):
         from tools.endurance_tester import ENDURANCE_PROMPTS
         from aios.probe_common import ALLOWED_FILE_RE
+
         for task in ENDURANCE_PROMPTS:
             for f in task["files"]:
                 assert ALLOWED_FILE_RE.match(f), f"{f} not in training_ground"
 
     def test_prompts_are_unique(self):
         from tools.endurance_tester import ENDURANCE_PROMPTS
+
         prompts = [t["prompt"] for t in ENDURANCE_PROMPTS]
         assert len(prompts) == len(set(prompts))
 
@@ -138,6 +152,7 @@ class TestSSEParsing:
 
     def test_parse_sse_basic(self):
         from tools.experience_accumulator import parse_sse
+
         lines = [
             "event:step",
             'data:{"type":"tool_call","output":"hello"}',
@@ -155,6 +170,7 @@ class TestSSEParsing:
 
     def test_parse_sse_handles_trailing_event(self):
         from tools.experience_accumulator import parse_sse
+
         lines = [
             "event:text_chunk",
             'data:{"text":"hi"}',
@@ -168,29 +184,31 @@ class TestSSEParsing:
 class TestAllowlistChecking:
     def test_creation_allowed(self):
         from tools.experience_accumulator import check_allowlist
-        ok, why = check_allowlist({
-            "input": {"creations": [{"filepath": "training_ground/test.py"}]}
-        })
+
+        ok, why = check_allowlist(
+            {"input": {"creations": [{"filepath": "training_ground/test.py"}]}}
+        )
         assert ok
 
     def test_creation_denied_outside_sandbox(self):
         from tools.experience_accumulator import check_allowlist
-        ok, why = check_allowlist({
-            "input": {"creations": [{"filepath": "aios/config.py"}]}
-        })
+
+        ok, why = check_allowlist(
+            {"input": {"creations": [{"filepath": "aios/config.py"}]}}
+        )
         assert not ok
         assert "allowlist" in why
 
     def test_command_allowed(self):
         from tools.experience_accumulator import check_allowlist
-        ok, why = check_allowlist({
-            "input": {"commands": ["pytest training_ground/test.py -q"]}
-        })
+
+        ok, why = check_allowlist(
+            {"input": {"commands": ["pytest training_ground/test.py -q"]}}
+        )
         assert ok
 
     def test_command_denied(self):
         from tools.experience_accumulator import check_allowlist
-        ok, why = check_allowlist({
-            "input": {"commands": ["rm -rf /"]}
-        })
+
+        ok, why = check_allowlist({"input": {"commands": ["rm -rf /"]}})
         assert not ok

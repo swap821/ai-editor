@@ -55,7 +55,10 @@ def test_symbol_repo_map_is_local_proposal_evidence_over_project_passport(
     symbol_ids = {symbol.symbol_id for symbol in repo_map.symbols}
     assert "pkg.service:Service" in symbol_ids
     assert "pkg.service:helper" in symbol_ids
-    assert any(edge.source == "pkg.service" and edge.target == "pkg.util" for edge in repo_map.edges)
+    assert any(
+        edge.source == "pkg.service" and edge.target == "pkg.util"
+        for edge in repo_map.edges
+    )
 
 
 def test_symbol_repo_map_skips_secret_paths_and_values(tmp_path: Path) -> None:
@@ -76,7 +79,10 @@ def test_symbol_repo_map_skips_secret_paths_and_values(tmp_path: Path) -> None:
 
 def test_symbol_query_ranking_is_deterministic(tmp_path: Path) -> None:
     _write(tmp_path / "README.md", "# Rank Demo\n")
-    _write(tmp_path / "pkg" / "alpha.py", "import pkg.beta\n\ndef handle_alpha():\n    pass\n")
+    _write(
+        tmp_path / "pkg" / "alpha.py",
+        "import pkg.beta\n\ndef handle_alpha():\n    pass\n",
+    )
     _write(tmp_path / "pkg" / "beta.py", "def handle_beta():\n    pass\n")
 
     first = scan_symbol_repo_map(tmp_path)
@@ -90,7 +96,9 @@ def test_symbol_query_ranking_is_deterministic(tmp_path: Path) -> None:
 
 def test_scope_hints_cannot_widen_worker_contract_scope(tmp_path: Path) -> None:
     _write(tmp_path / "README.md", "# Scope Demo\n")
-    _write(tmp_path / "pkg" / "billing.py", "def charge_card():\n    return 'charged'\n")
+    _write(
+        tmp_path / "pkg" / "billing.py", "def charge_card():\n    return 'charged'\n"
+    )
     _write(tmp_path / "pkg" / "other.py", "def unrelated():\n    return None\n")
     repo_map = scan_symbol_repo_map(tmp_path)
 
@@ -119,7 +127,9 @@ def test_scope_hints_cannot_widen_worker_contract_scope(tmp_path: Path) -> None:
     assert allowed.out_of_scope_matches == []
 
 
-def test_project_passport_memory_safety_still_holds_with_repo_map(tmp_path: Path) -> None:
+def test_project_passport_memory_safety_still_holds_with_repo_map(
+    tmp_path: Path,
+) -> None:
     _write(tmp_path / "README.md", "# Passport Safety\n")
     _write(tmp_path / "pkg" / "app.py", "def entrypoint():\n    return True\n")
 

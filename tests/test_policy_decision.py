@@ -1,4 +1,5 @@
 """Tests for the PolicyDecision domain model."""
+
 from __future__ import annotations
 
 import pytest

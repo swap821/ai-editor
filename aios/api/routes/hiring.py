@@ -136,7 +136,9 @@ def execute_hiring_call(
     if not operator_id:
         raise HTTPException(status_code=401, detail="authenticated operator required")
     if operator_id != principal.principal_id:
-        raise HTTPException(status_code=403, detail="operator identity binding mismatch")
+        raise HTTPException(
+            status_code=403, detail="operator identity binding mismatch"
+        )
     model_request = ModelCallRequest(
         request_id=body.request_id,
         principal_id=operator_id,

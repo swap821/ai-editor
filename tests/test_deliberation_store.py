@@ -15,7 +15,9 @@ from aios.infrastructure.intelligence.deliberation_store import (
 )
 
 
-def _record(deliberation_id: str = "deliberation-1", mission_id: str | None = "mission-1"):
+def _record(
+    deliberation_id: str = "deliberation-1", mission_id: str | None = "mission-1"
+):
     positions = (
         ModelPosition(
             role="primary",
@@ -69,12 +71,18 @@ def test_second_save_appends_a_new_revision_not_an_overwrite(tmp_path: Path) -> 
 
     positions = (
         ModelPosition(
-            role="primary", provider="ollama", exact_model_id="qwen2.5-coder:7b",
-            answer="reject", confidence=1.0,
+            role="primary",
+            provider="ollama",
+            exact_model_id="qwen2.5-coder:7b",
+            answer="reject",
+            confidence=1.0,
         ),
         ModelPosition(
-            role="critic", provider="gemini", exact_model_id="gemini-2.5-flash",
-            answer="reject", confidence=0.7,
+            role="critic",
+            provider="gemini",
+            exact_model_id="gemini-2.5-flash",
+            answer="reject",
+            confidence=0.7,
             security_concerns=(),  # resolved this time
         ),
     )

@@ -61,7 +61,9 @@ def test_post_v7_audit_catches_features_documented_as_missing(tmp_path: Path) ->
                     "aios/memory/project_passport.py",
                     "tests/test_project_passport.py",
                 ),
-                stale_patterns=(re.compile(r"Project Passport.*roadmap", re.IGNORECASE),),
+                stale_patterns=(
+                    re.compile(r"Project Passport.*roadmap", re.IGNORECASE),
+                ),
             ),
         ),
     )
@@ -103,7 +105,9 @@ def test_post_v10_audit_catches_ecosystem_documented_as_roadmap(
         "README.md",
         ".aios/state/V10_INTEGRATION_PLAN.md",
     }
-    assert all(finding.code == "post-v10-ecosystem-scanner-drift" for finding in findings)
+    assert all(
+        finding.code == "post-v10-ecosystem-scanner-drift" for finding in findings
+    )
 
 
 def test_post_v10_audit_catches_meta_loop_documented_as_planned(

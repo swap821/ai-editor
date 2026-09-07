@@ -39,9 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         "\\", "/"
     )
     # Prefer tip-stamped artifact name if present beside latest.
-    tip_artifact = (
-        REPO_ROOT / "release" / "phase4" / f"live-evidence-{tip[:12]}.json"
-    )
+    tip_artifact = REPO_ROOT / "release" / "phase4" / f"live-evidence-{tip[:12]}.json"
     if tip_artifact.exists():
         artifact_rel = tip_artifact.relative_to(REPO_ROOT).as_posix()
 
@@ -74,24 +72,24 @@ def main(argv: list[str] | None = None) -> int:
         }
         # Replace prior live rows for this tip; keep older distinct SHAs.
         prior = [
-            e
-            for e in (row.get("live_evidence") or [])
-            if e.get("commit_sha") != tip
+            e for e in (row.get("live_evidence") or []) if e.get("commit_sha") != tip
         ]
         row["live_evidence"] = prior + [evidence]
         row["last_verified_sha"] = tip
         blockers = list(row.get("known_blockers") or [])
         blockers = [
-            b
-            for b in blockers
-            if not any(m in b for m in PHASE4_RESIDUAL_MARKERS)
+            b for b in blockers if not any(m in b for m in PHASE4_RESIDUAL_MARKERS)
         ]
         # Note Phase 5 gate only when still yellow and no other named Outside residual.
-        named = ("frozen spine", "Phase 6 gate", "no Ollama", "Outside-machine",
-                 "browser-session", "no Docker")
-        has_named = any(
-            any(n.lower() in b.lower() for n in named) for b in blockers
+        named = (
+            "frozen spine",
+            "Phase 6 gate",
+            "no Ollama",
+            "Outside-machine",
+            "browser-session",
+            "no Docker",
         )
+        has_named = any(any(n.lower() in b.lower() for n in named) for b in blockers)
         if row.get("status") == "yellow" and not has_named:
             note = (
                 f"Phase 4 absolute: live evidence attached at tip {tip[:12]} via "
@@ -123,9 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.dry_run:
         return 0
-    LEDGER_PATH.write_text(
-        json.dumps(ledger, indent=2) + "\n", encoding="utf-8"
-    )
+    LEDGER_PATH.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
     return 0
 
 

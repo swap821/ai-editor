@@ -35,7 +35,15 @@ def main() -> int:
         artifacts.append(artifact)
     inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(ROOT).free
     INVENTORY.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"admitted_clerks": clerks, "disk_free_bytes": inventory["disk_free_bytes_after_cleanup"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "admitted_clerks": clerks,
+                "disk_free_bytes": inventory["disk_free_bytes_after_cleanup"],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

@@ -173,9 +173,7 @@ class OperatorTasteModelAuthority:
             return "expired"
         return None
 
-    def withdraw(
-        self, preference_id: str, *, operator_identity_digest: str
-    ) -> bool:
+    def withdraw(self, preference_id: str, *, operator_identity_digest: str) -> bool:
         return self.store.withdraw(
             preference_id, operator_identity_digest=operator_identity_digest
         )
@@ -440,9 +438,7 @@ class CorrectionLineageAuthority:
             return None
         return event, corrected_values
 
-    def lineage_for_session(
-        self, session_id: str
-    ) -> tuple[CorrectionRecordV1, ...]:
+    def lineage_for_session(self, session_id: str) -> tuple[CorrectionRecordV1, ...]:
         return self.store.get_lineage(session_id)
 
 

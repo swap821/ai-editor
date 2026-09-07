@@ -13,7 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INVENTORY = ROOT / "release" / "phase4" / "local-clerk-inventory-20260801.json"
-COHORT = ROOT / "release" / "phase4" / "local-clerk-candidate-cohort-wave3-20260801.json"
+COHORT = (
+    ROOT / "release" / "phase4" / "local-clerk-candidate-cohort-wave3-20260801.json"
+)
 ATTEMPT = ROOT / "release" / "phase4" / "local-clerk-qwen3-1.7b-attempt-20260801.json"
 
 
@@ -26,7 +28,9 @@ def main() -> int:
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     installed = _installed()
     artifact = json.loads(COHORT.read_text(encoding="utf-8"))
-    candidate = next(item for item in artifact["candidates"] if item["model"] == "qwen3:1.7b")
+    candidate = next(
+        item for item in artifact["candidates"] if item["model"] == "qwen3:1.7b"
+    )
     attempt = {
         "schema": "local-clerk-candidate-attempt-v1",
         "generated_at": now,
@@ -52,13 +56,26 @@ def main() -> int:
     inventory["generated_at"] = now
     inventory["machine"] = platform.node()
     inventory["installed_after_cleanup"] = installed
-    inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(ROOT.drive + "\\").free
+    inventory["disk_free_bytes_after_cleanup"] = shutil.disk_usage(
+        ROOT.drive + "\\"
+    ).free
     inventory.setdefault("removed_models", {})["qwen3:1.7b"] = (
         "r15-v2 failed: json_validity, extraction, repeated_run_reliability; removed from local disk"
     )
-    inventory.setdefault("candidate_attempt_artifacts", []).append(str(ATTEMPT.relative_to(ROOT)))
+    inventory.setdefault("candidate_attempt_artifacts", []).append(
+        str(ATTEMPT.relative_to(ROOT))
+    )
     INVENTORY.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"attempt": str(ATTEMPT), "inventory": str(INVENTORY), "installed": installed}, indent=2))
+    print(
+        json.dumps(
+            {
+                "attempt": str(ATTEMPT),
+                "inventory": str(INVENTORY),
+                "installed": installed,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

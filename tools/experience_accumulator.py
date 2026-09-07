@@ -18,6 +18,7 @@ Domains exercised:
     planning     — decompose complex tasks into steps
     refactoring  — improve existing code quality
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,7 +50,10 @@ DOMAINS: dict[str, list[dict[str, Any]]] = {
     "coding": [
         {
             "prompt": "Create training_ground/fibonacci.py with a function fib(n) that returns the nth Fibonacci number using iteration (not recursion). Then create training_ground/test_fibonacci.py with pytest tests covering fib(0), fib(1), fib(10), and fib(20). Then verify that the tests pass.",
-            "files": ["training_ground/fibonacci.py", "training_ground/test_fibonacci.py"],
+            "files": [
+                "training_ground/fibonacci.py",
+                "training_ground/test_fibonacci.py",
+            ],
         },
         {
             "prompt": "Create training_ground/stack.py with a Stack class that has push(item), pop(), peek(), and is_empty() methods. pop() and peek() should raise IndexError when empty. Then create training_ground/test_stack.py with pytest tests covering all methods and edge cases. Then verify that the tests pass.",
@@ -57,59 +61,96 @@ DOMAINS: dict[str, list[dict[str, Any]]] = {
         },
         {
             "prompt": "Create training_ground/csv_parser.py with a function parse_csv(text) that splits a CSV string into a list of lists, handling quoted fields correctly. Then create training_ground/test_csv_parser.py with pytest tests covering normal fields, quoted fields with commas, and empty fields. Then verify that the tests pass.",
-            "files": ["training_ground/csv_parser.py", "training_ground/test_csv_parser.py"],
+            "files": [
+                "training_ground/csv_parser.py",
+                "training_ground/test_csv_parser.py",
+            ],
         },
         {
             "prompt": "Create training_ground/binary_search.py with a function binary_search(sorted_list, target) that returns the index of target or -1 if not found. Then create training_ground/test_binary_search.py with pytest tests covering found, not found, empty list, and single element. Then verify that the tests pass.",
-            "files": ["training_ground/binary_search.py", "training_ground/test_binary_search.py"],
+            "files": [
+                "training_ground/binary_search.py",
+                "training_ground/test_binary_search.py",
+            ],
         },
         {
             "prompt": "Create training_ground/lru_cache.py with an LRUCache class that accepts a capacity and has get(key) and put(key, value) methods. get returns -1 for missing keys. Evict the least recently used entry when capacity is exceeded. Then create training_ground/test_lru_cache.py with pytest tests. Then verify that the tests pass.",
-            "files": ["training_ground/lru_cache.py", "training_ground/test_lru_cache.py"],
+            "files": [
+                "training_ground/lru_cache.py",
+                "training_ground/test_lru_cache.py",
+            ],
         },
     ],
     "reasoning": [
         {
             "prompt": "Create training_ground/matrix_rotate.py with a function rotate_90(matrix) that rotates a square 2D list 90 degrees clockwise in-place. Then create training_ground/test_matrix_rotate.py with pytest tests covering 1x1, 2x2, 3x3, and 4x4 matrices. Then verify that the tests pass.",
-            "files": ["training_ground/matrix_rotate.py", "training_ground/test_matrix_rotate.py"],
+            "files": [
+                "training_ground/matrix_rotate.py",
+                "training_ground/test_matrix_rotate.py",
+            ],
         },
         {
             "prompt": "Create training_ground/parentheses.py with a function is_balanced(s) that checks if a string of brackets ()[]{}  is properly nested and balanced. Then create training_ground/test_parentheses.py with pytest tests covering balanced, unbalanced, nested, and empty strings. Then verify that the tests pass.",
-            "files": ["training_ground/parentheses.py", "training_ground/test_parentheses.py"],
+            "files": [
+                "training_ground/parentheses.py",
+                "training_ground/test_parentheses.py",
+            ],
         },
         {
             "prompt": "Create training_ground/roman_numerals.py with functions to_roman(n) and from_roman(s) that convert between integers (1-3999) and Roman numeral strings. Then create training_ground/test_roman_numerals.py with pytest tests covering boundaries and round-trip conversion. Then verify that the tests pass.",
-            "files": ["training_ground/roman_numerals.py", "training_ground/test_roman_numerals.py"],
+            "files": [
+                "training_ground/roman_numerals.py",
+                "training_ground/test_roman_numerals.py",
+            ],
         },
     ],
     "tool_use": [
         {
             "prompt": "Create training_ground/word_freq.py with a function word_frequencies(text) that returns a dict mapping each lowercase word to its count, ignoring punctuation. Then create training_ground/test_word_freq.py with pytest tests covering normal text, punctuation, and empty input. Then verify that the tests pass.",
-            "files": ["training_ground/word_freq.py", "training_ground/test_word_freq.py"],
+            "files": [
+                "training_ground/word_freq.py",
+                "training_ground/test_word_freq.py",
+            ],
         },
         {
             "prompt": "Create training_ground/path_utils.py with functions normalize_path(p) that collapses .. and . components, and common_prefix(paths) that returns the longest shared directory prefix of a list of paths. Then create training_ground/test_path_utils.py with pytest tests. Then verify that the tests pass.",
-            "files": ["training_ground/path_utils.py", "training_ground/test_path_utils.py"],
+            "files": [
+                "training_ground/path_utils.py",
+                "training_ground/test_path_utils.py",
+            ],
         },
     ],
     "planning": [
         {
             "prompt": "Create training_ground/task_scheduler.py with a class TaskScheduler that has add_task(name, duration, dependencies) and schedule() methods. schedule() returns tasks in valid topological order respecting dependencies, or raises ValueError for circular deps. Then create training_ground/test_task_scheduler.py with pytest tests. Then verify that the tests pass.",
-            "files": ["training_ground/task_scheduler.py", "training_ground/test_task_scheduler.py"],
+            "files": [
+                "training_ground/task_scheduler.py",
+                "training_ground/test_task_scheduler.py",
+            ],
         },
         {
             "prompt": "Create training_ground/state_machine.py with a StateMachine class that accepts a dict of {state: {event: next_state}} transitions, has a current_state property, and a send(event) method that transitions or raises ValueError for invalid events. Then create training_ground/test_state_machine.py with pytest tests. Then verify that the tests pass.",
-            "files": ["training_ground/state_machine.py", "training_ground/test_state_machine.py"],
+            "files": [
+                "training_ground/state_machine.py",
+                "training_ground/test_state_machine.py",
+            ],
         },
     ],
     "refactoring": [
         {
             "prompt": "Create training_ground/ugly_code.py with a function process_data(data) that filters even numbers, squares them, sorts descending, and returns top 5 — written as one long nested expression. Then create training_ground/clean_code.py that reimplements it readably. Then create training_ground/test_refactor.py asserting both produce identical output. Then verify that the tests pass.",
-            "files": ["training_ground/ugly_code.py", "training_ground/clean_code.py", "training_ground/test_refactor.py"],
+            "files": [
+                "training_ground/ugly_code.py",
+                "training_ground/clean_code.py",
+                "training_ground/test_refactor.py",
+            ],
         },
         {
             "prompt": "Create training_ground/string_ops.py with functions: reverse_words(s) reverses word order, title_case(s) capitalizes first letter of each word, and truncate(s, max_len) cuts at max_len with '...' suffix if too long. Then create training_ground/test_string_ops.py with pytest tests. Then verify that the tests pass.",
-            "files": ["training_ground/string_ops.py", "training_ground/test_string_ops.py"],
+            "files": [
+                "training_ground/string_ops.py",
+                "training_ground/test_string_ops.py",
+            ],
         },
     ],
 }
@@ -134,9 +175,9 @@ def parse_sse(resp: requests.Response) -> Iterator[tuple[str, dict[str, Any]]]:
                 yield event, payload
             event, data_lines = None, []
         elif raw.startswith("event:"):
-            event = raw[len("event:"):].strip()
+            event = raw[len("event:") :].strip()
         elif raw.startswith("data:"):
-            data_lines.append(raw[len("data:"):].strip())
+            data_lines.append(raw[len("data:") :].strip())
     if event is not None and data_lines:
         yield event, json.loads("\n".join(data_lines))
 
@@ -146,15 +187,24 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     if inp.get("creations"):
         paths = [str(c.get("filepath", "")) for c in inp["creations"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"create {paths}" if not bad else f"creation outside allowlist: {bad}")
+        return (
+            not bad,
+            f"create {paths}" if not bad else f"creation outside allowlist: {bad}",
+        )
     if inp.get("edits"):
         paths = [str(e.get("filepath", "")) for e in inp["edits"]]
         bad = [p for p in paths if not ALLOWED_FILE_RE.match(p)]
-        return (not bad, f"edit {paths}" if not bad else f"edit outside allowlist: {bad}")
+        return (
+            not bad,
+            f"edit {paths}" if not bad else f"edit outside allowlist: {bad}",
+        )
     if inp.get("commands"):
         cmds = [str(c) for c in inp["commands"]]
         bad = [c for c in cmds if not ALLOWED_CMD_RE.match(c)]
-        return (not bad, f"run {cmds}" if not bad else f"command outside allowlist: {bad}")
+        return (
+            not bad,
+            f"run {cmds}" if not bad else f"command outside allowlist: {bad}",
+        )
     return False, "unrecognized approval payload shape"
 
 
@@ -163,7 +213,14 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
     approvals_granted: list[str] = []
     evidence: list[str] = []
     answer_parts: list[str] = []
-    log_event({"kind": "turn-start", "session": session_id, "prompt": prompt, "model": model_id})
+    log_event(
+        {
+            "kind": "turn-start",
+            "session": session_id,
+            "prompt": prompt,
+            "model": model_id,
+        }
+    )
 
     for replay in range(MAX_REPLAYS):
         body = {
@@ -172,7 +229,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             "sessionId": session_id,
             "approvalTokens": tokens,
         }
-        resp = requests.post(f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S)
+        resp = requests.post(
+            f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S
+        )
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False
@@ -180,7 +239,9 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
         for event, data in parse_sse(resp):
             if event == "step":
                 output = str(data.get("output", ""))
-                if output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")):
+                if output.startswith(
+                    ("[VERIFY PASS]", "[VERIFY FAIL]", "[VERIFY SKIPPED]")
+                ):
                     evidence.append(output)
             elif event == "text_chunk":
                 answer_parts.append(str(data.get("text", "")))
@@ -188,13 +249,27 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 paused = data
                 break
             elif event == "error":
-                log_event({"kind": "turn-error", "session": session_id, "replay": replay, "error": data})
-                return {"outcome": "error", "error": data, "evidence": evidence, "replays": replay}
+                log_event(
+                    {
+                        "kind": "turn-error",
+                        "session": session_id,
+                        "replay": replay,
+                        "error": data,
+                    }
+                )
+                return {
+                    "outcome": "error",
+                    "error": data,
+                    "evidence": evidence,
+                    "replays": replay,
+                }
             elif event == "done":
                 finished = True
 
         if finished and paused is None:
-            counted = [e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))]
+            counted = [
+                e for e in evidence if e.startswith(("[VERIFY PASS]", "[VERIFY FAIL]"))
+            ]
             if not counted:
                 outcome = "unverified"
             elif counted[-1].startswith("[VERIFY PASS]"):
@@ -217,8 +292,15 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
         ok, why = check_allowlist(paused)
         token = paused.get("input", {}).get("approvalToken")
         if not ok or not token:
-            log_event({"kind": "approval-rejected", "session": session_id, "reason": why})
-            return {"outcome": "rejected", "reason": why, "replays": replay, "evidence": evidence}
+            log_event(
+                {"kind": "approval-rejected", "session": session_id, "reason": why}
+            )
+            return {
+                "outcome": "rejected",
+                "reason": why,
+                "replays": replay,
+                "evidence": evidence,
+            }
         approvals_granted.append(why)
         tokens = [token]
 
@@ -277,7 +359,9 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     successes = sum(1 for r in results if r["outcome"] == "verified_success")
     failures = sum(1 for r in results if r["outcome"] == "verified_failure")
-    errors = sum(1 for r in results if r["outcome"] in ("error", "rejected", "truncated"))
+    errors = sum(
+        1 for r in results if r["outcome"] in ("error", "rejected", "truncated")
+    )
     summary = {
         "total": len(results),
         "verified_success": successes,
@@ -307,9 +391,13 @@ def cmd_status(_: argparse.Namespace) -> None:
     total_success = sum(s["verified_success"] for s in summaries)
     print(f"  total sessions: {total_sessions}")
     print(f"  verified successes: {total_success}")
-    print(f"  cumulative success rate: {round(total_success / max(total_sessions, 1), 3)}")
+    print(
+        f"  cumulative success rate: {round(total_success / max(total_sessions, 1), 3)}"
+    )
     latest = summaries[-1]
-    print(f"  latest run: {latest['total']} sessions, {latest['success_rate']} success rate")
+    print(
+        f"  latest run: {latest['total']} sessions, {latest['success_rate']} success rate"
+    )
 
 
 def cmd_domains(_: argparse.Namespace) -> None:
@@ -319,11 +407,15 @@ def cmd_domains(_: argparse.Namespace) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Automated organic experience accumulator")
+    parser = argparse.ArgumentParser(
+        description="Automated organic experience accumulator"
+    )
     sub = parser.add_subparsers(dest="command")
 
     run_p = sub.add_parser("run", help="Run experience sessions")
-    run_p.add_argument("--sessions", type=int, default=5, help="Number of sessions to run")
+    run_p.add_argument(
+        "--sessions", type=int, default=5, help="Number of sessions to run"
+    )
     run_p.add_argument("--domain", type=str, default=None, help="Limit to one domain")
     run_p.add_argument("--model", type=str, default="auto", help="Model ID to use")
     run_p.set_defaults(func=cmd_run)

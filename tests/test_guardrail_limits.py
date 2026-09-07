@@ -165,4 +165,6 @@ def test_an_explicit_frozen_set_still_overrides() -> None:
     from aios.core.self_apply import classify_target
 
     assert classify_target("aios/foo/x.py", frozen_subdirs=("foo",)) == "RED"
-    assert classify_target("aios/security/gateway.py", frozen_subdirs=("foo",)) == "YELLOW"
+    assert (
+        classify_target("aios/security/gateway.py", frozen_subdirs=("foo",)) == "YELLOW"
+    )

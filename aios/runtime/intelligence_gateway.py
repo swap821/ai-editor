@@ -157,12 +157,21 @@ class IntelligenceGateway:
                 try:
                     if governed:
                         raw, context_digest = self._complete_via_universal(
-                            request, contract, client, provider, "cloud",
-                            operator_identity_digest, constitution_digest,
+                            request,
+                            contract,
+                            client,
+                            provider,
+                            "cloud",
+                            operator_identity_digest,
+                            constitution_digest,
                         )
-                        policy.setdefault("representative_context_digests", []).append(context_digest)
+                        policy.setdefault("representative_context_digests", []).append(
+                            context_digest
+                        )
                     else:
-                        raw = client.complete(safe_prompt, system=self.PLAN_SYSTEM_PROMPT)
+                        raw = client.complete(
+                            safe_prompt, system=self.PLAN_SYSTEM_PROMPT
+                        )
                     text = self.secret_policy.redact_text(raw)
                     self.budget_guard.record_cloud_usage(
                         contract,

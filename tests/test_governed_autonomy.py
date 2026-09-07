@@ -43,7 +43,9 @@ def _outcome(
     return AutonomyOutcome(passed=passed, strength=strength, **flags)
 
 
-def _governed(tmp_path: Path, *, profile: str = "test", enabled: bool = True) -> GovernedAutonomy:
+def _governed(
+    tmp_path: Path, *, profile: str = "test", enabled: bool = True
+) -> GovernedAutonomy:
     return GovernedAutonomy(
         ledger=AutonomyLedger(db_path=tmp_path / "autonomy.db", min_successes=3),
         enabled=enabled,
@@ -52,7 +54,9 @@ def _governed(tmp_path: Path, *, profile: str = "test", enabled: bool = True) ->
     )
 
 
-def test_production_autonomy_is_disabled_even_if_the_ledger_has_evidence(tmp_path: Path) -> None:
+def test_production_autonomy_is_disabled_even_if_the_ledger_has_evidence(
+    tmp_path: Path,
+) -> None:
     governed = _governed(tmp_path, profile="production", enabled=True)
     key = _key()
     for _ in range(3):
@@ -68,9 +72,18 @@ def test_earned_autonomy_is_per_project_and_policy(tmp_path: Path) -> None:
     for _ in range(3):
         governed.record_outcome(key, _outcome())
     assert governed.evaluate(key).status is AutonomyDecisionStatus.ALLOW_AUTONOMOUS
-    assert governed.evaluate(_key(project_id="project-2")).status is AutonomyDecisionStatus.REQUIRE_CAPABILITY
-    assert governed.evaluate(_key(policy_version="policy-2")).status is AutonomyDecisionStatus.REQUIRE_CAPABILITY
-    assert governed.evaluate(_key(model_id="local:model-2")).status is AutonomyDecisionStatus.REQUIRE_CAPABILITY
+    assert (
+        governed.evaluate(_key(project_id="project-2")).status
+        is AutonomyDecisionStatus.REQUIRE_CAPABILITY
+    )
+    assert (
+        governed.evaluate(_key(policy_version="policy-2")).status
+        is AutonomyDecisionStatus.REQUIRE_CAPABILITY
+    )
+    assert (
+        governed.evaluate(_key(model_id="local:model-2")).status
+        is AutonomyDecisionStatus.REQUIRE_CAPABILITY
+    )
 
 
 def test_weak_or_anomalous_outcomes_revoke_the_exact_class(tmp_path: Path) -> None:

@@ -44,6 +44,7 @@ assert the agreement mechanically — which is what these tests do.
 formality: a benchmark that has never failed has never been shown capable of
 failing.
 """
+
 from __future__ import annotations
 
 import ast
@@ -108,6 +109,7 @@ _BASE_SENSITIVE_TOKENS = [
 
 
 # ── VIII · the command-resolution base ───────────────────────────────────────
+
 
 def test_the_check_and_the_executor_share_one_base() -> None:
     """The base is one function, not two that agree today."""
@@ -180,16 +182,15 @@ def test_an_allowed_token_cannot_land_outside_a_declared_root(
         return  # refused is always a safe answer
     landed = (Executor()._scope_cwd() / token).resolve()
     roots = scope_lock.get_scope_roots()
-    assert any(
-        landed == r or str(landed).startswith(str(r) + os.sep) for r in roots
-    ), f"'{token}' was ALLOWED but lands at {landed}, outside {roots}"
+    assert any(landed == r or str(landed).startswith(str(r) + os.sep) for r in roots), (
+        f"'{token}' was ALLOWED but lands at {landed}, outside {roots}"
+    )
 
 
 # ── VIII · the actor consumes the validator's output ─────────────────────────
 
-@pytest.mark.parametrize(
-    "route", [files_routes.read_file, files_routes.get_file_tree]
-)
+
+@pytest.mark.parametrize("route", [files_routes.read_file, files_routes.get_file_tree])
 def test_the_file_routes_open_the_path_the_check_resolved(route) -> None:
     """Consistency by construction — the pattern that kept these routes safe.
 
@@ -225,6 +226,7 @@ def test_the_write_resolver_fails_closed_when_its_root_and_the_scope_disagree(
 
 
 # ── IV · the allowlist and the paths it is supposed to admit ─────────────────
+
 
 def test_the_write_allowlist_and_the_scope_check_agree_on_the_same_token() -> None:
     """``ALLOWED_FILE_RE`` mandates ``training_ground/x.py``; the scope check
@@ -265,6 +267,7 @@ def test_every_scope_exemption_is_still_a_command_the_system_generates() -> None
 
 # ── VI · one digest function, both sides of the capability ───────────────────
 
+
 def test_the_capability_binds_and_checks_with_the_same_digest_function() -> None:
     """Issue and consume must not each canonicalize the payload their own way.
 
@@ -301,6 +304,7 @@ def test_the_digest_is_stable_across_equivalent_payload_orderings() -> None:
 
 
 # ── the agent surface: offered vs. actually reachable ────────────────────────
+
 
 def test_every_offered_tool_is_reachable(monkeypatch) -> None:
     """A tool the model is offered but cannot reach wastes a whole turn.
@@ -420,9 +424,7 @@ def test_redaction_leaves_the_verify_provenance_gate_byte_identical() -> None:
     must leave it untouched.
     """
     header = _verifier_route(_LEAKY_STDOUT).splitlines()[0]
-    assert header == (
-        "[VERIFY FAIL] 0 passed, 1 failed (exit 1) (strength=STRONG)"
-    )
+    assert header == ("[VERIFY FAIL] 0 passed, 1 failed (exit 1) (strength=STRONG)")
     assert _verifier_route("").splitlines()[0] == header
 
 
@@ -590,7 +592,9 @@ def test_both_verify_paths_can_emit_the_signal() -> None:
         f"found {emissions} references"
     )
 
+
 # ── the negative control ─────────────────────────────────────────────────────
+
 
 def test_the_family_can_fail(declared_roots, monkeypatch) -> None:
     """Deliberately break the agreement and confirm this family catches it.

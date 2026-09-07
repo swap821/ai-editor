@@ -454,9 +454,10 @@ def test_passport_route_projects_durable_registry_after_restart(
     after_body = after.json()
 
     assert after_body["passport_digest"] == before_body["passport_digest"]
-    assert after_body["qualification_suite_version"] == before_body[
-        "qualification_suite_version"
-    ]
+    assert (
+        after_body["qualification_suite_version"]
+        == before_body["qualification_suite_version"]
+    )
     assert after_body["admission_status"] == "admitted"
 
 

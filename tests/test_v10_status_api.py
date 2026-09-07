@@ -62,10 +62,15 @@ def test_v10_vulture_scan_updates_read_only_status() -> None:
     assert last_scan["cloudCalls"] == 0
     assert last_scan["findingCount"] >= 1
     assert last_scan["criticalCount"] >= 1
-    assert status.json()["vulture"]["lastScan"]["findingCount"] == last_scan["findingCount"]
+    assert (
+        status.json()["vulture"]["lastScan"]["findingCount"]
+        == last_scan["findingCount"]
+    )
 
 
-def test_v10_ecosystem_scan_is_local_and_path_confined(tmp_path: Path, monkeypatch) -> None:
+def test_v10_ecosystem_scan_is_local_and_path_confined(
+    tmp_path: Path, monkeypatch
+) -> None:
     project = tmp_path / "project"
     project.mkdir()
     (project / "package.json").write_text(
@@ -87,7 +92,10 @@ def test_v10_ecosystem_scan_is_local_and_path_confined(tmp_path: Path, monkeypat
     assert last_scan["cloudCalls"] == 0
     assert last_scan["networkCalls"] == 0
     assert last_scan["findingCount"] >= 1
-    assert status.json()["ecosystem"]["lastScan"]["findingCount"] == last_scan["findingCount"]
+    assert (
+        status.json()["ecosystem"]["lastScan"]["findingCount"]
+        == last_scan["findingCount"]
+    )
     assert rejected.status_code == 403
 
 
@@ -97,7 +105,9 @@ def test_v10_status_reports_symbol_repo_map_freshness_after_scope_hints(
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
-    (project / "app.py").write_text("def handle_login():\n    return True\n", encoding="utf-8")
+    (project / "app.py").write_text(
+        "def handle_login():\n    return True\n", encoding="utf-8"
+    )
     monkeypatch.chdir(project)
     monkeypatch.setattr(projects, "_LAST_SYMBOL_REPO_MAP_SCAN", None)
 

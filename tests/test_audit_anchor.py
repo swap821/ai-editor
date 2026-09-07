@@ -1,4 +1,5 @@
 """Tests for the external audit-anchoring API wrapper (aios/audit_anchor.py)."""
+
 from __future__ import annotations
 
 import json
@@ -27,7 +28,9 @@ _FAKE_ANCHOR = {
 
 
 def test_get_external_anchor(tmp_path: Path) -> None:
-    with patch("aios.audit_anchor.get_anchor", return_value=dict(_FAKE_ANCHOR)) as mock_get:
+    with patch(
+        "aios.audit_anchor.get_anchor", return_value=dict(_FAKE_ANCHOR)
+    ) as mock_get:
         result = audit_anchor.get_external_anchor(tmp_path / "audit.db")
 
     mock_get.assert_called_once()
@@ -41,10 +44,16 @@ def test_get_external_anchor(tmp_path: Path) -> None:
 
 
 def test_verify_anchor_matches(tmp_path: Path) -> None:
-    valid_status = ChainStatus(valid=True, total_entries=7, head_hash=_FAKE_ANCHOR["head_hash"])
-    with patch("aios.audit_anchor.get_anchor", return_value=dict(_FAKE_ANCHOR)), \
-         patch("aios.audit_anchor.verify_chain", return_value=valid_status):
-        result = audit_anchor.verify_anchor(_FAKE_ANCHOR["head_hash"], tmp_path / "audit.db")
+    valid_status = ChainStatus(
+        valid=True, total_entries=7, head_hash=_FAKE_ANCHOR["head_hash"]
+    )
+    with (
+        patch("aios.audit_anchor.get_anchor", return_value=dict(_FAKE_ANCHOR)),
+        patch("aios.audit_anchor.verify_chain", return_value=valid_status),
+    ):
+        result = audit_anchor.verify_anchor(
+            _FAKE_ANCHOR["head_hash"], tmp_path / "audit.db"
+        )
 
     assert result["matches"] is True
     assert result["chain_valid"] is True
@@ -54,9 +63,13 @@ def test_verify_anchor_matches(tmp_path: Path) -> None:
 
 
 def test_verify_anchor_mismatch(tmp_path: Path) -> None:
-    valid_status = ChainStatus(valid=True, total_entries=7, head_hash=_FAKE_ANCHOR["head_hash"])
-    with patch("aios.audit_anchor.get_anchor", return_value=dict(_FAKE_ANCHOR)), \
-         patch("aios.audit_anchor.verify_chain", return_value=valid_status):
+    valid_status = ChainStatus(
+        valid=True, total_entries=7, head_hash=_FAKE_ANCHOR["head_hash"]
+    )
+    with (
+        patch("aios.audit_anchor.get_anchor", return_value=dict(_FAKE_ANCHOR)),
+        patch("aios.audit_anchor.verify_chain", return_value=valid_status),
+    ):
         result = audit_anchor.verify_anchor("b" * 64, tmp_path / "audit.db")
 
     assert result["matches"] is False

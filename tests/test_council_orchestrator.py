@@ -21,9 +21,7 @@ def test_council_orchestrator_refuses_unbound_scoped_memory_authority(
     tmp_path: Path,
 ) -> None:
     memory = CouncilMemory(db_path=tmp_path / "council_memory.db")
-    authority = MemoryAuthority(
-        store=MemoryAuthorityStore(tmp_path / "authority.db")
-    )
+    authority = MemoryAuthority(store=MemoryAuthorityStore(tmp_path / "authority.db"))
 
     with pytest.raises(RuntimeError, match="scoped CouncilMemory authority"):
         CouncilOrchestrator(

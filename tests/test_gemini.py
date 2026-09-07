@@ -300,7 +300,9 @@ def test_chat_records_the_real_privacy_audit_when_a_tracker_is_supplied() -> Non
     raw_path = r"C:\Users\kumar\ai-editor\secrets.txt"
     fake = FakeGemini(_Response([_Candidate(_Content([_Part(text="ok")]))]))
     tracker = PrivacyAuditTracker()
-    client = GeminiClient(model="m", project="p", client=fake, privacy_audit_tracker=tracker)
+    client = GeminiClient(
+        model="m", project="p", client=fake, privacy_audit_tracker=tracker
+    )
 
     client.chat([{"role": "user", "content": f"read {raw_path}"}])
 
@@ -474,7 +476,12 @@ def test_a_refused_tool_call_is_still_answered() -> None:
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"function": {"name": "execute_terminal", "arguments": {"command": "rm -rf /"}}}
+                    {
+                        "function": {
+                            "name": "execute_terminal",
+                            "arguments": {"command": "rm -rf /"},
+                        }
+                    }
                 ],
             },
             # No {"role": "tool", ...}: the gateway refused it.
@@ -508,7 +515,11 @@ def test_partially_answered_multi_call_turns_are_balanced() -> None:
         ]
     )
 
-    assert len(_function_response_parts(contents)) == len(_function_call_parts(contents)) == 2
+    assert (
+        len(_function_response_parts(contents))
+        == len(_function_call_parts(contents))
+        == 2
+    )
 
 
 def test_all_responses_for_one_call_turn_share_a_single_turn() -> None:
@@ -533,7 +544,9 @@ def test_all_responses_for_one_call_turn_share_a_single_turn() -> None:
         ]
     )
 
-    holders = [c for c in contents if any("function_response" in p for p in c.get("parts", []))]
+    holders = [
+        c for c in contents if any("function_response" in p for p in c.get("parts", []))
+    ]
     assert len(holders) == 1, "responses were split across turns instead of grouped"
     assert len(holders[0]["parts"]) == 2
 

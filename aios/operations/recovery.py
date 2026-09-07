@@ -239,7 +239,7 @@ class BackupDisasterRecoveryAuthority:
     """Own verified backup installation and post-restore invalidation."""
 
     def restore_backup(
-            self,
+        self,
         *,
         bundle: Path,
         data_dir: Path = config.DATA_DIR,
@@ -257,7 +257,11 @@ class BackupDisasterRecoveryAuthority:
         )
         manifest = verify_backup(Path(bundle))
         destination = Path(data_dir).resolve()
-        if destination.exists() and any(destination.iterdir()) and safety_backup is None:
+        if (
+            destination.exists()
+            and any(destination.iterdir())
+            and safety_backup is None
+        ):
             raise RecoveryError("non-empty data directory requires a safety backup")
         if (
             safety_backup is not None
@@ -268,7 +272,9 @@ class BackupDisasterRecoveryAuthority:
 
         parent = destination.parent
         parent.mkdir(parents=True, exist_ok=True)
-        staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.restore-", dir=parent))
+        staging = Path(
+            tempfile.mkdtemp(prefix=f".{destination.name}.restore-", dir=parent)
+        )
         try:
             with tarfile.open(Path(bundle).resolve(), mode="r:gz") as archive:
                 for name in manifest.files:
@@ -295,6 +301,7 @@ class BackupDisasterRecoveryAuthority:
         except Exception:
             shutil.rmtree(staging, ignore_errors=True)
             raise
+
 
 _BACKUP_DISASTER_RECOVERY_AUTHORITY = BackupDisasterRecoveryAuthority()
 

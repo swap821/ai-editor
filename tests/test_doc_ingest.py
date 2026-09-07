@@ -1,4 +1,5 @@
 """Tests for the document ingestion pipeline (RAG grounding)."""
+
 from __future__ import annotations
 
 from pathlib import Path

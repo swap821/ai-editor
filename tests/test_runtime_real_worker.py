@@ -5,6 +5,7 @@ is fully deterministic and needs neither Ollama nor a subprocess. Verification
 commands run for real (a tiny check.py in the workspace) so the self-correction
 loop is genuinely driven by observed pass/fail.
 """
+
 from __future__ import annotations
 
 import sys
@@ -95,7 +96,9 @@ def _contract(workspace: Path, **over: object) -> MissionContract:
     return MissionContract(**data)  # type: ignore[arg-type]
 
 
-def _runtime(contract: MissionContract, gateway: FakeGateway, tmp_path: Path) -> WorkerRuntime:
+def _runtime(
+    contract: MissionContract, gateway: FakeGateway, tmp_path: Path
+) -> WorkerRuntime:
     runtime_root = tmp_path / "runtime"
     return WorkerRuntime(
         contract,
@@ -129,7 +132,9 @@ def test_worker_completes_on_first_attempt(tmp_path: Path) -> None:
     assert code == 0
     result = _result(runtime)
     assert result.status == "completed"
-    assert MARKER in (workspace / "frontend/src/pages/Login.jsx").read_text(encoding="utf-8")
+    assert MARKER in (workspace / "frontend/src/pages/Login.jsx").read_text(
+        encoding="utf-8"
+    )
     assert gateway.calls == 1  # no repair needed
 
 
@@ -172,10 +177,13 @@ def test_worker_self_corrects_after_failed_verification(tmp_path: Path) -> None:
 
 def test_worker_reports_failed_when_repairs_exhausted(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
-    contract = _contract(workspace, metadata={
-        "deterministic_forbidden_probe": "backend/secret.py",
-        "max_repairs": 1,
-    })
+    contract = _contract(
+        workspace,
+        metadata={
+            "deterministic_forbidden_probe": "backend/secret.py",
+            "max_repairs": 1,
+        },
+    )
     gateway = FakeGateway([NO_MARKER, NO_MARKER])  # never satisfies verification
     runtime = _runtime(contract, gateway, tmp_path)
 
@@ -213,10 +221,13 @@ def test_worker_requires_request_change_tool_authority(tmp_path: Path) -> None:
 def test_worker_cannot_write_outside_scope(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     # Point the worker at an out-of-scope target; even with reasoning it must be blocked.
-    contract = _contract(workspace, metadata={
-        "deterministic_forbidden_probe": "backend/secret.py",
-        "deterministic_target_file": "backend/evil.py",
-    })
+    contract = _contract(
+        workspace,
+        metadata={
+            "deterministic_forbidden_probe": "backend/secret.py",
+            "deterministic_target_file": "backend/evil.py",
+        },
+    )
     gateway = FakeGateway(["malicious content"])
     runtime = _runtime(contract, gateway, tmp_path)
 
@@ -245,10 +256,14 @@ def test_worker_refuses_without_verification_commands(tmp_path: Path) -> None:
     assert code == 1
     assert _result(runtime).status == "contract_violation"
     assert gateway.calls == 0  # bailed before generating/writing anything
-    assert MARKER not in (workspace / "frontend/src/pages/Login.jsx").read_text(encoding="utf-8")
+    assert MARKER not in (workspace / "frontend/src/pages/Login.jsx").read_text(
+        encoding="utf-8"
+    )
 
 
-def test_worker_rejects_oversized_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_worker_rejects_oversized_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """DoS guard: content exceeding WORKER_MAX_FILE_BYTES is refused, not written."""
     monkeypatch.setattr("aios.config.WORKER_MAX_FILE_BYTES", 1000)
     workspace = _workspace(tmp_path)
@@ -263,7 +278,10 @@ def test_worker_rejects_oversized_content(tmp_path: Path, monkeypatch: pytest.Mo
     assert code == 1
     assert _result(runtime).status == "contract_violation"
     # the oversized content was never written to disk
-    assert len((workspace / "frontend/src/pages/Login.jsx").read_text(encoding="utf-8")) < 1000
+    assert (
+        len((workspace / "frontend/src/pages/Login.jsx").read_text(encoding="utf-8"))
+        < 1000
+    )
 
 
 def test_worker_fails_honestly_when_reasoning_unavailable(tmp_path: Path) -> None:
@@ -281,4 +299,6 @@ def test_worker_fails_honestly_when_reasoning_unavailable(tmp_path: Path) -> Non
     assert result.status == "failed"
     assert "reasoning unavailable" in result.summary
     # The target was never falsely edited to claim success.
-    assert MARKER not in (workspace / "frontend/src/pages/Login.jsx").read_text(encoding="utf-8")
+    assert MARKER not in (workspace / "frontend/src/pages/Login.jsx").read_text(
+        encoding="utf-8"
+    )

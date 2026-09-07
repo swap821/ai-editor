@@ -1,4 +1,5 @@
 """Tests for aios.memory.facts — semantic fact CRUD, contradiction, and graph walk."""
+
 from pathlib import Path
 
 import pytest

@@ -1,4 +1,5 @@
 """Integration tests — NativePlanner wired into Planner (sovereignty S3)."""
+
 from __future__ import annotations
 
 import json
@@ -136,7 +137,9 @@ def test_native_plan_escalates_low_confidence() -> None:
     plan = planner.plan("build something")
     # All steps carry evidence_confidence = 0.72 exactly at threshold -> approved
     assert plan.native_source is not None
-    assert all(s.confidence == plan.native_source.evidence_confidence for s in plan.steps)
+    assert all(
+        s.confidence == plan.native_source.evidence_confidence for s in plan.steps
+    )
 
 
 def test_native_plan_below_gate_escalates() -> None:

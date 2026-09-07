@@ -1,4 +1,5 @@
 """Unit tests for the NativePlanner — sovereignty S3."""
+
 from __future__ import annotations
 
 import pytest
@@ -13,7 +14,9 @@ from aios.core.native_planner import NativePlanner, NativePlanResult
 class FakeSwarmPatterns:
     """Minimal fake for SwarmPatternMemory.recall()."""
 
-    def __init__(self, results: list[dict] | None = None, *, raise_on_recall: bool = False):
+    def __init__(
+        self, results: list[dict] | None = None, *, raise_on_recall: bool = False
+    ):
         self._results = results or []
         self._raise = raise_on_recall
 
@@ -26,7 +29,9 @@ class FakeSwarmPatterns:
 class FakeSkillMemory:
     """Minimal fake for SkillMemory.relevant_verified()."""
 
-    def __init__(self, results: list[dict] | None = None, *, raise_on_recall: bool = False):
+    def __init__(
+        self, results: list[dict] | None = None, *, raise_on_recall: bool = False
+    ):
         self._results = results or []
         self._raise = raise_on_recall
 

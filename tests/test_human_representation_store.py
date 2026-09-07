@@ -209,9 +209,7 @@ def test_authenticated_preference_lookup_excludes_unbound_and_foreign_rows(
         ),
         operator_identity_digest="operator-b-digest",
     )
-    store.save(
-        _preference(preference_id="pref-legacy", domain="tools", key="shell")
-    )
+    store.save(_preference(preference_id="pref-legacy", domain="tools", key="shell"))
 
     selected = store.list_active_for_operator_scope(
         "operator-a-digest", "project:ai-editor"
@@ -219,14 +217,16 @@ def test_authenticated_preference_lookup_excludes_unbound_and_foreign_rows(
 
     assert [pref.preference_id for pref in selected] == ["pref-owned"]
 
+
 def test_authenticated_preference_cannot_be_overwritten_or_withdrawn_without_its_owner(
     tmp_path: Path,
 ) -> None:
     store = _pref_store(tmp_path / "mem.db")
     preference = _preference(valid_from="2026-01-01T00:00:00+00:00")
-    assert store.save(
-        preference, operator_identity_digest="operator-a-digest"
-    ).saved is True
+    assert (
+        store.save(preference, operator_identity_digest="operator-a-digest").saved
+        is True
+    )
 
     replacement = preference.model_copy(
         update={"valid_from": "2026-06-01T00:00:00+00:00"}
@@ -243,9 +243,13 @@ def test_authenticated_preference_cannot_be_overwritten_or_withdrawn_without_its
         )
         is False
     )
-    assert store.withdraw(
-        preference.preference_id, operator_identity_digest="operator-a-digest"
-    ) is True
+    assert (
+        store.withdraw(
+            preference.preference_id, operator_identity_digest="operator-a-digest"
+        )
+        is True
+    )
+
 
 def test_list_for_scope_empty_for_unknown_scope(tmp_path: Path) -> None:
     store = _pref_store(tmp_path / "mem.db")
@@ -349,6 +353,7 @@ def test_withdrawal_preserves_an_authenticated_preference_binding(
     records = store.list_for_operator_scope(owner, "project:ai-editor")
     assert len(records) == 1
     assert records[0].status == "withdrawn"
+
 
 def test_withdraw_marks_status_withdrawn(tmp_path: Path) -> None:
     store = _pref_store(tmp_path / "mem.db")
@@ -503,6 +508,7 @@ def test_get_current_with_revision_preserves_the_active_passport_revision(
     assert revision == 2
     assert passport.verified_at_commit == "sha-b"
 
+
 def test_get_current_is_none_for_unknown_project(tmp_path: Path) -> None:
     store = ProjectPassportStore(tmp_path / "mem.db")
     assert store.get_current("no-such-project") is None
@@ -577,6 +583,7 @@ def test_save_returns_the_durable_human_state_hypothesis_id(tmp_path: Path) -> N
     hypothesis_id = store.save("session-1", "turn-1", _hypothesis())
 
     assert hypothesis_id == 1
+
 
 def test_save_and_get_history_round_trips_a_hypothesis(tmp_path: Path) -> None:
     store = HumanStateHypothesisStore(tmp_path / "mem.db")

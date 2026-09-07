@@ -135,9 +135,7 @@ def project_passport_status(
     verbatim after an earlier ``return``, making the second copy dead,
     unreachable code.)
     """
-    status = authority.active_project_status(
-        credential_digest(principal.principal_id)
-    )
+    status = authority.active_project_status(credential_digest(principal.principal_id))
     project_id = status["projectId"] if status is not None else None
     last_scan = status["lastScan"] if status is not None else None
     durable = status["durable"] if status is not None else None

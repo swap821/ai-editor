@@ -1,4 +1,5 @@
 """Tests for runtime profile loading, storage, and kernel integration."""
+
 from __future__ import annotations
 
 import json
@@ -17,7 +18,9 @@ from aios.security.gateway import RateLimiter
 def isolated_profiles(monkeypatch, tmp_path):
     """Use a temporary runtime-profiles directory and a fresh registry cache."""
     monkeypatch.setattr(profiles, "RUNTIME_PROFILES_DIR", tmp_path / "runtime_profiles")
-    monkeypatch.setattr(profiles, "ACTIVE_PROFILE_PATH", tmp_path / "runtime_profiles" / "active.json")
+    monkeypatch.setattr(
+        profiles, "ACTIVE_PROFILE_PATH", tmp_path / "runtime_profiles" / "active.json"
+    )
     # Ensure the module-level directory creation uses the new path.
     profiles.RUNTIME_PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -36,6 +39,7 @@ def kernel(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------- #
 # Built-in registry
 # --------------------------------------------------------------------------- #
+
 
 def test_builtin_profiles_loaded():
     assert "local-first" in profiles.RUNTIME_PROFILES
@@ -93,6 +97,7 @@ def test_cloud_task_allowed():
 # Persistence
 # --------------------------------------------------------------------------- #
 
+
 def test_save_and_load_active_profile_roundtrip(isolated_profiles, tmp_path):
     profile = profiles.RUNTIME_PROFILES["operator"]
     profiles.save_active_profile(profile)
@@ -117,6 +122,7 @@ def test_load_active_profile_name_invalid_json(isolated_profiles):
 # PolicyKernel integration
 # --------------------------------------------------------------------------- #
 
+
 def test_kernel_defaults_to_local_first(kernel, monkeypatch, isolated_profiles):
     monkeypatch.delenv("AIOS_RUNTIME_PROFILE", raising=False)
     assert kernel.active_runtime_profile().name == "local-first"
@@ -127,7 +133,9 @@ def test_kernel_respects_runtime_profile_env(kernel, monkeypatch, isolated_profi
     assert kernel.active_runtime_profile().name == "operator"
 
 
-def test_kernel_falls_back_for_unknown_profile_name(kernel, monkeypatch, isolated_profiles):
+def test_kernel_falls_back_for_unknown_profile_name(
+    kernel, monkeypatch, isolated_profiles
+):
     monkeypatch.setenv("AIOS_RUNTIME_PROFILE", "does-not-exist")
     profile = kernel.active_runtime_profile()
     assert profile.name == profiles.default_profile_name()
@@ -200,6 +208,7 @@ def test_kernel_list_runtime_profiles(kernel):
 # Runtime profile overrides env-driven config expectations
 # --------------------------------------------------------------------------- #
 
+
 def test_default_profile_matches_default_config_cloud_tasks():
     """The DEFAULT profile mirrors the shipped default cloud-task eligibility.
 
@@ -235,6 +244,7 @@ def test_cloud_enabled_profiles_are_opt_in_by_name():
 # Integration: decisions reach the router and executor authority surface
 # --------------------------------------------------------------------------- #
 
+
 def test_router_wiring_uses_kernel_policy(monkeypatch, isolated_profiles):
     from aios.core.router_wiring import _router_policy
     from aios.policy import kernel as kernel_module
@@ -264,7 +274,9 @@ def _seed_earned_command(ledger, command: str) -> None:
         )
 
 
-def test_executor_authority_uses_kernel_for_earned_autonomy(kernel, monkeypatch, isolated_profiles, tmp_path):
+def test_executor_authority_uses_kernel_for_earned_autonomy(
+    kernel, monkeypatch, isolated_profiles, tmp_path
+):
     from aios.core.autonomy import AutonomyLedger
     from aios.core.executor import Executor
 
@@ -281,7 +293,9 @@ def test_executor_authority_uses_kernel_for_earned_autonomy(kernel, monkeypatch,
     assert result.status == "OK"
 
 
-def test_executor_authority_respects_profile_without_autonomy(kernel, monkeypatch, isolated_profiles, tmp_path):
+def test_executor_authority_respects_profile_without_autonomy(
+    kernel, monkeypatch, isolated_profiles, tmp_path
+):
     from aios.core.autonomy import AutonomyLedger
     from aios.core.executor import Executor
 

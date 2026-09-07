@@ -3,6 +3,7 @@
 (development's gate is the main.py recording-site downgrade of a weak verified_success
 to 'unverified', reusing development's existing calibration exclusion.)
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,6 +19,7 @@ PASS_WEAK = "[VERIFY PASS] 0 passed, 0 failed (exit 0) (strength=WEAK)"
 
 # --- swarm patterns (verified only via recall) ------------------------------
 
+
 def _swarm(tmp_path: Path) -> SwarmPatternMemory:
     return SwarmPatternMemory(db_path=tmp_path / "mem.db")
 
@@ -25,14 +27,18 @@ def _swarm(tmp_path: Path) -> SwarmPatternMemory:
 def test_swarm_weak_greens_never_verify(tmp_path: Path) -> None:
     sp = _swarm(tmp_path)
     for _ in range(3):
-        sp.record_attempt(_GOAL, ["scout", "work"], success=True, strength=VerificationStrength.WEAK)
+        sp.record_attempt(
+            _GOAL, ["scout", "work"], success=True, strength=VerificationStrength.WEAK
+        )
     assert sp.recall(_GOAL) == []  # never promoted to verified, never recalled
 
 
 def test_swarm_strong_greens_verify(tmp_path: Path) -> None:
     sp = _swarm(tmp_path)
     for _ in range(2):  # min_successes=2 for swarm
-        sp.record_attempt(_GOAL, ["scout", "work"], success=True, strength=VerificationStrength.STRONG)
+        sp.record_attempt(
+            _GOAL, ["scout", "work"], success=True, strength=VerificationStrength.STRONG
+        )
     assert len(sp.recall(_GOAL)) == 1
 
 
@@ -44,6 +50,7 @@ def test_swarm_default_strength_promotes(tmp_path: Path) -> None:
 
 
 # --- curriculum mastery -----------------------------------------------------
+
 
 def _task(cm: CurriculumManager, skill: str = "login") -> dict:
     return next(row for row in cm.list(skill))

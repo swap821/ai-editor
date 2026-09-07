@@ -34,9 +34,24 @@ def audit_db(tmp_path: Path) -> Path:
 
 def test_audit_logger_hash_chain_and_signature(audit_db: Path) -> None:
     # Append multiple actions to audit logger
-    e1 = log_action(actor="op-admin", payload="action=scan_started target=src/", zone="GREEN", db_path=audit_db)
-    e2 = log_action(actor="op-admin", payload="action=repair_create mission=m-100", zone="YELLOW", db_path=audit_db)
-    e3 = log_action(actor="op-admin", payload="action=repair_run status=completed", zone="YELLOW", db_path=audit_db)
+    e1 = log_action(
+        actor="op-admin",
+        payload="action=scan_started target=src/",
+        zone="GREEN",
+        db_path=audit_db,
+    )
+    e2 = log_action(
+        actor="op-admin",
+        payload="action=repair_create mission=m-100",
+        zone="YELLOW",
+        db_path=audit_db,
+    )
+    e3 = log_action(
+        actor="op-admin",
+        payload="action=repair_run status=completed",
+        zone="YELLOW",
+        db_path=audit_db,
+    )
 
     assert e1.entry_id == 1
     assert e2.entry_id == 2
@@ -56,7 +71,9 @@ def test_audit_logger_hash_chain_and_signature(audit_db: Path) -> None:
 def test_audit_logger_secret_redaction(audit_db: Path) -> None:
     # Pass sensitive secret payload
     raw_payload = "api_key=sk-proj-1234567890abcdef1234567890abcdef action=login"
-    entry = log_action(actor="user", payload=raw_payload, zone="YELLOW", db_path=audit_db)
+    entry = log_action(
+        actor="user", payload=raw_payload, zone="YELLOW", db_path=audit_db
+    )
 
     assert entry.redacted is True
 

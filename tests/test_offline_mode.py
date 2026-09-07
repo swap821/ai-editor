@@ -1,4 +1,5 @@
 """Unit tests for AIOS_OFFLINE_MODE graceful degradation (sovereignty S4)."""
+
 from __future__ import annotations
 
 import json
@@ -25,9 +26,9 @@ class FakeLLM:
 
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
         self.called = True
-        return json.dumps({
-            "steps": [{"step_id": "1", "description": "do thing", "confidence": 0.9}]
-        })
+        return json.dumps(
+            {"steps": [{"step_id": "1", "description": "do thing", "confidence": 0.9}]}
+        )
 
     def chat(self, messages: list, **kw: Any) -> dict:
         self.called = True
@@ -99,12 +100,14 @@ def test_planner_offline_native_still_works(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_reflection_offline_skips_silently(
-    monkeypatch: pytest.MonkeyPatch, tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     """With OFFLINE_MODE=True, reflect() returns None without calling the LLM."""
     monkeypatch.setattr(config, "OFFLINE_MODE", True)
 
     from aios.memory.db import init_memory_db
+
     db = tmp_path / "test.db"
     init_memory_db(db)
 
@@ -116,12 +119,14 @@ def test_reflection_offline_skips_silently(
 
 
 def test_reflection_online_calls_llm(
-    monkeypatch: pytest.MonkeyPatch, tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     """With OFFLINE_MODE=False, reflect() calls the LLM normally."""
     monkeypatch.setattr(config, "OFFLINE_MODE", False)
 
     from aios.memory.db import init_memory_db
+
     db = tmp_path / "test.db"
     init_memory_db(db)
 

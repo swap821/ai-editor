@@ -283,11 +283,9 @@ class AuthenticatedChatRepresentation:
         project_scope: str | None = None
         if self.project_passport_authority is not None:
             try:
-                selection = (
-                    self.project_passport_authority.active_project_for_operator(
-                        owner_digest,
-                        current_commit_lookup=self.current_commit_lookup,
-                    )
+                selection = self.project_passport_authority.active_project_for_operator(
+                    owner_digest,
+                    current_commit_lookup=self.current_commit_lookup,
                 )
             except ProjectPassportStaleError as exc:
                 raise AuthenticatedChatRepresentationError(str(exc)) from exc

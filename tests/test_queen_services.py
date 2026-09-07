@@ -83,7 +83,12 @@ def test_reflection_queen_service_escalates_on_prior_failures() -> None:
         await svc.start()
         try:
             return await svc.submit(
-                _contract(metadata={"prior_failure_count": 2, "prior_failure_patterns": ["scope_creep"]})
+                _contract(
+                    metadata={
+                        "prior_failure_count": 2,
+                        "prior_failure_patterns": ["scope_creep"],
+                    }
+                )
             )
         finally:
             await svc.stop()
@@ -113,10 +118,20 @@ def test_project_understanding_queen_service_asks_questions_without_project() ->
 def test_routing_queen_selects_strategy_by_worker_type() -> None:
     queen = RoutingQueen()
 
-    assert queen.review(_contract(worker_type="swarm_worker")).recommended_worker_strategy == "swarm_strategy"
-    assert queen.review(_contract(worker_type="role_pass_worker")).recommended_worker_strategy == "role_pass_strategy"
     assert (
-        queen.review(_contract(worker_type="deterministic_worker")).recommended_worker_strategy
+        queen.review(_contract(worker_type="swarm_worker")).recommended_worker_strategy
+        == "swarm_strategy"
+    )
+    assert (
+        queen.review(
+            _contract(worker_type="role_pass_worker")
+        ).recommended_worker_strategy
+        == "role_pass_strategy"
+    )
+    assert (
+        queen.review(
+            _contract(worker_type="deterministic_worker")
+        ).recommended_worker_strategy
         == "deterministic_worker_strategy"
     )
 

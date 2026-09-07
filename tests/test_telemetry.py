@@ -4,6 +4,7 @@ Observation-only, fail-open: a telemetry write failure must never abort the
 request that triggered it (see GAGOS_SEASON_ONE_KICKOFF.md Phase 1). Every
 test uses an isolated tmp_path database -- never the real memory DB.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -36,14 +37,19 @@ def test_record_run_writes_one_correctly_labeled_row(tmp_path: Path) -> None:
 def test_playbook_replay_and_llm_fallback_each_land_one_row(tmp_path: Path) -> None:
     db_path = tmp_path / "telemetry.db"
     telemetry.record_run(
-        session_id="s1", task_signature="sig-a",
+        session_id="s1",
+        task_signature="sig-a",
         dispatch_path=telemetry.DISPATCH_PLAYBOOK,
-        verified_outcome=telemetry.OUTCOME_PASS, db_path=db_path,
+        verified_outcome=telemetry.OUTCOME_PASS,
+        db_path=db_path,
     )
     telemetry.record_run(
-        session_id="s1", task_signature="sig-b",
-        dispatch_path=telemetry.DISPATCH_LLM, provider="ollama",
-        verified_outcome=telemetry.OUTCOME_PASS, db_path=db_path,
+        session_id="s1",
+        task_signature="sig-b",
+        dispatch_path=telemetry.DISPATCH_LLM,
+        provider="ollama",
+        verified_outcome=telemetry.OUTCOME_PASS,
+        db_path=db_path,
     )
     rows = telemetry.fetch_rows(db_path=db_path)
     assert len(rows) == 2
@@ -57,16 +63,20 @@ def test_record_run_never_raises_on_a_broken_database(tmp_path: Path) -> None:
     broken_path = tmp_path / "not_a_file"
     broken_path.mkdir()
     telemetry.record_run(
-        session_id="s1", task_signature="sig-a",
-        dispatch_path=telemetry.DISPATCH_LLM, db_path=broken_path,
+        session_id="s1",
+        task_signature="sig-a",
+        dispatch_path=telemetry.DISPATCH_LLM,
+        db_path=broken_path,
     )  # must not raise
 
 
 def test_record_run_never_raises_on_invalid_dispatch_path(tmp_path: Path) -> None:
     db_path = tmp_path / "telemetry.db"
     telemetry.record_run(
-        session_id="s1", task_signature="sig-a",
-        dispatch_path="not-a-real-path", db_path=db_path,
+        session_id="s1",
+        task_signature="sig-a",
+        dispatch_path="not-a-real-path",
+        db_path=db_path,
     )  # CHECK constraint violation -- must not raise
     assert telemetry.fetch_rows(db_path=db_path) == []
 
@@ -100,15 +110,32 @@ def test_verified_success_rate_by_path_ignores_unverified_and_aborted() -> None:
 
 def test_cost_per_verified_success_excludes_ollama_tokens() -> None:
     rows = [
-        {"provider": "ollama", "tokens_in": 100, "tokens_out": 100, "verified_outcome": "pass"},
-        {"provider": "gemini", "tokens_in": 50, "tokens_out": 50, "verified_outcome": "pass"},
+        {
+            "provider": "ollama",
+            "tokens_in": 100,
+            "tokens_out": 100,
+            "verified_outcome": "pass",
+        },
+        {
+            "provider": "gemini",
+            "tokens_in": 50,
+            "tokens_out": 50,
+            "verified_outcome": "pass",
+        },
     ]
     # Only the gemini row's 100 tokens count as cost; 2 verified successes total.
     assert telemetry.cost_per_verified_success(rows) == 50.0
 
 
 def test_cost_per_verified_success_zero_passes_is_zero() -> None:
-    rows = [{"provider": "gemini", "tokens_in": 10, "tokens_out": 10, "verified_outcome": "fail"}]
+    rows = [
+        {
+            "provider": "gemini",
+            "tokens_in": 10,
+            "tokens_out": 10,
+            "verified_outcome": "fail",
+        }
+    ]
     assert telemetry.cost_per_verified_success(rows) == 0.0
 
 

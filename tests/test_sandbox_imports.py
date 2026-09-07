@@ -17,6 +17,7 @@ correct and the sandbox could not import it -- scored as a capability failure.
 `training_ground/conftest.py` now puts the sandbox dir on `sys.path`. Nothing
 about the missions, the verifier or the pass criteria changed.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -53,7 +54,10 @@ def sibling_module(tmp_path):
 def _run(test_path: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "pytest", "-o", "addopts=", str(test_path), "-q"],
-        cwd=str(ROOT), capture_output=True, text=True, timeout=120,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
 
 
@@ -62,8 +66,7 @@ def test_a_bare_sibling_import_resolves(sibling_module) -> None:
     result = _run(sibling_module("from _import_probe_mod import VALUE"))
 
     assert result.returncode == 0, (
-        "a test cannot import the module sitting beside it:\n"
-        f"{result.stdout[-400:]}"
+        f"a test cannot import the module sitting beside it:\n{result.stdout[-400:]}"
     )
 
 
@@ -72,7 +75,7 @@ def test_the_package_qualified_import_still_resolves(sibling_module) -> None:
     result = _run(sibling_module("from training_ground._import_probe_mod import VALUE"))
 
     assert result.returncode == 0, (
-        "the package-qualified import broke:\n" f"{result.stdout[-400:]}"
+        f"the package-qualified import broke:\n{result.stdout[-400:]}"
     )
 
 

@@ -14,6 +14,7 @@ This test closes that gap: it runs the EXACT production command (shared
 builder, no drift) as a real subprocess and walks the output through the
 real parser and the real strength taxonomy.
 """
+
 from __future__ import annotations
 
 import shlex
@@ -27,14 +28,14 @@ from aios.agents.tool_agent import build_auto_verify_command
 from aios.core.verification_strength import VerificationStrength, derive_strength
 from aios.core.verifier import _parse_counts
 
-_TRIVIAL_TEST = '''\
+_TRIVIAL_TEST = """\
 def test_trivially_true():
     assert (1 + 1) == 2
 
 
 def test_also_true():
     assert "aios"[::-1] == "soia"
-'''
+"""
 
 
 def test_real_pytest_auto_verify_reaches_strong(tmp_path_factory) -> None:

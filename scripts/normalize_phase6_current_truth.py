@@ -12,7 +12,10 @@ NEW = "Outside-machine cloud, frozen-spine, browser-session, and human-red-team 
 
 def main() -> int:
     changed = []
-    for path in (ROOT / "release" / "phase6" / "organ23-shortfall.json", ROOT / "release" / "phase6" / "organ23-shortfall.md"):
+    for path in (
+        ROOT / "release" / "phase6" / "organ23-shortfall.json",
+        ROOT / "release" / "phase6" / "organ23-shortfall.md",
+    ):
         text = path.read_text(encoding="utf-8")
         if OLD in text:
             path.write_text(text.replace(OLD, NEW), encoding="utf-8")

@@ -71,7 +71,9 @@ def test_revoke(tmp_path):
 def test_snapshot(tmp_path):
     surface = LiveSurface(db_path=tmp_path / "surface.db")
     surface.emit(SignalType.FILE_LOCK, "file.py", "worker-1")
-    surface.emit(SignalType.ATTENTION_NEEDED, "res", "worker-2", payload={"why": "stuck"})
+    surface.emit(
+        SignalType.ATTENTION_NEEDED, "res", "worker-2", payload={"why": "stuck"}
+    )
     snap = surface.snapshot()
     assert snap["total"] == 2
     assert snap["by_type"][SignalType.FILE_LOCK.value] == 1
@@ -97,7 +99,12 @@ def test_thread_safety(tmp_path):
     def worker(n: int) -> None:
         try:
             for i in range(50):
-                surface.emit(SignalType.PROGRESS_UPDATE, f"res-{n}", f"worker-{n}", payload={"i": i})
+                surface.emit(
+                    SignalType.PROGRESS_UPDATE,
+                    f"res-{n}",
+                    f"worker-{n}",
+                    payload={"i": i},
+                )
         except Exception as exc:  # pragma: no cover - failure path
             errors.append(exc)
 

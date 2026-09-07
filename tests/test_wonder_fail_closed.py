@@ -9,6 +9,7 @@ Earned autonomy is no longer among the default-on flags: it defaults OFF to
 match Invariant II, so the tests below enable it explicitly rather than reading
 the default. What is under test is the evidence floor, not the switch.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -30,7 +31,9 @@ def fresh_ledger(tmp_path: Path) -> AutonomyLedger:
 class TestEarnedAutonomyFailClosed:
     """Even with the flag on, autonomy requires verified evidence."""
 
-    def test_is_earned_false_without_evidence(self, fresh_ledger: AutonomyLedger) -> None:
+    def test_is_earned_false_without_evidence(
+        self, fresh_ledger: AutonomyLedger
+    ) -> None:
         """Evidence, not the flag, is what withholds autonomy here.
 
         This asserted ``EARNED_AUTONOMY_ENABLED is True`` until the default was
@@ -52,7 +55,9 @@ class TestEarnedAutonomyFailClosed:
             fresh_ledger.record_outcome("create", "some/file.py", success=True)
         assert fresh_ledger.is_earned("create", "some/file.py") is False
 
-    def test_disabled_via_env_overrides_default(self, fresh_ledger: AutonomyLedger) -> None:
+    def test_disabled_via_env_overrides_default(
+        self, fresh_ledger: AutonomyLedger
+    ) -> None:
         for _ in range(config.EARNED_AUTONOMY_MIN_SUCCESSES + 5):
             fresh_ledger.record_outcome("create", "some/file.py", success=True)
         with patch.object(config, "EARNED_AUTONOMY_ENABLED", False):
@@ -64,6 +69,7 @@ class TestCouncilReasoningFailClosed:
 
     def test_planner_queen_deterministic_without_llm(self) -> None:
         from aios.council.queens.planner import PlannerQueen
+
         assert config.COUNCIL_REASONING is True
         queen = PlannerQueen(llm=None)
         assert queen._llm is None
@@ -84,9 +90,11 @@ class TestCloudBurstFailClosed:
         # (themselves dependent on AWS/GCP credentials). Asserted here with the
         # flag forced ON, so this proves the credential guard independently
         # rather than passing for free on the new default.
-        with patch.object(config, "SWARM_CLOUD_BURST_ENABLED", True), \
-             patch.object(config, "BEDROCK_ENABLED", False), \
-             patch.object(config, "GEMINI_ENABLED", False):
+        with (
+            patch.object(config, "SWARM_CLOUD_BURST_ENABLED", True),
+            patch.object(config, "BEDROCK_ENABLED", False),
+            patch.object(config, "GEMINI_ENABLED", False),
+        ):
             assert config.SWARM_CLOUD_BURST_ENABLED
             assert not config.BEDROCK_ENABLED
             assert not config.GEMINI_ENABLED

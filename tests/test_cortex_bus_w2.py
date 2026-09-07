@@ -11,6 +11,7 @@ Authority NEVER on the bus: the conformance assertions in this file guarantee th
 "turn.completed" is the only type produced by the generate path, and that it
 carries no authority-bearing payload keys.
 """
+
 from __future__ import annotations
 
 import time
@@ -25,10 +26,13 @@ from tests.cortex_event_helpers import append_event
 
 # ── Slice A: CortexBusDispatcher lifecycle ────────────────────────────────────
 
+
 class TestCortexBusDispatcher:
     """Start/stop a dispatcher without the full app."""
 
-    def test_dispatcher_starts_and_runs_handler_then_stops(self, tmp_path: Path) -> None:
+    def test_dispatcher_starts_and_runs_handler_then_stops(
+        self, tmp_path: Path
+    ) -> None:
         bus = CortexBus(db_path=tmp_path / "bus.db")
         seen: list[BusEvent] = []
         bus.subscribe(seen.append)
@@ -63,7 +67,9 @@ class TestCortexBusDispatcher:
         dispatcher.stop()
         dispatcher.stop()  # second stop must not raise
 
-    def test_dispatcher_hint_wake_delivers_before_full_poll_interval(self, tmp_path: Path) -> None:
+    def test_dispatcher_hint_wake_delivers_before_full_poll_interval(
+        self, tmp_path: Path
+    ) -> None:
         """The dispatcher wakes early on a hint, not just on the 250 ms timer."""
         bus = CortexBus(db_path=tmp_path / "bus.db")
         seen: list[float] = []
@@ -98,6 +104,7 @@ class TestCortexBusDispatcher:
 
 # ── Slice B: lifespan wiring ──────────────────────────────────────────────────
 
+
 class TestLifespanWiring:
     """Dispatcher starts in lifespan ONLY when config.CORTEX_BUS is True."""
 
@@ -121,6 +128,7 @@ class TestLifespanWiring:
 
 
 # ── Slice C: producer ─────────────────────────────────────────────────────────
+
 
 class TestProducer:
     """After the 'done' frame, a turn.completed event is appended iff bus is on."""
@@ -186,8 +194,13 @@ class TestProducer:
         payload = events[0].payload["payload"]
         # Authority-bearing keys that must NEVER appear on the bus.
         forbidden = {
-            "skill_promotion", "autonomy_credit", "approval_decision",
-            "zone", "allowed", "verified", "promote",
+            "skill_promotion",
+            "autonomy_credit",
+            "approval_decision",
+            "zone",
+            "allowed",
+            "verified",
+            "promote",
         }
         assert forbidden.isdisjoint(payload.keys()), (
             f"authority key(s) in bus payload: {forbidden & payload.keys()}"
@@ -205,6 +218,7 @@ class TestProducer:
 
 # ── Slice D: consumer ─────────────────────────────────────────────────────────
 
+
 class TestSelfModelConsumer:
     """The self-model rebuild handler synthesizes off the hot path."""
 
@@ -212,15 +226,19 @@ class TestSelfModelConsumer:
         class _FakeDev:
             def task_profile(self) -> dict:
                 return {"coding": (5, 0.9)}
+
         return _FakeDev()
 
     def _fake_mistakes(self) -> Any:
         class _FakeMistakes:
             def recurring(self, *, limit: int = 3) -> list:
                 return [{"lesson_text": "test carefully", "occurrence_count": 2}]
+
         return _FakeMistakes()
 
-    def test_handler_synthesizes_self_model_on_turn_completed(self, tmp_path: Path) -> None:
+    def test_handler_synthesizes_self_model_on_turn_completed(
+        self, tmp_path: Path
+    ) -> None:
         from aios.runtime.self_model_handler import SelfModelHandler
 
         dev = self._fake_dev()
@@ -306,15 +324,18 @@ class TestSelfModelConsumer:
 
 # ── W3 guard: observation-type contract + latency ────────────────────────────
 
+
 class TestW3Guard:
     """Standing assertions that ONLY observation types ever reach the bus."""
 
-    _AUTHORITY_TYPES = frozenset({
-        "skill.promoted",
-        "autonomy.credited",
-        "approval.decided",
-        "zone.classified",
-    })
+    _AUTHORITY_TYPES = frozenset(
+        {
+            "skill.promoted",
+            "autonomy.credited",
+            "approval.decided",
+            "zone.classified",
+        }
+    )
 
     def test_only_observation_types_on_the_bus(self, tmp_path: Path) -> None:
         """Generate path appends only observation event types."""
@@ -366,22 +387,25 @@ class TestW3Guard:
 
         elapsed = time.monotonic() - t0
         assert handler.recall() is not None, "self-model cache was not populated"
-        assert elapsed < 1.0, f"self-model took {elapsed:.2f}s to reflect — > 1 s budget"
+        assert elapsed < 1.0, (
+            f"self-model took {elapsed:.2f}s to reflect — > 1 s budget"
+        )
 
 
 # ── default-off guard (belt-and-suspenders) ───────────────────────────────────
 
+
 def test_cortex_bus_is_on_by_default() -> None:
     """AIOS_CORTEX_BUS defaults True — the W2 cold-path dispatcher is active."""
     from aios import config
+
     assert config.CORTEX_BUS is True
 
 
 def test_cortex_bus_pinned_by_aliveness_suite() -> None:
     """Verify the aliveness suite covers CORTEX_BUS."""
     import pathlib
+
     src = pathlib.Path(__file__).parent / "test_aliveness_defaults.py"
     source = src.read_text(encoding="utf-8")
-    assert "CORTEX_BUS" in source, (
-        "test_aliveness_defaults.py must pin CORTEX_BUS"
-    )
+    assert "CORTEX_BUS" in source, "test_aliveness_defaults.py must pin CORTEX_BUS"

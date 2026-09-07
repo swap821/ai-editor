@@ -189,9 +189,7 @@ class FailoverChatClient:
                     },
                 )
             if self._privacy_audit_tracker is not None:
-                self._privacy_audit_tracker.record(
-                    self._candidates[started][2], audit
-                )
+                self._privacy_audit_tracker.record(self._candidates[started][2], audit)
 
         attempted: set[int] = set()
         attempted_cloud_providers: set[str] = set()
@@ -223,8 +221,9 @@ class FailoverChatClient:
             # now -- skip it exactly like an H9-skip (never attempted, self._idx
             # untouched) rather than paying a real network timeout to confirm
             # what the tracker already knows.
-            if self._provider_health is not None and not self._provider_health.is_call_allowed(
-                provider
+            if (
+                self._provider_health is not None
+                and not self._provider_health.is_call_allowed(provider)
             ):
                 continue
 
@@ -316,9 +315,7 @@ class FailoverChatClient:
                     },
                 )
             if self._privacy_audit_tracker is not None:
-                self._privacy_audit_tracker.record(
-                    self._candidates[started][2], audit
-                )
+                self._privacy_audit_tracker.record(self._candidates[started][2], audit)
 
         attempted: set[int] = set()
         attempted_cloud_providers: set[str] = set()
@@ -340,8 +337,9 @@ class FailoverChatClient:
                     provider,
                 )
 
-            if self._provider_health is not None and not self._provider_health.is_call_allowed(
-                provider
+            if (
+                self._provider_health is not None
+                and not self._provider_health.is_call_allowed(provider)
             ):
                 continue
 
@@ -456,9 +454,7 @@ class FailoverChatClient:
                     },
                 )
             if self._privacy_audit_tracker is not None:
-                self._privacy_audit_tracker.record(
-                    self._candidates[started][2], audit
-                )
+                self._privacy_audit_tracker.record(self._candidates[started][2], audit)
 
         attempted: set[int] = set()
         attempted_cloud_providers: set[str] = set()
@@ -480,8 +476,9 @@ class FailoverChatClient:
                     provider,
                 )
 
-            if self._provider_health is not None and not self._provider_health.is_call_allowed(
-                provider
+            if (
+                self._provider_health is not None
+                and not self._provider_health.is_call_allowed(provider)
             ):
                 continue
 

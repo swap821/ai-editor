@@ -435,7 +435,9 @@ GEMINI_MODEL: Final[str] = _env_str("AIOS_GEMINI_MODEL", "gemini-2.5-flash")
 VERTEX_MAAS_MODEL: Final[str] = _env_str(
     "AIOS_VERTEX_MAAS_MODEL", "deepseek-ai/deepseek-r1-0528-maas"
 )
-VERTEX_MAAS_PROJECT: Final[str] = _env_str("AIOS_VERTEX_MAAS_PROJECT", "") or GEMINI_PROJECT
+VERTEX_MAAS_PROJECT: Final[str] = (
+    _env_str("AIOS_VERTEX_MAAS_PROJECT", "") or GEMINI_PROJECT
+)
 VERTEX_MAAS_LOCATION: Final[str] = _env_str("AIOS_VERTEX_MAAS_LOCATION", "us-central1")
 # Output budget. 8192, not the OPENAI_MAX_TOKENS default of 1024, for the same
 # reason GEMINI_MAX_TOKENS is 8192: these models THINK before they answer, and

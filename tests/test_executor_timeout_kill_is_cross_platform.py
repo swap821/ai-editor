@@ -71,9 +71,7 @@ def test_a_timeout_kills_the_child_rather_than_raising_attributeerror(
         monkeypatch.delattr(os, name, raising=False)
 
     process = _HangingProcess()
-    monkeypatch.setattr(
-        executor_module.subprocess, "Popen", lambda *a, **k: process
-    )
+    monkeypatch.setattr(executor_module.subprocess, "Popen", lambda *a, **k: process)
 
     with pytest.raises(subprocess.TimeoutExpired):
         executor_module._bounded_run(
@@ -114,9 +112,7 @@ def test_the_posix_group_kill_is_still_preferred_where_it_exists(
     )
 
     process = _HangingProcess()
-    monkeypatch.setattr(
-        executor_module.subprocess, "Popen", lambda *a, **k: process
-    )
+    monkeypatch.setattr(executor_module.subprocess, "Popen", lambda *a, **k: process)
 
     with pytest.raises(subprocess.TimeoutExpired):
         executor_module._bounded_run(

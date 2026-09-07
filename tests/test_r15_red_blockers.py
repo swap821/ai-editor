@@ -24,13 +24,13 @@ def test_red_1_executor_service_cannot_run_registered_repair(tmp_path, monkeypat
     """Red Test 1: The standalone private Executor service cannot run REMOVE_MAINTENANCE_MARKER_V1."""
     monkeypatch.setenv("AIOS_EXECUTOR_TOKEN", "test-token")
     monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(tmp_path))
-    
+
     stage_dir = tmp_path / "stage-1"
     stage_dir.mkdir()
     target_file = stage_dir / "src" / "fix.py"
     target_file.parent.mkdir(parents=True)
     target_file.write_text("# DEFECT_MARKER: fix_required\nprint('hello')\n")
-    
+
     job = ExecutorJob(
         job_id="job-repair-red-1",
         mission_contract_digest="contract-digest-1",
@@ -133,12 +133,13 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         metadata_confidence="verified",
     )
     mock_local_workforce.registry.list_models.return_value = [model]
-    
+
     mock_mission_service = MagicMock()
     mock_traj_repo = MagicMock()
     mock_skill_repo = MagicMock()
-    
+
     from aios.domain.verification import SkillVerifierSpec
+
     spec = SkillVerifierSpec(
         verifier_id="skill.reuse",
         version="1",
@@ -170,9 +171,10 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         updated_at="2026-07-20T00:00:00Z",
     )
     mock_skill_repo.get.return_value = skill
-    
+
     from aios.domain.learning.reuse_orchestrator import EscalateToFrontierDirective
     from aios.domain.local_workforce.contracts import LocalJobResult
+
     mock_local_workforce.run_advisory_job.return_value = LocalJobResult(
         job_id="job-1",
         model_id="granite3.2:2b",
@@ -183,7 +185,7 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         latency=0.1,
         status="completed",
     )
-    
+
     service = LearningService(
         mission_service=mock_mission_service,
         trajectory_repository=mock_traj_repo,
@@ -192,7 +194,7 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         reuse_policy=lambda s, c: True,
         verification_plan_validator=lambda s: True,
     )
-    
+
     directive = service.attempt_local_reuse(
         skill_id="test-skill",
         version=1,
@@ -206,5 +208,5 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         mission_allowed_tools=(),
         validated_version="1.0",
     )
-    
+
     assert not isinstance(directive, EscalateToFrontierDirective)

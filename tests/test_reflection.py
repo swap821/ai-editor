@@ -3,6 +3,7 @@
 Uses a fake in-memory LLM client implementing the :class:`LLMClient` protocol,
 so these tests need neither Ollama nor a network connection.
 """
+
 from __future__ import annotations
 
 import json
@@ -100,7 +101,9 @@ def test_reflect_writes_pending_lesson(db_path: Path) -> None:
 
 def test_malformed_json_is_rejected_without_writing(db_path: Path) -> None:
     mistakes = MistakeMemory(db_path)
-    agent = ReflectionAgent(FakeLLM("Sorry, I can't help with that."), mistakes=mistakes)
+    agent = ReflectionAgent(
+        FakeLLM("Sorry, I can't help with that."), mistakes=mistakes
+    )
     with pytest.raises(ReflectionError):
         agent.reflect("x", "y", task_id="t1")
     assert mistakes.count() == 0
@@ -186,6 +189,7 @@ def test_reflection_with_governed_adapter_preserves_json_mode_and_context(
         for context in context_store.list_recent()
     )
 
+
 def test_reflect_stores_the_failed_command(db_path: Path) -> None:
     # The failed command is persisted so a later turn can rebuild the fail->confirm
     # tracker across an approval pause. A secret-free command is stored unchanged
@@ -204,17 +208,24 @@ def test_reflect_scrubs_a_secret_in_the_failed_command(db_path: Path) -> None:
     secret = "sk-ant-api03-" + "A" * 40
     r = agent.reflect(
         f'curl -H "Authorization: Bearer {secret}" https://api.internal/x',
-        "boom", task_id="t1",
+        "boom",
+        task_id="t1",
     )
     stored = mistakes.get(r.mistake_id)["failed_command"]
-    assert secret not in stored, "a credential in the failed command must be redacted at rest"
+    assert secret not in stored, (
+        "a credential in the failed command must be redacted at rest"
+    )
 
 
-def test_pending_command_pairs_lists_pending_and_excludes_promoted(db_path: Path) -> None:
+def test_pending_command_pairs_lists_pending_and_excludes_promoted(
+    db_path: Path,
+) -> None:
     mistakes = MistakeMemory(db_path)
     agent = ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes)
     r = agent.reflect("pytest lab/test_x.py -q", "boom", task_id="sess")
-    assert (r.mistake_id, "pytest lab/test_x.py -q") in agent.pending_command_pairs("sess")
+    assert (r.mistake_id, "pytest lab/test_x.py -q") in agent.pending_command_pairs(
+        "sess"
+    )
     # A different session's lessons never leak into this one's tracker seed.
     assert agent.pending_command_pairs("other") == []
     # Once promoted (verified), it is no longer a pending pair to re-confirm.
@@ -277,7 +288,9 @@ def test_recall_pending_returns_session_lessons_until_verified(db_path: Path) ->
     agent = ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes)
     reflection = agent.reflect("cat missing.txt", "No such file", task_id="sess-A")
     # A lesson from a different session must not leak into sess-A's recall.
-    ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes).reflect("x", "y", task_id="sess-B")
+    ReflectionAgent(FakeLLM(_VALID), mistakes=mistakes).reflect(
+        "x", "y", task_id="sess-B"
+    )
 
     pending = agent.recall_pending("sess-A")
     assert [p["mistake_id"] for p in pending] == [reflection.mistake_id]

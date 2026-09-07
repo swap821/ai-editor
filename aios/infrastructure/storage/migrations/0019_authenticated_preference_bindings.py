@@ -19,7 +19,8 @@ class AuthenticatedPreferenceBindingsMigration:
     @staticmethod
     def apply(conn: sqlite3.Connection) -> None:
         columns = {
-            row[1] for row in conn.execute("PRAGMA table_info(operator_preference_sidecar)")
+            row[1]
+            for row in conn.execute("PRAGMA table_info(operator_preference_sidecar)")
         }
         if "operator_identity_digest" not in columns:
             conn.execute(

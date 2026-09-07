@@ -319,6 +319,7 @@ class IdentityAuthority:
             operator_id
         ).snapshot_digest
 
+
 IdentityService = IdentityAuthority
 
 __all__ = ["IdentityAuthority", "IdentityService"]

@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from aios.application.intelligence.context_compiler import compile_representative_context
+from aios.application.intelligence.context_compiler import (
+    compile_representative_context,
+)
 from aios.infrastructure.intelligence.representative_context_store import (
     RecordTamperedError,
     RepresentativeContextStore,

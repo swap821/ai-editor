@@ -49,7 +49,10 @@ from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
 from aios.council import CouncilMissionRequest, CouncilOrchestrator
-from aios.council.gateway_reasoning import build_council_llm_client, build_dissent_llm_client
+from aios.council.gateway_reasoning import (
+    build_council_llm_client,
+    build_dissent_llm_client,
+)
 from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
 from aios.infrastructure.missions.transition_journal_store import (
     MissionTransitionJournal,

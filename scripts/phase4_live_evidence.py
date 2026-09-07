@@ -237,7 +237,7 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
         6,
         "Edge Trust Boundary",
         "EdgeTrustAuthority + rp._probe_edge",
-        lambda: (f"owner={type(EdgeTrustAuthority()).__name__}; {rp._probe_edge()}"),
+        lambda: f"owner={type(EdgeTrustAuthority()).__name__}; {rp._probe_edge()}",
     )
 
     # ------------------------------------------------------------------ #
@@ -594,7 +594,7 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
         24,
         "Human Sovereign Identity",
         "IdentityAuthority via rp._probe_identity",
-        lambda: (f"owner={IdentityAuthority.__name__}; {rp._probe_identity(scratch)}"),
+        lambda: f"owner={IdentityAuthority.__name__}; {rp._probe_identity(scratch)}",
     )
 
     # --- organ 25 Constitutional Kernel ---

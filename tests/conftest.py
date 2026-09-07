@@ -16,6 +16,7 @@ to ``[]`` on an empty index without ever loading the embedding model.
 Nothing from ``aios`` may be imported above this assignment, or config would bind
 to the real ``data/`` first.
 """
+
 from __future__ import annotations
 
 import atexit
@@ -29,6 +30,7 @@ import pytest
 
 # Patch TestClient to always include a local Origin so mutation protection allows it
 from fastapi.testclient import TestClient
+
 _original_testclient_init = TestClient.__init__
 _original_testclient_request = TestClient.request
 _TEST_OPERATOR_CREDENTIAL = None
@@ -96,6 +98,8 @@ def _patched_testclient_init(self, *args, **kwargs):
         csrf_token = identity.sessions.ensure_csrf_token(authenticated.session_cookie)
         self.cookies.set("session_id", authenticated.session_cookie)
         self.cookies.set("csrf_token", csrf_token)
+
+
 TestClient.__init__ = _patched_testclient_init
 
 
@@ -151,7 +155,9 @@ if os.name == "nt":
 # git-repo trees), and a git worktree checkout adds its own long prefix on top of
 # the repo root. 8 hex chars (~4e9 values) is still effectively collision-free for
 # a single machine's concurrent local runs.
-_DEFAULT_SCRATCH_ROOT = Path(__file__).resolve().parents[1] / ".aios" / "tmp" / "pytest-root"
+_DEFAULT_SCRATCH_ROOT = (
+    Path(__file__).resolve().parents[1] / ".aios" / "tmp" / "pytest-root"
+)
 _PYTEST_SESSION_ROOT = Path(
     os.environ.get(
         "PYTEST_DEBUG_TEMPROOT",

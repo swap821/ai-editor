@@ -102,8 +102,7 @@ def main() -> int:
     verdict = summary.group(1) if summary else "NO-SUMMARY"
     turns = _TURNS.search(log)
     print(
-        f"endurance harness: verdict={verdict} "
-        f"turns={turns.group(1) if turns else '?'}"
+        f"endurance harness: verdict={verdict} turns={turns.group(1) if turns else '?'}"
     )
 
     if not problems:

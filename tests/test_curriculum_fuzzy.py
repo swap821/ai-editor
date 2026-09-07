@@ -7,6 +7,7 @@ available task clears the lexical relevance threshold. Zero or several
 candidates attribute nothing (fail-closed): fuzzy can widen attempts, never
 launder mastery — the STRONG promotion floor and held-out gates are untouched.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -52,7 +53,9 @@ def test_ambiguous_candidates_attribute_nothing(tmp_path: Path) -> None:
     cm.add_task("string-ops", 1, TASK_PROMPT)
     cm.add_task("string-ops", 1, "write a python function that reverses a list")
     updated = cm.record_matching(
-        "write a python function that reverses things", passed=True, evidence=PASS_STRONG
+        "write a python function that reverses things",
+        passed=True,
+        evidence=PASS_STRONG,
     )
     assert updated == []
     for row in cm.list("string-ops"):
@@ -107,20 +110,31 @@ def test_mastery_fires_the_growth_callback_exactly_once(tmp_path: Path) -> None:
     mastered: list[tuple[str, int]] = []
     on_mastered = lambda skill, level: mastered.append((skill, level))  # noqa: E731
 
-    cm.record_matching(training, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered)
+    cm.record_matching(
+        training, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered
+    )
     assert mastered == []  # held-out not yet passed — no growth announced
-    cm.record_matching(held_out, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered)
+    cm.record_matching(
+        held_out, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered
+    )
     assert mastered == [("string-ops", 1)]
 
     # Mastered tasks leave 'available', so the transition can never re-fire.
-    cm.record_matching(training, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered)
+    cm.record_matching(
+        training, passed=True, evidence=PASS_STRONG, on_mastered=on_mastered
+    )
     assert mastered == [("string-ops", 1)]
 
 
 def test_weak_greens_never_announce_growth(tmp_path: Path) -> None:
     cm = _cm(tmp_path, training_passes_required=1)
     cm.add_task("string-ops", 1, TASK_PROMPT)
-    cm.add_task("string-ops", 1, "write a python function that uppercases a string", held_out=True)
+    cm.add_task(
+        "string-ops",
+        1,
+        "write a python function that uppercases a string",
+        held_out=True,
+    )
     mastered: list[tuple[str, int]] = []
     for prompt in (TASK_PROMPT, "write a python function that uppercases a string"):
         cm.record_matching(

@@ -17,6 +17,7 @@ Coverage:
   S6: Contextual assignment patterns
   S7: Base64-encoded secret detection (sliding window)
 """
+
 from __future__ import annotations
 
 import base64
@@ -360,7 +361,7 @@ class TestPrivateKeyDetection:
 
     def test_private_key_in_code(self):
         """TC-SEC-238: Private key in Python string must be detected."""
-        text = "private_key = \"-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAKCAQEA\\n-----END RSA PRIVATE KEY-----\""
+        text = 'private_key = "-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAKCAQEA\\n-----END RSA PRIVATE KEY-----"'
         result = scan_and_redact(text)
         assert result.detected is True
 
@@ -396,7 +397,9 @@ class TestHighEntropyDetection:
         """TC-SEC-242: Shannon entropy of random token > threshold."""
         token = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/"
         entropy = shannon_entropy(token)
-        assert entropy >= 4.0, f"Entropy {entropy} below threshold for credential-like token"
+        assert entropy >= 4.0, (
+            f"Entropy {entropy} below threshold for credential-like token"
+        )
 
 
 # ============================================================================ #

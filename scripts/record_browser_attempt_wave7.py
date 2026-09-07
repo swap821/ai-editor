@@ -55,7 +55,17 @@ def main() -> int:
     if pointer not in attempts:
         attempts.append(pointer)
     INVENTORY.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"artifact": pointer, "promoted": False, "native_rvf": True, "recorder": "npx missing"}, indent=2))
+    print(
+        json.dumps(
+            {
+                "artifact": pointer,
+                "promoted": False,
+                "native_rvf": True,
+                "recorder": "npx missing",
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

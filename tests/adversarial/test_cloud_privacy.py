@@ -18,6 +18,7 @@ gate is deterministic in both directions: a model can never route a task outside
 AIOS_ROUTER_CLOUD_TASKS, and with the set empty nothing is eligible at all.
 Opting in is per task class, e.g. AIOS_ROUTER_CLOUD_TASKS=reasoning,coding.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -39,7 +40,10 @@ class TestSystemPromptFiltering:
     def test_system_prompt_dropped_from_messages(self):
         """TC-SEC-500: System prompt messages must be filtered out."""
         messages = [
-            {"role": "system", "content": "You are Jarvis. Secret: backdoor open sesame."},
+            {
+                "role": "system",
+                "content": "You are Jarvis. Secret: backdoor open sesame.",
+            },
             {"role": "user", "content": "Hello!"},
         ]
         filtered = [m for m in messages if m.get("role") != "system"]
@@ -79,7 +83,10 @@ class TestSystemPromptFiltering:
     def test_system_with_developer_role_filtered(self):
         """TC-SEC-504: developer role system message must be treated as system."""
         messages = [
-            {"role": "developer", "content": "Debug mode enabled. Secret password: hunter2"},
+            {
+                "role": "developer",
+                "content": "Debug mode enabled. Secret password: hunter2",
+            },
             {"role": "user", "content": "Run this"},
         ]
         # developer role should also be filtered as it carries system-level instructions
@@ -109,7 +116,10 @@ class TestFileContentRedaction:
     def test_file_content_passwd_redacted(self):
         """TC-SEC-506: /etc/passwd content must be redacted."""
         messages = [
-            {"role": "tool", "content": "file /etc/passwd: root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1..."},
+            {
+                "role": "tool",
+                "content": "file /etc/passwd: root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1...",
+            },
         ]
         content = str(messages)
         # File content containing sensitive system paths must be flagged
@@ -184,8 +194,9 @@ class TestRouterCloudPolicy:
 
         The history is kept here on purpose: a security case that silently flips to
         match whatever the code does is not evidence of anything."""
-        assert config._ROUTER_CLOUD_TASKS_DEFAULT == (), \
+        assert config._ROUTER_CLOUD_TASKS_DEFAULT == (), (
             "shipped default must send no task class to cloud (opt-in egress)"
+        )
 
     def test_swarm_cloud_burst_default_is_off(self):
         """TC-SEC-512c: the second egress path must also start closed.
@@ -194,8 +205,9 @@ class TestRouterCloudPolicy:
         who locks down the router alone could still egress through a swarm subtask.
         Both switches now default off; this case exists so the two cannot drift
         apart again."""
-        assert config.SWARM_CLOUD_BURST_ENABLED is False, \
+        assert config.SWARM_CLOUD_BURST_ENABLED is False, (
             "swarm cloud burst is a separate egress path and must be opt-in"
+        )
 
     def test_cloud_requires_configured_provider(self):
         """TC-SEC-512b: the real privacy guarantee — even with cloud tasks enabled,
@@ -210,8 +222,9 @@ class TestRouterCloudPolicy:
                 return {"models": ["llama3.1:8b"]}
 
         providers = _build_providers(_Ollama(), bedrock=None, gemini=None)
-        assert all(p.privacy == router.PRIVACY_LOCAL for p in providers), \
+        assert all(p.privacy == router.PRIVACY_LOCAL for p in providers), (
             "no cloud provider may exist without configured cloud creds"
+        )
 
     def test_router_prefer_local_default(self):
         """TC-SEC-513: ROUTER_PREFER_LOCAL must be True by default."""
@@ -248,14 +261,18 @@ class TestSecretScrubbingInToolOutput:
 
     def test_tool_output_stripe_key_scrubbed(self):
         """TC-SEC-518: Stripe key in tool output must be scrubbed."""
-        tool_output = "Payment config: sk_live_FAKE_TEST_1234567890abcdef1234567890abcdef"
+        tool_output = (
+            "Payment config: sk_live_FAKE_TEST_1234567890abcdef1234567890abcdef"
+        )
         result = scan_and_redact(tool_output)
         assert result.detected is True
         assert "REDACTED" in result.scrubbed
 
     def test_tool_output_jwt_scrubbed(self):
         """TC-SEC-519: JWT in tool output must be scrubbed."""
-        tool_output = "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.sig"
+        tool_output = (
+            "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.sig"
+        )
         result = scan_and_redact(tool_output)
         assert result.detected is True
         assert "JWT_TOKEN" in result.findings
@@ -301,7 +318,12 @@ class TestScopeRootPrivacy:
         """TC-SEC-524: Scope roots must not appear in public API responses."""
         # Scope roots contain filesystem paths that are sensitive
         for root in config.SCOPE_ROOTS:
-            assert isinstance(root, type(config.PROJECT_ROOT / "x").__bases__[0] if hasattr(type(config.PROJECT_ROOT / "x"), '__bases__') else object)
+            assert isinstance(
+                root,
+                type(config.PROJECT_ROOT / "x").__bases__[0]
+                if hasattr(type(config.PROJECT_ROOT / "x"), "__bases__")
+                else object,
+            )
             # Paths should be resolved (absolute) not relative
             assert root.is_absolute()
 
@@ -389,6 +411,7 @@ class TestCloudProviderCredentialPrivacy:
         """TC-SEC-536: Credential env vars must not be persisted by config module."""
         # Config module reads env vars but never writes them
         import aios.config as config_module
+
         # There should be no function that writes secrets to disk
         assert not hasattr(config_module, "persist_credentials")
 

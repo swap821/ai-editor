@@ -250,4 +250,3 @@ def test_project_passport_store_save_and_diff_atomic_predecessor(
     assert rev2 == 2
     assert diff2["is_first_scan"] is False
     assert "verified_at_commit" in diff2["changed_fields"]
-

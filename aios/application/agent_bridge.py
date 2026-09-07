@@ -128,7 +128,9 @@ def authorize(
         verdict = classify(command)
         zone = getattr(verdict.zone, "name", str(verdict.zone))
         if verdict.zone is Zone.RED:
-            return BridgeDecision(False, "RED: " + str(verdict.reason), name, zone, command)
+            return BridgeDecision(
+                False, "RED: " + str(verdict.reason), name, zone, command
+            )
         scope = scope_lock.command_stays_in_scope(command)
         if not scope.in_scope:
             return BridgeDecision(
@@ -139,7 +141,9 @@ def authorize(
                 False,
                 "YELLOW needs operator approval; the bridge does not grant it. "
                 + str(verdict.reason),
-                name, zone, command,
+                name,
+                zone,
+                command,
             )
         return BridgeDecision(True, "GREEN and within scope.", name, zone, command)
 
@@ -147,21 +151,27 @@ def authorize(
         target = _first_str(payload, "file_path", "filepath", "path", "notebook_path")
         if not target:
             return BridgeDecision(False, "No path supplied to a write tool.", name)
-        resolved = target if Path(target).is_absolute() else str((base / target).resolve())
+        resolved = (
+            target if Path(target).is_absolute() else str((base / target).resolve())
+        )
         check = scope_lock.is_path_in_scope(resolved)
         if not check.in_scope:
             roots = ", ".join(str(r) for r in scope_lock.get_scope_roots())
             return BridgeDecision(
                 False,
                 "Write outside the sandbox scope (" + roots + "): " + str(check.reason),
-                name, "N/A", target,
+                name,
+                "N/A",
+                target,
             )
         # In scope is not permission to WRITE credential material. Reads were
         # guarded here from the start and writes were not, so the bridge refused
         # to show an agent `.env` while letting it overwrite the file.
         if is_credential_path(target) or is_credential_path(resolved):
             return BridgeDecision(False, refusal_reason(target), name, "N/A", target)
-        return BridgeDecision(True, "Write within the sandbox scope.", name, "N/A", target)
+        return BridgeDecision(
+            True, "Write within the sandbox scope.", name, "N/A", target
+        )
 
     if name in _READ_TOOLS:
         target = _first_str(payload, "file_path", "filepath", "path", "pattern")
@@ -172,7 +182,9 @@ def authorize(
                 False,
                 "Refused: the path names credential material, and handing a key to "
                 "an external agent's context is a leak (AGENTS.md VII.4).",
-                name, "N/A", target,
+                name,
+                "N/A",
+                target,
             )
         resolved = Path(target) if Path(target).is_absolute() else (base / target)
         try:
@@ -181,7 +193,9 @@ def authorize(
             return BridgeDecision(
                 False, "Read outside the project root.", name, "N/A", target
             )
-        return BridgeDecision(True, "Read within the project root.", name, "N/A", target)
+        return BridgeDecision(
+            True, "Read within the project root.", name, "N/A", target
+        )
 
     return BridgeDecision(
         False,

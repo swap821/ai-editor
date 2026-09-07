@@ -183,7 +183,12 @@ def _compile_representative_context(
         "explicit_constraints": list(constraints_final),
         "current_decisions": list(decisions_final),
         "approved_preferences": [
-            {"domain": p.domain, "key": p.key, "value": p.value, "confidence": p.confidence}
+            {
+                "domain": p.domain,
+                "key": p.key,
+                "value": p.value,
+                "confidence": p.confidence,
+            }
             for p in preferences_final
         ],
         "project_passport_digest": (
@@ -247,9 +252,7 @@ class RepresentativeContextCompilerAuthority:
         )
         missing = [name for name in required if not str(kwargs.get(name, "")).strip()]
         if missing:
-            raise ValueError(
-                "representative context requires: " + ", ".join(missing)
-            )
+            raise ValueError("representative context requires: " + ", ".join(missing))
         if kwargs["target"] not in ("local", "cloud"):
             raise ValueError("representative context target must be local or cloud")
         return _compile_representative_context(**kwargs)

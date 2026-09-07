@@ -1,4 +1,5 @@
 """Contract tests for the local Ollama HTTP client; no network is used."""
+
 from __future__ import annotations
 
 import io
@@ -11,7 +12,9 @@ from aios.core.llm import LLMError, OllamaClient
 
 
 class FakeResponse:
-    def __init__(self, body: bytes = b"", *, lines: list[bytes] | None = None, status: int = 200):
+    def __init__(
+        self, body: bytes = b"", *, lines: list[bytes] | None = None, status: int = 200
+    ):
         self.body = body
         self.lines = lines or []
         self.status = status
@@ -41,7 +44,9 @@ def test_complete_sends_options_and_system(monkeypatch) -> None:
         return FakeResponse(b'{"response":"done"}')
 
     monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", urlopen)
-    client = OllamaClient("qwen", host="http://ollama/", timeout_s=9, temperature=0.2, num_ctx=4096)
+    client = OllamaClient(
+        "qwen", host="http://ollama/", timeout_s=9, temperature=0.2, num_ctx=4096
+    )
 
     assert client.complete("build it", system="be precise") == "done"
     assert seen["request"].full_url == "http://ollama/api/generate"
@@ -78,9 +83,16 @@ def test_complete_surfaces_http_transport_and_decode_errors(monkeypatch) -> None
     client = OllamaClient("qwen", host="http://ollama")
 
     error = urllib.error.HTTPError(
-        "http://ollama/api/generate", 500, "server error", None, io.BytesIO(b"out of memory")
+        "http://ollama/api/generate",
+        500,
+        "server error",
+        None,
+        io.BytesIO(b"out of memory"),
     )
-    monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", lambda *a, **k: (_ for _ in ()).throw(error))
+    monkeypatch.setattr(
+        "aios.core.llm.urllib.request.urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(error),
+    )
     with pytest.raises(LLMError, match="out of memory"):
         client.complete("x")
 
@@ -92,7 +104,8 @@ def test_complete_surfaces_http_transport_and_decode_errors(monkeypatch) -> None
         client.complete("x")
 
     monkeypatch.setattr(
-        "aios.core.llm.urllib.request.urlopen", lambda *a, **k: FakeResponse(b"not-json")
+        "aios.core.llm.urllib.request.urlopen",
+        lambda *a, **k: FakeResponse(b"not-json"),
     )
     with pytest.raises(LLMError, match="non-JSON"):
         client.complete("x")
@@ -100,7 +113,9 @@ def test_complete_surfaces_http_transport_and_decode_errors(monkeypatch) -> None
 
 def test_chat_sends_tools_and_model_override(monkeypatch) -> None:
     seen = {}
-    reply = {"message": {"role": "assistant", "content": "", "tool_calls": [{"id": "x"}]}}
+    reply = {
+        "message": {"role": "assistant", "content": "", "tool_calls": [{"id": "x"}]}
+    }
 
     def urlopen(request, timeout):
         seen["request"] = request
@@ -110,7 +125,12 @@ def test_chat_sends_tools_and_model_override(monkeypatch) -> None:
     client = OllamaClient("default", host="http://ollama")
     tools = [{"type": "function", "function": {"name": "read_file"}}]
 
-    assert client.chat([{"role": "user", "content": "read"}], tools=tools, model="tool-model") == reply["message"]
+    assert (
+        client.chat(
+            [{"role": "user", "content": "read"}], tools=tools, model="tool-model"
+        )
+        == reply["message"]
+    )
     assert _payload(seen["request"])["model"] == "tool-model"
     assert _payload(seen["request"])["tools"] == tools
 
@@ -128,7 +148,10 @@ def test_chat_surfaces_http_transport_and_decode_errors(monkeypatch) -> None:
     error = urllib.error.HTTPError(
         "http://ollama/api/chat", 404, "not found", None, io.BytesIO(b"unknown model")
     )
-    monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", lambda *a, **k: (_ for _ in ()).throw(error))
+    monkeypatch.setattr(
+        "aios.core.llm.urllib.request.urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(error),
+    )
     with pytest.raises(LLMError, match="unknown model"):
         client.chat([])
 
@@ -140,7 +163,8 @@ def test_chat_surfaces_http_transport_and_decode_errors(monkeypatch) -> None:
         client.chat([])
 
     monkeypatch.setattr(
-        "aios.core.llm.urllib.request.urlopen", lambda *a, **k: FakeResponse(b"not-json")
+        "aios.core.llm.urllib.request.urlopen",
+        lambda *a, **k: FakeResponse(b"not-json"),
     )
     with pytest.raises(LLMError, match="non-JSON"):
         client.chat([])
@@ -151,18 +175,23 @@ def test_stream_complete_skips_invalid_lines_and_stops_at_done(monkeypatch) -> N
 
     def urlopen(request, timeout):
         seen["request"] = request
-        return FakeResponse(lines=[
-            b"\n",
-            b"not-json\n",
-            b'{"response":"one"}\n',
-            b'{"response":"two","done":true}\n',
-            b'{"response":"ignored"}\n',
-        ])
+        return FakeResponse(
+            lines=[
+                b"\n",
+                b"not-json\n",
+                b'{"response":"one"}\n',
+                b'{"response":"two","done":true}\n',
+                b'{"response":"ignored"}\n',
+            ]
+        )
 
     monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", urlopen)
     client = OllamaClient("default", host="http://ollama")
 
-    assert list(client.stream_complete("go", system="rules", model="selected")) == ["one", "two"]
+    assert list(client.stream_complete("go", system="rules", model="selected")) == [
+        "one",
+        "two",
+    ]
     payload = _payload(seen["request"])
     assert payload["model"] == "selected"
     assert payload["stream"] is True
@@ -180,9 +209,16 @@ def test_stream_complete_surfaces_transport_error(monkeypatch) -> None:
 
 def test_stream_complete_surfaces_http_error_detail(monkeypatch) -> None:
     error = urllib.error.HTTPError(
-        "http://ollama/api/generate", 500, "server error", None, io.BytesIO(b"model crashed")
+        "http://ollama/api/generate",
+        500,
+        "server error",
+        None,
+        io.BytesIO(b"model crashed"),
     )
-    monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", lambda *a, **k: (_ for _ in ()).throw(error))
+    monkeypatch.setattr(
+        "aios.core.llm.urllib.request.urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(error),
+    )
     with pytest.raises(LLMError, match="model crashed"):
         list(OllamaClient("qwen").stream_complete("go"))
 
@@ -190,7 +226,9 @@ def test_stream_complete_surfaces_http_error_detail(monkeypatch) -> None:
 def test_model_discovery_and_availability_fail_soft(monkeypatch) -> None:
     monkeypatch.setattr(
         "aios.core.llm.urllib.request.urlopen",
-        lambda *a, **k: FakeResponse(b'{"models":[{"name":"qwen"},{"name":""},{"other":1}]}'),
+        lambda *a, **k: FakeResponse(
+            b'{"models":[{"name":"qwen"},{"name":""},{"other":1}]}'
+        ),
     )
     client = OllamaClient()
     assert client.list_models() == {"available": True, "models": ["qwen"]}

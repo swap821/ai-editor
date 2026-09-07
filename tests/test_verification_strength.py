@@ -1,4 +1,5 @@
 """Tests for the verification-strength taxonomy + the skills promotion gate (Phase 1)."""
+
 from __future__ import annotations
 
 import sys
@@ -20,49 +21,83 @@ from aios.memory.skills import SkillMemory
 
 # --- derivation (deterministic + command-aware) ----------------------------
 
+
 def test_strong_requires_test_runner_with_passing_assertions() -> None:
-    assert derive_strength(
-        passed=True, passed_count=3, failed_count=0, command="python -m pytest tests -q"
-    ) is VerificationStrength.STRONG
-    assert derive_strength(
-        passed=True, passed_count=5, failed_count=0, command="pytest test_x.py"
-    ) is VerificationStrength.STRONG
+    assert (
+        derive_strength(
+            passed=True,
+            passed_count=3,
+            failed_count=0,
+            command="python -m pytest tests -q",
+        )
+        is VerificationStrength.STRONG
+    )
+    assert (
+        derive_strength(
+            passed=True, passed_count=5, failed_count=0, command="pytest test_x.py"
+        )
+        is VerificationStrength.STRONG
+    )
 
 
 def test_bare_exit_zero_is_weak() -> None:
-    assert derive_strength(
-        passed=True, passed_count=0, failed_count=0, command="echo done"
-    ) is VerificationStrength.WEAK
+    assert (
+        derive_strength(
+            passed=True, passed_count=0, failed_count=0, command="echo done"
+        )
+        is VerificationStrength.WEAK
+    )
 
 
 def test_recognized_checker_is_medium() -> None:
-    assert derive_strength(
-        passed=True, passed_count=0, failed_count=0, command="mypy ."
-    ) is VerificationStrength.MEDIUM
+    assert (
+        derive_strength(passed=True, passed_count=0, failed_count=0, command="mypy .")
+        is VerificationStrength.MEDIUM
+    )
 
 
 def test_failure_is_none() -> None:
-    assert derive_strength(
-        passed=False, passed_count=0, failed_count=2, command="python -m pytest"
-    ) is VerificationStrength.NONE
+    assert (
+        derive_strength(
+            passed=False, passed_count=0, failed_count=2, command="python -m pytest"
+        )
+        is VerificationStrength.NONE
+    )
 
 
 def test_stdout_spoof_cannot_forge_strong() -> None:
     """A non-test command whose 'output' claims passes must NOT be STRONG."""
-    assert derive_strength(
-        passed=True, passed_count=5, failed_count=0, command='echo "5 passed, 0 failed"'
-    ) is VerificationStrength.WEAK
+    assert (
+        derive_strength(
+            passed=True,
+            passed_count=5,
+            failed_count=0,
+            command='echo "5 passed, 0 failed"',
+        )
+        is VerificationStrength.WEAK
+    )
 
 
 def test_runner_token_as_argument_cannot_forge_strong() -> None:
     """The HIGH bypass: a runner token in argument position must NOT be STRONG."""
-    assert derive_strength(
-        passed=True, passed_count=5, failed_count=0,
-        command="echo running pytest now: 5 passed in 0.1s",
-    ) is VerificationStrength.WEAK
-    assert derive_strength(
-        passed=True, passed_count=3, failed_count=0, command="grep passed pytest_notes.txt",
-    ) is VerificationStrength.WEAK
+    assert (
+        derive_strength(
+            passed=True,
+            passed_count=5,
+            failed_count=0,
+            command="echo running pytest now: 5 passed in 0.1s",
+        )
+        is VerificationStrength.WEAK
+    )
+    assert (
+        derive_strength(
+            passed=True,
+            passed_count=3,
+            failed_count=0,
+            command="grep passed pytest_notes.txt",
+        )
+        is VerificationStrength.WEAK
+    )
 
 
 def test_runner_pair_in_argument_position_cannot_forge_strong() -> None:
@@ -79,9 +114,10 @@ def test_runner_pair_in_argument_position_cannot_forge_strong() -> None:
         "cat go test",
         "printf -m unittest 4 passed",
     ):
-        assert derive_strength(
-            passed=True, passed_count=5, failed_count=0, command=cmd
-        ) is VerificationStrength.WEAK, cmd
+        assert (
+            derive_strength(passed=True, passed_count=5, failed_count=0, command=cmd)
+            is VerificationStrength.WEAK
+        ), cmd
 
 
 def test_program_position_runners_still_strong() -> None:
@@ -96,9 +132,10 @@ def test_program_position_runners_still_strong() -> None:
         "yarn test",
         "py -m unittest",
     ):
-        assert derive_strength(
-            passed=True, passed_count=2, failed_count=0, command=cmd
-        ) is VerificationStrength.STRONG, cmd
+        assert (
+            derive_strength(passed=True, passed_count=2, failed_count=0, command=cmd)
+            is VerificationStrength.STRONG
+        ), cmd
 
 
 def test_none_floor_is_clamped_to_strong(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,9 +147,10 @@ def test_none_floor_is_clamped_to_strong(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_test_runner_with_failures_is_not_strong() -> None:
-    assert derive_strength(
-        passed=True, passed_count=3, failed_count=1, command="pytest"
-    ) is not VerificationStrength.STRONG
+    assert (
+        derive_strength(passed=True, passed_count=3, failed_count=1, command="pytest")
+        is not VerificationStrength.STRONG
+    )
 
 
 def test_test_runner_that_asserted_nothing_is_not_strong() -> None:
@@ -125,12 +163,14 @@ def test_test_runner_that_asserted_nothing_is_not_strong() -> None:
         "pytest -q",
         "npm test",
     ):
-        assert derive_strength(
-            passed=True, passed_count=0, failed_count=0, command=cmd
-        ) is VerificationStrength.WEAK, cmd
+        assert (
+            derive_strength(passed=True, passed_count=0, failed_count=0, command=cmd)
+            is VerificationStrength.WEAK
+        ), cmd
 
 
 # --- the gate ---------------------------------------------------------------
+
 
 def test_floor_is_strong_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "VERIFICATION_PROMOTION_FLOOR", "STRONG")
@@ -153,10 +193,15 @@ def test_unknown_floor_falls_back_to_strong(monkeypatch: pytest.MonkeyPatch) -> 
 
 # --- parsing helpers --------------------------------------------------------
 
+
 def test_strength_from_text_reads_token() -> None:
-    assert strength_from_text("[VERIFY PASS] 3 passed, 0 failed (strength=STRONG)") \
+    assert (
+        strength_from_text("[VERIFY PASS] 3 passed, 0 failed (strength=STRONG)")
         is VerificationStrength.STRONG
-    assert strength_from_text("no token here") is VerificationStrength.NONE  # fail-closed
+    )
+    assert (
+        strength_from_text("no token here") is VerificationStrength.NONE
+    )  # fail-closed
 
 
 def test_strength_from_name_and_counts() -> None:
@@ -166,6 +211,7 @@ def test_strength_from_name_and_counts() -> None:
 
 
 # --- the keystone: weak greens cannot imprint -------------------------------
+
 
 def _skills(tmp_path: Path) -> SkillMemory:
     return SkillMemory(db_path=tmp_path / "mem.db")
@@ -180,13 +226,15 @@ def test_weak_greens_never_create_a_verified_skill(tmp_path: Path) -> None:
     skill_id = 0
     for _ in range(3):
         skill_id = skills.record_attempt(
-            "improve login", ["read", "edit"], success=True,
+            "improve login",
+            ["read", "edit"],
+            success=True,
             strength=VerificationStrength.WEAK,
         )
     row = _status(skills, skill_id)
-    assert row["status"] == "candidate"          # never promoted
-    assert row["success_count"] == 0             # weak greens are not eligible
-    assert row["weak_success_count"] == 3        # but they ARE recorded
+    assert row["status"] == "candidate"  # never promoted
+    assert row["success_count"] == 0  # weak greens are not eligible
+    assert row["weak_success_count"] == 3  # but they ARE recorded
 
 
 def test_strong_greens_create_a_verified_skill(tmp_path: Path) -> None:
@@ -194,7 +242,9 @@ def test_strong_greens_create_a_verified_skill(tmp_path: Path) -> None:
     skill_id = 0
     for _ in range(3):
         skill_id = skills.record_attempt(
-            "improve login", ["read", "edit"], success=True,
+            "improve login",
+            ["read", "edit"],
+            success=True,
             strength=VerificationStrength.STRONG,
         )
     row = _status(skills, skill_id)
@@ -209,7 +259,9 @@ def test_default_strength_preserves_existing_behavior(tmp_path: Path) -> None:
     skills = _skills(tmp_path)
     skill_id = 0
     for _ in range(3):
-        skill_id = skills.record_attempt("improve login", ["read", "edit"], success=True)
+        skill_id = skills.record_attempt(
+            "improve login", ["read", "edit"], success=True
+        )
     assert _status(skills, skill_id)["status"] == "verified"
 
 
@@ -218,7 +270,9 @@ def test_medium_greens_are_ineligible_under_strong_floor(tmp_path: Path) -> None
     skill_id = 0
     for _ in range(3):
         skill_id = skills.record_attempt(
-            "typecheck pass", ["edit"], success=True,
+            "typecheck pass",
+            ["edit"],
+            success=True,
             strength=VerificationStrength.MEDIUM,
         )
     row = _status(skills, skill_id)

@@ -92,7 +92,9 @@ def test_critique_joins_for_yellow_risk() -> None:
 
 def test_explain_includes_full_council_flag() -> None:
     policy = CouncilParticipationPolicy()
-    explanation = policy.explain(_contract(risk_level="RED", metadata={"project_id": "p"}))
+    explanation = policy.explain(
+        _contract(risk_level="RED", metadata={"project_id": "p"})
+    )
 
     assert "required" in explanation
     assert "optional" in explanation

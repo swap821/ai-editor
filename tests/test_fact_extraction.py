@@ -7,6 +7,7 @@ recall path (search/facts_for/neighbors/traverse) can see them even in
 principle. A human approval promotes a proposal THROUGH the existing
 contradiction-aware ``add_fact``; contradictions stay pending for reconcile.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,6 +22,7 @@ from aios.memory.facts import SemanticFacts
 
 # ── extractor: deterministic, statements-only, capped ────────────────────────
 
+
 def test_operator_preference_statement_extracts() -> None:
     assert extract_candidates("I prefer dark mode.", max_candidates=3) == [
         ("operator", "prefers", "dark mode")
@@ -28,9 +30,9 @@ def test_operator_preference_statement_extracts() -> None:
 
 
 def test_project_usage_statement_extracts_and_trims_for_clause() -> None:
-    assert extract_candidates(
-        "We use FastAPI for the backend.", max_candidates=3
-    ) == [("project", "uses", "FastAPI")]
+    assert extract_candidates("We use FastAPI for the backend.", max_candidates=3) == [
+        ("project", "uses", "FastAPI")
+    ]
 
 
 def test_operator_attribute_statement_extracts() -> None:
@@ -58,6 +60,7 @@ def test_candidates_are_capped_and_deduplicated() -> None:
 
 
 # ── proposal store: structural quarantine + gated promotion ──────────────────
+
 
 def _facts(tmp_path: Path) -> SemanticFacts:
     db_path = tmp_path / "mem.db"
@@ -150,6 +153,7 @@ def test_resolving_a_non_pending_proposal_fails_closed(tmp_path: Path) -> None:
 
 
 # ── endpoints: pending queue + human-gated resolution ─────────────────────────
+
 
 def test_pending_facts_endpoints_roundtrip(tmp_path: Path) -> None:
     facts = _facts(tmp_path)

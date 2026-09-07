@@ -9,6 +9,7 @@ style -- see ``tests/test_api.py``/``tests/test_chat.py``) and assert a row land
 in the real (test-isolated, see ``tests/conftest.py``) ``run_telemetry`` table with
 honest field values -- not placeholders.
 """
+
 from __future__ import annotations
 
 from typing import Iterator, Optional
@@ -68,7 +69,9 @@ class RecordingAudit:
 
 
 def _fake_executor() -> Executor:
-    return Executor(runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit())
+    return Executor(
+        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+    )
 
 
 def _rows_for(session_id: str) -> list:
@@ -180,7 +183,9 @@ def generate_client(tmp_path) -> Iterator[TestClient]:
     app.dependency_overrides.clear()
 
 
-def test_generate_plain_llm_turn_records_telemetry_row(generate_client: TestClient) -> None:
+def test_generate_plain_llm_turn_records_telemetry_row(
+    generate_client: TestClient,
+) -> None:
     """A plain no-tool-call turn lands exactly one telemetry row: dispatch_path
     'llm' (no playbook/native-plan matched), unverified (nothing was verified),
     with the REAL serving provider/model and a real measured latency."""
@@ -189,7 +194,9 @@ def test_generate_plain_llm_turn_records_telemetry_row(generate_client: TestClie
     response = generate_client.post(
         "/api/generate",
         json={
-            "messages": [{"role": "user", "content": [{"text": "just chat, no tools"}]}],
+            "messages": [
+                {"role": "user", "content": [{"text": "just chat, no tools"}]}
+            ],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": session_id,
         },
@@ -224,7 +231,9 @@ def test_generate_paused_turn_records_aborted_telemetry_row(tmp_path) -> None:
             response = client.post(
                 "/api/generate",
                 json={
-                    "messages": [{"role": "user", "content": [{"text": "pip install flask"}]}],
+                    "messages": [
+                        {"role": "user", "content": [{"text": "pip install flask"}]}
+                    ],
                     "modelId": "ollama.llama3.2:3b",
                     "sessionId": session_id,
                 },
@@ -271,7 +280,10 @@ def test_confidence_gated_turn_records_aborted_telemetry_row(
                 "/api/generate",
                 json={
                     "messages": [
-                        {"role": "user", "content": [{"text": "gated turn probe xyzzy"}]}
+                        {
+                            "role": "user",
+                            "content": [{"text": "gated turn probe xyzzy"}],
+                        }
                     ],
                     "modelId": "ollama.llama3.2:3b",
                     "sessionId": session_id,

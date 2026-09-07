@@ -82,7 +82,9 @@ def test_a_high_severity_finding_is_never_budgeted() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
     assert 'issue_severity"] == "HIGH"' in source
     # The HIGH list must feed `failures` without consulting `budget`.
-    high_block = source.split("# 1. HIGH severity is never budgeted.")[1].split("# 2/3.")[0]
+    high_block = source.split("# 1. HIGH severity is never budgeted.")[1].split(
+        "# 2/3."
+    )[0]
     assert "budget" not in high_block, (
         "HIGH-severity findings are being checked against the budget; they must "
         "fail unconditionally"
@@ -97,10 +99,18 @@ def test_the_fingerprint_ignores_line_numbers() -> None:
     """
     module = _load_module()
     a = module.fingerprint(
-        {"test_id": "B608", "filename": str(REPO_ROOT / "aios" / "x.py"), "line_number": 10}
+        {
+            "test_id": "B608",
+            "filename": str(REPO_ROOT / "aios" / "x.py"),
+            "line_number": 10,
+        }
     )
     b = module.fingerprint(
-        {"test_id": "B608", "filename": str(REPO_ROOT / "aios" / "x.py"), "line_number": 99}
+        {
+            "test_id": "B608",
+            "filename": str(REPO_ROOT / "aios" / "x.py"),
+            "line_number": 99,
+        }
     )
     assert a == b
     assert a == "B608:aios/x.py"

@@ -6,6 +6,7 @@ embedding model is the only shared, network/cache-dependent resource; it is
 loaded once at module scope and the embedding-dependent tests are skipped
 gracefully if the model cannot be obtained (e.g. fully offline first run).
 """
+
 from __future__ import annotations
 
 import time
@@ -110,7 +111,9 @@ def test_memory_migration_hashes_legacy_episodic_session_id(db_path: Path) -> No
     assert session_id.encode() not in db_path.read_bytes()
 
 
-def test_conversation_state_persists_latest_frame_under_hashed_session(db_path: Path) -> None:
+def test_conversation_state_persists_latest_frame_under_hashed_session(
+    db_path: Path,
+) -> None:
     session_id = "private-conversation-session"
     store = ConversationStateStore(db_path)
     store.save(session_id, {"goal": "first", "intent": "plan"})
@@ -161,7 +164,10 @@ def test_conversation_correction_revision_supersedes_and_clears_to_base(
 
     assert persisted["correction"]["revision"] == revision
     assert second_persisted["correction"]["revision"] == second_revision
-    assert store.active_correction(session_id)["corrections"]["goal"] == "Implement the public API"
+    assert (
+        store.active_correction(session_id)["corrections"]["goal"]
+        == "Implement the public API"
+    )
     assert store.active_correction_revision(session_id) == second_revision
     assert [item["status"] for item in store.correction_history(session_id)] == [
         "active",
@@ -197,17 +203,24 @@ def test_correction_transition_rollback_restores_last_auditable_state(
         expected_revision=first_revision,
     )
 
-    assert store.rollback_correction_transition(
-        "sess", expected_revision=second_revision, expected_status="active"
-    ) == first_persisted
+    assert (
+        store.rollback_correction_transition(
+            "sess", expected_revision=second_revision, expected_status="active"
+        )
+        == first_persisted
+    )
     assert store.active_correction_revision("sess") == first_revision
 
     store.clear_correction("sess")
     clear_revision = store.correction_lineage_frames("sess", limit=1)[0]["revision"]
-    assert store.rollback_correction_transition(
-        "sess", expected_revision=clear_revision, expected_status="cleared"
-    ) == first_persisted
+    assert (
+        store.rollback_correction_transition(
+            "sess", expected_revision=clear_revision, expected_status="cleared"
+        )
+        == first_persisted
+    )
     assert store.active_correction_revision("sess") == first_revision
+
 
 def test_active_correction_refresh_makes_clear_restore_latest_interpretation(
     db_path: Path,
@@ -230,7 +243,9 @@ def test_active_correction_refresh_makes_clear_restore_latest_interpretation(
     assert store.clear_correction("sess") == {"goal": "Latest interpreted base"}
 
 
-def test_conversation_correction_rejects_stale_concurrent_revision(db_path: Path) -> None:
+def test_conversation_correction_rejects_stale_concurrent_revision(
+    db_path: Path,
+) -> None:
     store = ConversationStateStore(db_path)
     revision, _ = store.record_correction(
         "sess",
@@ -324,7 +339,9 @@ def test_semantic_add_and_hybrid_search_ranks_relevant_first(
     index = VectorIndex(path=tmp_path / "index.faiss", dim=embedder.dim)
     sem = SemanticMemory(db_path, index=index, embedder=embedder)
 
-    sem.add("The security gateway classifies actions into GREEN, YELLOW, and RED zones.")
+    sem.add(
+        "The security gateway classifies actions into GREEN, YELLOW, and RED zones."
+    )
     sem.add("FAISS performs approximate nearest-neighbour vector search.")
     sem.add("My favourite breakfast is buttered toast with jam.")
 
@@ -353,8 +370,7 @@ def test_hybrid_search_empty_index_returns_empty(
 ) -> None:
     index = VectorIndex(path=tmp_path / "empty.faiss", dim=embedder.dim)
     assert (
-        hybrid_search("anything", db_path=db_path, index=index, embedder=embedder)
-        == []
+        hybrid_search("anything", db_path=db_path, index=index, embedder=embedder) == []
     )
 
 
@@ -407,7 +423,9 @@ def test_semantic_add_removes_db_row_when_embedding_fails(db_path: Path) -> None
     assert sem.count() == 0
 
 
-def test_semantic_add_redacts_secrets_before_embedding_and_persistence(db_path: Path) -> None:
+def test_semantic_add_redacts_secrets_before_embedding_and_persistence(
+    db_path: Path,
+) -> None:
     seen: list[str] = []
 
     class FakeEmbedder:
@@ -480,7 +498,10 @@ def test_semantic_add_serialises_index_mutations(db_path: Path) -> None:
         SemanticMemory(db_path, index=index, embedder=FakeEmbedder()),
         SemanticMemory(db_path, index=index, embedder=FakeEmbedder()),
     ]
-    threads = [threading.Thread(target=mem.add, args=(f"row-{i}",)) for i, mem in enumerate(memories)]
+    threads = [
+        threading.Thread(target=mem.add, args=(f"row-{i}",))
+        for i, mem in enumerate(memories)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -490,24 +511,34 @@ def test_semantic_add_serialises_index_mutations(db_path: Path) -> None:
     assert memories[0].count() == 2
 
 
-def test_semantic_add_reloads_durable_index_before_each_write(db_path: Path, tmp_path: Path) -> None:
+def test_semantic_add_reloads_durable_index_before_each_write(
+    db_path: Path, tmp_path: Path
+) -> None:
     class FakeEmbedder:
         def encode(self, text):
             return np.asarray([[0.0, 1.0]], dtype="float32")
 
     path = tmp_path / "shared.faiss"
-    first = SemanticMemory(db_path, index=VectorIndex(path=path, dim=2), embedder=FakeEmbedder())
-    second = SemanticMemory(db_path, index=VectorIndex(path=path, dim=2), embedder=FakeEmbedder())
+    first = SemanticMemory(
+        db_path, index=VectorIndex(path=path, dim=2), embedder=FakeEmbedder()
+    )
+    second = SemanticMemory(
+        db_path, index=VectorIndex(path=path, dim=2), embedder=FakeEmbedder()
+    )
 
     first.add("first process")
     second.add("second process")
 
     durable = VectorIndex(path=path, dim=2)
     assert durable.size == 2
-    assert {vector_id for vector_id, _ in durable.search(np.asarray([0.0, 1.0]), 2)} == {1, 2}
+    assert {
+        vector_id for vector_id, _ in durable.search(np.asarray([0.0, 1.0]), 2)
+    } == {1, 2}
 
 
-def test_long_lived_vector_reader_refreshes_after_external_persist(tmp_path: Path) -> None:
+def test_long_lived_vector_reader_refreshes_after_external_persist(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "shared.faiss"
     reader = VectorIndex(path=path, dim=2)
     writer = VectorIndex(path=path, dim=2)
@@ -529,8 +560,12 @@ def test_recency_term_decays_over_time() -> None:
     older = (now - timedelta(hours=10)).strftime("%Y-%m-%d %H:%M:%S")
     newer = (now - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
 
-    decay_old = math.exp(-config.RETRIEVAL_LAMBDA_DECAY_PER_HOUR * _hours_since(older, now))
-    decay_new = math.exp(-config.RETRIEVAL_LAMBDA_DECAY_PER_HOUR * _hours_since(newer, now))
+    decay_old = math.exp(
+        -config.RETRIEVAL_LAMBDA_DECAY_PER_HOUR * _hours_since(older, now)
+    )
+    decay_new = math.exp(
+        -config.RETRIEVAL_LAMBDA_DECAY_PER_HOUR * _hours_since(newer, now)
+    )
     assert decay_new > decay_old
 
 
@@ -549,7 +584,7 @@ def test_fact_exact_duplicate_is_idempotent(db_path: Path) -> None:
     first = facts.add_fact("user", "prefers", "dark mode")
     again = facts.add_fact("user", "prefers", "dark mode")
     assert again.committed is True
-    assert again.fact_id == first.fact_id            # no duplicate row created
+    assert again.fact_id == first.fact_id  # no duplicate row created
     assert len(facts.facts_for("user", "prefers")) == 1
 
 
@@ -567,7 +602,9 @@ def test_semantic_facts_redact_secrets_before_persistence(db_path: Path) -> None
 def test_contradiction_is_detected_and_not_committed(db_path: Path) -> None:
     facts = SemanticFacts(db_path)
     facts.add_fact("api", "listens_on_port", "8000")
-    conflict = facts.add_fact("api", "listens_on_port", "9000")  # same subj+pred, diff obj
+    conflict = facts.add_fact(
+        "api", "listens_on_port", "9000"
+    )  # same subj+pred, diff obj
     assert conflict.committed is False
     assert conflict.reason == "contradiction"
     assert conflict.conflict_object == "8000"
@@ -596,7 +633,7 @@ def test_concurrent_fact_writers_cannot_commit_contradictions(db_path: Path) -> 
 def test_reconcile_supersedes_old_and_commits_new(db_path: Path) -> None:
     facts = SemanticFacts(db_path)
     facts.add_fact("api", "listens_on_port", "8000")
-    facts.add_fact("api", "listens_on_port", "9000")             # contradiction, not committed
+    facts.add_fact("api", "listens_on_port", "9000")  # contradiction, not committed
     res = facts.reconcile("api", "listens_on_port", "9000")
     assert res.committed is True
     assert [r["object"] for r in facts.facts_for("api", "listens_on_port")] == ["9000"]
@@ -632,7 +669,11 @@ def test_traverse_follows_multi_hop_chain(db_path: Path) -> None:
     facts.add_fact("uvicorn", "needs", "asgi")
     rows = facts.traverse("project", max_depth=3)
     # The transitive reach facts_for (single-hop) cannot produce.
-    assert {r["object"]: r["depth"] for r in rows} == {"FastAPI": 1, "uvicorn": 2, "asgi": 3}
+    assert {r["object"]: r["depth"] for r in rows} == {
+        "FastAPI": 1,
+        "uvicorn": 2,
+        "asgi": 3,
+    }
 
 
 def test_traverse_respects_max_depth(db_path: Path) -> None:
@@ -666,7 +707,6 @@ def test_traverse_empty_or_unknown_start_returns_nothing(db_path: Path) -> None:
     facts.add_fact("project", "uses", "FastAPI")
     assert facts.traverse("   ", max_depth=2) == []
     assert facts.traverse("nonexistent", max_depth=2) == []
-
 
 
 def test_vector_index_rebuild_without_removes_ids(tmp_path: Path) -> None:

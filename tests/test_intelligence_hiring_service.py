@@ -417,6 +417,8 @@ def test_the_provider_response_is_redacted_before_it_reaches_the_caller(
     assert secret not in str(
         record.model_dump() if hasattr(record, "model_dump") else record
     )
+
+
 def test_bound_hiring_service_enters_universal_gateway(
     tmp_path,
 ) -> None:
