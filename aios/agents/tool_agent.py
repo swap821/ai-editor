@@ -1375,6 +1375,25 @@ class ToolAgent:
         yield {"type": "text", "text": STEP_LIMIT_TEXT}
         yield {"type": "done"}
 
+    def _write_stop(self):
+        """The emergency stop that governs a replayed write.
+
+        Was `getattr(self.autonomy, "emergency_stop", None)` at three call
+        sites. `RuntimeDeps.autonomy` defaults to `None`, so that expression
+        yielded `None` by default -- and the check downstream treated `None`
+        as "no stop to consult" rather than "no stop was wired". A write
+        could therefore be authorised with the latch never asked.
+
+        No ledger now means no stop, which means a replayed write is
+        REFUSED downstream. Returning `replay_writes.UNGOVERNED_FIXTURE`
+        here instead would rename the hole rather than close it: the
+        sentinel exists so a TEST can opt out visibly, never so production
+        can opt out silently.
+
+        One accessor rather than three call sites, so they cannot drift.
+        """
+        return getattr(self.autonomy, "emergency_stop", None)
+
     def _write_is_authorised(self, name: str, args: dict[str, Any]) -> bool:
         """May this write run without pausing for a human, right now?
 
@@ -1399,7 +1418,7 @@ class ToolAgent:
         if not filepath:
             return False
 
-        stop = getattr(self.autonomy, "emergency_stop", None)
+        stop = self._write_stop()
         if name == "create_file":
             content = args.get("content")
             if content is None:
@@ -1988,7 +2007,7 @@ class ToolAgent:
             old_digest,
             new_digest,
             db_path=config.MEMORY_DB_PATH,
-            emergency_stop=getattr(self.autonomy, "emergency_stop", None),
+            emergency_stop=self._write_stop(),
         ):
             return (
                 f"[BLOCKED] no human has approved this exact edit to {filepath}; "
@@ -2058,7 +2077,7 @@ class ToolAgent:
             filepath,
             digest,
             db_path=config.MEMORY_DB_PATH,
-            emergency_stop=getattr(self.autonomy, "emergency_stop", None),
+            emergency_stop=self._write_stop(),
         ):
             return (
                 f"[BLOCKED] no human has approved this exact content for "
