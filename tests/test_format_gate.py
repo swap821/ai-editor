@@ -12,6 +12,7 @@ the exclusions are exactly the two deliberately-frozen sets and nothing else.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import subprocess
 import sys
@@ -42,6 +43,26 @@ _ALLOWED_FORMAT_EXCLUSIONS = {
 }
 
 
+def _ruff_available() -> bool:
+    """Is ruff importable in THIS environment?
+
+    It is a dev tool, not a runtime dependency, so `backend-tests` installs
+    `requirements.txt` and does not get it. Adding it there to satisfy a test
+    would put a linter in every production install, which is the wrong trade.
+
+    Skipping costs nothing: the `format-gate` job runs
+    `ruff format --check .` against the whole repo for real, and that job is
+    the gate. These tests exist so a developer WITH ruff finds a problem before
+    pushing, not to be the authoritative check.
+    """
+    return importlib.util.find_spec("ruff") is not None
+
+
+requires_ruff = pytest.mark.skipif(
+    not _ruff_available(), reason="ruff is a dev tool and is absent from backend-tests"
+)
+
+
 def _format_exclusions() -> set[str]:
     with (REPO_ROOT / "pyproject.toml").open("rb") as fh:
         config = tomllib.load(fh)
@@ -57,13 +78,14 @@ def test_the_formatter_skips_exactly_the_two_frozen_sets() -> None:
     assert _format_exclusions() == _ALLOWED_FORMAT_EXCLUSIONS
 
 
-def test_excluding_from_format_does_not_exclude_from_lint() -> None:
-    """The spine must still be LINTED. `formatter.exclude` is not `linter.exclude`.
+def test_the_exclusions_are_format_only_not_lint_wide() -> None:
+    """`formatter.exclude` is not `linter.exclude`, and that is load-bearing.
 
-    This is the whole reason the exclusion is expressible at all. If a future
-    edit moved these patterns to the top-level `exclude` key, ruff would stop
-    linting the most security-critical code in the repo and every check would
-    still pass -- silently, because there would be nothing left to report.
+    Moving these patterns to a top-level `exclude` would stop ruff linting the
+    most security-critical code in the repo, and every check would still pass --
+    silently, because there would be nothing left to report.
+
+    Pure config, so this runs even where ruff itself is absent.
     """
     with (REPO_ROOT / "pyproject.toml").open("rb") as fh:
         ruff = tomllib.load(fh)["tool"]["ruff"]
@@ -72,7 +94,12 @@ def test_excluding_from_format_does_not_exclude_from_lint() -> None:
         "a top-level ruff `exclude` would drop LINT coverage, not just formatting"
     )
     assert "extend-exclude" not in ruff
+    assert set(ruff["format"]["exclude"]) == _ALLOWED_FORMAT_EXCLUSIONS
 
+
+@requires_ruff
+def test_the_spine_is_still_linted() -> None:
+    """The claim above, checked against ruff rather than inferred from config."""
     listed = subprocess.run(
         [sys.executable, "-m", "ruff", "check", "aios/security/", "--show-files"],
         cwd=REPO_ROOT,
@@ -90,6 +117,7 @@ def test_excluding_from_format_does_not_exclude_from_lint() -> None:
         assert spine in checked, f"ruff check no longer lints {spine}"
 
 
+@requires_ruff
 def test_the_repo_is_format_clean() -> None:
     """What the gate asserts, asserted locally so it fails before CI does."""
     result = subprocess.run(
@@ -101,6 +129,7 @@ def test_the_repo_is_format_clean() -> None:
     assert result.returncode == 0, result.stdout
 
 
+@requires_ruff
 def test_the_gate_actually_fails_on_a_misformatted_file(tmp_path) -> None:
     """A gate that has never failed is indistinguishable from one that cannot.
 
@@ -150,6 +179,7 @@ def test_ruff_is_pinned_once_for_the_whole_workflow() -> None:
     assert re.search(r'^  RUFF_VERSION: "[0-9]+\.[0-9]+\.[0-9]+"$', text, re.M)
 
 
+@requires_ruff
 def test_the_pinned_version_is_the_one_running_here() -> None:
     """Local ruff and the gate's ruff must agree, or 'clean' means two things.
 
