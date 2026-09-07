@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEPS = REPO_ROOT / "aios" / "api" / "deps.py"
+AIOS = REPO_ROOT / "aios"
 
 #: Constructions that carry authority to act and must therefore be haltable.
 _GOVERNED = {"Executor", "AutonomyLedger", "SelfApplyEngine"}
@@ -44,6 +44,13 @@ _JUSTIFIED = {
     # verify_executor))` inherits governance from that executor, which is
     # itself built through `require_wired`.
     ("SelfApplyEngine", "verifier"),
+    # The last-resort branch of `kernel._default_autonomy_ledger`, reached only
+    # when no emergency stop can be obtained at all. A bare ledger now REFUSES
+    # rather than grants -- `is_earned` treats an absent latch as a denial --
+    # so failing closed here beats failing to construct the kernel. The marker
+    # comment is required on the line so the exemption is argued at the site,
+    # not merely listed here.
+    ("AutonomyLedger", "refuses-when-unwired"),
 }
 
 
@@ -72,22 +79,34 @@ def _governed_calls(source: str) -> list[tuple[str, int, bool, str]]:
     return out
 
 
-def test_every_governed_construction_in_deps_names_a_stop() -> None:
+def test_every_governed_construction_names_a_stop() -> None:
     """THE RULE the reviewer asked for, and the one that was missing.
 
-    `deps.py` is where production wiring happens, so a forgotten stop here is a
-    forgotten stop in the running system. An omission must fail a test, not
-    wait for someone to read the diff carefully.
+    REPO-WIDE since 2026-09-07, and the reason is a defect this rule missed.
+
+    It scanned `deps.py` only. `aios/policy/kernel.py` built bare stopless
+    autonomy ledgers as fallbacks -- and `is_earned` skipped its latch check
+    when none was wired -- so an engaged emergency stop did not deny COMMAND
+    autonomy. Fourth appearance of the shape, in a file the rule never looked
+    at.
+
+    A rule scoped to one file only proves things about that file. An omission
+    must fail a test wherever it is written, not wait for someone to read the
+    diff carefully.
     """
     unguarded = []
-    for name, line, has_stop, segment in _governed_calls(
-        DEPS.read_text(encoding="utf-8")
-    ):
-        if has_stop:
+    for path in sorted(AIOS.rglob("*.py")):
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
             continue
-        if any(name == jname and jhint in segment for jname, jhint in _JUSTIFIED):
-            continue
-        unguarded.append(f"{name} at deps.py:{line}")
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        for name, line, has_stop, segment in _governed_calls(source):
+            if has_stop:
+                continue
+            if any(name == jname and jhint in segment for jname, jhint in _JUSTIFIED):
+                continue
+            unguarded.append(f"{name} at {rel}:{line}")
 
     assert not unguarded, (
         "governed constructions with no emergency stop and no stated "
@@ -131,19 +150,39 @@ def test_a_justified_exception_is_still_recognised() -> None:
 # The ratchet
 # --------------------------------------------------------------------------- #
 
-#: Measured 2026-09-07, after the replay fix removed two.
+#: Measured 2026-09-07: 15 actual `if ... is not None:` guards.
+#:
+#: Was 18 while the census counted docstring mentions as guards -- three
+#: units of slack in a ratchet whose whole purpose is to have none.
 #:
 #: These are NOT all defects -- several are legitimately optional in their own
 #: context -- and rewriting eighteen call sites across ten governed subsystems
 #: is its own change with its own blast radius. What this pins is that the
 #: SHAPE cannot grow: a nineteenth has to be argued rather than merely typed.
-_OPTIONAL_GUARD_BUDGET = 18
+_OPTIONAL_GUARD_BUDGET = 15
 
 
 def _guard_census() -> dict[str, int]:
+    """Count the GUARDS, not the prose that discusses them.
+
+    The first version of this counted every occurrence of the string, including
+    three docstring and comment mentions explaining the defect. The budget was
+    therefore three units too high -- silent slack that would have absorbed the
+    next real omission without anyone noticing, which is exactly what
+    `test_the_budget_is_not_stale` below exists to prevent. Counting prose as
+    if it were code is the same mistake this file catches elsewhere.
+    """
     census: dict[str, int] = {}
     for path in sorted((REPO_ROOT / "aios").rglob("*.py")):
-        count = path.read_text(encoding="utf-8").count("emergency_stop is not None")
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        count = sum(
+            1
+            for ln in lines
+            if "emergency_stop is not None" in ln and ln.strip().startswith("if ")
+        )
         if count:
             census[path.relative_to(REPO_ROOT).as_posix()] = count
     return census

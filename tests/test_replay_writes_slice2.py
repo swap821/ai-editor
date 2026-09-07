@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from aios import config
-from aios.core.autonomy import AutonomyLedger
+from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
 from aios.core.cerebellum import Cerebellum, PlaybookStep, WriteConfirmation
 from aios.core.replay_writes import record_approval, store_content
 from aios.memory.db import init_memory_db
@@ -179,7 +179,14 @@ def test_an_earned_glob_does_not_authorise_a_replayed_write(
     obvious thing for a future edit to reach for here. Earn it, and assert the
     replayed write is still refused.
     """
-    ledger = AutonomyLedger(db_path=db_path, min_successes=1)
+    ledger = AutonomyLedger(
+        db_path=db_path,
+        min_successes=1,
+        # This test earns the GLOB to prove it authorises nothing; it is
+        # not exercising the latch, and `is_earned` now refuses a ledger
+        # with no stop wired.
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     for _ in range(3):
         ledger.record_outcome("create_file", "util.py", success=True)
     assert ledger.is_earned("create_file", "util.py", enabled=True)

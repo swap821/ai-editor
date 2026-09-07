@@ -53,7 +53,14 @@ def test_an_earned_glob_does_not_authorise_an_exact_write(db_path, monkeypatch) 
 
     Earn the glob, then ask about a DIFFERENT file with DIFFERENT bytes.
     """
-    ledger = AutonomyLedger(db_path=db_path, min_successes=1)
+    ledger = AutonomyLedger(
+        db_path=db_path,
+        min_successes=1,
+        # This test earns the GLOB to prove it authorises nothing; it is
+        # not exercising the latch, and `is_earned` now refuses a ledger
+        # with no stop wired.
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     for _ in range(3):
         ledger.record_outcome("create_file", "src/util.py", success=True)
     assert ledger.is_earned("create_file", "src/util.py", enabled=True), (

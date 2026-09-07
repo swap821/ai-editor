@@ -50,6 +50,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from aios import config
+from aios.core.autonomy import UNGOVERNED_FIXTURE as _UNGOVERNED_FIXTURE
 from aios.core.autonomy import workspace_id
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
@@ -84,7 +85,7 @@ def decision_signature(
 #: Named rather than implied, for the reason `require_wired` already learned:
 #: `None` cannot distinguish an omission from a choice, so a check that treats
 #: absence as permission grants exactly the callers that forgot.
-UNGOVERNED_FIXTURE = "ungoverned-fixture"
+UNGOVERNED_FIXTURE = _UNGOVERNED_FIXTURE
 
 
 def _stop_permits_writing(emergency_stop) -> bool:
