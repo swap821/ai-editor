@@ -83,6 +83,7 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
@@ -91,6 +92,7 @@ from aios import config
 from aios.agents import tool_handlers, tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
+from aios.core import replay_writes
 from aios.core.executor import Executor
 from aios.core.injection_scan import detect_injection
 from aios.core.llm import LLMClient, LLMError
@@ -105,6 +107,8 @@ from aios.core.verification_strength import (
 from aios.core.verifier import Verifier
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone
+
+logger = logging.getLogger(__name__)
 
 #: A reflection hook: given (command, error_output), record a lesson and return
 #: a summary dict (``error_type``/``lesson_text``/``recurrence``/``mistake_id``),
@@ -1413,6 +1417,27 @@ class ToolAgent:
             output, status, _ = self._create_file(filepath, content)
             call_id = f"grant-create-{index}"
             if status in ("ok", "noop"):
+                # Remember the EXACT decision the human just made, so a later
+                # compiled replay of the identical write can reuse it. Records
+                # (workspace, path, content-digest) and the bytes themselves;
+                # deliberately NOT `autonomy.record_outcome`, whose write
+                # signatures collapse to `<dir>/*<.ext>` and would generalise
+                # this one approval into a grant over every file of that shape.
+                #
+                # Best-effort by design: the write already landed and was
+                # audited, and failing the turn because a convenience record
+                # could not be written would be the wrong trade. Content
+                # carrying secrets is refused by the store, which simply
+                # leaves the replay confirm-only.
+                try:
+                    replay_writes.record_approval(
+                        filepath, content, db_path=config.MEMORY_DB_PATH
+                    )
+                except Exception as exc:  # noqa: BLE001 - never break an applied grant
+                    logger.warning(
+                        "could not record the approved write for replay",
+                        exc_info=exc,
+                    )
                 # The applied (or previously-landed) grant IS a step of this
                 # workflow. Without a tool_call frame the resume turn's
                 # workflow_steps stays empty and record_outcome never calls
@@ -1835,9 +1860,91 @@ class ToolAgent:
                 executor=self.executor,
                 session_id=self.session_id,
             )
-        # read_file / read_directory (the only other compilable tools) have no
-        # approval gate; dispatch normally.
+        if name == "create_file":
+            return self._replay_create_file(args)
+        # read_file / read_directory have no approval gate; dispatch normally.
+        #
+        # NOTE: this method's blanket "already approved" reasoning applies to
+        # COMMANDS, whose trust was earned by the skill's >=3 STRONG verified
+        # successes before compilation. It must NOT be extended to writes. A
+        # write is authorised here by ONE thing only: a human having approved
+        # exactly those bytes at exactly that path (see `_replay_create_file`).
+        # Granting writes on the strength of a skill's history instead would
+        # reinstate the broad, content-blind grant that was deliberately
+        # rejected when this was designed.
         return self._dispatch(name, args)
+
+    def _replay_create_file(self, args: dict[str, Any]) -> tuple[str, str, bool]:
+        """Re-perform a write ONLY if a human approved these exact bytes here.
+
+        Stage 2 of the learning loop. The authorisation is narrow on purpose and
+        every widening of it is refused:
+
+        * not the skill's history -- that earned trust in a COMMAND class, and
+          says nothing about which bytes belong in which file;
+        * not `autonomy.is_earned` -- its write signatures collapse to
+          `<dir>/*<.ext>`, so it cannot tell this file from its neighbour;
+        * not the digest alone -- the path is committed to the key too.
+
+        The write itself goes through the SAME `create_file` handler an
+        approved human grant uses, with a one-off approval set scoped to THIS
+        call. So scope lock, the credential denylist, the snapshot and the
+        audit entry all still apply, and nothing here leaks into the LLM loop
+        that runs if the replay aborts later. The cerebellum remains a tool-call
+        SOURCE, not a second write path.
+
+        `create_file` refuses to overwrite, which bounds this to targets that do
+        not exist. A file that exists with different content needs `edit_file`
+        and is not in scope here -- the replay abstains instead.
+        """
+        filepath = str(args.get("filepath", ""))
+        digest = str(args.get("content_sha256", ""))
+        content = args.get("content")
+        if not filepath or not digest or content is None:
+            return (
+                "[BLOCKED] replayed write is missing its target, digest or content.",
+                "blocked",
+                False,
+            )
+
+        if not replay_writes.is_approved_write(
+            filepath,
+            digest,
+            db_path=config.MEMORY_DB_PATH,
+            emergency_stop=getattr(self.autonomy, "emergency_stop", None),
+        ):
+            return (
+                f"[BLOCKED] no human has approved this exact content for "
+                f"{filepath}; the replay must not write it.",
+                "blocked",
+                False,
+            )
+
+        text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+
+        # The digest must be OF THE CONTENT, not merely a lookup key.
+        #
+        # Without this the check above is "does an approval exist for this
+        # digest", and the bytes actually written are whatever the caller
+        # passed. An approved digest paired with arbitrary content would then
+        # write content nobody approved -- through the fully audited,
+        # snapshotted, human-blessed path, which is the worst place for it.
+        # Found by test_a_digest_that_does_not_match_its_content_cannot_smuggle_bytes.
+        if replay_writes.content_digest(text) != digest:
+            return (
+                "[BLOCKED] replayed content does not match the approved digest.",
+                "blocked",
+                False,
+            )
+
+        return tool_handlers.create_file(
+            filepath,
+            text,
+            read_root=self.read_root,
+            approved_creations={filepath: text},
+            snapshot=self.snapshot,
+            audit=self._audit,
+        )
 
     def _read_file(self, filepath: str) -> tuple[str, str, bool]:
         return tool_handlers.read_file(

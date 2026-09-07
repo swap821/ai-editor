@@ -39,6 +39,7 @@ from typing import Any, Callable, Iterator, Optional
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
+from aios.core.replay_writes import load_content as load_write_content
 from aios.security.scope_lock import is_path_in_scope
 from aios.security.secret_scanner import scan_and_redact
 
@@ -578,6 +579,25 @@ class Cerebellum:
             if step.tool_name in _CONFIRM_ONLY_TOOLS:
                 confirmed, detail = self._confirm_write(step)
                 if not confirmed:
+                    # Stage 2: the target may simply not exist yet. If a human
+                    # approved exactly these bytes at exactly this path, the
+                    # write can be re-performed rather than abandoned. The
+                    # decision is checked by the DISPATCHER, not here -- this
+                    # only supplies the bytes, so the authorisation stays on the
+                    # one path that also does scope, credentials, snapshot and
+                    # audit.
+                    args = self._write_args_if_replayable(step, detail)
+                    if args is not None:
+                        output, status, failed = dispatch_fn("create_file", args)
+                        if status not in ("blocked", "approval") and not failed:
+                            yield {
+                                "type": "cerebellum_step_done",
+                                "tool": step.tool_name,
+                                "step_index": i,
+                                "output": (output or "")[:200],
+                            }
+                            continue
+                        detail = (output or detail)[:200]
                     # ABSTAIN. Not a replay failure to be counted toward a
                     # threshold -- the playbook is simply wrong for this state,
                     # and the LLM must do the work. Decompile immediately so it
@@ -695,6 +715,44 @@ class Cerebellum:
         if actual != expected:
             return False, f"{filepath} exists but its content differs"
         return True, f"{filepath} already matches (no write)"
+
+    def _write_args_if_replayable(
+        self, step: PlaybookStep, detail: str
+    ) -> Optional[dict[str, Any]]:
+        """Bytes for a replayable write, or None to abstain.
+
+        Returns arguments ONLY when the target does not exist. `create_file`
+        refuses to overwrite, so a file that exists with different content
+        cannot be repaired here -- that needs `edit_file`, which is not in
+        scope. Abstaining is the honest outcome rather than forcing a write the
+        handler would refuse anyway.
+
+        This does not decide authorisation. It supplies content and lets the
+        dispatcher check whether a human approved exactly these bytes at
+        exactly this path, so that check lives on the same path as scope lock,
+        the credential denylist, the snapshot and the audit entry.
+        """
+        if not config.REPLAY_APPROVED_WRITES_ENABLED:
+            return None
+        if "does not exist" not in detail:
+            return None
+
+        digest = str(step.args.get("content_sha256", ""))
+        filepath = str(step.args.get("filepath", ""))
+        if not digest or not filepath:
+            return None
+
+        content = load_write_content(digest, db_path=self.db_path)
+        if content is None:
+            # Never stored, or refused because it carried secrets. Either way
+            # there is nothing to replay and stage 1 behaviour stands.
+            return None
+
+        return {
+            "filepath": filepath,
+            "content": content.decode("utf-8", errors="strict"),
+            "content_sha256": digest,
+        }
 
     def decompile(self, playbook_id: int) -> None:
         """Retire one playbook immediately, without waiting for a threshold.
