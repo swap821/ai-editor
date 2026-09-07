@@ -96,6 +96,82 @@ def _audit_check(*, production: bool) -> DoctorCheck:
     )
 
 
+def _learning_loop_check() -> DoctorCheck:
+    """Report what the learning loop has actually produced.
+
+    ADVISORY, always. There is no threshold here because there is no correct
+    number -- the loop's yield is a fact about how the system has been used,
+    not a fault to be fixed.
+
+    It exists because that fact was invisible. On 2026-09-07 the shipped
+    database held 4 playbooks with 2 replays between them, and finding that out
+    required opening SQLite by hand. Worse, the numbers were misleading without
+    the detail: three of those playbooks were dead from a malformed-argument bug
+    rather than from disuse, and the one healthy playbook had replayed twice
+    with zero failures.
+
+    So this reports the SHAPE, not a score: how many skills are still one-off
+    (promotion needs repeated success at the SAME goal, so a workspace of varied
+    one-off tasks will never promote many), and how many playbooks are live.
+    """
+    db = config.MEMORY_DB_PATH
+    if not db.exists():
+        return _check(
+            "learning_loop",
+            True,
+            "no memory database yet; nothing has been learned",
+            required=False,
+        )
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            skills = dict(
+                conn.execute(
+                    "SELECT status, COUNT(*) FROM procedural_skills GROUP BY status"
+                )
+            )
+            books = dict(
+                conn.execute(
+                    "SELECT status, COUNT(*) FROM compiled_playbooks GROUP BY status"
+                )
+            )
+            replays = (
+                conn.execute(
+                    "SELECT COALESCE(SUM(replay_count), 0) FROM compiled_playbooks"
+                ).fetchone()[0]
+                or 0
+            )
+            one_off = conn.execute(
+                "SELECT COUNT(*) FROM procedural_skills "
+                "WHERE status = 'candidate' AND success_count <= 1"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001 - doctor reports, never crashes
+        return _check(
+            "learning_loop",
+            True,
+            f"learning-loop status unavailable: {exc}",
+            required=False,
+        )
+
+    verified = int(skills.get("verified", 0))
+    candidates = int(skills.get("candidate", 0))
+    compiled = int(books.get("compiled", 0))
+    decompiled = int(books.get("decompiled", 0))
+    return _check(
+        "learning_loop",
+        True,
+        f"skills {verified} verified / {candidates} candidate "
+        f"({one_off} seen once or never); "
+        f"playbooks {compiled} compiled / {decompiled} decompiled; "
+        f"{int(replays)} replay(s) total",
+        required=False,
+    )
+
+
 def newest_backup_age_seconds(backup_dir: Path) -> float | None:
     """Age of the most recent `gagos-*.tar.gz` archive in *backup_dir*, or
     `None` if the directory or an archive doesn't exist. Shared by
@@ -245,6 +321,7 @@ def doctor_report(
     checks.append(
         _model_runtime_check(production=production, probe=model_runtime_probe)
     )
+    checks.append(_learning_loop_check())
 
     executor_ok, executor_message = (
         executor_probe()

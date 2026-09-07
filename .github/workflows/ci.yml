@@ -198,7 +198,14 @@ jobs:
     #
     # workflow_dispatch only: a cohort is minutes of model time, and putting it
     # on every push buys noise rather than signal.
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    # ARMED 2026-09-07. This job was written to fix organ 44's blocker --
+    # its own comment above says "NOBODY ELSE CAN RE-RUN THEM. Every golden
+    # figure the organ carries was produced on one machine" -- and it was
+    # `workflow_dispatch` only, so it never ran and fixed nothing. A
+    # reproducibility gate that no one triggers is a claim, not a gate.
+    #
+    # It needs exactly what `local-clerk-live` already pays for on every PR:
+    # ubuntu, a dockerised Ollama, one pulled model. No secrets.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -263,7 +270,29 @@ jobs:
           AIOS_GRAFANA_ADMIN_PASSWORD: "ci-grafana-password"
           AIOS_EXECUTOR_HOST_WORKSPACE_ROOT: "${{ github.workspace }}/data/executor-workspaces"
         run: |
-          docker compose --profile build-only build worker
+          # Retry the BUILD, not the verification. Measured 2026-09-07, the
+          # first run of this job after it was armed died on
+          #   registry-1.docker.io ... 502 Bad Gateway
+          # resolving python:3.12-slim -- a Docker Hub outage, not a defect in
+          # this job or the change under test. `local-clerk-live` and
+          # `release-authority` pull from the same registry and passed in the
+          # same run, so it was brief and partial.
+          #
+          # An armed gate with no tolerance for registry flakiness becomes a
+          # gate people learn to ignore, which is how an unarmed one got here.
+          # Three bounded attempts, and the image inspect afterwards is NOT
+          # retried: if the build genuinely failed, that still fails the job.
+          for attempt in 1 2 3; do
+            if docker compose --profile build-only build worker; then
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "::error::worker image build failed after 3 attempts"
+              exit 1
+            fi
+            echo "build attempt $attempt failed; retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
           docker image inspect aios-worker:local >/dev/null
 
       - name: Start the backend on its own instance
@@ -389,6 +418,57 @@ jobs:
     steps:
       - name: Frontend gate
         run: echo "Frontend tests and build passed"
+
+  cloud-contract:
+    # Cloud sovereignty has had ZERO CI coverage. Measured 2026-09-07:
+    # `grep secrets\. .github/workflows/*.yml` returned nothing at all -- no
+    # AWS, Bedrock, Gemini, Anthropic, OpenAI or Vertex anywhere. Every cloud
+    # claim in the organ ledger rests on runs only the operator can reproduce.
+    #
+    # This job cannot invent credentials, and it must not pretend. So it reports
+    # its own absence LOUDLY and never goes green without having tested
+    # something: a job that passes while exercising nothing is precisely the
+    # failure being fixed here, and it is worse than no job at all because it
+    # looks like coverage.
+    #
+    # The moment AIOS_CLOUD_TEST_KEY exists, this starts doing real round-trips
+    # with no further edits.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Report whether cloud credentials are configured
+        id: creds
+        env:
+          CLOUD_KEY: ${{ secrets.AIOS_CLOUD_TEST_KEY }}
+        run: |
+          if [ -z "$CLOUD_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Cloud contract untested::No AIOS_CLOUD_TEST_KEY secret is configured, so no cloud provider was contacted. Every cloud claim rests on operator-machine runs that nobody else can reproduce."
+            echo "SKIPPED: no cloud credentials configured."
+            echo "This job did NOT test any cloud provider."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "cloud credentials present; running the real contract."
+          fi
+
+      - name: Install dependencies
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Live provider round-trip through the router
+        if: steps.creds.outputs.configured == 'true'
+        env:
+          AIOS_CLOUD_TEST_KEY: ${{ secrets.AIOS_CLOUD_TEST_KEY }}
+        run: python -m pytest tests/ -q -m cloud
 
   format-gate:
     # The repo-wide formatting check, as its OWN job so it can be a required
