@@ -1,10 +1,18 @@
-"""End-to-end: the earned-autonomy bridge through the real ToolAgent turn loop.
+"""End-to-end: what actually lets a write run without a human, through the real
+ToolAgent turn loop.
 
-Proves the seam, not just the ledger: an earned write CLASS auto-applies via the
-same gated path (``earned_autonomy`` event, file actually lands, no human pause),
-while an un-earned write still pauses for a human (``human_required``, nothing
-written). A fake chat client drives the loop deterministically; the real security
-gateway + scope-lock still run.
+A write is authorised by ONE thing: a human having approved exactly those bytes
+at exactly that path, in this workspace. It used to be authorised by an earned
+`AutonomyLedger` CLASS, whose write signatures collapse a target to
+`<dir>/*<.ext>` -- so a streak on `notes.txt` authorised any content to any
+`.txt` in that directory. These tests were written against that policy and now
+assert the narrower one, including the case the change exists for: an earned
+glob authorising nothing.
+
+Commands still earn autonomy by class; this is about writes.
+
+A fake chat client drives the loop deterministically; the real security gateway
+and scope lock still run.
 """
 
 from __future__ import annotations
@@ -12,6 +20,7 @@ from __future__ import annotations
 from aios import config
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
+from aios.core.replay_writes import content_digest, is_approved_write, record_approval
 from aios.core.executor import Executor
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
@@ -61,11 +70,12 @@ def _in_sandbox(tmp_path, monkeypatch):
 def test_earned_write_auto_applies_without_a_human(tmp_path, monkeypatch) -> None:
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
-        ledger = AutonomyLedger(db_path=tmp_path / "mem.db", min_successes=2)
-        # Earn the create_file '*.txt' class with two verified successes.
-        ledger.record_outcome("create_file", "notes.txt", success=True)
-        ledger.record_outcome("create_file", "notes.txt", success=True)
-        assert ledger.is_earned("create_file", "notes.txt")
+        db = tmp_path / "mem.db"
+        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        # The human approved exactly these bytes at exactly this path.
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
+        record_approval("notes.txt", "hello world", db_path=db)
 
         chat = ScriptedChat(
             [
@@ -143,9 +153,11 @@ def test_earned_grant_writes_a_distinct_earned_autonomy_audit_entry(
     carrying the evidence — distinct from the write's 'tool-agent' entry."""
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
-        ledger = AutonomyLedger(db_path=tmp_path / "mem.db", min_successes=2)
-        ledger.record_outcome("create_file", "notes.txt", success=True)
-        ledger.record_outcome("create_file", "notes.txt", success=True)
+        db = tmp_path / "mem.db"
+        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
+        record_approval("notes.txt", "hello world", db_path=db)
         audited: list[tuple] = []
         chat = ScriptedChat(
             [
@@ -165,25 +177,41 @@ def test_earned_grant_writes_a_distinct_earned_autonomy_audit_entry(
         earned = [a for a in audited if a and a[0] == "earned-autonomy"]
         assert earned, "the autonomous grant must write an earned-autonomy audit entry"
         assert "AUTO-GRANT" in earned[0][1] and "notes.txt" in earned[0][1]
-        assert "verified" in earned[0][1]  # carries the evidence that earned it
+        # The line names the REASON, which is no longer a streak count: there is
+        # no streak, only a human's prior decision about these exact bytes.
+        assert "approved exactly these bytes" in earned[0][1]
     finally:
         scope_lock.set_scope_roots(list(original))
 
 
-def test_weak_auto_verify_revokes_earned_write_shape(tmp_path, monkeypatch) -> None:
-    """The ToolAgent must pass verifier strength into the autonomy ledger.
+def test_a_weak_auto_verify_revokes_the_exact_write_decision(
+    tmp_path, monkeypatch
+) -> None:
+    """The verifier's word withdraws authorisation. THE BAR for the convergence.
 
-    A `.py` write with an existing sibling test triggers forced auto-verify. The
-    fake runner exits 0 but reports no passing assertions, so the verifier emits
-    WEAK. That must not maintain the earned YELLOW->GREEN grant.
+    When writes ran through `AutonomyLedger`, the forced auto-verify was the
+    only writer of autonomy evidence and a bad verdict revoked the class
+    instantly. Moving authorisation onto exact-decision records is a narrowing
+    in every respect but this one -- the records had no revocation -- so
+    without it the change would look like a tightening while deleting a
+    safety mechanism.
+
+    A `.py` write with a sibling test triggers forced auto-verify. The fake
+    runner exits 0 but reports no passing assertions, so the verifier emits
+    WEAK. A human approving bytes once is not a standing promise that those
+    bytes still work.
     """
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
         (tmp_path / "test_new.py").write_text("def test_new():\n    assert True\n")
-        ledger = AutonomyLedger(db_path=tmp_path / "mem.db", min_successes=2)
-        ledger.record_outcome("create_file", "new.py", success=True)
-        ledger.record_outcome("create_file", "new.py", success=True)
-        assert ledger.is_earned("create_file", "new.py")
+        db = tmp_path / "mem.db"
+        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
+        record_approval("new.py", "x = 1\n", db_path=db)
+        assert is_approved_write(
+            "new.py", content_digest("x = 1\n"), db_path=db, enabled=True
+        ), "precondition: the write must start out authorised"
 
         chat = ScriptedChat(
             [
@@ -199,8 +227,102 @@ def test_weak_auto_verify_revokes_earned_write_shape(tmp_path, monkeypatch) -> N
 
         assert "earned_autonomy" in [e["type"] for e in events]
         assert (tmp_path / "new.py").read_text() == "x = 1\n"
-        assert ledger.is_earned("create_file", "new.py") is False
-        record = ledger.record_for("create_file", "new.py")
-        assert record is not None and record["status"] == "revoked"
+
+        assert not is_approved_write(
+            "new.py", content_digest("x = 1\n"), db_path=db, enabled=True
+        ), "a write that failed its own verify is still replayable unattended"
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_an_earned_glob_authorises_nothing(tmp_path, monkeypatch) -> None:
+    """THE BAR for the convergence.
+
+    `AutonomyLedger._normalize` collapses a write target to `<dir>/*<.ext>`, so
+    a streak on one `.txt` used to authorise ANY content to ANY `.txt` beside
+    it. Earn that streak, then ask for a DIFFERENT file with DIFFERENT bytes and
+    require a human pause.
+
+    If the old key ever comes back this fails, which is the entire point of
+    writing it as a separate test rather than trusting the rewritten ones above.
+    """
+    original = _in_sandbox(tmp_path, monkeypatch)
+    try:
+        db = tmp_path / "mem.db"
+        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
+
+        ledger.record_outcome("create_file", "notes.txt", success=True)
+        ledger.record_outcome("create_file", "notes.txt", success=True)
+        assert ledger.is_earned("create_file", "notes.txt"), (
+            "precondition: the glob streak must actually be earned"
+        )
+        assert ledger.is_earned("create_file", "other.txt"), (
+            "precondition: the glob must be as wide as the change claims"
+        )
+
+        chat = ScriptedChat(
+            [
+                _create_call("other.txt", "content nobody approved"),
+                {"role": "assistant", "content": "done"},
+            ]
+        )
+        events = list(
+            ToolAgent(chat, _executor(), max_iters=3, autonomy=ledger).run(
+                [{"role": "user", "content": "write the other notes"}]
+            )
+        )
+        types = [e["type"] for e in events]
+
+        assert "human_required" in types, "an earned glob authorised a write"
+        assert "earned_autonomy" not in types
+        assert not (tmp_path / "other.txt").exists()
+    finally:
+        scope_lock.set_scope_roots(list(original))
+
+
+def test_an_auto_granted_write_records_no_human_approval(tmp_path, monkeypatch) -> None:
+    """The machine's own decision must never become evidence of a human's.
+
+    `_grant_earned` adds to the same `approved_creations` dict that
+    `_pre_apply_grants` iterates -- and `_pre_apply_grants` is where a human
+    approval gets recorded as a replayable decision. They do not collide today
+    only because one runs at turn start and the other mutates later. That is
+    ordering, not design, so it is pinned here: a reorder that let an
+    auto-granted write reach the recorder would manufacture an approval nobody
+    gave, and every later replay would cite it.
+    """
+    original = _in_sandbox(tmp_path, monkeypatch)
+    try:
+        db = tmp_path / "mem.db"
+        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
+        record_approval("notes.txt", "hello world", db_path=db)
+
+        chat = ScriptedChat(
+            [
+                _create_call("notes.txt", "hello world"),
+                {"role": "assistant", "content": "done"},
+            ]
+        )
+        list(
+            ToolAgent(chat, _executor(), max_iters=3, autonomy=ledger).run(
+                [{"role": "user", "content": "write the notes"}]
+            )
+        )
+
+        from aios.memory.db import get_connection
+
+        with get_connection(db) as conn:
+            rows = conn.execute(
+                "SELECT COUNT(*) c FROM approved_write_decisions"
+            ).fetchone()["c"]
+
+        assert rows == 1, (
+            f"expected only the human's own decision, found {rows} -- an "
+            "auto-granted write was recorded as a human approval"
+        )
     finally:
         scope_lock.set_scope_roots(list(original))
