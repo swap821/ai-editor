@@ -17,3 +17,10 @@ release/**/*.json text eol=lf
 # CRLF and the real change disappears into the noise.
 release/**/*.md text eol=lf
 
+# Shell scripts must check out LF on every platform. `scripts/install.sh` is
+# committed with LF and Linux clones get LF, but core.autocrlf=true gives a
+# Windows contributor CRLF in the working tree -- and a CRLF shebang is
+# `/usr/bin/env: 'bash\r': No such file or directory` on the box the installer
+# exists to serve. Measured 2026-09-07 by running the working-tree copy in a
+# clean Fedora container.
+*.sh text eol=lf

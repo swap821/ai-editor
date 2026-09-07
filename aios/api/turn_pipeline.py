@@ -15,6 +15,7 @@ exactly the kind this extraction is meant to fix, not a smaller one.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import time
 from dataclasses import dataclass, field
@@ -607,6 +608,25 @@ def _verify_target_key(command: str) -> str:
     return _verify_target_keys(command)[0]
 
 
+#: Tools whose `content` argument is summarised as a DIGEST, never as text.
+#:
+#: A write step used to be recorded as bare `create_file: filepath=x`, which is
+#: unreplayable -- so `_COMPILABLE_TOOLS` excluded writes and any workflow
+#: containing one was discarded whole. Recording the content itself is not the
+#: fix: these strings go to L3 semantic memory and are scrubbed on the way, so
+#: file bodies would become a standing secret-leak surface. A digest makes the
+#: step replayable-as-a-check while carrying nothing to leak.
+_DIGESTED_CONTENT_TOOLS = frozenset({"create_file", "edit_file"})
+
+
+def _content_digest(value: Any) -> str | None:
+    """SHA-256 of a write tool's content argument, or None if there is none."""
+    if value is None:
+        return None
+    text = value if isinstance(value, str) else str(value)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def _workflow_step(event: dict[str, Any]) -> str:
     """Create a compact, redacted procedural step from one tool-call event."""
     name = str(event.get("tool", ""))
@@ -618,6 +638,12 @@ def _workflow_step(event: dict[str, Any]) -> str:
         value = raw_input.get(key)
         if value is not None and str(value).strip():
             useful.append(f"{key}={str(value).strip()[:160]}")
+    if name in _DIGESTED_CONTENT_TOOLS:
+        digest = _content_digest(raw_input.get("content"))
+        if digest is not None:
+            # Appended last, and fixed-width hex, so a parser can take it off
+            # the end without having to disambiguate a comma inside a filepath.
+            useful.append(f"content_sha256={digest}")
     detail = ", ".join(useful)
     return scan_and_redact(f"{name}: {detail}" if detail else name).scrubbed
 

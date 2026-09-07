@@ -736,6 +736,32 @@ python -m pip install -e ".[test]"
 Any Python 3.11 or newer works; `python3.11` fails on a machine that has a
 supported 3.12 or 3.13 but no 3.11.
 
+#### Or use the installer
+
+```bash
+scripts/install.sh              # Linux / macOS
+./install.ps1                   # Windows PowerShell
+```
+
+Either one creates the venv, installs the project, writes a `.env` with a
+freshly generated `AIOS_VERIFICATION_AUTHORITY_KEY`, and runs the health check.
+Doing that makes step 3 below unnecessary.
+
+#### On a CPU-only Linux machine, add `--cpu-torch`
+
+```bash
+scripts/install.sh --cpu-torch
+```
+
+Measured 2026-09-07 in a clean container: on Linux, `torch>=2.0` resolves to the
+**CUDA** build and pulls **~2.96 GB** of NVIDIA libraries -- cudnn 651 MB,
+cublas 543 MB, triton 248 MB and a dozen more -- that a machine without an
+NVIDIA GPU never loads. This project pins `faiss-cpu`, so CPU is the intended
+target. The flag installs the CPU wheel first, from
+`https://download.pytorch.org/whl/cpu`.
+
+Windows already resolves to a CPU build, so the flag is Linux-facing.
+
 ### 3. Configure the environment
 
 The repo ships a `.env.example` documenting every setting:

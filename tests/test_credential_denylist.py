@@ -109,6 +109,10 @@ _CHOKEPOINT_FILES = (
     "aios/agents/tool_handlers.py",
     "aios/api/routes/files.py",
     "aios/application/agent_bridge.py",
+    # Confirms a compiled playbook's write step by digest. Reading `.env` here
+    # would not print it, but comparing a SUPPLIED digest against its bytes is
+    # a content oracle -- which is why scope alone was never the right gate.
+    "aios/core/cerebellum.py",
 )
 
 

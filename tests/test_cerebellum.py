@@ -13,6 +13,7 @@ or shell side effects.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -114,8 +115,14 @@ def test_parse_step_edit_file_not_compilable() -> None:
     assert _parse_step("edit_file: foo.py") is None
 
 
-def test_parse_step_create_file_not_compilable() -> None:
+def test_parse_step_create_file_without_a_digest_is_not_compilable() -> None:
+    """A write step recorded before digests existed stays uncompilable.
+
+    Confirming a write against an unknown digest would confirm nothing -- it
+    reduces to "a file by that name exists", which is not the claim.
+    """
     assert _parse_step("create_file: bar.py") is None
+    assert _parse_step("create_file: filepath=bar.py") is None
 
 
 def test_parse_step_unknown_tool() -> None:
@@ -743,3 +750,224 @@ def test_playbook_map_contains_expected_fields(db_path: Path) -> None:
 def test_playbook_map_empty_when_nothing_compiled(db_path: Path) -> None:
     cerebellum = Cerebellum(db_path)
     assert cerebellum.playbook_map() == []
+
+
+# --------------------------------------------------------------------------- #
+# Learning loop, stage 1: a write compiles as a CHECK and can never write
+# --------------------------------------------------------------------------- #
+#
+# Before this, `_COMPILABLE_TOOLS` excluded writes -- not for safety, but
+# because the content was never recorded, so there was nothing to replay. A
+# workflow containing a single `create_file` was therefore discarded WHOLE and
+# every step re-ran through the LLM. Stage 1 makes those playbooks compilable
+# with the write step as a verified no-op. It never writes; stage 2 is where
+# real writes are considered, and is not in this change.
+
+_HELLO = b"hello\n"
+_DIGEST_OF_HELLO = hashlib.sha256(_HELLO).hexdigest()
+
+
+def _sandbox(monkeypatch, root: Path) -> None:
+    """Point the live scope authority at *root* for one test."""
+    from aios.security import scope_lock
+
+    monkeypatch.setattr(scope_lock, "_SCOPE_LOCK", scope_lock.ScopeLockAuthority())
+    scope_lock.set_scope_roots([root])
+
+
+def _compile_write_playbook(db_path: Path, filepath: str, digest: str):
+    _insert_verified_skill(
+        db_path,
+        goal="write the greeting",
+        steps=["create_file: filepath=" + filepath + ", content_sha256=" + digest],
+    )
+    cerebellum = Cerebellum(db_path)
+    cerebellum.try_compile_all()
+    return cerebellum, next(iter(cerebellum._cache.values()), None)
+
+
+def test_a_write_step_now_compiles_when_it_carries_a_digest() -> None:
+    step = _parse_step("create_file: filepath=notes.txt, content_sha256=" + "a" * 64)
+
+    assert step == PlaybookStep(
+        "create_file", {"filepath": "notes.txt", "content_sha256": "a" * 64}
+    )
+
+
+def test_the_digest_is_taken_off_the_end() -> None:
+    """A comma inside a filepath must not split the step wrongly.
+
+    `_workflow_step` joins its fields with ", ", so a filepath containing a
+    comma would make a left-to-right parser read a truncated path and a bogus
+    digest. The digest is fixed-width hex at the end, so it is taken from there.
+    """
+    step = _parse_step("create_file: filepath=a,b.txt, content_sha256=" + "b" * 64)
+
+    assert step is not None
+    assert step.args["filepath"] == "a,b.txt"
+    assert step.args["content_sha256"] == "b" * 64
+
+
+def test_a_matching_file_is_confirmed_without_being_written(
+    db_path: Path, tmp_path, monkeypatch
+) -> None:
+    """The success case: already correct, so nothing happens."""
+    target = tmp_path / "greeting.txt"
+    target.write_bytes(_HELLO)
+    before = target.stat().st_mtime_ns
+    _sandbox(monkeypatch, tmp_path)
+
+    cerebellum, pb = _compile_write_playbook(db_path, "greeting.txt", _DIGEST_OF_HELLO)
+    assert pb is not None, "a digest-carrying write step should compile"
+
+    def _must_not_dispatch(tool, args):
+        raise AssertionError("stage 1 dispatched a write: " + str(tool))
+
+    events = list(cerebellum.replay(pb, dispatch_fn=_must_not_dispatch))
+
+    assert [e["type"] for e in events] == ["cerebellum_step", "cerebellum_step_done"]
+    assert "no write" in events[-1]["output"]
+    assert target.stat().st_mtime_ns == before, "the file was touched"
+
+
+def test_a_differing_file_makes_the_replay_abstain(
+    db_path: Path, tmp_path, monkeypatch
+) -> None:
+    """THE BAR. Stage 1 must be shown abstaining, not merely succeeding.
+
+    A playbook that would overwrite different content is the exact case where a
+    replay must decline and let the LLM do the work. If this ever passes by
+    writing, stage 1 has become stage 2 by accident.
+    """
+    target = tmp_path / "greeting.txt"
+    target.write_bytes(b"something else entirely")
+    original = target.read_bytes()
+    _sandbox(monkeypatch, tmp_path)
+
+    cerebellum, pb = _compile_write_playbook(db_path, "greeting.txt", _DIGEST_OF_HELLO)
+    assert pb is not None
+
+    events = list(
+        cerebellum.replay(pb, dispatch_fn=_ok_dispatch("should never be reached"))
+    )
+
+    assert events[-1]["type"] == "cerebellum_abort"
+    assert events[-1]["reason"] == "abstained"
+    assert "content differs" in events[-1]["output"]
+    assert target.read_bytes() == original, "ABSTAIN OVERWROTE THE FILE"
+    assert pb.status == "decompiled", "the playbook was offered again"
+
+
+def test_a_missing_file_makes_the_replay_abstain(
+    db_path: Path, tmp_path, monkeypatch
+) -> None:
+    """Absence is not confirmation. Stage 1 cannot create the file."""
+    _sandbox(monkeypatch, tmp_path)
+
+    cerebellum, pb = _compile_write_playbook(db_path, "greeting.txt", _DIGEST_OF_HELLO)
+    assert pb is not None
+
+    events = list(cerebellum.replay(pb, dispatch_fn=_ok_dispatch("unreached")))
+
+    assert events[-1]["reason"] == "abstained"
+    assert "does not exist" in events[-1]["output"]
+    assert not (tmp_path / "greeting.txt").exists(), "ABSTAIN CREATED THE FILE"
+
+
+def test_a_confirm_only_step_cannot_read_outside_the_sandbox(
+    db_path: Path, tmp_path, monkeypatch
+) -> None:
+    """Read-only is not a reason to widen reach.
+
+    Containment is asked of the LIVE scope authority, not of
+    `config.SCOPE_ROOTS` -- deriving it from the process-start default while the
+    executor uses the re-declarable one is the drift that was a real escape.
+    """
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(_HELLO)
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    _sandbox(monkeypatch, sandbox)
+
+    ok, detail = Cerebellum(db_path)._confirm_write(
+        PlaybookStep(
+            "create_file",
+            {"filepath": "../outside.txt", "content_sha256": _DIGEST_OF_HELLO},
+        )
+    )
+
+    assert ok is False, "confirmed a file outside every declared scope root"
+    assert "outside the sandbox" in detail
+
+
+def test_stage_one_has_no_path_from_a_replay_to_a_write() -> None:
+    """Safe by CONSTRUCTION, not by a careful implementation.
+
+    `replay` intercepts confirm-only tools before `dispatch_fn` is reached, so
+    there is no code path from a replayed `create_file` to the filesystem. A
+    future stage that wants real writes must delete this set -- a visible change
+    rather than a silent one. Pinning it here means the deletion cannot happen
+    by accident.
+    """
+    import inspect
+
+    from aios.core.cerebellum import _CONFIRM_ONLY_TOOLS
+
+    assert "create_file" in _CONFIRM_ONLY_TOOLS
+
+    source = inspect.getsource(Cerebellum.replay)
+
+    assert source.index("_CONFIRM_ONLY_TOOLS") < source.index("dispatch_fn("), (
+        "a write can reach dispatch_fn before the confirm-only check"
+    )
+
+
+def test_the_recorder_and_the_parser_agree() -> None:
+    """The two live in different modules, and that seam has drifted before.
+
+    `_workflow_step` (aios/api/turn_pipeline.py) writes the step; `_parse_step`
+    (here) reads it. When the `key=` prefix was left on by one and not expected
+    by the other, every replay aborted as an unknown RED command. Assert the
+    round trip rather than two independently plausible formats.
+    """
+    from aios.api.turn_pipeline import _workflow_step
+
+    recorded = _workflow_step(
+        {"tool": "create_file", "input": {"filepath": "notes.txt", "content": "hi"}}
+    )
+    step = _parse_step(recorded)
+
+    assert step is not None, "the parser cannot read what the recorder writes"
+    assert step.args["filepath"] == "notes.txt"
+    assert step.args["content_sha256"] == hashlib.sha256(b"hi").hexdigest()
+
+
+def test_a_confirm_only_step_cannot_use_env_as_a_content_oracle(
+    db_path: Path, tmp_path, monkeypatch
+) -> None:
+    """Scope says yes to `.env`; that is precisely the problem.
+
+    `.env` lives INSIDE the sandbox, so `is_path_in_scope` allows it. Comparing
+    a SUPPLIED digest against its bytes then confirms guessed credential content
+    byte-for-byte without ever reading it out -- a working oracle built entirely
+    from allowed operations.
+
+    Asserted against a digest that WOULD match, so a pass cannot come from the
+    comparison merely failing.
+    """
+    secret = b"AIOS_VERIFICATION_AUTHORITY_KEY=deadbeef\n"
+    (tmp_path / ".env").write_bytes(secret)
+    _sandbox(monkeypatch, tmp_path)
+
+    ok, detail = Cerebellum(db_path)._confirm_write(
+        PlaybookStep(
+            "create_file",
+            {
+                "filepath": ".env",
+                "content_sha256": hashlib.sha256(secret).hexdigest(),
+            },
+        )
+    )
+
+    assert ok is False, "confirmed a credential file: the digest oracle is open"
+    assert "content differs" not in detail, "refused for the wrong reason"
