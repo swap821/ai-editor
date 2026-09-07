@@ -26,6 +26,7 @@ from aios.core.replay_writes import (
     store_content,
 )
 from aios.memory.db import get_connection, init_memory_db
+from tests.source_rules import executable_source
 
 _CONTENT = "def add(a, b):\n    return a + b\n"
 _DIGEST = hashlib.sha256(_CONTENT.encode("utf-8")).hexdigest()
@@ -447,11 +448,10 @@ def test_the_sentinel_is_not_reachable_from_production(db_path) -> None:
     behaviour being removed. This was a real mistake in the first draft of the
     fix, caught by running it.
     """
-    import inspect
 
     from aios.agents.tool_agent import ToolAgent
 
-    source = inspect.getsource(ToolAgent._write_stop)
+    source = executable_source(ToolAgent._write_stop)
     body = source.split('"""')[-1]
 
     assert "UNGOVERNED_FIXTURE" not in body, (
@@ -465,12 +465,11 @@ def test_every_write_stop_call_site_uses_the_accessor() -> None:
     They were three separate `getattr(self.autonomy, "emergency_stop", None)`
     expressions. Three copies of a defaulting lookup is three places to forget.
     """
-    import inspect
 
     from aios.agents import tool_agent
 
-    module = inspect.getsource(tool_agent)
-    accessor = inspect.getsource(tool_agent.ToolAgent._write_stop)
+    module = executable_source(tool_agent)
+    accessor = executable_source(tool_agent.ToolAgent._write_stop)
     lookup = 'getattr(self.autonomy, "emergency_stop", None)'
 
     # Subtract the accessor's own source: it legitimately contains the

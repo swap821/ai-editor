@@ -37,12 +37,12 @@ from __future__ import annotations
 
 import ntpath
 import os
-from pathlib import Path, PureWindowsPath
 
 import pytest
 
 from aios.core import executor as executor_module
 from aios.core.executor import _is_windows_style, _writable_scope_mounts
+from tests.source_rules import executable_source
 
 
 def _mount_sources(mounts: list[str]) -> list[str]:
@@ -189,9 +189,8 @@ def test_the_resolver_does_not_use_ntpath_isabs() -> None:
     left all ten cases green on Windows. So the revert is caught here, on any
     host, rather than waiting for a Linux runner to notice.
     """
-    import inspect
 
-    source = inspect.getsource(executor_module._writable_scope_mounts)
+    source = executable_source(executor_module._writable_scope_mounts)
     assert "ntpath.isabs" not in source, (
         "_writable_scope_mounts is choosing its path flavour with ntpath.isabs "
         "again. That predicate returns True for POSIX absolute paths on Python "

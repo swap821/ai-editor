@@ -26,6 +26,7 @@ from aios.runtime.intelligence_gateway import (
     IntelligenceRequest,
 )
 from aios.runtime.contracts import MissionContract
+from tests.source_rules import executable_source
 
 
 def _request() -> EmergencyStopRequest:
@@ -340,11 +341,10 @@ def test_the_pipeline_halt_uses_the_fail_closed_check() -> None:
     ordinary path behaves identically -- they differ only when the latch cannot
     be read, which no ordinary test exercises.
     """
-    import inspect
 
     from aios.application.turns import generate_pipeline
 
-    source = inspect.getsource(generate_pipeline)
+    source = executable_source(generate_pipeline)
 
     assert "if _halt_requires_stop():" in source, (
         "the step-boundary halt no longer uses the fail-closed check"

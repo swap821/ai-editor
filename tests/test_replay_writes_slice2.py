@@ -23,6 +23,7 @@ from aios.core.cerebellum import Cerebellum, PlaybookStep, WriteConfirmation
 from aios.core.replay_writes import record_approval, store_content
 from aios.memory.db import init_memory_db
 from aios.security import scope_lock
+from tests.source_rules import executable_source
 
 
 class _ClearStop:
@@ -274,11 +275,10 @@ def test_the_dispatcher_does_not_blanket_approve_writes() -> None:
     to invite exactly this by claiming only execute_terminal and verify were
     compilable -- every compiled write would run unattended.
     """
-    import inspect
 
     from aios.agents.tool_agent import ToolAgent
 
-    source = inspect.getsource(ToolAgent._dispatch_approved)
+    source = executable_source(ToolAgent._dispatch_approved)
 
     assert "self._replay_create_file(args)" in source, (
         "create_file no longer routes through the narrow check"

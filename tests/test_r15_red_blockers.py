@@ -1,6 +1,5 @@
 """Red-first tests exposing the remaining verified R15 blockers."""
 
-import inspect
 import pytest
 from starlette.requests import Request
 from unittest.mock import MagicMock
@@ -11,13 +10,12 @@ from aios.api.routes import maintenance as maintenance_route
 from aios.application.executor.service import (
     ExecutorService,
     IsolationUnavailable,
-    execute_registered_repair_operation,
 )
 from aios.application.learning.service import LearningService
 from aios.domain.executor import ExecutorCapability, ExecutorJob, ResourceLimits
 from aios.domain.learning.repository import SkillRecord
-from aios.domain.learning.reuse_orchestrator import LocalExecutionDirective
 from aios.domain.local_workforce.contracts import LocalJobProfile, LocalWorkerModel
+from tests.source_rules import executable_source
 
 
 def test_red_1_executor_service_cannot_run_registered_repair(tmp_path, monkeypatch):
@@ -94,7 +92,7 @@ def test_red_2_in_process_fallback_falsely_claims_isolation(tmp_path):
 
 def test_red_3_mounted_maintenance_route_uses_fake_adapters():
     """Red Test 3: Maintenance run_approved_repair route contains fake inline closures."""
-    source = inspect.getsource(maintenance_route.run_approved_repair)
+    source = executable_source(maintenance_route.run_approved_repair)
     # Route must NOT define inline dummy closures like 'def create_checkpoint' or 'return True'
     assert "def create_checkpoint" not in source
     assert "def restore_checkpoint" not in source

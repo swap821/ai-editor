@@ -53,7 +53,6 @@ from aios.application.memory.authorities import (
 from aios.application.observability import ObservabilityAuthority
 from aios.application.recovery import RecoveryResumptionAuthority
 from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
-from aios.domain.memory.human_representation import OperatorPreferenceV1
 from aios.infrastructure.local_workforce.sqlite_store import (
     LocalWorkforceProvenanceStore,
 )
@@ -66,6 +65,7 @@ from aios.infrastructure.missions.transition_journal_store import (
     MissionTransitionJournal,
 )
 from aios.memory.facts import SemanticFacts
+from tests.source_rules import executable_source
 
 
 # --------------------------------------------------------------------------- #
@@ -225,12 +225,11 @@ def test_organ_52_tracing_delegates_to_observability_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Organ 52: tracing.new_trace_context reaches ObservabilityAuthority singleton."""
-    import inspect
 
     from aios.application.observability import authority as obs_auth
     from aios.operations import tracing
 
-    source = inspect.getsource(tracing.new_trace_context)
+    source = executable_source(tracing.new_trace_context)
     assert "get_tracing_authority" in source
 
     calls: list[object] = []
@@ -335,7 +334,7 @@ def test_organ_46_propose_lesson_module_function_delegates_to_singleton(
     """Organ 46: propose_lesson is not a parallel implementation."""
     from aios.application.governance import constitutional_learning
 
-    lesson_source = inspect.getsource(constitutional_learning.propose_lesson)
+    lesson_source = executable_source(constitutional_learning.propose_lesson)
     assert "_CONSTITUTIONAL_LEARNING" in lesson_source
 
     calls: list[dict[str, object]] = []
@@ -888,7 +887,7 @@ def test_organ_32_route_intelligence_request_delegates_to_singleton(
     """Organ 32: route_intelligence_request is not a parallel implementation."""
     from aios.application.intelligence import gateway
 
-    route_source = inspect.getsource(gateway.route_intelligence_request)
+    route_source = executable_source(gateway.route_intelligence_request)
     assert "_UNIVERSAL_GATEWAY_AUTHORITY" in route_source
 
     calls: list[dict[str, object]] = []
@@ -1060,7 +1059,7 @@ def test_organ_36_dispatch_clerical_job_delegates_to_singleton(
     """Organ 36: dispatch_clerical_job is not a parallel implementation."""
     from aios.application.local_workforce import dispatcher
 
-    dispatch_source = inspect.getsource(dispatcher.dispatch_clerical_job)
+    dispatch_source = executable_source(dispatcher.dispatch_clerical_job)
     assert "_CLERK_DISPATCHER" in dispatch_source
 
     calls: list[dict[str, object]] = []
@@ -1735,7 +1734,7 @@ def test_organ_6_edge_trust_middleware_reaches_singleton(
     """Organ 6: api.main middleware reaches EdgeTrustAuthority, not a twin."""
     from aios.interfaces.http import edge_security
 
-    token_source = inspect.getsource(edge_security.check_api_token_or_loopback)
+    token_source = executable_source(edge_security.check_api_token_or_loopback)
     assert "_EDGE_TRUST_AUTHORITY" in token_source
 
     calls: list[object] = []
@@ -2111,7 +2110,7 @@ def test_organ_1_security_gateway_authority_owns_classify_route(
     )
 
     assert inspect.isclass(SecurityGatewayAuthority)
-    classify_source = inspect.getsource(gateway.classify)
+    classify_source = executable_source(gateway.classify)
     assert "_GATEWAY" in classify_source
     assert "_GATEWAY.classify" in classify_source
 
@@ -2142,7 +2141,7 @@ def test_organ_2_scope_lock_authority_owns_files_path_check(
     assert isinstance(
         ScopeLockAuthority().is_path_in_scope(str(tmp_path)).in_scope, bool
     )
-    scope_source = inspect.getsource(scope_lock.is_path_in_scope)
+    scope_source = executable_source(scope_lock.is_path_in_scope)
     assert "_SCOPE_LOCK" in scope_source
 
     calls: list[str] = []
@@ -2167,7 +2166,7 @@ def test_organ_3_secret_scanner_authority_owns_api_binding(
     from aios.security import secret_scanner
     from aios.security.secret_scanner import SecretScannerAuthority, _SECRET_SCANNER
 
-    scan_source = inspect.getsource(secret_scanner.scan_and_redact)
+    scan_source = executable_source(secret_scanner.scan_and_redact)
     assert "_SECRET_SCANNER" in scan_source
     assert api_main.scan_and_redact is secret_scanner.scan_and_redact
 
@@ -2196,7 +2195,7 @@ def test_organ_4_audit_logger_authority_owns_verify_route(
     from aios.security import audit_logger
     from aios.security.audit_logger import AuditLoggerAuthority, ChainStatus, _AUDIT
 
-    verify_source = inspect.getsource(audit_logger.verify_chain)
+    verify_source = executable_source(audit_logger.verify_chain)
     assert "_audit_for" in verify_source or "_AUDIT" in verify_source
     assert isinstance(
         AuditLoggerAuthority().verify_chain(from_id=1, to_id=None), ChainStatus

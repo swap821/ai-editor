@@ -8,6 +8,7 @@ from pathlib import Path
 from aios.application.local_workforce import dispatch_clerical_job
 from aios.domain.local_workforce.contracts import LocalJobProfile
 from aios.domain.local_workforce.qualifier import QualificationResult
+from tests.source_rules import executable_source
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LIVE_EVIDENCE_PATH = (
@@ -182,11 +183,10 @@ def test_a_failing_qualification_escalates_even_with_high_confidence() -> None:
 def test_the_service_reads_a_persisted_qualification_and_never_invents_one() -> None:
     """Guards the specific regression: the call site must consult the registry
     rather than constructing a QualificationResult itself."""
-    import inspect
 
     from aios.application.local_workforce import service as service_module
 
-    source = inspect.getsource(service_module)
+    source = executable_source(service_module)
 
     assert "get_qualification(" in source, (
         "the service must read the persisted qualification from the registry"

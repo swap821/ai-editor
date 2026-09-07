@@ -19,10 +19,10 @@ the AUTHORISATION, not the token.
 
 from __future__ import annotations
 
-import inspect
 import re
 
 from aios.application.turns import generate_pipeline
+from tests.source_rules import executable_source
 
 
 def test_a_pause_always_stashes_so_a_replay_is_distinguishable() -> None:
@@ -37,7 +37,7 @@ def test_a_pause_always_stashes_so_a_replay_is_distinguishable() -> None:
     Asserted against the source because the failure mode is a re-introduced
     guard, which no behavioural test of the happy path would notice.
     """
-    source = inspect.getsource(generate_pipeline)
+    source = executable_source(generate_pipeline)
 
     match = re.search(
         r"_convo_tail = ev\.pop\(\"_convo_tail\", None\)(.{0,900}?)turn_state\.stash\(",
@@ -69,7 +69,7 @@ def test_a_token_bearing_request_without_a_stash_clears_the_grant_chain() -> Non
     invisible to a happy-path test. The decision must also PRECEDE the
     `grants()` read, or the chain is cleared after it has already been used.
     """
-    source = inspect.getsource(generate_pipeline)
+    source = executable_source(generate_pipeline)
 
     take_at = source.find("turn_state.take(session_id)")
     grants_at = source.find("capabilities.grants(session_id")

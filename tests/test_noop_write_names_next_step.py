@@ -33,6 +33,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from aios.agents.tool_handlers import _next_step_after_noop
+from tests.source_rules import executable_source
 
 
 def test_an_unverifiable_file_is_told_what_is_missing(tmp_path: Path) -> None:
@@ -94,12 +95,11 @@ def test_both_noop_paths_carry_the_hint() -> None:
     Pinned together because fixing only one leaves the same trap reachable by
     the other route -- the model chooses which tool to retry with.
     """
-    import inspect
 
     from aios.agents import tool_handlers
 
-    create_src = inspect.getsource(tool_handlers.create_file)
-    edit_src = inspect.getsource(tool_handlers.edit_file)
+    create_src = executable_source(tool_handlers.create_file)
+    edit_src = executable_source(tool_handlers.edit_file)
     assert "_next_step_after_noop" in create_src, (
         "create_file's no-op is still a dead end"
     )

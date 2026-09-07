@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from aios import config
 from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
+from tests.source_rules import executable_source
 
 
 def _ledger(tmp_path, min_successes=3):
@@ -236,7 +237,6 @@ def test_the_kernel_fallback_is_wired_not_bare() -> None:
     Fixed from both sides on purpose: the ledger refuses when unwired, AND the
     fallback wires one, so neither depends on the other being right.
     """
-    import inspect
 
     from aios.policy import kernel
 
@@ -247,7 +247,7 @@ def test_the_kernel_fallback_is_wired_not_bare() -> None:
     joiner = chr(10)
     code = joiner.join(
         ln
-        for ln in inspect.getsource(kernel).splitlines()
+        for ln in executable_source(kernel).splitlines()
         if not ln.strip().startswith("#")
     )
     body = code.split('"""')

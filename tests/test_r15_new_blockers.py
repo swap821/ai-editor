@@ -40,6 +40,7 @@ from aios.domain.local_workforce.contracts import (
     LocalWorkerModel,
 )
 from aios.domain.verification import SkillVerifierSpec
+from tests.source_rules import executable_source
 
 
 # ---------------------------------------------------------------------------
@@ -249,11 +250,10 @@ class TestBlocker2ActivationFailOpen:
 
     def test_activation_authorizer_closure_has_no_length_fallback(self):
         """Inspect the actual closure source for the forbidden fallback."""
-        import inspect
         from aios.api import deps
 
         # Retrieve the get_learning_service source to verify no length fallback
-        source = inspect.getsource(deps.get_learning_service)
+        source = executable_source(deps.get_learning_service)
         assert "len(approval_digest) >= 8" not in source, (
             "BLOCKER 2: activation_authorizer contains 8-char length fallback — "
             "authority failure must mean refusal, not acceptance"
@@ -261,10 +261,9 @@ class TestBlocker2ActivationFailOpen:
 
     def test_activation_authorizer_has_no_bool_digest_fallback(self):
         """After authority failure, must not return bool(digest)."""
-        import inspect
         from aios.api import deps
 
-        source = inspect.getsource(deps.get_learning_service)
+        source = executable_source(deps.get_learning_service)
         # The forbidden pattern is returning bool(approval_digest) after exception
         assert "return bool(approval_digest" not in source, (
             "BLOCKER 2: activation_authorizer has bool(approval_digest) fallback "
@@ -335,10 +334,9 @@ class TestBlocker3PromotionCapabilityFailOpen:
 
     def test_consumer_source_has_no_self_comparison(self):
         """Verify the source of the consumer has no self-comparison fallback."""
-        import inspect
         from aios.api import deps
 
-        source = inspect.getsource(deps.get_promotion_capability_consumer)
+        source = executable_source(deps.get_promotion_capability_consumer)
         # The forbidden pattern: comparing cap_digest against request.authoritative_capability_digest
         assert "authoritative_capability_digest, cap_digest" not in source, (
             "BLOCKER 3: Consumer contains self-comparison fallback"
@@ -534,10 +532,9 @@ class TestBlocker7ExecutorProvenance:
 
 
 def _get_maintenance_source() -> str:
-    import inspect
     from aios.application.maintenance import service as maint_svc
 
-    return inspect.getsource(maint_svc)
+    return executable_source(maint_svc)
 
 
 # ---------------------------------------------------------------------------
@@ -1086,10 +1083,9 @@ class TestBlocker13ProductionSigningKeys:
         When AIOS_VERIFICATION_AUTHORITY_KEY is not set (or is the known default),
         VerificationAuthority must raise RuntimeError in production profile.
         """
-        import inspect
         from aios.application.evidence import verification as ver_module
 
-        source = inspect.getsource(ver_module)
+        source = executable_source(ver_module)
 
         # Currently the key defaults silently to a known insecure string
         # After repair: production must refuse startup with insecure defaults
@@ -1105,10 +1101,9 @@ class TestBlocker13ProductionSigningKeys:
         When AIOS_PROMOTION_AUTHORITY_KEY is not set, PromotionAuthority must refuse
         in production profile.
         """
-        import inspect
         from aios.application.promotion import authority as promo_module
 
-        source = inspect.getsource(promo_module)
+        source = executable_source(promo_module)
 
         # After repair: must validate key on construction in production
         # For now verify the key is referenced (not hardcoded silently)
@@ -1122,9 +1117,8 @@ class TestBlocker13ProductionSigningKeys:
         or production startup must refuse them.
         """
         from aios.application.promotion.authority import PromotionAuthority
-        import inspect
 
-        source = inspect.getsource(PromotionAuthority._compute_integrity_proof)
+        source = executable_source(PromotionAuthority._compute_integrity_proof)
         # The problem: the default is a hardcoded public string
         # After fix: there must be a validation step, not just getattr(config, "key", "hardcoded")
         assert (

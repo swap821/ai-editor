@@ -21,6 +21,7 @@ import pytest
 
 from aios.core.cerebellum import Cerebellum, PlaybookStep, _parse_step
 from aios.memory.db import get_connection, init_memory_db
+from tests.source_rules import executable_source
 
 
 # --------------------------------------------------------------------------- #
@@ -919,13 +920,12 @@ def test_stage_one_has_no_path_from_a_replay_to_a_write() -> None:
     rather than a silent one. Pinning it here means the deletion cannot happen
     by accident.
     """
-    import inspect
 
     from aios.core.cerebellum import _CONFIRM_ONLY_TOOLS
 
     assert "create_file" in _CONFIRM_ONLY_TOOLS
 
-    source = inspect.getsource(Cerebellum.replay)
+    source = executable_source(Cerebellum.replay)
 
     assert source.index("_CONFIRM_ONLY_TOOLS") < source.index("dispatch_fn("), (
         "a write can reach dispatch_fn before the confirm-only check"
@@ -1090,7 +1090,6 @@ def test_the_reason_travels_as_data_not_as_message_text() -> None:
     forever, or a transient one starts retiring playbooks -- silently, because
     both paths still "work".
     """
-    import inspect
 
     from aios.core.cerebellum import Cerebellum, WriteConfirmation
 
@@ -1099,7 +1098,7 @@ def test_the_reason_travels_as_data_not_as_message_text() -> None:
 
     # Compare the CODE, not the prose: the docstring legitimately discusses
     # the same words the old implementation matched on.
-    source = inspect.getsource(Cerebellum._write_args_if_replayable)
+    source = executable_source(Cerebellum._write_args_if_replayable)
     joiner = chr(10)
     body = joiner.join(
         ln for ln in source.splitlines() if not ln.strip().startswith("#")

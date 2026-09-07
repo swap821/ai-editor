@@ -14,6 +14,7 @@ import sqlite3
 
 from aios import config
 from aios.operations.doctor import _learning_loop_check
+from tests.source_rules import executable_source
 
 
 def _seed(db, skills, playbooks) -> None:
@@ -85,8 +86,7 @@ def test_a_broken_database_is_reported_not_raised(tmp_path, monkeypatch) -> None
 
 def test_it_opens_the_database_read_only(tmp_path, monkeypatch) -> None:
     """A diagnostic must not be able to modify what it is diagnosing."""
-    import inspect
 
-    source = inspect.getsource(_learning_loop_check)
+    source = executable_source(_learning_loop_check)
 
     assert "mode=ro" in source, "the doctor check can write to the memory database"

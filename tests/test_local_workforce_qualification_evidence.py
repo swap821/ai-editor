@@ -18,6 +18,7 @@ from aios.application.local_workforce.qualification_evidence import (
     unsupported_claimed_profiles,
 )
 from aios.domain.local_workforce.contracts import LocalJobProfile
+from tests.source_rules import executable_source
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GRANITE_EVIDENCE_PATH = (
@@ -182,11 +183,10 @@ def test_a_profile_failing_in_any_run_is_not_backed() -> None:
 def test_the_service_refuses_a_profile_its_evidence_does_not_back() -> None:
     """Guards the regression at the level that matters: the production write
     path must consult evidence, not just the vocabulary."""
-    import inspect
 
     from aios.application.local_workforce import service as service_module
 
-    source = inspect.getsource(service_module.LocalWorkforceService.update_profiles)
+    source = executable_source(service_module.LocalWorkforceService.update_profiles)
 
     assert "unsupported_profile_claims" in source
     assert "UnsupportedJobProfileClaim" in source

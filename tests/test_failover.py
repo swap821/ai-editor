@@ -90,7 +90,7 @@ def test_failover_chat_all_fail_raises():
     ]
 
     fc = FailoverChatClient(candidates)
-    with pytest.raises(LLMError, match="all 2 model candidate\(s\) failed"):
+    with pytest.raises(LLMError, match=r"all 2 model candidate\(s\) failed"):
         fc.chat([{"role": "user", "content": "test"}])
 
 

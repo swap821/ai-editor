@@ -20,6 +20,7 @@ decision someone makes on purpose, with the measurement in front of them.
 from __future__ import annotations
 
 from aios import config
+from tests.source_rules import executable_source
 
 #: Rough resident cost in GB of the local models on this host, measured via
 #: `ollama ps` on 2026-08-18. Used to catch a default that cannot fit alongside
@@ -60,9 +61,8 @@ def test_the_clerk_default_fits_a_16gb_host() -> None:
 
 def test_the_clerk_is_operator_overridable() -> None:
     """Per-host tuning must not require editing code."""
-    import inspect
 
-    source = inspect.getsource(config)
+    source = executable_source(config)
 
     assert '_env_str("AIOS_LLM_MODEL"' in source
 
