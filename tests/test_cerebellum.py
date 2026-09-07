@@ -899,3 +899,34 @@ def test_the_recorder_and_the_parser_agree() -> None:
     assert step is not None, "the parser cannot read what the recorder writes"
     assert step.args["filepath"] == "notes.txt"
     assert step.args["content_sha256"] == hashlib.sha256(b"hi").hexdigest()
+
+
+def test_a_confirm_only_step_cannot_use_env_as_a_content_oracle(
+    db_path: Path, tmp_path, monkeypatch
+) -> None:
+    """Scope says yes to `.env`; that is precisely the problem.
+
+    `.env` lives INSIDE the sandbox, so `is_path_in_scope` allows it. Comparing
+    a SUPPLIED digest against its bytes then confirms guessed credential content
+    byte-for-byte without ever reading it out -- a working oracle built entirely
+    from allowed operations.
+
+    Asserted against a digest that WOULD match, so a pass cannot come from the
+    comparison merely failing.
+    """
+    secret = b"AIOS_VERIFICATION_AUTHORITY_KEY=deadbeef\n"
+    (tmp_path / ".env").write_bytes(secret)
+    _sandbox(monkeypatch, tmp_path)
+
+    ok, detail = Cerebellum(db_path)._confirm_write(
+        PlaybookStep(
+            "create_file",
+            {
+                "filepath": ".env",
+                "content_sha256": hashlib.sha256(secret).hexdigest(),
+            },
+        )
+    )
+
+    assert ok is False, "confirmed a credential file: the digest oracle is open"
+    assert "content differs" not in detail, "refused for the wrong reason"

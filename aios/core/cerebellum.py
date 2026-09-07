@@ -659,6 +659,21 @@ class Cerebellum:
         if not filepath or not expected:
             return False, "step carries no target or no digest"
 
+        # Scope is not sufficient, and a digest check is exactly why. `.env`
+        # sits INSIDE the sandbox, so `is_path_in_scope` says yes; comparing a
+        # supplied digest against its bytes is then a content ORACLE -- an
+        # attacker who can propose digests confirms guessed credential content
+        # byte-for-byte without ever reading it out. Every module that gates on
+        # scope must also gate on credentials; see
+        # tests/test_credential_denylist.py, which enforces exactly this pairing.
+        # Imported here, not at module scope: `aios.policy.__init__` pulls in
+        # the kernel, which reaches `aios.api.deps`, which imports this module.
+        # A module-level import is a circular import, not a style preference.
+        from aios.policy.credential_paths import is_credential_path, refusal_reason
+
+        if is_credential_path(filepath):
+            return False, refusal_reason(filepath)
+
         # ONE derivation, not a second copy. `config.SCOPE_ROOTS` is the
         # process-start default; `is_path_in_scope` reads the LIVE, re-declarable
         # authority. Deriving containment from the former while the executor uses
