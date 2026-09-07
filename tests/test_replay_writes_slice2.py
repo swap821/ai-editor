@@ -19,7 +19,7 @@ import pytest
 
 from aios import config
 from aios.core.autonomy import AutonomyLedger
-from aios.core.cerebellum import Cerebellum, PlaybookStep
+from aios.core.cerebellum import Cerebellum, PlaybookStep, WriteConfirmation
 from aios.core.replay_writes import record_approval, store_content
 from aios.memory.db import init_memory_db
 from aios.security import scope_lock
@@ -59,7 +59,9 @@ def test_no_bytes_are_offered_while_the_flag_is_off(db_path, sandbox, monkeypatc
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", False)
 
     assert (
-        Cerebellum(db_path)._write_args_if_replayable(_step(), "util.py does not exist")
+        Cerebellum(db_path)._write_args_if_replayable(
+            _step(), WriteConfirmation(False, "util.py does not exist", missing=True)
+        )
         is None
     )
 
@@ -70,7 +72,7 @@ def test_bytes_are_offered_when_the_target_is_missing(db_path, sandbox, monkeypa
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
     args = Cerebellum(db_path)._write_args_if_replayable(
-        _step(), "util.py does not exist"
+        _step(), WriteConfirmation(False, "util.py does not exist", missing=True)
     )
 
     assert args is not None
@@ -92,7 +94,7 @@ def test_nothing_is_offered_when_the_file_exists_but_differs(
 
     assert (
         Cerebellum(db_path)._write_args_if_replayable(
-            _step(), "util.py exists but its content differs"
+            _step(), WriteConfirmation(False, "util.py exists but its content differs")
         )
         is None
     )
@@ -105,7 +107,9 @@ def test_nothing_is_offered_when_the_content_was_never_stored(
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
     assert (
-        Cerebellum(db_path)._write_args_if_replayable(_step(), "util.py does not exist")
+        Cerebellum(db_path)._write_args_if_replayable(
+            _step(), WriteConfirmation(False, "util.py does not exist", missing=True)
+        )
         is None
     )
 

@@ -72,6 +72,36 @@ DispatchFn = Callable[[str, dict[str, Any]], tuple[str, str, bool]]
 
 
 @dataclass(frozen=True)
+class WriteConfirmation:
+    """Why a confirm-only step did or did not confirm, and whether that is final.
+
+    `permanent` is the whole reason this is a type rather than a bool and a
+    message. Some refusals mean the playbook can NEVER work here -- it names no
+    target, or a credential path, or somewhere outside the sandbox -- and
+    retrying is pure waste. Others mean only that the world does not currently
+    match: the file is absent, or holds different bytes. Those may fit
+    perfectly on the next turn, and retiring a good playbook over transient
+    state throws away something that took >=3 STRONG verified successes to
+    earn.
+
+    Deciding that by matching on message text (`"does not exist" in detail`)
+    is how the distinction rots: one reworded string and a permanent refusal
+    starts being retried forever, or a transient one starts retiring
+    playbooks. The reason travels as data.
+    """
+
+    confirmed: bool
+    detail: str
+    permanent: bool = False
+    #: The target is ABSENT, as opposed to present with different bytes.
+    #: Only an absent target can be written by stage 2: `create_file` refuses
+    #: to overwrite, so repairing an existing file needs `edit_file`. Carried
+    #: as data for the same reason as `permanent` -- deriving it from the
+    #: message text worked until someone reworded the message.
+    missing: bool = False
+
+
+@dataclass(frozen=True)
 class PlaybookStep:
     """One step in a compiled playbook — a structured tool call."""
 
@@ -577,8 +607,9 @@ class Cerebellum:
             }
 
             if step.tool_name in _CONFIRM_ONLY_TOOLS:
-                confirmed, detail = self._confirm_write(step)
-                if not confirmed:
+                outcome = self._confirm_write(step)
+                if not outcome.confirmed:
+                    detail = outcome.detail
                     # Stage 2: the target may simply not exist yet. If a human
                     # approved exactly these bytes at exactly this path, the
                     # write can be re-performed rather than abandoned. The
@@ -586,7 +617,7 @@ class Cerebellum:
                     # only supplies the bytes, so the authorisation stays on the
                     # one path that also does scope, credentials, snapshot and
                     # audit.
-                    args = self._write_args_if_replayable(step, detail)
+                    args = self._write_args_if_replayable(step, outcome)
                     if args is not None:
                         output, status, failed = dispatch_fn("create_file", args)
                         if status not in ("blocked", "approval") and not failed:
@@ -598,24 +629,40 @@ class Cerebellum:
                             }
                             continue
                         detail = (output or detail)[:200]
-                    # ABSTAIN. Not a replay failure to be counted toward a
-                    # threshold -- the playbook is simply wrong for this state,
-                    # and the LLM must do the work. Decompile immediately so it
-                    # is not offered again for a file it cannot produce.
-                    self.decompile(playbook.id)
+
+                    # ABSTAIN -- but how permanently depends on WHY.
+                    #
+                    # A playbook naming no target, a credential path, or
+                    # somewhere outside the sandbox can never work: retire it
+                    # now. A target that is merely absent or holds different
+                    # bytes is a fact about today, and the same playbook may fit
+                    # tomorrow. Retiring one of those throws away something that
+                    # took >=3 STRONG verified successes to earn, and it cannot
+                    # come back without the skill being re-promoted from
+                    # scratch.
+                    #
+                    # Transient abstentions instead count toward
+                    # `max_consecutive_failures`, so a playbook that never fits
+                    # is still retired -- just after evidence rather than on the
+                    # first mismatch. A successful replay resets the count.
+                    if outcome.permanent:
+                        self.decompile(playbook.id)
+                    else:
+                        self._record_replay_failure(playbook.id)
                     yield {
                         "type": "cerebellum_abort",
                         "step_index": i,
                         "reason": "abstained",
                         "tool": step.tool_name,
                         "output": detail,
+                        "permanent": outcome.permanent,
                     }
                     return
                 yield {
                     "type": "cerebellum_step_done",
                     "tool": step.tool_name,
                     "step_index": i,
-                    "output": detail,
+                    "output": outcome.detail,
                 }
                 continue
 
@@ -655,7 +702,7 @@ class Cerebellum:
     # Confirm-only steps (learning loop, stage 1)
     # ------------------------------------------------------------------
 
-    def _confirm_write(self, step: PlaybookStep) -> tuple[bool, str]:
+    def _confirm_write(self, step: PlaybookStep) -> WriteConfirmation:
         """Is the file this step would have written ALREADY exactly right?
 
         Stage 1 replays a write as a no-op check and nothing else:
@@ -677,7 +724,9 @@ class Cerebellum:
         filepath = str(step.args.get("filepath", ""))
         expected = str(step.args.get("content_sha256", ""))
         if not filepath or not expected:
-            return False, "step carries no target or no digest"
+            return WriteConfirmation(
+                False, "step carries no target or no digest", permanent=True
+            )
 
         # Scope is not sufficient, and a digest check is exactly why. `.env`
         # sits INSIDE the sandbox, so `is_path_in_scope` says yes; comparing a
@@ -692,7 +741,7 @@ class Cerebellum:
         from aios.policy.credential_paths import is_credential_path, refusal_reason
 
         if is_credential_path(filepath):
-            return False, refusal_reason(filepath)
+            return WriteConfirmation(False, refusal_reason(filepath), permanent=True)
 
         # ONE derivation, not a second copy. `config.SCOPE_ROOTS` is the
         # process-start default; `is_path_in_scope` reads the LIVE, re-declarable
@@ -702,22 +751,26 @@ class Cerebellum:
         # gateway asks rather than reimplementing it.
         verdict = is_path_in_scope(filepath)
         if not verdict.in_scope:
-            return False, "target resolves outside the sandbox"
+            return WriteConfirmation(
+                False, "target resolves outside the sandbox", permanent=True
+            )
         target = Path(verdict.resolved)
 
         if not target.is_file():
-            return False, f"{filepath} does not exist"
+            return WriteConfirmation(False, f"{filepath} does not exist", missing=True)
         try:
             actual = hashlib.sha256(target.read_bytes()).hexdigest()
         except OSError as exc:
-            return False, f"{filepath} could not be read: {exc}"
+            return WriteConfirmation(False, f"{filepath} could not be read: {exc}")
 
         if actual != expected:
-            return False, f"{filepath} exists but its content differs"
-        return True, f"{filepath} already matches (no write)"
+            return WriteConfirmation(
+                False, f"{filepath} exists but its content differs"
+            )
+        return WriteConfirmation(True, f"{filepath} already matches (no write)")
 
     def _write_args_if_replayable(
-        self, step: PlaybookStep, detail: str
+        self, step: PlaybookStep, outcome: "WriteConfirmation"
     ) -> Optional[dict[str, Any]]:
         """Bytes for a replayable write, or None to abstain.
 
@@ -734,7 +787,7 @@ class Cerebellum:
         """
         if not config.REPLAY_APPROVED_WRITES_ENABLED:
             return None
-        if "does not exist" not in detail:
+        if outcome.permanent or not outcome.missing:
             return None
 
         digest = str(step.args.get("content_sha256", ""))

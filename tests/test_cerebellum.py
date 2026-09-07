@@ -855,7 +855,16 @@ def test_a_differing_file_makes_the_replay_abstain(
     assert events[-1]["reason"] == "abstained"
     assert "content differs" in events[-1]["output"]
     assert target.read_bytes() == original, "ABSTAIN OVERWROTE THE FILE"
-    assert pb.status == "decompiled", "the playbook was offered again"
+    # BEHAVIOUR CHANGE (slice 3): a differing file is a fact about TODAY, not
+    # proof the playbook is bad, so it is no longer retired on the first miss.
+    # It counts toward `max_consecutive_failures` instead, so one that never
+    # fits is still retired -- after evidence rather than on sight. Retiring on
+    # sight discarded a playbook that took >=3 STRONG verified successes to
+    # earn and cannot return without the skill being re-promoted from scratch.
+    assert pb.status != "decompiled", (
+        "a transient content mismatch permanently retired the playbook"
+    )
+    assert pb.consecutive_failures >= 1, "the abstention was not counted at all"
 
 
 def test_a_missing_file_makes_the_replay_abstain(
@@ -889,12 +898,13 @@ def test_a_confirm_only_step_cannot_read_outside_the_sandbox(
     sandbox.mkdir()
     _sandbox(monkeypatch, sandbox)
 
-    ok, detail = Cerebellum(db_path)._confirm_write(
+    outcome = Cerebellum(db_path)._confirm_write(
         PlaybookStep(
             "create_file",
             {"filepath": "../outside.txt", "content_sha256": _DIGEST_OF_HELLO},
         )
     )
+    ok, detail = outcome.confirmed, outcome.detail
 
     assert ok is False, "confirmed a file outside every declared scope root"
     assert "outside the sandbox" in detail
@@ -959,7 +969,7 @@ def test_a_confirm_only_step_cannot_use_env_as_a_content_oracle(
     (tmp_path / ".env").write_bytes(secret)
     _sandbox(monkeypatch, tmp_path)
 
-    ok, detail = Cerebellum(db_path)._confirm_write(
+    outcome = Cerebellum(db_path)._confirm_write(
         PlaybookStep(
             "create_file",
             {
@@ -968,6 +978,135 @@ def test_a_confirm_only_step_cannot_use_env_as_a_content_oracle(
             },
         )
     )
+    ok, detail = outcome.confirmed, outcome.detail
 
     assert ok is False, "confirmed a credential file: the digest oracle is open"
     assert "content differs" not in detail, "refused for the wrong reason"
+
+
+# --------------------------------------------------------------------------- #
+# Slice 3: drift is not the same as a bad playbook
+# --------------------------------------------------------------------------- #
+
+
+def test_a_permanent_refusal_retires_the_playbook_at_once(
+    db_path, tmp_path, monkeypatch
+) -> None:
+    """A credential path can never become writable, so retrying is pure waste.
+
+    Paired with the transient test below: the two must behave DIFFERENTLY, or
+    the distinction this slice introduces does not exist.
+    """
+    _sandbox(monkeypatch, tmp_path)
+    (tmp_path / ".env").write_bytes(b"SECRET=1\n")
+
+    cerebellum, pb = _compile_write_playbook(
+        db_path, ".env", hashlib.sha256(b"SECRET=1\n").hexdigest()
+    )
+    if pb is None:
+        pytest.skip("a credential path does not compile, which is also correct")
+
+    events = list(cerebellum.replay(pb, dispatch_fn=_ok_dispatch("unreached")))
+
+    assert events[-1]["reason"] == "abstained"
+    assert events[-1]["permanent"] is True
+    assert pb.status == "decompiled", "a permanently-impossible playbook survived"
+
+
+def test_a_transient_miss_is_counted_not_retired(
+    db_path, tmp_path, monkeypatch
+) -> None:
+    """A file that differs today may match tomorrow.
+
+    Retiring on the first miss discarded a playbook that took >=3 STRONG
+    verified successes to earn, and it cannot return without the skill being
+    re-promoted from scratch. That is an expensive answer to a temporary fact.
+    """
+    target = tmp_path / "greeting.txt"
+    target.write_bytes(b"something else entirely")
+    _sandbox(monkeypatch, tmp_path)
+
+    cerebellum, pb = _compile_write_playbook(db_path, "greeting.txt", _DIGEST_OF_HELLO)
+    assert pb is not None
+
+    events = list(cerebellum.replay(pb, dispatch_fn=_ok_dispatch("unreached")))
+
+    assert events[-1]["reason"] == "abstained"
+    assert events[-1]["permanent"] is False
+    assert pb.status != "decompiled"
+    assert pb.consecutive_failures == 1
+
+
+def test_a_playbook_that_never_fits_is_still_retired(
+    db_path, tmp_path, monkeypatch
+) -> None:
+    """Bounded, not unbounded. Patience is not the same as never giving up.
+
+    Without this the change would trade one bad behaviour (retiring good
+    playbooks) for another (retrying a hopeless one forever, redoing every
+    earlier step of the replay each time).
+    """
+    target = tmp_path / "greeting.txt"
+    target.write_bytes(b"never going to match")
+    _sandbox(monkeypatch, tmp_path)
+
+    cerebellum, pb = _compile_write_playbook(db_path, "greeting.txt", _DIGEST_OF_HELLO)
+    assert pb is not None
+
+    for _ in range(cerebellum.max_consecutive_failures):
+        list(cerebellum.replay(pb, dispatch_fn=_ok_dispatch("unreached")))
+
+    assert pb.status == "decompiled", "a playbook that never fits was retried forever"
+
+
+def test_a_success_clears_the_abstention_count(db_path, tmp_path, monkeypatch) -> None:
+    """Occasional misses must not accumulate into a retirement.
+
+    A playbook that works most days would otherwise be retired by a slow drip
+    of unrelated bad days.
+    """
+    target = tmp_path / "greeting.txt"
+    target.write_bytes(b"wrong for now")
+    _sandbox(monkeypatch, tmp_path)
+
+    cerebellum, pb = _compile_write_playbook(db_path, "greeting.txt", _DIGEST_OF_HELLO)
+    assert pb is not None
+
+    list(cerebellum.replay(pb, dispatch_fn=_ok_dispatch("unreached")))
+    assert pb.consecutive_failures == 1
+
+    target.write_bytes(_HELLO)  # the world now matches
+    events = list(cerebellum.replay(pb, dispatch_fn=_ok_dispatch("unreached")))
+
+    assert events[-1]["type"] == "cerebellum_step_done"
+    assert pb.consecutive_failures == 0, "a successful replay did not clear the count"
+
+
+def test_the_reason_travels_as_data_not_as_message_text() -> None:
+    """Why `WriteConfirmation` is a type rather than a bool and a string.
+
+    The permanent/transient decision used to be made by matching on message
+    text. One reworded string and a permanent refusal starts being retried
+    forever, or a transient one starts retiring playbooks -- silently, because
+    both paths still "work".
+    """
+    import inspect
+
+    from aios.core.cerebellum import Cerebellum, WriteConfirmation
+
+    assert "permanent" in WriteConfirmation.__dataclass_fields__
+    assert "missing" in WriteConfirmation.__dataclass_fields__
+
+    # Compare the CODE, not the prose: the docstring legitimately discusses
+    # the same words the old implementation matched on.
+    source = inspect.getsource(Cerebellum._write_args_if_replayable)
+    joiner = chr(10)
+    body = joiner.join(
+        ln for ln in source.splitlines() if not ln.strip().startswith("#")
+    )
+    body = body.split('"""')[0] + body.split('"""')[-1]
+
+    assert "outcome.missing" in body, "the writable case is no longer read as data"
+    assert "in detail" not in body, (
+        "the replay decision is matching on message text again"
+    )
