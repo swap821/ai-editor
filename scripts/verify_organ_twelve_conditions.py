@@ -710,6 +710,74 @@ _EMPTINESS_CLAIMS: tuple[tuple[str, str], ...] = (
 )
 
 
+#: Number words a verdict might use for the mission set, lowercase.
+_NUMBER_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+}
+
+
+def _actual_mission_count(root: Path) -> int | None:
+    """How many missions the runner ACTUALLY defines, counted from its source.
+
+    Derived rather than configured, for the same reason the installer's
+    package list is derived from the manifest: a number maintained by hand
+    falls behind the thing it describes, which is the defect this rule
+    exists to catch.
+    """
+    runner = root / "tools" / "governance_conformance_runner.py"
+    if not runner.exists():
+        return None
+    import re as _re
+
+    ids = set(
+        _re.findall(r"def _adjudicate_m([0-9]+)", runner.read_text(encoding="utf-8"))
+    )
+    return len(ids) or None
+
+
+def _mission_count_failures(record, root: Path) -> list[tuple[str, str]]:
+    """A verdict naming a mission count must match the mission set.
+
+    Organ 55's C9 read "All EIGHT missions are runnable" while the runner
+    defined nine. The emptiness rule below could not see it -- "eight"
+    asserts nothing about a field being empty -- so the drift sat in the
+    field a reader uses to judge how much of the benchmark is live.
+    """
+    actual = _actual_mission_count(root)
+    if actual is None:
+        return []
+
+    import re as _re
+
+    failures: list[tuple[str, str]] = []
+    for key, raw in (record.condition_verdicts or {}).items():
+        match = _re.search(r"all[ ]+([a-z]+)[ ]+missions", str(raw or ""), _re.I)
+        if not match:
+            continue
+        claimed = _NUMBER_WORDS.get(match.group(1).lower())
+        if claimed is not None and claimed != actual:
+            failures.append(
+                (
+                    str(key),
+                    f"verdict claims {match.group(1).upper()} missions but "
+                    f"the runner defines {actual} -- the record is behind "
+                    "the mechanism",
+                )
+            )
+    return failures
+
+
 def _verdict_contradiction_failures(record) -> list[tuple[str, str]]:
     """A written verdict may not assert a field is empty when it is populated.
 
@@ -1248,6 +1316,7 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         f"organ {record.organ_id} ({record.name}) {cond}: {reason}"
         for record in records
         for cond, reason in _verdict_contradiction_failures(record)
+        + _mission_count_failures(record, REPO_ROOT)
     ]
     if contradictions:
         print(

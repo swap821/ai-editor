@@ -58,13 +58,42 @@ class _Runner:
         raise AssertionError("the matrix must not execute commands")
 
 
-def _agent(sandbox: Path) -> ToolAgent:
+class _ClearStop:
+    """A latch that is wired and NOT engaged."""
+
+    def assert_operational(self):
+        return None
+
+
+class _EngagedStop:
+    """A latch the human has pulled."""
+
+    def assert_operational(self):
+        raise RuntimeError("emergency stop engaged")
+
+
+def _agent(sandbox: Path, db: Path, *, stop=None) -> ToolAgent:
+    """An agent whose ledger carries a REAL emergency stop.
+
+    This used to set `agent.autonomy = None`. That made
+    `getattr(self.autonomy, "emergency_stop", None)` yield None, and the
+    authorisation check then SKIPPED the stop entirely -- so all eight cases
+    below passed while the control was never consulted once. The matrix proved
+    the digest and credential guards and nothing about the stop, while reading
+    as though it had proved both.
+
+    Found by external review 2026-09-07. The ninth case exists because of it.
+    """
+    from aios.core.autonomy import AutonomyLedger
+
     agent = ToolAgent(
         None,
         Executor(runner=_Runner(), audit_log=lambda *a, **k: None),
         read_root=sandbox,
     )
-    agent.autonomy = None
+    agent.autonomy = AutonomyLedger(
+        db_path=db, emergency_stop=stop if stop is not None else _ClearStop()
+    )
     return agent
 
 
@@ -121,7 +150,7 @@ def main() -> int:
     print(f"scope   : {[str(p) for p in scope_lock.get_scope_roots()]}")
 
     m = Matrix()
-    agent = _agent(sandbox)
+    agent = _agent(sandbox, db)
 
     # ---------------------------------------------------------------- creates
     record_approval("a_missing.py", _CONTENT, db_path=db)
@@ -279,6 +308,23 @@ def main() -> int:
         "abstained",
         "abstained" if not outcome.confirmed and not outcome.missing else "other",
         "not permanent" if not outcome.permanent else "PERMANENT (wrong)",
+    )
+
+    # ---- 9. the control the first eight never consulted -------------------
+    record_approval("i_stopped.py", _CONTENT, db_path=db)
+    stopped = _agent(sandbox, db, stop=_EngagedStop())
+    _, status, _ = stopped._replay_create_file(
+        {
+            "filepath": "i_stopped.py",
+            "content": _CONTENT,
+            "content_sha256": content_digest(_CONTENT),
+        }
+    )
+    m.check(
+        "write   approved + STOPPED",
+        "blocked",
+        _outcome(status),
+        "absent" if not (sandbox / "i_stopped.py").exists() else "FILE WRITTEN",
     )
 
     code = m.report()

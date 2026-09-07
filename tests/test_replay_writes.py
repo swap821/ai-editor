@@ -17,6 +17,7 @@ import pytest
 from aios import config
 from aios.core.autonomy import AutonomyLedger
 from aios.core.replay_writes import (
+    UNGOVERNED_FIXTURE,
     content_digest,
     decision_signature,
     is_approved_write,
@@ -151,7 +152,13 @@ def test_an_approved_write_is_recognised_when_enabled(db_path) -> None:
     """The positive case, so the negatives below cannot pass vacuously."""
     record_approval("src/util.py", _CONTENT, db_path=db_path)
 
-    assert is_approved_write("src/util.py", _DIGEST, db_path=db_path, enabled=True)
+    assert is_approved_write(
+        "src/util.py",
+        _DIGEST,
+        db_path=db_path,
+        enabled=True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
 
 def test_the_flag_is_off_by_default(db_path) -> None:
@@ -246,10 +253,22 @@ def test_a_decision_does_not_cross_workspaces(db_path, monkeypatch) -> None:
 
     monkeypatch.setattr(rw, "workspace_id", lambda: "project-a")
     record_approval("src/util.py", _CONTENT, db_path=db_path)
-    assert is_approved_write("src/util.py", _DIGEST, db_path=db_path, enabled=True)
+    assert is_approved_write(
+        "src/util.py",
+        _DIGEST,
+        db_path=db_path,
+        enabled=True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
     monkeypatch.setattr(rw, "workspace_id", lambda: "project-b")
-    assert not is_approved_write("src/util.py", _DIGEST, db_path=db_path, enabled=True)
+    assert not is_approved_write(
+        "src/util.py",
+        _DIGEST,
+        db_path=db_path,
+        enabled=True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -336,3 +355,123 @@ def test_the_upgrade_preserves_what_was_already_there(tmp_path) -> None:
             "SELECT content FROM playbook_blobs WHERE sha256 = ?", ("a" * 64,)
         ).fetchone()
     assert row is not None and bytes(row["content"]) == b"payload"
+
+
+# --------------------------------------------------------------------------- #
+# A missing stop is a refusal, not a skipped check
+# --------------------------------------------------------------------------- #
+#
+# Found by external review 2026-09-07 and reproduced by execution before it was
+# accepted:
+#
+#     is_approved_write(..., enabled=True, emergency_stop=None)  ->  True
+#
+# authorised with no stop consulted at all, while the function's own docstring
+# said "fail-closed on every axis". `RuntimeDeps.autonomy` defaults to `None`
+# and the call sites read the latch through `getattr(..., None)`, so absence
+# was the DEFAULT state.
+#
+# Third appearance of one shape: executor.py's `if self.emergency_stop is not
+# None:`, the self-apply verify executor built without one, and this -- written
+# AFTER `require_wired` existed to prevent it.
+
+
+def test_a_missing_stop_refuses_rather_than_skipping(db_path) -> None:
+    """THE BAR. The exact call the reviewer ran must now return False."""
+    record_approval("src/util.py", _CONTENT, db_path=db_path)
+
+    assert (
+        is_approved_write(
+            "src/util.py",
+            _DIGEST,
+            db_path=db_path,
+            enabled=True,
+            emergency_stop=None,
+        )
+        is False
+    ), "a write was authorised with no emergency stop consulted"
+
+
+def test_a_missing_stop_refuses_an_edit_too(db_path) -> None:
+    """The same hole existed on the edit path; both were one guard."""
+    from aios.core.replay_writes import is_approved_edit, record_edit_approval
+
+    record_edit_approval("calc.py", "a", "b", db_path=db_path)
+
+    assert (
+        is_approved_edit(
+            "calc.py",
+            content_digest("a"),
+            content_digest("b"),
+            db_path=db_path,
+            enabled=True,
+            emergency_stop=None,
+        )
+        is False
+    )
+
+
+def test_a_fixture_may_opt_out_but_must_say_so(db_path) -> None:
+    """The escape hatch has to exist, and has to be visible in the diff.
+
+    Without it every test constructing a governed object would have to build a
+    latch, and a check that expensive gets reverted. Naming it keeps the
+    difference between a decision and an omission legible -- the distinction
+    `require_wired` already learned.
+    """
+    from aios.core.replay_writes import UNGOVERNED_FIXTURE
+
+    record_approval("src/util.py", _CONTENT, db_path=db_path)
+
+    assert is_approved_write(
+        "src/util.py",
+        _DIGEST,
+        db_path=db_path,
+        enabled=True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+
+
+def test_the_sentinel_is_not_reachable_from_production(db_path) -> None:
+    """`_write_stop` must never hand back the opt-out.
+
+    Returning the sentinel when no ledger is wired would rename the hole rather
+    than close it: production would opt out silently, which is exactly the
+    behaviour being removed. This was a real mistake in the first draft of the
+    fix, caught by running it.
+    """
+    import inspect
+
+    from aios.agents.tool_agent import ToolAgent
+
+    source = inspect.getsource(ToolAgent._write_stop)
+    body = source.split('"""')[-1]
+
+    assert "UNGOVERNED_FIXTURE" not in body, (
+        "the production accessor can return the fixture opt-out"
+    )
+
+
+def test_every_write_stop_call_site_uses_the_accessor() -> None:
+    """One accessor, so three call sites cannot drift apart.
+
+    They were three separate `getattr(self.autonomy, "emergency_stop", None)`
+    expressions. Three copies of a defaulting lookup is three places to forget.
+    """
+    import inspect
+
+    from aios.agents import tool_agent
+
+    module = inspect.getsource(tool_agent)
+    accessor = inspect.getsource(tool_agent.ToolAgent._write_stop)
+    lookup = 'getattr(self.autonomy, "emergency_stop", None)'
+
+    # Subtract the accessor's own source: it legitimately contains the
+    # lookup once in code and once in the docstring explaining why it is
+    # centralised. What must be zero is copies OUTSIDE it.
+    outside = module.count(lookup) - accessor.count(lookup)
+
+    assert outside == 0, (
+        f"{outside} bare latch lookup(s) outside _write_stop(); three copies "
+        "of a defaulting lookup is three places to forget"
+    )
