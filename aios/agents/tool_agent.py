@@ -99,6 +99,7 @@ from aios.core.llm import LLMClient, LLMError
 from aios.core.stream_protocol import StreamFinished
 from aios.core.planner import Planner
 from aios.core.verification_strength import (
+    meets_promotion_floor,
     VerificationStrength,
     derive_strength,
     parse_test_counts,
@@ -1213,11 +1214,10 @@ class ToolAgent:
                 output, status, failed = self._dispatch(name, args)
                 if status == "approval":
                     _target = str(args.get("filepath") or args.get("command") or "")
-                    if (
-                        self.autonomy is not None
-                        and name in ("create_file", "edit_file")
-                        and self.autonomy.is_earned(name, _target)
-                    ):
+                    if name in (
+                        "create_file",
+                        "edit_file",
+                    ) and self._write_is_authorised(name, args):
                         # EARNED AUTONOMY: this write class has earned enough
                         # verifier-backed successes to run without a human this
                         # turn. Whitelist it and re-dispatch through the SAME gated
@@ -1228,15 +1228,10 @@ class ToolAgent:
                         # Tamper-evident record of the autonomous DECISION itself,
                         # distinct from the write's own 'tool-agent' audit entry,
                         # carrying the evidence that earned it.
-                        _ev = self.autonomy.record_for(name, _target)
                         self._audit(
                             "earned-autonomy",
-                            f"AUTO-GRANT {name}: {_target}"
-                            + (
-                                f" (earned, {_ev['success_count']} verified)"
-                                if _ev
-                                else " (earned)"
-                            ),
+                            f"AUTO-GRANT {name}: {_target} "
+                            "(a human approved exactly these bytes at this path)",
                             Zone.YELLOW,
                         )
                         self._grant_earned(name, args)
@@ -1379,6 +1374,54 @@ class ToolAgent:
         # Step cap reached without a final answer.
         yield {"type": "text", "text": STEP_LIMIT_TEXT}
         yield {"type": "done"}
+
+    def _write_is_authorised(self, name: str, args: dict[str, Any]) -> bool:
+        """May this write run without pausing for a human, right now?
+
+        ONE question, asked of the exact-decision records -- did a human
+        approve these exact bytes (or this exact transformation) at this exact
+        path, in this workspace?
+
+        It used to be asked of `AutonomyLedger.is_earned`, whose write
+        signatures collapse a target to `<dir>/*<.ext>`. A streak on
+        `src/util.py` therefore authorised ANY content to ANY `.py` under
+        `src/`, and nothing in the ledger distinguished the two. That is a
+        different and much larger claim than the one the records make, and
+        having both meant the system disagreed with itself about what
+        authorises a write.
+
+        Commands are untouched: `is_earned("command", ...)` keeps its
+        shape-based key, which is appropriate there -- a command class really
+        is the unit that earns trust, and `PolicyKernel` separately refuses to
+        let it reach the network.
+        """
+        filepath = str(args.get("filepath") or "")
+        if not filepath:
+            return False
+
+        stop = getattr(self.autonomy, "emergency_stop", None)
+        if name == "create_file":
+            content = args.get("content")
+            if content is None:
+                return False
+            return replay_writes.is_approved_write(
+                filepath,
+                replay_writes.content_digest(str(content)),
+                db_path=config.MEMORY_DB_PATH,
+                emergency_stop=stop,
+            )
+
+        old_string = args.get("old_string")
+        new_string = args.get("new_string")
+        if old_string is None or new_string is None:
+            return False
+        return replay_writes.is_approved_edit(
+            filepath,
+            replay_writes.content_digest(str(old_string)),
+            replay_writes.content_digest(str(new_string)),
+            db_path=config.MEMORY_DB_PATH,
+            emergency_stop=stop,
+        )
 
     def _grant_earned(self, name: str, args: dict[str, Any]) -> None:
         """Whitelist an earned write so its re-dispatch lands via the gated path.
@@ -1726,6 +1769,28 @@ class ToolAgent:
             self.autonomy.record_outcome(
                 action_type, filepath, success=verified_ok, strength=verify_strength
             )
+        # The verifier's word is what withdraws authorisation, exactly as it did
+        # when writes ran through the autonomy ledger. A human approving bytes
+        # once is not a standing promise that those bytes still work, and a
+        # write that just failed its own verify must not be replayable
+        # unattended. Revoking by PATH rather than by digest is deliberate: the
+        # verdict arrives after the write, so re-deriving a digest here would
+        # revoke based on what the file happens to hold now rather than on what
+        # was approved.
+        # Mirrors the ledger's own eligibility rule, not just pass/fail. A WEAK
+        # verdict still starts with "[VERIFY PASS]", so `verified_ok` alone is
+        # True for it -- and WEAK is exactly the case the old mechanism revoked
+        # on: a test run that exercised nothing is not evidence the write works.
+        # Guarding on pass/fail alone would have preserved half the property
+        # while looking complete.
+        eligible = verified_ok and meets_promotion_floor(verify_strength)
+        if not eligible and filepath:
+            try:
+                replay_writes.revoke_decisions_for_path(
+                    filepath, db_path=config.MEMORY_DB_PATH
+                )
+            except Exception as exc:  # noqa: BLE001 - never break the turn
+                logger.warning("could not revoke write decisions", exc_info=exc)
 
     # ----------------------------------------------------------------- finish
     def _finish(self, content: str) -> Iterator[dict[str, Any]]:

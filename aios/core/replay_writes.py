@@ -299,3 +299,80 @@ def is_approved_edit(
             (edit_signature(path, old_digest, new_digest),),
         ).fetchone()
     return row is not None
+
+
+# --------------------------------------------------------------------------- #
+# Revocation
+# --------------------------------------------------------------------------- #
+#
+# WHY THIS EXISTS AT ALL.
+#
+# Write authorisation used to run through `AutonomyLedger`, where the forced
+# auto-verify after every write is described in-code as the ONLY writer of
+# autonomy evidence -- "the verifier's word, never the model's". A PASS
+# extended the streak; a FAIL revoked the class instantly.
+#
+# Moving write authorisation onto these exact-decision records is a narrowing
+# in every respect but one: the records had no revocation. Without these
+# functions the convergence would LOOK like a tightening while quietly
+# deleting the mechanism that pulls authorisation back when a write turns out
+# to break the tests. A human approving bytes once is not a standing promise
+# that those bytes still work.
+
+
+def revoke_write_decision(path: str, digest: str, *, db_path) -> bool:
+    """Forget that a write to *path* with *digest* was ever approved.
+
+    Returns True when a decision was actually removed, so a caller can tell a
+    revocation from a no-op rather than assuming one happened.
+
+    The blob is deliberately left in place. Other decisions may reference the
+    same bytes, and content in the store authorises nothing on its own -- it is
+    the decision that grants, and the decision is what is being withdrawn.
+    """
+    init_memory_db(db_path)
+    with get_connection(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM approved_write_decisions WHERE signature = ?",
+            (decision_signature(path, digest),),
+        )
+        return cur.rowcount > 0
+
+
+def revoke_edit_decision(
+    path: str, old_digest: str, new_digest: str, *, db_path
+) -> bool:
+    """Forget that this exact edit to *path* was ever approved."""
+    init_memory_db(db_path)
+    with get_connection(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM approved_edit_decisions WHERE signature = ?",
+            (edit_signature(path, old_digest, new_digest),),
+        )
+        return cur.rowcount > 0
+
+
+def revoke_decisions_for_path(path: str, *, db_path) -> int:
+    """Withdraw EVERY write and edit decision for *path* in this workspace.
+
+    Used by the auto-verify sink, which knows the file it just verified but not
+    which digest the write carried -- the verdict arrives after the write, and
+    re-deriving the digest from the file on disk would revoke based on what the
+    file happens to contain now rather than on what was approved.
+
+    Revoking the whole path is the fail-safe direction. Too-narrow revocation
+    leaves a broken write replayable, which is the failure that matters; a
+    too-wide one costs a human approval that was going to be asked for anyway.
+    """
+    init_memory_db(db_path)
+    ws = workspace_id()
+    with get_connection(db_path) as conn:
+        removed = conn.execute(
+            "DELETE FROM approved_write_decisions WHERE workspace = ? AND path = ?",
+            (ws, path),
+        ).rowcount
+        removed += conn.execute(
+            "DELETE FROM approved_edit_decisions WHERE workspace = ? AND path = ?",
+            (ws, path),
+        ).rowcount
+    return removed
