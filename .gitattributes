@@ -24,3 +24,24 @@ release/**/*.md text eol=lf
 # exists to serve. Measured 2026-09-07 by running the working-tree copy in a
 # clean Fedora container.
 *.sh text eol=lf
+# The security spine hashes its own BYTES. `boot_attestation.compute_spine_hash`
+# reads every .py in aios/security/ with read_bytes(), so the same commit hashes
+# differently depending on how it was checked out -- measured 2026-09-07:
+#
+#   pure-LF   checkout   c980c996954a5d2b959e1110bf1f6c2e9418594e00ac0f5be2a3188adf0e9666
+#   pure-CRLF checkout   c5ff39132be09df80433b53f5bc512d24493d685297de29ef1e9fc56ab22336f
+#
+# That makes the spine hash a fact about a working tree rather than about the
+# code, so two honest machines report different values for identical bytes and
+# the number cannot be compared or published.
+#
+# Pinning here fixes it WITHOUT touching aios/security/ or
+# boot_attestation.py, both of which are frozen-core (AGENTS.md SS VIII) and
+# operator-attested. Every checkout now yields the LF value.
+#
+# ONE-TIME COST, stated rather than hidden: a tree that currently holds CRLF
+# flips to LF, so the next `attest_boot` compares against a log entry made
+# under the old bytes and reports TAMPERED once. That is the fail-closed
+# control working correctly on a real byte change. The attestation log is NOT
+# edited to suppress it -- resisting exactly that edit is what the log is for.
+aios/security/*.py text eol=lf
