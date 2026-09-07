@@ -12,6 +12,8 @@ import importlib.util
 import logging
 import os
 import platform
+import re
+import secrets
 import socket
 import sys
 import urllib.parse
@@ -193,23 +195,82 @@ def _check_ollama() -> BootstrapCheck:
         )
 
 
-# Required for the backend to import successfully; subset of pyproject.toml deps.
-_REQUIRED_PACKAGES: tuple[str, ...] = (
-    "fastapi",
-    "uvicorn",
-    "pydantic",
-    "structlog",
-    "numpy",
-    "requests",
-    "httpx",
-    "faiss",
-    "sentence_transformers",
-)
+#: Distributions whose import name differs from the name pip installs.
+#:
+#: Derived rather than guessed: every entry here was confirmed by importing it.
+#: Anything not listed is assumed to import under its own name with hyphens
+#: turned into underscores, which is true for the rest of the manifest.
+_IMPORT_NAME_OVERRIDES: dict[str, str] = {
+    "python-multipart": "multipart",
+    "scikit-learn": "sklearn",
+    "faiss-cpu": "faiss",
+    "beautifulsoup4": "bs4",
+    "GitPython": "git",
+    "python-dotenv": "dotenv",
+    "prometheus-client": "prometheus_client",
+    "rank-bm25": "rank_bm25",
+    "google-genai": "google.genai",
+}
+
+#: Declared dependencies that must NOT be import-probed at bootstrap.
+#:
+#: `torch` and `sentence-transformers` import multi-second CUDA/BLAS stacks;
+#: probing them would make `bootstrap` slow enough that people skip it, which
+#: is worse than the coverage it buys. They are covered by the suite instead.
+_IMPORT_PROBE_SKIP: frozenset[str] = frozenset({"torch", "sentence-transformers"})
+
+
+def _declared_dependencies(project_root: Path) -> tuple[str, ...]:
+    """Distribution names from pyproject.toml's `dependencies` array.
+
+    WHY THIS IS DERIVED AND NOT A LIST. `_REQUIRED_PACKAGES` used to be
+    hand-maintained, and it omitted `python-multipart` -- the exact dependency
+    whose absence stopped the backend importing at all, found by the 2026-09-06
+    stranger test. FastAPI needs it at IMPORT time to build the route table for
+    `/api/v1/knowledge/ingest`, so a fresh clone died before serving anything,
+    and `bootstrap` reported every package importable while it did.
+
+    A hand-maintained list is only as good as the memory of whoever adds the
+    next dependency. This one cannot fall behind the manifest, because it IS
+    the manifest.
+
+    Parsed with a narrow regex rather than tomllib so this keeps working on the
+    Python versions `requires-python` allows; the array is a flat list of
+    strings and needs nothing cleverer.
+    """
+    text = (project_root / "pyproject.toml").read_text(encoding="utf-8")
+    block = re.search(r"^dependencies\s*=\s*\[(.*?)^\]", text, re.S | re.M)
+    if not block:
+        return ()
+    # Comments first: the dependencies array carries prose that contains
+    # quoted phrases (the python-multipart note quotes FastAPI's error
+    # message), and a bare quoted-string scan happily reads
+    # "Form data requires python-multipart to be installed" as a package.
+    body = re.sub(r"#.*", "", block.group(1))
+    names: list[str] = []
+    for raw in re.findall(r'"([^"]+)"', body):
+        # Strip version specifiers and extras: `uvicorn[standard]>=0.20`.
+        name = re.split(r"[<>=!~\[;]", raw, maxsplit=1)[0].strip()
+        if name:
+            names.append(name)
+    return tuple(names)
+
+
+def _import_names(project_root: Path = PROJECT_ROOT) -> tuple[str, ...]:
+    """Declared dependencies as importable module names, minus the slow ones."""
+    out: list[str] = []
+    for dist in _declared_dependencies(project_root):
+        if dist in _IMPORT_PROBE_SKIP:
+            continue
+        out.append(_IMPORT_NAME_OVERRIDES.get(dist, dist.replace("-", "_")))
+    return tuple(dict.fromkeys(out))
 
 
 def _check_package_imports(
-    packages: Iterable[str] = _REQUIRED_PACKAGES,
+    packages: Iterable[str] | None = None,
 ) -> BootstrapCheck:
+    if packages is None:
+        packages = _import_names()
     missing: list[str] = []
     for name in packages:
         spec = importlib.util.find_spec(name)
@@ -263,6 +324,16 @@ def default_env_contents() -> str:
         "\n"
         "# 32+ character token for non-loopback hosts (loopback is advisory only)\n"
         "AIOS_API_TOKEN=change-me-to-a-32-character-secret-if-not-on-localhost\n"
+        "\n"
+        "# THE ONE VALUE THAT IS GENUINELY REQUIRED. Council missions and the\n"
+        "# verification integrity chain refuse to run without it: minimum 32\n"
+        "# characters, and known placeholders are rejected deliberately.\n"
+        "#\n"
+        "# Generated fresh for THIS install, so the template is usable as\n"
+        "# written rather than needing a step the reader must notice. Until\n"
+        "# 2026-09-07 it was absent entirely and README step 3 asked the reader\n"
+        "# to add it by hand -- the exact key whose absence killed cohort 27.\n"
+        f"AIOS_VERIFICATION_AUTHORITY_KEY={secrets.token_hex(32)}\n"
         "\n"
         "# Local data directory (memory, approvals, sessions, audit)\n"
         "AIOS_DATA_DIR=./data\n"
