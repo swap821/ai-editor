@@ -778,6 +778,84 @@ def _mission_count_failures(record, root: Path) -> list[tuple[str, str]]:
     return failures
 
 
+#: A release record cited inside a condition verdict.
+_CITED_RECORD = re.compile(r"(release/[A-Za-z0-9_\-/.]+\.md)")
+
+#: A score claim such as ``9/9`` stated in a verdict.
+_SCORE_CLAIM = re.compile(r"\b\d{1,3}/\d{1,3}\b")
+
+
+def _citation_failures(record, root: Path) -> list[tuple[str, str]]:
+    """A verdict may not contradict the record it cites.
+
+    WHY THIS EXISTS. On 2026-09-07 a draft of organ 55's C10 claimed the
+    nine-mission bar reached 9/9 CONFORMANT. That record says 8/9 and NOT
+    CONFORMANT in every cohort -- the 9/9 runs are the LATER set, after M1 was
+    made scorable. It was caught by opening the file before asserting, which is
+    vigilance, not a control, and vigilance is what this project says does not
+    count.
+
+    The rules beside this one check the ledger against its OWN fields: whether a
+    verdict claims `live_evidence` is empty while it is populated, and whether a
+    mission count matches the runner. Neither could see a claim about a cited
+    FILE, which is exactly where the near-miss landed.
+
+    Two checks, and the second needs the first:
+
+    * a cited ``release/**.md`` must EXIST. A record renamed or deleted out from
+      under a verdict leaves the claim unfalsifiable, and the score check below
+      would skip it in silence.
+    * every ``N/M`` score stated in the verdict must appear in at least ONE
+      cited file.
+
+    Scoped to verdicts that cite something. A verdict with no citation is
+    untouched, so unrelated numbers elsewhere in the ledger cannot misfire this
+    -- a rule that cries wolf in the artifact readers trust first would be worse
+    than no rule at all.
+    """
+    failures: list[tuple[str, str]] = []
+    for key, raw in (record.condition_verdicts or {}).items():
+        text = str(raw or "")
+        refs = list(dict.fromkeys(_CITED_RECORD.findall(text)))
+        if not refs:
+            continue
+
+        corpus: list[str] = []
+        for ref in refs:
+            path = root / ref
+            if not path.exists():
+                failures.append(
+                    (
+                        str(key),
+                        f"verdict cites {ref!r}, which does not exist -- the "
+                        "claim cannot be checked against anything",
+                    )
+                )
+                continue
+            try:
+                corpus.append(path.read_text(encoding="utf-8"))
+            except OSError as exc:
+                failures.append(
+                    (str(key), f"cited record {ref!r} is unreadable: {exc}")
+                )
+        if not corpus:
+            continue
+
+        joined = chr(10).join(corpus)
+        for score in dict.fromkeys(_SCORE_CLAIM.findall(text)):
+            if score not in joined:
+                cited = ", ".join(refs)
+                failures.append(
+                    (
+                        str(key),
+                        f"verdict claims {score} but no cited record contains "
+                        f"it ({cited}) -- the record is behind the mechanism, "
+                        "or the claim is wrong",
+                    )
+                )
+    return failures
+
+
 def _verdict_contradiction_failures(record) -> list[tuple[str, str]]:
     """A written verdict may not assert a field is empty when it is populated.
 
@@ -1317,6 +1395,7 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         for record in records
         for cond, reason in _verdict_contradiction_failures(record)
         + _mission_count_failures(record, REPO_ROOT)
+        + _citation_failures(record, REPO_ROOT)
     ]
     if contradictions:
         print(
