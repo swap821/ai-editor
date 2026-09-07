@@ -102,10 +102,27 @@ def strip_prose(source: str) -> str:
             continue
         for line in range(first.lineno, first.end_lineno + 1):
             drop.add(line)
+            # A docstring line may ALSO carry a trailing comment, in which case
+            # the comment pass above already wrote a `replace` entry holding the
+            # code in front of it -- which, on a docstring line, IS the
+            # docstring. `_blank` lets replace win, so leaving it here let the
+            # prose survive verbatim (a false pass, the exact defect this module
+            # exists to prevent), and on a multi-line docstring's closing line it
+            # restored a bare `"""` that swallowed everything after it. Prose
+            # removal outranks comment trimming, so drop the entry.
+            replace.pop(line, None)
         if len(node.body) == 1 and not isinstance(node, ast.Module):
             # Blanking a block's only statement leaves a header with no body,
             # and callers parse this result. Keep it syntactically whole.
-            replace[first.lineno] = " " * first.col_offset + "pass"
+            #
+            # Indent from the ORIGINAL line, never from `first.col_offset`: the
+            # tree was parsed from a DEDENTED copy, so col_offset is 0 for a
+            # method whose real body sits at 8 spaces. Splicing that into the
+            # undedented source emitted `pass` under its own `def`.
+            original = lines[first.lineno - 1]
+            replace[first.lineno] = (
+                original[: len(original) - len(original.lstrip())] + "pass"
+            )
 
     return _blank(source, drop, replace)
 

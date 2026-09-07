@@ -842,8 +842,13 @@ def _citation_failures(record, root: Path) -> list[tuple[str, str]]:
             continue
 
         joined = chr(10).join(corpus)
+        # Compare score TOKENS, not raw substrings. `score in joined` let a
+        # fabricated claim pass whenever it happened to sit inside a larger
+        # unrelated number in the cited file -- '4/5' is a substring of
+        # '14/50', so a made-up 4/5 was 'supported' by a coincidence.
+        supported = set(_SCORE_CLAIM.findall(joined))
         for score in dict.fromkeys(_SCORE_CLAIM.findall(text)):
-            if score not in joined:
+            if score not in supported:
                 cited = ", ".join(refs)
                 failures.append(
                     (

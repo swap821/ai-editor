@@ -27,6 +27,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 #: Raw `inspect.getsource` is legitimate here only: the helper implements it,
 #: and this module needs it to demonstrate the contrast it exists to remove.
+#: Keyed on the path RELATIVE TO tests/, not the bare filename: matching
+#: `path.name` exempted any file so named anywhere under tests/, so
+#: `tests/adversarial/source_rules.py` bought a silent exemption. An
+#: allowlist anyone can join by choosing a filename is not an allowlist.
 _MAY_USE_RAW_SOURCE = {"source_rules.py", "test_source_rules.py"}
 
 
@@ -90,6 +94,69 @@ def test_unparseable_source_is_returned_unchanged() -> None:
     assert "if x:" in strip_prose(fragment)
 
 
+def test_a_docstring_that_also_carries_a_trailing_comment_is_stripped() -> None:
+    """REGRESSION, and the worst of the set.
+
+    A docstring line may also end in a comment. The comment pass writes a
+    `replace` entry holding "the code in front of the comment" -- which on a
+    docstring line IS the docstring -- and `_blank` lets replace beat drop, so
+    the prose survived verbatim. That restores the exact false pass this module
+    exists to remove.
+
+    Found by adversarial review of the branch, not by the tests beside it: none
+    of them put a comment and a docstring on the same line.
+    """
+    stripped = strip_prose(
+        "def f():\n"
+        '    """calls MARKER_FN as documentation"""  # noqa: D401\n'
+        "    return real()\n"
+    )
+
+    assert "MARKER_FN" not in stripped
+    assert "return real()" in stripped
+
+
+def test_a_multiline_docstring_closing_on_a_comment_does_not_swallow_the_rest() -> None:
+    """REGRESSION. The same conflict, but it corrupted the whole fragment.
+
+    With a trailing comment on the CLOSING line, the interior blanked while the
+    bare triple-quote was restored -- a dangling quote that swallowed every
+    following line into one string literal, hiding real calls from any later
+    search or AST walk. `executable_source` is called on whole modules in this
+    suite, so the swallowed code could be an unrelated function entirely.
+    """
+    stripped = strip_prose(
+        "def f():\n"
+        '    """\n'
+        "    line MARKER\n"
+        '    """  # note\n'
+        "    return 1\n"
+        "\n\n"
+        "def other():\n"
+        "    call_bad()\n"
+    )
+
+    ast.parse(stripped)
+    assert "MARKER" not in stripped
+    assert "call_bad()" in stripped, "a later function was swallowed by prose"
+
+
+def test_pass_is_indented_to_the_original_not_the_dedented_source() -> None:
+    """REGRESSION. `inspect.getsource` of a method is indented; the tree is not.
+
+    The tree is parsed from a DEDENTED copy, so `col_offset` is 0 for a method
+    whose real body sits deeper. Splicing that into the undedented source put
+    `pass` at the same indent as its own `def`, and the result would not parse
+    -- for every `executable_source(SomeClass.method)` call site in the suite.
+    """
+    source = '    def m(self):\n        """only a docstring"""\n'
+
+    stripped = strip_prose(source)
+
+    ast.parse(textwrap.dedent(stripped))
+    assert "        pass" in stripped
+
+
 def raw_source_uses(paths: list[Path]) -> list[tuple[str, int]]:
     """Every call to `inspect.getsource` in *paths*, as (file, line).
 
@@ -99,7 +166,11 @@ def raw_source_uses(paths: list[Path]) -> list[tuple[str, int]]:
     """
     found: list[tuple[str, int]] = []
     for path in paths:
-        if path.name in _MAY_USE_RAW_SOURCE:
+        try:
+            relative = path.resolve().relative_to(REPO_ROOT / "tests").as_posix()
+        except ValueError:
+            relative = ""  # outside tests/: a planted file, never exempt
+        if relative in _MAY_USE_RAW_SOURCE:
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -111,8 +182,22 @@ def raw_source_uses(paths: list[Path]) -> list[tuple[str, int]]:
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
+            # `inspect.getsource(x)` is an Attribute call, but a bare
+            # `from inspect import getsource` makes a Name call and
+            # `getattr(inspect, "getsource")(x)` hides the name in a
+            # string. Matching only Attribute left both as free bypasses.
             if isinstance(func, ast.Attribute) and func.attr == "getsource":
                 found.append((path.name, node.lineno))
+            elif isinstance(func, ast.Name) and func.id == "getsource":
+                found.append((path.name, node.lineno))
+            elif isinstance(func, ast.Name) and func.id == "getattr":
+                literals = [
+                    a.value
+                    for a in node.args
+                    if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                ]
+                if "getsource" in literals:
+                    found.append((path.name, node.lineno))
     return found
 
 
@@ -131,6 +216,38 @@ def test_the_ratchet_refuses_a_newly_added_raw_source_assertion(tmp_path) -> Non
     )
 
     assert raw_source_uses([planted]) == [("test_planted.py", 3)]
+
+
+def test_the_ratchet_sees_every_way_of_reaching_getsource(tmp_path) -> None:
+    """REGRESSION. Matching only `X.getsource(...)` left two free bypasses.
+
+    A bare import makes a Name call and `getattr` hides the name in a string;
+    neither is an `ast.Attribute`, so both walked straight past the rule.
+    """
+    forms = {
+        "attribute": "import inspect\ndef t():\n    inspect.getsource(open)\n",
+        "aliased": "import inspect as i\ndef t():\n    i.getsource(open)\n",
+        "bare": "from inspect import getsource\ndef t():\n    getsource(open)\n",
+        "getattr": "import inspect\ndef t():\n    getattr(inspect, 'getsource')(open)\n",
+    }
+
+    for name, body in forms.items():
+        planted = tmp_path / f"test_{name}.py"
+        planted.write_text(body, encoding="utf-8")
+        assert raw_source_uses([planted]), f"{name} form slipped past the ratchet"
+
+
+def test_the_allowlist_cannot_be_joined_by_choosing_a_filename(tmp_path) -> None:
+    """REGRESSION. It keyed on `path.name`, so any directory would do.
+
+    `tests/adversarial/source_rules.py` was silently exempt from the scan.
+    """
+    impostor = tmp_path / "source_rules.py"
+    impostor.write_text(
+        "import inspect\ndef t():\n    inspect.getsource(open)\n", encoding="utf-8"
+    )
+
+    assert raw_source_uses([impostor])
 
 
 def test_no_test_matches_raw_source() -> None:
