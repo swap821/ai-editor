@@ -644,6 +644,18 @@ def _workflow_step(event: dict[str, Any]) -> str:
             # Appended last, and fixed-width hex, so a parser can take it off
             # the end without having to disambiguate a comma inside a filepath.
             useful.append(f"content_sha256={digest}")
+        # An edit is defined by its TRANSFORMATION, not by a whole-file body,
+        # so it is summarised as a pair of digests. Same reasoning as
+        # `content_sha256`: `old_string`/`new_string` are file contents, and
+        # these summaries reach L3 semantic memory, so putting the snippets
+        # themselves here would be a standing secret-leak surface. Both are
+        # fixed-width hex at the end, in a fixed order, so a filepath
+        # containing a comma cannot split the step wrongly.
+        old_digest = _content_digest(raw_input.get("old_string"))
+        new_digest = _content_digest(raw_input.get("new_string"))
+        if old_digest is not None and new_digest is not None:
+            useful.append(f"old_sha256={old_digest}")
+            useful.append(f"new_sha256={new_digest}")
     detail = ", ".join(useful)
     return scan_and_redact(f"{name}: {detail}" if detail else name).scrubbed
 

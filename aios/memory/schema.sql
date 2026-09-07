@@ -300,6 +300,31 @@ CREATE TABLE IF NOT EXISTS approved_write_decisions (
 CREATE INDEX IF NOT EXISTS idx_approved_write_path
     ON approved_write_decisions(workspace, path);
 
+-- == Exact EDIT decisions a human already made (stage 2 slice 4) =============
+-- Separate from `approved_write_decisions` because an edit is a different
+-- claim. A create says "this file should contain these bytes"; an edit says
+-- "this exact snippet should become that exact snippet, in this file". The
+-- resulting whole-file content is not knowable from the step, and pretending
+-- otherwise would mean approving a transformation by a digest that does not
+-- describe it.
+--
+-- Both snippets live in `playbook_blobs` like any other replayable content,
+-- so the same secret-scan refusal applies: content that trips the scanner is
+-- never stored, and the replay stays confirm-only.
+CREATE TABLE IF NOT EXISTS approved_edit_decisions (
+    signature    TEXT PRIMARY KEY,  -- sha256(workspace | path | old | new)
+    workspace    TEXT NOT NULL,
+    path         TEXT NOT NULL,
+    old_sha256   TEXT NOT NULL,
+    new_sha256   TEXT NOT NULL,
+    approved_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    approval_ref TEXT,
+    FOREIGN KEY (old_sha256) REFERENCES playbook_blobs(sha256),
+    FOREIGN KEY (new_sha256) REFERENCES playbook_blobs(sha256)
+);
+CREATE INDEX IF NOT EXISTS idx_approved_edit_path
+    ON approved_edit_decisions(workspace, path);
+
 -- == Safe curriculum =========================================================
 -- Curriculum tasks never auto-execute. Verified live outcomes matching a task
 -- update its evidence; a level is mastered only after training passes plus a

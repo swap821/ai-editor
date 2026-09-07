@@ -49,9 +49,11 @@ _COMPILABLE_TOOLS = frozenset(
         "read_directory",
         "execute_terminal",
         "verify",
-        # Stage 1 only: compiled as a CHECK, never as a write. See
-        # `_CONFIRM_ONLY_TOOLS` and `Cerebellum._confirm_write`.
+        # Compiled as CHECKS first. A replay may only perform these when a
+        # human approved the exact bytes / the exact transformation; see
+        # `_CONFIRM_ONLY_TOOLS` and `aios/core/replay_writes.py`.
         "create_file",
+        "edit_file",
     }
 )
 
@@ -63,10 +65,15 @@ _COMPILABLE_TOOLS = frozenset(
 #: these names before `dispatch_fn` is reached, so there is no path from a
 #: replayed step to the filesystem. A future stage that wants real writes has to
 #: delete this set, which is a visible change rather than a silent one.
-_CONFIRM_ONLY_TOOLS = frozenset({"create_file"})
+_CONFIRM_ONLY_TOOLS = frozenset({"create_file", "edit_file"})
 
 #: A recorded content digest: `_workflow_step` writes fixed-width lowercase hex.
 _CONTENT_DIGEST = re.compile(r",\s*content_sha256=([0-9a-f]{64})\s*$")
+
+#: A recorded edit transformation: both digests, fixed width, fixed order.
+_EDIT_DIGESTS = re.compile(
+    r",\s*old_sha256=([0-9a-f]{64}),\s*new_sha256=([0-9a-f]{64})\s*$"
+)
 
 DispatchFn = Callable[[str, dict[str, Any]], tuple[str, str, bool]]
 
@@ -167,6 +174,26 @@ def _parse_step(step_desc: str) -> Optional[PlaybookStep]:
     if tool_name == "verify":
         return PlaybookStep(
             tool_name="verify", args={"command": _arg_value(arg, "command")}
+        )
+    if tool_name == "edit_file":
+        # `filepath=x, old_sha256=<64 hex>, new_sha256=<64 hex>`. Taken off the
+        # END, both of them, so a comma inside a filepath cannot split the step.
+        # A step recorded before edit digests existed has neither and stays
+        # uncompilable -- replaying an edit whose snippets are unknown would be
+        # replaying nothing.
+        match = _EDIT_DIGESTS.search(arg)
+        if match is None:
+            return None
+        filepath = _arg_value(arg[: match.start()].strip(), "filepath")
+        if not filepath:
+            return None
+        return PlaybookStep(
+            tool_name="edit_file",
+            args={
+                "filepath": filepath,
+                "old_sha256": match.group(1),
+                "new_sha256": match.group(2),
+            },
         )
     if tool_name == "create_file":
         # `filepath=x, content_sha256=<64 hex>`. Taken off the END so a comma
@@ -326,7 +353,7 @@ def _step_targets_are_clean(step: "PlaybookStep") -> bool:
     verdict for a different file. Refusing to compile is safe — that skill simply
     keeps running through the LLM instead of the reflex fast-path.
     """
-    if step.tool_name in ("read_file", "read_directory", "create_file"):
+    if step.tool_name in ("read_file", "read_directory", "create_file", "edit_file"):
         value = str(step.args.get("filepath") or step.args.get("path") or "")
         return _is_clean_target(value)
     if step.tool_name in ("execute_terminal", "verify"):
@@ -607,7 +634,11 @@ class Cerebellum:
             }
 
             if step.tool_name in _CONFIRM_ONLY_TOOLS:
-                outcome = self._confirm_write(step)
+                outcome = (
+                    self._confirm_edit(step)
+                    if step.tool_name == "edit_file"
+                    else self._confirm_write(step)
+                )
                 if not outcome.confirmed:
                     detail = outcome.detail
                     # Stage 2: the target may simply not exist yet. If a human
@@ -619,7 +650,7 @@ class Cerebellum:
                     # audit.
                     args = self._write_args_if_replayable(step, outcome)
                     if args is not None:
-                        output, status, failed = dispatch_fn("create_file", args)
+                        output, status, failed = dispatch_fn(step.tool_name, args)
                         if status not in ("blocked", "approval") and not failed:
                             yield {
                                 "type": "cerebellum_step_done",
@@ -769,6 +800,79 @@ class Cerebellum:
             )
         return WriteConfirmation(True, f"{filepath} already matches (no write)")
 
+    def _confirm_edit(self, step: PlaybookStep) -> WriteConfirmation:
+        """Has this edit ALREADY been applied to this file?
+
+        `edit_file` already has the notion built in: an edit whose replacement
+        is present and whose original is gone has nothing left to do. That is
+        the same idempotence `_confirm_write` relies on for creates, expressed
+        for a transformation instead of a whole file.
+
+        The three states, and what each means for a replay:
+
+            new present, old absent  -> already applied, confirm with no write
+            old present              -> applicable, and `missing` marks it so
+            neither present          -> the file is not in a state this edit
+                                        describes; abstain
+
+        Guarded exactly like `_confirm_write`, and for the same reasons: a
+        credential path is refused before anything is read, because comparing
+        snippets against `.env` is a content oracle whether the comparison is
+        whole-file or partial; and containment is asked of the LIVE scope
+        authority rather than re-derived here.
+        """
+        filepath = str(step.args.get("filepath", ""))
+        old_digest = str(step.args.get("old_sha256", ""))
+        new_digest = str(step.args.get("new_sha256", ""))
+        if not filepath or not old_digest or not new_digest:
+            return WriteConfirmation(
+                False, "step carries no target or no transformation", permanent=True
+            )
+
+        from aios.policy.credential_paths import is_credential_path, refusal_reason
+
+        if is_credential_path(filepath):
+            return WriteConfirmation(False, refusal_reason(filepath), permanent=True)
+
+        verdict = is_path_in_scope(filepath)
+        if not verdict.in_scope:
+            return WriteConfirmation(
+                False, "target resolves outside the sandbox", permanent=True
+            )
+        target = Path(verdict.resolved)
+        if not target.is_file():
+            return WriteConfirmation(False, f"{filepath} does not exist")
+
+        old_string = load_write_content(old_digest, db_path=self.db_path)
+        new_string = load_write_content(new_digest, db_path=self.db_path)
+        if old_string is None or new_string is None:
+            # Never stored, or refused for carrying secrets. Without the
+            # snippets there is nothing to compare, let alone apply.
+            return WriteConfirmation(
+                False, f"the recorded edit for {filepath} is not available"
+            )
+
+        try:
+            current = target.read_text(encoding="utf-8")
+        except OSError as exc:
+            return WriteConfirmation(False, f"{filepath} could not be read: {exc}")
+
+        old_text = old_string.decode("utf-8", errors="strict")
+        new_text = new_string.decode("utf-8", errors="strict")
+
+        if old_text not in current and new_text in current:
+            return WriteConfirmation(
+                True, f"{filepath} already carries this edit (no write)"
+            )
+        if old_text in current:
+            # `missing` reads oddly for an edit and is deliberate: it is the
+            # flag the replay path uses for "this is applicable", and one flag
+            # with one meaning beats two that must be kept in step.
+            return WriteConfirmation(
+                False, f"{filepath} still carries the original snippet", missing=True
+            )
+        return WriteConfirmation(False, f"{filepath} matches neither side of this edit")
+
     def _write_args_if_replayable(
         self, step: PlaybookStep, outcome: "WriteConfirmation"
     ) -> Optional[dict[str, Any]]:
@@ -790,9 +894,27 @@ class Cerebellum:
         if outcome.permanent or not outcome.missing:
             return None
 
-        digest = str(step.args.get("content_sha256", ""))
         filepath = str(step.args.get("filepath", ""))
-        if not digest or not filepath:
+        if not filepath:
+            return None
+
+        if step.tool_name == "edit_file":
+            old_digest = str(step.args.get("old_sha256", ""))
+            new_digest = str(step.args.get("new_sha256", ""))
+            old_blob = load_write_content(old_digest, db_path=self.db_path)
+            new_blob = load_write_content(new_digest, db_path=self.db_path)
+            if old_blob is None or new_blob is None:
+                return None
+            return {
+                "filepath": filepath,
+                "old_string": old_blob.decode("utf-8", errors="strict"),
+                "new_string": new_blob.decode("utf-8", errors="strict"),
+                "old_sha256": old_digest,
+                "new_sha256": new_digest,
+            }
+
+        digest = str(step.args.get("content_sha256", ""))
+        if not digest:
             return None
 
         content = load_write_content(digest, db_path=self.db_path)

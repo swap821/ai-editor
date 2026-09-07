@@ -270,14 +270,28 @@ def test_an_existing_database_gains_the_new_tables(tmp_path) -> None:
     schema = (Path(__file__).resolve().parents[1] / "aios/memory/schema.sql").read_text(
         encoding="utf-8"
     )
-    # Strip the two statements this change added, leaving the older schema.
+    added = (
+        "playbook_blobs",
+        "approved_write_decisions",
+        "approved_edit_decisions",
+        "idx_approved_write_path",
+        "idx_approved_edit_path",
+    )
     older = re.sub(
-        r"CREATE (TABLE|INDEX) IF NOT EXISTS (playbook_blobs|approved_write_decisions|idx_approved_write_path)\b.*?;",
+        r"CREATE (TABLE|INDEX) IF NOT EXISTS ("
+        + "|".join(added)
+        + r")"
+        + chr(92)
+        + r"b.*?;",
         "",
         schema,
         flags=re.S,
     )
-    assert "playbook_blobs" not in older, "the strip did not remove the new tables"
+    # Check for the CREATE statements, not the bare names: these tables
+    # reference each other by FOREIGN KEY, so a name legitimately survives
+    # the strip inside a constraint that was itself removed.
+    for name in added:
+        assert f"EXISTS {name}" not in older, f"the strip left {name} behind"
 
     db = tmp_path / "legacy.db"
     conn = sqlite3.connect(db)
@@ -298,6 +312,7 @@ def test_an_existing_database_gains_the_new_tables(tmp_path) -> None:
         }
     assert "playbook_blobs" in tables
     assert "approved_write_decisions" in tables
+    assert "approved_edit_decisions" in tables
 
 
 def test_the_upgrade_preserves_what_was_already_there(tmp_path) -> None:
