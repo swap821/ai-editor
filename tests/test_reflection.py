@@ -18,6 +18,7 @@ from aios.core.llm import OllamaClient
 from aios.core.verification_strength import VerificationStrength
 from aios.memory import db as memdb
 from aios.memory.mistake import MistakeMemory
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class FakeLLM:
@@ -178,6 +179,7 @@ def test_reflection_with_governed_adapter_preserves_json_mode_and_context(
         constitution_digest="b" * 64,
         desired_outcome="bounded advisory reflection",
         context_store=context_store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     agent = ReflectionAgent(client, mistakes=MistakeMemory(db_path))
 

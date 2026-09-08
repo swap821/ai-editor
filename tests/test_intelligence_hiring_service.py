@@ -16,6 +16,7 @@ from aios.domain.intelligence.repository import HiringRecordRepository
 from aios.domain.privacy import DataClassification, ModelCallRequest, PrivacyPolicy
 from aios.domain.privacy import ModelCallRecord
 from aios.runtime.cortex_bus import CortexBus
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @dataclass
@@ -93,6 +94,7 @@ def test_hiring_call_executes_injected_provider_and_persists_provenance(
         repository=repository,
         cortex=cortex,
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result, call = service.complete(_request().model_copy(update={"max_tokens": 37}))
@@ -165,6 +167,7 @@ def test_privacy_is_applied_before_cloud_selection(tmp_path) -> None:
         clients={"gemini": cloud, "ollama": local},
         repository=HiringRecordRepository(tmp_path / "state.db"),
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result, call = service.complete(
@@ -198,6 +201,7 @@ def test_local_only_never_expands_operator_provider_allowlist(tmp_path) -> None:
         clients={"gemini": cloud},
         repository=HiringRecordRepository(tmp_path / "state.db"),
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     with pytest.raises(RuntimeError, match="no eligible provider"):
@@ -225,6 +229,7 @@ def test_cloud_failure_uses_only_explicit_local_fallback(tmp_path) -> None:
         clients={"gemini": cloud, "ollama": local},
         repository=HiringRecordRepository(tmp_path / "state.db"),
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result, call = service.complete(_request(fallback="local_only"))
@@ -244,6 +249,7 @@ def test_failed_local_fallback_is_persisted_as_failed(tmp_path) -> None:
         clients={"gemini": cloud, "ollama": local},
         repository=repository,
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     with pytest.raises(RuntimeError, match="local unavailable"):
@@ -262,6 +268,7 @@ def test_unavailable_provider_is_not_runtime_eligible(tmp_path) -> None:
         clients={"gemini": cloud},
         repository=HiringRecordRepository(tmp_path / "state.db"),
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     with pytest.raises(RuntimeError, match="no eligible provider"):
@@ -406,6 +413,7 @@ def test_the_provider_response_is_redacted_before_it_reaches_the_caller(
         clients={"gemini": cloud},
         repository=HiringRecordRepository(tmp_path / "state.db"),
         policy=router.Policy(cloud_tasks=frozenset({"reasoning"}), prefer_local=False),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result, record = service.complete(_request())
@@ -442,6 +450,7 @@ def test_bound_hiring_service_enters_universal_gateway(
             prefer_local=True,
         ),
         context_store=context_store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     request = _request(local_only=True).model_copy(
         update={
@@ -469,6 +478,7 @@ def test_bound_hiring_service_refuses_missing_binding_before_provider_call(
         providers=_providers(),
         clients={"ollama": local},
         repository=HiringRecordRepository(tmp_path / "state.db"),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     request = _request(local_only=True).model_copy(
         update={"requires_governed_intelligence": True}

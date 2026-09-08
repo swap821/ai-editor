@@ -27,6 +27,7 @@ from aios.council.gateway_reasoning import (
     build_dissent_llm_client,
 )
 from aios.infrastructure.identity.sqlite_store import IdentityStore, credential_digest
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _engaged_controller(tmp_path: Path) -> EmergencyStopController:
@@ -127,6 +128,7 @@ def test_complete_routes_through_the_gateway_not_the_provider_directly(
         constitution_digest="c" * 64,
         target="local",
         provider=provider,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     output = client.complete("Mission goal:\nbuild a thing", system="be terse")
@@ -159,6 +161,7 @@ def test_complete_exposes_and_logs_the_compiled_context_digest(
         constitution_digest="c" * 64,
         target="local",
         provider=provider,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert client.last_context_digest is None
 
@@ -196,6 +199,7 @@ def test_king_compatible_call_shape_single_positional_argument(tmp_path: Path) -
         constitution_digest="c" * 64,
         target="local",
         provider=provider,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     king_complete = client.complete
 
@@ -276,7 +280,7 @@ def test_build_dissent_llm_client_returns_real_gemini_backed_client(
     monkeypatch.setattr(deps, "get_openai_client", lambda: None)
     monkeypatch.setattr(deps, "get_anthropic_client", lambda: None)
 
-    result = build_dissent_llm_client()
+    result = build_dissent_llm_client(emergency_stop=UNGOVERNED_FIXTURE)
 
     assert result is not None
     client, provider_name, model_id = result
@@ -303,7 +307,7 @@ def test_build_dissent_llm_client_falls_back_to_bedrock_when_gemini_unset(
     monkeypatch.setattr(deps, "get_openai_client", lambda: None)
     monkeypatch.setattr(deps, "get_anthropic_client", lambda: None)
 
-    result = build_dissent_llm_client()
+    result = build_dissent_llm_client(emergency_stop=UNGOVERNED_FIXTURE)
 
     assert result is not None
     _client, provider_name, model_id = result

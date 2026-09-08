@@ -27,9 +27,19 @@ first. Those are added alongside their conversions.
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from aios.application.autonomy.governed import GovernedAutonomy
+from aios.application.intelligence.gateway import (
+    complete_compatibility_intelligence_request,
+    route_intelligence_request,
+    stream_compatibility_intelligence_request,
+    stream_intelligence_request,
+    stream_structured_intelligence_request,
+)
+from aios.application.governance import EmergencyStopController, EmergencyStopError
 from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
 from aios.domain.autonomy import ActionClassKey, AutonomyDecisionStatus
 
@@ -163,3 +173,150 @@ def test_refusal_does_not_depend_on_the_feature_flag(tmp_path, absent) -> None:
 
     assert decision.status is AutonomyDecisionStatus.DENY
     assert "EMERGENCY_STOP_ENGAGED" in decision.reason_codes
+
+
+# ---------------------------------------------------------------------------
+# Slice 2 -- aios/application/intelligence/gateway.py
+#
+# Three guards, and the shared one (`_validate_and_compile`) sits in front of
+# EVERY entrance: route, stream, and stream_structured all reach the model
+# through it. `stream_structured` had no engaged-stop test of its own, so the
+# parametrisation below is the first thing that covers it at all.
+# ---------------------------------------------------------------------------
+
+_GATEWAY_FIELDS: dict[str, object] = {
+    "request_id": "req-1",
+    "operator_identity_digest": "operator-digest",
+    "constitution_digest": "c" * 64,
+    "goal": "summarize the incident",
+    "desired_outcome": "a short, accurate summary",
+    "target": "local",
+    "delegated_authority_summary": "advisory only, no write authority",
+}
+
+
+#: The compiler persists each compiled context and the request_id is UNIQUE, so
+#: a shared literal makes the second test in a run fail on the database rather
+#: than on the thing it is testing.
+_REQUEST_IDS = itertools.count()
+
+
+def _gateway_call(entrance, **overrides):
+    fields = dict(_GATEWAY_FIELDS)
+    fields["request_id"] = f"req-absence-{next(_REQUEST_IDS)}"
+    fields.update(overrides)
+    return entrance(**fields)
+
+
+@pytest.mark.parametrize(
+    "entrance",
+    [
+        route_intelligence_request,
+        stream_intelligence_request,
+        stream_structured_intelligence_request,
+    ],
+    ids=["route", "stream", "stream_structured"],
+)
+def test_every_gateway_entrance_refuses_when_no_stop_is_wired(entrance) -> None:
+    """THE BAR for slice 2, across all three shared-guard entrances.
+
+    A gateway request that cannot be halted must not reach a model. The old
+    `if emergency_stop is not None:` asked no question at all when nothing was
+    wired, and `_validate_and_compile` is the single point every entrance passes
+    through -- so one absent latch ungoverned all three.
+
+    The model callback records into `calls`: a refusal that still invoked the
+    model would be worse than no refusal, because it would look safe in a log.
+    """
+    calls: list[str] = []
+
+    def _model_call(*_args, **_kwargs):
+        calls.append("invoked")
+        return "should never run"
+
+    with pytest.raises(Exception):
+        _gateway_call(entrance, model_call=_model_call, emergency_stop=None)
+
+    assert calls == [], "the model was reached despite an ungoverned request"
+
+
+@pytest.mark.parametrize(
+    "entrance",
+    [
+        stream_compatibility_intelligence_request,
+        complete_compatibility_intelligence_request,
+    ],
+    ids=["stream_compatibility", "complete_compatibility"],
+)
+def test_the_compatibility_entrances_refuse_when_no_stop_is_wired(entrance) -> None:
+    """The anonymous local-only entrances carry their own copies of the guard.
+
+    They do not route through `_validate_and_compile`, so fixing the shared one
+    would have left these two ungoverned -- the reason this slice is three
+    guards rather than one.
+    """
+    calls: list[str] = []
+
+    def _model_call(*_args, **_kwargs):
+        calls.append("invoked")
+        yield "should never run"
+
+    with pytest.raises(Exception):
+        entrance(
+            request_id=f"req-compat-{next(_REQUEST_IDS)}",
+            target="local",
+            model_call=_model_call,
+            emergency_stop=None,
+        )
+
+    assert calls == []
+
+
+def test_the_gateway_still_reports_an_engaged_stop_as_such(tmp_path) -> None:
+    """Converting must not blur WHY a request was refused.
+
+    "No latch is wired" is a wiring bug and "the operator engaged the stop" is a
+    deliberate halt. They deserve different exceptions, and the API turns them
+    into different responses. `require_wired` preserves the engaged path's own
+    `EmergencyStopError` rather than collapsing both into one refusal -- which
+    is why this slice does not use `stop_permits_autonomy`, whose boolean return
+    would have thrown that distinction away.
+    """
+    from aios.application.governance import EmergencyStopHooks
+    from aios.domain.governance import EmergencyStopRequest
+
+    stopped = EmergencyStopController(
+        tmp_path / "emergency.db",
+        hooks=EmergencyStopHooks(
+            revoke_capabilities=lambda: None,
+            cancel_queued_missions=lambda: None,
+            kill_active_workers=lambda: None,
+            disable_autonomy=lambda: None,
+            preserve_evidence=lambda reason: None,
+        ),
+    )
+    stopped.engage(
+        EmergencyStopRequest(
+            operator_id="operator-1",
+            authentication_event_id="auth-1",
+            reason="test",
+        )
+    )
+
+    with pytest.raises(EmergencyStopError):
+        _gateway_call(
+            route_intelligence_request,
+            model_call=lambda ctx: "should never run",
+            emergency_stop=stopped,
+        )
+
+
+def test_the_gateway_accepts_the_explicit_fixture_opt_out() -> None:
+    """Unit fixtures must still be able to say "deliberately ungoverned"."""
+    result = _gateway_call(
+        route_intelligence_request,
+        model_call=lambda ctx: f"summary of: {ctx.goal}",
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+
+    assert "summarize the incident" in result.output

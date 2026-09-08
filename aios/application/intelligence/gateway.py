@@ -36,6 +36,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.application.intelligence.context_compiler import (
     CompilationTarget,
     RepresentativeContextCompilerAuthority,
@@ -127,8 +128,19 @@ def _validate_and_compile(
         raise IntelligenceGatewayError("operator_identity_digest is required")
     if not constitution_digest.strip():
         raise IntelligenceGatewayError("constitution_digest is required")
-    if emergency_stop is not None:
-        emergency_stop.assert_operational()
+    # An ABSENT latch is a refusal, not a passed check. This is the single
+    # point every entrance passes through, so the old
+    # `if emergency_stop is not None:` left route, stream AND stream_structured
+    # ungoverned at once whenever nothing was wired.
+    #
+    # `require_wired` rather than `stop_permits_autonomy` deliberately: a
+    # boolean would collapse "no latch is wired" (a wiring bug) and "the
+    # operator engaged the stop" (a deliberate halt) into one refusal. They are
+    # different failures and the API turns them into different responses, so the
+    # engaged path keeps raising its own EmergencyStopError.
+    EmergencyStopHardWiringAuthority.require_wired(
+        emergency_stop, boundary="intelligence-gateway"
+    )
 
     return _REPRESENTATIVE_CONTEXT_COMPILER.compile(
         request_id=request_id,
@@ -577,9 +589,12 @@ class UniversalIntelligenceGatewayAuthority:
         model_call = kwargs.get("model_call")
         if not callable(model_call):
             raise IntelligenceGatewayError("model_call must be callable")
-        emergency_stop = kwargs.get("emergency_stop")
-        if emergency_stop is not None:
-            emergency_stop.assert_operational()
+        # These anonymous entrances do NOT route through
+        # `_validate_and_compile`, so they carry their own copy of the check --
+        # which is why fixing the shared one alone would have left them open.
+        EmergencyStopHardWiringAuthority.require_wired(
+            kwargs.get("emergency_stop"), boundary="intelligence-gateway-compatibility"
+        )
         policy = kwargs.get("secret_policy") or SecretPolicy()
 
         def _redacted_chunks() -> Iterator[str]:
@@ -602,9 +617,12 @@ class UniversalIntelligenceGatewayAuthority:
         model_call = kwargs.get("model_call")
         if not callable(model_call):
             raise IntelligenceGatewayError("model_call must be callable")
-        emergency_stop = kwargs.get("emergency_stop")
-        if emergency_stop is not None:
-            emergency_stop.assert_operational()
+        # These anonymous entrances do NOT route through
+        # `_validate_and_compile`, so they carry their own copy of the check --
+        # which is why fixing the shared one alone would have left them open.
+        EmergencyStopHardWiringAuthority.require_wired(
+            kwargs.get("emergency_stop"), boundary="intelligence-gateway-compatibility"
+        )
         policy = kwargs.get("secret_policy") or SecretPolicy()
         decision = policy.inspect_text(model_call())
         return decision.scrubbed

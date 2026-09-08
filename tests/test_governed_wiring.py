@@ -164,7 +164,18 @@ def test_a_justified_exception_is_still_recognised() -> None:
 #: and `aios/api/deps.py`'s singleton fast path recognised as never having been
 #: a guard at all (see `_NOT_A_GUARD`). The target is 0, and because that one
 #: coincidence is exempted rather than tolerated, 0 will mean it.
-_OPTIONAL_GUARD_BUDGET = 13
+#:
+#: 13 -> 10: all three `intelligence/gateway.py` guards converted to
+#: `require_wired`. Three rather than one because the two anonymous
+#: compatibility entrances do NOT pass through `_validate_and_compile`, so
+#: fixing the shared guard alone would have left them open.
+#:
+#: 10 -> 9: `IntelligenceHiringService.complete`. It was the one instance
+#: carrying a written justification, and that justification was circular -- it
+#: called gateway.py's pattern "established" while gateway.py's three were
+#: themselves undocumented holes on this same list. Converting them expired the
+#: reason, so the last "deliberate" optional guard is gone too.
+_OPTIONAL_GUARD_BUDGET = 9
 
 
 #: Lines that MATCH the guard text but are not governance guards, with counts.

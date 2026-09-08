@@ -18,6 +18,7 @@ from aios.application.intelligence.gateway import (
     stream_compatibility_intelligence_request,
     stream_structured_intelligence_request,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 from aios.domain.governance import EmergencyStopRequest
 from aios.domain.intelligence.representative_context import (
     RepresentativeContextReceiptV1,
@@ -48,6 +49,10 @@ def _route(**overrides: object):
         delegated_authority_summary="advisory only, no write authority",
         model_call=lambda ctx: f"summary of: {ctx.goal}",
     )
+    # These suites exercise redaction, persistence and routing -- none of
+    # which is about the latch. The gateway now REFUSES an absent stop, so
+    # the opt-out is stated rather than assumed.
+    fields.setdefault("emergency_stop", UNGOVERNED_FIXTURE)
     fields.update(overrides)
     return route_intelligence_request(**fields)
 
@@ -89,6 +94,7 @@ def test_governed_advisory_completion_routes_through_gateway() -> None:
         operator_identity_digest="operator-digest",
         constitution_digest="c" * 64,
         context_store=_Store(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     output = client.complete(
@@ -175,6 +181,10 @@ def _stream(**overrides: object):
         delegated_authority_summary="advisory only, no write authority",
         model_call=lambda ctx: iter(["chunk-one ", "chunk-two ", f"goal:{ctx.goal}"]),
     )
+    # These suites exercise redaction, persistence and routing -- none of
+    # which is about the latch. The gateway now REFUSES an absent stop, so
+    # the opt-out is stated rather than assumed.
+    fields.setdefault("emergency_stop", UNGOVERNED_FIXTURE)
     fields.update(overrides)
     return stream_intelligence_request(**fields)
 
@@ -195,6 +205,10 @@ def _structured_stream(**overrides: object):
             ]
         ),
     )
+    # These suites exercise redaction, persistence and routing -- none of
+    # which is about the latch. The gateway now REFUSES an absent stop, so
+    # the opt-out is stated rather than assumed.
+    fields.setdefault("emergency_stop", UNGOVERNED_FIXTURE)
     fields.update(overrides)
     return stream_structured_intelligence_request(**fields)
 
@@ -591,6 +605,7 @@ def test_anonymous_compatibility_gateway_is_local_only_and_redacts_output() -> N
     result = stream_compatibility_intelligence_request(
         request_id="anonymous-compat-1",
         target="local",
+        emergency_stop=UNGOVERNED_FIXTURE,
         model_call=lambda: iter(["safe ", "reply ", secret]),
     )
 
@@ -661,7 +676,9 @@ def test_anonymous_compatibility_completion_is_local_redacted_and_json_aware() -
             return '{"applicable": true, "reason": "' + secret + '"}'
 
     result = CompatibilityAdvisoryCompletionClient(
-        _Provider(), request_id="local-clerk-test"
+        _Provider(),
+        request_id="local-clerk-test",
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).complete(
         "evaluate " + secret,
         system="advisory " + secret,

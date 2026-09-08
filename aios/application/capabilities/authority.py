@@ -19,6 +19,7 @@ from aios.domain.capabilities.contracts import (
 )
 from aios.domain.capabilities.digest import payload_digest
 from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
+from aios.core.autonomy import UNGOVERNED_FIXTURE as _CANONICAL_UNGOVERNED_FIXTURE
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -171,7 +172,16 @@ class EmergencyStopHardWiringAuthority:
     #: `get_self_apply_engine` shipped a verify executor with no latch: nothing
     #: could tell the omission from a choice. Naming the choice makes the
     #: omission visible.
-    UNGOVERNED_FIXTURE = "ungoverned-fixture"
+    #: The canonical sentinel, IMPORTED rather than re-declared.
+    #:
+    #: This used to be its own string literal. Two textually identical
+    #: literals in different modules are not the same object, and every
+    #: check here compares with `is` -- so a caller passing
+    #: `aios.core.autonomy.UNGOVERNED_FIXTURE` did not match, fell through
+    #: to `assert_operational`, and was rejected as "not operationally
+    #: checkable". The documented opt-out did not work across a module
+    #: boundary, measured 2026-09-08.
+    UNGOVERNED_FIXTURE = _CANONICAL_UNGOVERNED_FIXTURE
 
     @staticmethod
     def assert_operational(emergency_stop: Any | None, *, boundary: str) -> None:
