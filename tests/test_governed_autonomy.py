@@ -55,6 +55,11 @@ def _governed(
         enabled=enabled,
         profile_name=profile,
         production_gate_open=profile != "production",
+        # Declared for the same reason the ledger above declares it: these tests
+        # exercise profile gating, per-project scoping and revocation, none of
+        # which is about the latch. `evaluate` now refuses an ABSENT stop, so
+        # the opt-out has to be said out loud rather than assumed.
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

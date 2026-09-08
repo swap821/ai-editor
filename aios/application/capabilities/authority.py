@@ -201,10 +201,21 @@ class EmergencyStopHardWiringAuthority:
         self-apply verify executor was built without one, meaning engaging the
         emergency stop did not halt self-apply verification at all.
 
-        That file is FOUNDATION_LOCK'd and its guard is correct for the objects
-        that may legitimately lack a latch. The place to make omission
-        impossible is where PRODUCTION objects are built -- `aios/api/deps.py`
-        -- because a production path has no honest reason to be ungoverned.
+        CORRECTED 2026-09-08. This docstring used to say that file was
+        "FOUNDATION_LOCK'd and its guard is correct". Both halves were wrong,
+        and together they argued for leaving a fail-open hole alone.
+
+        AGENTS.md SVIII defines the frozen core as
+        `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py`
+        and nothing else -- enforced mechanically by `SCOPE_ROOTS` (RED) and the
+        boot-attestation Merkle hash. `aios/core/executor.py` is in neither, and
+        no FOUNDATION_LOCK list naming it exists anywhere in the repo. It is
+        ordinary application code, and its guards are being converted.
+
+        Wiring-time enforcement remains the right place to make omission
+        impossible for PRODUCTION objects -- a production path has no honest
+        reason to be ungoverned -- but it is a complement to a fail-closed
+        runtime guard, not a substitute that excuses one.
 
         Returns the latch so it can be used inline at a construction site.
         """
