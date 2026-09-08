@@ -22,6 +22,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from aios.runtime.contracts import MissionContract as RuntimeMissionContract
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _contract(mission_id: str = "r6-mission-1") -> MissionContract:
@@ -41,7 +42,9 @@ def _contract(mission_id: str = "r6-mission-1") -> MissionContract:
 def _awaiting(
     tmp_db: Path, mission_id: str = "r6-mission-1"
 ) -> tuple[MissionService, MissionContract]:
-    service = MissionService(SqliteMissionRepository(tmp_db))
+    service = MissionService(
+        SqliteMissionRepository(tmp_db), emergency_stop=UNGOVERNED_FIXTURE
+    )
     contract = _contract(mission_id)
     service.create(contract)
     service.start_deliberation(contract.mission_id)
@@ -96,7 +99,9 @@ def test_concurrent_human_approvals_have_one_authoritative_winner(
     _, contract = _awaiting(db_path)
 
     def approve(operator_id: str) -> str:
-        service = MissionService(SqliteMissionRepository(db_path))
+        service = MissionService(
+            SqliteMissionRepository(db_path), emergency_stop=UNGOVERNED_FIXTURE
+        )
         try:
             service.approve(
                 contract.mission_id,
@@ -144,7 +149,8 @@ def test_execution_cannot_self_approve_an_awaiting_mission(tmp_path: Path) -> No
     orchestrator = CouncilOrchestrator(
         runtime_root=tmp_path,
         mission_service=service,
-        foundry=NeverRuns(),  # type: ignore[arg-type]
+        foundry=NeverRuns(),  # type: ignore[arg-type],
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     with pytest.raises(MissionTransitionError, match="human approval"):
@@ -169,7 +175,9 @@ def test_rejection_is_terminal_and_survives_restart(tmp_path: Path) -> None:
         session_id="session-reject-1",
     )
 
-    restarted = MissionService(SqliteMissionRepository(db_path))
+    restarted = MissionService(
+        SqliteMissionRepository(db_path), emergency_stop=UNGOVERNED_FIXTURE
+    )
     assert restarted.repository.get(contract.mission_id).state is MissionState.REJECTED
     with pytest.raises(MissionTransitionError, match="invalid transition"):
         restarted.approve(
@@ -186,7 +194,9 @@ def test_tampered_runtime_contract_cannot_be_executed_after_approval(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "missions.db"
-    service = MissionService(SqliteMissionRepository(db_path))
+    service = MissionService(
+        SqliteMissionRepository(db_path), emergency_stop=UNGOVERNED_FIXTURE
+    )
     domain_contract = _contract("r6-tamper-1")
     runtime_contract = RuntimeMissionContract(
         mission_id=domain_contract.mission_id,
@@ -214,7 +224,11 @@ def test_tampered_runtime_contract_cannot_be_executed_after_approval(
     )
 
     tampered = runtime_contract.model_copy(update={"goal": "altered after approval"})
-    orchestrator = CouncilOrchestrator(runtime_root=tmp_path, mission_service=service)
+    orchestrator = CouncilOrchestrator(
+        runtime_root=tmp_path,
+        mission_service=service,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     with pytest.raises(MissionTransitionError, match="runtime contract digest"):
         asyncio.run(orchestrator.execute(tampered, []))
 

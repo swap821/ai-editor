@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from aios.council.queens.critique import CritiqueQueen
 from aios.runtime.contracts import MissionContract, QueenVerdict
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _contract(allowed_files, verification_commands):
@@ -67,11 +68,19 @@ def test_orchestrator_gates_critique_on_flag(tmp_path, monkeypatch) -> None:
     from aios.council.council_orchestrator import CouncilOrchestrator
 
     monkeypatch.setattr(config, "COUNCIL_CRITIQUE", False)
-    assert CouncilOrchestrator(runtime_root=tmp_path).critique is None
+    assert (
+        CouncilOrchestrator(
+            runtime_root=tmp_path, emergency_stop=UNGOVERNED_FIXTURE
+        ).critique
+        is None
+    )
 
     monkeypatch.setattr(config, "COUNCIL_CRITIQUE", True)
     assert isinstance(
-        CouncilOrchestrator(runtime_root=tmp_path).critique, CritiqueQueen
+        CouncilOrchestrator(
+            runtime_root=tmp_path, emergency_stop=UNGOVERNED_FIXTURE
+        ).critique,
+        CritiqueQueen,
     )
 
 

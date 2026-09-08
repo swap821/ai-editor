@@ -15,9 +15,7 @@ from aios.domain.privacy import ModelCallRecord, ModelCallRequest, digest_output
 from aios.application.intelligence.gateway import route_intelligence_request
 from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.secret_policy import SecretPolicy
-from aios.application.capabilities.authority import (
-    EmergencyStopHardWiringAuthority,
-)
+from aios.core.autonomy import require_stop_wired
 
 
 class ProviderClient(Protocol):
@@ -110,9 +108,7 @@ class IntelligenceHiringService:
         *,
         system: str | None = None,
     ) -> tuple[str, ModelCallRecord]:
-        EmergencyStopHardWiringAuthority.require_wired(
-            self.emergency_stop, boundary="intelligence-hiring-service"
-        )
+        require_stop_wired(self.emergency_stop, boundary="intelligence-hiring-service")
         started = time.perf_counter()
         selection = self.broker.select_model_call(
             request,

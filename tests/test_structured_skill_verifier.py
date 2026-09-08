@@ -19,6 +19,7 @@ from aios.domain.learning.trajectory_repository import TrajectoryRepository
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _verifier() -> SkillVerifierSpec:
@@ -104,7 +105,7 @@ def test_skill_reuse_mission_contains_structured_verifier_not_command(
     )
     mission_repo.create(source, state=MissionState.COMPLETED)
     learning = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
         verification_plan_validator=lambda _skill: True,
         reuse_policy=lambda _skill, _context: True,

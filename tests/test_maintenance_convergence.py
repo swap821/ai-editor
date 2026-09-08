@@ -22,6 +22,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from tests.helpers import consume_real_capability_proof, executor_repair_result
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _contract(*, root: Path, max_files: int = 4) -> BoundedScanContract:
@@ -100,7 +101,9 @@ def _service(
     (project / "bug.txt").write_text("CONTROLLED_DEFECT\n", encoding="utf-8")
     workspace = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
     missions = SqliteMissionRepository(tmp_path / "missions.db")
-    mission_service = MissionService(missions, workspace_manager=workspace)
+    mission_service = MissionService(
+        missions, workspace_manager=workspace, emergency_stop=UNGOVERNED_FIXTURE
+    )
     finding_repository = MaintenanceFindingRepository(tmp_path / "operational.db")
     scan_repository = MaintenanceScanRepository(tmp_path / "operational.db")
     service = MaintenanceConvergenceService(
@@ -117,7 +120,9 @@ def _service(
             scanner_adapters={"controlled-scanner": _scanner}
         ),
         verification_authority=VerificationAuthority(),
-        promotion_authority=PromotionAuthority(workspace),
+        promotion_authority=PromotionAuthority(
+            workspace, emergency_stop=UNGOVERNED_FIXTURE
+        ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
     )

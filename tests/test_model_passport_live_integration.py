@@ -39,6 +39,7 @@ from aios.application.models.passport_authority import ModelPassportAuthority
 from aios.core.llm import OllamaClient
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 from aios.memory.db import get_connection, init_memory_db
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 pytestmark = pytest.mark.skipif(
     os.getenv("AIOS_OLLAMA_INTEGRATION") != "1",
@@ -106,7 +107,9 @@ def qualified_model(live_client: OllamaClient, memory_db: None) -> tuple[str, di
     )
 
     registry.update_approval(_MODEL, True)
-    service = LocalWorkforceService(registry, live_client)
+    service = LocalWorkforceService(
+        registry, live_client, emergency_stop=UNGOVERNED_FIXTURE
+    )
     outcome = service.qualify(_MODEL)
 
     # qualify() returns status="rejected" for THREE different things: a failed
@@ -214,7 +217,9 @@ def test_a_role_the_live_evidence_does_not_back_is_refused(
 
     model_id, _ = qualified_model
     registry = LocalWorkforceRegistry(OllamaClient(model=_MODEL))
-    service = LocalWorkforceService(registry, OllamaClient(model=_MODEL))
+    service = LocalWorkforceService(
+        registry, OllamaClient(model=_MODEL), emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     every_profile = frozenset(LocalJobProfile)
     unsupported = service.unsupported_profile_claims(model_id, every_profile)

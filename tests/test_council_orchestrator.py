@@ -15,6 +15,7 @@ from aios.council.council_state import CouncilState
 from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def test_council_orchestrator_refuses_unbound_scoped_memory_authority(
@@ -28,6 +29,7 @@ def test_council_orchestrator_refuses_unbound_scoped_memory_authority(
             runtime_root=tmp_path / "runtime",
             council_memory=memory,
             memory_authority=authority,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
 
@@ -37,7 +39,9 @@ def test_production_orchestrator_wires_one_staged_workspace_authority(
     monkeypatch.setenv("AIOS_PROFILE", "production")
     monkeypatch.setattr(config, "EXECUTOR_WORKSPACE_ROOT", tmp_path / "staged")
     monkeypatch.setattr(config, "COUNCIL_WORKSPACE_ROOT", tmp_path / "projects")
-    orchestrator = CouncilOrchestrator(runtime_root=tmp_path / "runtime")
+    orchestrator = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime", emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     assert orchestrator.workspace_manager is not None
     assert orchestrator.foundry.workspace_manager is orchestrator.workspace_manager
@@ -135,7 +139,9 @@ def test_production_council_promotes_only_after_staged_verification(
         foundry=WorkerFoundry(
             spawner=FakeSpawner(),
             workspace_manager=manager,
+            emergency_stop=UNGOVERNED_FIXTURE,
         ),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     deliberation = orchestrator.deliberate(
         _request(
@@ -270,8 +276,10 @@ def test_production_council_promotion_wires_the_full_mission_transition_journal(
         foundry=WorkerFoundry(
             spawner=FakeSpawner(),
             workspace_manager=manager,
+            emergency_stop=UNGOVERNED_FIXTURE,
         ),
         mission_journal=journal,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     deliberation = orchestrator.deliberate(
         _request(
@@ -372,7 +380,9 @@ class _DenySecurity:
 def test_deliberate_produces_awaiting_approval_without_acting(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
-    run = CouncilOrchestrator(runtime_root=runtime_root).deliberate(_request(workspace))
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root, emergency_stop=UNGOVERNED_FIXTURE
+    ).deliberate(_request(workspace))
 
     assert run.report.status == "awaiting_approval"
     assert run.worker_run is None
@@ -389,7 +399,9 @@ def test_execute_after_deliberate_runs_worker_without_collision(
     monkeypatch.setenv("AIOS_APPROVED_EXECUTION_BACKEND", "host")
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
-    orchestrator = CouncilOrchestrator(runtime_root=runtime_root)
+    orchestrator = CouncilOrchestrator(
+        runtime_root=runtime_root, emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     deliberation = orchestrator.deliberate(_request(workspace))
     assert deliberation.report.status == "awaiting_approval"
@@ -434,6 +446,7 @@ def test_execute_does_not_persist_a_deliberation_for_an_ordinary_approved_missio
         dissent_provider="gemini",
         dissent_exact_model_id="gemini-2.5-flash",
         deliberation_store=deliberation_store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     deliberation = orchestrator.deliberate(_request(workspace))
@@ -474,6 +487,7 @@ def test_maybe_persist_deliberation_saves_a_real_record_for_a_block_tier_report(
         dissent_provider="gemini",
         dissent_exact_model_id="gemini-2.5-flash",
         deliberation_store=deliberation_store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     report = KingReport(
         mission_id="mission-block-tier",
@@ -509,6 +523,7 @@ def test_maybe_persist_deliberation_never_raises_on_a_flaky_dissent_call(
         dissent_provider="gemini",
         dissent_exact_model_id="gemini-2.5-flash",
         deliberation_store=DeliberationStore(tmp_path / "deliberations.db"),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     report = KingReport(
         mission_id="mission-1",
@@ -530,7 +545,9 @@ def test_deliberate_blocks_on_denying_security(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     runtime_root = tmp_path / "runtime"
     run = CouncilOrchestrator(
-        runtime_root=runtime_root, security=_DenySecurity()
+        runtime_root=runtime_root,
+        security=_DenySecurity(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).deliberate(_request(workspace))
 
     assert run.worker_run is None
@@ -544,7 +561,11 @@ def test_council_orchestrator_persists_deliberation_to_state(tmp_path: Path) -> 
     request = _request(workspace)
 
     asyncio.run(
-        CouncilOrchestrator(runtime_root=runtime_root, council_state=state).run(request)
+        CouncilOrchestrator(
+            runtime_root=runtime_root,
+            council_state=state,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ).run(request)
     )
 
     verdicts = state.verdicts_for(request.mission_id)
@@ -566,6 +587,7 @@ def test_council_orchestrator_attaches_ganglia_and_memory_evidence(
     run = CouncilOrchestrator(
         runtime_root=runtime_root,
         council_memory=memory,
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).deliberate(request)
 
     synthesis = run.contract.metadata["ganglia_synthesis"]
@@ -588,6 +610,7 @@ def test_ganglia_security_veto_remains_blocking_and_non_authorizing(
         runtime_root=runtime_root,
         security=_DenySecurity(),
         council_memory=memory,
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).deliberate(request)
 
     synthesis = run.contract.metadata["ganglia_synthesis"]
@@ -618,6 +641,7 @@ def test_council_orchestrator_runs_full_loop_and_records_report(
         CouncilOrchestrator(
             runtime_root=runtime_root,
             council_memory=memory,
+            emergency_stop=UNGOVERNED_FIXTURE,
         ).run(request)
     )
 
@@ -657,7 +681,9 @@ def test_council_orchestrator_blocks_protected_allowed_file_before_worker(
     )
 
     run = asyncio.run(
-        CouncilOrchestrator(runtime_root=tmp_path / "runtime").run(request)
+        CouncilOrchestrator(
+            runtime_root=tmp_path / "runtime", emergency_stop=UNGOVERNED_FIXTURE
+        ).run(request)
     )
 
     assert run.worker_run is None
@@ -679,7 +705,9 @@ def test_testing_queen_failure_changes_king_report_to_rollback(
         mission_id="mission-phase2-verification-fails",
     )
 
-    orchestrator = CouncilOrchestrator(runtime_root=tmp_path / "runtime")
+    orchestrator = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime", emergency_stop=UNGOVERNED_FIXTURE
+    )
     deliberation = orchestrator.deliberate(request)
     authority = orchestrator.mission_service.repository.get(request.mission_id)
     orchestrator.mission_service.approve(
@@ -716,7 +744,9 @@ def test_deliberation_includes_optional_queens_when_justified(tmp_path: Path) ->
         metadata={"project_id": "proj-42", "complex_task": True},
     )
 
-    run = CouncilOrchestrator(runtime_root=runtime_root).deliberate(request)
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root, emergency_stop=UNGOVERNED_FIXTURE
+    ).deliberate(request)
 
     queens = [verdict.queen for verdict in run.verdicts]
     assert "routing" in queens
@@ -734,7 +764,9 @@ def test_deliberation_records_participation_for_minimal_council(tmp_path: Path) 
     runtime_root = tmp_path / "runtime"
     request = _request(workspace, mission_id="mission-minimal")
 
-    run = CouncilOrchestrator(runtime_root=runtime_root).deliberate(request)
+    run = CouncilOrchestrator(
+        runtime_root=runtime_root, emergency_stop=UNGOVERNED_FIXTURE
+    ).deliberate(request)
 
     assert run.ledger.evidence["council_participation"]["required"] == [
         "planner",
@@ -755,7 +787,9 @@ def test_queen_services_registry_can_be_used_for_deliberation(tmp_path: Path) ->
     )
 
     run = CouncilOrchestrator(
-        runtime_root=runtime_root, use_queen_services=True
+        runtime_root=runtime_root,
+        use_queen_services=True,
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).deliberate(request)
 
     assert "routing" in [verdict.queen for verdict in run.verdicts]

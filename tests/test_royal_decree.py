@@ -11,6 +11,7 @@ from aios.api.main import app, get_council_runtime_root
 from aios.council.council_orchestrator import CouncilOrchestrator
 from aios.council.queens.planner import CouncilMissionRequest
 from aios.council.royal_decree import apply_royal_decree, draft_royal_decree
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _request(tmp_path: Path, **overrides: object) -> CouncilMissionRequest:
@@ -82,7 +83,9 @@ def test_royal_decree_cannot_override_red_security_decision(tmp_path: Path) -> N
         force=True,
     )
 
-    run = CouncilOrchestrator(runtime_root=tmp_path / "runtime").deliberate(request)
+    run = CouncilOrchestrator(
+        runtime_root=tmp_path / "runtime", emergency_stop=UNGOVERNED_FIXTURE
+    ).deliberate(request)
 
     security_verdict = next(v for v in run.verdicts if v.queen == "security")
     assert security_verdict.verdict == "deny"

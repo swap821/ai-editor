@@ -39,13 +39,14 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from tests.helpers import reuse_outcome_reference
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture()
 def learning_env(tmp_path: Path):
     db_path = tmp_path / "learning_flywheel.db"
     missions = SqliteMissionRepository(db_path)
-    mission_service = MissionService(missions)
+    mission_service = MissionService(missions, emergency_stop=UNGOVERNED_FIXTURE)
     trajectories = TrajectoryRepository(db_path)
     skills = SkillRepository(db_path)
     evidence_auth = EvidenceAuthority()

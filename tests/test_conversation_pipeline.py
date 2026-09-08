@@ -21,6 +21,7 @@ from aios.domain.memory.human_representation import HumanStateHypothesis
 from aios.infrastructure.memory.human_representation_store import (
     HumanStateHypothesisStore,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class _FakeChatClient:
@@ -59,6 +60,12 @@ def _make_runtime(*, extra_overrides: dict[str, object] | None = None) -> Runtim
         "task": "chat",
         "sse_writer": _sse_writer,
         "telemetry": telemetry,
+        # Production populates this at aios/api/main.py:1288 and :1543.
+        # The compatibility gateway now REFUSES an absent stop, so a
+        # fixture that omits it is refused too -- correctly, since these
+        # tests exercise SSE framing and human-state ordering rather than
+        # the latch.
+        "emergency_stop": UNGOVERNED_FIXTURE,
         "select_chat_client": lambda task: (_FakeChatClient(), "fake-model"),
         "active_route": lambda chat_client, bedrock, gemini, model, *, openai=None, anthropic=None, vertex_maas=None: (
             "ollama",

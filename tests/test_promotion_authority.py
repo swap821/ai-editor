@@ -18,6 +18,7 @@ from aios.domain.promotion import PromotionRequest, PromotionStatus
 from aios.domain.promotion.contracts import PromotionAuthorization
 
 from tests.helpers import consume_real_capability_proof
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture
@@ -147,7 +148,9 @@ def test_promotion_requires_current_mission_and_strong_fresh_evidence(staged) ->
         current_state=MissionState.RUNNING,
     )
     applied: list[str] = []
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "checkpoint-1",
         apply_staged_diff=lambda _: applied.append("applied"),
@@ -170,7 +173,9 @@ def test_contract_or_baseline_change_refuses_without_checkpoint(staged) -> None:
         authoritative_contract_digest="different-contract",
     )
     checkpoints: list[str] = []
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: checkpoints.append("created") or "checkpoint-1",
         apply_staged_diff=lambda _: pytest.fail("must not apply"),
@@ -187,7 +192,9 @@ def test_contract_or_baseline_change_refuses_without_checkpoint(staged) -> None:
         lease,
         verification=verification,
     )
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: checkpoints.append("created") or "checkpoint-1",
         apply_staged_diff=lambda _: pytest.fail("must not apply"),
@@ -209,7 +216,9 @@ def test_success_is_checkpointed_capability_bound_and_observed(staged) -> None:
         requires_capability=True,
     )
     calls: list[str] = []
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: calls.append("checkpoint") or "checkpoint-1",
         consume_capability=lambda req: (
@@ -234,7 +243,9 @@ def test_manager_apply_changes_only_after_authority_gate(staged) -> None:
     manager, project, lease = staged
     verification = VerificationAuthority()
     request = _request(manager, project, lease, verification=verification)
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "checkpoint-apply",
         apply_staged_diff=lambda _: manager.apply(lease),
@@ -252,7 +263,9 @@ def test_apply_or_smoke_failure_restores_exact_checkpoint(staged) -> None:
     verification = VerificationAuthority()
     request = _request(manager, project, lease, verification=verification)
     calls: list[object] = []
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "snapshot-exact",
         apply_staged_diff=lambda _: (
@@ -286,7 +299,9 @@ def test_apply_or_smoke_failure_restores_exact_bytes_via_real_checkpoint_authori
     original_bytes = (project / "app.txt").read_bytes()
     assert b"before" in original_bytes
 
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=get_checkpoint_creator(),
         apply_staged_diff=lambda _: manager.apply(lease),
@@ -313,7 +328,9 @@ def test_successful_promotion_produces_an_authoritative_post_promotion_receipt(
     verification = VerificationAuthority()
     request = _request(manager, project, lease, verification=verification)
 
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "checkpoint-receipt",
         apply_staged_diff=lambda _: manager.apply(lease),
@@ -343,7 +360,10 @@ def test_receipt_survives_the_real_durable_store_round_trip(staged, tmp_path) ->
     verification = VerificationAuthority()
     request = _request(manager, project, lease, verification=verification)
     authority = PromotionAuthority(
-        manager, verification, database_path=tmp_path / "promotions.db"
+        manager,
+        verification,
+        database_path=tmp_path / "promotions.db",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result = authority.promote(
@@ -360,7 +380,10 @@ def test_receipt_survives_the_real_durable_store_round_trip(staged, tmp_path) ->
     # Force a read from the durable record, not the in-memory cache, by
     # constructing a fresh authority instance over the same db file.
     fresh_authority = PromotionAuthority(
-        manager, verification, database_path=tmp_path / "promotions.db"
+        manager,
+        verification,
+        database_path=tmp_path / "promotions.db",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     reloaded = fresh_authority.get_authoritative_terminal_promotion("mission-1")
     assert reloaded is not None
@@ -378,7 +401,9 @@ def test_rejected_or_rolled_back_promotion_carries_no_receipt(staged) -> None:
     verification = VerificationAuthority()
     request = _request(manager, project, lease, verification=verification)
 
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "checkpoint-fail",
         apply_staged_diff=lambda _: (_ for _ in ()).throw(RuntimeError("boom")),
@@ -402,7 +427,9 @@ def test_forged_lease_cannot_reach_promotion_callback(staged) -> None:
         }
     )
     applied: list[str] = []
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         forged,
         create_checkpoint=lambda _: "checkpoint-forged",
         apply_staged_diff=lambda _: applied.append("applied"),
@@ -421,7 +448,9 @@ def test_promotion_ignores_council_rollback_git_pointer(staged) -> None:
     )
     verification = VerificationAuthority()
     request = _request(manager, project, lease, verification=verification)
-    result = PromotionAuthority(manager, verification).promote(
+    result = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "checkpoint-git-pointer",
         apply_staged_diff=lambda _: manager.apply(lease),

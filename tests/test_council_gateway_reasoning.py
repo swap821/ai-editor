@@ -385,6 +385,7 @@ def test_target_is_required_so_it_can_never_be_silently_defaulted() -> None:
             operator_identity_digest=credential_digest("op-council"),
             constitution_digest="c" * 64,
             provider=_FakeProvider(),
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
 
@@ -402,6 +403,7 @@ def test_a_local_claim_over_a_remote_host_is_refused() -> None:
             constitution_digest="c" * 64,
             target="local",
             provider=_RemoteProvider(),
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
 
@@ -416,6 +418,7 @@ def test_a_provider_with_no_host_cannot_claim_local() -> None:
             constitution_digest="c" * 64,
             target="local",
             provider=_HostlessProvider(),
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
 
@@ -428,6 +431,7 @@ def test_cloud_target_is_accepted_for_any_provider() -> None:
         target="cloud",
         provider=_FakeProvider(),
         provider_name="gemini",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     assert client._target == "cloud"

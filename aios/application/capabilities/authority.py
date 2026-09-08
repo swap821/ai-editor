@@ -20,6 +20,7 @@ from aios.domain.capabilities.contracts import (
 from aios.domain.capabilities.digest import payload_digest
 from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
 from aios.core.autonomy import UNGOVERNED_FIXTURE as _CANONICAL_UNGOVERNED_FIXTURE
+from aios.core.autonomy import require_stop_wired
 from aios.security.secret_scanner import scan_and_redact
 
 
@@ -183,8 +184,8 @@ class EmergencyStopHardWiringAuthority:
     #: boundary, measured 2026-09-08.
     UNGOVERNED_FIXTURE = _CANONICAL_UNGOVERNED_FIXTURE
 
-    @staticmethod
-    def assert_operational(emergency_stop: Any | None, *, boundary: str) -> None:
+    @classmethod
+    def assert_operational(cls, emergency_stop: Any | None, *, boundary: str) -> None:
         """Check a latch that MAY legitimately be absent (unchanged behaviour).
 
         Kept lenient on `None` because hundreds of unit fixtures construct
@@ -193,6 +194,13 @@ class EmergencyStopHardWiringAuthority:
         bug rather than a choice.
         """
         if emergency_stop is None:
+            return
+        if emergency_stop is cls.UNGOVERNED_FIXTURE:
+            # The sentinel means "deliberately ungoverned". The lenient path
+            # special-cased only None, so a caller that took the DOCUMENTED
+            # opt-out was rejected as "not operationally checkable" while a
+            # caller that silently omitted the stop sailed through -- exactly
+            # backwards. Sixth place this sentinel was mishandled.
             return
         checker = getattr(emergency_stop, "assert_operational", None)
         if not callable(checker):
@@ -229,18 +237,13 @@ class EmergencyStopHardWiringAuthority:
 
         Returns the latch so it can be used inline at a construction site.
         """
-        if emergency_stop is cls.UNGOVERNED_FIXTURE:
-            return None
-        if emergency_stop is None:
-            raise RuntimeError(
-                f"{boundary} was constructed without an emergency stop. A "
-                "governed production object must be able to be halted; pass "
-                "get_emergency_stop(), or "
-                "EmergencyStopHardWiringAuthority.UNGOVERNED_FIXTURE to state "
-                "that ungoverned is deliberate."
-            )
-        cls.assert_operational(emergency_stop, boundary=boundary)
-        return emergency_stop
+        # Delegates to the canonical implementation in `aios.core.autonomy`.
+        # This used to be a second copy of the same rule; `aios/application/
+        # models/**` and `aios/agents/**` are forbidden by release conformance
+        # from importing this module, so the rule had to live somewhere they
+        # could reach it, and one rule with two implementations is how the
+        # sentinel comparison silently broke in the first place.
+        return require_stop_wired(emergency_stop, boundary=boundary)
 
 
 class CapabilityAuthority:

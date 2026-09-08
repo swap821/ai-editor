@@ -32,6 +32,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
 )
 from aios.application.missions.mission_service import MissionService
 from tests.helpers import reuse_outcome_reference, save_minimal_trajectory
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _mission() -> MissionContract:
@@ -177,7 +178,7 @@ def test_capture_is_structured_durable_and_derived_from_authoritative_mission(
     trajectories = TrajectoryRepository(tmp_path / "learning.db")
     authority = VerificationAuthority()
     service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=trajectories,
         verification_authority=authority,
     )
@@ -252,7 +253,7 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
     skill_repo = TrajectoryRepository(tmp_path / "learning.db")
     authority = VerificationAuthority()
     service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=skill_repo,
         verification_authority=authority,
     )
@@ -268,7 +269,7 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
         )
 
     authorized_service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=skill_repo,
         activation_authorizer=lambda *_args: True,
         verification_plan_validator=lambda *_args: True,
@@ -330,7 +331,7 @@ def _activated_skill_for_clerk_advisory_test(
     trajectory_repo = TrajectoryRepository(tmp_path / "learning.db")
     authority = VerificationAuthority()
     capture_service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=trajectory_repo,
         verification_authority=authority,
     )
@@ -341,7 +342,7 @@ def _activated_skill_for_clerk_advisory_test(
         trajectory.trajectory_id, _candidate()
     )
     authorized_service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=trajectory_repo,
         activation_authorizer=lambda *_args: True,
         verification_plan_validator=lambda *_args: True,
@@ -485,7 +486,7 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
     mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
     learning_db = tmp_path / "learning.db"
     service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=TrajectoryRepository(learning_db),
         verification_authority=(authority := VerificationAuthority()),
     )
@@ -597,7 +598,7 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
 ) -> None:
     mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
     service = LearningService(
-        mission_service=MissionService(mission_repo),
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
         verification_plan_validator=lambda *_args: True,
         reuse_policy=lambda *_args: True,

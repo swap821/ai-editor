@@ -14,6 +14,7 @@ from aios.runtime.intelligence_gateway import (
 )
 from aios.runtime.worker_entry import run_worker
 from aios.runtime.worker_api import WorkerRuntime
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class FakeReasoner:
@@ -76,6 +77,7 @@ def test_gateway_uses_cloud_only_when_policy_budget_and_secrets_allow(
     gateway = IntelligenceGateway(
         local_client=local,
         cloud_clients={"gemini": cloud},
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     contract = _mission(tmp_path)
 
@@ -99,6 +101,7 @@ def test_gateway_falls_back_to_local_when_budget_blocks_cloud(
     gateway = IntelligenceGateway(
         local_client=local,
         cloud_clients={"gemini": cloud},
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     contract = _mission(
         tmp_path,
@@ -135,6 +138,7 @@ def test_gateway_redacts_secrets_and_keeps_secret_prompt_local(
     gateway = IntelligenceGateway(
         local_client=local,
         cloud_clients={"gemini": cloud},
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     contract = _mission(tmp_path)
 
@@ -291,7 +295,11 @@ def test_governed_gateway_routes_local_reasoning_through_universal_context(
             self.saved.append(context)
 
     context_store = ContextStore()
-    gateway = IntelligenceGateway(local_client=local, context_store=context_store)
+    gateway = IntelligenceGateway(
+        local_client=local,
+        context_store=context_store,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     contract = _mission(
         tmp_path,
         operator_identity_digest="a" * 64,
@@ -319,7 +327,7 @@ def test_governed_gateway_refuses_missing_binding_before_provider_call(
     tmp_path: Path,
 ) -> None:
     local = FakeReasoner("must not run")
-    gateway = IntelligenceGateway(local_client=local)
+    gateway = IntelligenceGateway(local_client=local, emergency_stop=UNGOVERNED_FIXTURE)
     contract = _mission(tmp_path, requires_governed_intelligence=True)
 
     with pytest.raises(

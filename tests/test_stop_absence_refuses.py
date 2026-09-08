@@ -27,7 +27,10 @@ first. Those are added alongside their conversions.
 
 from __future__ import annotations
 
+import ast
+import asyncio
 import itertools
+from pathlib import Path
 
 import pytest
 
@@ -47,7 +50,10 @@ from aios.application.governance import (
     propose_amendment,
 )
 from aios.domain.governance.constitution import build_constitution_snapshot
+from aios.application.workers.foundry import UnknownWorkerStrategy, WorkerFoundry
+from aios.application.workers.scheduler import WorkerScheduler
 from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
+from aios.domain.missions.mission_contract import MissionContract
 from aios.domain.autonomy import ActionClassKey, AutonomyDecisionStatus
 
 
@@ -402,3 +408,138 @@ def test_amendment_activation_accepts_the_explicit_fixture_opt_out() -> None:
             previous_snapshot=snapshot,
             emergency_stop=UNGOVERNED_FIXTURE,
         )
+
+
+# ---------------------------------------------------------------------------
+# Slice 4 -- aios/application/workers/{scheduler,foundry}.py
+#
+# One slice for two guards because they are one path: `WorkerFoundry` builds
+# its own `WorkerScheduler` and hands its stop down, so converting either alone
+# would leave the pair half-governed. Neither had ANY engaged-stop test.
+# ---------------------------------------------------------------------------
+
+
+def _worker_contract(mission_id: str = "mission-absence") -> MissionContract:
+    return MissionContract(
+        mission_id=mission_id,
+        operator_id="operator-1",
+        goal="inspect a bounded project",
+        worker_type="deterministic",
+        created_by="queen:planner",
+    )
+
+
+def test_the_worker_foundry_refuses_to_run_when_no_stop_is_wired() -> None:
+    """THE BAR for slice 4, foundry half.
+
+    `run()` selects a strategy and dispatches a worker. A foundry nobody can
+    halt must not do that -- and the old guard asked no question at all when
+    nothing was wired, which is the default `WorkerFoundry()` constructor.
+    """
+
+    async def scenario() -> None:
+        foundry = WorkerFoundry()
+
+        with pytest.raises(RuntimeError, match="without an emergency stop"):
+            await foundry.run(_worker_contract())
+
+        assert foundry.scheduler.snapshot().active == 0, (
+            "a worker was admitted despite the foundry being ungovernable"
+        )
+
+    asyncio.run(scenario())
+
+
+def test_the_scheduler_refuses_to_admit_work_when_no_stop_is_wired() -> None:
+    """THE BAR for slice 4, scheduler half.
+
+    Converting the foundry alone would not cover this: the scheduler is reached
+    directly too, and it carries its own copy of the guard.
+    """
+    scheduler = WorkerScheduler(max_active=1, max_per_mission=1)
+
+    with pytest.raises(RuntimeError, match="without an emergency stop"):
+        scheduler._assert_operational()
+
+
+def test_the_worker_pair_accepts_the_explicit_fixture_opt_out() -> None:
+    """The foundry hands its stop DOWN to the scheduler it builds.
+
+    So stating the opt-out once at the foundry has to satisfy both halves;
+    otherwise every worker fixture would need to say it twice.
+    """
+
+    async def scenario() -> None:
+        foundry = WorkerFoundry(emergency_stop=UNGOVERNED_FIXTURE)
+
+        # Reaches strategy selection rather than the stop check -- which is the
+        # ordinary refusal for an unknown strategy, not a governance refusal.
+        with pytest.raises(UnknownWorkerStrategy):
+            await foundry.run(_worker_contract(), strategy="not-a-worker")
+
+        foundry.scheduler._assert_operational()
+
+    asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------------------
+# A guard on this file itself
+# ---------------------------------------------------------------------------
+
+
+def test_this_file_still_contains_ungoverned_constructions() -> None:
+    """The proofs here depend on NOT declaring the opt-out. Keep it that way.
+
+    Not hypothetical. Converting these guards means adding
+    `emergency_stop=UNGOVERNED_FIXTURE` to ~200 test constructions, which is
+    done by an AST sweep -- and a sweep is blind to intent. On 2026-09-08 it ran
+    across `tests/` and helpfully declared the opt-out at two constructions IN
+    THIS FILE, where the absence is the entire point. Both proofs went on
+    passing, having stopped testing anything.
+
+    That is the failure mode this pass is most exposed to: adding the sentinel
+    everywhere is mechanically identical to opting the suite out of the control
+    being added, and the one place it is fatal is the file that proves the
+    control works.
+    """
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+
+    def names_a_real_stop(call: ast.Call) -> bool:
+        for kw in call.keywords:
+            if kw.arg != "emergency_stop":
+                continue
+            # `emergency_stop=None` is an ungoverned construction stated out
+            # loud -- which is exactly what several proofs here pass on purpose.
+            return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
+        return False
+
+    governed = {
+        "WorkerFoundry",
+        "WorkerScheduler",
+        "GovernedAutonomy",
+        "MissionService",
+        "PromotionAuthority",
+        "CouncilOrchestrator",
+        "Executor",
+    }
+    built: dict[str, list[bool]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            name = getattr(node.func, "id", None)
+            if name in governed:
+                built.setdefault(name, []).append(names_a_real_stop(node))
+
+    assert built, "this file no longer constructs anything governed"
+
+    # PER CLASS, not merely somewhere in the file. The first version asked only
+    # whether SOME ungoverned construction survived, and a sweep that neutered
+    # both worker proofs still passed it, kept satisfied by unrelated
+    # `GovernedAutonomy(emergency_stop=None)` calls. A guard that cannot fail on
+    # the thing that actually happened is decoration.
+    fully_swept = sorted(name for name, calls in built.items() if all(calls))
+
+    assert not fully_swept, (
+        f"every construction of {fully_swept} in this file now declares a stop, "
+        "so nothing here proves an absent one is refused. A sweep has neutered "
+        "these proofs -- restore them rather than deleting this test."
+    )

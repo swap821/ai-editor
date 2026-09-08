@@ -24,6 +24,7 @@ from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 from aios.infrastructure.local_workforce.sqlite_store import (
     LocalWorkforceProvenanceStore,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _admitted_model() -> LocalWorkerModel:
@@ -73,6 +74,7 @@ def _service_with(
         ollama=llm,
         model_client_factory=lambda model_id: llm,
         provenance_store=provenance_store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -167,6 +169,7 @@ def test_rejected_job_with_no_admitted_model_is_still_recorded(
         ollama=llm,
         model_client_factory=lambda model_id: llm,
         provenance_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result = service.run_advisory_job(_request("job-rejected"))

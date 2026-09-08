@@ -49,6 +49,7 @@ from aios.infrastructure.governance.sqlite_store import (
     _digest,
 )
 from aios.policy.constitution_enforcer import ConstitutionEnforcer
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 OPERATOR = "operator:abc"
 
@@ -152,7 +153,9 @@ def _activated_snapshot_adding(frozen_prefix: str):
         operator_id=OPERATOR,
     )
     base = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
-    _, amended = activate_amendment(proposal, previous_snapshot=base)
+    _, amended = activate_amendment(
+        proposal, previous_snapshot=base, emergency_stop=UNGOVERNED_FIXTURE
+    )
     return amended
 
 

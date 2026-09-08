@@ -179,7 +179,21 @@ def test_a_justified_exception_is_still_recognised() -> None:
 #: emergency-stop boundary, and the guard written to satisfy that requirement
 #: skipped itself whenever nothing was wired -- the boundary existed only for
 #: callers that already had a latch.
-_OPTIONAL_GUARD_BUDGET = 8
+#: 8 -> 6: the worker pair. One slice for two guards because they are one
+#: path -- `WorkerFoundry` builds its own `WorkerScheduler` and hands its stop
+#: down, so converting either alone leaves the pair half-governed. Neither had
+#: ANY engaged-stop test at its own layer before this.
+#: 6 -> 2: the council cluster, converted together because it is not
+#: separable. `CouncilOrchestrator` builds a `MissionService`, a
+#: `WorkerFoundry` (which builds a `WorkerScheduler`) and a
+#: `PromotionAuthority`, threading its own stop into each. Declaring the
+#: fixture opt-out at the council made its children choke on the sentinel
+#: string, so converting one at a time could not leave the tree green. Four
+#: LIVE production gaps were closed with it -- deps.py x2 and the council
+#: approve/reject routes x2 all built MissionService with no latch at all.
+#:
+#: Only aios/core/executor.py remains.
+_OPTIONAL_GUARD_BUDGET = 2
 
 
 #: Lines that MATCH the guard text but are not governance guards, with counts.

@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, ClassVar
 
 from aios.domain.workers.worker_contract import WorkerSpec
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
 
 
 class SchedulerAdmissionError(RuntimeError):
@@ -207,8 +210,16 @@ class WorkerScheduler:
             self._pump()
 
     def _assert_operational(self) -> None:
-        if self._emergency_stop is not None:
-            self._emergency_stop.assert_operational()
+        """Refuse to admit work that nothing could stop.
+
+        Reached from `submit()` and `_run()`. The old guard skipped itself when
+        no latch was wired, so a scheduler built without one admitted and ran
+        queued work ungoverned -- and it had no engaged-stop test at this layer
+        at all, so nothing would have noticed.
+        """
+        EmergencyStopHardWiringAuthority.require_wired(
+            self._emergency_stop, boundary="worker-scheduler"
+        )
 
 
 __all__ = [

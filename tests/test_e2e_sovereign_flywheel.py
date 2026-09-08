@@ -65,6 +65,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
 )
 from aios.runtime.cortex_bus import CortexBus
 from aios.security.audit_logger import init_audit_db, log_action, verify_chain
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _finding(
@@ -178,7 +179,9 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(
 
     workspace = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
     missions = SqliteMissionRepository(db_path)
-    mission_service = MissionService(missions, workspace_manager=workspace)
+    mission_service = MissionService(
+        missions, workspace_manager=workspace, emergency_stop=UNGOVERNED_FIXTURE
+    )
     finding_repository = MaintenanceFindingRepository(db_path)
     scan_repository = MaintenanceScanRepository(db_path)
     bus = CortexBus(db_path=tmp_path / "cortex_bus.db")

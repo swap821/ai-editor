@@ -54,6 +54,7 @@ from tests.test_maintenance_convergence import (
     _scanner as _maintenance_scanner,
     _service as _maintenance_service,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _make_proof(
@@ -143,7 +144,7 @@ def test_red_1_activate_skill_loads_skill_id_none(tmp_path):
     mission_repo = SqliteMissionRepository(db_path)
     from aios.application.missions.mission_service import MissionService
 
-    mission_service = MissionService(mission_repo)
+    mission_service = MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE)
     learning_service = LearningService(
         mission_service=mission_service,
         trajectory_repository=traj_repo,
@@ -168,7 +169,7 @@ def test_red_1_legacy_loose_activation_is_removed(tmp_path):
     mission_repo = SqliteMissionRepository(db_path)
     from aios.application.missions.mission_service import MissionService
 
-    mission_service = MissionService(mission_repo)
+    mission_service = MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE)
     learning_service = LearningService(
         mission_service=mission_service,
         trajectory_repository=traj_repo,
@@ -679,7 +680,7 @@ def test_maintenance_refuses_invalid_executor_receipts(tmp_path, mutate):
 def _learning_reuse_fixture(tmp_path, *, reuse_db=None):
     db_path = tmp_path / "learning-final.db"
     mission_repo = SqliteMissionRepository(db_path)
-    mission_service = MissionService(mission_repo)
+    mission_service = MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE)
     trajectory_repo = TrajectoryRepository(db_path)
     skill_repo = SkillRepository(db_path)
     authority = VerificationAuthority(database_path=db_path)

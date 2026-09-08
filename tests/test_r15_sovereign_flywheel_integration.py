@@ -31,6 +31,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from tests.helpers import consume_real_capability_proof, executor_repair_result
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _activation_auth(
@@ -146,7 +147,10 @@ def test_promotion_authority_durability_and_authoritative_check(
     wm = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(tmp_path,))
     va = VerificationAuthority(database_path=test_db_path)
     pa = PromotionAuthority(
-        workspace_manager=wm, verification=va, database_path=test_db_path
+        workspace_manager=wm,
+        verification=va,
+        database_path=test_db_path,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # Fake verification
@@ -203,10 +207,13 @@ def test_end_to_end_sovereign_maintenance_flywheel(
     wm = StagedWorkspaceManager(staged_dir, enrolled_roots=(test_workspace_dir,))
     va = VerificationAuthority(database_path=db_path)
     pa = PromotionAuthority(
-        workspace_manager=wm, verification=va, database_path=db_path
+        workspace_manager=wm,
+        verification=va,
+        database_path=db_path,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     mr = SqliteMissionRepository(mission_db)
-    ms = MissionService(mr, workspace_manager=wm)
+    ms = MissionService(mr, workspace_manager=wm, emergency_stop=UNGOVERNED_FIXTURE)
 
     from aios.application.executor.service import ExecutorService
     from aios.application.evidence.verifier_registry import VerifierRegistry
@@ -233,6 +240,7 @@ def test_end_to_end_sovereign_maintenance_flywheel(
         runtime_root=test_workspace_dir,
         workspace_manager=wm,
         strategies={"code": code_strat},
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     service = MaintenanceConvergenceService(
@@ -343,12 +351,19 @@ def test_human_skill_activation_lifecycle(tmp_path: Path) -> None:
     mission_db = tmp_path / "missions.db"
     wm = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(tmp_path,))
 
-    ms = MissionService(SqliteMissionRepository(mission_db), workspace_manager=wm)
+    ms = MissionService(
+        SqliteMissionRepository(mission_db),
+        workspace_manager=wm,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     traj_repo = TrajectoryRepository(db_path)
     skill_repo = SkillRepository(db_path)
     va = VerificationAuthority(database_path=db_path)
     pa = PromotionAuthority(
-        workspace_manager=wm, verification=va, database_path=db_path
+        workspace_manager=wm,
+        verification=va,
+        database_path=db_path,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     ls = LearningService(

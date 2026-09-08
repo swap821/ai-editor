@@ -16,6 +16,7 @@ from aios.domain.workers.worker_contract import (
     contract_digest,
 )
 from aios.runtime.cortex_bus import CortexBus
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _contract(mission_id: str = "mission-worker") -> MissionContract:
@@ -36,7 +37,9 @@ def test_worker_identity_is_derived_from_exact_contract() -> None:
 
 def test_scheduler_honours_priority_and_per_mission_cap() -> None:
     async def scenario() -> list[str]:
-        scheduler = WorkerScheduler(max_active=1, max_per_mission=1)
+        scheduler = WorkerScheduler(
+            max_active=1, max_per_mission=1, emergency_stop=UNGOVERNED_FIXTURE
+        )
         started: list[str] = []
 
         async def run(label: str) -> str:
@@ -63,7 +66,7 @@ def test_scheduler_honours_priority_and_per_mission_cap() -> None:
 
 def test_foundry_rejects_unknown_strategy_before_running_anything() -> None:
     async def scenario() -> None:
-        foundry = WorkerFoundry()
+        foundry = WorkerFoundry(emergency_stop=UNGOVERNED_FIXTURE)
         with pytest.raises(UnknownWorkerStrategy):
             await foundry.run(_contract(), strategy="not-a-worker")
         assert foundry.scheduler.snapshot().active == 0
@@ -72,7 +75,7 @@ def test_foundry_rejects_unknown_strategy_before_running_anything() -> None:
 
 
 def test_foundry_does_not_advertise_unwired_strategies() -> None:
-    foundry = WorkerFoundry()
+    foundry = WorkerFoundry(emergency_stop=UNGOVERNED_FIXTURE)
 
     assert foundry.strategies == ("deterministic",)
     with pytest.raises(UnknownWorkerStrategy):
@@ -114,6 +117,7 @@ def test_foundry_emits_canonical_worker_lifecycle_with_contract_context(
             strategies={"code": CodeWorkerStrategy(handler)},
             bus=bus,
             max_active=1,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         await foundry.run(contract, strategy=WorkerStrategyName.CODE)
 
@@ -151,7 +155,9 @@ def test_foundry_records_derived_principal_and_dissolution() -> None:
         from aios.application.workers.strategies.legacy import CodeWorkerStrategy
 
         foundry = WorkerFoundry(
-            strategies={"code": CodeWorkerStrategy(handler)}, max_active=1
+            strategies={"code": CodeWorkerStrategy(handler)},
+            max_active=1,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         result = await foundry.run(_contract(), strategy=WorkerStrategyName.CODE)
         assert result.status == "completed"
@@ -181,6 +187,7 @@ def test_foundry_lifecycle_is_observation_only_on_existing_cortex_bus(
             strategies={"code": CodeWorkerStrategy(handler)},
             bus=bus,
             max_active=1,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         await foundry.run(_contract(), strategy=WorkerStrategyName.CODE)
 
@@ -234,6 +241,7 @@ def test_foundry_stages_worker_workspace_and_keeps_project_untouched(
             strategies={"code": CodeWorkerStrategy(handler)},
             workspace_manager=manager,
             max_active=1,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         contract = _contract().model_copy(update={"workspace_root": str(project)})
         result = await foundry.run(contract, strategy=WorkerStrategyName.CODE)
@@ -266,6 +274,7 @@ def test_foundry_rejects_unenrolled_workspace_before_worker_handler(
         foundry = WorkerFoundry(
             strategies={"code": CodeWorkerStrategy(handler)},
             workspace_manager=manager,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         contract = _contract().model_copy(update={"workspace_root": str(project)})
         with pytest.raises(WorkspacePathViolation, match="enrolled"):
@@ -315,6 +324,7 @@ def test_a_worker_killed_mid_flight_records_that_its_work_is_incomplete(
             strategies={"code": CodeWorkerStrategy(handler)},
             bus=bus,
             max_active=1,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         task = asyncio.ensure_future(
             foundry.run(_contract(), strategy=WorkerStrategyName.CODE)

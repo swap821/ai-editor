@@ -50,6 +50,7 @@ from aios.infrastructure.missions.transition_journal_store import (
     MissionTransitionJournal,
 )
 from tests.helpers import executor_repair_result
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 _NO_AUTO = {"X-AIOS-No-Auto-Capability": "1"}
 
@@ -115,7 +116,9 @@ def maintenance_env(
 
     workspace = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
     missions = SqliteMissionRepository(tmp_path / "missions.db")
-    mission_service = MissionService(missions, workspace_manager=workspace)
+    mission_service = MissionService(
+        missions, workspace_manager=workspace, emergency_stop=UNGOVERNED_FIXTURE
+    )
     finding_repository = MaintenanceFindingRepository(tmp_path / "operational.db")
     scan_repository = MaintenanceScanRepository(tmp_path / "operational.db")
 
