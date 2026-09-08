@@ -48,7 +48,6 @@ failing.
 from __future__ import annotations
 
 import ast
-import inspect
 import os
 import textwrap
 from pathlib import Path
@@ -63,6 +62,7 @@ from aios.core.executor import Executor
 from aios.domain.capabilities.digest import payload_digest
 from aios.probe_common import ALLOWED_FILE_RE
 from aios.security import scope_lock
+from tests.source_rules import executable_source
 
 
 def _code_without_docstring(obj) -> str:
@@ -72,7 +72,7 @@ def _code_without_docstring(obj) -> str:
     substring search over ``inspect.getsource`` matches the explanation and
     fails against correct code. Examine what runs, not what is written about it.
     """
-    tree = ast.parse(textwrap.dedent(inspect.getsource(obj)))
+    tree = ast.parse(textwrap.dedent(executable_source(obj)))
     node = tree.body[0]
     body = node.body[1:] if ast.get_docstring(node) is not None else node.body
     return "\n".join(ast.unparse(child) for child in body)
@@ -279,7 +279,7 @@ def test_the_capability_binds_and_checks_with_the_same_digest_function() -> None
     """
     from aios.application.capabilities import authority
 
-    source = inspect.getsource(authority)
+    source = executable_source(authority)
     assert "payload_digest(" in source, (
         "the capability authority no longer routes through the shared digest"
     )
@@ -320,7 +320,7 @@ def test_every_offered_tool_is_reachable(monkeypatch) -> None:
     from aios.agents import tool_agent
 
     reachable = set()
-    source = inspect.getsource(tool_agent.ToolAgent._dispatch)
+    source = executable_source(tool_agent.ToolAgent._dispatch)
     for name in offered:
         if f'"{name}"' in source:
             reachable.add(name)
@@ -337,7 +337,7 @@ def test_the_translated_tool_really_is_translated() -> None:
     from aios.agents import tool_agent
 
     assert hasattr(tool_agent.ToolAgent, "_overwrite_as_edit")
-    run_source = inspect.getsource(tool_agent.ToolAgent.run)
+    run_source = executable_source(tool_agent.ToolAgent.run)
     assert "_overwrite_as_edit" in run_source, (
         "overwrite_file is exempted from the reachability check because it is "
         "translated in run() before dispatch; that translation is gone"
@@ -475,7 +475,7 @@ def test_every_path_feeding_tool_output_to_the_model_is_guarded() -> None:
     """
     from aios.agents import tool_agent
 
-    source = inspect.getsource(tool_agent)
+    source = executable_source(tool_agent)
     appends = [
         line.strip()
         for line in source.splitlines()
@@ -559,11 +559,10 @@ def test_the_verifier_already_bounds_its_own_summary() -> None:
     so that if the producer ever stops bounding, this fails rather than a
     10 MB pytest log quietly reaching model context.
     """
-    import inspect
 
     from aios.core import verifier as verifier_module
 
-    source = inspect.getsource(verifier_module.Verifier.verify)
+    source = executable_source(verifier_module.Verifier.verify)
 
     assert "output[-500:]" in source, "the passing-summary bound is gone"
     assert "_FAILURE_SUMMARY_CHARS" in source, "the failure-summary bound is gone"
@@ -579,11 +578,10 @@ def test_both_verify_paths_can_emit_the_signal() -> None:
     forced auto-verify after a write -- and this repo's recurring defect shape
     is exactly one route having a guard the other lacks.
     """
-    import inspect
 
     from aios.agents import tool_agent
 
-    source = inspect.getsource(tool_agent.ToolAgent)
+    source = executable_source(tool_agent.ToolAgent)
     emissions = source.count("_drain_scan_findings(")
 
     # One definition-site call is the method itself; the rest are call sites.

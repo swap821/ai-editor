@@ -28,10 +28,10 @@ as missing.
 from __future__ import annotations
 
 import ast
-import inspect
 import textwrap
 
 from tools import endurance_tester
+from tests.source_rules import executable_source
 
 
 def _code_without_docstring(func) -> str:
@@ -41,7 +41,7 @@ def _code_without_docstring(func) -> str:
     substring search over `inspect.getsource` matches the explanation and fails
     against correct code. Examine what runs, not what is written about it.
     """
-    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    tree = ast.parse(textwrap.dedent(executable_source(func)))
     fn = tree.body[0]
     body = fn.body[1:] if ast.get_docstring(fn) is not None else fn.body
     return "\n".join(ast.unparse(node) for node in body)

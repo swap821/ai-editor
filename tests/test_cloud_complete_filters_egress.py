@@ -33,7 +33,6 @@ another. The structural test at the bottom is what keeps that true.
 
 from __future__ import annotations
 
-import inspect
 from typing import Any
 
 import pytest
@@ -41,6 +40,7 @@ import pytest
 from aios.core.anthropic_direct import AnthropicDirectClient
 from aios.core.openai_compat import OpenAICompatClient
 from aios.core.vertex_maas import VertexMaaSClient
+from tests.source_rules import executable_source
 
 #: A real-shaped AWS secret access key. Slash-bearing on purpose: the entropy
 #: backstop exempts path-shaped tokens (the 2026-07-07 egress fix), so this is
@@ -181,7 +181,7 @@ def test_every_egress_method_filters(cls: type) -> None:
     for name, member in vars(cls).items():
         if name not in _EGRESS_METHODS or not callable(member):
             continue
-        source = inspect.getsource(member)
+        source = executable_source(member)
         if "_filtered_for_egress" not in source and "_privacy_filter" not in source:
             unfiltered.append(name)
 
@@ -206,7 +206,7 @@ def test_no_unreviewed_public_method_transmits(cls: type) -> None:
         if name.startswith("_") or not callable(member) or name in _EGRESS_METHODS:
             continue
         try:
-            source = inspect.getsource(member)
+            source = executable_source(member)
         except (OSError, TypeError):  # pragma: no cover - builtins/slots
             continue
         if "self._post(" in source or "self._stream(" in source:
@@ -227,7 +227,7 @@ def test_vertex_inherits_the_filtered_path_rather_than_overriding_it() -> None:
     its own payload-building ``complete``, this fails and sends the author to the
     behavioural tests above.
     """
-    source = inspect.getsource(VertexMaaSClient.complete)
+    source = executable_source(VertexMaaSClient.complete)
 
     assert "super().complete(" in source, (
         "VertexMaaSClient.complete no longer delegates to OpenAICompatClient. It "

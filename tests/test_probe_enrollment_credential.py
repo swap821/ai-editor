@@ -24,6 +24,7 @@ import inspect
 import io
 
 from aios.probe_session import explain_reusable_enrollment
+from tests.source_rules import executable_source
 
 
 def _capture(operator_id: str | None = "operator-1") -> tuple[str, str]:
@@ -97,7 +98,7 @@ def test_the_source_never_opens_a_file() -> None:
     import textwrap
 
     body = ast.unparse(
-        ast.parse(textwrap.dedent(inspect.getsource(explain_reusable_enrollment)))
+        ast.parse(textwrap.dedent(executable_source(explain_reusable_enrollment)))
     )
     for forbidden in ("open(", "write_text", "Path(", "os.makedirs", "mkdir"):
         assert forbidden not in body, (
@@ -110,7 +111,7 @@ def test_bootstrap_does_not_pass_the_credential_to_the_explainer() -> None:
     """The call site must not hand over what the helper refuses to take."""
     from aios.probe_session import ProbeSession
 
-    src = inspect.getsource(ProbeSession.bootstrap)
+    src = executable_source(ProbeSession.bootstrap)
 
     assert "explain_reusable_enrollment(self.operator_id)" in src
     assert "explain_reusable_enrollment(credential" not in src

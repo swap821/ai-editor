@@ -43,6 +43,7 @@ import pytest
 
 from aios.agents import tool_handlers
 from aios.agents.tool_agent import TOOL_SPECS, ToolAgent
+from tests.source_rules import executable_source
 
 
 @pytest.fixture()
@@ -112,9 +113,8 @@ def test_dispatch_has_no_overwrite_branch() -> None:
 
     Two write paths is precisely how the earlier defects in this area survived.
     """
-    import inspect
 
-    src = inspect.getsource(ToolAgent._dispatch)
+    src = executable_source(ToolAgent._dispatch)
     assert 'name == "overwrite_file"' not in src
 
 

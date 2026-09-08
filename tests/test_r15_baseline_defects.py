@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import inspect
-import pytest
 
 from aios.api.deps import get_maintenance_convergence_service
-from aios.application.executor.service import IsolationUnavailable
-from aios.application.workers.foundry import WorkerFoundry
 from aios.api.routes import maintenance as maintenance_routes
+from tests.source_rules import executable_source
 
 
 def test_defect1_canonical_maintenance_has_admitted_scanner() -> None:
@@ -35,7 +32,7 @@ def test_defect3_maintenance_invokes_executor_service() -> None:
     """Defect 3: MaintenanceConvergenceService.run_approved_repair must invoke executor_service."""
     service = get_maintenance_convergence_service()
     # Inspect run_approved_repair implementation to ensure executor_service is invoked
-    source = inspect.getsource(service.run_approved_repair)
+    source = executable_source(service.run_approved_repair)
     assert "executor_service" in source or "self.executor_service.execute" in source, (
         "run_approved_repair does not submit a job to executor_service"
     )
@@ -53,7 +50,7 @@ def test_defect4_production_executor_composition_is_valid() -> None:
 
 def test_defect5_mounted_repair_route_uses_canonical_callbacks() -> None:
     """Defect 5: Mounted repair route must not supply dummy lambda callbacks to run_approved_repair."""
-    source = inspect.getsource(maintenance_routes.run_approved_repair)
+    source = executable_source(maintenance_routes.run_approved_repair)
     assert "capability_consumer=lambda" not in source, (
         "Route supplies dummy capability_consumer lambda"
     )

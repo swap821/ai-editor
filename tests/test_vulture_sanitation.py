@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 
 import aios.maintenance.vulture_sanitation as vulture_sanitation
@@ -10,6 +9,7 @@ from aios.maintenance.vulture_sanitation import (
     scan_vulture_code_paths,
     scan_vulture_targets,
 )
+from tests.source_rules import executable_source
 
 
 def test_vulture_scans_the_real_aios_package_without_crashing() -> None:
@@ -142,7 +142,7 @@ def test_vulture_code_scan_reports_dead_imports_without_writing(tmp_path: Path) 
 
 
 def test_vulture_module_excludes_write_purge_and_subprocess_organs() -> None:
-    source = inspect.getsource(vulture_sanitation)
+    source = executable_source(vulture_sanitation)
 
     assert "sqlite3" not in source
     assert "subprocess" not in source

@@ -23,6 +23,7 @@ from __future__ import annotations
 import pytest
 
 from tools.golden_mission_runner import outcome_from_evidence
+from tests.source_rules import executable_source
 
 
 #: (label, evidence, expected outcome) -- verbatim from the run that exposed this.
@@ -90,11 +91,10 @@ def test_both_classification_paths_call_one_function() -> None:
     drifted -- the two branches agreed on nothing-earned and disagreed on
     everything else.
     """
-    import inspect
 
     from tools import golden_mission_runner
 
-    src = inspect.getsource(golden_mission_runner.run_prompt)
+    src = executable_source(golden_mission_runner.run_prompt)
     assert src.count("outcome_from_evidence(evidence)") == 2, (
         "run_prompt must classify through the shared helper on BOTH the error "
         "path and the clean-finish path; a second inline rule is the drift."
