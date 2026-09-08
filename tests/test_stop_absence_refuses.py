@@ -31,6 +31,7 @@ import ast
 import asyncio
 import itertools
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,6 +54,7 @@ from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.application.workers.foundry import UnknownWorkerStrategy, WorkerFoundry
 from aios.application.workers.scheduler import WorkerScheduler
 from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
+from aios.core.executor import Executor
 from aios.domain.missions.mission_contract import MissionContract
 from aios.domain.autonomy import ActionClassKey, AutonomyDecisionStatus
 
@@ -504,14 +506,22 @@ def test_this_file_still_contains_ungoverned_constructions() -> None:
     """
     tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
 
-    def names_a_real_stop(call: ast.Call) -> bool:
-        for kw in call.keywords:
-            if kw.arg != "emergency_stop":
-                continue
-            # `emergency_stop=None` is an ungoverned construction stated out
-            # loud -- which is exactly what several proofs here pass on purpose.
-            return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
-        return False
+    def is_swept(call: ast.Call) -> bool:
+        """Was this construction written by the declaration sweep?
+
+        Targets exactly what the sweep emits -- a literal
+        `emergency_stop=UNGOVERNED_FIXTURE` -- rather than asking the broader
+        question "does this name a stop". A proof here may legitimately pass
+        `None`, a fake engaged latch, or a parametrised variable; none of those
+        is the sweep, and treating them as such made this guard fail on honest
+        test design instead of on the hazard.
+        """
+        return any(
+            kw.arg == "emergency_stop"
+            and isinstance(kw.value, ast.Name)
+            and kw.value.id == "UNGOVERNED_FIXTURE"
+            for kw in call.keywords
+        )
 
     governed = {
         "WorkerFoundry",
@@ -527,7 +537,7 @@ def test_this_file_still_contains_ungoverned_constructions() -> None:
         if isinstance(node, ast.Call):
             name = getattr(node.func, "id", None)
             if name in governed:
-                built.setdefault(name, []).append(names_a_real_stop(node))
+                built.setdefault(name, []).append(is_swept(node))
 
     assert built, "this file no longer constructs anything governed"
 
@@ -543,3 +553,86 @@ def test_this_file_still_contains_ungoverned_constructions() -> None:
         "so nothing here proves an absent one is refused. A sweep has neutered "
         "these proofs -- restore them rather than deleting this test."
     )
+
+
+# ---------------------------------------------------------------------------
+# Slice 8 -- aios/core/executor.py
+#
+# The guard the whole effort started from. `replay_writes.py`'s own docstring
+# names it as the known, unfixed instance of this shape; `require_wired`'s
+# docstring argued it should stay, on the strength of a FOUNDATION_LOCK claim
+# that AGENTS.md does not support (corrected in slice 1, operator-ruled).
+#
+# Unlike every other slice this one does NOT raise. `execute` returns an
+# ExecutionResult, and a caller that expects a result object should get a
+# BLOCKED result rather than an exception -- so the boolean
+# `stop_permits_autonomy` is the right shape here and `require_wired` is not.
+# ---------------------------------------------------------------------------
+
+
+def _executor_with(stop):
+    """An executor whose runner would record any command that reached it.
+
+    The runner is the evidence. A refusal that still shelled out would be worse
+    than no refusal at all, because the audit line would say BLOCKED while the
+    command ran.
+    """
+    ran: list[str] = []
+
+    class _Runner:
+        def __call__(self, command, *args, **kwargs):
+            ran.append(command)
+            return SimpleNamespace(stdout="", stderr="", returncode=0)
+
+        def run(self, command, *args, **kwargs):
+            return self(command, *args, **kwargs)
+
+    return Executor(runner=_Runner(), emergency_stop=stop), ran
+
+
+@pytest.mark.parametrize("method", ["execute", "execute_approved"])
+def test_the_executor_refuses_to_dispatch_when_no_stop_is_wired(method) -> None:
+    """THE BAR for slice 8, on both entrances.
+
+    `execute` and `execute_approved` carried the same guard, and an executor
+    with no latch cannot be halted by engaging the emergency stop -- which is
+    exactly the defect measured on 2026-09-06, when the self-apply verify
+    executor turned out to have been built without one.
+    """
+    executor, ran = _executor_with(None)
+
+    result = getattr(executor, method)("echo hello")
+
+    assert result.status == "BLOCKED"
+    assert result.control == "emergency_stop"
+    assert ran == [], "the command was dispatched by an unstoppable executor"
+
+
+@pytest.mark.parametrize("method", ["execute", "execute_approved"])
+def test_the_executor_accepts_the_explicit_fixture_opt_out(method) -> None:
+    """Roughly seventy unit fixtures build a bare executor deliberately.
+
+    They must keep working once they say so, or the sentinel is decoration --
+    which is what it had been in six other subsystems before this pass.
+    """
+    executor, _ran = _executor_with(UNGOVERNED_FIXTURE)
+
+    result = getattr(executor, method)("echo hello")
+
+    assert result.control != "emergency_stop"
+
+
+def test_the_executor_still_blocks_on_an_engaged_stop() -> None:
+    """The case that already worked has to survive the conversion."""
+
+    class _Engaged:
+        def assert_operational(self):
+            raise RuntimeError("engaged")
+
+    executor, ran = _executor_with(_Engaged())
+
+    result = executor.execute("echo hello")
+
+    assert result.status == "BLOCKED"
+    assert result.control == "emergency_stop"
+    assert ran == []

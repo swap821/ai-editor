@@ -27,7 +27,29 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 AIOS = REPO_ROOT / "aios"
 
 #: Constructions that carry authority to act and must therefore be haltable.
-_GOVERNED = {"Executor", "AutonomyLedger", "SelfApplyEngine"}
+#:
+#: WIDENED 2026-09-08, from three names to nine. Three was not a considered
+#: scope -- it was simply the set that existed when the rule was written, and it
+#: is why four LIVE production gaps passed CI: `deps.py` twice and the council
+#: approve/reject routes twice all built a `MissionService` with no latch, and
+#: no rule looked at `MissionService`.
+#:
+#: The scan reads `aios/` only, so widening this costs nothing in test churn and
+#: buys the thing that actually prevents recurrence: a production construction
+#: that forgets its stop fails CI at the construction site, rather than at
+#: whichever runtime call happens to be exercised first.
+_GOVERNED = {
+    "Executor",
+    "AutonomyLedger",
+    "SelfApplyEngine",
+    "CouncilOrchestrator",
+    "MissionService",
+    "MissionAuthority",
+    "PromotionAuthority",
+    "WorkerFoundry",
+    "WorkerScheduler",
+    "GovernedAutonomy",
+}
 
 #: Constructions that legitimately do NOT name a stop, each with the reason.
 #:
@@ -193,7 +215,16 @@ def test_a_justified_exception_is_still_recognised() -> None:
 #: approve/reject routes x2 all built MissionService with no latch at all.
 #:
 #: Only aios/core/executor.py remains.
-_OPTIONAL_GUARD_BUDGET = 2
+#: 2 -> 0. `aios/core/executor.py`, both entrances. This is the guard the whole
+#: effort started from: `replay_writes.py`'s docstring names it as the known,
+#: unfixed instance of the shape, and `require_wired`'s docstring argued it
+#: should stay because that file was "FOUNDATION_LOCK'd" -- a claim AGENTS.md
+#: SVIII does not support and which the operator ruled stale.
+#:
+#: ZERO, and it means zero: the one line that matches this text without being a
+#: guard is exempted by name in `_NOT_A_GUARD` with its reason, rather than
+#: being left as a unit of permanent slack.
+_OPTIONAL_GUARD_BUDGET = 0
 
 
 #: Lines that MATCH the guard text but are not governance guards, with counts.

@@ -49,6 +49,7 @@ from tests.test_api import (
     _fake_executor,
     _issue_generate_capability,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 PHASES = {"chemotaxis", "reflex", "emotion", "narrative", "wonder"}
 
@@ -371,6 +372,7 @@ def test_skill_promotion_is_synchronous_and_never_rides_the_bus(
         runner=lambda command, *, cwd, env, timeout_s: ("1 passed", "", 0),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     app.dependency_overrides[get_semantic_facts] = lambda: facts_db

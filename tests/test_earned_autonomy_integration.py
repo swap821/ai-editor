@@ -29,6 +29,7 @@ from aios.core.replay_writes import (
 from aios.core.executor import Executor
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class _ClearStop:
@@ -58,7 +59,10 @@ def _runner(command, *, cwd, env, timeout_s):
 
 def _executor():
     return Executor(
-        runner=_runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=_runner,
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

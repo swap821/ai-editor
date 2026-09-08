@@ -138,7 +138,11 @@ def _agent(sandbox: Path, db_path: Path, autonomy=None):
 
     agent = ToolAgent(
         None,
-        Executor(runner=_Runner(), audit_log=lambda *a, **k: None),
+        Executor(
+            runner=_Runner(),
+            audit_log=lambda *a, **k: None,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ),
         read_root=sandbox,
     )
     # Default to a REAL ledger with a clear stop. Passing `None` used to make

@@ -63,6 +63,7 @@ from aios.domain.capabilities.digest import payload_digest
 from aios.probe_common import ALLOWED_FILE_RE
 from aios.security import scope_lock
 from tests.source_rules import executable_source
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _code_without_docstring(obj) -> str:
@@ -113,7 +114,10 @@ _BASE_SENSITIVE_TOKENS = [
 
 def test_the_check_and_the_executor_share_one_base() -> None:
     """The base is one function, not two that agree today."""
-    assert Executor()._scope_cwd() == scope_lock.command_cwd()
+    assert (
+        Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd()
+        == scope_lock.command_cwd()
+    )
 
 
 def test_they_still_share_one_base_after_the_roots_are_redeclared(
@@ -128,15 +132,24 @@ def test_they_still_share_one_base_after_the_roots_are_redeclared(
     do, which means the containment suite was validating a geometry the executor
     never used.
     """
-    assert Executor()._scope_cwd() == scope_lock.command_cwd()
-    assert Executor()._scope_cwd() == declared_roots.parent
+    assert (
+        Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd()
+        == scope_lock.command_cwd()
+    )
+    assert (
+        Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd()
+        == declared_roots.parent
+    )
 
 
 def test_the_base_follows_the_authority_not_the_startup_default(
     declared_roots,
 ) -> None:
     """A re-declared root must move the executor's cwd with it."""
-    assert Executor()._scope_cwd() != config.SCOPE_ROOTS[0].resolve().parent
+    assert (
+        Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd()
+        != config.SCOPE_ROOTS[0].resolve().parent
+    )
 
 
 def test_the_executor_does_not_derive_the_base_a_second_time() -> None:
@@ -168,7 +181,9 @@ def test_a_command_token_lands_where_the_check_said_it_would(
     checked = scope_lock._SCOPE_LOCK.is_path_in_scope(
         token, base=scope_lock.command_cwd()
     )
-    executed = (Executor()._scope_cwd() / token).resolve()
+    executed = (
+        Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd() / token
+    ).resolve()
     assert Path(checked.resolved) == executed
 
 
@@ -180,7 +195,9 @@ def test_an_allowed_token_cannot_land_outside_a_declared_root(
     verdict = scope_lock.command_stays_in_scope(f"touch {token}")
     if not verdict.in_scope:
         return  # refused is always a safe answer
-    landed = (Executor()._scope_cwd() / token).resolve()
+    landed = (
+        Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd() / token
+    ).resolve()
     roots = scope_lock.get_scope_roots()
     assert any(landed == r or str(landed).startswith(str(r) + os.sep) for r in roots), (
         f"'{token}' was ALLOWED but lands at {landed}, outside {roots}"
@@ -610,7 +627,9 @@ def test_the_family_can_fail(declared_roots, monkeypatch) -> None:
         checked = scope_lock._SCOPE_LOCK.is_path_in_scope(
             token, base=scope_lock.command_cwd()
         )
-        executed = (Executor()._scope_cwd() / token).resolve()
+        executed = (
+            Executor(emergency_stop=UNGOVERNED_FIXTURE)._scope_cwd() / token
+        ).resolve()
         if Path(checked.resolved) != executed:
             disagreed.append(token)
 

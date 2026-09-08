@@ -32,6 +32,7 @@ from aios.core.replay_writes import (
 from aios.memory.db import init_memory_db
 from aios.core.autonomy import AutonomyLedger
 from aios.security import scope_lock
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class _ClearStop:
@@ -263,7 +264,11 @@ def _agent(sandbox: Path, db_path: Path):
 
     agent = ToolAgent(
         None,
-        Executor(runner=_Runner(), audit_log=lambda *a, **k: None),
+        Executor(
+            runner=_Runner(),
+            audit_log=lambda *a, **k: None,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ),
         read_root=sandbox,
     )
     # A REAL ledger with a clear stop. These tests used to set `autonomy = None`,

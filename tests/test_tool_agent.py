@@ -18,6 +18,7 @@ from aios.core.executor import Executor
 from aios.core.llm import LLMError
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class ScriptedChat:
@@ -121,6 +122,7 @@ def _executor() -> Executor:
         runner=FakeRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -129,6 +131,7 @@ def _failing_executor() -> Executor:
         runner=FailRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -137,6 +140,7 @@ def _flaky_executor() -> Executor:
         runner=FlakyRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -145,6 +149,7 @@ def _passing_executor() -> Executor:
         runner=PassRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -1770,7 +1775,10 @@ def test_agent_verify_red_command_is_refused_by_gateway_not_run() -> None:
     # to reflect on (a refusal is correct behaviour).
     runner = RecordingRunner()
     ex = Executor(
-        runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=runner,
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     chat = ScriptedChat(
         [
@@ -1859,7 +1867,10 @@ def test_agent_confirms_recalled_pending_lesson_across_run_boundary() -> None:
         ]
     )
     ex = Executor(
-        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=PassRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     confirmed: list[int] = []
     events = list(
@@ -1895,7 +1906,10 @@ def test_agent_recalled_pending_not_confirmed_by_unrelated_command() -> None:
         ]
     )
     ex = Executor(
-        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=PassRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     confirmed: list[int] = []
     list(
@@ -1944,6 +1958,7 @@ def test_agent_verify_success_does_not_confirm_a_different_command() -> None:
         runner=TwoCommandRunner(),
         rate_limiter=RateLimiter(),
         audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     events = list(
         ToolAgent(

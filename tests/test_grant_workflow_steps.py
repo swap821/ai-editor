@@ -39,6 +39,7 @@ from tests.test_api import (
     RecordingAudit,
     _issue_generate_capability,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 _SELF_TESTING_FILE = (
     "def add(a, b):\n    return a + b\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
@@ -91,6 +92,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
         approved_runner=_runner,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:

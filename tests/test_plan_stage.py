@@ -52,6 +52,7 @@ from aios.infrastructure.intelligence.representative_context_store import (
     RepresentativeContextStore,
 )
 from aios.domain.memory import MemoryHit
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class FakeIndexer:
@@ -75,7 +76,10 @@ class RecordingAudit:
 
 def _fake_executor() -> Executor:
     return Executor(
-        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -525,6 +529,7 @@ def test_authenticated_reflection_completion_is_recorded_by_the_gateway(
         runner=FailingReflectionRunner(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
     _isolate_turn_memory(tmp_path, PlanningAlignedLLM)

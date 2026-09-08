@@ -42,6 +42,7 @@ from aios.security.scope_lock import (
     set_scope_roots,
 )
 from aios.security.gateway import Zone
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------- #
@@ -62,7 +63,7 @@ def mock_runner():
 @pytest.fixture
 def test_executor(mock_runner):
     """Return an Executor with a mock runner."""
-    return Executor(runner=mock_runner, timeout_s=30)
+    return Executor(runner=mock_runner, timeout_s=30, emergency_stop=UNGOVERNED_FIXTURE)
 
 
 @pytest.fixture(autouse=True)

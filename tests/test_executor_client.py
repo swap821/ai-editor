@@ -14,6 +14,7 @@ from aios.application.executor.service import (
     StructuredExecutorClient,
 )
 from aios.domain.executor import ExecutorCapability, ExecutorJob, ExecutorResult
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class _Response:
@@ -227,7 +228,7 @@ def test_core_executor_uses_private_runner_in_production(monkeypatch) -> None:
 
     runner = approved_runner_from_config()
     assert getattr(runner, "is_private_service", False) is True
-    executor = Executor()
+    executor = Executor(emergency_stop=UNGOVERNED_FIXTURE)
     assert getattr(executor.runner, "is_private_service", False) is True
     assert getattr(executor.approved_runner, "is_private_service", False) is True
 

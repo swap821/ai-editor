@@ -292,7 +292,9 @@ def test_executor_authority_uses_kernel_for_earned_autonomy(
     command = "mkdir -p training_ground/test_dir"
     _seed_earned_command(ledger, command)
 
-    executor = Executor(approved_runner=None, policy_kernel=kernel)
+    executor = Executor(
+        approved_runner=None, policy_kernel=kernel, emergency_stop=UNGOVERNED_FIXTURE
+    )
     result = executor.execute(command)
     assert result.status == "OK"
 
@@ -314,6 +316,8 @@ def test_executor_authority_respects_profile_without_autonomy(
     command = "mkdir training_ground/test_dir"
     _seed_earned_command(ledger, command)
 
-    executor = Executor(approved_runner=None, policy_kernel=kernel)
+    executor = Executor(
+        approved_runner=None, policy_kernel=kernel, emergency_stop=UNGOVERNED_FIXTURE
+    )
     result = executor.execute(command)
     assert result.status == "REQUIRE_APPROVAL"
