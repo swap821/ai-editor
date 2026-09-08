@@ -59,6 +59,7 @@ from aios.domain.governance.constitution import (
     apply_constitution_changes,
     build_constitution_snapshot,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 OPERATOR = "operator:abc"
 
@@ -113,7 +114,9 @@ def test_a_ratified_amendment_actually_changes_the_constitution() -> None:
             ),
         )
     )
-    activated, after = activate_amendment(proposal, previous_snapshot=before)
+    activated, after = activate_amendment(
+        proposal, previous_snapshot=before, emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     assert activated.status == "activated"
     assert "aios/api/" in after.frozen_paths
@@ -135,6 +138,7 @@ def test_an_applied_change_survives_the_next_version_bump() -> None:
             )
         ),
         previous_snapshot=v1,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     v3 = build_constitution_snapshot(
         ratified_by_operator_id=OPERATOR, previous_snapshot=v2
@@ -151,7 +155,9 @@ def test_an_amendment_with_no_typed_changes_changes_nothing_and_says_so() -> Non
     """
     before = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
     proposal = _ratified(())
-    activated, after = activate_amendment(proposal, previous_snapshot=before)
+    activated, after = activate_amendment(
+        proposal, previous_snapshot=before, emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     assert activated.changes == ()
     assert after.scope_roots == before.scope_roots
@@ -248,6 +254,7 @@ def test_foundation_laws_are_still_unreachable_through_an_applied_amendment() ->
             )
         ),
         previous_snapshot=before,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert after.foundation_laws == before.foundation_laws
 
@@ -307,6 +314,7 @@ def test_a_tightening_is_reversible_by_rollback() -> None:
             )
         ),
         previous_snapshot=before,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert "aios/api/" in after.frozen_paths
 
@@ -330,7 +338,9 @@ def test_applying_changes_still_requires_a_real_capability() -> None:
         )
     )
     with pytest.raises(AmendmentError):
-        activate_amendment(unratified, previous_snapshot=before)
+        activate_amendment(
+            unratified, previous_snapshot=before, emergency_stop=UNGOVERNED_FIXTURE
+        )
 
     with pytest.raises(AmendmentError, match="already-consumed"):
         ratify_amendment(
@@ -408,7 +418,9 @@ def test_changes_swapped_after_ratification_are_refused(
 
     before = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
     with pytest.raises(AmendmentError, match="do not match what was ratified"):
-        activate_amendment(tampered, previous_snapshot=before)
+        activate_amendment(
+            tampered, previous_snapshot=before, emergency_stop=UNGOVERNED_FIXTURE
+        )
 
 
 def test_a_proposal_never_ratified_by_the_authority_cannot_activate() -> None:
@@ -424,7 +436,9 @@ def test_a_proposal_never_ratified_by_the_authority_cannot_activate() -> None:
     ).model_copy(update={"status": "ratified", "ratified_by_operator_id": OPERATOR})
     before = build_constitution_snapshot(ratified_by_operator_id=OPERATOR)
     with pytest.raises(AmendmentError, match="missing its ratified-changes digest"):
-        activate_amendment(forged, previous_snapshot=before)
+        activate_amendment(
+            forged, previous_snapshot=before, emergency_stop=UNGOVERNED_FIXTURE
+        )
 
 
 def test_the_legitimate_activation_still_works_after_all_that() -> None:
@@ -437,5 +451,7 @@ def test_the_legitimate_activation_still_works_after_all_that() -> None:
             ),
         )
     )
-    _, after = activate_amendment(proposal, previous_snapshot=before)
+    _, after = activate_amendment(
+        proposal, previous_snapshot=before, emergency_stop=UNGOVERNED_FIXTURE
+    )
     assert "aios/api/" in after.frozen_paths

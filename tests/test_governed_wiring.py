@@ -175,7 +175,11 @@ def test_a_justified_exception_is_still_recognised() -> None:
 #: called gateway.py's pattern "established" while gateway.py's three were
 #: themselves undocumented holes on this same list. Converting them expired the
 #: reason, so the last "deliberate" optional guard is gone too.
-_OPTIONAL_GUARD_BUDGET = 9
+#: 9 -> 8: `activate_amendment`. Slice 27 had NAMED this a required
+#: emergency-stop boundary, and the guard written to satisfy that requirement
+#: skipped itself whenever nothing was wired -- the boundary existed only for
+#: callers that already had a latch.
+_OPTIONAL_GUARD_BUDGET = 8
 
 
 #: Lines that MATCH the guard text but are not governance guards, with counts.

@@ -39,7 +39,14 @@ from aios.application.intelligence.gateway import (
     stream_intelligence_request,
     stream_structured_intelligence_request,
 )
-from aios.application.governance import EmergencyStopController, EmergencyStopError
+from aios.application.governance import (
+    AmendmentError,
+    EmergencyStopController,
+    EmergencyStopError,
+    activate_amendment,
+    propose_amendment,
+)
+from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
 from aios.domain.autonomy import ActionClassKey, AutonomyDecisionStatus
 
@@ -320,3 +327,78 @@ def test_the_gateway_accepts_the_explicit_fixture_opt_out() -> None:
     )
 
     assert "summarize the incident" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Slice 3 -- aios/application/governance/amendment_authority.py
+#
+# Constitutional amendment ACTIVATION. Slice 27 named this a required
+# emergency-stop boundary, and the guard that was written for it skipped
+# itself whenever nothing was wired.
+# ---------------------------------------------------------------------------
+
+
+def _unratified_proposal():
+    """A proposal that could never legitimately activate.
+
+    Deliberately NOT ratified, which lets the proof below distinguish the two
+    refusals by TYPE instead of building the whole ratification chain: the stop
+    check runs FIRST, so a converted guard refuses with its own error while the
+    old one fell through to `AmendmentError("cannot activate ...")`.
+    """
+    return propose_amendment(
+        proposal_id="amend-absence-1",
+        target_articles=("router_max_cost policy",),
+        proposed_diff="raise router_max_cost from low to high",
+        motivation="unblock a legitimate high-cost task class",
+        migration_plan="no data migration needed",
+        rollback_plan="revert router_max_cost",
+        proposed_by="model:gemini-review",
+        proposer_type="model",
+    )
+
+
+def test_amendment_activation_refuses_when_no_stop_is_wired() -> None:
+    """THE BAR for slice 3.
+
+    Amending the constitution while nothing can halt you is the most consequential
+    ungoverned action on this list -- it is the mechanism that could unfreeze the
+    security spine.
+
+    Proved by TYPE rather than by outcome: pre-conversion this same call raises
+    `AmendmentError("cannot activate")`, because the stop check quietly passed
+    and the status check did the refusing. Post-conversion the stop check refuses
+    first, which is the whole point -- an ungovernable caller is turned away
+    before the request is even considered on its merits.
+    """
+    snapshot = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
+
+    with pytest.raises(RuntimeError) as raised:
+        activate_amendment(
+            _unratified_proposal(),
+            previous_snapshot=snapshot,
+            emergency_stop=None,
+        )
+
+    assert not isinstance(raised.value, AmendmentError), (
+        "refused on the proposal's merits, not on being ungovernable -- "
+        "the stop check did not run first"
+    )
+    assert "without an emergency stop" in str(raised.value)
+
+
+def test_amendment_activation_accepts_the_explicit_fixture_opt_out() -> None:
+    """With the opt-out stated, the ordinary refusal is reached again.
+
+    This pins that the conversion did not simply break activation: the same call
+    still fails on its merits, with the merits-based error, once the caller has
+    said out loud that it is deliberately ungoverned.
+    """
+    snapshot = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
+
+    with pytest.raises(AmendmentError, match="cannot activate"):
+        activate_amendment(
+            _unratified_proposal(),
+            previous_snapshot=snapshot,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        )
