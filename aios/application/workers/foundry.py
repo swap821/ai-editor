@@ -28,6 +28,9 @@ from aios.domain.workers.worker_contract import (
 )
 from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase, TrustLevel
 from aios.runtime.cortex_bus import CortexBus
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
 
 
 class UnknownWorkerStrategy(KeyError):
@@ -138,8 +141,13 @@ class WorkerFoundryAuthority:
         parent_principal_id: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> Any:
-        if self._emergency_stop is not None:
-            self._emergency_stop.assert_operational()
+        # A foundry nobody can halt must not dispatch a worker. Paired with the
+        # scheduler's own check: this object BUILDS that scheduler and hands its
+        # stop down, so converting either alone would leave the pair half
+        # governed.
+        EmergencyStopHardWiringAuthority.require_wired(
+            self._emergency_stop, boundary="worker-foundry"
+        )
         selected = self.select(strategy, contract)
         contract = self._stage_contract(contract)
         worker_id = f"worker-{uuid.uuid4().hex[:12]}"

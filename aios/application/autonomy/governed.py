@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-from aios.core.autonomy import AutonomyLedger
+from aios.core.autonomy import AutonomyLedger, stop_permits_autonomy
 from aios.core.verification_strength import VerificationStrength
 from aios.domain.autonomy import (
     ActionClassKey,
@@ -62,17 +62,20 @@ class GovernedAutonomy:
         enabled: bool | None = None,
     ) -> AutonomyDecision:
         """Return ALLOW only for an earned, narrow, reversible action class."""
-        if self.emergency_stop is not None:
-            try:
-                self.emergency_stop.assert_operational()
-            except Exception:  # noqa: BLE001 - emergency latch denies autonomy
-                return AutonomyDecision(
-                    status=AutonomyDecisionStatus.DENY,
-                    key_digest=self.key_digest(key),
-                    ledger_status="emergency_stopped",
-                    reason_codes=("EMERGENCY_STOP_ENGAGED",),
-                    profile_enabled=False,
-                )
+        # An ABSENT latch is a refusal, not a passed check. The previous shape
+        # -- `if self.emergency_stop is not None:` -- skipped the check entirely
+        # when nothing was wired, so autonomy could be granted by an object that
+        # no one could halt. `stop_permits_autonomy` also accepts the explicit
+        # `UNGOVERNED_FIXTURE` opt-out, which the old guard did not: it called
+        # `assert_operational()` on the sentinel string and denied by accident.
+        if not stop_permits_autonomy(self.emergency_stop):
+            return AutonomyDecision(
+                status=AutonomyDecisionStatus.DENY,
+                key_digest=self.key_digest(key),
+                ledger_status="emergency_stopped",
+                reason_codes=("EMERGENCY_STOP_ENGAGED",),
+                profile_enabled=False,
+            )
         profile_enabled = self.enabled if enabled is None else bool(enabled)
         if self.profile_name == "production" and not self.production_gate_open:
             profile_enabled = False

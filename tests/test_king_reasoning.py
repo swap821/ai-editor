@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from aios.council.king_reasoning import clamp_recommendation, reason_king
 from aios.runtime.contracts import KingReport, MissionContract, QueenVerdict
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # ── the clamp: the safety core ───────────────────────────────────────────────
@@ -121,9 +122,17 @@ def test_orchestrator_stores_injected_king_complete(tmp_path) -> None:
 
     fn = lambda _p: "RECOMMENDATION: reject\nRATIONALE: nope"
     assert (
-        CouncilOrchestrator(runtime_root=tmp_path, king_complete=fn).king_complete is fn
+        CouncilOrchestrator(
+            runtime_root=tmp_path, king_complete=fn, emergency_stop=UNGOVERNED_FIXTURE
+        ).king_complete
+        is fn
     )
-    assert CouncilOrchestrator(runtime_root=tmp_path).king_complete is None
+    assert (
+        CouncilOrchestrator(
+            runtime_root=tmp_path, emergency_stop=UNGOVERNED_FIXTURE
+        ).king_complete
+        is None
+    )
 
 
 def test_reason_king_fails_closed_on_unparseable_output() -> None:

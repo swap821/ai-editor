@@ -49,6 +49,7 @@ from aios.memory.skills import SkillMemory
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
 from tests.test_api import FakeIndexer, FakeLLM, RecordingAudit
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 _ALPHA_CONTENT = (
     "def add(a, b):\n    return a + b\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
@@ -143,6 +144,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
         approved_runner=_runner,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:

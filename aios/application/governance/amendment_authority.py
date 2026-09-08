@@ -30,6 +30,9 @@ from aios.domain.governance.constitution import (
     ConstitutionSnapshotV1,
     build_constitution_snapshot,
 )
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
 
 
 class AmendmentError(RuntimeError):
@@ -264,8 +267,18 @@ def activate_amendment(
     Slice 27 named "constitutional amendment activation" as a required
     emergency-stop boundary before this organ existed to wire it into --
     closing that gap here."""
-    if emergency_stop is not None:
-        emergency_stop.assert_operational()
+    # Slice 27 named this a required emergency-stop boundary. The guard written
+    # for it skipped ITSELF whenever nothing was wired, so the boundary existed
+    # only for callers that happened to pass a latch -- and amending the
+    # constitution is the mechanism that could unfreeze the security spine.
+    #
+    # `require_wired` keeps the engaged path raising EmergencyStopError, which
+    # aios/api/routes/governance.py already maps to a 409. An ABSENT stop is a
+    # wiring bug rather than a refusable request, so it raises RuntimeError and
+    # surfaces loudly instead of joining 409s an operator would retry.
+    EmergencyStopHardWiringAuthority.require_wired(
+        emergency_stop, boundary="constitutional-amendment-activation"
+    )
     if proposal.status != "ratified":
         raise AmendmentError(
             f"cannot activate a proposal in status {proposal.status!r}"

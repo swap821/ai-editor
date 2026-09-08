@@ -23,6 +23,7 @@ from aios.domain.governance.learning import (
     GovernanceLessonV1,
     SimulationCheckResult,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _lesson(**overrides: object) -> GovernanceLessonV1:
@@ -213,7 +214,9 @@ def test_a_governance_weakness_travels_the_complete_proposal_to_rollback_path() 
     assert ratified.status == "ratified"
 
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
-    activated, v2 = activate_amendment(ratified, previous_snapshot=v1)
+    activated, v2 = activate_amendment(
+        ratified, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+    )
     assert activated.status == "activated"
     assert v2.version == v1.version + 1
 

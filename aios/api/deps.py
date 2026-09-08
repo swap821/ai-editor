@@ -1702,7 +1702,12 @@ def get_learning_service(
 
     return LearningService(
         mission_service=MissionService(
-            SqliteMissionRepository(config.MISSION_STATE_DB)
+            SqliteMissionRepository(config.MISSION_STATE_DB),
+            # Production gap, live until 2026-09-08: this service was built with
+            # no latch at all, and `_assert_operational` skipped itself when
+            # absent -- so engaging the emergency stop did not stop the learning
+            # loop creating or starting missions.
+            emergency_stop=get_emergency_stop(),
         ),
         trajectory_repository=TrajectoryRepository(config.OPERATIONAL_STATE_DB_PATH),
         skill_repository=SkillRepository(config.OPERATIONAL_STATE_DB_PATH),
@@ -1759,6 +1764,7 @@ def get_maintenance_convergence_service(
         SqliteMissionRepository(config.MISSION_STATE_DB),
         workspace_manager=workspace_manager,
         recovery_authority=get_recovery_resumption_authority(),
+        emergency_stop=get_emergency_stop(),
     )
     lifecycle_engine = MaintenanceLifecycleEngine()
 

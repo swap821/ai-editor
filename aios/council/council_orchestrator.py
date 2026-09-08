@@ -88,6 +88,9 @@ from aios.core.verification_strength import (
     parse_test_counts,
     strength_from_name,
 )
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -649,8 +652,17 @@ class QueenCouncilAuthority:
         )
 
     def _assert_operational(self) -> None:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        """Refuse to act when nothing could halt this council.
+
+        Reached from `deliberate()` (which creates a mission), `execute()`
+        (which dispatches a worker through the foundry) and the promotion
+        helper (which applies a staged diff). One skipped check therefore left
+        THREE privileged actions ungoverned, and this class had no engaged-stop
+        test of any kind.
+        """
+        EmergencyStopHardWiringAuthority.require_wired(
+            self.emergency_stop, boundary="council-orchestrator"
+        )
 
     def _maybe_persist_deliberation(self, report: Any, *, mission_id: str) -> None:
         """Organ 39: gather a real independent second opinion and persist a

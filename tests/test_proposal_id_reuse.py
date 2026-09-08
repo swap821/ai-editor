@@ -37,6 +37,7 @@ from aios.infrastructure.governance.sqlite_store import (
     GovernanceAmendmentStore,
     ProposalIdReuseError,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 PROPOSAL_ID = "amend-reuse-target"
 
@@ -82,7 +83,9 @@ def _activate_for_real(store: GovernanceAmendmentStore) -> None:
     )
     store.save_proposal(proposal)
     snapshot = build_constitution_snapshot(ratified_by_operator_id="operator:xyz")
-    activated, _ = activate_amendment(proposal, previous_snapshot=snapshot)
+    activated, _ = activate_amendment(
+        proposal, previous_snapshot=snapshot, emergency_stop=UNGOVERNED_FIXTURE
+    )
     store.save_proposal(activated)
 
 

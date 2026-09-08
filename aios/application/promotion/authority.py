@@ -27,6 +27,10 @@ from aios.domain.promotion import (
     PromotionRollbackLiveAuthority,
     PromotionStatus,
 )
+from aios.core.autonomy import stop_permits_autonomy
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
 
 #: This authority is the sole verifier of its own successful apply -- there is
 #: no separate, external "verifier" identity for the promotion step (as
@@ -239,16 +243,24 @@ class PromotionAuthority:
         return promotion_id, receipt
 
     def _assert_operational(self) -> None:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        """Refuse to promote when nothing could halt the promotion.
+
+        Called twice inside `promote()`: before the checkpoint and again before
+        `apply_staged_diff()` actually writes into the project. That write is
+        the most consequential thing this system does unattended.
+        """
+        EmergencyStopHardWiringAuthority.require_wired(
+            self.emergency_stop, boundary="promotion-authority"
+        )
 
     def _preconditions(self, request: PromotionRequest) -> tuple[str, ...]:
         reasons: list[str] = []
-        if self.emergency_stop is not None:
-            try:
-                self.emergency_stop.assert_operational()
-            except Exception:  # noqa: BLE001 - engaged stop is a rejection
-                reasons.append("emergency_stop_engaged")
+        # Same question, different answer shape: `_preconditions` collects
+        # REASONS rather than raising, so an absent latch adds the same
+        # rejection an engaged one does. Skipping it when unwired meant
+        # `promote()` was never pre-empted on this path either.
+        if not stop_permits_autonomy(self.emergency_stop):
+            reasons.append("emergency_stop_engaged")
         if request.current_state is not MissionState.VERIFYING:
             reasons.append("mission_not_verifying")
         if request.contract_digest != request.authoritative_contract_digest:

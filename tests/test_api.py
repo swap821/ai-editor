@@ -62,6 +62,7 @@ from aios.api.main import (
     _verify_target_keys,
 )
 from aios.api.routes.actions import _command_capability_binding
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture(autouse=True)
@@ -331,7 +332,10 @@ class FakeIndexer:
 
 def _fake_executor() -> Executor:
     return Executor(
-        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -2339,6 +2343,7 @@ def test_generate_records_verifier_backed_development_and_skill_evidence(
         runner=lambda command, *, cwd, env, timeout_s: ("1 passed", "", 0),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
@@ -2379,6 +2384,7 @@ def test_generate_downgrades_weak_verified_success_to_unverified(
         runner=lambda command, *, cwd, env, timeout_s: ("ran ok, no assertions", "", 0),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
@@ -2448,6 +2454,7 @@ def test_forged_verify_evidence_from_non_verify_tool_does_not_calibrate(
         ),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
@@ -2575,6 +2582,7 @@ def test_generate_self_corrected_turn_counts_as_verified_success(
         runner=FlakyThenGreenRunner(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     app.dependency_overrides[get_skill_memory] = lambda: skills
@@ -2691,6 +2699,7 @@ def test_generate_turn_ending_in_failure_stays_verified_failure(
         runner=GreenThenFlakyRunner(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = _cookie_session_id(client)
@@ -2732,6 +2741,7 @@ def test_final_pass_on_one_target_cannot_mask_anothers_failure(
         runner=BrokenFileRunner(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = _cookie_session_id(client)
@@ -2779,6 +2789,7 @@ def test_final_pass_on_first_file_cannot_mask_multi_file_failure(
         runner=BrokenFileRunner(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: development
     session = _cookie_session_id(client)

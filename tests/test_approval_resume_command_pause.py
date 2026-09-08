@@ -31,6 +31,7 @@ from aios.core.executor import Executor
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
 from tests.test_api import FakeIndexer, FakeLLM, FakeOllamaYellow, RecordingAudit
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class ScriptedCommandOllama(FakeOllamaYellow):
@@ -90,6 +91,7 @@ def client(monkeypatch) -> Iterator[TestClient]:
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
         approved_runner=_runner,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as test_client:

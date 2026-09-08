@@ -15,6 +15,7 @@ from aios.domain.privacy import ModelCallRecord, ModelCallRequest, digest_output
 from aios.application.intelligence.gateway import route_intelligence_request
 from aios.runtime.cortex_bus import CortexBus
 from aios.runtime.secret_policy import SecretPolicy
+from aios.core.autonomy import require_stop_wired
 
 
 class ProviderClient(Protocol):
@@ -86,8 +87,14 @@ class IntelligenceHiringService:
         self.cortex = cortex
         self.policy = policy
         #: Organ 32. This service reaches a real external provider and had no
-        #: emergency-stop check anywhere in its call chain -- optional here to
-        #: match gateway.py's established pattern, wired for real in deps.py.
+        #: emergency-stop check anywhere in its call chain.
+        #:
+        #: It used to be optional "to match gateway.py's established pattern".
+        #: That reason was circular -- gateway.py's three instances were
+        #: themselves undocumented fail-open holes on the very list this one
+        #: cited as precedent -- and it expired on 2026-09-08 when they were
+        #: converted. A call that reaches a third-party provider is exactly
+        #: where an unstoppable caller matters most.
         self.emergency_stop = emergency_stop
         #: Egress was asymmetric: the outgoing prompt is scrubbed
         #: (selection.privacy.scrubbed_prompt) but the provider's RESPONSE was
@@ -101,8 +108,7 @@ class IntelligenceHiringService:
         *,
         system: str | None = None,
     ) -> tuple[str, ModelCallRecord]:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        require_stop_wired(self.emergency_stop, boundary="intelligence-hiring-service")
         started = time.perf_counter()
         selection = self.broker.select_model_call(
             request,

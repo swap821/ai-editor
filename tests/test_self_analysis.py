@@ -23,6 +23,7 @@ from aios.core.executor import Executor
 from aios.core.llm import LLMError
 from aios.memory.db import connect, get_connection, init_memory_db
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------- #
@@ -584,7 +585,10 @@ class _NoopRunner:
 
 def _executor() -> Executor:
     return Executor(
-        runner=_NoopRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=_NoopRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

@@ -35,6 +35,7 @@ import ast
 import pathlib
 
 import pytest
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 AIOS = REPO_ROOT / "aios"
@@ -281,6 +282,7 @@ def test_activation_requires_a_ratified_predecessor() -> None:
             activate_amendment(
                 proposal.model_copy(update={"status": status}),
                 previous_snapshot=snapshot,
+                emergency_stop=UNGOVERNED_FIXTURE,
             )
 
 

@@ -41,6 +41,7 @@ from aios.api.main import (
 from aios.core.executor import Executor
 from aios.security.gateway import RateLimiter
 from aios.domain.identity.models import Principal, PrincipalType
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class _StubOllama:
@@ -90,7 +91,10 @@ class _FakeInjectionShield:
 
 def _fake_executor() -> Executor:
     return Executor(
-        runner=_FakeRunner(), rate_limiter=RateLimiter(), audit_log=_RecordingAudit()
+        runner=_FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=_RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

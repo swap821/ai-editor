@@ -50,6 +50,7 @@ from aios.runtime.worker_entry import (
     main,
     run_worker,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------
@@ -1246,7 +1247,9 @@ class TestLocalOllamaReasoner:
 
 class TestIntelligenceGatewayRequestValidation:
     def test_mismatched_mission_id_raises_value_error(self, tmp_path: Path) -> None:
-        gateway = IntelligenceGateway(local_client=_FakeReasoner("plan"))
+        gateway = IntelligenceGateway(
+            local_client=_FakeReasoner("plan"), emergency_stop=UNGOVERNED_FIXTURE
+        )
         contract = _gateway_contract(tmp_path, mission_id="mission-a")
         request = IntelligenceRequest(
             mission_id="mission-b",
@@ -1267,7 +1270,9 @@ class TestIntelligenceGatewayCloudFallback:
         local = _FakeReasoner("local fallback plan")
         cloud = _FakeReasoner("unused", fail=True)
         gateway = IntelligenceGateway(
-            local_client=local, cloud_clients={"cloud": cloud}
+            local_client=local,
+            cloud_clients={"cloud": cloud},
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         contract = _gateway_contract(
             tmp_path,
@@ -1301,7 +1306,9 @@ class TestIntelligenceGatewayCloudFallback:
         self, tmp_path: Path
     ) -> None:
         local = _FakeReasoner("unused", fail=True)
-        gateway = IntelligenceGateway(local_client=local, cloud_clients={})
+        gateway = IntelligenceGateway(
+            local_client=local, cloud_clients={}, emergency_stop=UNGOVERNED_FIXTURE
+        )
         contract = _gateway_contract(tmp_path)
         request = IntelligenceRequest(
             mission_id=contract.mission_id,
@@ -1322,7 +1329,9 @@ class TestCloudAllowedBranches:
     def test_cloud_denied_when_request_does_not_allow_cloud(
         self, tmp_path: Path
     ) -> None:
-        gateway = IntelligenceGateway(local_client=_FakeReasoner("plan"))
+        gateway = IntelligenceGateway(
+            local_client=_FakeReasoner("plan"), emergency_stop=UNGOVERNED_FIXTURE
+        )
         contract = _gateway_contract(tmp_path, risk_level="GREEN")
         request = IntelligenceRequest(
             mission_id=contract.mission_id,
@@ -1340,7 +1349,9 @@ class TestCloudAllowedBranches:
         assert allowed is False
 
     def test_cloud_denied_when_risk_is_red(self, tmp_path: Path) -> None:
-        gateway = IntelligenceGateway(local_client=_FakeReasoner("plan"))
+        gateway = IntelligenceGateway(
+            local_client=_FakeReasoner("plan"), emergency_stop=UNGOVERNED_FIXTURE
+        )
         contract = _gateway_contract(tmp_path, risk_level="GREEN")
         request = IntelligenceRequest(
             mission_id=contract.mission_id,
@@ -1361,7 +1372,9 @@ class TestCloudAllowedBranches:
         self, tmp_path: Path
     ) -> None:
         gateway = IntelligenceGateway(
-            local_client=_FakeReasoner("plan"), default_cloud_provider="default-cloud"
+            local_client=_FakeReasoner("plan"),
+            default_cloud_provider="default-cloud",
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         contract = _gateway_contract(
             tmp_path, metadata={"model_policy": {"mode": "hybrid"}}

@@ -66,6 +66,7 @@ from aios.infrastructure.missions.transition_journal_store import (
 )
 from aios.memory.facts import SemanticFacts
 from tests.source_rules import executable_source
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------- #
@@ -580,6 +581,7 @@ def test_the_provenance_authority_is_what_run_advisory_job_writes_through(
         ollama=llm,
         model_client_factory=lambda model_id: llm,
         provenance_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     assert isinstance(service.provenance_authority, ClerkProvenanceAuthority)
@@ -626,6 +628,7 @@ def test_the_provenance_authority_records_a_refusal_honestly(tmp_path: Path) -> 
         ollama=llm,
         model_client_factory=lambda model_id: llm,
         provenance_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     request = LocalJobRequest(
         job_id="owner-refusal-probe",
@@ -669,6 +672,7 @@ def test_organ_38_job_provenance_is_reached_after_advisory_job(
         ollama=llm,
         model_client_factory=lambda model_id: llm,
         provenance_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     calls: list[str] = []
     original = service.provenance_authority.job_provenance
@@ -859,6 +863,7 @@ def test_the_universal_gateway_authority_owns_both_call_entrances() -> None:
         delegated_authority_summary="human operator decides",
         model_call=lambda _context: "governed reply",
         context_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert result.output == "governed reply"
     store.save.assert_called_once()
@@ -875,6 +880,7 @@ def test_the_universal_gateway_authority_owns_both_call_entrances() -> None:
             [{"type": "text", "text": "governed reply"}, {"type": "done"}]
         ),
         context_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert list(structured.events)[-1] == {"type": "done"}
     assert store.save.call_args.args[0] == structured.context
@@ -1006,7 +1012,10 @@ def test_the_dispatcher_authority_is_what_the_real_service_calls_through() -> No
     registry = MagicMock(spec=LocalWorkforceRegistry)
     llm = MagicMock()
     service = LocalWorkforceService(
-        registry=registry, ollama=llm, model_client_factory=lambda model_id: llm
+        registry=registry,
+        ollama=llm,
+        model_client_factory=lambda model_id: llm,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     assert isinstance(service.dispatcher_authority, ClerkDispatcherAuthority)
@@ -1032,7 +1041,10 @@ def test_the_dispatcher_authority_escalates_an_unqualified_model_through_the_rea
     llm = MagicMock()
 
     service = LocalWorkforceService(
-        registry=registry, ollama=llm, model_client_factory=lambda model_id: llm
+        registry=registry,
+        ollama=llm,
+        model_client_factory=lambda model_id: llm,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     request = LocalJobRequest(
         job_id="owner-escalation-probe",
@@ -1870,6 +1882,7 @@ def test_local_clerk_runtime_authority_owns_model_admission(
     service = LocalWorkforceService(
         registry=MagicMock(spec=LocalWorkforceRegistry),
         ollama=MagicMock(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     authority = service.local_clerk_runtime_authority
     assert type(authority) is LocalClerkRuntimeAuthority
@@ -1916,6 +1929,7 @@ def test_local_model_qualification_authority_is_the_real_factory(
     service = LocalWorkforceService(
         registry=MagicMock(),
         ollama=MagicMock(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     assert QualificationSuite is LocalModelQualificationAuthority

@@ -41,6 +41,7 @@ from aios.domain.local_workforce.contracts import (
 )
 from aios.domain.verification import SkillVerifierSpec
 from tests.source_rules import executable_source
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # ---------------------------------------------------------------------------
@@ -697,6 +698,7 @@ class TestBlocker9LocalJobSchema:
             registry=mock_registry,
             ollama=mock_llm,
             model_client_factory=lambda model_id: mock_llm,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         return svc
 
@@ -876,6 +878,7 @@ class TestBlocker11PromotionStatusCasing:
         authority = PromotionAuthority(
             workspace_manager=ws_manager,
             database_path=db_path,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
         # Directly insert a row with status='promoted' (what the code actually stores)
@@ -987,7 +990,9 @@ class TestBlocker12PromotionTerminalSemantics:
         db_path = tmp_path / "promo_terminal.db"
         ws_manager = MagicMock(spec=StagedWorkspaceManager)
         authority = PromotionAuthority(
-            workspace_manager=ws_manager, database_path=db_path
+            workspace_manager=ws_manager,
+            database_path=db_path,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
         mission_id = "m-terminal-test"

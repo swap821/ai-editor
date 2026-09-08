@@ -966,6 +966,10 @@ def council_approve(
             mission_service = MissionService(
                 SqliteMissionRepository(runtime_root / "missions.db"),
                 export_dir=runtime_root / "mission_exports",
+                # Read-only here today, which is the ONLY reason this was
+                # harmless. One future call to create()/start_execution()
+                # through this instance would have been a live hole.
+                emergency_stop=get_emergency_stop(),
             )
             authoritative = mission_service.repository.get(safe_id)
         except MissionNotFoundError as exc:
@@ -1060,6 +1064,10 @@ def council_reject(
             mission_service = MissionService(
                 SqliteMissionRepository(runtime_root / "missions.db"),
                 export_dir=runtime_root / "mission_exports",
+                # Read-only here today, which is the ONLY reason this was
+                # harmless. One future call to create()/start_execution()
+                # through this instance would have been a live hole.
+                emergency_stop=get_emergency_stop(),
             )
             authoritative = mission_service.repository.get(safe_id)
         except MissionNotFoundError:

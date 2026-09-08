@@ -56,6 +56,43 @@ _WRITE_ACTIONS = frozenset({"create", "edit", "create_file", "edit_file"})
 UNGOVERNED_FIXTURE = "ungoverned-fixture"
 
 
+def require_stop_wired(emergency_stop, *, boundary: str):
+    """Refuse to build or act when *boundary* has no emergency stop.
+
+    The raising counterpart of :func:`stop_permits_autonomy`, and the canonical
+    implementation of the fail-closed rule.
+
+    It lives HERE, in the core layer, rather than only on
+    `EmergencyStopHardWiringAuthority`, because `aios/application/models/**` and
+    `aios/agents/**` are forbidden by release conformance from importing
+    `aios.application.capabilities.authority` -- so a helper that only existed
+    there could not be used by the very layers that call out to third-party
+    providers. Duplicating the logic instead would be a fourth spelling of a
+    rule that has already been got wrong once per copy.
+
+    Unlike the boolean form this PRESERVES the distinction between an absent
+    latch and an engaged one: absence raises RuntimeError (a wiring bug), while
+    an engaged latch raises whatever it raises, so callers that map
+    EmergencyStopError to a specific response keep working.
+    """
+    if emergency_stop is UNGOVERNED_FIXTURE:
+        return None
+    if emergency_stop is None:
+        raise RuntimeError(
+            f"{boundary} was constructed without an emergency stop. A governed "
+            "production object must be able to be halted; pass "
+            "get_emergency_stop(), or UNGOVERNED_FIXTURE to state that "
+            "ungoverned is deliberate."
+        )
+    checker = getattr(emergency_stop, "assert_operational", None)
+    if not callable(checker):
+        raise TypeError(
+            f"{boundary} emergency-stop dependency is not operationally checkable"
+        )
+    checker()
+    return emergency_stop
+
+
 def stop_permits_autonomy(emergency_stop) -> bool:
     """May autonomy be granted, given this stop control?
 

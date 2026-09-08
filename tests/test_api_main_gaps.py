@@ -79,6 +79,7 @@ from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.facts import FactWriteResult, SemanticFacts
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------- #
@@ -132,7 +133,10 @@ class FakeIndexer:
 
 def _fake_executor() -> Executor:
     return Executor(
-        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=RecordingAudit()
+        runner=FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

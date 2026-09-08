@@ -13,6 +13,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
 from aios.infrastructure.missions.transition_journal_store import (
     MissionTransitionJournal,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _authority(tmp_path: Path) -> tuple[MissionAuthority, RecoveryResumptionAuthority]:
@@ -22,6 +23,7 @@ def _authority(tmp_path: Path) -> tuple[MissionAuthority, RecoveryResumptionAuth
         SqliteMissionRepository(tmp_path / "missions.db"),
         export_dir=tmp_path / "exports",
         recovery_authority=recovery,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     return mission, recovery
 

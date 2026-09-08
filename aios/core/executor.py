@@ -53,6 +53,7 @@ from aios.infrastructure.executor.argv import (
     parse_argv as _parse_argv,
 )
 from aios.operations.tracing import get_trace_context
+from aios.core.autonomy import stop_permits_autonomy
 
 if TYPE_CHECKING:
     from aios.policy.kernel import PolicyKernel
@@ -864,19 +865,26 @@ class Executor:
                 reason=decision.reason,
             )
 
-        if self.emergency_stop is not None:
-            try:
-                self.emergency_stop.assert_operational()
-            except Exception:  # noqa: BLE001 - emergency latch blocks dispatch
-                reason = "emergency stop is engaged; execution is disabled"
-                self._audit(self.actor, f"BLOCKED: {reason}", Zone.RED)
-                return ExecutionResult(
-                    status="BLOCKED",
-                    zone=Zone.RED.value,
-                    command=command,
-                    reason=reason,
-                    control="emergency_stop",
-                )
+        # An ABSENT latch is a refusal, not a passed check. This is the guard
+        # `replay_writes.py`'s docstring names as the known, unfixed instance of
+        # the shape, and the one `require_wired` argued should stay because this
+        # file was "FOUNDATION_LOCK'd" -- a claim AGENTS.md SVIII does not
+        # support and which the operator ruled stale on 2026-09-08.
+        #
+        # The BOOLEAN form here, not `require_wired`: `execute` returns an
+        # ExecutionResult and its callers expect a result, not an exception. An
+        # unstoppable executor gets the same BLOCKED result an engaged one does,
+        # which is also what the audit log already knows how to record.
+        if not stop_permits_autonomy(self.emergency_stop):
+            reason = "emergency stop is engaged; execution is disabled"
+            self._audit(self.actor, f"BLOCKED: {reason}", Zone.RED)
+            return ExecutionResult(
+                status="BLOCKED",
+                zone=Zone.RED.value,
+                command=command,
+                reason=reason,
+                control="emergency_stop",
+            )
 
         # GREEN (or earned-autonomy YELLOW) -> ALLOW: run it inside the configured scope.
         self._audit(self.actor, f"EXECUTING: {command}", decision.zone)
@@ -915,19 +923,26 @@ class Executor:
         # that provides the boundary; injection tests may omit the runner.
         isolated = policy.isolated and (self.approved_runner is not None)
         runner = self.approved_runner if isolated else self.runner
-        if self.emergency_stop is not None:
-            try:
-                self.emergency_stop.assert_operational()
-            except Exception:  # noqa: BLE001 - emergency latch blocks dispatch
-                reason = "emergency stop is engaged; execution is disabled"
-                self._audit(self.actor, f"BLOCKED: {reason}", Zone.RED)
-                return ExecutionResult(
-                    status="BLOCKED",
-                    zone=Zone.RED.value,
-                    command=command,
-                    reason=reason,
-                    control="emergency_stop",
-                )
+        # An ABSENT latch is a refusal, not a passed check. This is the guard
+        # `replay_writes.py`'s docstring names as the known, unfixed instance of
+        # the shape, and the one `require_wired` argued should stay because this
+        # file was "FOUNDATION_LOCK'd" -- a claim AGENTS.md SVIII does not
+        # support and which the operator ruled stale on 2026-09-08.
+        #
+        # The BOOLEAN form here, not `require_wired`: `execute` returns an
+        # ExecutionResult and its callers expect a result, not an exception. An
+        # unstoppable executor gets the same BLOCKED result an engaged one does,
+        # which is also what the audit log already knows how to record.
+        if not stop_permits_autonomy(self.emergency_stop):
+            reason = "emergency stop is engaged; execution is disabled"
+            self._audit(self.actor, f"BLOCKED: {reason}", Zone.RED)
+            return ExecutionResult(
+                status="BLOCKED",
+                zone=Zone.RED.value,
+                command=command,
+                reason=reason,
+                control="emergency_stop",
+            )
         self._audit(self.actor, f"APPROVED+EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(
             command,

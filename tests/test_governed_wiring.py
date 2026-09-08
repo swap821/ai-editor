@@ -27,7 +27,29 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 AIOS = REPO_ROOT / "aios"
 
 #: Constructions that carry authority to act and must therefore be haltable.
-_GOVERNED = {"Executor", "AutonomyLedger", "SelfApplyEngine"}
+#:
+#: WIDENED 2026-09-08, from three names to nine. Three was not a considered
+#: scope -- it was simply the set that existed when the rule was written, and it
+#: is why four LIVE production gaps passed CI: `deps.py` twice and the council
+#: approve/reject routes twice all built a `MissionService` with no latch, and
+#: no rule looked at `MissionService`.
+#:
+#: The scan reads `aios/` only, so widening this costs nothing in test churn and
+#: buys the thing that actually prevents recurrence: a production construction
+#: that forgets its stop fails CI at the construction site, rather than at
+#: whichever runtime call happens to be exercised first.
+_GOVERNED = {
+    "Executor",
+    "AutonomyLedger",
+    "SelfApplyEngine",
+    "CouncilOrchestrator",
+    "MissionService",
+    "MissionAuthority",
+    "PromotionAuthority",
+    "WorkerFoundry",
+    "WorkerScheduler",
+    "GovernedAutonomy",
+}
 
 #: Constructions that legitimately do NOT name a stop, each with the reason.
 #:
@@ -153,13 +175,72 @@ def test_a_justified_exception_is_still_recognised() -> None:
 #: Measured 2026-09-07: 15 actual `if ... is not None:` guards.
 #:
 #: Was 18 while the census counted docstring mentions as guards -- three
-#: units of slack in a ratchet whose whole purpose is to have none.
+#: units of slack in a ratchet whose whole purpose is to have none. Then 15,
+#: where it sat pinned-but-unconverted.
 #:
-#: These are NOT all defects -- several are legitimately optional in their own
-#: context -- and rewriting eighteen call sites across ten governed subsystems
-#: is its own change with its own blast radius. What this pins is that the
-#: SHAPE cannot grow: a nineteenth has to be argued rather than merely typed.
-_OPTIONAL_GUARD_BUDGET = 15
+#: NOW DESCENDING. The conversion is under way, one subsystem per commit, and
+#: `test_the_budget_is_not_stale` forces this number down with each: a slice
+#: that flips a guard and leaves the budget alone fails its own suite.
+#:
+#: 15 -> 13: `GovernedAutonomy.evaluate` converted to `stop_permits_autonomy`,
+#: and `aios/api/deps.py`'s singleton fast path recognised as never having been
+#: a guard at all (see `_NOT_A_GUARD`). The target is 0, and because that one
+#: coincidence is exempted rather than tolerated, 0 will mean it.
+#:
+#: 13 -> 10: all three `intelligence/gateway.py` guards converted to
+#: `require_wired`. Three rather than one because the two anonymous
+#: compatibility entrances do NOT pass through `_validate_and_compile`, so
+#: fixing the shared guard alone would have left them open.
+#:
+#: 10 -> 9: `IntelligenceHiringService.complete`. It was the one instance
+#: carrying a written justification, and that justification was circular -- it
+#: called gateway.py's pattern "established" while gateway.py's three were
+#: themselves undocumented holes on this same list. Converting them expired the
+#: reason, so the last "deliberate" optional guard is gone too.
+#: 9 -> 8: `activate_amendment`. Slice 27 had NAMED this a required
+#: emergency-stop boundary, and the guard written to satisfy that requirement
+#: skipped itself whenever nothing was wired -- the boundary existed only for
+#: callers that already had a latch.
+#: 8 -> 6: the worker pair. One slice for two guards because they are one
+#: path -- `WorkerFoundry` builds its own `WorkerScheduler` and hands its stop
+#: down, so converting either alone leaves the pair half-governed. Neither had
+#: ANY engaged-stop test at its own layer before this.
+#: 6 -> 2: the council cluster, converted together because it is not
+#: separable. `CouncilOrchestrator` builds a `MissionService`, a
+#: `WorkerFoundry` (which builds a `WorkerScheduler`) and a
+#: `PromotionAuthority`, threading its own stop into each. Declaring the
+#: fixture opt-out at the council made its children choke on the sentinel
+#: string, so converting one at a time could not leave the tree green. Four
+#: LIVE production gaps were closed with it -- deps.py x2 and the council
+#: approve/reject routes x2 all built MissionService with no latch at all.
+#:
+#: Only aios/core/executor.py remains.
+#: 2 -> 0. `aios/core/executor.py`, both entrances. This is the guard the whole
+#: effort started from: `replay_writes.py`'s docstring names it as the known,
+#: unfixed instance of the shape, and `require_wired`'s docstring argued it
+#: should stay because that file was "FOUNDATION_LOCK'd" -- a claim AGENTS.md
+#: SVIII does not support and which the operator ruled stale.
+#:
+#: ZERO, and it means zero: the one line that matches this text without being a
+#: guard is exempted by name in `_NOT_A_GUARD` with its reason, rather than
+#: being left as a unit of permanent slack.
+_OPTIONAL_GUARD_BUDGET = 0
+
+
+#: Lines that MATCH the guard text but are not governance guards, with counts.
+#:
+#: The census is a text scan, so it cannot tell a gate from a coincidence. There
+#: is exactly one coincidence: `get_emergency_stop()` in `aios/api/deps.py` is
+#: the stop's OWN constructor, and its `if _emergency_stop is not None:` is the
+#: fast path of a double-checked lock. It decides whether a lock is taken, not
+#: whether a privileged action proceeds; deleting it would cost a lock
+#: acquisition and change no behaviour.
+#:
+#: Exempting it is what lets the budget reach a truthful ZERO instead of
+#: flooring at 1 on a line that was never the defect. It is spelled out here,
+#: with its reason, rather than absorbed as permanent slack -- the same standard
+#: `_JUSTIFIED` applies to construction sites.
+_NOT_A_GUARD = {"aios/api/deps.py": 1}
 
 
 def _guard_census() -> dict[str, int]:
@@ -183,8 +264,10 @@ def _guard_census() -> dict[str, int]:
             for ln in lines
             if "emergency_stop is not None" in ln and ln.strip().startswith("if ")
         )
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        count -= _NOT_A_GUARD.get(relative, 0)
         if count:
-            census[path.relative_to(REPO_ROOT).as_posix()] = count
+            census[relative] = count
     return census
 
 

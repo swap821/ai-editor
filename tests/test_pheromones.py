@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from aios.memory.pheromones import Pheromone, PheromoneStore, PheromoneType
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _store(tmp_path: Path, **kwargs) -> PheromoneStore:
@@ -222,6 +223,7 @@ def test_council_loads_pheromone_context_into_contract(
     run = CouncilOrchestrator(
         runtime_root=tmp_path / "runtime",
         pheromone_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).deliberate(
         CouncilMissionRequest(
             mission_id="mission-pheromone-context",
@@ -264,6 +266,7 @@ def test_council_prefers_authority_pheromone_adapter(
         runtime_root=tmp_path / "runtime-authority",
         memory_authority=Authority(),
         pheromone_store=ForbiddenStore(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     contract = MissionContract(
         mission_id="mission-authority-pheromone",
@@ -291,7 +294,9 @@ def test_council_refuses_implicit_pheromone_store_without_authority(
     monkeypatch.setattr(config, "PHEROMONE_ENABLED", True)
 
     with pytest.raises(RuntimeError, match="MemoryAuthority"):
-        CouncilOrchestrator(runtime_root=tmp_path / "runtime-unbound")
+        CouncilOrchestrator(
+            runtime_root=tmp_path / "runtime-unbound", emergency_stop=UNGOVERNED_FIXTURE
+        )
 
 
 def test_pheromone_context_cannot_override_red_security_decision(
@@ -315,6 +320,7 @@ def test_pheromone_context_cannot_override_red_security_decision(
     run = CouncilOrchestrator(
         runtime_root=tmp_path / "runtime-red",
         pheromone_store=store,
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).deliberate(
         CouncilMissionRequest(
             mission_id="mission-pheromone-red",

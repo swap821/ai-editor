@@ -10,11 +10,15 @@ from __future__ import annotations
 from aios.core.executor import Executor
 from aios.core.verifier import Verifier
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _executor(runner):
     return Executor(
-        runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=runner,
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

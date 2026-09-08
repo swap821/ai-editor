@@ -23,6 +23,7 @@ from aios.domain.governance import EmergencyStopRequest
 from aios.domain.governance.amendments import CONSTITUTIONAL_AMENDMENT_RATIFY_ACTION
 from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.domain.missions.mission_contract import MissionContract
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _proposal(**overrides: object):
@@ -83,7 +84,9 @@ def test_frontend_approval_flag_cannot_activate_amendment() -> None:
     proposal = _proposal()  # never ratified
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
     with pytest.raises(AmendmentError, match="cannot activate"):
-        activate_amendment(proposal, previous_snapshot=v1)
+        activate_amendment(
+            proposal, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+        )
 
 
 def test_models_and_workers_cannot_ratify_without_a_real_capability() -> None:
@@ -127,7 +130,9 @@ def test_stale_already_activated_proposal_cannot_be_ratified_again() -> None:
         proposal, capability_proof=_real_capability(), operator_id="operator:abc"
     )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
-    activated, _v2 = activate_amendment(proposal, previous_snapshot=v1)
+    activated, _v2 = activate_amendment(
+        proposal, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+    )
     with pytest.raises(AmendmentError, match="cannot ratify"):
         ratify_amendment(
             activated, capability_proof=_real_capability(), operator_id="operator:abc"
@@ -157,7 +162,9 @@ def test_human_ratification_creates_new_version() -> None:
         proposal, capability_proof=_real_capability(), operator_id="operator:abc"
     )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
-    activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
+    activated, v2 = activate_amendment(
+        proposal, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+    )
     assert activated.status == "activated"
     assert v2.version == v1.version + 1
     assert v2.constitution_id == v1.constitution_id
@@ -170,7 +177,9 @@ def test_rollback_restores_prior_version_exactly() -> None:
         proposal, capability_proof=_real_capability(), operator_id="operator:abc"
     )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
-    activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
+    activated, v2 = activate_amendment(
+        proposal, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+    )
     rolled_back, restored = rollback_amendment(
         activated, current_snapshot=v2, previous_snapshot=v1
     )
@@ -184,7 +193,9 @@ def test_rollback_refuses_a_non_predecessor_snapshot() -> None:
         proposal, capability_proof=_real_capability(), operator_id="operator:abc"
     )
     v1 = build_constitution_snapshot(ratified_by_operator_id="operator:abc")
-    activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
+    activated, v2 = activate_amendment(
+        proposal, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+    )
     unrelated = build_constitution_snapshot(ratified_by_operator_id="operator:xyz")
     with pytest.raises(
         AmendmentError,
@@ -254,7 +265,9 @@ def test_old_mission_stays_on_old_constitution_after_activation() -> None:
     proposal = ratify_amendment(
         proposal, capability_proof=_real_capability(), operator_id="operator:abc"
     )
-    _activated, v2 = activate_amendment(proposal, previous_snapshot=v1)
+    _activated, v2 = activate_amendment(
+        proposal, previous_snapshot=v1, emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     # The constitution moved on to v2, but the mission's own frozen
     # contract -- and its digest -- never changed.

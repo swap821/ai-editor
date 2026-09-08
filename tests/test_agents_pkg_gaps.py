@@ -49,6 +49,7 @@ from aios.core.verification_strength import VerificationStrength
 from aios.core.verifier import Verifier, VerifierResult
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------- #
@@ -102,13 +103,19 @@ class FakePlannerLLM:
 
 def _executor() -> Executor:
     return Executor(
-        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
 def _passing_executor() -> Executor:
     return Executor(
-        runner=PassRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=PassRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -563,7 +570,10 @@ class TestCerebellumApprovedReplay:
 
         runner = RecordingRunner()
         ex = Executor(
-            runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+            runner=runner,
+            rate_limiter=RateLimiter(),
+            audit_log=lambda *a, **k: None,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         chat = ScriptedChat([{"role": "assistant", "content": "could not do that"}])
 
@@ -646,7 +656,10 @@ class TestCerebellumApprovedReplay:
 
         runner = RecordingRunner()
         ex = Executor(
-            runner=runner, rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+            runner=runner,
+            rate_limiter=RateLimiter(),
+            audit_log=lambda *a, **k: None,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
         chat = ScriptedChat([{"role": "assistant", "content": "could not verify that"}])
 

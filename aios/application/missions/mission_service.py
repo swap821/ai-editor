@@ -16,6 +16,9 @@ from aios.domain.missions.mission_repository import (
 )
 from aios.domain.missions.mission_state import MissionState
 from aios.application.workspaces import StagedWorkspaceManager
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
 
 
 class MissionAuthority:
@@ -239,8 +242,16 @@ class MissionAuthority:
             self.workspace_manager.cleanup_for_mission(mission_id, retain=retain)
 
     def _assert_operational(self) -> None:
-        if self.emergency_stop is not None:
-            self.emergency_stop.assert_operational()
+        """Refuse to create or start a mission that nothing could halt.
+
+        Reached from `create()` and `start_execution()`. Four PRODUCTION sites
+        built this service with no stop at all -- deps.py twice, and the council
+        approve/reject routes twice -- and the old guard made that invisible by
+        skipping itself. Those are wired in the same commit as this conversion.
+        """
+        EmergencyStopHardWiringAuthority.require_wired(
+            self.emergency_stop, boundary="mission-service"
+        )
 
     def export(self, mission_id: str) -> Path:
         """Write the current mission record to disk as a non-authoritative export."""

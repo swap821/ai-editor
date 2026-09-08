@@ -14,6 +14,7 @@ from aios.domain.executor import ExecutorJob, ResourceLimits, ExecutorCapability
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.missions.mission_state import MissionState
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _make_mock_repair_context():
@@ -453,7 +454,11 @@ def test_promotion_durability_immutable(tmp_path):
     from aios.application.promotion.authority import PromotionAuthority
 
     db_path = tmp_path / "promotion.db"
-    auth = PromotionAuthority(workspace_manager=MagicMock(), database_path=db_path)
+    auth = PromotionAuthority(
+        workspace_manager=MagicMock(),
+        database_path=db_path,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
     # Verify table schema has unique promotion records and insert-only persistence
     assert hasattr(auth, "get_authoritative_terminal_promotion") or hasattr(

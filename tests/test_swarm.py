@@ -17,6 +17,7 @@ from aios.agents.tool_agent import ToolAgent
 from aios.core.executor import Executor
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class ScriptedChat:
@@ -36,7 +37,10 @@ class FakeRunner:
 
 def _executor():
     return Executor(
-        runner=FakeRunner(), rate_limiter=RateLimiter(), audit_log=lambda *a, **k: None
+        runner=FakeRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 

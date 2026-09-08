@@ -21,6 +21,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
 )
 from aios.application.missions.mission_service import MissionService
 from aios.application.workspaces import StagedWorkspaceManager
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture
@@ -35,7 +36,7 @@ def repository(tmp_db: Path) -> SqliteMissionRepository:
 
 @pytest.fixture
 def service(repository: SqliteMissionRepository) -> MissionService:
-    return MissionService(repository)
+    return MissionService(repository, emergency_stop=UNGOVERNED_FIXTURE)
 
 
 def _contract(**overrides: object) -> MissionContract:
@@ -222,7 +223,9 @@ def test_service_cleans_staged_workspace_after_terminal_completion(
     (project / "app.py").write_text("print('ok')\n", encoding="utf-8")
     manager = StagedWorkspaceManager(tmp_path / "staged", enrolled_roots=(project,))
     repository = SqliteMissionRepository(tmp_path / "missions.db")
-    service = MissionService(repository, workspace_manager=manager)
+    service = MissionService(
+        repository, workspace_manager=manager, emergency_stop=UNGOVERNED_FIXTURE
+    )
     contract = _contract(workspace_root=str(project))
 
     service.create(contract)

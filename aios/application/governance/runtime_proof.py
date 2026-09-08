@@ -76,6 +76,7 @@ from aios.application.executor.service import (
 from aios.domain.executor import ExecutorCapability, ExecutorJob, ResourceLimits
 from aios.interfaces.http import edge_security
 from aios.policy.kernel import PolicyKernel
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 REQUIRED_PROOFS = (
@@ -421,7 +422,13 @@ def _probe_mutation_authority(repo: Path, scratch: Path) -> str:
 
 def _probe_mission(scratch: Path) -> str:
     repository = SqliteMissionRepository(scratch / "missions.db")
-    service = MissionService(repository, export_dir=scratch / "exports")
+    # Disposable proof probe against a scratch store, per this module's
+    # stated design. Declared rather than omitted: the widened wiring rule
+    # found all three of these on its first run, and an explicit sentinel
+    # is a decision in the diff where a bare omission was invisible.
+    service = MissionService(
+        repository, export_dir=scratch / "exports", emergency_stop=UNGOVERNED_FIXTURE
+    )
     contract = MissionContract(
         mission_id="r14-mission",
         operator_id="operator:proof",
@@ -660,7 +667,9 @@ def _probe_staging_and_promotion(scratch: Path) -> str:
         mission_id="r14-promote",
         action_id="action-promote",
     )
-    promoted = PromotionAuthority(manager, verification).promote(
+    promoted = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         request,
         create_checkpoint=lambda _: "checkpoint-promote",
         apply_staged_diff=lambda _: manager.apply(lease),
@@ -691,7 +700,9 @@ def _probe_staging_and_promotion(scratch: Path) -> str:
         (project / "app.txt").write_text("after\n", encoding="utf-8")
         return True
 
-    rolled_back = PromotionAuthority(manager, verification).promote(
+    rolled_back = PromotionAuthority(
+        manager, verification, emergency_stop=UNGOVERNED_FIXTURE
+    ).promote(
         rollback_request,
         create_checkpoint=lambda _: "checkpoint-rollback",
         apply_staged_diff=lambda _: manager.apply(rollback_lease),

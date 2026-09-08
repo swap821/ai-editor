@@ -23,6 +23,7 @@ from aios.core.executor import (
     _parse_argv,
 )
 from aios.security.gateway import RateLimiter
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 class RecordingRunner:
@@ -54,6 +55,7 @@ def _executor(runner=None):
         runner=runner or RecordingRunner(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -230,6 +232,7 @@ def test_execute_approved_uses_isolated_runner_when_configured() -> None:
         approved_runner=isolated,
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).execute_approved("python -m pytest test_greeter.py -q")
 
     assert result.status == "OK"
@@ -248,6 +251,7 @@ def test_execute_approved_uses_kernel_policy_for_isolation_flag(monkeypatch) -> 
         approved_runner=isolated,
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).execute_approved("mkdir training_ground/build")
 
     assert result.status == "OK"
@@ -287,6 +291,7 @@ def test_executor_refuses_oversized_command_without_auditing_payload(
         runner=RecordingRunner(),
         rate_limiter=RateLimiter(),
         audit_log=audit,
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).execute("echo " + "x" * 100)
 
     assert result.status == "BLOCKED"
@@ -479,6 +484,7 @@ def test_container_default_routes_approved_command_through_container_not_host(
         approved_runner=approved_runner_from_config(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result = executor.execute_approved("mkdir training_ground/build")
@@ -512,6 +518,7 @@ def test_container_backend_fails_closed_when_runner_raises(monkeypatch) -> None:
         approved_runner=approved_runner_from_config(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     result = executor.execute_approved("mkdir training_ground/build")
@@ -529,6 +536,7 @@ def test_invalid_approved_execution_backend_fails_closed(monkeypatch) -> None:
         approved_runner=approved_runner_from_config(),
         rate_limiter=RateLimiter(),
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     ).execute_approved("python -m pytest test_greeter.py -q")
 
     assert result.status == "ERROR"
@@ -541,6 +549,7 @@ def test_human_reauthorisation_resets_sensitive_action_budget() -> None:
         runner=RecordingRunner(),
         rate_limiter=limiter,
         audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert (
         executor.execute("pip install flask", session_id="s1").status
@@ -583,7 +592,11 @@ def test_approved_bare_mkdir_no_longer_escapes_the_sandbox(
 
     monkeypatch.setattr(scope_lock._SCOPE_LOCK, "_scope_roots", [scope_root])
 
-    executor = Executor(rate_limiter=RateLimiter(), audit_log=RecordingAudit())
+    executor = Executor(
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     result = executor.execute_approved("mkdir probe_dir")
 
     assert result.status == "BLOCKED"
@@ -617,7 +630,12 @@ def test_shell_composition_is_blocked_and_never_runs(command: str) -> None:
 
 def test_every_outcome_is_audited() -> None:
     audit = RecordingAudit()
-    ex = Executor(runner=RecordingRunner(), rate_limiter=RateLimiter(), audit_log=audit)
+    ex = Executor(
+        runner=RecordingRunner(),
+        rate_limiter=RateLimiter(),
+        audit_log=audit,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
     ex.execute("rm -rf /")
     ex.execute("echo hi")
     assert len(audit.entries) == 2
