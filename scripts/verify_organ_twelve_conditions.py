@@ -1123,9 +1123,27 @@ def _staleness_failures(record, root: Path) -> list[tuple[str, str]]:
     drift = _entrypoint_drift(record, root, sha)
     if not drift:
         return []
+    from aios.application.governance.organ_ledger import FROZEN_SECURITY_ORGAN_IDS
+
     shown = ", ".join(drift[:4]) + (
         f" (+{len(drift) - 4} more)" if len(drift) > 4 else ""
     )
+    # The frozen security spine is signed by the Human Sovereign, and that
+    # signature covers `status` -- see scripts/spine_release_attest.py, "the
+    # digest covers `status`". An agent therefore cannot demote these rows
+    # without invalidating his attestation, and must not try. The staleness is
+    # still REPORTED, because it is true; it is simply his to clear.
+    if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+        return [
+            (
+                "C12",
+                f"attestation is STALE: {len(drift)} of this FROZEN-SPINE organ's "
+                f"production_entrypoints changed after {sha[:12]} -- {shown}. "
+                "Only the Human Sovereign can clear this: re-run "
+                "scripts/spine_release_attest.py at a current commit. An agent "
+                "must not demote a signed row -- the signature covers status.",
+            )
+        ]
     return [
         (
             "C12",
