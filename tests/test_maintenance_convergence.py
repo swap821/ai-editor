@@ -125,6 +125,7 @@ def _service(
         ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     worker.workspace_manager = workspace
     return service, project

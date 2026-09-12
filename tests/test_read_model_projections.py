@@ -30,6 +30,7 @@ from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.domain.governance.contracts import EmergencyStopState
 from aios.domain.models.contracts import ProviderHealthSnapshot
 from aios.domain.read_models.contracts import ApprovalProjection, MetricStatus
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 # --------------------------------------------------------------------------- #
@@ -292,7 +293,9 @@ def _binding(**overrides) -> CapabilityBinding:
 
 
 def test_capability_approval_projection_measures_real_binding_fields(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding()
     authority.issue(binding)
     capability = authority.list_pending()[0]
@@ -313,7 +316,9 @@ def test_capability_approval_projection_measures_real_binding_fields(tmp_path):
 
 
 def test_capability_approval_projection_mission_id_unavailable_when_none(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     authority.issue(_binding(mission_id=None))
     capability = authority.list_pending()[0]
 
@@ -323,7 +328,9 @@ def test_capability_approval_projection_mission_id_unavailable_when_none(tmp_pat
 
 
 def test_pending_approvals_projects_every_real_pending_capability(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     authority.issue(_binding(action_type="command", route="/api/v1/execute"))
     authority.issue(
         _binding(
@@ -340,7 +347,9 @@ def test_pending_approvals_projects_every_real_pending_capability(tmp_path):
 
 
 def test_pending_approvals_empty_when_nothing_pending(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     assert project_pending_approvals(authority) == ()
 
 

@@ -14,6 +14,7 @@ from aios.domain.learning.trajectory_repository import (
     TrajectoryRepository,
 )
 from aios.domain.evidence import VerificationPlanV1
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _utc_now() -> str:
@@ -38,7 +39,7 @@ def consume_real_capability_proof(
     from aios.application.capabilities.authority import CapabilityAuthority
     from aios.domain.capabilities.contracts import CapabilityBinding
 
-    authority = CapabilityAuthority(db_path=db_path)
+    authority = CapabilityAuthority(db_path=db_path, emergency_stop=UNGOVERNED_FIXTURE)
     binding = CapabilityBinding(
         operator_id=operator_id,
         device_id="device-1",

@@ -16,6 +16,7 @@ from aios.domain.executor import ExecutorCapability, ExecutorJob, ResourceLimits
 from aios.domain.learning.repository import SkillRecord
 from aios.domain.local_workforce.contracts import LocalJobProfile, LocalWorkerModel
 from tests.source_rules import executable_source
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def test_red_1_executor_service_cannot_run_registered_repair(tmp_path, monkeypatch):
@@ -191,6 +192,7 @@ def test_red_5_granite_selection_checks_wrong_health_field():
         local_workforce_service=mock_local_workforce,
         reuse_policy=lambda s, c: True,
         verification_plan_validator=lambda s: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     directive = service.attempt_local_reuse(

@@ -181,6 +181,7 @@ def test_capture_is_structured_durable_and_derived_from_authoritative_mission(
         mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=trajectories,
         verification_authority=authority,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     verification = _authoritative_verification(authority)
@@ -256,6 +257,7 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
         mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=skill_repo,
         verification_authority=authority,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     trajectory = _capture(service, source, (_authoritative_verification(authority),))
     candidate = service.create_skill_candidate(trajectory.trajectory_id, _candidate())
@@ -274,6 +276,7 @@ def test_activation_requires_external_human_authority_and_reuse_creates_mission(
         activation_authorizer=lambda *_args: True,
         verification_plan_validator=lambda *_args: True,
         reuse_policy=lambda *_args: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     active = authorized_service.activate_skill(
         _activation_auth(candidate.skill_id, candidate.version)
@@ -334,6 +337,7 @@ def _activated_skill_for_clerk_advisory_test(
         mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=trajectory_repo,
         verification_authority=authority,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     trajectory = _capture(
         capture_service, source, (_authoritative_verification(authority),)
@@ -347,6 +351,7 @@ def _activated_skill_for_clerk_advisory_test(
         activation_authorizer=lambda *_args: True,
         verification_plan_validator=lambda *_args: True,
         reuse_policy=lambda *_args: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     active = authorized_service.activate_skill(
         _activation_auth(candidate.skill_id, candidate.version)
@@ -396,6 +401,7 @@ def test_clerk_advisory_incomplete_result_routes_through_apply_reuse_outcome(
         verification_plan_validator=lambda *_args: True,
         reuse_policy=lambda *_args: True,
         local_workforce_service=mock_local_workforce,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     directive = service_with_clerk.attempt_local_reuse(
@@ -458,6 +464,7 @@ def test_clerk_advisory_declined_result_routes_through_apply_reuse_outcome(
         verification_plan_validator=lambda *_args: True,
         reuse_policy=lambda *_args: True,
         local_workforce_service=mock_local_workforce,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     directive = service_with_clerk.attempt_local_reuse(
@@ -489,6 +496,7 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
         mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
         trajectory_repository=TrajectoryRepository(learning_db),
         verification_authority=(authority := VerificationAuthority()),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     skill = SkillRecord(
         skill_id="skill-outcome",
@@ -602,6 +610,7 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
         trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
         verification_plan_validator=lambda *_args: True,
         reuse_policy=lambda *_args: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     service.skill_repository.save(
         SkillRecord(

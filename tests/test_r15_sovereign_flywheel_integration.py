@@ -254,6 +254,7 @@ def test_end_to_end_sovereign_maintenance_flywheel(
         promotion_authority=pa,
         workspace_manager=wm,
         lifecycle_engine=MaintenanceLifecycleEngine(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # 1. Bounded Scan
@@ -372,6 +373,7 @@ def test_human_skill_activation_lifecycle(tmp_path: Path) -> None:
         skill_repository=skill_repo,
         verification_authority=va,
         promotion_authority=pa,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # Save a candidate skill directly into repository

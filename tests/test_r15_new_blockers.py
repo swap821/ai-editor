@@ -158,6 +158,7 @@ class TestBlocker1ActivationSignature:
             trajectory_repository=MagicMock(),
             skill_repository=mock_repo,
             activation_authorizer=mock_authorizer,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
         from aios.domain.capabilities.contracts import ConsumedCapabilityProof
@@ -584,6 +585,7 @@ class TestBlocker8NoGraniteEscalates:
             local_workforce_service=mock_workforce,
             reuse_policy=lambda s, c: True,
             verification_plan_validator=lambda s: True,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
         directive = service.attempt_local_reuse(
@@ -638,6 +640,7 @@ class TestBlocker8NoGraniteEscalates:
             local_workforce_service=mock_workforce,
             reuse_policy=lambda s, c: True,
             verification_plan_validator=lambda s: True,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
         directive = service.attempt_local_reuse(
@@ -837,6 +840,7 @@ class TestBlocker10ReuseLineageMandatory:
             skill_repository=mock_skill_repo,
             verification_authority=mock_verif_auth,
             promotion_authority=mock_promo_auth,
+            emergency_stop=UNGOVERNED_FIXTURE,
         )
 
         with pytest.raises(TypeError):

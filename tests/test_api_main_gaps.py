@@ -571,12 +571,16 @@ def _test_capability(authority: CapabilityAuthority) -> tuple[str, CapabilityBin
 
 
 def test_has_any_approval_grant_empty(tmp_path) -> None:
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     assert _has_any_approval_grant(authority) is False
 
 
 def test_has_any_approval_grant_after_consume(tmp_path) -> None:
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     token, binding = _test_capability(authority)
     authority.consume(token, binding)
     assert _has_any_approval_grant(authority) is True

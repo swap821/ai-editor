@@ -13,6 +13,7 @@ from aios.domain.capabilities.digest import payload_digest, resource_digest
 from aios.domain.actions.envelope import ActionEnvelope, ActionType, Principal
 from aios.policy.kernel import PolicyKernel
 from aios.security.gateway import RateLimiter, Zone
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture
@@ -155,7 +156,9 @@ def test_broker_rollback_action_type_maps_to_rollback_approval(broker):
 
 
 def test_production_broker_issues_and_consumes_exact_capability(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     broker = ActionBroker(
         PolicyKernel(rate_limiter=RateLimiter(max_per_session=100)),
         capabilities=authority,
@@ -210,7 +213,9 @@ def test_production_broker_issues_and_consumes_exact_capability(tmp_path):
 def test_production_dependency_constructs_exact_broker(tmp_path, monkeypatch):
     from aios.api import deps
 
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities-provider.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities-provider.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     broker = deps.get_action_broker(
         PolicyKernel(rate_limiter=RateLimiter(max_per_session=100)), authority
     )
@@ -220,7 +225,9 @@ def test_production_dependency_constructs_exact_broker(tmp_path, monkeypatch):
 
 
 def test_production_broker_can_issue_capability_for_green_generate_surface(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities-generate.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities-generate.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     broker = ActionBroker(
         PolicyKernel(rate_limiter=RateLimiter(max_per_session=100)),
         capabilities=authority,

@@ -166,6 +166,7 @@ def foundry_env(
         ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     yield service, foundry, executor_service, workspace, bus, project

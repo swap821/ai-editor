@@ -132,6 +132,7 @@ def _make_mock_repair_context():
         promotion_authority=promotion_auth,
         workspace_manager=workspace_mgr,
         lifecycle_engine=lifecycle_engine,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     return service, executor_service, verification_auth, promotion_auth
@@ -514,6 +515,7 @@ def test_skill_activation_requires_capability():
         mission_service=MagicMock(),
         trajectory_repository=MagicMock(),
         skill_repository=skill_repo,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # Legacy loose activation interface must be gone; only

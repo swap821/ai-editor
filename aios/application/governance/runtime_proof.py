@@ -295,7 +295,9 @@ def _capability_binding(*, payload: dict[str, object]) -> CapabilityBinding:
 def _probe_capabilities(scratch: Path) -> str:
     payload = {"command": "echo proof"}
     binding = _capability_binding(payload=payload)
-    authority = CapabilityAuthority(db_path=scratch / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=scratch / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     verifier = CapabilityVerifier(authority)
     token = authority.issue(binding, action_payload=payload)
     verifier.verify(token, binding)
@@ -404,7 +406,9 @@ def _probe_mutation_authority(repo: Path, scratch: Path) -> str:
 
     broker = ActionBroker(
         kernel,
-        capabilities=CapabilityAuthority(db_path=scratch / "unknown-route.db"),
+        capabilities=CapabilityAuthority(
+            db_path=scratch / "unknown-route.db", emergency_stop=UNGOVERNED_FIXTURE
+        ),
     )
     envelope = ActionEnvelope(
         route="/api/v1/unknown-runtime-proof-route",

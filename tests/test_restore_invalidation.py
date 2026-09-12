@@ -23,6 +23,7 @@ from aios.operations.recovery import (
     invalidate_stale_authority_after_restore,
     restore_backup,
 )
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _seed_operator(identity_path: Path, *, operator_id: str = "op-1") -> int:
@@ -147,6 +148,7 @@ def test_restore_backup_automatically_invalidates_stale_authority(
         bundle=bundle,
         data_dir=data,
         safety_backup=tmp_path / "safety.tar.gz",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     restored_generation = IdentityStore(identity_path).current_session_generation(
@@ -204,6 +206,7 @@ def test_live_dr_drill_a_pre_snapshot_session_is_refused_after_crash_and_restart
         bundle=bundle,
         data_dir=data,
         safety_backup=tmp_path / "safety.tar.gz",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # The restart: a brand-new IdentityService, no shared in-memory state

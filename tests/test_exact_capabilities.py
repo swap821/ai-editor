@@ -12,6 +12,7 @@ from aios.application.capabilities.verifier import CapabilityVerifier
 from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest
 from aios.domain.governance.constitution import build_constitution_snapshot
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _constitution_authority(tmp_path, operator_id: str = "operator:one"):
@@ -64,7 +65,9 @@ def _binding(**overrides) -> CapabilityBinding:
 
 
 def test_capability_is_opaque_exact_and_single_use(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding()
 
     token = authority.issue(binding)
@@ -81,7 +84,10 @@ def test_list_pending_excludes_consumed_revoked_and_expired(tmp_path):
     approval-decision surface."""
     now = [1000.0]
     authority = CapabilityAuthority(
-        db_path=tmp_path / "capabilities.db", ttl_seconds=50, clock=lambda: now[0]
+        db_path=tmp_path / "capabilities.db",
+        ttl_seconds=50,
+        clock=lambda: now[0],
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     still_pending = _binding(action_type="command", route="/api/v1/execute")
     to_consume = _binding(
@@ -120,7 +126,9 @@ def test_list_pending_excludes_consumed_revoked_and_expired(tmp_path):
 
 
 def test_list_pending_never_exposes_a_usable_bearer_token(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     token = authority.issue(_binding())
 
     pending = authority.list_pending()
@@ -145,7 +153,9 @@ def test_list_pending_never_exposes_a_usable_bearer_token(tmp_path):
     ],
 )
 def test_same_token_rejects_every_changed_binding_field(tmp_path, field):
-    authority = CapabilityAuthority(db_path=tmp_path / f"{field}.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / f"{field}.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding(mission_id="mission:one", contract_digest="contract:one")
     token = authority.issue(binding)
     changed = replace(binding, **{field: "changed-value"})
@@ -155,7 +165,9 @@ def test_same_token_rejects_every_changed_binding_field(tmp_path, field):
 
 
 def test_same_token_cannot_cross_operator_or_session(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "identity.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "identity.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding()
     token = authority.issue(binding)
 
@@ -168,7 +180,10 @@ def test_same_token_cannot_cross_operator_or_session(tmp_path):
 def test_expired_and_revoked_capabilities_fail_closed(tmp_path):
     now = {"value": 100.0}
     authority = CapabilityAuthority(
-        db_path=tmp_path / "lifecycle.db", clock=lambda: now["value"], ttl_seconds=10
+        db_path=tmp_path / "lifecycle.db",
+        clock=lambda: now["value"],
+        ttl_seconds=10,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     expired = authority.issue(_binding())
     now["value"] = 111.0
@@ -185,7 +200,9 @@ def test_expired_and_revoked_capabilities_fail_closed(tmp_path):
 
 
 def test_policy_version_and_wildcard_scope_fail_closed(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "policy.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "policy.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding()
     token = authority.issue(binding)
     with pytest.raises(CapabilityError):
@@ -195,7 +212,9 @@ def test_policy_version_and_wildcard_scope_fail_closed(tmp_path):
 
 
 def test_two_consumers_race_for_one_capability(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "race.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "race.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding()
     token = authority.issue(binding)
 
@@ -212,7 +231,9 @@ def test_two_consumers_race_for_one_capability(tmp_path):
 
 
 def test_verifier_is_non_consuming_until_explicit_consume(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "verifier.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "verifier.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     verifier = CapabilityVerifier(authority)
     binding = _binding()
     token = authority.issue(binding)
@@ -225,7 +246,9 @@ def test_verifier_is_non_consuming_until_explicit_consume(tmp_path):
 
 
 def test_resource_metadata_entropy_does_not_block_exact_capability(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "resource-path.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "resource-path.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     payload = {
         "path": (
             "/home/runner/work/ai-editor/ai-editor/.aios/tmp/"
@@ -248,7 +271,9 @@ def test_resource_metadata_entropy_does_not_block_exact_capability(tmp_path):
 
 def test_constitution_digest_none_is_unaffected(tmp_path):
     """Organ 24/25: bindings that never opted into digest-tracking keep working."""
-    authority = CapabilityAuthority(db_path=tmp_path / "digest-none.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "digest-none.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding()
     assert binding.constitution_digest is None
 
@@ -260,7 +285,9 @@ def test_constitution_digest_none_is_unaffected(tmp_path):
 def test_constitution_digest_match_is_accepted(tmp_path):
     constitution = _constitution_authority(tmp_path)
     authority = CapabilityAuthority(
-        db_path=tmp_path / "digest-match.db", constitution_authority=constitution
+        db_path=tmp_path / "digest-match.db",
+        constitution_authority=constitution,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     current_digest = constitution.get_active_snapshot().snapshot_digest
     binding = _binding(constitution_digest=current_digest)
@@ -281,7 +308,9 @@ def test_a_real_activated_amendment_invalidates_an_outstanding_capability(tmp_pa
     """
     constitution = _constitution_authority(tmp_path)
     authority = CapabilityAuthority(
-        db_path=tmp_path / "digest-amended.db", constitution_authority=constitution
+        db_path=tmp_path / "digest-amended.db",
+        constitution_authority=constitution,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     v1 = constitution.get_active_snapshot()
     binding = _binding(constitution_digest=v1.snapshot_digest)
@@ -302,7 +331,9 @@ def test_constitution_digest_mismatch_is_rejected_outright(tmp_path):
     been revoked, or been tampered with."""
     constitution = _constitution_authority(tmp_path)
     authority = CapabilityAuthority(
-        db_path=tmp_path / "digest-mismatch.db", constitution_authority=constitution
+        db_path=tmp_path / "digest-mismatch.db",
+        constitution_authority=constitution,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     binding = _binding(constitution_digest="f" * 64)
 
@@ -314,7 +345,9 @@ def test_constitution_digest_mismatch_is_rejected_outright(tmp_path):
 def test_a_constitution_bound_capability_needs_a_wired_authority(tmp_path):
     """Fail closed: without an authority there is nothing to verify against,
     so the capability must be refused rather than waved through."""
-    authority = CapabilityAuthority(db_path=tmp_path / "digest-unwired.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "digest-unwired.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     binding = _binding(constitution_digest="f" * 64)
 
     token = authority.issue(binding)
@@ -331,7 +364,9 @@ def test_constitution_digest_is_excluded_from_the_replay_equality_check(tmp_path
     and this test's own stale-constitution check would be unreachable."""
     constitution = _constitution_authority(tmp_path)
     authority = CapabilityAuthority(
-        db_path=tmp_path / "digest-replay.db", constitution_authority=constitution
+        db_path=tmp_path / "digest-replay.db",
+        constitution_authority=constitution,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     issued_binding = _binding(constitution_digest="a" * 64)
     token = authority.issue(issued_binding)
@@ -354,19 +389,25 @@ def test_constitution_digest_survives_the_real_store_round_trip(tmp_path):
     binding = _binding(constitution_digest=current_digest)
 
     issuing_authority = CapabilityAuthority(
-        db_path=db_path, constitution_authority=constitution
+        db_path=db_path,
+        constitution_authority=constitution,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     token = issuing_authority.issue(binding)
 
     consuming_authority = CapabilityAuthority(
-        db_path=db_path, constitution_authority=constitution
+        db_path=db_path,
+        constitution_authority=constitution,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     proof = consuming_authority.consume(token, binding)
     assert proof.constitution_digest == current_digest
 
 
 def test_resource_metadata_named_secret_is_still_rejected(tmp_path):
-    authority = CapabilityAuthority(db_path=tmp_path / "resource-secret.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "resource-secret.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     payload = {"path": "/tmp/api_key=sk-12345678901234567890123456789012"}
     binding = _binding(
         route="/api/v1/files/edit",
@@ -409,6 +450,7 @@ def _fresh_auth_authority(tmp_path, **kwargs) -> CapabilityAuthority:
         db_path=tmp_path / "capabilities.db",
         authentication_event_lookup=_AUTH_EVENTS.get,
         **kwargs,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
 
@@ -489,7 +531,9 @@ def test_freshness_that_cannot_be_verified_is_refused(tmp_path):
     This is exactly where a mis-wired singleton would otherwise restore the
     behaviour being fixed -- silently, and only for the high-risk class.
     """
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     token = authority.issue(_fetch_binding(), action_payload=_FETCH)
 
     with pytest.raises(CapabilityError) as refusal:

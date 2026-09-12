@@ -32,6 +32,7 @@ from aios.memory.development import DevelopmentTracker
 from aios.security import audit_logger as audit_mod
 from aios.security.audit_logger import init_audit_db, log_action
 from aios.security.gateway import Zone
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture(autouse=True)
@@ -45,7 +46,8 @@ def _reset_collector():
 def client(tmp_path: Path, monkeypatch) -> TestClient:
     """TestClient with isolated approval/memory/audit databases."""
     app.dependency_overrides[get_capability_authority] = lambda: CapabilityAuthority(
-        db_path=tmp_path / "capabilities.db"
+        db_path=tmp_path / "capabilities.db",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     app.dependency_overrides[get_development_tracker] = lambda: DevelopmentTracker(
         db_path=tmp_path / "memory.db"
@@ -89,7 +91,9 @@ def test_metrics_reflect_approval_and_autonomy_counts(
     client: TestClient, tmp_path: Path
 ) -> None:
     # One exact capability issued and consumed.
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     payload = {"path": "training_ground/a.py"}
     binding = CapabilityBinding(
         operator_id="operator-1",

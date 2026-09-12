@@ -33,6 +33,7 @@ from aios.application.identity.service import IdentityService
 from aios.application.read_models import projection as projection_module
 from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
 from tests.cortex_event_helpers import append_event
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 client = TestClient(app, client=("127.0.0.1", 12345))
 
@@ -447,7 +448,9 @@ def test_governance_projection_approvals_reflects_a_real_pending_capability(
         session_db_path=tmp_path / "sessions.db",
     )
     stop = EmergencyStopController(tmp_path / "stop.db", hooks=_no_op_hooks())
-    authority = CapabilityAuthority(db_path=tmp_path / "capabilities.db")
+    authority = CapabilityAuthority(
+        db_path=tmp_path / "capabilities.db", emergency_stop=UNGOVERNED_FIXTURE
+    )
     authority.issue(
         CapabilityBinding(
             operator_id="operator:1",

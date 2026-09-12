@@ -113,6 +113,7 @@ from aios.domain.governance.learning import (
 from aios.domain.intelligence.contracts import HiringRequest
 from aios.domain.intelligence.privacy import PrivacyBroker
 from aios.domain.memory.human_representation import CorrectionRecordV1
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def _proposal_text(proposal: ConstitutionalAmendmentProposalV1) -> str:
@@ -503,7 +504,10 @@ def _probe_capability_lifecycle() -> dict[str, bool]:
     an unknown token must be refused, and a capability already consumed
     once must refuse a second (replay) consumption."""
     with tempfile.TemporaryDirectory() as tmp:
-        authority = CapabilityAuthority(db_path=Path(tmp) / "probe_capabilities.db")
+        authority = CapabilityAuthority(
+            db_path=Path(tmp) / "probe_capabilities.db",
+            emergency_stop=UNGOVERNED_FIXTURE,
+        )
         binding = CapabilityBinding(
             operator_id="organ-46-probe-operator",
             device_id="organ-46-probe-device",
