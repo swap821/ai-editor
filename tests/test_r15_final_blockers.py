@@ -149,6 +149,7 @@ def test_red_1_activate_skill_loads_skill_id_none(tmp_path):
         mission_service=mission_service,
         trajectory_repository=traj_repo,
         skill_repository=skill_repo,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     proof = _make_proof(skill_id="skill-test", version=1)
@@ -174,6 +175,7 @@ def test_red_1_legacy_loose_activation_is_removed(tmp_path):
         mission_service=mission_service,
         trajectory_repository=traj_repo,
         skill_repository=skill_repo,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # Loose activation calling style must raise TypeError or SkillActivationDenied
@@ -194,7 +196,9 @@ def test_red_1_legacy_loose_activation_is_removed(tmp_path):
 def test_red_2_capability_authority_returns_consumed_capability_proof(tmp_path):
     """Proves CapabilityAuthority.consume() returns an authority-produced ConsumedCapabilityProof."""
     db_file = tmp_path / "caps.db"
-    auth = CapabilityAuthority(db_path=db_file, ttl_seconds=120.0)
+    auth = CapabilityAuthority(
+        db_path=db_file, ttl_seconds=120.0, emergency_stop=UNGOVERNED_FIXTURE
+    )
 
     binding = CapabilityBinding(
         operator_id="op-1",
@@ -690,6 +694,7 @@ def _learning_reuse_fixture(tmp_path, *, reuse_db=None):
         skill_repository=skill_repo,
         verification_authority=authority,
         reuse_outcome_repository=reuse_db,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     skill = SkillRecord(
         skill_id="skill-final",

@@ -65,6 +65,7 @@ def learning_env(tmp_path: Path):
         reuse_policy=lambda _skill, _ctx: True,
         verification_authority=verification_auth,
         minimum_confidence=0.8,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     return service, mission_service, verification_auth, db_path

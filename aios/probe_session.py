@@ -239,6 +239,25 @@ class ProbeSession:
         return reauth.status_code == 200
 
     # -- requests ----------------------------------------------------------
+    def get(
+        self, path: str, *, params: dict[str, Any] | None = None, timeout: int = 30
+    ):
+        """Read a protected projection with this session, refreshing once on 401."""
+
+        def _send():
+            return self.http.get(
+                f"{self.base}{path}",
+                params=params,
+                headers={**probe_headers(), "Host": API_HOST_HEADER},
+                timeout=timeout,
+            )
+
+        response = _send()
+        if response.status_code == 401 and self._reauthenticate():
+            response.close()
+            response = _send()
+        return response
+
     def post_stream(self, path: str, payload: dict[str, Any], timeout: int):
         """POST with the session, refreshing auth and replaying a challenge.
 

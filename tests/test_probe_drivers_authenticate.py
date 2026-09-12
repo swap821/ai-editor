@@ -41,6 +41,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 _DRIVERS = (
     "tools/endurance_tester.py",
     "tools/golden_mission_runner.py",
+    "tools/learning_loop_prover.py",
 )
 
 

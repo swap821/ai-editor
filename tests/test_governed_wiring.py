@@ -265,7 +265,12 @@ def _guard_census() -> dict[str, int]:
             if "emergency_stop is not None" in ln and ln.strip().startswith("if ")
         )
         relative = path.relative_to(REPO_ROOT).as_posix()
-        count -= _NOT_A_GUARD.get(relative, 0)
+        # Clamped at zero. `count` went NEGATIVE when the exempted line was
+        # removed, and `if count:` treats -1 as truthy -- so the census
+        # recorded -1, and `test_the_budget_is_not_stale` demanded the
+        # budget be lowered to -1. A legitimate refactor would have been
+        # blocked by a nonsense number.
+        count = max(0, count - _NOT_A_GUARD.get(relative, 0))
         if count:
             census[relative] = count
     return census
@@ -304,3 +309,237 @@ def test_the_budget_is_not_stale() -> None:
             f"{_OPTIONAL_GUARD_BUDGET}; lower it to {total} so the slack cannot "
             "absorb a new one"
         )
+
+
+# --------------------------------------------------------------------------- #
+# The AST census
+#
+# WHY A SECOND ONE. `_guard_census` above is a TEXT scan, and a text scan can
+# only refuse the exact spelling it was taught. Probed on 2026-09-08 with nine
+# ways of writing the same fail-open guard, it caught two:
+#
+#     if self.emergency_stop is not None:          CAUGHT
+#     if self.emergency_stop is not None and x:    CAUGHT
+#     if None is not self.emergency_stop:          evades
+#     if self.emergency_stop:                      evades
+#     if getattr(self, "emergency_stop", None):    evades
+#     stop = self.emergency_stop; if stop:         evades
+#     if (\n    self.emergency_stop is not None\n) evades
+#     ... if self.emergency_stop is not None else  evades
+#     if self.emergency_stop is None: return       evades
+#
+# Most of those are not adversarial. A local alias, an early return and a
+# wrapped condition are what someone writes by accident, which makes a ratchet
+# that misses them a ratchet in name only. This one works on the tree, so
+# spelling, line breaks and variable names do not matter.
+# --------------------------------------------------------------------------- #
+
+#: Names that refer to an emergency stop, however they are spelled.
+_STOP_NAMES = ("emergency_stop", "_emergency_stop")
+
+
+def _mentions_stop(node: ast.AST, aliases: set[str]) -> bool:
+    """Does this expression read an emergency stop, directly or via an alias?"""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Attribute) and child.attr in _STOP_NAMES:
+            return True
+        if isinstance(child, ast.Name) and (
+            child.id in _STOP_NAMES or child.id in aliases
+        ):
+            return True
+        # getattr(self, "emergency_stop", None) -- the absence is baked into the
+        # call, which is the most deniable spelling of all.
+        if isinstance(child, ast.Call) and getattr(child.func, "id", None) == "getattr":
+            for arg in child.args:
+                if isinstance(arg, ast.Constant) and arg.value in _STOP_NAMES:
+                    return True
+    return False
+
+
+def _checks_the_stop(node: ast.AST) -> bool:
+    """Does this block actually perform the stop check?"""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call):
+            name = getattr(child.func, "attr", None) or getattr(child.func, "id", None)
+            if name in ("assert_operational", "require_stop_wired", "require_wired"):
+                return True
+    return False
+
+
+def _stop_aliases(fn: ast.AST) -> set[str]:
+    """Locals bound to an emergency stop: `stop = self.emergency_stop`."""
+    aliases: set[str] = set()
+    for node in ast.walk(fn):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if value is None or not _mentions_stop(value, set()):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases.add(target.id)
+    return aliases
+
+
+def _fail_open_guards(source: str) -> list[tuple[int, str]]:
+    """Every conditional that makes the stop check SKIPPABLE.
+
+    Two shapes, both of which mean "if no latch is wired, do not check":
+
+    * a conditional on the stop's presence whose body contains the check and
+      which has no `else` -- so an absent latch falls straight through;
+    * an early `return` when the stop is absent, which skips whatever check
+      follows. A `raise` there is fail-CLOSED and is deliberately not flagged.
+    """
+    try:
+        tree = ast.parse(source)
+    except (
+        SyntaxError
+    ):  # pragma: no cover - a broken source file fails louder elsewhere
+        return []
+
+    # Deduplicated by line: `ast.walk` reaches the same `If` once per enclosing
+    # scope (module AND function), so a single guard was counted twice and the
+    # budget read 2 for one site.
+    found: dict[int, str] = {}
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
+            continue
+        aliases = _stop_aliases(fn)
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.If):
+                continue
+            if not _mentions_stop(node.test, aliases):
+                continue
+
+            if _checks_the_stop(node) and not node.orelse:
+                found[node.lineno] = (
+                    "stop check sits inside a presence test with no else"
+                )
+                continue
+
+            # `if stop is None: return` -- absence skips whatever follows.
+            #
+            # Only a BARE return (or pass) counts. `return False` and
+            # `return None` are how the fail-CLOSED helpers themselves answer
+            # -- `stop_permits_autonomy` denies with False, `require_stop_wired`
+            # acknowledges the sentinel with None -- and an earlier draft of
+            # this rule flagged all three canonical helpers as defects. A rule
+            # that cries wolf on the fix is worse than no rule.
+            skips = any(
+                (isinstance(stmt, ast.Return) and stmt.value is None)
+                or isinstance(stmt, (ast.Pass, ast.Continue))
+                for stmt in node.body
+            )
+            tests_absence = any(
+                isinstance(cmp_node, ast.Compare)
+                and any(isinstance(op, ast.Is) for op in cmp_node.ops)
+                and any(
+                    isinstance(c, ast.Constant) and c.value is None
+                    for c in cmp_node.comparators
+                )
+                for cmp_node in ast.walk(node.test)
+            )
+            if skips and tests_absence:
+                found[node.lineno] = "absent stop returns early, skipping the check"
+    return sorted(found.items())
+
+
+#: The one fail-open site the AST census knows about and has NOT converted.
+#:
+#: `EmergencyStopHardWiringAuthority.assert_operational` is lenient BY DESIGN --
+#: `if emergency_stop is None: return` -- and 13 runtime boundaries call it:
+#: aios/api/main.py x2, api/routes/actions.py, api/routes/council.py x3,
+#: application/governance/emergency_stop.py, application/learning/service.py,
+#: application/maintenance/service.py, operations/recovery.py,
+#: runtime/intelligence_gateway.py, and twice inside authority.py itself.
+#:
+#: So the guard SHAPE reached zero while the PROPERTY did not: at those
+#: thirteen boundaries an absent latch is still no question asked. The 2026-09-08
+#: conversion fixed the `if X is not None:` spelling and never saw this one,
+#: because the text census could not.
+#:
+#: Recorded as a counted budget rather than an exemption so it cannot quietly
+#: grow, and so the number is readable by anyone who asks whether the job is
+#: done. Its stated reason -- "hundreds of unit fixtures construct governed
+#: objects without a latch" -- has largely expired now that ~220 of them declare
+#: UNGOVERNED_FIXTURE explicitly.
+#: CONVERTED 2026-09-08, same day it was found. `assert_operational` now
+#: delegates to `require_stop_wired`, so all thirteen boundaries refuse an
+#: absent latch and the three entrances to the rule are one implementation.
+#:
+#: ZERO in BOTH censuses now -- the shape and the property.
+_LENIENT_FAIL_OPEN_BUDGET = 0
+
+
+def _fail_open_census() -> dict[str, list[tuple[int, str]]]:
+    census: dict[str, list[tuple[int, str]]] = {}
+    for path in sorted((REPO_ROOT / "aios").rglob("*.py")):
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        hits = _fail_open_guards(source)
+        if hits:
+            census[path.relative_to(REPO_ROOT).as_posix()] = hits
+    return census
+
+
+def test_no_fail_open_stop_guard_survives_in_any_spelling() -> None:
+    """BUDGET ZERO, on the tree rather than on the text.
+
+    The text census is kept beside this one because the two fail differently:
+    text catches a marker the tree cannot see, and the tree catches every
+    spelling text cannot. Neither alone is the rule.
+    """
+    census = _fail_open_census()
+    total = sum(len(hits) for hits in census.values())
+
+    assert total <= _LENIENT_FAIL_OPEN_BUDGET, (
+        "fail-open emergency-stop guards found: "
+        f"{census}\nAn absent latch is not a passed check. Use "
+        "require_stop_wired() to refuse, or stop_permits_autonomy() where the "
+        "caller must return a value rather than raise."
+    )
+
+
+def test_the_ast_census_catches_what_the_text_census_misses() -> None:
+    """A rule is worth having only if it is shown to refuse something.
+
+    Each of these is the SAME defect written a different way, and seven of the
+    nine slipped past the text scan. This pins that the tree-based rule does not
+    care how it is spelled.
+    """
+    variants = {
+        "canonical": "if self.emergency_stop is not None:\n    self.emergency_stop.assert_operational()",
+        "compound": "if self.emergency_stop is not None and ready:\n    self.emergency_stop.assert_operational()",
+        "reversed": "if None is not self.emergency_stop:\n    self.emergency_stop.assert_operational()",
+        "truthiness": "if self.emergency_stop:\n    self.emergency_stop.assert_operational()",
+        "getattr": 'if getattr(self, "emergency_stop", None):\n    self.emergency_stop.assert_operational()',
+        "local_alias": "stop = self.emergency_stop\nif stop is not None:\n    stop.assert_operational()",
+        "wrapped": "if (\n    self.emergency_stop is not None\n):\n    self.emergency_stop.assert_operational()",
+        "early_return": "if self.emergency_stop is None:\n    return\nself.emergency_stop.assert_operational()",
+    }
+
+    missed = [name for name, src in variants.items() if not _fail_open_guards(src)]
+
+    assert not missed, f"these spellings of the fail-open guard are invisible: {missed}"
+
+
+def test_the_ast_census_does_not_flag_the_converted_shape() -> None:
+    """A rule that cries wolf on the fix is worse than no rule.
+
+    `raise` on an absent stop is fail-CLOSED and must not be confused with the
+    `return` that skips the check.
+    """
+    converted = {
+        "require_stop_wired": 'require_stop_wired(self.emergency_stop, boundary="x")',
+        "boolean_form": "if not stop_permits_autonomy(self.emergency_stop):\n    return BLOCKED",
+        "raise_on_absence": 'if self.emergency_stop is None:\n    raise RuntimeError("no stop")\nself.emergency_stop.assert_operational()',
+    }
+
+    flagged = {name: _fail_open_guards(src) for name, src in converted.items()}
+    flagged = {name: hits for name, hits in flagged.items() if hits}
+
+    assert not flagged, f"the converted, fail-closed shape was flagged: {flagged}"

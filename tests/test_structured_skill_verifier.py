@@ -109,6 +109,7 @@ def test_skill_reuse_mission_contains_structured_verifier_not_command(
         trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
         verification_plan_validator=lambda _skill: True,
         reuse_policy=lambda _skill, _context: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     skill = SkillRecord(
         **_skill(plan=_verifier()).model_dump(mode="python"),

@@ -246,6 +246,7 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(
         ),
         workspace_manager=workspace,
         lifecycle_engine=MaintenanceLifecycleEngine(),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     learning_trajectories = TrajectoryRepository(db_path)
@@ -262,6 +263,7 @@ async def test_complete_e2e_sovereign_intelligence_and_maintenance_flywheel(
         reuse_policy=lambda _skill, _ctx: True,
         verification_authority=verification_auth,
         minimum_confidence=0.8,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     # -----------------------------------------------------------------------
