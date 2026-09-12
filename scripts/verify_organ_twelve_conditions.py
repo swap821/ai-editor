@@ -785,6 +785,76 @@ _CITED_RECORD = re.compile(r"(release/[A-Za-z0-9_\-/.]+\.md)")
 _SCORE_CLAIM = re.compile(r"\b\d{1,3}/\d{1,3}\b")
 
 
+def _entrypoint_drift(record, root: Path, since_sha: str) -> list[str]:
+    """Files in this organ's own entrypoints that changed after it was attested.
+
+    THE RULE THIS FILE WAS MISSING. C12 asks only whether `last_verified_sha` is
+    an ANCESTOR of HEAD, and an old commit is an ancestor of HEAD forever -- so a
+    green organ stays green no matter how far the code beneath it moves.
+
+    Measured 2026-09-13: 38 of 55 organs were pinned to one sha dated
+    2026-07-31, with 199 commits landed since, and every one of them passed C12.
+
+    Relevance rather than a time window: an attestation is stale exactly when the
+    code it attests to has moved. An organ whose entrypoints have not been
+    touched since it was verified is still telling the truth however old it is,
+    and a two-day-old attestation over a file that changed yesterday is not.
+
+    The case that forced it: organ 26 (`EmergencyStopHardWiringAuthority`) listed
+    eight production entrypoints and declared C1-C12 PASS. Those same eight files
+    were where the emergency stop's check returned silently when nothing was
+    wired -- thirteen boundaries that could not be halted, inside a green organ,
+    fixed in #328/#329/#330 without one line of the ledger changing.
+    """
+    entrypoints = [str(path) for path in (record.production_entrypoints or [])]
+    if not entrypoints:
+        return []
+    try:
+        completed = subprocess.run(
+            ["git", "log", "--name-only", "--format=", f"{since_sha}..HEAD", "--"]
+            + entrypoints,
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        # Unreadable history is not evidence of freshness. Report it as drift so
+        # the organ is examined rather than waved through.
+        return ["<git history unavailable>"]
+    if completed.returncode != 0:
+        return ["<git history unavailable>"]
+    changed = {line.strip() for line in completed.stdout.splitlines() if line.strip()}
+    return sorted(changed & set(entrypoints))
+
+
+def _staleness_failures(record, root: Path) -> list[tuple[str, str]]:
+    """C11/C12: refuse an attestation the code has moved out from under.
+
+    Reported against C12 because C12 is the condition that claims CI verified
+    THIS commit; an attestation whose subject has changed is exactly the claim
+    C12 is supposed to stand behind.
+    """
+    sha = record.last_verified_sha
+    if not sha or not _SHA.fullmatch(sha):
+        return []  # C11 already reports a missing or malformed sha.
+    drift = _entrypoint_drift(record, root, sha)
+    if not drift:
+        return []
+    shown = ", ".join(drift[:4]) + (
+        f" (+{len(drift) - 4} more)" if len(drift) > 4 else ""
+    )
+    return [
+        (
+            "C12",
+            f"attestation is STALE: {len(drift)} of this organ's own "
+            f"production_entrypoints changed after {sha[:12]} -- {shown}. "
+            "Re-verify at a current commit, or record the organ as yellow with "
+            "the reason. An ancestor of HEAD is not the same as a current one.",
+        )
+    ]
+
+
 def _citation_failures(record, root: Path) -> list[tuple[str, str]]:
     """A verdict may not contradict the record it cites.
 
@@ -1401,6 +1471,7 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         for cond, reason in _verdict_contradiction_failures(record)
         + _mission_count_failures(record, REPO_ROOT)
         + _citation_failures(record, REPO_ROOT)
+        + _staleness_failures(record, REPO_ROOT)
     ]
     if contradictions:
         print(
