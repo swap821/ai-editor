@@ -188,7 +188,7 @@ class EmergencyStopHardWiringAuthority:
     def assert_operational(cls, emergency_stop: Any | None, *, boundary: str) -> None:
         """Refuse to cross *boundary* when nothing could halt it.
 
-        CONVERTED 2026-09-08. This was the LENIENT variant: `if emergency_stop
+        CONVERTED 2026-09-12. This was the LENIENT variant: `if emergency_stop
         is None: return`, i.e. an absent latch was no question asked. Thirteen
         runtime boundaries call it -- aios/api/main.py x2, routes/actions.py,
         routes/council.py x3, governance/emergency_stop.py,

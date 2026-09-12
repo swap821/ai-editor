@@ -315,7 +315,7 @@ def test_the_budget_is_not_stale() -> None:
 # The AST census
 #
 # WHY A SECOND ONE. `_guard_census` above is a TEXT scan, and a text scan can
-# only refuse the exact spelling it was taught. Probed on 2026-09-08 with nine
+# only refuse the exact spelling it was taught. Probed on 2026-09-12 with nine
 # ways of writing the same fail-open guard, it caught two:
 #
 #     if self.emergency_stop is not None:          CAUGHT
@@ -465,7 +465,7 @@ def _fail_open_guards(source: str) -> list[tuple[int, str]]:
 #: done. Its stated reason -- "hundreds of unit fixtures construct governed
 #: objects without a latch" -- has largely expired now that ~220 of them declare
 #: UNGOVERNED_FIXTURE explicitly.
-#: CONVERTED 2026-09-08, same day it was found. `assert_operational` now
+#: CONVERTED 2026-09-12, same day it was found. `assert_operational` now
 #: delegates to `require_stop_wired`, so all thirteen boundaries refuse an
 #: absent latch and the three entrances to the rule are one implementation.
 #:

@@ -628,7 +628,7 @@ def _lazy_singleton(name: str, factory: Callable[[], Any]) -> Any:
 def _capabilities() -> CapabilityAuthority:
     """The production capability authority, governed by the durable latch.
 
-    LIVE GAP, closed 2026-09-08. This singleton was built with no emergency
+    LIVE GAP, closed 2026-09-12. This singleton was built with no emergency
     stop, and `issue()`/`consume()` checked it through the LENIENT helper, which
     returned silently when none was wired. So engaging the emergency stop never
     halted capability issuance -- the authority tokens every privileged action
