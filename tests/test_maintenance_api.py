@@ -148,6 +148,7 @@ def maintenance_env(
         # Organ 42. Additive and best-effort, so every other test in this
         # module is unaffected; reachable as `service.mission_journal`.
         mission_journal=MissionTransitionJournal(tmp_path / "journal.db"),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     worker.workspace_manager = workspace
 

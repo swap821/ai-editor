@@ -23,6 +23,7 @@ from aios.operations.tracing import (
 )
 from aios.runtime.cortex_bus import CortexBus
 from tests.cortex_event_helpers import append_event
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 def test_trace_context_rejects_unbounded_or_invalid_header_values() -> None:
@@ -349,12 +350,13 @@ def test_backup_manifest_excludes_environment_files_and_round_trips_state(
 
     (data / "state.json").write_text('{"ok": false}', encoding="utf-8")
     with pytest.raises(RecoveryError, match="safety backup"):
-        restore_backup(bundle=bundle, data_dir=data)
+        restore_backup(bundle=bundle, data_dir=data, emergency_stop=UNGOVERNED_FIXTURE)
 
     restored = restore_backup(
         bundle=bundle,
         data_dir=data,
         safety_backup=tmp_path / "pre-restore.tar.gz",
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     assert restored is not None
     assert json.loads((data / "state.json").read_text(encoding="utf-8")) == {"ok": True}

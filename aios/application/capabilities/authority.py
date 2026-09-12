@@ -186,28 +186,28 @@ class EmergencyStopHardWiringAuthority:
 
     @classmethod
     def assert_operational(cls, emergency_stop: Any | None, *, boundary: str) -> None:
-        """Check a latch that MAY legitimately be absent (unchanged behaviour).
+        """Refuse to cross *boundary* when nothing could halt it.
 
-        Kept lenient on `None` because hundreds of unit fixtures construct
-        governed objects without a latch and are not production. Use
-        :meth:`require_wired` at the wiring boundary, where absence is always a
-        bug rather than a choice.
+        CONVERTED 2026-09-12. This was the LENIENT variant: `if emergency_stop
+        is None: return`, i.e. an absent latch was no question asked. Thirteen
+        runtime boundaries call it -- aios/api/main.py x2, routes/actions.py,
+        routes/council.py x3, governance/emergency_stop.py,
+        application/learning/service.py, application/maintenance/service.py,
+        operations/recovery.py, runtime/intelligence_gateway.py, and twice here
+        -- so the guard SHAPE reached budget zero while the PROPERTY did not.
+
+        The text census that drove that budget to zero could not see this
+        spelling; an AST census found it.
+
+        Its old reason was that "hundreds of unit fixtures construct governed
+        objects without a latch and are not production". That expired: ~220 of
+        those fixtures now declare `UNGOVERNED_FIXTURE` explicitly, so a fixture
+        can say so and a production omission can no longer hide among them.
+
+        Delegates rather than re-deciding. Three copies of this rule is exactly
+        how the sentinel came to be mishandled in six places.
         """
-        if emergency_stop is None:
-            return
-        if emergency_stop is cls.UNGOVERNED_FIXTURE:
-            # The sentinel means "deliberately ungoverned". The lenient path
-            # special-cased only None, so a caller that took the DOCUMENTED
-            # opt-out was rejected as "not operationally checkable" while a
-            # caller that silently omitted the stop sailed through -- exactly
-            # backwards. Sixth place this sentinel was mishandled.
-            return
-        checker = getattr(emergency_stop, "assert_operational", None)
-        if not callable(checker):
-            raise TypeError(
-                f"{boundary} emergency-stop dependency is not operationally checkable"
-            )
-        checker()
+        require_stop_wired(emergency_stop, boundary=boundary)
 
     @classmethod
     def require_wired(cls, emergency_stop: Any | None, *, boundary: str) -> Any:

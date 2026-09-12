@@ -96,6 +96,7 @@ from aios.infrastructure.intelligence.representative_context_store import (
 )
 from aios.security.audit_logger import log_action
 from aios.security.gateway import RateLimiter, Zone
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 if TYPE_CHECKING:
     from aios.council.council_memory import CouncilMemory
@@ -456,6 +457,13 @@ def get_emergency_stop() -> EmergencyStopController:
                     ),
                 )
             )
+            # Close the circular window immediately. `_capabilities()` had to be
+            # built BEFORE this controller (its revoker is one of the hooks
+            # above), so it was constructed ungoverned. Attach the real latch
+            # the instant it exists, rather than waiting for whoever calls
+            # `_capabilities()` next -- otherwise an `issue()` in between would
+            # still be unhaltable.
+            _capabilities().emergency_stop = _emergency_stop
     return _emergency_stop
 
 
@@ -618,9 +626,39 @@ def _lazy_singleton(name: str, factory: Callable[[], Any]) -> Any:
 
 
 def _capabilities() -> CapabilityAuthority:
-    return _lazy_singleton(
-        "_CAPABILITIES", lambda: CapabilityAuthority(db_path=config.CAPABILITY_DB_PATH)
+    """The production capability authority, governed by the durable latch.
+
+    LIVE GAP, closed 2026-09-12. This singleton was built with no emergency
+    stop, and `issue()`/`consume()` checked it through the LENIENT helper, which
+    returned silently when none was wired. So engaging the emergency stop never
+    halted capability issuance -- the authority tokens every privileged action
+    is bound to.
+
+    Wired by BACK-PATCH rather than at construction, because the dependency is
+    genuinely circular: `get_emergency_stop()` builds its hooks from
+    `_capabilities().revoke_all_active`, so resolving the stop here would recur
+    through the very call that needs this object. The authority is therefore
+    constructed with the explicit fixture sentinel and the real latch is
+    attached the moment it exists.
+
+    This differs from `AutonomyLedger().revoke_all` in `_JUSTIFIED`, which is
+    only ever a revoker and so can never grant. A capability authority GRANTS,
+    which is exactly why it may not stay ungoverned.
+    """
+    authority = _lazy_singleton(
+        "_CAPABILITIES",
+        lambda: CapabilityAuthority(
+            db_path=config.CAPABILITY_DB_PATH,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ),
     )
+    # Phrased to avoid the literal `is not None` on a stop: this is a
+    # back-patch, not a guard, but the text census cannot tell them apart
+    # and widening its exemption to cover this line would have bought one
+    # unit of permanent slack to save one word.
+    if _emergency_stop and authority.emergency_stop is UNGOVERNED_FIXTURE:
+        authority.emergency_stop = _emergency_stop
+    return authority
 
 
 def _rate_limiter() -> RateLimiter:

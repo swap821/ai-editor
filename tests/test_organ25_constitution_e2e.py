@@ -39,6 +39,7 @@ from aios.application.capabilities.authority import CapabilityAuthority, Capabil
 from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest
 from aios.infrastructure.governance.sqlite_store import GovernanceAmendmentStore
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
 @pytest.fixture()
@@ -153,6 +154,7 @@ def test_an_activated_amendment_reaches_every_authority_and_survives_restart(
     capabilities = CapabilityAuthority(
         db_path=tmp_path / "capabilities.db",
         constitution_authority=None,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     old_binding = _binding(operator_id, before)
     stale_token = capabilities.issue(old_binding)

@@ -53,7 +53,14 @@ from aios.application.governance import (
 from aios.domain.governance.constitution import build_constitution_snapshot
 from aios.application.workers.foundry import UnknownWorkerStrategy, WorkerFoundry
 from aios.application.workers.scheduler import WorkerScheduler
-from aios.core.autonomy import UNGOVERNED_FIXTURE, AutonomyLedger
+from aios.application.capabilities.authority import (
+    EmergencyStopHardWiringAuthority,
+)
+from aios.core.autonomy import (
+    UNGOVERNED_FIXTURE,
+    AutonomyLedger,
+    require_stop_wired,
+)
 from aios.core.executor import Executor
 from aios.domain.missions.mission_contract import MissionContract
 from aios.domain.autonomy import ActionClassKey, AutonomyDecisionStatus
@@ -636,3 +643,98 @@ def test_the_executor_still_blocks_on_an_engaged_stop() -> None:
     assert result.status == "BLOCKED"
     assert result.control == "emergency_stop"
     assert ran == []
+
+
+# ---------------------------------------------------------------------------
+# The lenient helper -- the shape the TEXT census could never see
+#
+# `EmergencyStopHardWiringAuthority.assert_operational` was fail-open BY DESIGN:
+#
+#     if emergency_stop is None:
+#         return
+#
+# Thirteen runtime boundaries call it, so the guard SHAPE reached budget zero on
+# 2026-09-08 while the PROPERTY did not: at those thirteen an absent latch was
+# still no question asked. Found by an AST census, because a text scan matching
+# "emergency_stop is not None" cannot see this spelling.
+#
+# Its stated reason -- "hundreds of unit fixtures construct governed objects
+# without a latch" -- expired when ~220 of those fixtures started declaring
+# UNGOVERNED_FIXTURE explicitly.
+# ---------------------------------------------------------------------------
+
+
+def test_the_lenient_boundary_check_refuses_an_absent_stop() -> None:
+    """THE BAR for the lenient helper.
+
+    Pre-conversion this returned None quietly, which is what made thirteen
+    runtime boundaries fail open behind a check that looked like it ran.
+    """
+    with pytest.raises(RuntimeError, match="without an emergency stop"):
+        EmergencyStopHardWiringAuthority.assert_operational(
+            None, boundary="probe-boundary"
+        )
+
+
+def test_the_lenient_boundary_check_still_takes_the_opt_out() -> None:
+    """The sentinel has to keep working, or every fixture is forced to lie."""
+    assert (
+        EmergencyStopHardWiringAuthority.assert_operational(
+            UNGOVERNED_FIXTURE, boundary="probe-boundary"
+        )
+        is None
+    )
+
+
+def test_the_lenient_boundary_check_still_propagates_an_engaged_stop() -> None:
+    """The engaged case must keep raising its OWN exception.
+
+    Callers map EmergencyStopError to a specific response; collapsing it into
+    the absent-stop RuntimeError would silently change those responses.
+    """
+
+    class _Engaged:
+        def assert_operational(self):
+            raise EmergencyStopError("engaged")
+
+    with pytest.raises(EmergencyStopError):
+        EmergencyStopHardWiringAuthority.assert_operational(
+            _Engaged(), boundary="probe-boundary"
+        )
+
+
+def test_the_lenient_boundary_check_still_rejects_a_non_latch() -> None:
+    """An object that cannot be asked is not evidence that nothing is wrong."""
+    with pytest.raises(TypeError):
+        EmergencyStopHardWiringAuthority.assert_operational(
+            object(), boundary="probe-boundary"
+        )
+
+
+def test_there_is_one_implementation_of_the_fail_closed_rule() -> None:
+    """Three copies of this rule is how the sentinel broke six times.
+
+    `require_wired`, `assert_operational` and `require_stop_wired` must all be
+    the same decision. This pins that they agree on every case rather than
+    happening to agree today.
+    """
+    cases = [None, UNGOVERNED_FIXTURE, object(), "not-a-latch"]
+
+    for value in cases:
+        outcomes = []
+        for call in (
+            lambda v: EmergencyStopHardWiringAuthority.assert_operational(
+                v, boundary="b"
+            ),
+            lambda v: EmergencyStopHardWiringAuthority.require_wired(v, boundary="b"),
+            lambda v: require_stop_wired(v, boundary="b"),
+        ):
+            try:
+                call(value)
+                outcomes.append("allowed")
+            except Exception as exc:  # noqa: BLE001 - the TYPE is the comparison
+                outcomes.append(type(exc).__name__)
+
+        assert len(set(outcomes)) == 1, (
+            f"the three entrances disagree on {value!r}: {outcomes}"
+        )

@@ -1450,6 +1450,7 @@ def test_emergency_stop_hard_wiring_owner_is_reached_by_learning_boundary(
     service = LearningService(
         mission_service=MagicMock(),
         trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
 
     service._assert_operational()
@@ -1504,6 +1505,7 @@ def test_skill_lifecycle_owner_is_reached_by_reuse_outcome_recording(
     service = LearningService(
         mission_service=MagicMock(),
         trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     skill = MagicMock(source_trajectory_ids=())
     service.skill_repository = MagicMock()
