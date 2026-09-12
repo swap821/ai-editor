@@ -22,6 +22,7 @@ import ast
 from pathlib import Path
 
 import pytest
+import importlib.util
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AIOS = REPO_ROOT / "aios"
@@ -334,137 +335,20 @@ def test_the_budget_is_not_stale() -> None:
 # spelling, line breaks and variable names do not matter.
 # --------------------------------------------------------------------------- #
 
-#: Names that refer to an emergency stop, however they are spelled.
-_STOP_NAMES = ("emergency_stop", "_emergency_stop")
+#: The detector now lives in `scripts/verify_organ_twelve_conditions.py`, the
+#: governance checker that also enforces it per-organ as a green-contract
+#: condition. It was duplicated here first; two copies of one rule is precisely
+#: how the UNGOVERNED_FIXTURE sentinel came to be mishandled in six places, so
+#: this file imports the single implementation rather than keeping its own.
+_verify_spec = importlib.util.spec_from_file_location(
+    "_verify_fail_open", REPO_ROOT / "scripts" / "verify_organ_twelve_conditions.py"
+)
+_verify_module = importlib.util.module_from_spec(_verify_spec)
+_verify_spec.loader.exec_module(_verify_module)
+
+_fail_open_guards = _verify_module._fail_open_guards
 
 
-def _mentions_stop(node: ast.AST, aliases: set[str]) -> bool:
-    """Does this expression read an emergency stop, directly or via an alias?"""
-    for child in ast.walk(node):
-        if isinstance(child, ast.Attribute) and child.attr in _STOP_NAMES:
-            return True
-        if isinstance(child, ast.Name) and (
-            child.id in _STOP_NAMES or child.id in aliases
-        ):
-            return True
-        # getattr(self, "emergency_stop", None) -- the absence is baked into the
-        # call, which is the most deniable spelling of all.
-        if isinstance(child, ast.Call) and getattr(child.func, "id", None) == "getattr":
-            for arg in child.args:
-                if isinstance(arg, ast.Constant) and arg.value in _STOP_NAMES:
-                    return True
-    return False
-
-
-def _checks_the_stop(node: ast.AST) -> bool:
-    """Does this block actually perform the stop check?"""
-    for child in ast.walk(node):
-        if isinstance(child, ast.Call):
-            name = getattr(child.func, "attr", None) or getattr(child.func, "id", None)
-            if name in ("assert_operational", "require_stop_wired", "require_wired"):
-                return True
-    return False
-
-
-def _stop_aliases(fn: ast.AST) -> set[str]:
-    """Locals bound to an emergency stop: `stop = self.emergency_stop`."""
-    aliases: set[str] = set()
-    for node in ast.walk(fn):
-        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-            continue
-        value = node.value
-        if value is None or not _mentions_stop(value, set()):
-            continue
-        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-        for target in targets:
-            if isinstance(target, ast.Name):
-                aliases.add(target.id)
-    return aliases
-
-
-def _fail_open_guards(source: str) -> list[tuple[int, str]]:
-    """Every conditional that makes the stop check SKIPPABLE.
-
-    Two shapes, both of which mean "if no latch is wired, do not check":
-
-    * a conditional on the stop's presence whose body contains the check and
-      which has no `else` -- so an absent latch falls straight through;
-    * an early `return` when the stop is absent, which skips whatever check
-      follows. A `raise` there is fail-CLOSED and is deliberately not flagged.
-    """
-    try:
-        tree = ast.parse(source)
-    except (
-        SyntaxError
-    ):  # pragma: no cover - a broken source file fails louder elsewhere
-        return []
-
-    # Deduplicated by line: `ast.walk` reaches the same `If` once per enclosing
-    # scope (module AND function), so a single guard was counted twice and the
-    # budget read 2 for one site.
-    found: dict[int, str] = {}
-    for fn in ast.walk(tree):
-        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
-            continue
-        aliases = _stop_aliases(fn)
-        for node in ast.walk(fn):
-            if not isinstance(node, ast.If):
-                continue
-            if not _mentions_stop(node.test, aliases):
-                continue
-
-            if _checks_the_stop(node) and not node.orelse:
-                found[node.lineno] = (
-                    "stop check sits inside a presence test with no else"
-                )
-                continue
-
-            # `if stop is None: return` -- absence skips whatever follows.
-            #
-            # Only a BARE return (or pass) counts. `return False` and
-            # `return None` are how the fail-CLOSED helpers themselves answer
-            # -- `stop_permits_autonomy` denies with False, `require_stop_wired`
-            # acknowledges the sentinel with None -- and an earlier draft of
-            # this rule flagged all three canonical helpers as defects. A rule
-            # that cries wolf on the fix is worse than no rule.
-            skips = any(
-                (isinstance(stmt, ast.Return) and stmt.value is None)
-                or isinstance(stmt, (ast.Pass, ast.Continue))
-                for stmt in node.body
-            )
-            tests_absence = any(
-                isinstance(cmp_node, ast.Compare)
-                and any(isinstance(op, ast.Is) for op in cmp_node.ops)
-                and any(
-                    isinstance(c, ast.Constant) and c.value is None
-                    for c in cmp_node.comparators
-                )
-                for cmp_node in ast.walk(node.test)
-            )
-            if skips and tests_absence:
-                found[node.lineno] = "absent stop returns early, skipping the check"
-    return sorted(found.items())
-
-
-#: The one fail-open site the AST census knows about and has NOT converted.
-#:
-#: `EmergencyStopHardWiringAuthority.assert_operational` is lenient BY DESIGN --
-#: `if emergency_stop is None: return` -- and 13 runtime boundaries call it:
-#: aios/api/main.py x2, api/routes/actions.py, api/routes/council.py x3,
-#: application/governance/emergency_stop.py, application/learning/service.py,
-#: application/maintenance/service.py, operations/recovery.py,
-#: runtime/intelligence_gateway.py, and twice inside authority.py itself.
-#:
-#: So the guard SHAPE reached zero while the PROPERTY did not: at those
-#: thirteen boundaries an absent latch is still no question asked. The 2026-09-08
-#: conversion fixed the `if X is not None:` spelling and never saw this one,
-#: because the text census could not.
-#:
-#: Recorded as a counted budget rather than an exemption so it cannot quietly
-#: grow, and so the number is readable by anyone who asks whether the job is
-#: done. Its stated reason -- "hundreds of unit fixtures construct governed
-#: objects without a latch" -- has largely expired now that ~220 of them declare
-#: UNGOVERNED_FIXTURE explicitly.
 #: CONVERTED 2026-09-12, same day it was found. `assert_operational` now
 #: delegates to `require_stop_wired`, so all thirteen boundaries refuse an
 #: absent latch and the three entrances to the rule are one implementation.
