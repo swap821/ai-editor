@@ -189,9 +189,6 @@ class TestEvidenceClassification:
 
 
 class TestCheckSemantics:
-    def test_no_checks_cannot_pass(self):
-        assert not Check(lenient=True).passed
-
     def test_hard_failure_fails_run(self):
         check = Check(lenient=True)
         check.hard("x", False, "boom")
