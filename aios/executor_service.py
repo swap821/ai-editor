@@ -291,8 +291,9 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         )
 
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
-    # codeql[py/path-injection] -- the repo's FIRST CodeQL suppression, so it
-    # states its case rather than silencing a tool.
+    # THE REPO'S FIRST CODEQL SUPPRESSION (the marker itself sits on the
+    # `os.open` line below, where CodeQL requires it). It states its case rather
+    # than silencing a tool.
     #
     # CodeQL traces `job.argv[2]` to this `os.open` and is right that the value
     # ORIGINATES with the caller. What it cannot see is that
@@ -316,7 +317,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
     # Both were measured FAILING before the containment fix. If this line ever
     # does become exploitable, those fail -- they do not depend on this comment
     # being true.
-    fd = os.open(tmp_target, flags, 0o600)
+    fd = os.open(tmp_target, flags, 0o600)  # codeql[py/path-injection]
     try:
         os.write(fd, after_bytes)
         os.fsync(fd)
