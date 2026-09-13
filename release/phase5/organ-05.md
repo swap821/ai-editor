@@ -1,14 +1,13 @@
 # Phase 5 proof — Organ 5: Prompt Injection Shield
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `506c05d2d8b3aa5e090517c0feebefa52416b199`
-**Generated:** 2026-09-13T11:42:28+00:00
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `8848c35fd512906566eda0cf5873a3c143e623f9`
+**Generated:** 2026-09-13T14:35:48+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C12**: attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/injection_shield.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status.
-- **C10**: FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/injection_shield.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
