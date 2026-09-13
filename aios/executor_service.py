@@ -13,7 +13,6 @@ import hmac
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 
@@ -75,7 +74,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="executor job is not a valid repair operation",
@@ -86,7 +85,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason=f"unsupported repair operation: {op_id!r}",
@@ -97,7 +96,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="target relative path contains forbidden characters",
@@ -112,7 +111,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="target relative path must not escape workspace",
@@ -127,14 +126,35 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         candidate = os.path.normpath(
             os.path.join(root_text, target_rel.replace("\\", "/"))
         )
-        if not candidate.startswith(root_text + os.sep):
-            raise ValueError("target path escapes staged workspace")
-        target_path = Path(candidate)
+        # CANONICALISE, do not merely spell-check.
+        #
+        # This used to be `candidate.startswith(root_text + os.sep)` and nothing
+        # else. `normpath` is LEXICAL -- it collapses "..", it does not follow
+        # links -- so a redirected intermediate directory sails through: the
+        # path still reads as being inside the staged root. The only link test
+        # was `target_path.is_symlink()` below, which inspects the FINAL
+        # component, and the leaf here is an ordinary file. Measured
+        # 2026-09-13: the repair completed, reported isolation_verified=True,
+        # and edited a file outside the staged root.
+        #
+        # `resolve_staged_workspace` -- called three lines above, and described
+        # in its own docstring as "the trust boundary for the authenticated
+        # executor service" -- already canonicalises BOTH sides with realpath.
+        # The bug was re-deriving that same question lexically right after
+        # asking it correctly. So ask the one that works, about the target too.
+        #
+        # Note this cannot be fixed by checking `is_symlink()` on every
+        # component. On Windows a DIRECTORY JUNCTION redirects identically,
+        # needs no privilege to create, and `Path.is_symlink()` reports False
+        # for it. realpath is what sees through both.
+        target_path = workspace_policy.resolve_staged_workspace(
+            candidate, workspace_root
+        )
     except (ValueError, OSError) as exc:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason=f"workspace resolution failure: {exc}",
@@ -144,7 +164,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="symlink target escape refused",
@@ -154,7 +174,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="target file does not exist",
@@ -168,7 +188,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="original content digest mismatch",
@@ -182,7 +202,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="original workspace digest mismatch",
@@ -206,7 +226,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
-            isolation_verified=True,
+            isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
             reason="target file contained no allowed maintenance marker",
@@ -215,13 +235,41 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
     after_bytes = new_content.encode("utf-8")
     after_digest = hashlib.sha256(after_bytes).hexdigest()
 
-    tmp_target = target_path.with_suffix(target_path.suffix + ".tmp")
-    tmp_target.write_bytes(after_bytes)
+    # Re-verify containment IMMEDIATELY before writing.
+    #
+    # The resolution above canonicalises, but a check and a write are two
+    # moments. Between them the workspace is still on disk and still writable,
+    # so a component can be swapped for a link after it was judged safe -- the
+    # classic time-of-check/time-of-use window. Re-asking costs one realpath on
+    # a path already in cache, and it shrinks the window to the width of this
+    # call rather than the width of the whole repair.
+    #
+    # O_NOFOLLOW would narrow the leaf further, but it does not exist on
+    # Windows (checked: `hasattr(os, "O_NOFOLLOW")` is False there), and this
+    # service runs on the operator's Windows laptop as well as in CI. A guard
+    # that exists on one platform and silently vanishes on another is worse
+    # than one that works the same everywhere, so the re-check is the control
+    # and the flag is applied only where the platform actually offers it.
     try:
-        with open(tmp_target, "rb") as f:
-            os.fsync(f.fileno())
-    except OSError:
-        pass
+        workspace_policy.resolve_staged_workspace(str(target_path), workspace_root)
+    except (ValueError, OSError) as exc:
+        return ExecutorResult(
+            job_id=job.job_id,
+            status="failed",
+            isolation_verified=False,
+            started_at=started,
+            ended_at=utc_now(),
+            reason=f"target left the staged workspace before the write: {exc}",
+        )
+
+    tmp_target = target_path.with_suffix(target_path.suffix + ".tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(tmp_target, flags, 0o600)
+    try:
+        os.write(fd, after_bytes)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
     tmp_target.replace(target_path)
 
     ws_digest_after = tree_digest(workspace_root)
