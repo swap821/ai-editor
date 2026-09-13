@@ -1,16 +1,12 @@
 # Phase 5 — per-organ adversarial re-read
 
-**Tip:** `506c05d2d8b3aa5e090517c0feebefa52416b199`
+**Tip:** `8848c35fd512906566eda0cf5873a3c143e623f9`
 **Counts at generation:** 12 green / 43 yellow (pre-demote)
 **Demoted this run:** none
-**Green mechanical failures:** 5
+**Green mechanical failures:** 0
 
 One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
 
 ## Green mechanical failures
 
-- organ 1 (Security Gateway) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/gateway.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/gateway.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
-- organ 2 (Scope Lock) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/scope_lock.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/scope_lock.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
-- organ 3 (Secret Scanner) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/secret_scanner.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/secret_scanner.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
-- organ 4 (Tamper-Evident Audit Logger) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/audit_logger.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/audit_logger.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
-- organ 5 (Prompt Injection Shield) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/injection_shield.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/injection_shield.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
+- (none)

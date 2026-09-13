@@ -91,6 +91,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     violations.extend(validate_na_cites(records, repo_root=REPO_ROOT))
 
+    # THE KEY THAT VERIFIES THE APPROVALS IS ITSELF CHECKED.
+    #
+    # Everything above trusts `spine_release_pubkey.txt` to say who the operator
+    # is. Nothing pinned that file -- not the manifest, not CI -- so an agent
+    # could install its own key, sign with its own private half, and watch every
+    # check pass. The signing key being outside the repository stops an agent
+    # signing AS HIM; it does not stop one signing as ITSELF.
+    #
+    # This is a violation, not a warning: an attestation verified against an
+    # unrecorded key is an approval nobody gave, and treating that as a passing
+    # run with a note attached is how the original overstatement survived.
+    from aios.application.governance.spine_release import key_continuity_findings
+
+    violations.extend(key_continuity_findings(REPO_ROOT))
+
     green = sum(1 for r in records if r.status == "green")
     yellow = sum(1 for r in records if r.status == "yellow")
     print(f"organs: {len(records)} total, {green} green, {yellow} yellow")

@@ -19,10 +19,31 @@ disk, never logged, and never committed -- AGENTS.md §VII, "keys live only in
 volatile env vars". Only the PUBLIC key is written, to
 ``.aios/state/spine_release_pubkey.txt``, and committed.
 
-An agent with full write access to this repository can rewrite this file, the
-verifier, and the ledger check, and still cannot forge an approval, because the
-private key does not exist anywhere it can read. That asymmetry is what makes a
-green frozen organ mean "the operator personally signed for this".
+An agent with full write access cannot sign AS THE OPERATOR, because his private
+key does not exist anywhere it can read.
+
+This paragraph used to claim more: that such an agent "still cannot forge an
+approval". That was false, and it was disproved by experiment on 2026-09-13. An
+agent does not need his key -- it can generate its own pair, overwrite the
+committed public key, sign with its own private half, and every verification
+passes, because verification trusts whatever key the file contains. A forged
+attestation built exactly that way VERIFIED. Nothing pinned the public key:
+not the release manifest, not CI, and the attestation recorded no key identity.
+
+What stood between this repository and a forged approval was the operator
+reading a one-line diff.
+
+So the key file is now checked too. `install-pubkey` refuses to replace a
+different key without a stated reason, appends the rotation to an append-only
+lineage, and `key_continuity_findings` makes every verifier run fail when the
+installed key is not the one last recorded. That is DETECTION, not prevention --
+a writer inside a repository can edit any file in it, and saying otherwise is
+the mistake this paragraph is correcting. It buys one thing: a substitution must
+now forge a rotation event with a reason attached, instead of changing a
+hexadecimal string by one line.
+
+A green frozen organ means: the operator signed for it, under a key whose
+lineage is recorded.
 
 Why keygen no longer generates anything (2026-08-04)
 ----------------------------------------------------
@@ -152,6 +173,38 @@ def cmd_install_pubkey(args: argparse.Namespace) -> int:
 
     pub_path = REPO_ROOT / PUBKEY_RELPATH
     pub_path.parent.mkdir(parents=True, exist_ok=True)
+    # A ROTATION IS AN EVENT, AND MUST LEAVE ONE.
+    #
+    # This used to overwrite the root of trust silently, and nothing else pinned
+    # it -- so an agent could install its own key, sign with its own private
+    # half, and every check would pass. Demonstrated 2026-09-13: a forged
+    # attestation signed by a freshly generated key VERIFIED. The old claim that
+    # an agent "cannot produce a valid attestation" was wrong; what it cannot do
+    # is sign AS THE OPERATOR.
+    #
+    # Replacing a different key therefore requires saying why, and the reason is
+    # appended to an append-only lineage that `key_continuity_findings` checks on
+    # every verifier run. This does not prevent a determined writer from editing
+    # both files -- nothing inside a repository can -- but it turns a one-line
+    # hex change into a recorded event with a stated reason, which is the
+    # difference between a substitution someone notices and one nobody does.
+    from aios.application.governance.spine_release import (
+        KEY_HISTORY_RELPATH,
+        load_key_history,
+        load_public_key,
+    )
+
+    previous = load_public_key(REPO_ROOT)
+    if previous and previous != key and not (args.note or "").strip():
+        print(
+            f"REFUSING: this replaces a DIFFERENT key ({previous[:12]}...).\n"
+            "A rotation needs a reason recorded with it, so that a legitimate\n"
+            "replacement is distinguishable from a substitution. Re-run with:\n"
+            '  --note "why this key is being replaced"',
+            file=sys.stderr,
+        )
+        return 2
+
     # newline="\n" throughout this file: .gitattributes declares eol=lf for
     # .aios/state/* precisely because these bytes are hash-pinned, and Python's
     # default text mode writes CRLF on Windows. A CRLF working tree against an
@@ -159,6 +212,21 @@ def cmd_install_pubkey(args: argparse.Namespace) -> int:
     # that only exists on the author's disk -- which is exactly how CI failed
     # on PR #197 while every local check passed.
     pub_path.write_text(key + "\n", encoding="utf-8", newline="\n")
+
+    history = load_key_history(REPO_ROOT)
+    if not history or str(history[-1].get("pubkey") or "") != key:
+        entry = {
+            "pubkey": key,
+            "replaced": previous if previous and previous != key else None,
+            "recorded_at_commit": _head_sha(),
+            "note": (args.note or "").strip() or "initial key",
+        }
+        history_path = REPO_ROOT / KEY_HISTORY_RELPATH
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        with history_path.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(entry, sort_keys=True) + "\n")
+        print(f"rotation recorded in {KEY_HISTORY_RELPATH.as_posix()}")
+
     print(f"public key written to {PUBKEY_RELPATH.as_posix()} -- commit this file")
     print("Signing must still happen in a terminal with no agent attached.")
     return 0
@@ -253,6 +321,10 @@ def cmd_sign(args: argparse.Namespace) -> int:
         return 1
 
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        PublicFormat,
+    )
 
     try:
         private = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(private_hex))
@@ -262,11 +334,36 @@ def cmd_sign(args: argparse.Namespace) -> int:
         )
         return 2
 
+    # DERIVE the public half from the private key being used, rather than
+    # reading the installed file. Those are the same value in the normal case
+    # and differ in exactly the interesting one: if the operator signs with a
+    # key whose public half is NOT what is installed, the attestation records
+    # what he actually signed with, and verification then fails honestly
+    # instead of appearing to succeed against someone else's key.
+    signing_pubkey = (
+        private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    )
+
+    installed = (REPO_ROOT / PUBKEY_RELPATH).read_text(encoding="utf-8").strip()
+    if installed and installed.lower() != signing_pubkey:
+        print()
+        print("WARNING: you are signing with a key that is NOT the installed one.")
+        print(f"  installed : {installed[:16]}...")
+        print(f"  signing   : {signing_pubkey[:16]}...")
+        print("The attestation will record the key you signed with, so this will")
+        print("fail verification until the matching public key is installed:")
+        print(
+            f"  python scripts/spine_release_attest.py install-pubkey --key {signing_pubkey} \\"
+        )
+        print('      --note "why this key replaces the previous one"')
+        print()
+
     attestation = SpineAttestation(
         organ_ids=organ_ids,
         commit_sha=head,
         evidence_digest=digest,
         signature="",
+        pubkey=signing_pubkey,
         note=args.note,
     )
     signature = private.sign(attestation.signing_payload()).hex()
@@ -280,6 +377,7 @@ def cmd_sign(args: argparse.Namespace) -> int:
                 "commit_sha": head,
                 "evidence_digest": digest,
                 "signature": signature,
+                "pubkey": signing_pubkey,
                 "note": args.note,
             },
             indent=2,
@@ -305,6 +403,14 @@ def main(argv: list[str] | None = None) -> int:
         "install-pubkey", help="write the PUBLIC key (safe to run anywhere)"
     )
     install.add_argument("--key", required=True, help="hex-encoded Ed25519 public key")
+    install.add_argument(
+        "--note",
+        default="",
+        help=(
+            "why this key is being installed. REQUIRED when it replaces a "
+            "different key, so a rotation is distinguishable from a substitution."
+        ),
+    )
 
     sign = sub.add_parser("sign", help="sign a §VIII release approval")
     sign.add_argument("--organs", default="1,2,3,4,5", help="comma-separated organ ids")
