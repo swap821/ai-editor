@@ -65,16 +65,32 @@ def _install(root: Path, public_hex: str | None, payload: dict | None) -> None:
         (root / ATTESTATION_RELPATH).write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _signed(private, records, organ_ids, *, sha=SHA, digest=None):
+def _signed(private, records, organ_ids, *, sha=SHA, digest=None, pubkey=None):
+    """Mirror `cmd_sign`, including the signer it now binds into the payload.
+
+    `pubkey` defaults to the public half of *private*, which is what the real
+    tool derives. Passing a different one produces an attestation that NAMES a
+    key it was not signed with -- the case `verify_signature` has to refuse, and
+    a fixture that could not express it would leave that branch untested.
+    """
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
     digest = digest if digest is not None else evidence_digest(records, organ_ids)
+    if pubkey is None:
+        pubkey = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
     unsigned = SpineAttestation(
-        organ_ids=tuple(organ_ids), commit_sha=sha, evidence_digest=digest, signature=""
+        organ_ids=tuple(organ_ids),
+        commit_sha=sha,
+        evidence_digest=digest,
+        signature="",
+        pubkey=pubkey,
     )
     return {
         "organ_ids": list(organ_ids),
         "commit_sha": sha,
         "evidence_digest": digest,
         "signature": private.sign(unsigned.signing_payload()).hex(),
+        "pubkey": pubkey,
     }
 
 
@@ -338,7 +354,11 @@ def test_malformed_artifacts_fail_closed(tmp_path):
 
 def test_garbage_signature_and_key_are_verification_failures_not_crashes():
     att = SpineAttestation(
-        organ_ids=(1,), commit_sha=SHA, evidence_digest="x" * 64, signature="zz"
+        organ_ids=(1,),
+        commit_sha=SHA,
+        evidence_digest="x" * 64,
+        signature="zz",
+        pubkey="cc" * 32,
     )
     assert verify_signature(att, "not-hex") is False
     assert verify_signature(att, "ab" * 32) is False

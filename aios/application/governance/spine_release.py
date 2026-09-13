@@ -11,23 +11,54 @@ performed and the code had no way to receive it.
 This module is that missing channel. It does not weaken the control; it gives it
 an input that only a human can produce.
 
-The property that matters
--------------------------
-An agent with full write access to this repository can author every line of this
-module, the CLI that drives it, and the ledger check that consumes it -- and
-still cannot produce a valid attestation, because the signing key never exists
-inside the repository. Verification uses a committed **public** key; signing
-requires a **private** key supplied through the environment at the moment of
-signing, per AGENTS.md §VII ("keys live only in volatile env vars; never on disk,
-in logs, or in ``.aios/``").
+The property that matters, stated accurately
+--------------------------------------------
+Signing requires a **private** key supplied through the environment at the moment
+of signing, per AGENTS.md §VII ("keys live only in volatile env vars; never on
+disk, in logs, or in ``.aios/``"). Verification uses a committed **public** key.
+The operator's private key is therefore unreachable from inside the repository,
+and no agent can sign *as him*.
 
-That asymmetry is the whole design. A green frozen organ therefore means exactly
-one thing: the operator personally signed for it.
+THIS DOCSTRING USED TO CLAIM MORE THAN THAT, and the claim was false. It said an
+agent with write access "still cannot produce a valid attestation, because the
+signing key never exists inside the repository". But an agent does not need HIS
+key. It can generate its own pair, overwrite the committed public key, sign with
+its own private half, and every verification then passes -- because verification
+trusts whatever key the file happens to contain. Nothing pinned that file: not
+the release manifest, not CI, and the attestation records no key identity. What
+actually stood between this repository and a forged approval was the operator
+reading a one-line diff.
+
+That gap was found on 2026-09-13, while rotating the key after the operator lost
+the private half of the original.
+
+So the honest statement is narrower, and it is two things rather than one:
+
+1. No agent can sign as the operator, because his private key is not here.
+2. An attestation NAMES its signer, inside the signature (``pubkey`` below), so
+   swapping the key file without re-signing is a mismatch rather than a silent
+   re-pointing of every past approval.
+3. An agent that substitutes its OWN key and re-signs cannot do so quietly --
+   ``key_continuity_findings`` requires the trusted key to match an append-only
+   lineage record, and reports loudly on every run when it does not.
+
+(2) and (3) close different halves. (2) catches a key changed without a new
+signature; (3) catches a new signature under a key nobody recorded. Either alone
+leaves the other route open, which is why both exist.
+
+(3) is a detection control, not a prevention one. A writer inside a repository
+can edit any file in it, including the lineage; pretending otherwise is exactly
+the overstatement being corrected here. What it buys is that a substitution must
+now forge a rotation EVENT with a stated reason, visible as such in review,
+instead of a hexadecimal string changing by one line.
+
+A green frozen organ therefore means: the operator signed for it, under a key
+whose lineage is recorded.
 
 What an attestation binds
 -------------------------
-``{organ_ids, commit_sha, evidence_digest}``, signed. Each field closes an
-attack:
+``{organ_ids, commit_sha, evidence_digest, pubkey}``, signed. Each field closes
+an attack:
 
 * ``organ_ids``   -- an approval for organ 1 cannot silently cover organ 4.
 * ``commit_sha``  -- an approval given at one commit cannot be replayed at a
@@ -36,6 +67,13 @@ attack:
   ``live_evidence``. Editing a verdict after signing invalidates the signature,
   so approval covers the evidence that was actually reviewed, not merely the
   organ number.
+* ``pubkey`` -- WHO signed. Added 2026-09-13, and the newest of the four
+  because it was the one nobody had thought to bind. Without it an attestation
+  asserted only that *somebody* signed; the signer was whatever
+  ``spine_release_pubkey.txt`` contained at verification time, so replacing that
+  file re-pointed every historical approval at a new signer while every signed
+  byte stayed identical. Now the claimed signer is inside the signature, and
+  ``verify_signature`` refuses when it disagrees with the installed key.
 
 Shallow clones fail CLOSED
 --------------------------
@@ -88,6 +126,18 @@ class SpineAttestation:
     commit_sha: str
     evidence_digest: str
     signature: str
+    #: The public key this attestation was signed under, inside the signature.
+    #:
+    #: Without it an attestation said only "somebody signed these organs"; WHO
+    #: was whatever `spine_release_pubkey.txt` happened to contain at verify
+    #: time. Swapping that file therefore re-pointed every historical approval
+    #: at a new signer, silently, because nothing in the signed bytes disagreed.
+    #:
+    #: Now the attestation names its own signer and the name is covered by the
+    #: signature, so the two cannot be separated: changing the key without
+    #: re-signing produces a mismatch, and re-signing produces a new signature
+    #: that the lineage record then has to account for.
+    pubkey: str = ""
     note: str = ""
 
     def signing_payload(self) -> bytes:
@@ -101,6 +151,7 @@ class SpineAttestation:
                 "organ_ids": sorted(self.organ_ids),
                 "commit_sha": self.commit_sha,
                 "evidence_digest": self.evidence_digest,
+                "pubkey": self.pubkey,
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -194,10 +245,22 @@ def load_attestation(root: Path) -> SpineAttestation | None:
         raise SpineReleaseError(
             f"spine-release attestation is missing required field(s): {', '.join(missing)}"
         )
+    if not raw.get("pubkey"):
+        # Named separately from the list above so the message can say what to
+        # DO. An attestation written before the key was bound into the payload
+        # is not corrupt and not forged -- it simply predates the binding, and
+        # the only way to add it is another signature.
+        raise SpineReleaseError(
+            "spine-release attestation names no signing key. It predates the "
+            "key being bound into the signed payload, so it cannot state who "
+            "signed it and a substituted public key would go unnoticed. "
+            "Re-sign: python scripts/spine_release_attest.py sign --organs 1,2,3,4,5"
+        )
     return SpineAttestation(
         organ_ids=tuple(int(i) for i in raw["organ_ids"]),
         commit_sha=str(raw["commit_sha"]),
         evidence_digest=str(raw["evidence_digest"]),
+        pubkey=str(raw["pubkey"]),
         signature=str(raw["signature"]),
         note=str(raw.get("note", "")),
     )
@@ -214,6 +277,21 @@ def verify_signature(attestation: SpineAttestation, public_key_hex: str) -> bool
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     except ImportError:  # pragma: no cover - cryptography is a base dependency
+        return False
+
+    # THE ATTESTATION MUST NAME THE KEY IT IS BEING CHECKED AGAINST.
+    #
+    # Verifying the signature alone answers "was this signed by whoever owns the
+    # key in the file", which is a different question from "was this signed by
+    # the signer this attestation claims". Before the pubkey was bound in, those
+    # were indistinguishable, so replacing the file re-pointed every past
+    # approval at a new signer without a single signed byte changing.
+    #
+    # Checked BEFORE the cryptography, because a mismatch here is a statement
+    # about identity and should not be reported as a broken signature.
+    if (attestation.pubkey or "").strip().lower() != (
+        public_key_hex or ""
+    ).strip().lower():
         return False
 
     try:
@@ -268,3 +346,86 @@ def approved_organ_ids(
             return frozenset()
 
     return frozenset(attestation.organ_ids)
+
+
+#: Append-only record of which public key has been trusted, and when it changed.
+KEY_HISTORY_RELPATH = Path(".aios") / "state" / "spine_key_history.jsonl"
+
+
+def load_key_history(root: Path) -> list[dict[str, Any]]:
+    """Every recorded signing key, oldest first. Absent file means no history."""
+    path = root / KEY_HISTORY_RELPATH
+    if not path.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SpineReleaseError(
+                f"spine key history has an unreadable line: {exc}"
+            ) from exc
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
+
+
+def key_continuity_findings(root: Path) -> list[str]:
+    """Report when the trusted signing key is not the one last recorded.
+
+    WHY THIS EXISTS, stated against this module's own former claim.
+
+    The docstring above used to say an agent with write access "still cannot
+    produce a valid attestation, because the signing key never exists inside the
+    repository". That is false as it stood, and losing the operator's key is what
+    exposed it: an agent does not need HIS private key. It can generate its own
+    pair, overwrite the committed PUBLIC key, sign with its own private half, and
+    every verification then passes -- because verification trusts whatever key
+    the file happens to contain.
+
+    Nothing pins that file. It is not in the release manifest, no CI step checks
+    its value, and the attestation records no key identity. What actually stood
+    between the repository and a forged approval was the operator reading a
+    one-line diff.
+
+    This does not make substitution impossible -- inside a repository the writer
+    can edit anything, and claiming otherwise is how the first overstatement
+    happened. It makes substitution LOUD: the trusted key must match the last
+    recorded entry, and a change that is not recorded as a rotation is reported
+    on every run. An attacker must now also forge a rotation record, which
+    appears in the diff as an event with a stated reason rather than as a
+    hexadecimal string quietly changing.
+
+    Returns human-readable findings; empty means the key is the recorded one.
+    """
+    installed = load_public_key(root)
+    history = load_key_history(root)
+
+    if installed is None:
+        return []  # no key installed: frozen organs cannot be green anyway
+
+    if not history:
+        return [
+            "SIGNING KEY HAS NO RECORDED LINEAGE: a public key is installed "
+            f"({installed[:12]}...) but .aios/state/spine_key_history.jsonl does "
+            "not exist, so there is nothing to tell a legitimate key from a "
+            "substituted one. Record the current key before trusting it."
+        ]
+
+    latest = history[-1]
+    recorded = str(latest.get("pubkey") or "")
+    if recorded == installed:
+        return []
+
+    return [
+        "SIGNING KEY CHANGED WITHOUT A RECORDED ROTATION: the installed key is "
+        f"{installed[:12]}... but the last recorded key is {recorded[:12]}... "
+        "Every attestation verified from here is verified against a key nobody "
+        "signed off. If this rotation is legitimate, append it to "
+        ".aios/state/spine_key_history.jsonl with the reason; if it is not, the "
+        "spine's approvals cannot be trusted and the frozen organs must not be "
+        "green."
+    ]

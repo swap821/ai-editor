@@ -6,8 +6,9 @@
     4,
     5
   ],
-  "commit_sha": "b9c58f116f809b94f009cbc3f9e97582444a72e9",
-  "evidence_digest": "55dd13409551e40d202de4b19d58c5d551f5e692038a96d3b3c1045603c2dcb9",
-  "signature": "6def55e0e5cdea9833fed448ab59b74e76548e44322aec0882be42e0386ae988aaf21615aaf94a55c54589d593a348dc32a4de8188dcdffc528dd57ff7401e04",
+  "commit_sha": "af7e6f5ee78aeffcfe48bedcb0aec874fced60f0",
+  "evidence_digest": "1b9fb0fae107b4262f35d3eb066e6bedd2fdcb9444dcc18e2f0ce2679118aadc",
+  "signature": "eba05a8558e86620a155e0d9379cdc9416d5d7f5cac44d4d5eae6917df7fc7090399488f2668da8132d8da6a491833a5ab6ac85a164cfce842010d69557ce508",
+  "pubkey": "2451e67b2cc8c576611d97b1f8d90d38c927f699999f5aaa55c2053fb1386fc5",
   "note": ""
 }

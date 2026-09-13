@@ -220,12 +220,20 @@ def test_current_evidence_is_not_flagged() -> None:
     )
 
 
-def test_the_shipped_ledger_splits_exactly_as_measured() -> None:
-    """Against the REAL ledger: the five spine organs, and none of the eight.
+def test_no_green_organ_outside_the_spine_has_stale_evidence() -> None:
+    """Against the REAL ledger: the containment, not the count.
 
-    Measured 2026-09-13 before the rule was written, so this pins the number
-    rather than discovering it. If a future change makes a non-spine green organ
-    fail here, that is a real finding and this test is where it surfaces.
+    This asserted equality with the frozen-spine set, because on 2026-09-13 all
+    five spine organs WERE stale and that was the measurement of the day. The
+    operator then re-attested the spine at a current tip and the set became
+    empty -- so the test failed for the best possible reason: the condition it
+    described had been fixed.
+
+    A measurement is not an invariant. The invariant is that stale evidence
+    NEVER appears on a green organ the Sovereign cannot clear: `flagged` may be
+    empty, and may contain spine organs while they await his signature, but a
+    non-spine green appearing here is a real finding, because an agent CAN clear
+    that one by re-verifying and therefore must.
     """
     from aios.application.governance.organ_ledger import (
         FROZEN_SECURITY_ORGAN_IDS,
@@ -238,11 +246,10 @@ def test_the_shipped_ledger_splits_exactly_as_measured() -> None:
         r.organ_id for r in greens if _verify._evidence_currency_failures(r, REPO_ROOT)
     }
 
-    assert flagged == set(FROZEN_SECURITY_ORGAN_IDS), (
-        f"expected only the frozen spine to have stale evidence, got {sorted(flagged)}"
+    assert not (flagged - set(FROZEN_SECURITY_ORGAN_IDS)), (
+        "a green organ outside the frozen spine is resting on stale live "
+        f"evidence and an agent can fix it: {sorted(flagged - set(FROZEN_SECURITY_ORGAN_IDS))}"
     )
-    # The eight non-spine greens are green on BOTH axes: attestation and evidence.
-    assert not (flagged - set(FROZEN_SECURITY_ORGAN_IDS))
 
 
 def test_a_spine_finding_carries_the_marker_that_keeps_it_ungated() -> None:
@@ -251,13 +258,21 @@ def test_a_spine_finding_carries_the_marker_that_keeps_it_ungated() -> None:
     If the wording ever loses it, five findings the Sovereign alone can clear
     would start failing CI for everyone -- so the marker is pinned here rather
     than living only in a string literal.
+
+    PLANTED, not read from the shipped ledger. It used to take organ 1 from disk
+    and rely on it being stale, which stopped working the moment the spine was
+    re-attested -- the property was real but the fixture was the repository's
+    passing mood. Planting a known-stale spine record tests the wording whether
+    or not the real spine happens to need signing today.
     """
-    from aios.application.governance.organ_ledger import load_ledger
+    target = "scripts/verify_organ_twelve_conditions.py"
+    older = _sha_that_predates(target)
+    if older is None:  # pragma: no cover - only in a shallow clone
+        pytest.skip("history too shallow to name a commit before the last change")
 
-    ledger = load_ledger(REPO_ROOT / ".aios/state/ORGAN_GREEN_LEDGER.json")
-    spine = next(r for r in ledger if r.organ_id == 1)
+    record = _evidence_record(1, [target], older)  # organ 1: frozen spine
 
-    failures = _verify._evidence_currency_failures(spine, REPO_ROOT)
+    failures = _verify._evidence_currency_failures(record, REPO_ROOT)
 
     assert failures
     assert "FROZEN-SPINE" in failures[0][1]

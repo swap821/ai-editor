@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 12 green / 43 yellow / 55 total
-- **Source ledger sha256:** `3035a0d654c33eacbc2846e33e83947275777cc53b37bbf2923b33fde7ccbf99`
+- **Source ledger sha256:** `d6314039d3265bc2809dd8795cca519d276764d51f58211d86fd9da97e3a7592`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -821,11 +821,11 @@ re-audits recorded above.
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
-| 1 | Security Gateway | `SecurityGatewayAuthority` | `f3cb6122fb8d` | live |
-| 2 | Scope Lock | `ScopeLockAuthority` | `f3cb6122fb8d` | live |
-| 3 | Secret Scanner | `SecretScannerAuthority` | `f3cb6122fb8d` | live |
-| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `f3cb6122fb8d` | live |
-| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `f3cb6122fb8d` | live |
+| 1 | Security Gateway | `SecurityGatewayAuthority` | `8848c35fd512` | live |
+| 2 | Scope Lock | `ScopeLockAuthority` | `8848c35fd512` | live |
+| 3 | Secret Scanner | `SecretScannerAuthority` | `8848c35fd512` | live |
+| 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `8848c35fd512` | live |
+| 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `8848c35fd512` | live |
 | 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
 | 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `5d482164707c` | live |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5d482164707c` | live |
