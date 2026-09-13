@@ -58,7 +58,12 @@ PUBLISHED_CANONICAL_EVENTS: frozenset[CanonicalEventType] = frozenset(
         CanonicalEventType.EDIT_PROPOSED,  # aios/api/routes/files.py
         CanonicalEventType.EDIT_BLOCKED,  # aios/api/routes/files.py
         CanonicalEventType.MEMORY_RECALLED,  # aios/api/routes/memory.py
-        CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED,  # aios/api/routes/memory.py
+        # SURFACED is what the recall route emits now: a trusted workflow was
+        # returned, not run. APPLIED stays listed and is deliberately no longer
+        # emitted -- kept so journals recorded before the rename still replay,
+        # and both are handled in livingMirrorRegistry.ts.
+        CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_SURFACED,  # aios/api/routes/memory.py
+        CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED,  # legacy; replay only
         CanonicalEventType.TELEMETRY_AGENT_STARTED,  # aios/core/telemetry.py
         # Organ 55's governance events. Wired into livingMirrorRegistry.ts on
         # 2026-09-04 rather than recorded as a perception gap: the
