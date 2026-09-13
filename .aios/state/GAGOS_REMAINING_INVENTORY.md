@@ -1,5 +1,13 @@
 # GAGOS Remaining-Work Inventory (backing catalog for Ultra Plan v3)
 
+> **SUPERSEDED (2026-09-13, at `fb6d31f3`).** This document is historical.
+> The canonical definition of remaining work is the repair waves R0-R14 in
+> `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md` plus the 55-organ ledger.
+> Its milestones and catalog are cross-referenced to that system of record in
+> [`.aios/state/CATALOG_RECONCILIATION.md`](CATALOG_RECONCILIATION.md), which
+> also records that much of the catalog below is STALE -- several items it
+> calls missing are built. Dated content here is left exactly as written.
+
 Generated 2026-07-07 by a 10-area Sonnet inventory sweep + completeness critic, verified against live code. **154 line items** + 9 periphery items. Status/effort/risk per item. This is the exhaustive list; GAGOS_ULTRA_PLAN.md sequences it.
 
 

@@ -1,5 +1,13 @@
 # GAGOS Sovereign Brain — Ultra Plan v4 (final, red-teamed twice)
 
+> **SUPERSEDED (2026-09-13, at `fb6d31f3`).** This document is historical.
+> The canonical definition of remaining work is the repair waves R0-R14 in
+> `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md` plus the 55-organ ledger.
+> Its milestones and catalog are cross-referenced to that system of record in
+> [`.aios/state/CATALOG_RECONCILIATION.md`](CATALOG_RECONCILIATION.md), which
+> also records that much of the catalog below is STALE -- several items it
+> calls missing are built. Dated content here is left exactly as written.
+
 **Author:** Claude Code (Fable, co-architect) · **Date:** 2026-07-07
 **Supersedes:** v1, v2, v3, and the Codex "Final Production Prompt".
 **Backing catalog:** [`GAGOS_REMAINING_INVENTORY.md`](./GAGOS_REMAINING_INVENTORY.md) — ~157 distinct
