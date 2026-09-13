@@ -886,7 +886,47 @@ class Executor:
                 control="emergency_stop",
             )
 
-        # GREEN (or earned-autonomy YELLOW) -> ALLOW: run it inside the configured scope.
+        # EARNED AUTONOMY REQUIRES A REAL BOUNDARY, NOT A REGEX.
+        #
+        # An ALLOW carrying a YELLOW zone can only have come from earned
+        # autonomy: the kernel returns `allowed=True` for YELLOW in exactly one
+        # place, after `is_earned` clears a repeatedly-clean class (see
+        # PolicyKernel.authorize). Everything else YELLOW comes back as
+        # `requires_approval`. Testing the shape rather than the reason string
+        # keeps this from silently detaching if that wording is ever reworded.
+        #
+        # Why only here. GREEN runs unattended by design, and `execute_approved`
+        # carries a human decision -- in both cases someone or something other
+        # than a streak authorised it. Earned autonomy is the path where NOBODY
+        # chose: a clean history promoted the class automatically. `pytest` is
+        # YELLOW, so an earned `pytest` imports and executes project code.
+        #
+        # `AIOS_PROFILE` defaults to "development", where deps.get_executor
+        # passes no runner and __init__ above falls back to `_default_runner` --
+        # a host subprocess. Measured 2026-09-13 with the variable unset:
+        # `is_private_service` is False. Scope-lock, argv parsing and the
+        # classifier are real controls, but they constrain WHICH command runs,
+        # not what it can do once an interpreter is executing. So when the
+        # streak is the only thing standing between a command and the host, this
+        # refuses instead of falling back.
+        if decision.zone is Zone.YELLOW and not getattr(
+            self.runner, "is_private_service", False
+        ):
+            reason = (
+                "earned autonomy requires an isolated runner; this executor has "
+                "only a host runner, so the command is refused rather than run "
+                "unapproved on the host"
+            )
+            self._audit(self.actor, f"BLOCKED: {reason}", decision.zone)
+            return ExecutionResult(
+                status="BLOCKED",
+                zone=decision.zone.value,
+                command=command,
+                reason=reason,
+                control="isolation_required",
+            )
+
+        # GREEN (or isolated earned-autonomy YELLOW) -> ALLOW: run it in scope.
         self._audit(self.actor, f"EXECUTING: {command}", decision.zone)
         return self._run_in_sandbox(command, decision.zone)
 
