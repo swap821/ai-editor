@@ -291,6 +291,31 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         )
 
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    # codeql[py/path-injection] -- the repo's FIRST CodeQL suppression, so it
+    # states its case rather than silencing a tool.
+    #
+    # CodeQL traces `job.argv[2]` to this `os.open` and is right that the value
+    # ORIGINATES with the caller. What it cannot see is that
+    # `resolve_staged_workspace` is a sanitiser: it canonicalises with realpath
+    # and refuses anything whose real path is not under the staged root. Both
+    # `target_path` and `tmp_target` are its OUTPUT, not the caller's input, and
+    # the second check runs on the line above this one.
+    #
+    # The alert appeared only when the write moved from `Path.write_bytes` to
+    # `os.open` -- CodeQL models the latter as a sink. The earlier form was not
+    # safer; it was merely unmodelled. Reverting to it would trade a real
+    # control (O_NOFOLLOW at the leaf, which closes a TOCTOU the realpath checks
+    # cannot) for a green tick, which is the wrong direction.
+    #
+    # What would make this suppression WRONG, and how you would know: that the
+    # path can reach outside the staged root. That claim is under test, not
+    # under argument -- tests/test_repair_path_containment.py plants a real
+    # symlink (or a Windows junction, which `is_symlink()` cannot see) and
+    # asserts on the FILESYSTEM that nothing outside the root changed, and
+    # organ 55's M11 drives the same escape against the production function.
+    # Both were measured FAILING before the containment fix. If this line ever
+    # does become exploitable, those fail -- they do not depend on this comment
+    # being true.
     fd = os.open(tmp_target, flags, 0o600)
     try:
         os.write(fd, after_bytes)
