@@ -219,13 +219,20 @@ def memory_search(
             bus.append(canonical)
             if r.memory_type == "workflow" and authority.is_trusted(r):
                 canonical_workflow = CanonicalEvent(
-                    event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED.value,
+                    event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_SURFACED.value,
                     phase=EventPhase.WONDER.value,
                     status="success",
                     trust=TrustLevel.VERIFIED.value,
                     source="aios.api.routes.memory",
                     session_id=session_id,
-                    payload={"workflowId": str(event_id), "query": req.query},
+                    payload={
+                        "workflowId": str(event_id),
+                        "query": req.query,
+                        # Said plainly in the payload too, because a
+                        # consumer reading only this dict should not have
+                        # to infer it from the event name.
+                        "applied": False,
+                    },
                 )
                 bus.append(canonical_workflow)
 
