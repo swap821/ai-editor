@@ -46,6 +46,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 import ast
+import time
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LEDGER_PATH = REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
@@ -1110,6 +1111,73 @@ def _entrypoint_drift(record, root: Path, since_sha: str) -> list[str]:
     return sorted(changed & set(entrypoints))
 
 
+def _evidence_currency_failures(record, root: Path) -> list[tuple[str, str]]:
+    """C10: live evidence may not be older than the code it attests to.
+
+    THE SAME HOLE C12 HAD, ONE LEVEL DOWN. The recount fixed attestation
+    currency -- an organ can no longer stay green while the code beneath it
+    moves. But `_evidence_reference_failures` checks only that an artifact's
+    `tip_sha` matches **the evidence row's own declared `commit_sha`**. That is
+    self-referential: it confirms the evidence is internally consistent, never
+    that it is current. Evidence could be arbitrarily old and C10 said nothing.
+
+    Why it mattered the day this was written: all 41 organs the recount demoted
+    clear every non-test condition at HEAD, so re-running their cited tests
+    would have restored green -- stamping a current sha onto live proof gathered
+    ~199 commits earlier. Anyone running the tests could have undone the
+    recount without writing a line of dishonest code.
+
+    Measured when added: this flags the five frozen-spine organs (their evidence
+    sits at b5485d3b) and none of the eight non-spine greens, whose evidence is
+    current. It gates nothing today. That is the honest result, and the rule is
+    still worth having: it closes a hole that was reachable by accident.
+
+    Frozen-spine findings carry the FROZEN-SPINE marker so the gate reports them
+    loudly and does not block on them -- the Sovereign's signature covers
+    `status`, so no agent can clear this, and blocking everyone else on a
+    finding only he can act upon aims the blocker at the wrong party.
+    """
+    from aios.application.governance.organ_ledger import FROZEN_SECURITY_ORGAN_IDS
+
+    failures: list[tuple[str, str]] = []
+    for evidence in record.live_evidence or []:
+        if getattr(evidence, "proof_level", None) != "live":
+            continue
+        sha = getattr(evidence, "commit_sha", "") or ""
+        if not _SHA.fullmatch(sha):
+            continue  # C10 already reports a malformed evidence sha.
+        drift = _entrypoint_drift(record, root, sha)
+        if not drift:
+            continue
+        shown = ", ".join(drift[:3]) + (
+            f" (+{len(drift) - 3} more)" if len(drift) > 3 else ""
+        )
+        if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+            failures.append(
+                (
+                    "C10",
+                    f"FROZEN-SPINE live evidence is STALE: it was gathered at "
+                    f"{sha[:12]}, and {len(drift)} of this organ's own "
+                    f"production_entrypoints changed after it -- {shown}. Only "
+                    "the Human Sovereign can clear this: re-run the evidence and "
+                    "scripts/spine_release_attest.py at a current commit.",
+                )
+            )
+        else:
+            failures.append(
+                (
+                    "C10",
+                    f"live evidence is STALE: it was gathered at {sha[:12]}, and "
+                    f"{len(drift)} of this organ's own production_entrypoints "
+                    f"changed after it -- {shown}. Re-gather the evidence at a "
+                    "current commit; re-running the cited tests does not refresh "
+                    "a live proof.",
+                )
+            )
+        break  # one finding per organ is enough to act on
+    return failures
+
+
 def _staleness_failures(record, root: Path) -> list[tuple[str, str]]:
     """C11/C12: refuse an attestation the code has moved out from under.
 
@@ -1380,6 +1448,7 @@ def _mechanical_checks(
     # ancestor of HEAD forever. Green-only by design -- see the note at the
     # contradictions list.
     failures.extend(_staleness_failures(record, root))
+    failures.extend(_evidence_currency_failures(record, root))
     # Written verdicts must exist and not be empty theater
     verdicts = record.condition_verdicts or {}
     for key in (f"C{i}" for i in range(1, 13)):
@@ -1439,7 +1508,22 @@ def _write_proof(
     # buries whatever actually changed. The ledger write further down is worse
     # than noise -- its bytes are sha256-pinned by release/organ-proof-manifest
     # .json, so a CRLF copy pins a hash that an LF checkout cannot reproduce.
-    path.write_text(body, encoding="utf-8", newline="\n")
+    # Retry on a transient Windows lock. This script writes 56 proof docs in
+    # quick succession, and an indexer or AV scanner holding one for a few
+    # milliseconds surfaces as OSError(EINVAL) on whichever file it happened
+    # to be reading -- observed 2026-09-13 on organ-35.md and then, on the
+    # very next run, README.md. Intermittent, environment-caused, unrelated
+    # to any verdict. But a gate that fails at random teaches people to
+    # re-run until green, which is exactly the habit this file exists to
+    # prevent. Three short attempts, then raise honestly.
+    for attempt in range(3):
+        try:
+            path.write_text(body, encoding="utf-8", newline="\n")
+            break
+        except OSError:
+            if attempt == 2:
+                raise
+            time.sleep(0.2 * (attempt + 1))
     return path
 
 
@@ -1812,9 +1896,11 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         print("", file=sys.stderr)
         print(
             f"OPERATOR ACTION REQUIRED -- {len(spine_stale)} frozen-spine "
-            "attestation(s) are STALE. Only the Human Sovereign can clear them: "
-            "re-run scripts/spine_release_attest.py at a current commit. Not "
-            "gated, because no agent can satisfy it.",
+            "organ(s) are STALE. Each line below says whether it is the "
+            "attestation (C12), the live evidence (C10), or both. Clearing it "
+            "means re-gathering the evidence at a current commit AND re-running "
+            "scripts/spine_release_attest.py -- re-running tests does not "
+            "refresh a live proof. Not gated, because no agent can satisfy it.",
             file=sys.stderr,
         )
         for msg in spine_stale:
