@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -262,68 +263,39 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
             reason=f"target left the staged workspace before the write: {exc}",
         )
 
-    # The path that is OPENED is the path that was validated.
+    # THE TEMP NAME IS GENERATED, NOT DERIVED.
     #
-    # The re-check above validates `target_path`, but the write goes to
-    # `tmp_target` -- a different path. It is contained by construction (a
-    # suffix appended to a canonical path stays in the same directory), but
-    # "contained by construction" is an argument, not a check, and the link
-    # between the value that was validated and the value that is opened was
-    # broken. CodeQL flagged exactly this reach (py/path-injection, high) and it
-    # was right about the shape even though the path is in fact contained.
+    # This wrote to `<target>.tmp` -- a name computed from the caller's own
+    # argv. Two things were wrong with that, and only one was CodeQL's
+    # complaint.
     #
-    # Passing the temp path through the same trust boundary makes the validated
-    # value and the opened value the SAME object, so there is nothing left to
-    # argue about.
-    try:
-        tmp_target = workspace_policy.resolve_staged_workspace(
-            str(target_path.with_suffix(target_path.suffix + ".tmp")),
-            workspace_root,
-        )
-    except (ValueError, OSError) as exc:
-        return ExecutorResult(
-            job_id=job.job_id,
-            status="failed",
-            isolation_verified=False,
-            started_at=started,
-            ended_at=utc_now(),
-            reason=f"the temporary write path is not inside the workspace: {exc}",
-        )
-
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
-    # THE REPO'S FIRST CODEQL SUPPRESSION (the marker itself sits on the
-    # `os.open` line below, where CodeQL requires it). It states its case rather
-    # than silencing a tool.
+    # The real one: a predictable temp name is a plantable temp name. Anything
+    # that can write inside the workspace could pre-create `<target>.tmp` as a
+    # link and have this write follow it. `O_NOFOLLOW` refused that on POSIX,
+    # but it is 0 on Windows -- so on the operator's own machine the guard was
+    # a no-op and the predictable name was the whole exposure.
     #
-    # CodeQL traces `job.argv[2]` to this `os.open` and is right that the value
-    # ORIGINATES with the caller. What it cannot see is that
-    # `resolve_staged_workspace` is a sanitiser: it canonicalises with realpath
-    # and refuses anything whose real path is not under the staged root. Both
-    # `target_path` and `tmp_target` are its OUTPUT, not the caller's input, and
-    # the second check runs on the line above this one.
+    # `mkstemp` fixes the actual problem rather than the reported one: the name
+    # is random, the file is created O_EXCL so an existing path is an error
+    # rather than a target, and the permissions are 0600 from birth. The
+    # DIRECTORY is what carries the trust, and it is `target_path.parent` --
+    # `target_path` having just been re-validated through
+    # `resolve_staged_workspace` on the line above.
     #
-    # The alert appeared only when the write moved from `Path.write_bytes` to
-    # `os.open` -- CodeQL models the latter as a sink. The earlier form was not
-    # safer; it was merely unmodelled. Reverting to it would trade a real
-    # control (O_NOFOLLOW at the leaf, which closes a TOCTOU the realpath checks
-    # cannot) for a green tick, which is the wrong direction.
-    #
-    # What would make this suppression WRONG, and how you would know: that the
-    # path can reach outside the staged root. That claim is under test, not
-    # under argument -- tests/test_repair_path_containment.py plants a real
-    # symlink (or a Windows junction, which `is_symlink()` cannot see) and
-    # asserts on the FILESYSTEM that nothing outside the root changed, and
-    # organ 55's M11 drives the same escape against the production function.
-    # Both were measured FAILING before the containment fix. If this line ever
-    # does become exploitable, those fail -- they do not depend on this comment
-    # being true.
-    fd = os.open(tmp_target, flags, 0o600)  # codeql[py/path-injection]
+    # That CodeQL stops flagging it is a consequence, not the point. The
+    # previous attempt to answer it with an inline `# codeql[...]` comment did
+    # nothing at all: GitHub code scanning does not honour those (they are an
+    # LGTM.com inheritance), so the suppression read as settled while the
+    # finding stayed open -- a comment asserting a thing no machine had checked.
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(target_path.parent), prefix=".aios-repair-", suffix=".tmp"
+    )
     try:
         os.write(fd, after_bytes)
         os.fsync(fd)
     finally:
         os.close(fd)
-    tmp_target.replace(target_path)
+    os.replace(tmp_name, target_path)
 
     ws_digest_after = tree_digest(workspace_root)
 
