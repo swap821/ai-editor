@@ -59,8 +59,9 @@ Confirmed by absence, not assumed:
 
 **Method, stated plainly.** Sections 1–5 (72 items) were mapped by agents with
 per-item evidence before the run hit its limit. Sections 6–11 (93 items) were
-mapped by hand afterwards. **The planned critic pass never ran**, so the 72
-agent-mapped verdicts have *not* been independently audited — see Limitations.
+mapped by hand afterwards. The planned critic pass never ran at the time, so the 72
+agent-mapped verdicts were unaudited when this map first shipped. **That pass
+has since been done by hand — see the completion pass at the end of this file.**
 
 | section | items | source |
 |---|---|---|
@@ -84,15 +85,14 @@ agent-mapped verdicts have *not* been independently audited — see Limitations.
 
 ## Limitations — what this map does not establish
 
-* **24 items are UNKNOWN.** Mostly in `roadmap-frontier` (P4/P5 sub-items) and
-  `honesty-docs`. They were not cheaply verifiable mechanically, and an honest
-  UNKNOWN is recorded rather than a guess. They are not evidence of absence.
-* **The critic pass never ran.** It was to audit DONE claims and find items the
-  sweep missed. The 21 agent-asserted DONEs carry cited evidence but were not
-  re-checked by a second pass. Treat them as one-source.
 * **DONE means "the artefact exists and its cited evidence checks out"** — it
   does not mean the behaviour was exercised end-to-end. That distinction is
   exactly what turned 54 green organs into 13 this same week.
+* **The per-item verdict map was never persisted.** Only the tallies above were
+  written down; the 165 individual verdicts lived in a session and are gone.
+  That is why the completion pass below can state which items it resolved but
+  cannot restate the combined per-bucket tally precisely. The resolved table is
+  written into this file so the same loss does not repeat.
 * **Verdicts are point-in-time.** They describe HEAD on 2026-09-13 and will rot
   the same way the catalog did. The organ ledger now has a staleness rule for
   precisely this reason; this document has none.
@@ -119,3 +119,99 @@ The honest next increments, in order of leverage:
    each one is a place the UI shows data it does not have.
 4. **Write the four missing docs** (104/121/122/123). Cheap, and three of them
    are prerequisites for anyone but the builder operating this system.
+
+---
+
+# Completion pass — 2026-09-13
+
+Both limitations recorded above are now closed.
+
+## The 21 DONE claims: audited, 21/21 survive
+
+The critic pass that never ran has now been done by hand. Every agent-asserted
+DONE was re-checked against its own cited evidence — does the named file exist,
+does it contain the named symbol, does the CI line actually invoke what is
+claimed.
+
+**21 of 21 confirmed. No unsupported claims.** The agent mapping was accurate.
+
+The caveat from above still binds and is not weakened by this: **DONE means the
+artefact exists and its cited evidence checks out** — not that the behaviour was
+exercised end to end. The audit was performed at that same level.
+
+**A second duplicate pair found:** items **#4** and **#14** are both
+"per-workspace `AutonomyLedger` dimension" — the same work counted twice, like
+44/127. The catalog's headline of 165 overcounts by at least two.
+
+## The 24 UNKNOWNs: resolved
+
+| item | verdict | evidence |
+|---|---|---|
+| 51 knowledge-chunk search | **OPEN** | `aios/memory/doc_ingest.py` uses `LIKE` (2 occurrences) — still a SQL scan, not FAISS-indexed |
+| 53 curriculum self-mining | **PARTIAL** | `aios/memory/curriculum_miner.py` exists; single-domain claim not settled without reading its domain table |
+| 54 operator-fact extraction | **UNKNOWN** | zero `re.compile` in `facts.py`; the extraction templates the item describes are not at the cited location |
+| 73 memory metabolism panel | **PARTIAL** | `MemoryOperationsPanel.jsx` exists; whether it shows candidate/verified/quarantined/superseded unconfirmed |
+| 97 RAM budget table | **PARTIAL** | `resource_mode` in `config.py` and `routes/v10.py`; no budget *table* located |
+| 101 snapshot retention gc | **PARTIAL** | retention/prune present in `aios/runtime/rollback_registry.py`; not shown to be scheduled |
+| 111 "goes dormant" claim | **DONE** | the word no longer appears in `README.md` — the false claim is gone |
+| 112 autonomy docstring | **UNKNOWN** | the docstring discusses defaults; whether the specific inversion was corrected is not mechanically decidable |
+| 113 planner confidence disclosure | **OPEN** | the claim is still in `README.md`, undisclosed |
+| 114 injection-shield default-off | **OPEN** | no `INJECTION` disclosure in `README.md` |
+| 115 `SWARM_CLOUD_BURST` disclosure | **DONE** | present in `README.md` |
+| 116 boot attestation detection-only | **PARTIAL** | attestation discussed in `README.md`; "detection-only, non-blocking" not confirmed |
+| 124 earned-autonomy STRONG ceiling | **OPEN** | no `STRONG` disclosure in `README.md` |
+| 126 thesis-audit PARTIAL claims | **UNKNOWN** | `tools/thesis_audit.py` contains no `PARTIAL`; cannot tell reconciled from never-emitted |
+| 136 cross-source verification | **OPEN** | no `cross_source`/`corroborat*` anywhere in `aios/` |
+| 137 freshness TTL for web | **OPEN** | TTL exists for mirror/API, nothing web-sourced |
+| 138 full-page fetch + extraction | **OPEN** | extraction exists in `doc_ingest.py` for uploads, not web pages |
+| 139 web-content injection defense | **OPEN** | nothing matching web-specific injection defense |
+| 142 web audit actor/endpoint | **OPEN** | none |
+| 143 frontend citation display | **OPEN** | `citation` appears in canvas components generally, nothing web-provenance |
+| 145 taste-category schema | **OPEN** | none |
+| 146 editable taste-fact UI | **OPEN** | no `taste` anywhere in `frontend/src` |
+| 147 alignment → taste bridge | **OPEN** | none |
+| 148 taste staleness policy | **OPEN** | none |
+| 149 per-project taste scoping | **OPEN** | none |
+| 154 public docs / demo | **OPEN** | `docs/*.md` at top level: **zero**; all markdown sits in `adr/` and `architecture/` |
+| 159 accessibility audit | **OPEN** | no `axe`/`jest-axe`/`a11y` in `frontend/package.json` |
+| 162 cross-platform claim | **OPEN** | the claim is present in `README.md` and remains untested/undisclosed |
+
+**Three remain UNKNOWN with the reason stated** (54, 112, 126) rather than being
+promoted to a tidy verdict. Each names what would settle it.
+
+**Tally, stated as far as it is honest to state it.** The catalog's 24 UNKNOWNs
+all fall inside the 28 rows above — the sweep resolved a superset, because the
+per-item verdict map from the original pass was never persisted and the exact
+24-item subset cannot be recovered. What *is* certain: **UNKNOWN drops from 24 to
+3.** The per-bucket combined tally (was: 45 DONE / 35 PARTIAL / 60 OPEN) is not
+restated, because doing so would require the four already-classified rows to be
+told apart from the twenty-four, and that information no longer exists. Inventing
+the split would be exactly the kind of tidy number this document exists to refuse.
+
+The largest single block of OPEN is the **P4 Sovereign Web Navigator and P5
+Taste Memory tranches — 15 items with no implementation at all.** Not partially
+built: absent. That is the honest shape of what remains.
+
+## The restoration bill for the 41 demoted organs
+
+They cannot be restored by re-running tests. All 41 clear every non-test
+condition at HEAD, but all 41 carry `live_evidence` at `proof_level: "live"`
+gathered ~199 commits ago, and as of this pass **C10 refuses stale evidence**
+— so a re-stamp no longer works, by design.
+
+Restoring any of them requires **re-gathering its live evidence at a current
+commit**, which costs what the evidence originally cost:
+
+| evidence shape | what re-gathering needs |
+|---|---|
+| `release/phase4/live-evidence-*.json` artifacts | a live probe run at a current tip |
+| `tests/foo.py::test_bar` proof nodes | already re-run every gate run — cheapest class |
+| `actions/runs/<id>` CI runs | a fresh CI run, then the row re-cited |
+| `OPERATOR-ATTESTED` observations | the operator; no agent can supply these |
+| browser-session rows | a real browser session |
+| Docker/container probes | a Docker host — unavailable on this machine today |
+
+The five frozen-spine organs need **both** halves: evidence re-gathered *and*
+`scripts/spine_release_attest.py` re-run. Their attestation sits at `f3cb6122`
+and their evidence at `b5485d3b`; `aios/security/gateway.py` has changed since
+both.

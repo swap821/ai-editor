@@ -151,3 +151,124 @@ def test_a_missing_sha_is_left_to_c11() -> None:
     assert not _verify._staleness_failures(
         _record("not-a-sha", ["AGENTS.md"]), REPO_ROOT
     )
+
+
+# --------------------------------------------------------------------------- #
+# C10 currency -- the same hole, one level down
+#
+# The recount fixed ATTESTATION currency. Evidence currency was still unchecked:
+# `_evidence_reference_failures` compares an artifact's tip_sha to the evidence
+# row's OWN declared commit_sha, which is self-referential. Evidence could be
+# arbitrarily old and C10 said nothing.
+#
+# Why it mattered the day this was written: all 41 organs the recount demoted
+# clear every non-test condition at HEAD, so re-running their cited tests would
+# have restored green -- stamping a current sha onto live proof gathered ~199
+# commits earlier. Anyone running the tests could have undone the recount
+# without writing a single dishonest line.
+# --------------------------------------------------------------------------- #
+
+
+def _evidence_record(organ_id: int, entrypoints: list[str], evidence_sha: str):
+    """A record carrying one live evidence row at *evidence_sha*."""
+    return SimpleNamespace(
+        organ_id=organ_id,
+        name="probe",
+        status="green",
+        last_verified_sha="0" * 40,
+        production_entrypoints=entrypoints,
+        live_evidence=[
+            SimpleNamespace(
+                proof_level="live",
+                commit_sha=evidence_sha,
+                description="probe evidence",
+            )
+        ],
+    )
+
+
+def test_evidence_older_than_the_code_it_attests_to_is_refused() -> None:
+    """THE BAR. Re-running tests does not refresh a live proof.
+
+    A green claim whose live evidence predates changes to its own entrypoints is
+    asserting something it has not re-observed.
+    """
+    target = "scripts/verify_organ_twelve_conditions.py"
+    older = _sha_that_predates(target)
+    if older is None:  # pragma: no cover - only in a shallow clone
+        pytest.skip("history too shallow to name a commit before the last change")
+
+    failures = _verify._evidence_currency_failures(
+        _evidence_record(999, [target], older), REPO_ROOT
+    )
+
+    assert failures, f"{target} changed after {older[:12]} and the evidence passed"
+    condition, message = failures[0]
+    assert condition == "C10"
+    assert "STALE" in message
+    assert "re-running the cited tests does not refresh" in message
+
+
+def test_current_evidence_is_not_flagged() -> None:
+    """A rule that fires on truthful evidence is worse than no rule."""
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True
+    ).stdout.strip()
+
+    assert not _verify._evidence_currency_failures(
+        _evidence_record(999, ["AGENTS.md"], head), REPO_ROOT
+    )
+
+
+def test_the_shipped_ledger_splits_exactly_as_measured() -> None:
+    """Against the REAL ledger: the five spine organs, and none of the eight.
+
+    Measured 2026-09-13 before the rule was written, so this pins the number
+    rather than discovering it. If a future change makes a non-spine green organ
+    fail here, that is a real finding and this test is where it surfaces.
+    """
+    from aios.application.governance.organ_ledger import (
+        FROZEN_SECURITY_ORGAN_IDS,
+        load_ledger,
+    )
+
+    ledger = load_ledger(REPO_ROOT / ".aios/state/ORGAN_GREEN_LEDGER.json")
+    greens = [r for r in ledger if r.status == "green"]
+    flagged = {
+        r.organ_id for r in greens if _verify._evidence_currency_failures(r, REPO_ROOT)
+    }
+
+    assert flagged == set(FROZEN_SECURITY_ORGAN_IDS), (
+        f"expected only the frozen spine to have stale evidence, got {sorted(flagged)}"
+    )
+    # The eight non-spine greens are green on BOTH axes: attestation and evidence.
+    assert not (flagged - set(FROZEN_SECURITY_ORGAN_IDS))
+
+
+def test_a_spine_finding_carries_the_marker_that_keeps_it_ungated() -> None:
+    """The gate filters on this marker to report without blocking.
+
+    If the wording ever loses it, five findings the Sovereign alone can clear
+    would start failing CI for everyone -- so the marker is pinned here rather
+    than living only in a string literal.
+    """
+    from aios.application.governance.organ_ledger import load_ledger
+
+    ledger = load_ledger(REPO_ROOT / ".aios/state/ORGAN_GREEN_LEDGER.json")
+    spine = next(r for r in ledger if r.organ_id == 1)
+
+    failures = _verify._evidence_currency_failures(spine, REPO_ROOT)
+
+    assert failures
+    assert "FROZEN-SPINE" in failures[0][1]
+
+
+def test_a_non_live_evidence_row_is_ignored() -> None:
+    """Scoped deliberately: only `proof_level="live"` rows make a live claim."""
+    older = _sha_that_predates("scripts/verify_organ_twelve_conditions.py")
+    if older is None:  # pragma: no cover
+        pytest.skip("history too shallow")
+    record = _evidence_record(999, ["scripts/verify_organ_twelve_conditions.py"], older)
+    record.live_evidence[0].proof_level = "fixture"
+
+    assert not _verify._evidence_currency_failures(record, REPO_ROOT)

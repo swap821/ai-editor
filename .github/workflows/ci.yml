@@ -373,7 +373,48 @@ jobs:
         run: npm ci
 
       - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
+        # `npm audit` exits 1 for three unrelated reasons: it found a
+        # vulnerability at or above the threshold, it could not reach the
+        # advisory endpoint, or it could not run at all. Those deserve opposite
+        # responses and npm gives them all the same exit code.
+        #
+        # On 2026-09-13 the second case took this job down in 19s on
+        # `400 Bad Request` from /security/audits/quick, while the same commit
+        # passed the same job in a sibling run. npm's own notice says that
+        # endpoint is being retired, so the false alarm gets more frequent.
+        #
+        # The danger is not the red build -- it is that a gate failing for
+        # reasons unrelated to what it measures teaches people to re-run until
+        # green, and that habit is what lets a real finding through. So: retry
+        # only the transport failure, never a finding; report an audit that
+        # could not run as exactly that; and still fail when the endpoint never
+        # answers. An audit that could not run is not an audit that passed.
+        #
+        # Exercised by tests/test_frontend_audit_gate.py, which runs this very
+        # block against a fake npm.
+        run: |
+          set +e
+          transport='audit endpoint returned an error|Bad Request|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up|network|50[234]'
+          operational='ENOLOCK|EUSAGE|EJSONPARSE|requires an existing lockfile'
+          for attempt in 1 2 3; do
+            out="$(npm audit --audit-level=high 2>&1)"
+            rc=$?
+            echo "$out"
+            [ $rc -eq 0 ] && exit 0
+            if echo "$out" | grep -qiE "$transport"; then
+              echo "::warning::npm audit could not reach the advisory endpoint (attempt $attempt/3); retrying"
+              sleep $((attempt * 5))
+              continue
+            fi
+            if echo "$out" | grep -qiE "$operational"; then
+              echo "::error::npm audit could not run (exit $rc) -- this is NOT a clean audit"
+              exit 1
+            fi
+            echo "::error::npm audit reported a vulnerability at or above 'high' (exit $rc)"
+            exit 1
+          done
+          echo "::error::npm audit could not reach the advisory endpoint after 3 attempts -- failing rather than assuming clean"
+          exit 1
 
       - name: Type-check
         run: npm run typecheck

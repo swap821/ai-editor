@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 45: Constitutional Amendment Authority
 
-**Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `7c0f675ccb58297cbd7455a14dd158cc1c30f60b`
-**Generated:** 2026-09-02T19:02:22+00:00
+**Status under re-read:** `yellow`
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `0a8dcbb0507c800a2f748c59dd63a18aec868f48`
+**Generated:** 2026-09-13T05:32:07+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **residual**: STALE ATTESTATION (recorded 1b4e1310): 7 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/routes/governance.py, aios/application/governance/amendment_authority.py, aios/domain/governance/amendments.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
 
 ## Written verdict keys that are not PASS/N/A
 
-(none — written verdicts PASS/N/A)
+C10
 
 ## Notes
 
