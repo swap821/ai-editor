@@ -11,18 +11,42 @@ performed and the code had no way to receive it.
 This module is that missing channel. It does not weaken the control; it gives it
 an input that only a human can produce.
 
-The property that matters
--------------------------
-An agent with full write access to this repository can author every line of this
-module, the CLI that drives it, and the ledger check that consumes it -- and
-still cannot produce a valid attestation, because the signing key never exists
-inside the repository. Verification uses a committed **public** key; signing
-requires a **private** key supplied through the environment at the moment of
-signing, per AGENTS.md §VII ("keys live only in volatile env vars; never on disk,
-in logs, or in ``.aios/``").
+The property that matters, stated accurately
+--------------------------------------------
+Signing requires a **private** key supplied through the environment at the moment
+of signing, per AGENTS.md §VII ("keys live only in volatile env vars; never on
+disk, in logs, or in ``.aios/``"). Verification uses a committed **public** key.
+The operator's private key is therefore unreachable from inside the repository,
+and no agent can sign *as him*.
 
-That asymmetry is the whole design. A green frozen organ therefore means exactly
-one thing: the operator personally signed for it.
+THIS DOCSTRING USED TO CLAIM MORE THAN THAT, and the claim was false. It said an
+agent with write access "still cannot produce a valid attestation, because the
+signing key never exists inside the repository". But an agent does not need HIS
+key. It can generate its own pair, overwrite the committed public key, sign with
+its own private half, and every verification then passes -- because verification
+trusts whatever key the file happens to contain. Nothing pinned that file: not
+the release manifest, not CI, and the attestation records no key identity. What
+actually stood between this repository and a forged approval was the operator
+reading a one-line diff.
+
+That gap was found on 2026-09-13, while rotating the key after the operator lost
+the private half of the original.
+
+So the honest statement is narrower, and it is two things rather than one:
+
+1. No agent can sign as the operator, because his private key is not here.
+2. An agent that substitutes its OWN key cannot do so quietly --
+   ``key_continuity_findings`` requires the trusted key to match an append-only
+   lineage record, and reports loudly on every run when it does not.
+
+(2) is a detection control, not a prevention one. A writer inside a repository
+can edit any file in it, including the lineage; pretending otherwise is exactly
+the overstatement being corrected here. What it buys is that a substitution must
+now forge a rotation EVENT with a stated reason, visible as such in review,
+instead of a hexadecimal string changing by one line.
+
+A green frozen organ therefore means: the operator signed for it, under a key
+whose lineage is recorded.
 
 What an attestation binds
 -------------------------
@@ -268,3 +292,86 @@ def approved_organ_ids(
             return frozenset()
 
     return frozenset(attestation.organ_ids)
+
+
+#: Append-only record of which public key has been trusted, and when it changed.
+KEY_HISTORY_RELPATH = Path(".aios") / "state" / "spine_key_history.jsonl"
+
+
+def load_key_history(root: Path) -> list[dict[str, Any]]:
+    """Every recorded signing key, oldest first. Absent file means no history."""
+    path = root / KEY_HISTORY_RELPATH
+    if not path.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SpineReleaseError(
+                f"spine key history has an unreadable line: {exc}"
+            ) from exc
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
+
+
+def key_continuity_findings(root: Path) -> list[str]:
+    """Report when the trusted signing key is not the one last recorded.
+
+    WHY THIS EXISTS, stated against this module's own former claim.
+
+    The docstring above used to say an agent with write access "still cannot
+    produce a valid attestation, because the signing key never exists inside the
+    repository". That is false as it stood, and losing the operator's key is what
+    exposed it: an agent does not need HIS private key. It can generate its own
+    pair, overwrite the committed PUBLIC key, sign with its own private half, and
+    every verification then passes -- because verification trusts whatever key
+    the file happens to contain.
+
+    Nothing pins that file. It is not in the release manifest, no CI step checks
+    its value, and the attestation records no key identity. What actually stood
+    between the repository and a forged approval was the operator reading a
+    one-line diff.
+
+    This does not make substitution impossible -- inside a repository the writer
+    can edit anything, and claiming otherwise is how the first overstatement
+    happened. It makes substitution LOUD: the trusted key must match the last
+    recorded entry, and a change that is not recorded as a rotation is reported
+    on every run. An attacker must now also forge a rotation record, which
+    appears in the diff as an event with a stated reason rather than as a
+    hexadecimal string quietly changing.
+
+    Returns human-readable findings; empty means the key is the recorded one.
+    """
+    installed = load_public_key(root)
+    history = load_key_history(root)
+
+    if installed is None:
+        return []  # no key installed: frozen organs cannot be green anyway
+
+    if not history:
+        return [
+            "SIGNING KEY HAS NO RECORDED LINEAGE: a public key is installed "
+            f"({installed[:12]}...) but .aios/state/spine_key_history.jsonl does "
+            "not exist, so there is nothing to tell a legitimate key from a "
+            "substituted one. Record the current key before trusting it."
+        ]
+
+    latest = history[-1]
+    recorded = str(latest.get("pubkey") or "")
+    if recorded == installed:
+        return []
+
+    return [
+        "SIGNING KEY CHANGED WITHOUT A RECORDED ROTATION: the installed key is "
+        f"{installed[:12]}... but the last recorded key is {recorded[:12]}... "
+        "Every attestation verified from here is verified against a key nobody "
+        "signed off. If this rotation is legitimate, append it to "
+        ".aios/state/spine_key_history.jsonl with the reason; if it is not, the "
+        "spine's approvals cannot be trusted and the frozen organs must not be "
+        "green."
+    ]
