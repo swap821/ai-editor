@@ -34,9 +34,60 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CI_YML = REPO_ROOT / ".github/workflows/ci.yml"
 
-BASH = shutil.which("bash")
+
+def _working_bash() -> str | None:
+    """The first `bash` on PATH that can actually run a command.
+
+    NOT `shutil.which("bash")` alone. On Windows that resolves to whichever
+    bash wins the PATH race, and System32's WSL stub wins when pytest is
+    launched from PowerShell -- it then fails with
+
+        WSL (12 - Relay) ERROR: execvpe(/bin/bash) failed
+
+    which surfaced as five assertion failures in the full suite while the same
+    tests passed when launched from Git Bash. A test whose result depends on how
+    the runner was started teaches people to ignore the suite, which is the
+    habit this file's own subject exists to prevent.
+    """
+    candidates: list[str] = []
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if not directory:
+            continue
+        found = shutil.which("bash", path=directory)
+        if found:
+            candidates.append(found)
+    # Git Bash is a real POSIX shell that is frequently NOT on PowerShell's PATH
+    # even when it is installed, so a PATH-only search would skip these tests on
+    # a machine that can perfectly well run them -- trading a false failure for a
+    # silent coverage hole, which is only a better bug.
+    if os.name == "nt":
+        candidates += [
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ]
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen or not os.path.exists(candidate):
+            continue
+        seen.add(candidate)
+        try:
+            probe = subprocess.run(
+                [candidate, "-c", "echo ok"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0 and "ok" in probe.stdout:
+            return candidate
+    return None
+
+
+BASH = _working_bash()
 pytestmark = pytest.mark.skipif(
-    BASH is None, reason="POSIX shell unavailable; the step only ever runs on bash"
+    BASH is None, reason="no working POSIX shell; the step only ever runs on bash"
 )
 
 

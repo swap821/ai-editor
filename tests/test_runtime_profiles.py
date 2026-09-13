@@ -292,8 +292,23 @@ def test_executor_authority_uses_kernel_for_earned_autonomy(
     command = "mkdir -p training_ground/test_dir"
     _seed_earned_command(ledger, command)
 
+    # The subject here is that the executor routes the earned-autonomy decision
+    # through the KERNEL. It is not that earned autonomy may run on the host --
+    # which is what a bare `Executor(...)` meant, because `AIOS_PROFILE` defaults
+    # to "development" and the runner falls back to `_default_runner`. Earned
+    # autonomy now requires an isolated runner, so supply one and let this test
+    # keep measuring what it was written to measure.
+    class _IsolatedRunner:
+        is_private_service = True
+
+        def __call__(self, command, *, cwd, env, timeout_s):
+            return ("", "", 0)
+
     executor = Executor(
-        approved_runner=None, policy_kernel=kernel, emergency_stop=UNGOVERNED_FIXTURE
+        runner=_IsolatedRunner(),
+        approved_runner=None,
+        policy_kernel=kernel,
+        emergency_stop=UNGOVERNED_FIXTURE,
     )
     result = executor.execute(command)
     assert result.status == "OK"

@@ -2,16 +2,16 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `0a8dcbb0507c800a2f748c59dd63a18aec868f48`
-**Generated:** 2026-09-13T05:32:07+00:00
+**Evaluated tip:** `506c05d2d8b3aa5e090517c0feebefa52416b199`
+**Generated:** 2026-09-13T11:42:30+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: Operator attestation remains pending. The current nine-mission evidence is release/organ-55/2026-09-07-m1-can-score.md: standalone 9/9, then bar cohorts 8/9, 9/9, 9/9. M1 held in all four runs; M2 was unproven in the 8/9 run. The predeclared >=8/9 bar was met, and three of four runs were CONFORMANT, but three consecutive 9/9 runs have not been demonstrated. These cohorts were assistant-driven on the operator's machine; the outside-machine requirement in C10 remains unmet. Status stays yellow and last_verified_sha stays null pending the operator's attestation and verification pin. Earlier five- and eight-mission results remain historical evidence, not the current mission count or score floor.
+- **residual**: Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5.
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+C9
 
 ## Notes
 

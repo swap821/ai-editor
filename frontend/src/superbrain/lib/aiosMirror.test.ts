@@ -155,7 +155,10 @@ describe('aiosMirror', () => {
     sendCanonical(19, 'worker.started', { workerId: 'worker-1' });
     sendCanonical(20, 'worker.dissolved', { workerId: 'worker-1' });
     sendCanonical(21, 'memory.recalled', {});
-    sendCanonical(22, 'memory.trusted_workflow_applied', {});
+    // The truthful event, and the retained legacy one. Both must render:
+    // journals recorded before the rename still replay.
+    sendCanonical(22, 'memory.trusted_workflow_surfaced', { workflowId: 'wf-1', applied: false });
+    sendCanonical(220, 'memory.trusted_workflow_applied', {});
     sendCanonical(23, 'telemetry.agent_started', {});
     sendCanonical(24, 'human_required', { text: 'approve' });
     sendCanonical(25, 'code', {});

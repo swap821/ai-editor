@@ -32,6 +32,9 @@ cannot reach a control is a legitimate result -- but only after actually looking
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -1391,6 +1394,239 @@ def _cleanup_m9_artifact() -> None:
         pass  # never created (the good case), already gone, or not empty
 
 
+#: The route M10 probes: semantic recall over the operator's own memory.
+_MEMORY_RECALL_ROUTE = "/api/v1/memory/search"
+
+
+def _session_only_probe(
+    ctx: DriverContext, route: str, payload: dict
+) -> dict[str, Any]:
+    """POST *route* holding a REAL session that carries no operator bond.
+
+    Deliberately stronger than `_unauthenticated_probe`, which holds nothing.
+    That probe asks "is the door open?"; this one asks the harder question --
+    whether holding a session is mistaken for BEING the operator. The session is
+    minted the same way any local process could mint one, from the public
+    `POST /api/v1/auth/session`, on a fresh connection that never sees the
+    operator's cookies.
+
+    The bond control is part of the probe rather than a separate step: without
+    it, a refusal here could mean "correctly scoped" or "the server was down",
+    and those must not score the same.
+    """
+    import requests
+
+    from aios.probe_common import probe_headers
+    from aios.probe_session import API_HOST_HEADER
+
+    # Take the Origin and content type from the shared helper -- the mutation
+    # guard requires an EXACT allowed Origin, and hardcoding one here would drift
+    # the day that list changes (measured: a hand-written Origin got 403).
+    #
+    # But DROP the bearer token it adds when AIOS_API_TOKEN is set. That token is
+    # a credential, and a probe carrying one is not the unbonded caller this
+    # mission is about -- it would be served, and M10 would report a hole that
+    # does not exist, or worse, hold vacuously once the hole was fixed. The
+    # control read below catches this too, but a probe should not depend on its
+    # own safety net for something it can simply not do.
+    headers = {k: v for k, v in probe_headers().items() if k != "Authorization"}
+    headers["Host"] = API_HOST_HEADER
+    http = requests.Session()  # a fresh jar: none of the operator's cookies
+    try:
+        created = http.post(
+            f"{ctx.session.base}/api/v1/auth/session", headers=headers, timeout=30
+        )
+        if created.status_code != 200:
+            return {"error": f"session mint returned {created.status_code}"}
+        csrf = http.cookies.get("csrf_token")
+        if csrf:
+            headers["X-CSRF-Token"] = csrf
+
+        # THE CONTROL. A bonded caller is served this; if this probe is served
+        # it too, the probe is privileged and everything below proves nothing.
+        control = http.get(
+            f"{ctx.session.base}{_PRIVILEGED_READ_ROUTE}", headers=headers, timeout=30
+        )
+        if control.status_code == 200:
+            return {
+                "error": (
+                    "the probe session was served privileged state, so it is not "
+                    "unbonded and this mission cannot adjudicate"
+                )
+            }
+
+        resp = http.post(
+            f"{ctx.session.base}{route}", json=payload, headers=headers, timeout=30
+        )
+        status = resp.status_code
+    except Exception as exc:  # noqa: BLE001 - an unreachable harness is not a pass
+        return {"error": f"{type(exc).__name__}: {exc}"}
+    finally:
+        http.close()
+
+    return {
+        "verdict": "served" if status == 200 else "refused",
+        "probe": "session_without_bond_read",
+        "route": route,
+        "status": status,
+        "control_status": control.status_code,
+        "source": "m10_probe",
+    }
+
+
+def drive_m10(ctx: DriverContext) -> DriverResult:
+    """Invariant VII -- is a SESSION mistaken for the operator's consent?
+
+    `POST /api/v1/memory/search` is semantic recall over the operator's own
+    memory: a read by every meaning except the HTTP verb. The bonded-read gate
+    tested `request.method not in _READ_METHODS` and returned early, so it never
+    inspected a POST; the route is GREEN, so `action_guard`'s privileged check
+    (YELLOW-only) did not apply; and `check_mutation_origin_or_token` is
+    satisfied by any session with CSRF, which an anonymous one has.
+
+    Measured 2026-09-13, before the fix: the same client refused on
+    /api/v1/security/audit (401) was served recall (200).
+
+    The adversary is not a stranger at the keyboard. It is other local software
+    on the operator's machine -- a browser extension, an npm postinstall,
+    another app -- which is the adversary the bonded-read gate exists for.
+    """
+    result = DriverResult()
+    probe = _session_only_probe(
+        ctx, _MEMORY_RECALL_ROUTE, {"query": "ssh key passphrase", "top_k": 3}
+    )
+    if "error" in probe:
+        result.not_drivable = (
+            f"the unbonded-session probe could not run: {probe['error']}"
+        )
+        return result
+    result.decisions.append(probe)
+    result.notes.append(
+        f"session-without-bond POST {_MEMORY_RECALL_ROUTE} -> {probe['status']} "
+        f"(bond control {_PRIVILEGED_READ_ROUTE} -> {probe['control_status']})"
+    )
+    return result
+
+
+def _plant_redirected_directory(link: Path, target: Path) -> str:
+    """Make *link* resolve to *target*, by whatever this platform allows.
+
+    Returns the mechanism, or "" when none is available. Windows symlinks need a
+    privilege ordinary users lack; junctions do not -- and a junction is the
+    more searching case, because `Path.is_symlink()` reports False for one, so a
+    per-component symlink check would miss it entirely and only canonicalisation
+    catches it.
+    """
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return "symlink"
+    except (OSError, NotImplementedError, AttributeError):
+        pass
+    if os.name == "nt":
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            text=True,
+        )
+        if link.exists():
+            return "junction"
+    return ""
+
+
+def drive_m11(ctx: DriverContext) -> DriverResult:
+    """Invariant VIII -- does containment survive a path that only LOOKS contained?
+
+    The repair path resolved its target with `os.path.normpath` and checked it
+    with `startswith`. That is lexical: it collapses "..", it does not follow
+    links. The one link check inspected the FINAL component only. So a
+    redirected intermediate directory satisfied both -- the path still reads as
+    inside the staged root, and the leaf is an ordinary file.
+
+    Measured 2026-09-13 against the production function: status "completed",
+    isolation_verified True, and a file outside the staged root rewritten.
+
+    Driven in-process against `execute_registered_operation_in_service` rather
+    than through the five-stage scan/propose/approve/run HTTP flow. That flow
+    has several dependencies of its own (capability consumer, checkpointer,
+    smoke verifier), and a refusal from any of them is indistinguishable from a
+    containment refusal -- a mission that can pass for the wrong reason is worse
+    than no mission. This calls the same function the service calls, with a
+    redirect planted on the real filesystem.
+    """
+    import tempfile
+
+    result = DriverResult()
+    root = Path(tempfile.mkdtemp(prefix="m11-containment-"))
+    outside = root / "OUTSIDE"
+    outside.mkdir()
+    victim = outside / "secret.txt"
+    canary = "# DEFECT_MARKER: fix_required\nOPERATOR SECRET\n"
+    victim.write_text(canary, encoding="utf-8")
+    staged = root / "staged"
+    staged.mkdir()
+
+    mechanism = _plant_redirected_directory(staged / "sub", outside)
+    if not mechanism:
+        shutil.rmtree(root, ignore_errors=True)
+        result.not_drivable = (
+            "neither a symlink nor a junction could be created here, so the "
+            "escape cannot be attempted at all"
+        )
+        return result
+
+    previous_root = os.environ.get("AIOS_EXECUTOR_WORKSPACE_ROOT")
+    try:
+        os.environ["AIOS_EXECUTOR_WORKSPACE_ROOT"] = str(root)
+        from aios.domain.executor.protocol import ExecutorCapability, ExecutorJob
+        from aios.executor_service import execute_registered_operation_in_service
+
+        job = ExecutorJob(
+            job_id="m11-containment",
+            mission_contract_digest="d" * 64,
+            capability=ExecutorCapability(
+                capability_id="m11",
+                action_digest="a" * 64,
+                mission_contract_digest="d" * 64,
+                expires_at="2099-01-01T00:00:00+00:00",
+            ),
+            image="none",
+            argv=("repair", "REMOVE_MAINTENANCE_MARKER_V1", "sub/secret.txt"),
+            workspace_snapshot=str(staged),
+        )
+        outcome = execute_registered_operation_in_service(job)
+        after = victim.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - an unreachable control is not a pass
+        result.not_drivable = (
+            f"the repair path could not be driven: {type(exc).__name__}: {exc}"
+        )
+        return result
+    finally:
+        if previous_root is None:
+            os.environ.pop("AIOS_EXECUTOR_WORKSPACE_ROOT", None)
+        else:
+            os.environ["AIOS_EXECUTOR_WORKSPACE_ROOT"] = previous_root
+        shutil.rmtree(root, ignore_errors=True)
+
+    escaped = after != canary
+    result.decisions.append(
+        {
+            "verdict": "escaped" if escaped else "contained",
+            "probe": "redirected_intermediate_directory",
+            "mechanism": mechanism,
+            "status": outcome.status,
+            "isolation_verified": bool(outcome.isolation_verified),
+            "outside_file_modified": escaped,
+            "source": "m11_probe",
+        }
+    )
+    result.notes.append(
+        f"planted a {mechanism}; repair returned {outcome.status} with "
+        f"isolation_verified={outcome.isolation_verified}; outside file "
+        f"{'MODIFIED' if escaped else 'untouched'}"
+    )
+    return result
+
+
 DRIVERS: Mapping[str, Callable[[DriverContext], DriverResult]] = {
     "M1": drive_m1,
     "M2": drive_m2,
@@ -1401,4 +1637,6 @@ DRIVERS: Mapping[str, Callable[[DriverContext], DriverResult]] = {
     "M7": drive_m7,
     "M8": drive_m8,
     "M9": drive_m9,
+    "M10": drive_m10,
+    "M11": drive_m11,
 }

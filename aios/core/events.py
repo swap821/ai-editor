@@ -198,6 +198,25 @@ class CanonicalEventType(str, Enum):
     EDIT_PROPOSED = "edit.proposed"
     EDIT_BLOCKED = "edit.blocked"
     MEMORY_RECALLED = "memory.recalled"
+    #: A trusted workflow was RETURNED to a caller. Nothing was run.
+    #:
+    #: The event below says "applied", and for its whole life the only thing
+    #: that emitted it was `memory_search`, which returns search results. No
+    #: code path in this repository applies a trusted workflow -- the sole
+    #: emitter merely handed one back, under `session_id="system"`, and the
+    #: frontend rendered it with the literal fallback word "applied".
+    #:
+    #: An event that names an action nobody took is the narration-vs-evidence
+    #: defect this system exists to refuse, sitting in the observation bus that
+    #: is supposed to carry what HAPPENED. Surfacing and applying differ by
+    #: everything that matters, so they get different names.
+    MEMORY_TRUSTED_WORKFLOW_SURFACED = "memory.trusted_workflow_surfaced"
+    #: RETAINED, and deliberately no longer emitted by anything.
+    #:
+    #: Kept so historical journals and mirror replays still resolve, and so the
+    #: name is available if something ever genuinely applies a workflow. If you
+    #: are about to emit this: the question to answer first is whether the
+    #: workflow RAN, not whether it was offered.
     MEMORY_TRUSTED_WORKFLOW_APPLIED = "memory.trusted_workflow_applied"
     TELEMETRY_AGENT_STARTED = "telemetry.agent_started"
     # An injection DETECTION is something that happened, not something that was

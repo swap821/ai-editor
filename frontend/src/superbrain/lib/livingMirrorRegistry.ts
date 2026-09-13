@@ -122,8 +122,21 @@ const core: Record<string, ReactionSpec> = {
   'memory.recalled': {
     react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'MEMORY RECALLED', detail: text(payload, 'text').slice(0, 140), intensity: 0.6, source: 'mirror' }),
   },
+  // A trusted workflow was SURFACED by recall -- returned to the caller, not run.
+  //
+  // The backend emitted `memory.trusted_workflow_applied` for this, and the only
+  // thing that ever emitted it was the memory-search route returning results.
+  // Nothing in the system applies a trusted workflow. So the event named an
+  // action nobody took, and this label's fallback text said "applied" -- the UI
+  // asserting a thing had happened because a search matched.
+  'memory.trusted_workflow_surfaced': {
+    react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'TRUSTED WORKFLOW', detail: text(payload, 'workflowId', 'workflow_id').slice(0, 140) || 'surfaced', intensity: 1, source: 'mirror' }),
+  },
+  // RETAINED for journals recorded before the rename, so replaying history still
+  // renders. Nothing emits this now. The label deliberately does NOT say
+  // "applied": these old rows recorded a workflow being offered too.
   'memory.trusted_workflow_applied': {
-    react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'TRUSTED WORKFLOW', detail: text(payload, 'workflowId', 'workflow_id').slice(0, 140) || 'applied', intensity: 1, source: 'mirror' }),
+    react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'TRUSTED WORKFLOW', detail: text(payload, 'workflowId', 'workflow_id').slice(0, 140) || 'surfaced', intensity: 1, source: 'mirror' }),
   },
   'facts.proposed': {
     announcement: (p) => {

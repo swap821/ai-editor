@@ -145,24 +145,60 @@ class AlignmentFeedbackRequest(BaseModel):
 @router.post("/api/v1/memory/search")
 def memory_search(
     req: MemorySearchRequest,
+    request: Request,
     authority=Depends(get_memory_authority),
 ) -> dict[str, Any]:
-    """Route semantic recall through the canonical memory authority."""
+    """Route semantic recall through the canonical memory authority.
+
+    SCOPED TO THE CALLER'S OWN SESSION, and to verified memory.
+
+    This route used to pass neither scope and to force
+    `include_unverified=True`. `MemoryRecallContext` already carries
+    `session_id`, `project_id` and an `include_unverified` that defaults to
+    False, and the adapters already honour all three -- the contract was built
+    correctly and this one caller reached around it. The result was that the
+    LEAST authenticated caller on the surface got the WIDEST view: unscoped, and
+    with the authority's trust filter switched off.
+
+    The session comes from the validated httpOnly cookie via
+    `_require_cookie_session`, never from the request body, so a caller cannot
+    name someone else's session -- the same rule
+    `restore_conversation_session` below already follows.
+    """
     from aios.api.main import get_cortex_bus
 
+    session_id = _require_cookie_session(request)
     bus = get_cortex_bus()
     results = authority.recall(
         req.query,
-        MemoryRecallContext(limit=req.top_k, include_unverified=True),
+        MemoryRecallContext(limit=req.top_k, session_id=session_id),
     )
 
-    if bus and results:
+    if bus:
         from aios.core.events import (
             CanonicalEvent,
             CanonicalEventType,
             EventPhase,
             TrustLevel,
         )
+
+        if not results:
+            # A recall that returned nothing STILL HAPPENED. The old condition
+            # was `if bus and results`, so a query against the operator's memory
+            # left no trace whenever it matched nothing -- which is precisely
+            # the shape a probe makes. An observer could not distinguish "no one
+            # searched" from "someone searched and found nothing".
+            bus.append(
+                CanonicalEvent(
+                    event_type=CanonicalEventType.MEMORY_RECALLED.value,
+                    phase=EventPhase.WONDER.value,
+                    status="success",
+                    trust=TrustLevel.UNKNOWN.value,
+                    source="aios.api.routes.memory",
+                    session_id=session_id,
+                    payload={"query": req.query, "hits": 0},
+                )
+            )
 
         for r in results:
             trust = authority.trust_level(r)
@@ -172,7 +208,7 @@ def memory_search(
                 status="success",
                 trust=trust,
                 source="aios.api.routes.memory",
-                session_id="system",
+                session_id=session_id,
                 payload={
                     "id": r.external_id or r.record_id or r.content_reference,
                     "text": r.text,
@@ -183,13 +219,20 @@ def memory_search(
             bus.append(canonical)
             if r.memory_type == "workflow" and authority.is_trusted(r):
                 canonical_workflow = CanonicalEvent(
-                    event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_APPLIED.value,
+                    event_type=CanonicalEventType.MEMORY_TRUSTED_WORKFLOW_SURFACED.value,
                     phase=EventPhase.WONDER.value,
                     status="success",
                     trust=TrustLevel.VERIFIED.value,
                     source="aios.api.routes.memory",
-                    session_id="system",
-                    payload={"workflowId": str(event_id), "query": req.query},
+                    session_id=session_id,
+                    payload={
+                        "workflowId": str(event_id),
+                        "query": req.query,
+                        # Said plainly in the payload too, because a
+                        # consumer reading only this dict should not have
+                        # to infer it from the event name.
+                        "applied": False,
+                    },
                 )
                 bus.append(canonical_workflow)
 
