@@ -321,6 +321,10 @@ def cmd_sign(args: argparse.Namespace) -> int:
         return 1
 
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        PublicFormat,
+    )
 
     try:
         private = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(private_hex))
@@ -330,11 +334,36 @@ def cmd_sign(args: argparse.Namespace) -> int:
         )
         return 2
 
+    # DERIVE the public half from the private key being used, rather than
+    # reading the installed file. Those are the same value in the normal case
+    # and differ in exactly the interesting one: if the operator signs with a
+    # key whose public half is NOT what is installed, the attestation records
+    # what he actually signed with, and verification then fails honestly
+    # instead of appearing to succeed against someone else's key.
+    signing_pubkey = (
+        private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    )
+
+    installed = (REPO_ROOT / PUBKEY_RELPATH).read_text(encoding="utf-8").strip()
+    if installed and installed.lower() != signing_pubkey:
+        print()
+        print("WARNING: you are signing with a key that is NOT the installed one.")
+        print(f"  installed : {installed[:16]}...")
+        print(f"  signing   : {signing_pubkey[:16]}...")
+        print("The attestation will record the key you signed with, so this will")
+        print("fail verification until the matching public key is installed:")
+        print(
+            f"  python scripts/spine_release_attest.py install-pubkey --key {signing_pubkey} \\"
+        )
+        print('      --note "why this key replaces the previous one"')
+        print()
+
     attestation = SpineAttestation(
         organ_ids=organ_ids,
         commit_sha=head,
         evidence_digest=digest,
         signature="",
+        pubkey=signing_pubkey,
         note=args.note,
     )
     signature = private.sign(attestation.signing_payload()).hex()
@@ -348,6 +377,7 @@ def cmd_sign(args: argparse.Namespace) -> int:
                 "commit_sha": head,
                 "evidence_digest": digest,
                 "signature": signature,
+                "pubkey": signing_pubkey,
                 "note": args.note,
             },
             indent=2,

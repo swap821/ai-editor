@@ -147,3 +147,109 @@ def test_the_recorded_lineage_is_a_chain(tmp_path: Path) -> None:
             "a rotation with no stated reason is the thing this record exists to "
             "make impossible to do quietly"
         )
+
+
+# --------------------------------------------------------------------------- #
+# The signer is inside the signature
+# --------------------------------------------------------------------------- #
+def _keypair():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    private = Ed25519PrivateKey.generate()
+    public = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    return private, public
+
+
+def _sign(private, pubkey: str):
+    from aios.application.governance.spine_release import SpineAttestation
+
+    unsigned = SpineAttestation(
+        organ_ids=(1,),
+        commit_sha="a" * 40,
+        evidence_digest="b" * 64,
+        signature="",
+        pubkey=pubkey,
+    )
+    return SpineAttestation(
+        organ_ids=unsigned.organ_ids,
+        commit_sha=unsigned.commit_sha,
+        evidence_digest=unsigned.evidence_digest,
+        signature=private.sign(unsigned.signing_payload()).hex(),
+        pubkey=pubkey,
+    )
+
+
+def test_an_attestation_verifies_under_the_key_it_names() -> None:
+    from aios.application.governance.spine_release import verify_signature
+
+    private, public = _keypair()
+
+    assert verify_signature(_sign(private, public), public) is True
+
+
+def test_a_swapped_installed_key_no_longer_verifies_a_past_approval() -> None:
+    """THE BAR for binding. Before this, swapping the file re-pointed every
+    historical approval at a new signer with no signed byte changing."""
+    from aios.application.governance.spine_release import verify_signature
+
+    private, public = _keypair()
+    _, attacker_public = _keypair()
+
+    attestation = _sign(private, public)
+
+    assert verify_signature(attestation, attacker_public) is False
+
+
+def test_editing_the_named_key_breaks_the_signature() -> None:
+    """The name is covered BY the signature, not merely stored beside it.
+
+    Otherwise an attacker could rewrite `pubkey` to match whatever they
+    installed and the mismatch check would pass on a forged pairing.
+    """
+    from aios.application.governance.spine_release import (
+        SpineAttestation,
+        verify_signature,
+    )
+
+    private, public = _keypair()
+    _, attacker_public = _keypair()
+    original = _sign(private, public)
+
+    relabelled = SpineAttestation(
+        organ_ids=original.organ_ids,
+        commit_sha=original.commit_sha,
+        evidence_digest=original.evidence_digest,
+        signature=original.signature,
+        pubkey=attacker_public,
+    )
+
+    assert verify_signature(relabelled, attacker_public) is False
+
+
+def test_an_attestation_naming_no_key_is_refused_with_instructions(
+    tmp_path: Path,
+) -> None:
+    """Attestations written before the binding are not corrupt -- they simply
+    cannot say who signed them, and the only cure is another signature."""
+    from aios.application.governance.spine_release import (
+        ATTESTATION_RELPATH,
+        SpineReleaseError,
+        load_attestation,
+    )
+
+    (tmp_path / ATTESTATION_RELPATH).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / ATTESTATION_RELPATH).write_text(
+        json.dumps(
+            {
+                "organ_ids": [1],
+                "commit_sha": "a" * 40,
+                "evidence_digest": "b" * 64,
+                "signature": "cc",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SpineReleaseError, match="names no signing key"):
+        load_attestation(tmp_path)
