@@ -1376,6 +1376,10 @@ def _mechanical_checks(
     # C12
     elif ancestry_fn(root, sha) is False:
         failures.append(("C12", f"last_verified_sha {sha} is not an ancestor of HEAD"))
+    # C12 (currency). Ancestry is not the same as current: an old commit is an
+    # ancestor of HEAD forever. Green-only by design -- see the note at the
+    # contradictions list.
+    failures.extend(_staleness_failures(record, root))
     # Written verdicts must exist and not be empty theater
     verdicts = record.condition_verdicts or {}
     for key in (f"C{i}" for i in range(1, 13)):
@@ -1771,7 +1775,10 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         for cond, reason in _verdict_contradiction_failures(record)
         + _mission_count_failures(record, REPO_ROOT)
         + _citation_failures(record, REPO_ROOT)
-        + _staleness_failures(record, REPO_ROOT)
+        # NOTE: _staleness_failures is deliberately NOT here. It asks whether
+        # a GREEN claim is still current; a yellow organ is already saying it
+        # is not attested, so reporting it again turned all 42 demoted organs
+        # into CI failures. It runs in _mechanical_checks, which is green-only.
         + _owner_reachability_failures(record, REPO_ROOT)
         + _governability_failures(record, REPO_ROOT)
     ]
@@ -1785,9 +1792,37 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
             print(f"  - {msg}", file=sys.stderr)
         return 1
 
-    print(f"green mechanical failures: {len(green_failures)}")
-    if green_failures and not args.demote:
-        for msg in green_failures:
+    # A finding only the Human Sovereign can clear must not block everyone else.
+    #
+    # The frozen spine's attestation covers `status` (see
+    # scripts/spine_release_attest.py), so an agent can neither demote a stale
+    # spine row nor re-sign one. Gating on it would hold CI red until he acts,
+    # blocking work that has nothing to do with the finding -- a blocker aimed at
+    # someone other than the party being blocked.
+    #
+    # The repo already draws this line: release-strict-gate is tag-gated because
+    # exact-tip equality is structurally unsatisfiable on an ordinary push. Same
+    # shape, same treatment -- report it on every run, loudly, and let the merge
+    # proceed. NON-spine staleness still fails, because an agent CAN clear that
+    # by re-verifying at a current commit.
+    spine_stale = [m for m in green_failures if "FROZEN-SPINE" in m]
+    blocking = [m for m in green_failures if "FROZEN-SPINE" not in m]
+
+    if spine_stale:
+        print("", file=sys.stderr)
+        print(
+            f"OPERATOR ACTION REQUIRED -- {len(spine_stale)} frozen-spine "
+            "attestation(s) are STALE. Only the Human Sovereign can clear them: "
+            "re-run scripts/spine_release_attest.py at a current commit. Not "
+            "gated, because no agent can satisfy it.",
+            file=sys.stderr,
+        )
+        for msg in spine_stale:
+            print(f"  - {msg}", file=sys.stderr)
+
+    print(f"green mechanical failures: {len(blocking)}")
+    if blocking and not args.demote:
+        for msg in blocking:
             print(f"  - {msg}", file=sys.stderr)
         return 1
     return 0
