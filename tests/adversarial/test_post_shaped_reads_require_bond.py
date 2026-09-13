@@ -119,12 +119,16 @@ def test_recall_does_not_silently_widen_to_unverified(
     # that EXPLAINS the old behaviour, so it would fail on a correct fix and
     # pass on a route that merely renamed the argument.
     import ast
-    import inspect
     import textwrap
 
     from aios.api.routes import memory as memory_routes
+    from tests.source_rules import executable_source
 
-    tree = ast.parse(textwrap.dedent(inspect.getsource(memory_routes.memory_search)))
+    # `executable_source`, not `inspect.getsource`: the repo pins raw-source use
+    # in tests at budget ZERO (tests/test_source_rules.py). The AST walk below
+    # would not be fooled by prose anyway, but there is no honest reason to add
+    # a raw one back when the stripped version is a drop-in.
+    tree = ast.parse(textwrap.dedent(executable_source(memory_routes.memory_search)))
     widened = [
         kw
         for node in ast.walk(tree)

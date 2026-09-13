@@ -35,25 +35,41 @@ def test_the_real_mission_count_is_derived_not_configured() -> None:
 
     That is the defect this rule exists to catch, so the rule must not
     reproduce it. Counted from the runner's own adjudicators.
+
+    AND NEITHER MAY THIS TEST. It asserted `== 9` until 2026-09-13, when M10 and
+    M11 were added and it failed -- the test had reproduced the exact defect its
+    own docstring names. Both sides are derived now: the verifier counts
+    adjudicators in the runner source, this counts the registered MISSIONS, and
+    they must agree. A number typed here is a number that goes stale.
     """
-    assert _verify._actual_mission_count(REPO_ROOT) == 9
+    from tools.governance_conformance_runner import MISSIONS
+
+    assert _verify._actual_mission_count(REPO_ROOT) == len(MISSIONS)
 
 
 def test_a_stale_count_is_caught() -> None:
-    """THE BAR. This is the exact text that sat in the ledger."""
+    """THE BAR. "EIGHT" is the exact text that once sat in the ledger."""
+    actual = _verify._actual_mission_count(REPO_ROOT)
+    wrong = next(w for w, n in _verify._NUMBER_WORDS.items() if n != actual)
+
     failures = _verify._mission_count_failures(
-        _record(C9="NOT MET - All EIGHT missions are runnable (M1-M5 ...)"),
+        _record(C9=f"NOT MET - All {wrong.upper()} missions are runnable (M1-M5 ...)"),
         REPO_ROOT,
     )
 
     assert failures, "a verdict naming the wrong mission count passed"
-    assert "EIGHT" in failures[0][1] and "9" in failures[0][1]
+    assert wrong.upper() in failures[0][1] and str(actual) in failures[0][1]
 
 
 def test_the_correct_count_passes() -> None:
     """A rule that fires on the truth is worse than no rule."""
+    actual = _verify._actual_mission_count(REPO_ROOT)
+    correct = next(w for w, n in _verify._NUMBER_WORDS.items() if n == actual)
+
     assert not _verify._mission_count_failures(
-        _record(C9="NOT MET - All NINE missions are runnable (M1-M5 ...)"),
+        _record(
+            C9=f"NOT MET - All {correct.upper()} missions are runnable (M1-M5 ...)"
+        ),
         REPO_ROOT,
     )
 
