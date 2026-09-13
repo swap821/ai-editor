@@ -434,6 +434,33 @@ class CapabilityAuthority:
         _ignored: dict[str, Any] = {"constitution_digest": None}
         if fresh_required:
             _ignored["authentication_event_id"] = "*"
+            # AND THE SESSION, for the same reason and by the same necessity.
+            #
+            # Excluding the auth event alone left the requirement unsatisfiable.
+            # The only way to obtain a newer event is `reauthenticate`, and that
+            # method ALWAYS rotates the session -- it calls `upgrade_session`,
+            # which mints a fresh `secrets.token_urlsafe(32)` and deletes the old
+            # record, deliberately, to stop session fixation. Since
+            # `Principal.session_id` IS the session hash, the binding presented
+            # after a reauth ALWAYS differs here.
+            #
+            # Measured 2026-09-13: approving with a rotated session and a newer
+            # event was refused as "capability binding mismatch", while the same
+            # newer event on an unrotated session was approved -- isolating
+            # `session_id`, not the freshness rule, as the blocker. So the
+            # protected class (pip/npm/git clone) could not be approved by
+            # anyone. A deadlock rather than a leak, which is exactly why no test
+            # caught it: everything asking "is this refused?" got the right
+            # answer for the wrong reason.
+            #
+            # What still pins after this: operator, device, action type, route,
+            # method, payload and resource digests, scope, policy version. The
+            # event must additionally be strictly NEWER (asserted below), and
+            # `reauthenticate` independently re-checks the credential and refuses
+            # when the device does not match the current principal's. Session
+            # continuity was never the control here; it was an obstacle to the
+            # control working at all.
+            _ignored["session_id"] = "*"
         if replace(capability.binding, **_ignored) != replace(binding, **_ignored):
             raise CapabilityError("capability binding mismatch")
         if fresh_required:

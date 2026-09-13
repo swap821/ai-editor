@@ -808,8 +808,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 13 green / 42 yellow / 55 total
-- **Source ledger sha256:** `1ca390ff27bb7534501477c37e768860bd484039fa1315cf000595ed205e1b26`
+- **Counts:** 12 green / 43 yellow / 55 total
+- **Source ledger sha256:** `19ce5d12c0ba7381f994a15be70aa82ccbda11e4152755f9c069923f15545338`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -817,7 +817,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (13)
+### Green (12)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -827,7 +827,6 @@ re-audits recorded above.
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `f3cb6122fb8d` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `f3cb6122fb8d` | live |
 | 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `5d482164707c` | live |
 | 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `5d482164707c` | live |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5d482164707c` | live |
 | 18 | Memory Authority (construction) | `MemoryAuthority` | `5d482164707c` | live |
@@ -835,7 +834,7 @@ re-audits recorded above.
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `5d482164707c` | live |
 
-### Yellow (42) — exact residual, from the ledger's own `known_blockers`
+### Yellow (43) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
@@ -845,6 +844,7 @@ re-audits recorded above.
 | 10 | Mission Authority | `MissionAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/missions/mission_service.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 11 | Turn Coordinator | `TurnCoordinatorAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/turns/turn_coordinator.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 12 | Worker Foundry | `WorkerFoundryAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/workers/foundry.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | STALE LIVE EVIDENCE (recorded 8c5cc293): this organ's own production_entrypoint aios/executor_service.py changed after the evidence below was gathered at 5d482164707c -- the repair path's containment check was rewritten to canonicalise with realpath, and ten failure paths stopped reporting isolation_verified=True. The evidence is preserved and was true at that commit; it is no longer known to describe HEAD. Restoring green needs a Phase 4 live run at a current tip, not a re-stamped sha -- re-running the cited tests does not refresh a live proof. |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/promotion/authority.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 17 | Cortex Observation Bus | `CortexBusAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/runtime/cortex_bus.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/governance/emergency_stop.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |

@@ -1,7 +1,7 @@
 # Phase 5 — per-organ adversarial re-read
 
-**Tip:** `0a8dcbb0507c800a2f748c59dd63a18aec868f48`
-**Counts at generation:** 13 green / 42 yellow (pre-demote)
+**Tip:** `8c5cc29380dc492d964d2cf76399e37c7b37a38e`
+**Counts at generation:** 12 green / 43 yellow (pre-demote)
 **Demoted this run:** none
 **Green mechanical failures:** 5
 
