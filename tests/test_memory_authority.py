@@ -300,8 +300,15 @@ def test_memory_search_event_uses_authority_trust(
 
     bus = FakeBus()
     monkeypatch.setattr("aios.api.main.get_cortex_bus", lambda: bus)
+    # The subject here is event TRUST, not authentication. Stub the session
+    # resolution so the route's new cookie-scoping requirement does not turn an
+    # event-semantics test into an auth test.
+    monkeypatch.setattr(
+        "aios.api.routes.memory._require_cookie_session", lambda request: "sess-test"
+    )
     result = memory_search(
         MemorySearchRequest(query="unverified", top_k=1),
+        request=None,
         authority=FakeAuthority(),
     )
 
@@ -418,8 +425,12 @@ def test_trusted_workflow_event_uses_canonical_phase(
 
     bus = FakeBus()
     monkeypatch.setattr("aios.api.main.get_cortex_bus", lambda: bus)
+    monkeypatch.setattr(
+        "aios.api.routes.memory._require_cookie_session", lambda request: "sess-test"
+    )
     memory_search(
         MemorySearchRequest(query="workflow", top_k=1),
+        request=None,
         authority=FakeAuthority(),
     )
 

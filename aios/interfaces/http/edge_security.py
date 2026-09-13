@@ -77,6 +77,60 @@ def _is_public_path(path: str) -> bool:
     return path in _PUBLIC_API_PATHS or path.startswith(_PUBLIC_API_PREFIXES)
 
 
+def _serves_operator_data(path: str, method: str) -> bool:
+    """Does this route's own declaration say an unbonded caller must not reach it?
+
+    Reads `RouteAuthority.serves_operator_data`, so the answer lives beside the
+    route's other policy facts instead of being inferred from the HTTP verb --
+    one derivation, two callers.
+
+    SCOPED TO GREEN on purpose. YELLOW and RED already require
+    `authentication_level == "privileged"` through `action_guard`, and the
+    unknown-route fallback is RED; putting a second, differently-worded gate in
+    front of those would duplicate a control rather than close a hole.
+
+    FAILS CLOSED TWICE. An undeclared GREEN route (`None`) is treated as serving
+    the operator, so a new route that forgets the question is protected rather
+    than exposed. And if the policy tables cannot be read at all, the answer is
+    "yes" -- being unable to classify a request is not grounds to clear it, the
+    same precedent the degraded-identity branch below already sets.
+
+    The import is deliberately lazy: `aios.policy.kernel` imports THIS module at
+    module scope, so importing it back at the top would be circular. By the time
+    a request is being served the kernel is long since loaded, making this a
+    dictionary lookup rather than an import.
+    """
+    try:
+        from aios.policy.kernel import (
+            _METHOD_ROUTE_AUTHORITY,
+            _ROUTE_AUTHORITY,
+            _route_match,
+        )
+    except Exception:  # noqa: BLE001 - unclassifiable is not clearable
+        return True
+
+    try:
+        authority = _METHOD_ROUTE_AUTHORITY.get((method.upper(), path))
+        if authority is None:
+            authority = _ROUTE_AUTHORITY.get(path)
+        if authority is None:
+            for route, candidate in _ROUTE_AUTHORITY.items():
+                if _route_match(route, path):
+                    authority = candidate
+                    break
+    except Exception:  # noqa: BLE001 - as above
+        return True
+
+    if authority is None:
+        # Not in the table at all. `action_guard` resolves these to the RED
+        # fallback, which demands far more than a bond; refusing here as well
+        # would mean this gate, not that one, reporting the refusal.
+        return False
+    if authority.authority_class != "GREEN":
+        return False
+    return authority.serves_operator_data is not False
+
+
 _LOGGER = logging.getLogger(__name__)
 
 _API_TOKEN_AUTHORITY: "ApiTokenAuthority | None" = None
@@ -450,19 +504,39 @@ class EdgeTrustAuthority:
         self-bootstrapped session carries no `operator_id`. Reads were the hole,
         and reads are what this closes.
         """
-        # READS ONLY, and that is a deliberate boundary rather than timidity.
+        # The verb is a FLOOR, not the decision.
         #
-        # Mutations already have two guards this does not duplicate:
-        # `check_mutation_origin_or_token` demands a session and CSRF proof, and
-        # `action_guard` demands `authentication_level == "privileged"` for
-        # anything YELLOW. Reads had neither -- that asymmetry WAS the hole.
+        # This gate used to read `request.method not in _READ_METHODS` and stop
+        # there, which keyed confidentiality on the HTTP verb. `POST
+        # /api/v1/memory/search` is semantic recall over the operator's own
+        # memory -- a read by every meaning except the verb -- so the gate never
+        # looked at it. Measured 2026-09-13, same client, three calls:
         #
-        # Extending this to mutations would also break a contract the system
-        # states on purpose: `action_guard` keeps chat and the other GREEN
-        # session routes usable with the legacy conversation cookie. Measured --
-        # applying it to every method broke six throttle tests whose subject is
-        # rate limiting, not identity.
-        if request.method not in _READ_METHODS or _is_public_path(path):
+        #     POST /api/v1/auth/session    -> 200  anonymous session, no bond
+        #     GET  /api/v1/security/audit  -> 401  proves it is NOT bonded
+        #     POST /api/v1/memory/search   -> 200  recall SERVED
+        #
+        # Nothing downstream caught it either: the route is GREEN, so
+        # `action_guard`'s privileged check (YELLOW-only) does not apply, and
+        # `check_mutation_origin_or_token` is satisfied by any session with CSRF
+        # -- which an anonymous one has.
+        #
+        # So a route now DECLARES whether it serves the operator
+        # (`RouteAuthority.serves_operator_data`) and this gate enforces that.
+        # The method test is kept as a floor rather than replaced: were it
+        # removed, a GET route whose declaration was merely forgotten would lose
+        # protection it has today. This way the change is purely additive -- no
+        # route can become less guarded than it was before.
+        #
+        # The measured carve-out above still holds and is why this is a
+        # per-route declaration rather than a blanket "authenticate everything":
+        # applying identity to every method broke six throttle tests whose
+        # subject is rate limiting, not identity.
+        if _is_public_path(path):
+            return None
+        if request.method not in _READ_METHODS and not _serves_operator_data(
+            path, request.method
+        ):
             return None
         raw_cookie = request.cookies.get("session_id")
         if raw_cookie:

@@ -42,6 +42,28 @@ class RouteAuthority:
     action_type: ActionType = ActionType.UNKNOWN
     capability_required: Optional[str] = None
     policy_version: str = "v1"
+    #: True when an unbonded caller must not reach this route -- because it
+    #: discloses the operator's own data, or spends the operator's resources.
+    #:
+    #: WHY THIS EXISTS. The bonded-read gate keyed its decision on the HTTP
+    #: VERB (`_READ_METHODS = {"GET","HEAD"}`), while confidentiality depends on
+    #: what a route SERVES. `POST /api/v1/memory/search` is semantic recall over
+    #: the operator's memory -- a read by every meaning except the verb -- so the
+    #: gate never inspected it, and an anonymous session minted from the public
+    #: `POST /auth/session` was served. Measured 2026-09-13: of the 17 GREEN
+    #: routes reachable by a non-GET method, five answered an unbonded caller and
+    #: three of those disclosed or spent something that is the operator's.
+    #:
+    #: `None` means UNDECLARED and is treated as True by the gate: a new GREEN
+    #: route that forgets to answer this question is protected rather than
+    #: exposed. `tests/test_route_authority_declares_what_it_serves.py` fails on
+    #: any `None`, so the fail-closed default is a backstop and not the norm.
+    #:
+    #: Scoped to GREEN deliberately. YELLOW and RED already require
+    #: `authentication_level == "privileged"` through `action_guard`; adding a
+    #: second, differently-worded gate in front of them would duplicate a control
+    #: rather than close a hole.
+    serves_operator_data: bool | None = None
 
 
 #: Commands that FETCH AND EXECUTE remote code. Each of these runs
@@ -137,10 +159,22 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # Actions
     # ------------------------------------------------------------------ #
     "/api/v1/reflect": RouteAuthority(
-        "GREEN", 120, "session", audit_event="reflect", action_type=ActionType.REFLECT
+        "GREEN",
+        120,
+        "session",
+        audit_event="reflect",
+        action_type=ActionType.REFLECT,
+        # MEASURED 401: reflection over operator context
+        serves_operator_data=True,
     ),
     "/api/v1/plan": RouteAuthority(
-        "GREEN", 120, "session", audit_event="plan", action_type=ActionType.PLAN
+        "GREEN",
+        120,
+        "session",
+        audit_event="plan",
+        action_type=ActionType.PLAN,
+        # MEASURED served: spends the operator's planner/LLM on a caller's goal
+        serves_operator_data=True,
     ),
     "/api/v1/execute": RouteAuthority(
         "YELLOW",
@@ -182,6 +216,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "public",
         audit_event="auth_session",
         action_type=ActionType.AUTH_SESSION_CREATE,
+        # public by necessity: this is where a session comes from
+        serves_operator_data=False,
     ),
     "/api/v1/auth/enroll": RouteAuthority(
         # Bootstrap is already one-time and identity-gated inside the
@@ -192,6 +228,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "public",
         audit_event="auth_operator_enroll",
         action_type=ActionType.AUTH_OPERATOR_ENROLL,
+        # the bonding ceremony's first step: there is no bond to require yet.
+        serves_operator_data=False,
     ),
     "/api/v1/auth/login": RouteAuthority(
         "GREEN",
@@ -199,6 +237,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "public",
         audit_event="auth_operator_login",
         action_type=ActionType.AUTH_OPERATOR_LOGIN,
+        # public by necessity: the bonding entry point
+        serves_operator_data=False,
     ),
     "/api/v1/auth/reauth": RouteAuthority(
         # The credential itself is the authentication proof and the handler
@@ -209,6 +249,10 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="auth_operator_reauth",
         action_type=ActionType.AUTH_OPERATOR_REAUTH,
+        # the ceremony's re-authentication step; it TAKES a credential and
+        # rotates the session, so requiring a prior bond would make a lost or
+        # expired session unrecoverable.
+        serves_operator_data=False,
     ),
     "/api/v1/governance/emergency-stop/engage": RouteAuthority(
         "YELLOW",
@@ -466,6 +510,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "server-session",
         audit_event="development_curriculum",
         action_type=ActionType.DEVELOPMENT_CURRICULUM,
+        # server-session actor; operator development state
+        serves_operator_data=True,
     ),
     "/api/v1/development/curriculum/proposals/accept": RouteAuthority(
         "YELLOW",
@@ -483,6 +529,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="memory_search",
         action_type=ActionType.MEMORY_SEARCH,
+        # MEASURED served: semantic recall over the operator's own memory
+        serves_operator_data=True,
     ),
     "/api/v1/memory/consolidate": RouteAuthority(
         "YELLOW",
@@ -497,6 +545,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="conversation_start",
         action_type=ActionType.CONVERSATION_START,
+        # scoped to the CALLER'S OWN session via _require_cookie_session
+        serves_operator_data=False,
     ),
     "/api/v1/conversation/correction": RouteAuthority(
         "GREEN",
@@ -504,6 +554,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="conversation_correct",
         action_type=ActionType.CONVERSATION_CORRECT,
+        # MEASURED 401: operator lineage
+        serves_operator_data=True,
     ),
     "/api/v1/alignment/feedback": RouteAuthority(
         "GREEN",
@@ -511,6 +563,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="alignment_feedback",
         action_type=ActionType.ALIGNMENT_FEEDBACK,
+        # MEASURED 422: operator evaluation of a session
+        serves_operator_data=True,
     ),
     "/api/v1/conversation/correction/clear": RouteAuthority(
         "YELLOW",
@@ -539,6 +593,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="fact_propose",
         action_type=ActionType.FACT_PROPOSE,
+        # MEASURED 401: promotes operator facts
+        serves_operator_data=True,
     ),
     "/api/v1/memory/facts/reconcile": RouteAuthority(
         "YELLOW",
@@ -570,6 +626,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="project_passport_scan",
         action_type=ActionType.PROJECT_PASSPORT_SCAN,
+        # MEASURED 401: scans operator projects
+        serves_operator_data=True,
     ),
     "/api/v1/projects/scope-hints": RouteAuthority(
         "GREEN",
@@ -577,6 +635,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="project_scope_hints",
         action_type=ActionType.PROJECT_SCOPE_HINTS,
+        # MEASURED served: returned real host filesystem paths
+        serves_operator_data=True,
     ),
     # ------------------------------------------------------------------ #
     # Operator preferences (organ 27)
@@ -587,6 +647,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="preference_save",
         action_type=ActionType.PREFERENCE_SAVE,
+        # MEASURED 401: operator preferences
+        serves_operator_data=True,
     ),
     "/api/v1/preferences/{preference_id}/withdraw": RouteAuthority(
         "GREEN",
@@ -594,6 +656,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="preference_withdraw",
         action_type=ActionType.PREFERENCE_WITHDRAW,
+        # MEASURED 401: operator preferences
+        serves_operator_data=True,
     ),
     # ------------------------------------------------------------------ #
     # Security
@@ -631,6 +695,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="files_read",
         action_type=ActionType.FILES_READ,
+        # scope-locked to training_ground/; MEASURED .env 403, traversal 403
+        serves_operator_data=False,
     ),
     "/api/v1/files/edit": RouteAuthority(
         "YELLOW",
@@ -763,6 +829,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="intent_preview",
         action_type=ActionType.INTENT_PREVIEW,
+        # deliberately public; pinned by tests/adversarial/test_api_security.py
+        serves_operator_data=False,
     ),
     "/api/v1/security/classify": RouteAuthority(
         "GREEN",
@@ -770,6 +838,8 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="security_classify",
         action_type=ActionType.SECURITY_CLASSIFY,
+        # classifies a string the caller supplied; discloses no operator data
+        serves_operator_data=False,
     ),
     "/api/v1/system/config": RouteAuthority(
         "YELLOW",
@@ -826,7 +896,16 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
     # Main app routes
     # ------------------------------------------------------------------ #
     "/api/v1/chat": RouteAuthority(
-        "GREEN", 120, "session", audit_event="chat", action_type=ActionType.CHAT
+        "GREEN",
+        120,
+        "session",
+        audit_event="chat",
+        action_type=ActionType.CHAT,
+        # chat stays usable with the legacy conversation cookie -- a stated
+        # product decision (see edge_security), not an oversight. Gating it here
+        # would break the main UI flow. RESIDUAL: an unbonded local process can
+        # therefore still hold a conversation. Revisit with the bond ceremony.
+        serves_operator_data=False,
     ),
     "/api/v1/chat/human-state/correct": RouteAuthority(
         "GREEN",
@@ -834,9 +913,17 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         "session",
         audit_event="human_state_correct",
         action_type=ActionType.HUMAN_STATE_CORRECT,
+        # corrects the state of a chat turn the caller already holds.
+        serves_operator_data=False,
     ),
     "/api/generate": RouteAuthority(
-        "GREEN", 120, "session", audit_event="generate", action_type=ActionType.GENERATE
+        "GREEN",
+        120,
+        "session",
+        audit_event="generate",
+        action_type=ActionType.GENERATE,
+        # the SSE turn spine behind chat; same stated decision, same residual.
+        serves_operator_data=False,
     ),
     "/api/terminal": RouteAuthority(
         "YELLOW",
