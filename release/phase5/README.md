@@ -1,13 +1,16 @@
 # Phase 5 — per-organ adversarial re-read
 
-**Tip:** `7c0f675ccb58297cbd7455a14dd158cc1c30f60b`
-**Counts at generation:** 54 green / 0 yellow (pre-demote)
+**Tip:** `0a8dcbb0507c800a2f748c59dd63a18aec868f48`
+**Counts at generation:** 13 green / 42 yellow (pre-demote)
 **Demoted this run:** none
-**Green mechanical failures:** 2
+**Green mechanical failures:** 5
 
 One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
 
 ## Green mechanical failures
 
-- organ 40 (Isolated Workspace and Executor (live proof)) failed mechanical re-read: [('C7', 'no integration_tests proved anything here (unverified: tests/test_executor_integration.py (all 4 skipped))')]
-- organ 52 (Observability and Health Organ) failed mechanical re-read: [('C10', 'cited test tests/test_executor_integration.py::test_trace_context_reaches_the_isolated_container did not run and pass')]
+- organ 1 (Security Gateway) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/gateway.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/gateway.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
+- organ 2 (Scope Lock) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/scope_lock.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/scope_lock.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
+- organ 3 (Secret Scanner) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/secret_scanner.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/secret_scanner.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
+- organ 4 (Tamper-Evident Audit Logger) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/audit_logger.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/audit_logger.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
+- organ 5 (Prompt Injection Shield) failed mechanical re-read: [('C12', "attestation is STALE: 1 of this FROZEN-SPINE organ's production_entrypoints changed after f3cb6122fb8d -- aios/security/injection_shield.py. Only the Human Sovereign can clear this: re-run scripts/spine_release_attest.py at a current commit. An agent must not demote a signed row -- the signature covers status."), ('C10', "FROZEN-SPINE live evidence is STALE: it was gathered at b5485d3b128e, and 1 of this organ's own production_entrypoints changed after it -- aios/security/injection_shield.py. Only the Human Sovereign can clear this: re-run the evidence and scripts/spine_release_attest.py at a current commit.")]
