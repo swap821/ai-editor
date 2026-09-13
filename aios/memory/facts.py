@@ -18,6 +18,7 @@ from typing import Optional
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
+from aios.memory.construction_ledger import record_construction
 
 
 _TRAVERSE_ROW_LIMIT = 256
@@ -63,6 +64,7 @@ class SemanticFacts:
     """CRUD + contradiction-aware writes over the ``semantic_facts`` table."""
 
     def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
+        record_construction("SemanticFacts")
         self.db_path = db_path
 
     def find_conflict(

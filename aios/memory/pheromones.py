@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from aios.memory.construction_ledger import record_construction
 
 
 class PheromoneType(str, Enum):
@@ -70,6 +71,7 @@ class PheromoneStore:
         lambda_decay: float = 0.02,
         floor: float = 0.01,
     ) -> None:
+        record_construction("PheromoneStore")
         self._db_path = db_path or Path(":memory:")
         self._lambda = lambda_decay
         self._floor = floor

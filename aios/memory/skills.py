@@ -20,6 +20,7 @@ from aios.core.verification_strength import VerificationStrength, meets_promotio
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, skill_signature_v2, tokens
 from aios.security.secret_scanner import scan_and_redact
+from aios.memory.construction_ledger import record_construction
 
 if TYPE_CHECKING:
     from aios.core.cerebellum import Cerebellum
@@ -65,6 +66,7 @@ class SkillMemory:
         cerebellum: Optional["Cerebellum"] = None,
         facts: Optional["SemanticFacts"] = None,
     ) -> None:
+        record_construction("SkillMemory")
         self.db_path = db_path
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))

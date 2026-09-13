@@ -11,12 +11,14 @@ from __future__ import annotations
 import threading
 from collections import defaultdict
 from typing import Any, Optional
+from aios.memory.construction_ledger import record_construction
 
 
 class WorkingMemory:
     """Session-scoped key/value store plus an ordered conversation buffer."""
 
     def __init__(self) -> None:
+        record_construction("WorkingMemory")
         self._kv: dict[str, dict[str, Any]] = defaultdict(dict)
         self._history: dict[str, list[dict[str, str]]] = defaultdict(list)
         self._lock = threading.RLock()

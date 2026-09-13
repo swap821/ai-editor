@@ -16,12 +16,14 @@ from pathlib import Path
 from aios import config
 from aios.memory.db import get_connection
 from aios.security.secret_scanner import scan_and_redact
+from aios.memory.construction_ledger import record_construction
 
 
 class EpisodicMemory:
     """CRUD facade over the ``episodic_memory`` table."""
 
     def __init__(self, db_path: Path = config.MEMORY_DB_PATH) -> None:
+        record_construction("EpisodicMemory")
         self.db_path = db_path
 
     @staticmethod

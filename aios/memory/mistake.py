@@ -20,6 +20,7 @@ from aios.core.verification_strength import VerificationStrength, meets_promotio
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
+from aios.memory.construction_ledger import record_construction
 
 if TYPE_CHECKING:
     from aios.memory.facts import SemanticFacts
@@ -36,6 +37,7 @@ class MistakeMemory:
         *,
         facts: Optional["SemanticFacts"] = None,
     ) -> None:
+        record_construction("MistakeMemory")
         self.db_path = db_path
         self._facts = facts
 
