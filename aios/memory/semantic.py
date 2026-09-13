@@ -21,6 +21,7 @@ from aios.memory.db import get_connection, init_memory_db
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
 from aios.memory.relevance import content_hash
 from aios.security.secret_scanner import scan_and_redact
+from aios.memory.construction_ledger import record_construction
 
 _SEMANTIC_WRITE_LOCK = threading.Lock()
 _LOCK_TIMEOUT_S = 30
@@ -36,6 +37,7 @@ class SemanticMemory:
         index: Optional[VectorIndex] = None,
         embedder: Optional[EmbeddingModel] = None,
     ) -> None:
+        record_construction("SemanticMemory")
         self.db_path = db_path
         self._index = index
         self._embedder = embedder

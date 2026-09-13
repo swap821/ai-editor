@@ -45,6 +45,7 @@ import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
+import ast
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LEDGER_PATH = REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
@@ -785,6 +786,375 @@ _CITED_RECORD = re.compile(r"(release/[A-Za-z0-9_\-/.]+\.md)")
 _SCORE_CLAIM = re.compile(r"\b\d{1,3}/\d{1,3}\b")
 
 
+#: Names that refer to an emergency stop, however they are spelled.
+_STOP_NAMES = ("emergency_stop", "_emergency_stop")
+
+
+def _mentions_stop(node: ast.AST, aliases: set[str]) -> bool:
+    """Does this expression read an emergency stop, directly or via an alias?"""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Attribute) and child.attr in _STOP_NAMES:
+            return True
+        if isinstance(child, ast.Name) and (
+            child.id in _STOP_NAMES or child.id in aliases
+        ):
+            return True
+        # getattr(self, "emergency_stop", None) -- the absence is baked into the
+        # call, which is the most deniable spelling of all.
+        if isinstance(child, ast.Call) and getattr(child.func, "id", None) == "getattr":
+            for arg in child.args:
+                if isinstance(arg, ast.Constant) and arg.value in _STOP_NAMES:
+                    return True
+    return False
+
+
+def _checks_the_stop(node: ast.AST) -> bool:
+    """Does this block actually perform the stop check?"""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call):
+            name = getattr(child.func, "attr", None) or getattr(child.func, "id", None)
+            if name in ("assert_operational", "require_stop_wired", "require_wired"):
+                return True
+    return False
+
+
+def _stop_aliases(fn: ast.AST) -> set[str]:
+    """Locals bound to an emergency stop: `stop = self.emergency_stop`."""
+    aliases: set[str] = set()
+    for node in ast.walk(fn):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if value is None or not _mentions_stop(value, set()):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases.add(target.id)
+    return aliases
+
+
+def _fail_open_guards(source: str) -> list[tuple[int, str]]:
+    """Every conditional that makes the stop check SKIPPABLE.
+
+    Two shapes, both of which mean "if no latch is wired, do not check":
+
+    * a conditional on the stop's presence whose body contains the check and
+      which has no `else` -- so an absent latch falls straight through;
+    * an early `return` when the stop is absent, which skips whatever check
+      follows. A `raise` there is fail-CLOSED and is deliberately not flagged.
+    """
+    try:
+        tree = ast.parse(source)
+    except (
+        SyntaxError
+    ):  # pragma: no cover - a broken source file fails louder elsewhere
+        return []
+
+    # Deduplicated by line: `ast.walk` reaches the same `If` once per enclosing
+    # scope (module AND function), so a single guard was counted twice and the
+    # budget read 2 for one site.
+    found: dict[int, str] = {}
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module)):
+            continue
+        aliases = _stop_aliases(fn)
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.If):
+                continue
+            if not _mentions_stop(node.test, aliases):
+                continue
+
+            if _checks_the_stop(node) and not node.orelse:
+                found[node.lineno] = (
+                    "stop check sits inside a presence test with no else"
+                )
+                continue
+
+            # `if stop is None: return` -- absence skips whatever follows.
+            #
+            # Only a BARE return (or pass) counts. `return False` and
+            # `return None` are how the fail-CLOSED helpers themselves answer
+            # -- `stop_permits_autonomy` denies with False, `require_stop_wired`
+            # acknowledges the sentinel with None -- and an earlier draft of
+            # this rule flagged all three canonical helpers as defects. A rule
+            # that cries wolf on the fix is worse than no rule.
+            skips = any(
+                (isinstance(stmt, ast.Return) and stmt.value is None)
+                or isinstance(stmt, (ast.Pass, ast.Continue))
+                for stmt in node.body
+            )
+            tests_absence = any(
+                isinstance(cmp_node, ast.Compare)
+                and any(isinstance(op, ast.Is) for op in cmp_node.ops)
+                and any(
+                    isinstance(c, ast.Constant) and c.value is None
+                    for c in cmp_node.comparators
+                )
+                for cmp_node in ast.walk(node.test)
+            )
+            if skips and tests_absence:
+                found[node.lineno] = "absent stop returns early, skipping the check"
+    return sorted(found.items())
+
+
+#: The one fail-open site the AST census knows about and has NOT converted.
+#:
+#: `EmergencyStopHardWiringAuthority.assert_operational` is lenient BY DESIGN --
+#: `if emergency_stop is None: return` -- and 13 runtime boundaries call it:
+#: aios/api/main.py x2, api/routes/actions.py, api/routes/council.py x3,
+#: application/governance/emergency_stop.py, application/learning/service.py,
+#: application/maintenance/service.py, operations/recovery.py,
+#: runtime/intelligence_gateway.py, and twice inside authority.py itself.
+#:
+#: So the guard SHAPE reached zero while the PROPERTY did not: at those
+#: thirteen boundaries an absent latch is still no question asked. The 2026-09-08
+#: conversion fixed the `if X is not None:` spelling and never saw this one,
+#: because the text census could not.
+#:
+#: Recorded as a counted budget rather than an exemption so it cannot quietly
+#: grow, and so the number is readable by anyone who asks whether the job is
+#: done. Its stated reason -- "hundreds of unit fixtures construct governed
+#: objects without a latch" -- has largely expired now that ~220 of them declare
+#: UNGOVERNED_FIXTURE explicitly.
+#: CONVERTED 2026-09-12, same day it was found. `assert_operational` now
+#: delegates to `require_stop_wired`, so all thirteen boundaries refuse an
+#: absent latch and the three entrances to the rule are one implementation.
+#:
+#: ZERO in BOTH censuses now -- the shape and the property.
+_LENIENT_FAIL_OPEN_BUDGET = 0
+
+
+#: Where production code lives. The surface is polyglot: five organs are owned
+#: by frontend surfaces (`SovereignStatePanel.jsx`, `livingMirrorRegistry.ts`)
+#: and three by runner scripts, so a reachability rule that looked only at
+#: `aios/` would have cratered eight organs for the wrong reason. Measured
+#: before writing this: with the correct scope, ZERO organs fail.
+_PRODUCTION_PY_ROOTS = ("aios", "scripts", "tools")
+_PRODUCTION_FE_ROOT = "frontend/src"
+_FE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx")
+
+
+def _is_test_path(relative: str) -> bool:
+    name = relative.rsplit("/", 1)[-1]
+    return (
+        relative.startswith("tests/")
+        or "/tests/" in relative
+        or ".test." in name
+        or name.startswith("test_")
+    )
+
+
+def _production_symbols(root: Path) -> tuple[set[str], str]:
+    """Names defined or called in production (non-test) code, plus frontend text.
+
+    Cached per process: the ledger has 55 rows and re-walking the tree for each
+    would turn one verification run into 55.
+    """
+    cached = getattr(_production_symbols, "_cache", None)
+    if cached is not None:
+        return cached
+
+    symbols: set[str] = set()
+    for base in _PRODUCTION_PY_ROOTS:
+        for path in root.joinpath(base).rglob("*.py"):
+            relative = path.relative_to(root).as_posix()
+            if _is_test_path(relative):
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+            except (SyntaxError, OSError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    symbols.add(node.name)
+                elif isinstance(node, ast.Call):
+                    func = node.func
+                    if isinstance(func, ast.Name):
+                        symbols.add(func.id)
+                    elif isinstance(func, ast.Attribute):
+                        if isinstance(func.value, ast.Name):
+                            symbols.add(func.value.id)
+                        symbols.add(func.attr)
+
+    chunks: list[str] = []
+    frontend = root.joinpath(_PRODUCTION_FE_ROOT)
+    if frontend.exists():
+        for path in frontend.rglob("*"):
+            if path.suffix.lower() not in _FE_SUFFIXES:
+                continue
+            if _is_test_path(path.relative_to(root).as_posix()):
+                continue
+            chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+
+    result = (symbols, "\n".join(chunks))
+    _production_symbols._cache = result  # type: ignore[attr-defined]
+    return result
+
+
+def _owner_reachability_failures(record, root: Path) -> list[tuple[str, str]]:
+    """C2 enforced as WRITTEN, not as previously implemented.
+
+    The condition reads: "A real API/mission/runtime path invokes the owner (not
+    construct-in-test alone)". It named this exact failure mode. Its entire
+    enforcement was:
+
+        if not record.focused_tests:
+            failures.append(("C2", "no focused_tests for caller/reachability proof"))
+
+    -- a non-empty list. An authority owner that existed only inside its own
+    tests satisfied C2 completely.
+
+    Measured 2026-09-13 across the real production surface: zero organs fail
+    this. So it craters nothing today; it refuses the regression, which is the
+    honest reason to add a rule that finds nothing.
+    """
+    owner = (record.authority_owner or "").strip()
+    if not owner:
+        return []  # C1 owns the missing-owner case.
+
+    symbols, frontend_text = _production_symbols(root)
+    if owner in symbols:
+        return []
+    if re.search(rf"\b{re.escape(owner)}\b", frontend_text):
+        return []
+    return [
+        (
+            "C2",
+            f"authority owner {owner!r} is never defined or invoked in production "
+            "code (aios/, scripts/, tools/, frontend/src, excluding tests). C2 "
+            "requires a real runtime path to invoke the owner, not "
+            "construct-in-test alone.",
+        )
+    ]
+
+
+def _governability_failures(record, root: Path) -> list[tuple[str, str]]:
+    """An organ cannot be green over a boundary that cannot be halted.
+
+    THE CASE THIS EXISTS FOR. Organ 26's authority owner is
+    `EmergencyStopHardWiringAuthority` and its production_entrypoints are --
+    exactly -- the eight files whose stop check returned silently when no latch
+    was wired. It declared C1-C12 PASS over thirteen boundaries that could not
+    be halted, and stayed green while #328/#329/#330 fixed them.
+
+    Nothing in C1-C12 asked the one question that mattered: can this actually be
+    stopped? Every condition was structural or citational -- a class exists in a
+    named file, a test list is non-empty, a cited artifact matches its own
+    stamped commit.
+
+    Scoped to the organ's OWN declared entrypoints, so it answers that question
+    about this organ rather than about the repository.
+    """
+    failures: list[tuple[str, str]] = []
+    for entry in record.production_entrypoints or []:
+        path = root / str(entry)
+        if not path.exists() or path.suffix != ".py":
+            continue  # C1/C6 own missing files; the detector is Python-only.
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for lineno, reason in _fail_open_guards(source):
+            failures.append(
+                (
+                    "C5",
+                    f"{entry}:{lineno} is a fail-open emergency-stop guard "
+                    f"({reason}). An organ cannot be green over a boundary that "
+                    "an absent latch walks straight through.",
+                )
+            )
+    return failures
+
+
+def _entrypoint_drift(record, root: Path, since_sha: str) -> list[str]:
+    """Files in this organ's own entrypoints that changed after it was attested.
+
+    THE RULE THIS FILE WAS MISSING. C12 asks only whether `last_verified_sha` is
+    an ANCESTOR of HEAD, and an old commit is an ancestor of HEAD forever -- so a
+    green organ stays green no matter how far the code beneath it moves.
+
+    Measured 2026-09-13: 38 of 55 organs were pinned to one sha dated
+    2026-07-31, with 199 commits landed since, and every one of them passed C12.
+
+    Relevance rather than a time window: an attestation is stale exactly when the
+    code it attests to has moved. An organ whose entrypoints have not been
+    touched since it was verified is still telling the truth however old it is,
+    and a two-day-old attestation over a file that changed yesterday is not.
+
+    The case that forced it: organ 26 (`EmergencyStopHardWiringAuthority`) listed
+    eight production entrypoints and declared C1-C12 PASS. Those same eight files
+    were where the emergency stop's check returned silently when nothing was
+    wired -- thirteen boundaries that could not be halted, inside a green organ,
+    fixed in #328/#329/#330 without one line of the ledger changing.
+    """
+    entrypoints = [str(path) for path in (record.production_entrypoints or [])]
+    if not entrypoints:
+        return []
+    try:
+        completed = subprocess.run(
+            ["git", "log", "--name-only", "--format=", f"{since_sha}..HEAD", "--"]
+            + entrypoints,
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        # Unreadable history is not evidence of freshness. Report it as drift so
+        # the organ is examined rather than waved through.
+        return ["<git history unavailable>"]
+    if completed.returncode != 0:
+        return ["<git history unavailable>"]
+    changed = {line.strip() for line in completed.stdout.splitlines() if line.strip()}
+    return sorted(changed & set(entrypoints))
+
+
+def _staleness_failures(record, root: Path) -> list[tuple[str, str]]:
+    """C11/C12: refuse an attestation the code has moved out from under.
+
+    Reported against C12 because C12 is the condition that claims CI verified
+    THIS commit; an attestation whose subject has changed is exactly the claim
+    C12 is supposed to stand behind.
+    """
+    sha = record.last_verified_sha
+    if not sha or not _SHA.fullmatch(sha):
+        return []  # C11 already reports a missing or malformed sha.
+    drift = _entrypoint_drift(record, root, sha)
+    if not drift:
+        return []
+    from aios.application.governance.organ_ledger import FROZEN_SECURITY_ORGAN_IDS
+
+    shown = ", ".join(drift[:4]) + (
+        f" (+{len(drift) - 4} more)" if len(drift) > 4 else ""
+    )
+    # The frozen security spine is signed by the Human Sovereign, and that
+    # signature covers `status` -- see scripts/spine_release_attest.py, "the
+    # digest covers `status`". An agent therefore cannot demote these rows
+    # without invalidating his attestation, and must not try. The staleness is
+    # still REPORTED, because it is true; it is simply his to clear.
+    if record.organ_id in FROZEN_SECURITY_ORGAN_IDS:
+        return [
+            (
+                "C12",
+                f"attestation is STALE: {len(drift)} of this FROZEN-SPINE organ's "
+                f"production_entrypoints changed after {sha[:12]} -- {shown}. "
+                "Only the Human Sovereign can clear this: re-run "
+                "scripts/spine_release_attest.py at a current commit. An agent "
+                "must not demote a signed row -- the signature covers status.",
+            )
+        ]
+    return [
+        (
+            "C12",
+            f"attestation is STALE: {len(drift)} of this organ's own "
+            f"production_entrypoints changed after {sha[:12]} -- {shown}. "
+            "Re-verify at a current commit, or record the organ as yellow with "
+            "the reason. An ancestor of HEAD is not the same as a current one.",
+        )
+    ]
+
+
 def _citation_failures(record, root: Path) -> list[tuple[str, str]]:
     """A verdict may not contradict the record it cites.
 
@@ -1006,6 +1376,10 @@ def _mechanical_checks(
     # C12
     elif ancestry_fn(root, sha) is False:
         failures.append(("C12", f"last_verified_sha {sha} is not an ancestor of HEAD"))
+    # C12 (currency). Ancestry is not the same as current: an old commit is an
+    # ancestor of HEAD forever. Green-only by design -- see the note at the
+    # contradictions list.
+    failures.extend(_staleness_failures(record, root))
     # Written verdicts must exist and not be empty theater
     verdicts = record.condition_verdicts or {}
     for key in (f"C{i}" for i in range(1, 13)):
@@ -1401,6 +1775,12 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
         for cond, reason in _verdict_contradiction_failures(record)
         + _mission_count_failures(record, REPO_ROOT)
         + _citation_failures(record, REPO_ROOT)
+        # NOTE: _staleness_failures is deliberately NOT here. It asks whether
+        # a GREEN claim is still current; a yellow organ is already saying it
+        # is not attested, so reporting it again turned all 42 demoted organs
+        # into CI failures. It runs in _mechanical_checks, which is green-only.
+        + _owner_reachability_failures(record, REPO_ROOT)
+        + _governability_failures(record, REPO_ROOT)
     ]
     if contradictions:
         print(
@@ -1412,9 +1792,37 @@ One proof file per organ: `organ-NN.md`. This is not a mass-flip note.
             print(f"  - {msg}", file=sys.stderr)
         return 1
 
-    print(f"green mechanical failures: {len(green_failures)}")
-    if green_failures and not args.demote:
-        for msg in green_failures:
+    # A finding only the Human Sovereign can clear must not block everyone else.
+    #
+    # The frozen spine's attestation covers `status` (see
+    # scripts/spine_release_attest.py), so an agent can neither demote a stale
+    # spine row nor re-sign one. Gating on it would hold CI red until he acts,
+    # blocking work that has nothing to do with the finding -- a blocker aimed at
+    # someone other than the party being blocked.
+    #
+    # The repo already draws this line: release-strict-gate is tag-gated because
+    # exact-tip equality is structurally unsatisfiable on an ordinary push. Same
+    # shape, same treatment -- report it on every run, loudly, and let the merge
+    # proceed. NON-spine staleness still fails, because an agent CAN clear that
+    # by re-verifying at a current commit.
+    spine_stale = [m for m in green_failures if "FROZEN-SPINE" in m]
+    blocking = [m for m in green_failures if "FROZEN-SPINE" not in m]
+
+    if spine_stale:
+        print("", file=sys.stderr)
+        print(
+            f"OPERATOR ACTION REQUIRED -- {len(spine_stale)} frozen-spine "
+            "attestation(s) are STALE. Only the Human Sovereign can clear them: "
+            "re-run scripts/spine_release_attest.py at a current commit. Not "
+            "gated, because no agent can satisfy it.",
+            file=sys.stderr,
+        )
+        for msg in spine_stale:
+            print(f"  - {msg}", file=sys.stderr)
+
+    print(f"green mechanical failures: {len(blocking)}")
+    if blocking and not args.demote:
+        for msg in blocking:
             print(f"  - {msg}", file=sys.stderr)
         return 1
     return 0

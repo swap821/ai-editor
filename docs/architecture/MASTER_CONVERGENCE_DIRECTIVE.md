@@ -1,5 +1,13 @@
 # GAGOS SOVEREIGN INTELLIGENCE AI-OS V1.0
 
+> **SUPERSEDED (2026-09-13, at `fb6d31f3`).** This document is historical.
+> The canonical definition of remaining work is the repair waves R0-R14 in
+> `.aios/state/PRODUCTION_CONVERGENCE_LEDGER.md` plus the 55-organ ledger.
+> Its milestones and catalog are cross-referenced to that system of record in
+> [`.aios/state/CATALOG_RECONCILIATION.md`](CATALOG_RECONCILIATION.md), which
+> also records that much of the catalog below is STALE -- several items it
+> calls missing are built. Dated content here is left exactly as written.
+
 ## Master Convergence and Production-Control-Plane Implementation Directive
 
 > Canonical directive for transforming `swap821/ai-editor` into GAGOS v1.0 — a local-first sovereign intelligence agentic AI-OS prototype for one developer, combining a permanent Queen Council, ephemeral worker colony, evidence-aware memory, multi-model intelligence, isolated execution and a truthful living interface under absolute human authority.

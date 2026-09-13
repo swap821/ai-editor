@@ -14,6 +14,7 @@ from aios import config
 from aios.council.council_state import CouncilState
 from aios.council.ganglia import GanglionSignal, SignalSynthesis
 from aios.runtime.contracts import QueenVerdict
+from aios.memory.construction_ledger import record_construction
 
 
 class CouncilMemory:
@@ -27,6 +28,7 @@ class CouncilMemory:
         *,
         state: CouncilState | None = None,
     ) -> None:
+        record_construction("CouncilMemory")
         self.state = state or CouncilState(db_path=db_path)
 
     def record_deliberation(

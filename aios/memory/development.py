@@ -17,6 +17,7 @@ from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, signature
 from aios.security.secret_scanner import scan_and_redact
+from aios.memory.construction_ledger import record_construction
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class DevelopmentTracker:
         *,
         facts: Optional["SemanticFacts"] = None,
     ) -> None:
+        record_construction("DevelopmentTracker")
         self.db_path = db_path
         self._facts = facts
 

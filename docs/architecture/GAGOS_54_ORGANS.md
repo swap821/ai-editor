@@ -1,5 +1,39 @@
 # GAGOS 54 Organs
 
+> **RECOUNT (2026-09-13, at `1b4e1310`): 55 organs, 13 green / 42 yellow.**
+> The 2026-09-09 banner below is historical and is superseded by this line, per
+> the convention that dated evidence is never rewritten.
+>
+> C12 asked only whether `last_verified_sha` was an ANCESTOR of HEAD, and an old
+> commit is an ancestor of HEAD forever -- so an organ verified once stayed green
+> however far the code beneath it travelled. Measured: 38 of 55 organs were
+> pinned to a single sha dated 2026-07-31, with 199 commits landed since, and
+> **46 of 55 had their own `production_entrypoints` change after their own
+> attestation**.
+>
+> That is not theoretical drift. Three PRs in the same week found live ungoverned
+> production objects -- a `CapabilityAuthority` issuing capabilities the emergency
+> stop could not halt, `MissionService` built with no latch at four production
+> sites, thirteen runtime boundaries whose stop check returned silently when
+> nothing was wired -- every one inside a GREEN organ. Organ 26's own declared
+> entrypoints *were* the fail-open files.
+>
+> **Of the 13 still green, only 8 are green on current evidence.** The other five
+> are the frozen security spine (organs 1-5): their attestations are stale too --
+> `aios/security/gateway.py` changed after they were signed -- but the Human
+> Sovereign's signature covers `status`, so no agent may demote them. Re-running
+> `scripts/spine_release_attest.py` at a current commit is his to do.
+>
+> The 41 demoted organs keep their evidence intact. It was true at the commit it
+> names; it is simply no longer known to describe HEAD.
+
+> **Current checkpoint (2026-09-09): 55 organs, 54 green / 1 yellow.**
+> Organ 44 is green; Organ 55 awaits operator attestation. Its latest report
+> records three 9/9 runs among four attempts, with an 8/9 interruption; it does
+> not establish three consecutive 9/9 runs. The 2026-09-02 banner and other
+> dated narratives below are historical. The generated section remains the
+> ledger projection. See [September reconciliation](../../.aios/state/SEPTEMBER_RECONCILIATION.md).
+
 > **SUPERSEDED COUNTS BELOW - current status is 53 green / 1 yellow as of
 > 2026-09-02.** The 2026-09-01 recount first took the ledger from an unverified
 > 54 green to a measured 5 by testing every green against the twelve-condition
@@ -774,8 +808,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 54 green / 1 yellow / 55 total
-- **Source ledger sha256:** `6aa5c7dd089446537b5059642e7e0b41dcd2220a3a34b1a8328ada6e73b6d6a5`
+- **Counts:** 13 green / 42 yellow / 55 total
+- **Source ledger sha256:** `1ca390ff27bb7534501477c37e768860bd484039fa1315cf000595ed205e1b26`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -783,7 +817,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (54)
+### Green (13)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -792,60 +826,60 @@ re-audits recorded above.
 | 3 | Secret Scanner | `SecretScannerAuthority` | `f3cb6122fb8d` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `f3cb6122fb8d` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `f3cb6122fb8d` | live |
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `5d482164707c` | live |
-| 7 | Policy Kernel | `PolicyKernelAuthority` | `5d482164707c` | live |
 | 8 | Action Broker | `ActionBrokerAuthority` | `5d482164707c` | live |
-| 9 | Exact Capability Authority | `CapabilityAuthority` | `5d482164707c` | live |
-| 10 | Mission Authority | `MissionAuthority` | `5d482164707c` | live |
-| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `5d482164707c` | live |
-| 12 | Worker Foundry | `WorkerFoundryAuthority` | `5d482164707c` | live |
 | 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `5d482164707c` | live |
 | 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `5d482164707c` | live |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5d482164707c` | live |
-| 16 | Promotion Authority (construction) | `PromotionAuthority` | `5d482164707c` | live |
-| 17 | Cortex Observation Bus | `CortexBusAuthority` | `5d482164707c` | live |
 | 18 | Memory Authority (construction) | `MemoryAuthority` | `5d482164707c` | live |
-| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `5d482164707c` | live |
-| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `14856c23e08b` | live |
-| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `5d482164707c` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `5d482164707c` | live |
-| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `abf7346def48` | live |
-| 24 | Human Sovereign Identity | `IdentityAuthority` | `5d482164707c` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `5d482164707c` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `5d482164707c` | live |
-| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `5d482164707c` | live |
-| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `5d482164707c` | live |
-| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `5d482164707c` | live |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `5d482164707c` | live |
-| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `5d482164707c` | live |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `5d482164707c` | live |
-| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `90830647e40c` | live |
-| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `5d482164707c` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `5d482164707c` | live |
-| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `4cd9f1550cf1` | live |
-| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `5d482164707c` | live |
-| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `5d482164707c` | live |
-| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | `14856c23e08b` | live |
-| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `5d482164707c` | live |
-| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5d482164707c` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5d482164707c` | live |
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | `af2688099f23` | live |
-| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5d482164707c` | live |
-| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | `3dc7323d74cc` | live |
-| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5d482164707c` | live |
-| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `5c64cd54ca52` | live |
-| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | `5c64cd54ca52` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `5d482164707c` | live |
-| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | `5c64cd54ca52` | live |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | `5d482164707c` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5d482164707c` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5d482164707c` | live |
 
-### Yellow (1) — exact residual, from the ledger's own `known_blockers`
+### Yellow (42) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/interfaces/http/edge_security.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/capabilities/authority.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 10 | Mission Authority | `MissionAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/missions/mission_service.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/turns/turn_coordinator.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/workers/foundry.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/promotion/authority.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/runtime/cortex_bus.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/governance/emergency_stop.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 14856c23e08b (frontend/src/superbrain/lib/livingMirrorRegistry.ts). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/council/council_orchestrator.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after abf7346def48 (tests/test_organ_release_conformance.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/identity/service.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | STALE ATTESTATION (recorded 1b4e1310): 9 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/api/main.py, aios/api/routes/governance.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | STALE ATTESTATION (recorded 1b4e1310): 7 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/main.py, aios/api/routes/actions.py, aios/api/routes/council.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | STALE ATTESTATION (recorded 1b4e1310): 6 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/application/intelligence/authenticated_chat.py, aios/application/memory/authorities.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | STALE ATTESTATION (recorded 1b4e1310): 6 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/api/routes/projects.py, aios/application/intelligence/authenticated_chat.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | STALE ATTESTATION (recorded 1b4e1310): 6 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/api/routes/memory.py, aios/application/intelligence/authenticated_chat.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | STALE ATTESTATION (recorded 1b4e1310): 4 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/main.py, aios/application/turns/conversation_pipeline.py, aios/domain/memory/human_representation.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | STALE ATTESTATION (recorded 1b4e1310): 5 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/intelligence/authenticated_chat.py, aios/application/intelligence/context_compiler.py, aios/application/intelligence/gateway.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | STALE ATTESTATION (recorded 1b4e1310): 9 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/main.py, aios/api/routes/council.py, aios/api/routes/hiring.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 90830647e40c (aios/api/deps.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | STALE ATTESTATION (recorded 1b4e1310): 4 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/application/models/health.py, aios/core/failover.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 4cd9f1550cf1 (aios/domain/local_workforce/qualifier.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | STALE ATTESTATION (recorded 1b4e1310): 2 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/launcher.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | STALE ATTESTATION (recorded 1b4e1310): 3 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/routes/council.py, aios/council/council_orchestrator.py, aios/council/deliberation_gather.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | STALE ATTESTATION (recorded 1b4e1310): 3 of this organ's own production_entrypoints changed after 14856c23e08b (aios/api/routes/mirror.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | STALE ATTESTATION (recorded 1b4e1310): 2 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/promotion/authority.py, aios/domain/promotion/contracts.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | STALE ATTESTATION (recorded 1b4e1310): 6 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/api/main.py, aios/api/routes/council.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5d482164707c (aios/application/learning/service.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after af2688099f23 (tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | STALE ATTESTATION (recorded 1b4e1310): 7 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/routes/governance.py, aios/application/governance/amendment_authority.py, aios/domain/governance/amendments.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | STALE ATTESTATION (recorded 1b4e1310): 3 of this organ's own production_entrypoints changed after 3dc7323d74cc (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | STALE ATTESTATION (recorded 1b4e1310): 2 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/routes/mirror.py, aios/application/read_models/governance_projections.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | STALE ATTESTATION (recorded 1b4e1310): 7 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/routes/mirror.py, aios/application/read_models/provenance_projections.py, aios/core/anthropic_direct.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | STALE ATTESTATION (recorded 1b4e1310): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | STALE ATTESTATION (recorded 1b4e1310): 2 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/main.py, aios/core/executor.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | STALE ATTESTATION (recorded 1b4e1310): 6 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/routes/security.py, aios/application/security/api_token_authority.py, aios/core/router_wiring.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | STALE ATTESTATION (recorded 1b4e1310): 3 of this organ's own production_entrypoints changed after 5d482164707c (aios/__main__.py, aios/operations/doctor.py, aios/operations/recovery.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
