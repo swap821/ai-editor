@@ -262,7 +262,34 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
             reason=f"target left the staged workspace before the write: {exc}",
         )
 
-    tmp_target = target_path.with_suffix(target_path.suffix + ".tmp")
+    # The path that is OPENED is the path that was validated.
+    #
+    # The re-check above validates `target_path`, but the write goes to
+    # `tmp_target` -- a different path. It is contained by construction (a
+    # suffix appended to a canonical path stays in the same directory), but
+    # "contained by construction" is an argument, not a check, and the link
+    # between the value that was validated and the value that is opened was
+    # broken. CodeQL flagged exactly this reach (py/path-injection, high) and it
+    # was right about the shape even though the path is in fact contained.
+    #
+    # Passing the temp path through the same trust boundary makes the validated
+    # value and the opened value the SAME object, so there is nothing left to
+    # argue about.
+    try:
+        tmp_target = workspace_policy.resolve_staged_workspace(
+            str(target_path.with_suffix(target_path.suffix + ".tmp")),
+            workspace_root,
+        )
+    except (ValueError, OSError) as exc:
+        return ExecutorResult(
+            job_id=job.job_id,
+            status="failed",
+            isolation_verified=False,
+            started_at=started,
+            ended_at=utc_now(),
+            reason=f"the temporary write path is not inside the workspace: {exc}",
+        )
+
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(tmp_target, flags, 0o600)
     try:
