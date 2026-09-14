@@ -218,3 +218,23 @@ def test_report_does_not_trust_an_inconsistent_pass_flag(
     assert f"historical-run: {expected}" in output
     assert f"latest: {expected} @ historical-run" in output
     assert log_path.read_text() == original, "report must preserve historical evidence"
+
+
+def test_a_run_that_recorded_nothing_is_not_a_pass() -> None:
+    """`all([])` is True, and that was the whole 0/0 defect.
+
+    The reader-side fix in `cmd_report` stops the REPORT repeating the lie. It
+    does not stop the artifact containing it, and it does not stop
+    `sys.exit(0)` returning it -- and the nightly workflow gates on that exit
+    code deliberately, without `|| true`. So the gate could go green on a run
+    that verified nothing.
+
+    Both directions, because a Check that can never pass is useless: one
+    recorded green check still passes.
+    """
+    empty = prover.Check(lenient=False)
+    assert empty.passed is False, "a run with no checks reported a pass"
+
+    recorded = prover.Check(lenient=False)
+    recorded.hard("something", True, "observed")
+    assert recorded.passed is True

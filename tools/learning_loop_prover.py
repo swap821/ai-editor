@@ -475,6 +475,22 @@ class Check:
 
     @property
     def passed(self) -> bool:
+        """No checks is not a pass. `all([])` is True, and that is the bug.
+
+        A run that recorded NOTHING reported green: `all()` over an empty list
+        is vacuously true, so `passed: true` with `0/0 checks` went into the
+        artifact the README cites AND into `sys.exit(0)`, which the nightly
+        workflow gates on deliberately without `|| true`. The gate could go
+        green having verified nothing.
+
+        `cmd_report` was taught to distrust that shape, but a reader-side fix
+        only stops the report from repeating the lie -- the artifact still
+        contained it and the exit code still returned it. This is the writer
+        side, and it is the same rule organ 55 states as "a lucky pass is a
+        fail": an empty body of evidence is the absence of a pass, not one.
+        """
+        if not self.results:
+            return False
         return all(r["ok"] or r["downgraded"] for r in self.results)
 
 
