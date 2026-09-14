@@ -327,6 +327,19 @@ def test_docker_runner_uses_locked_down_container_contract(tmp_path) -> None:
     assert ["--security-opt", "no-new-privileges"] == argv[
         argv.index("--security-opt") : argv.index("--security-opt") + 2
     ]
+    # THE RESOURCE NOTHING ELSE BOUNDS. --memory, --cpus and --pids-limit cap
+    # what a command consumes inside the container; none of them cap what it
+    # WRITES, and the scope roots are bind-mounted read-write from the host, so
+    # the writable surface is the operator's disk. Filling it needs no
+    # containment escape -- it is a supported operation performed to excess.
+    ulimits = [argv[i + 1] for i, a in enumerate(argv) if a == "--ulimit"]
+    assert f"fsize={512 * 1024 * 1024}" in ulimits, (
+        f"no RLIMIT_FSIZE on the sandbox; ulimits={ulimits}"
+    )
+    assert "core=0" in ulimits, (
+        "core dumps are as large as the process image and carry whatever was in "
+        f"memory when a model-authored command crashed; ulimits={ulimits}"
+    )
     assert "test-image" in argv
     assert argv[-5:] == ["python", "-m", "pytest", "test_greeter.py", "-q"]
     assert kwargs["shell"] is False

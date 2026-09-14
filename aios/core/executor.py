@@ -418,6 +418,7 @@ class DockerRunner:
         memory_mb: int = config.CONTAINER_MEMORY_MB,
         cpus: float = config.CONTAINER_CPUS,
         pids_limit: int = config.CONTAINER_PIDS_LIMIT,
+        fsize_mb: int = config.CONTAINER_FSIZE_MB,
         process_runner: Optional[
             Callable[..., subprocess.CompletedProcess[str]]
         ] = None,
@@ -427,6 +428,10 @@ class DockerRunner:
         self.memory_mb = max(memory_mb, 128)
         self.cpus = max(cpus, 0.1)
         self.pids_limit = max(pids_limit, 16)
+        # Floored like its siblings. A caller that passes 0 gets the floor
+        # rather than RLIMIT_FSIZE=0, which would forbid writing any file at
+        # all and break every verification run instead of bounding it.
+        self.fsize_mb = max(fsize_mb, 16)
         self._process_runner = process_runner or _bounded_run
 
     def ensure_available(self) -> None:
@@ -522,6 +527,21 @@ class DockerRunner:
             f"{self.memory_mb}m",
             "--cpus",
             str(self.cpus),
+            # THE RESOURCE NOTHING ELSE BOUNDS. --memory, --cpus and
+            # --pids-limit cap what a sandboxed command can consume inside the
+            # container; none of them cap what it WRITES, and the scope roots
+            # are bind-mounted read-write from the host. Filling the operator's
+            # disk needs no containment escape at all -- it is a supported
+            # operation performed to excess. RLIMIT_FSIZE is per-file, so this
+            # is a ceiling on any single artefact, not a quota.
+            "--ulimit",
+            f"fsize={self.fsize_mb * 1024 * 1024}",
+            # Core dumps are written on crash, are as large as the process
+            # image, and carry whatever was in memory -- which for a sandbox
+            # that just ran a model-authored command is the wrong thing to
+            # leave on disk. Nothing here debugs from a core file.
+            "--ulimit",
+            "core=0",
             "--user",
             _container_user(),
             "--mount",
