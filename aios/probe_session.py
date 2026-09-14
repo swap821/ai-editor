@@ -333,5 +333,35 @@ class ProbeSession:
             timeout=timeout,
         )
 
+    def get(
+        self, path: str, *, params: dict[str, Any] | None = None, timeout: int = 30
+    ):
+        """GET with the session, refreshing auth once on 401.
+
+        Drivers that needed a read already built this inline -- probe headers
+        plus the Host override, straight onto `self.http` -- and every one of
+        them was missing the refresh that `post_stream` has. A read is not
+        exempt from the 900-second reauthentication window, so a poll running
+        longer than it (the skill-promotion poll is the obvious case) starts
+        answering 401 and a caller that swallows exceptions reads that as
+        "not promoted yet" until it gives up. Same one-retry rule as
+        `post_stream`: if the refresh does not restore access the 401 is real
+        and must surface rather than be retried into a hang.
+        """
+
+        def _send():
+            headers = {**probe_headers(), "Host": API_HOST_HEADER}
+            csrf = self.http.cookies.get("csrf_token")
+            if csrf:
+                headers["X-CSRF-Token"] = csrf
+            return self.http.get(
+                f"{self.base}{path}", params=params, headers=headers, timeout=timeout
+            )
+
+        response = _send()
+        if response.status_code == 401 and self._reauthenticate():
+            response = _send()
+        return response
+
 
 __all__ = ["API_HOST_HEADER", "ProbeAuthError", "ProbeSession"]

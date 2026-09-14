@@ -98,7 +98,20 @@ def test_a_configured_cloud_provider_keeps_a_local_outage_ready(monkeypatch) -> 
     """The complement of the test above, so the rule is pinned from both sides."""
     from aios.api.routes import system as system_routes
 
+    # EVERY provider is pinned, not just the one under test. Asserting the exact
+    # list while leaving the others to the ambient environment made this fail on
+    # any machine that has a second key configured -- an Anthropic key turned
+    # `["bedrock"]` into `["anthropic", "bedrock"]` and the test read as a
+    # regression when nothing had regressed.
+    #
+    # Loosening the assertion to "bedrock is in the list" would also have gone
+    # green, and would have stopped catching a provider that reports itself
+    # configured when it is not. Pinning the inputs keeps the exact-list check
+    # and removes the env dependence instead.
     monkeypatch.setattr(system_routes.config, "BEDROCK_ENABLED", True, raising=False)
+    monkeypatch.setattr(system_routes.config, "GEMINI_ENABLED", False, raising=False)
+    monkeypatch.setattr(system_routes.config, "OPENAI_ENABLED", False, raising=False)
+    monkeypatch.setattr(system_routes.config, "ANTHROPIC_ENABLED", False, raising=False)
 
     app.dependency_overrides[get_ollama_client] = _OllamaDown
     try:

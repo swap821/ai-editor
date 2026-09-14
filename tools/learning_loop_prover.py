@@ -52,6 +52,7 @@ from urllib.parse import urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
+from aios.probe_session import ProbeSession
 
 try:
     import requests
@@ -126,6 +127,34 @@ def check_allowlist(payload: dict[str, Any]) -> tuple[bool, str]:
     return False, "unrecognized approval payload shape"
 
 
+#: One operator session for the whole run, built lazily so `--help` and the
+#: report paths keep working without a live backend. Mirrors
+#: `golden_mission_runner._session()` deliberately: two probes inventing two
+#: ways to authenticate is how one of them ends up not authenticating at all.
+_PROBE_SESSION: ProbeSession | None = None
+
+
+def _session() -> ProbeSession:
+    """The authenticated session every guarded call goes through.
+
+    THIS PROVER USED TO POST BARE. `requests.post(f"{BASE}/api/generate", ...)`
+    carried no session cookie, no exact Origin and no session-bound CSRF proof,
+    so once mutation gating tightened every turn answered:
+
+        403 {"detail":"Mutation requires a bearer token or a valid session,
+             exact Origin, and session-bound CSRF proof"}
+
+    The prover reported 19/19 before that, which is why this is a regression and
+    not a missing feature -- the guard moved and the probe did not follow.
+    `ProbeSession` already solves all of it, including the 900-second
+    reauthentication window that any run longer than 15 minutes crosses.
+    """
+    global _PROBE_SESSION
+    if _PROBE_SESSION is None:
+        _PROBE_SESSION = ProbeSession().bootstrap("Learning Loop Prover")
+    return _PROBE_SESSION
+
+
 def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
     """One supervised turn. Returns outcome + every observable the chain emits.
 
@@ -147,9 +176,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
             "sessionId": session_id,
             "approvalTokens": tokens,
         }
-        resp = requests.post(
-            f"{BASE}/api/generate", json=body, stream=True, timeout=TURN_TIMEOUT_S
-        )
+        resp = _session().post_stream("/api/generate", body, TURN_TIMEOUT_S)
         resp.raise_for_status()
         paused: dict[str, Any] | None = None
         finished = False
@@ -489,19 +516,33 @@ def used_write_tools(result: dict[str, Any]) -> bool:
 
 
 def skill_promoted(marker: str) -> bool:
-    """Poll /development/skills for a verified skill whose row mentions marker."""
+    """Poll /development/skills for a verified skill whose row mentions marker.
+
+    A REFUSAL IS NOT "NOT PROMOTED YET". The whole body used to sit under a bare
+    `except Exception: pass`, so a 403 from the skills endpoint was
+    indistinguishable from a skill that simply had not compiled -- the poll ran
+    out its tries and returned False, and the prover recorded "no promotion" for
+    a run where it had been denied the read. That is the same defect class organ
+    55's M3 had: silence from a control reported as a fact about the subject.
+
+    Transport failures still poll again -- a dropped connection really is worth
+    retrying, and `_session().get` has already spent its one reauthentication
+    retry on a 401 by the time anything reaches here.
+    """
     for _ in range(PROMOTION_POLL_TRIES):
         try:
-            resp = requests.get(
-                f"{BASE}/api/v1/development/skills",
+            resp = _session().get(
+                "/api/v1/development/skills",
                 params={"status": "verified"},
                 timeout=30,
             )
-            resp.raise_for_status()
-            if marker in json.dumps(resp.json()):
-                return True
-        except Exception:  # noqa: BLE001 - poll again; the final verdict is the assert
-            pass
+        except requests.RequestException:
+            time.sleep(PROMOTION_POLL_DELAY_S)
+            continue
+        # Surfaces, never swallowed: an authorization failure is a finding.
+        resp.raise_for_status()
+        if marker in json.dumps(resp.json()):
+            return True
         time.sleep(PROMOTION_POLL_DELAY_S)
     return False
 
@@ -675,30 +716,43 @@ def cmd_run(args: argparse.Namespace) -> None:
     files = seed_files(run_id)
     check = Check(lenient=args.lenient)
     t0 = time.monotonic()
+    # AN INTERRUPTED RUN IS NOT A PASSED RUN. `check.passed` means "nothing has
+    # failed", which is also true of a run that died before it could ask. The
+    # summary is written from a `finally`, so a transport error in phase one
+    # recorded `passed: true` into the demo artifact the README points at --
+    # a green with three of three phases never executed.
+    #
+    # Tracked explicitly rather than inferred from the check count: a phase that
+    # raises before recording anything and a phase that legitimately records
+    # nothing are indistinguishable by counting.
+    completed = False
     try:
         phase_lesson(files, run_id, args.model, check)
         phase_reflex(files, run_id, args.model, check)
         phase_probe(files, run_id, args.model, check)
+        completed = True
     finally:
         elapsed = round(time.monotonic() - t0, 1)
+        passed = check.passed and completed
         summary = {
             "kind": "prover-summary",
             "run_id": run_id,
-            "passed": check.passed,
+            "passed": passed,
+            "completed": completed,
             "elapsed_s": elapsed,
             "checks": check.results,
             "staleness": stale.get("staleness"),
         }
         log_event(summary)
-        if check.passed and not args.keep_seeds:
+        if passed and not args.keep_seeds:
             cleanup_files(files)
-        elif not check.passed:
+        else:
             print(f"[prover] seeds kept for debugging: {sorted(files.values())}")
 
     hard_fails = [
         r["check"] for r in check.results if not r["ok"] and not r["downgraded"]
     ]
-    verdict = "PASSED" if check.passed else "FAILED"
+    verdict = "PASSED" if passed else "FAILED"
     print(
         f"\n[prover] {verdict} in {elapsed}s "
         f"({sum(1 for r in check.results if r['ok'])}/{len(check.results)} checks green)"
@@ -706,7 +760,39 @@ def cmd_run(args: argparse.Namespace) -> None:
     if hard_fails:
         print(f"[prover] failing checks: {', '.join(hard_fails)}")
     print(f"[prover] artifact: {LOG_PATH}")
-    sys.exit(0 if check.passed else 1)
+    sys.exit(0 if passed else 1)
+
+
+def summary_is_a_trustworthy_pass(summary: dict[str, Any]) -> bool:
+    """Re-derive the verdict instead of believing the flag.
+
+    `passed` is written by the run that is making the claim, so a report that
+    prints it back is quoting the defendant. Three shapes on disk already
+    disagree with their own evidence:
+
+      * `0/0 checks` with `passed: true` -- a run that recorded NO check and
+        reported green. An empty body of evidence is not a pass, it is the
+        absence of one.
+      * `completed: false` with `passed: true` -- an interrupted run. Fixed at
+        the writing end too, but artifacts written before that fix are on disk
+        and must not read as green now.
+      * a hard-failed check under `passed: true` -- the flag is the conclusion
+        and the checks are the evidence; when they disagree, believe the
+        evidence.
+
+    A MISSING `completed` KEY IS READ AS COMPLETE. It marks an artifact written
+    before the field existed, and absence of the field is not evidence of
+    interruption -- treating it as such would retroactively fail every
+    historical green, which is the same error in the other direction.
+    """
+    if summary.get("passed") is not True:
+        return False
+    if summary.get("completed") is False:
+        return False
+    checks = summary.get("checks") or []
+    if not checks:
+        return False
+    return not any(c.get("ok") is False and not c.get("downgraded") for c in checks)
 
 
 def cmd_report(_: argparse.Namespace) -> None:
@@ -727,13 +813,14 @@ def cmd_report(_: argparse.Namespace) -> None:
         greens = sum(1 for r in s.get("checks", []) if r.get("ok"))
         total = len(s.get("checks", []))
         print(
-            f"  {s['run_id']}: {'PASS' if s.get('passed') else 'FAIL'} "
+            f"  {s['run_id']}: {'PASS' if summary_is_a_trustworthy_pass(s) else 'FAIL'} "
             f"({greens}/{total} checks, {s.get('elapsed_s', '?')}s, "
             f"staleness={s.get('staleness', '?')})"
         )
     latest = summaries[-1]
     print(
-        f"\n  latest: {'PASS' if latest.get('passed') else 'FAIL'} @ {latest['run_id']}"
+        f"\n  latest: {'PASS' if summary_is_a_trustworthy_pass(latest) else 'FAIL'}"
+        f" @ {latest['run_id']}"
         f" — this is the Product-Phase-2 demo artifact when green."
     )
 
