@@ -189,8 +189,13 @@ describe('aiosMirror', () => {
 
     await startMirrorClient();
     expect(useMirrorStore.getState().lastEventId).toBe(4);
+    // The second argument is `{ withCredentials: true }`: the stream is a
+    // bonded read and answered 401 without it. Asserted here as well as in its
+    // own test so this cursor check cannot be satisfied by a call that has
+    // quietly lost the session again.
     expect(vi.mocked(EventSource)).toHaveBeenCalledWith(
       'http://localhost:8000/api/v1/mirror/stream?last_event_id=4',
+      { withCredentials: true },
     );
 
     mockEventSource.listeners.snapshot_required(new MessageEvent('snapshot_required', {
@@ -230,5 +235,60 @@ describe('aiosMirror', () => {
     });
     expect(useMirrorStore.getState().lastEventId).toBeNull();
     expect(useMirrorStore.getState().lastAnnouncement).toBe('Malformed mirror event ignored.');
+  });
+});
+
+describe('aiosMirror carries the operator session', () => {
+  // BOTH TRANSPORTS, because the mirror reads bonded operator data over two of
+  // them and only one was ever fixed at a time. Found in a real browser: the
+  // snapshot fetch was bare, so `/api/v1/mirror/snapshot` answered 401 and the
+  // surface rendered "Control plane unavailable" while holding a perfectly
+  // good session. Adding credentials to the fetch alone left the page
+  // half-fixed -- "Models participating" became a measured 0 while "Control
+  // plane" stayed offline, because the EventSource still sent no cookie.
+  //
+  // Mocked transports cannot notice a missing cookie, which is exactly why
+  // this file's existing tests passed throughout. These assert the OPTION,
+  // which is the part that was missing.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const stub = {
+      onopen: null,
+      onerror: null,
+      onmessage: null,
+      close: vi.fn(),
+      addEventListener: vi.fn(),
+    } as unknown as EventSource;
+    // `function`, not an arrow: an arrow cannot be called with `new`.
+    vi.stubGlobal('EventSource', vi.fn(function () { return stub; }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ history: [] }),
+    } as unknown as Response));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    stopMirrorClient();
+  });
+
+  it('sends credentials on the snapshot fetch', async () => {
+    await startMirrorClient();
+
+    const call = vi.mocked(fetch).mock.calls.find(([url]) =>
+      String(url).includes('/api/v1/mirror/snapshot'),
+    );
+    expect(call, 'the mirror never fetched its snapshot').toBeTruthy();
+    expect(call?.[1]?.credentials).toBe('include');
+  });
+
+  it('opens the event stream with withCredentials', async () => {
+    await startMirrorClient();
+
+    const calls = vi.mocked(EventSource).mock.calls;
+    expect(calls.length, 'the mirror never opened a stream').toBeGreaterThan(0);
+    const [url, init] = calls[0];
+    expect(String(url)).toContain('/api/v1/mirror/stream');
+    expect(init?.withCredentials).toBe(true);
   });
 });
