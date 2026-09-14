@@ -22,9 +22,13 @@ USAGE
 -----
     python scripts/operator_attest.py                       # show candidates
     python scripts/operator_attest.py --show 20             # read one in full
-    python scripts/operator_attest.py --attest 20 48 55 \\
+    python scripts/operator_attest.py --attest 20 48 \\
         --i-am-the-operator "Swapnil" \\
         --observed "I opened the UI at :5173 and saw all three states myself"
+
+Run it with no arguments first: it lists exactly which organs it will accept and
+refuses to guess. Organ 55 is deliberately NOT among them -- its C10 is blocked
+on Outside-machine, which no signature can supply.
 
 After writing, it regenerates the doc and then the manifest (that order --
 the manifest hash-pins the doc), and tells you the two gates to run.
@@ -91,6 +95,27 @@ def eligibility(row: dict, spine: set[int]) -> tuple[bool, str]:
         return False, "nothing unsettled to attest"
     verdicts = row.get("condition_verdicts") or {}
 
+    # NOTHING OPEN MAY NAME A THING A SIGNATURE CANNOT SUPPLY.
+    #
+    # Checked BEFORE the C10-alone shortcut, because that shortcut used to
+    # return True without ever reading why C10 was unsettled. Dropping
+    # "outside-machine" from `_WAITS_ON` fixed only the multi-condition path;
+    # an organ blocked at C10 alone on outside-machine sailed straight through.
+    # One bug, two doors, and the second was found by the test written for the
+    # first.
+    #
+    # The rule is about WHAT IS MISSING, not who is asking: a person can declare
+    # what they observed, and cannot declare that a second machine ran the
+    # cohort, that Docker was up, or that a model was served.
+    for key in unsettled:
+        lowered = str(verdicts.get(key, "")).lower()
+        named = [phrase for phrase in _NOT_A_SIGNATURE if phrase in lowered]
+        if named:
+            return False, (
+                f"{key} is blocked on {named[0]!r}, which a human declaration "
+                "cannot supply — that needs the thing itself, not a signature"
+            )
+
     # C10 ALONE is the ordinary case: a human observation answering the one
     # condition a machine cannot check.
     if unsettled == ["C10"]:
@@ -110,7 +135,10 @@ def eligibility(row: dict, spine: set[int]) -> tuple[bool, str]:
     unexplained = [
         key
         for key in unsettled
-        if not _waits_on_attestation(str(verdicts.get(key, "")))
+        # C10 is the condition an attestation exists to answer, so it does not
+        # also have to announce that it is waiting for one. Every OTHER open
+        # condition does -- that is what stops this becoming a skeleton key.
+        if key != "C10" and not _waits_on_attestation(str(verdicts.get(key, "")))
     ]
     if unexplained:
         return False, (
@@ -119,6 +147,20 @@ def eligibility(row: dict, spine: set[int]) -> tuple[bool, str]:
             "only what names it; the rest is real work"
         )
     return True, ""
+
+
+#: Things a human declaration CANNOT supply, however sincerely given.
+#:
+#: An operator can say "I observed this". They cannot say a second machine ran
+#: the cohort, that a Docker daemon was up, or that a model was served. A
+#: condition naming one of these needs the thing itself.
+_NOT_A_SIGNATURE = (
+    "outside-machine",
+    "no docker",
+    "no ollama",
+    "phase 6 gate",
+    "frozen spine",
+)
 
 
 #: Phrases by which a verdict declares the OPERATOR ATTESTATION is its blocker.
