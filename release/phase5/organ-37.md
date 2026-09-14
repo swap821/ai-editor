@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 37: Local Model Qualification and Health
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `d8c7b4af18c73dcecdb23c7862a94129027e3713`
-**Generated:** 2026-09-14T12:01:04+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `2e5d89807fbbaf2ea174a2c9705dfea72fce5741`
+**Generated:** 2026-09-14T13:29:49+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 4cd9f1550cf1 (aios/domain/local_workforce/qualifier.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+(none — written verdicts PASS/N/A)
 
 ## Notes
 

@@ -907,7 +907,7 @@
   {
     "organ_id": 23,
     "name": "Release Conformance Organ",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ReleaseConformanceAuthority",
     "production_entrypoints": [
       "scripts/build_release_manifest.py",
@@ -921,20 +921,13 @@
     ],
     "live_evidence": [
       {
-        "description": "command=`gh workflow run ci.yml` -> job release-authority; CI run https://github.com/swap821/ai-editor/actions/runs/32246180129 (conclusion success, head_sha abf7346d, release-authority success); ORGAN 23'S OWN FUNCTION EXECUTING ON A MACHINE THAT IS NOT THE AUTHOR'S. That job runs scripts/verify_organ_contracts.py and scripts/verify_organ_twelve_conditions.py against the shipped ledger and manifest -- it re-derives every green claim in this file, including this one. The organ whose job is checking release conformance is proven by conformance being checked, at a commit, by a machine nobody here controls.",
-        "commit_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
-        "proof_level": "live"
-      },
-      {
-        "description": "command=`python -m pytest tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest`; the real script against the REAL on-disk ledger and manifest, not fixtures. Paired with tests/test_organ_release_conformance.py::test_organ_proof_manifest_hash_pins_the_ledger, which re-computes the manifest's hash of the shipped ledger. Together these are the live half of the integrity chain: the artifacts on disk today still validate, and the pin still matches what it claims to pin.",
-        "commit_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
+        "description": "tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest and tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest both ran and PASSED in this gate run -- the two that re-derive the SHIPPED ledger and manifest rather than a fixture. command=`python -m pytest tests/test_organ_release_conformance.py` => 56 passed, 0 failed at the current tip. Re-gathered because this organ's own entrypoint tests/test_organ_release_conformance.py moved after the previous rows. Worth recording how it went: run twice against a ledger whose doc and manifest had not yet been regenerated, BOTH of those tests failed -- the organ detected its own inconsistency before I did, which is exactly the behaviour it claims. Passing only after build_organ_ledger_doc.py then build_release_manifest.py, in that order, because the manifest hash-pins the doc.",
+        "commit_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after abf7346def48 (tests/test_organ_release_conformance.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
-    ],
-    "last_verified_sha": "abf7346def48e0805fb5893d1234f85f5b1acdf2",
+    "known_blockers": [],
+    "last_verified_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS — ReleaseConformanceAuthority class defined in production_entrypoints ['scripts/build_release_manifest.py', 'tests/test_organ_release_conformance.py'] (Decision A / enforce_owner_attestation)",
@@ -1411,7 +1404,7 @@
   {
     "organ_id": 33,
     "name": "Model Registry and Capability Passport",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "ModelPassportAuthority",
     "production_entrypoints": [
       "aios/domain/models/contracts.py",
@@ -1433,15 +1426,13 @@
     ],
     "live_evidence": [
       {
-        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/30791776080 job 'local-clerk-live' (commit 90830647e40c2f29b45b042e00b935d632d1d8f4, master): a real Ollama daemon started ('ollama ready after 2s'), qwen2.5:0.5b was pulled (id a8b0c5157701, 397 MB) and tests/test_model_passport_live_integration.py ran against it -- the job went 6 passed -> 10 passed when this suite landed, and the gate merged 2 file result(s) from clerk-junit. The suite drives organ 33's own authority_owner: reconcile() discovers the real installed model (not a seeded row), LocalWorkforceService.qualify() runs the real qualification suite against it, and ModelPassportAuthority.passport_for() is asserted to be a faithful readback of THAT run. It cannot pass vacuously in three ways, each a real hole closed during development: (1) qualify() returns 'rejected' for a failed health check and a refused hardware admission as well as a genuinely failed suite, so the fixture requires the 'qualification' key plus non-empty per-case results -- else a daemon that answered discovery but could not serve the model would report 'live proof' having run zero cases; (2) the fixture asserts list_models() returns available=True AND a non-empty list, since that call never raises and returns a TRUTHY {'available': False, 'models': []} when the daemon is down; (3) the roles test asserts the REFUSAL (UnsupportedJobProfileClaim on claiming all 13 profiles) rather than a subset relation trivially true on an empty set. Both branches were verified locally on real models: qwen2.5:1.5b failed 19/20 and projected 'revoked' with suite_version and last_qualified_at NULL; qwen2.5:7b passed 20/20 and projected 'admitted' with r15-v2, a real timestamp and a 64-hex passport_digest. Reproduce: AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b python -m pytest -rs tests/test_model_passport_live_integration.py",
-        "commit_sha": "90830647e40c2f29b45b042e00b935d632d1d8f4",
+        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model and suite CI's local-clerk-live job runs. tests/test_model_passport_live_integration.py::test_the_passport_faithfully_projects_a_real_qualification_run and tests/test_model_passport_live_integration.py::test_a_role_the_live_evidence_does_not_back_is_refused both ran and PASSED in this gate run (10 passed, 0 failed; merged via --extra-junit release/organ-33-37/clerk-junit-2026-09-14.xml). command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= --junit-xml=clerk-junit.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gathered at the current tip because this organ's own entrypoints moved after the previous row, which is what made it stale.",
+        "commit_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 90830647e40c (aios/api/deps.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
-    ],
-    "last_verified_sha": "90830647e40c2f29b45b042e00b935d632d1d8f4",
+    "known_blockers": [],
+    "last_verified_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS — ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
@@ -1598,7 +1589,7 @@
   {
     "organ_id": 37,
     "name": "Local Model Qualification and Health",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LocalModelQualificationAuthority",
     "production_entrypoints": [
       "aios/domain/local_workforce/qualifier.py",
@@ -1616,15 +1607,13 @@
     ],
     "live_evidence": [
       {
-        "description": "CI run https://github.com/swap821/ai-editor/actions/runs/30775008822 job 'local-clerk-live' (commit 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a): a real Ollama daemon started in CI ('ollama ready after 2s'), qwen2.5:0.5b was pulled (id a8b0c5157701, 397 MB) and tests/test_local_clerk_integration.py ran against it -- 6 passed, 0 skipped, in 55.65s. For organ 37 the proof runs the organ's own declared authority_owner, LocalModelQualificationAuthority, against the live model: test_the_qualification_suite_runs_against_a_live_model asserts the result carries QUALIFICATION_SUITE_VERSION and real per-case results with attempts >= 1, and test_the_live_verdict_is_recorded_as_evidence asserts the serialised payload carries that case evidence. The suite does NOT require the model to pass qualification -- a small CI model may honestly fail, and demanding a pass would create pressure to pick a model that flatters the suite. The suite cannot pass vacuously: its module fixture asserts list_models() returns available=True AND a non-empty model list, because that call never raises and returns a TRUTHY {'available': False, 'models': []} when the daemon is down -- a bare truthiness check would have 'proved' this with no Ollama at all. Reproduce: AIOS_OLLAMA_INTEGRATION=1 python -m pytest -rs tests/test_local_clerk_integration.py",
-        "commit_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
+        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model and suite CI's local-clerk-live job runs. tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model and tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence both ran and PASSED in this gate run (10 passed, 0 failed; merged via --extra-junit release/organ-33-37/clerk-junit-2026-09-14.xml). command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= --junit-xml=clerk-junit.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gathered at the current tip because this organ's own entrypoints moved after the previous row, which is what made it stale.",
+        "commit_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 4cd9f1550cf1 (aios/domain/local_workforce/qualifier.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
-    ],
-    "last_verified_sha": "4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a",
+    "known_blockers": [],
+    "last_verified_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS — LocalModelQualificationAuthority class defined in production_entrypoints ['aios/domain/local_workforce/qualifier.py', 'aios/application/local_workforce/qualification_evidence.py', 'aios/domain/local_workforce/registry.py'] (Decision A / enforce_owner_attestation)",
@@ -1777,7 +1766,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 5 of this organ's own production_entrypoints changed after db0441144db9 (aios/api/routes/mirror.py, aios/application/executor/service.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 2e5d8980): 5 of this organ's own production_entrypoints changed after db0441144db9 (aios/api/routes/mirror.py, aios/application/executor/service.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "14856c23e08b8b745c0d4ec4406f401d92fc05f0",
     "requires_live_evidence": false,
@@ -1985,7 +1974,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 2 of this organ's own production_entrypoints changed after da5071c544dc (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 2e5d8980): 2 of this organ's own production_entrypoints changed after da5071c544dc (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "af2688099f23601284e4716000665107a36fc3a8",
     "requires_live_evidence": true,
@@ -2115,7 +2104,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 2e5d8980): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "3dc7323d74cc32d57b904dba720abe713a0dde0e",
     "requires_live_evidence": false,
@@ -2245,7 +2234,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 2e5d8980): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
     "requires_live_evidence": false,
@@ -2349,7 +2338,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 2e5d8980): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
     "requires_live_evidence": false,
@@ -2540,7 +2529,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded d8c7b4af): 2 of this organ's own production_entrypoints changed after a41cd5629c7e (tools/governance_conformance_runner.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.",
+      "STALE ATTESTATION (recorded 2e5d8980): 2 of this organ's own production_entrypoints changed after a41cd5629c7e (tools/governance_conformance_runner.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.",
       "Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5."
     ],
     "last_verified_sha": null,

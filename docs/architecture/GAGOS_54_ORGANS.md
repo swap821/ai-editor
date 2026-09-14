@@ -808,8 +808,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 44 green / 11 yellow / 55 total
-- **Source ledger sha256:** `9407bae08ae623aa41ad4cafeed2027ec4c6e9b0a1efb5991a9cc65cbc6f5b93`
+- **Counts:** 47 green / 8 yellow / 55 total
+- **Source ledger sha256:** `6942b8ecd8597c8b3ff79a030205c12ea6832b6dbfb1357399caabbce895a649`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -817,7 +817,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (44)
+### Green (47)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -842,6 +842,7 @@ re-audits recorded above.
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `3207c3757076` | live |
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `3207c3757076` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `3207c3757076` | live |
+| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `2e5d89807fbb` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `3207c3757076` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `3207c3757076` | live |
 | 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `3207c3757076` | live |
@@ -851,9 +852,11 @@ re-audits recorded above.
 | 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `3207c3757076` | live |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `3207c3757076` | live |
 | 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `3207c3757076` | live |
+| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `2e5d89807fbb` | live |
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `3207c3757076` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `3207c3757076` | live |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `2e5d89807fbb` | live |
 | 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `3207c3757076` | live |
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `3207c3757076` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `3207c3757076` | live |
@@ -866,21 +869,18 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `3207c3757076` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `3207c3757076` | live |
 
-### Yellow (11) — exact residual, from the ledger's own `known_blockers`
+### Yellow (8) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ. |
-| 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after abf7346def48 (tests/test_organ_release_conformance.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 90830647e40c (aios/api/deps.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 4cd9f1550cf1 (aios/domain/local_workforce/qualifier.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | STALE ATTESTATION (recorded d8c7b4af): 5 of this organ's own production_entrypoints changed after db0441144db9 (aios/api/routes/mirror.py, aios/application/executor/service.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded d8c7b4af): 2 of this organ's own production_entrypoints changed after da5071c544dc (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | STALE ATTESTATION (recorded d8c7b4af): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | STALE ATTESTATION (recorded 2e5d8980): 5 of this organ's own production_entrypoints changed after db0441144db9 (aios/api/routes/mirror.py, aios/application/executor/service.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded 2e5d8980): 2 of this organ's own production_entrypoints changed after da5071c544dc (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | STALE ATTESTATION (recorded 2e5d8980): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ. |
-| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | STALE ATTESTATION (recorded d8c7b4af): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | STALE ATTESTATION (recorded d8c7b4af): 2 of this organ's own production_entrypoints changed after a41cd5629c7e (tools/governance_conformance_runner.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.<br>Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5. |
+| 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | STALE ATTESTATION (recorded 2e5d8980): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | STALE ATTESTATION (recorded 2e5d8980): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | STALE ATTESTATION (recorded 2e5d8980): 2 of this organ's own production_entrypoints changed after a41cd5629c7e (tools/governance_conformance_runner.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.<br>Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5. |
 
 <!-- END GENERATED: CURRENT ORGAN STATUS -->
 
