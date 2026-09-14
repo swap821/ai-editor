@@ -145,6 +145,7 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
     )
     from aios.policy.kernel import PolicyKernelAuthority
     from fastapi.testclient import TestClient
+    from aios.api.deps import get_emergency_stop
     from aios.api.main import app
 
     proofs: list[OrganProof] = []
@@ -849,6 +850,11 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
         def model_call(context):  # noqa: ARG001
             return "phase4-local-output-no-secrets"
 
+        # A REAL STOP, not UNGOVERNED_FIXTURE. `require_stop_wired` accepts the
+        # fixture as a way to say "ungoverned is deliberate" -- which would be a
+        # false statement here and would make this evidence prove the opposite
+        # of what the organ claims. Production wires a real latch, so the probe
+        # does too; that is the whole point of live evidence.
         result = auth.route(
             request_id="req-p4-32",
             operator_identity_digest=digest64,
@@ -858,6 +864,7 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
             target="local",
             delegated_authority_summary="advisory",
             model_call=model_call,
+            emergency_stop=get_emergency_stop(),
         )
         return (
             f"route output={result.output!r} secrets_redacted={result.secrets_redacted} "
@@ -1221,7 +1228,44 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
             body = response.json()
             if response.status_code != 200 or body.get("status") != "ok":
                 raise RuntimeError(f"/health failed: {response.status_code} {body}")
-            stop = client.get("/api/v1/governance/emergency-stop")
+
+            # THE READ IS BONDED NOW, AND LOOPBACK IS NOT AN IDENTITY.
+            #
+            # This probe used to GET the emergency stop with nothing but Host
+            # and Origin, and it worked because the route trusted the loopback
+            # address. It does not any more:
+            #
+            #     401 this route requires a bonded operator session;
+            #         loopback alone is a network path, not an identity
+            #
+            # That refusal is the control working, and the probe was simply
+            # never taught the ceremony -- the same staleness that stopped
+            # `learning_loop_prover` from entering its own API. Under pytest,
+            # conftest fabricates a session for a loopback client and hides
+            # this; a standalone script gets the truth.
+            #
+            # So the real flow is performed: enroll (this run has a fresh
+            # AIOS_DATA_DIR, so no operator exists yet), log in, then
+            # reauthenticate -- the privileged window the real UI opens. The
+            # credential lives in this process only and is written nowhere.
+            enrolled = client.post(
+                "/api/v1/auth/enroll", json={"display_name": "Phase 4 Live Evidence"}
+            )
+            if enrolled.status_code != 201:
+                raise RuntimeError(
+                    f"enroll HTTP {enrolled.status_code}: {enrolled.text[:200]}"
+                )
+            credential = enrolled.json()["enrollmentCredential"]
+            for path in ("/api/v1/auth/login", "/api/v1/auth/reauth"):
+                step = client.post(path, json={"credential": credential})
+                if step.status_code != 200:
+                    raise RuntimeError(
+                        f"{path} HTTP {step.status_code}: {step.text[:200]}"
+                    )
+            csrf = client.cookies.get("csrf_token")
+            headers = {"X-CSRF-Token": csrf} if csrf else {}
+
+            stop = client.get("/api/v1/governance/emergency-stop", headers=headers)
             if stop.status_code != 200:
                 raise RuntimeError(
                     f"emergency-stop HTTP {stop.status_code}: {stop.text[:200]}"
@@ -1288,8 +1332,18 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
         dest = scratch / "restored-data"
         safety = scratch / "safety.tgz"
         auth = BackupDisasterRecoveryAuthority()
+        # Real latch, same reasoning as organ 32: a restore is exactly the kind
+        # of governed action that must be haltable, so proving it with the
+        # ungoverned fixture would prove the wrong thing. The stop is a
+        # parameter of `restore_backup`, not of the constructor -- the authority
+        # holds no state, and the guard sits on the call that acts.
         # Empty dest — no safety needed
-        old = auth.restore_backup(bundle=bundle, data_dir=dest, safety_backup=None)
+        old = auth.restore_backup(
+            bundle=bundle,
+            data_dir=dest,
+            safety_backup=None,
+            emergency_stop=get_emergency_stop(),
+        )
         if not (dest / "note.txt").exists():
             raise RuntimeError("restore did not materialize note.txt")
         return (
@@ -1338,6 +1392,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         os.environ["AIOS_PROMOTION_AUTHORITY_KEY"] = (
             "phase4-live-promotion-key-32-bytes-min!"
+        )
+        # Organ 53 persists API-token rotation state, and refuses to do so
+        # unprotected: "AIOS_API_TOKEN_ROTATION_KEY is unset, too short, or a
+        # known placeholder, so the row could not be protected against direct
+        # modification". That refusal is the control working -- the probe was
+        # simply never given a key, so it exercised the refusal instead of the
+        # path it claims to prove. Same shape as the two run keys above: a real
+        # key, generated per run, living only in this process's environment and
+        # written nowhere (AGENTS.md VII.4).
+        os.environ["AIOS_API_TOKEN_ROTATION_KEY"] = (
+            "phase4-live-rotation-key-" + uuid.uuid4().hex
         )
 
         errors: list[str] = []

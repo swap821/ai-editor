@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 28: Project Understanding Organ
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `d8194dd981596bd86c7682d6684a29c9b0014c2d`
-**Generated:** 2026-09-14T02:24:20+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `3207c375707626e95f1fece092e84936b6032f04`
+**Generated:** 2026-09-14T08:55:45+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: STALE ATTESTATION (recorded 1b4e1310): 6 of this organ's own production_entrypoints changed after 5d482164707c (aios/api/deps.py, aios/api/routes/projects.py, aios/application/intelligence/authenticated_chat.py...). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+(none — written verdicts PASS/N/A)
 
 ## Notes
 

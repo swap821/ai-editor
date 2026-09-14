@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 13: Isolated Executor Service (construction)
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `d8194dd981596bd86c7682d6684a29c9b0014c2d`
-**Generated:** 2026-09-14T02:24:19+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `3207c375707626e95f1fece092e84936b6032f04`
+**Generated:** 2026-09-14T08:55:43+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: STALE LIVE EVIDENCE (recorded 8c5cc293): this organ's own production_entrypoint aios/executor_service.py changed after the evidence below was gathered at 5d482164707c -- the repair path's containment check was rewritten to canonicalise with realpath, and ten failure paths stopped reporting isolation_verified=True. The evidence is preserved and was true at that commit; it is no longer known to describe HEAD. Restoring green needs a Phase 4 live run at a current tip, not a re-stamped sha -- re-running the cited tests does not refresh a live proof.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C10
+(none — written verdicts PASS/N/A)
 
 ## Notes
 
