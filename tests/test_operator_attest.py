@@ -218,3 +218,38 @@ def test_the_cli_will_not_attest_on_someones_behalf(argv, marker, capsys) -> Non
 
     assert code == 2
     assert marker in capsys.readouterr().err
+
+
+def test_no_printed_command_uses_a_shell_continuation() -> None:
+    """Every command this tool prints must be one line.
+
+    Two separate places emitted bash trailing backslashes. The usage hint was
+    fixed; the post-attest block was missed, so the operator hit the identical
+    PowerShell parse errors on the very next command they ran. Asserted over the
+    source rather than over one call site, because the defect was that a second
+    call site existed.
+    """
+    source = (REPO_ROOT / "scripts" / "operator_attest.py").read_text(encoding="utf-8")
+    offenders = [
+        line.strip()
+        for line in source.splitlines()
+        # A printed line ending in a backslash-continuation, i.e. the literal
+        # two characters `\` and `n` preceded by an escaped backslash.
+        if '\\\n"' in line and "python " in line
+    ]
+    assert not offenders, (
+        "these printed lines end in a shell continuation and will not paste "
+        f"into PowerShell: {offenders}"
+    )
+
+
+def test_the_gate_command_is_defined_once() -> None:
+    """One string, printed — not retyped in each place that mentions it.
+
+    Two copies is two chances to fix only one of them, which is exactly what
+    happened.
+    """
+    source = (REPO_ROOT / "scripts" / "operator_attest.py").read_text(encoding="utf-8")
+    assert source.count("verify_organ_twelve_conditions.py ") == 1, (
+        "the gate command appears more than once; define it once and print it"
+    )

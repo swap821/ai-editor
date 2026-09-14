@@ -193,6 +193,20 @@ def _waits_on_attestation(text: str) -> bool:
     return any(phrase in lowered for phrase in _WAITS_ON)
 
 
+#: The twelve-condition gate, as ONE line.
+#:
+#: Defined once and printed, never retyped. Both places this tool emitted a
+#: command originally used bash trailing backslashes; the usage hint was fixed
+#: and THIS one was missed, so the operator hit the identical PowerShell parse
+#: errors a second time on the very next command. Two copies of a string is two
+#: chances to fix only one of them.
+_GATE_COMMAND = (
+    "python scripts/verify_organ_twelve_conditions.py "
+    "--frontend-junit frontend/vitest-junit.xml "
+    "--extra-junit release/organ-33-37/clerk-junit-2026-09-14.xml"
+)
+
+
 def _shell_name() -> str:
     """Which shell the operator is most likely pasting into."""
     return "PowerShell" if os.name == "nt" else "bash"
@@ -410,11 +424,11 @@ def main(argv: list[str] | None = None) -> int:
             print(result.stderr[-800:], file=sys.stderr)
             return 1
     print(
-        "\nNow prove it, and believe the gates over this script:\n"
-        "  python scripts/verify_organ_contracts.py\n"
-        "  python scripts/verify_organ_twelve_conditions.py \\\n"
-        "      --frontend-junit frontend/vitest-junit.xml \\\n"
-        "      --extra-junit release/organ-33-37/clerk-junit-2026-09-14.xml\n"
+        f"\nNow prove it, and believe the gates over this script ({_shell_name()}, "
+        "one line each):\n\n"
+        "  python scripts/verify_organ_contracts.py\n\n"
+        "  " + _GATE_COMMAND + "\n\n"
+        "The second runs 122 test files and takes roughly twenty minutes.\n"
         "Both must exit 0 and report `green mechanical failures: 0`. If either\n"
         "objects, the attestation was premature — revert it rather than argue."
     )
