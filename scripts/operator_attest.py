@@ -22,11 +22,16 @@ USAGE
 -----
     python scripts/operator_attest.py                       # show candidates
     python scripts/operator_attest.py --show 20             # read one in full
-    python scripts/operator_attest.py --attest 20 48 \\
-        --i-am-the-operator "Swapnil" \\
-        --observed "I opened the UI at :5173 and saw all three states myself"
+    python scripts/operator_attest.py --attest 20 48 --i-am-the-operator "Swapnil" --observed "I opened the UI at :5173 and saw all three states myself"
 
-Run it with no arguments first: it lists exactly which organs it will accept and
+ONE LINE, no continuations. This is written for PowerShell as well as bash: the
+first version of this docstring used bash trailing backslashes, the operator
+pasted it into PowerShell, and got `invalid int value: '\\'` followed by three
+more parse errors. A tool whose entire job is to be run by a human must hand
+that human a command their shell can read.
+
+Run it with no arguments first: it lists exactly which organs it will accept,
+fills their ids into a ready command for the shell you are actually in, and
 refuses to guess. Organ 55 is deliberately NOT among them -- its C10 is blocked
 on Outside-machine, which no signature can supply.
 
@@ -47,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -187,6 +193,28 @@ def _waits_on_attestation(text: str) -> bool:
     return any(phrase in lowered for phrase in _WAITS_ON)
 
 
+def _shell_name() -> str:
+    """Which shell the operator is most likely pasting into."""
+    return "PowerShell" if os.name == "nt" else "bash"
+
+
+def _attest_example(ids: list[int]) -> str:
+    """A command that can actually be pasted, on THIS platform.
+
+    Printed as ONE line with no continuations. The first version emitted
+    bash-style trailing backslashes, which the operator pasted into PowerShell
+    and got `invalid int value: '\'` followed by three more parse errors --
+    a tool whose whole job is to be run by a human, handing that human a command
+    their shell cannot read.
+    """
+    wanted = " ".join(str(i) for i in ids) if ids else "<ids>"
+    return (
+        f"python scripts/operator_attest.py --attest {wanted} "
+        '--i-am-the-operator "Your Name" '
+        '--observed "what you actually observed, in your own words"'
+    )
+
+
 def show(row: dict, full: bool = False) -> None:
     oid = int(row["organ_id"])
     print(f"\n─── organ {oid}: {row['name']} ───")
@@ -242,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
             "Organs awaiting an operator attestation (C10 is their only open condition):"
         )
         any_found = False
+        eligible_ids: list[int] = []
         for row in ledger:
             oid = int(row["organ_id"])
             if wanted and oid not in wanted:
@@ -249,16 +278,18 @@ def main(argv: list[str] | None = None) -> int:
             ok, why = eligibility(row, spine)
             if ok:
                 any_found = True
+                eligible_ids.append(oid)
                 show(row, full=bool(args.show))
             elif wanted:
                 print(f"\n─── organ {oid}: {row['name']} ───\n    NOT ELIGIBLE: {why}")
         if not any_found and not wanted:
             print("  (none)")
         print(
-            "\nTo attest, read the evidence above and then run:\n"
-            "  python scripts/operator_attest.py --attest <ids> \\\n"
-            '      --i-am-the-operator "<your name>" \\\n'
-            '      --observed "<what you actually observed>"'
+            "\nTo attest, read the evidence above and then run "
+            f"({_shell_name()} — ONE line, no continuations):\n\n"
+            f"  {_attest_example(eligible_ids)}\n\n"
+            "  Replace the --observed text with what YOU saw; it is recorded "
+            "verbatim as your words."
         )
         return 0
 
