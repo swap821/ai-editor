@@ -371,3 +371,91 @@ def test_the_fsize_cap_still_allows_a_normal_artefact(runner: DockerRunner) -> N
         "the sandbox could not write 1 MiB, so RLIMIT_FSIZE is set too low and "
         f"real verification runs will fail. stderr={stderr[:300]!r}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Kernel-enforced controls, read from the container's own /proc
+# --------------------------------------------------------------------------- #
+#
+# `--cap-drop ALL`, `no-new-privileges` and seccomp were the last three controls
+# asserted only by their presence in the docker argv. The kernel publishes all
+# three in /proc/self/status, so the container can be asked what it actually got
+# rather than what it was asked for.
+#
+# This closes the argv-only set. `--userns` is deliberately NOT here: user
+# namespace remapping is a DAEMON setting (`userns-remap` in daemon.json,
+# surfacing as `name=userns` in `docker info --format '{{.SecurityOptions}}'`),
+# and Docker's per-container `--userns` flag only accepts `host`, which DISABLES
+# remapping. The runner cannot turn it on, so no probe here can honestly claim
+# it. Enabling it is an operator change to the daemon.
+
+
+def _proc_status(runner: DockerRunner) -> dict[str, str]:
+    """`/proc/self/status` from inside the sandbox, as a mapping."""
+    stdout, stderr, exit_code = _run(
+        runner, "python -c \"print(open('/proc/self/status').read())\""
+    )
+    assert exit_code == 0, f"could not read /proc/self/status: {stderr[:300]!r}"
+    fields: dict[str, str] = {}
+    for line in stdout.splitlines():
+        key, _, value = line.partition(":")
+        if value:
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def test_the_sandbox_holds_no_capabilities(runner: DockerRunner) -> None:
+    """`--cap-drop ALL`, read back from the kernel.
+
+    The BOUNDING set is checked too, not just the effective one. A non-empty
+    bounding set means a setuid binary could still regain a capability the
+    effective set dropped, which is the escape `--cap-drop ALL` is meant to
+    foreclose rather than merely defer.
+    """
+    status = _proc_status(runner)
+
+    assert status.get("CapEff") == "0000000000000000", (
+        f"the sandbox holds effective capabilities: {status.get('CapEff')!r}"
+    )
+    assert status.get("CapBnd") == "0000000000000000", (
+        "the capability BOUNDING set is non-empty, so a capability can still be "
+        f"regained: {status.get('CapBnd')!r}"
+    )
+
+
+def test_the_sandbox_cannot_gain_privileges(runner: DockerRunner) -> None:
+    """`--security-opt no-new-privileges`, read back from the kernel."""
+    status = _proc_status(runner)
+
+    assert status.get("NoNewPrivs") == "1", (
+        "no-new-privileges is not in effect, so a setuid binary inside the "
+        f"image could escalate: NoNewPrivs={status.get('NoNewPrivs')!r}"
+    )
+
+
+def test_the_sandbox_runs_under_a_seccomp_filter(runner: DockerRunner) -> None:
+    """Seccomp mode 2 is SECCOMP_MODE_FILTER; 0 means no filter at all.
+
+    Docker applies its builtin profile unless someone passes
+    `seccomp=unconfined`. Nothing here passes that today -- this is what would
+    notice if something started to.
+    """
+    status = _proc_status(runner)
+
+    assert status.get("Seccomp") == "2", (
+        "the sandbox is not running under a seccomp filter (mode 2 = "
+        f"SECCOMP_MODE_FILTER): Seccomp={status.get('Seccomp')!r}"
+    )
+
+
+def test_the_sandbox_does_not_run_as_root(runner: DockerRunner) -> None:
+    """The `--user` flag, read back rather than assumed.
+
+    Paired with the capability probe: uid 0 with no capabilities is far less
+    dangerous than uid 0 with them, but the mounted scope roots are host-visible
+    and owned by the invoking user, so the uid still matters on its own.
+    """
+    status = _proc_status(runner)
+    uids = (status.get("Uid") or "").split()
+
+    assert uids and uids[0] != "0", f"the sandbox is running as root: Uid={uids!r}"
