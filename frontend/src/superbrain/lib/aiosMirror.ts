@@ -5,6 +5,27 @@ import { humanizeRedactionMarkers } from './aiosAdapter';
 
 const AIOS_BASE = process.env.NEXT_PUBLIC_AIOS_URL ?? 'http://localhost:8000';
 
+/**
+ * The mirror reads OPERATOR data, so it must send the operator's session.
+ *
+ * `/api/v1/mirror/snapshot` is a bonded read: the backend answers
+ * `401 this route requires a bonded operator session; loopback alone is a
+ * network path, not an identity`. Both fetches below were bare, so the cookie
+ * never went, and a browser holding a perfectly good session still rendered
+ * "Control plane unavailable" forever.
+ *
+ * Found by driving a real browser rather than by reading the code: with a live
+ * operator session established at localhost:5173, `fetch(..., {credentials:
+ * 'include'})` returned 200 while the bare `fetch(...)` was rejected outright.
+ * The UI was being truthful -- it genuinely could not see anything -- about a
+ * blindness it was inflicting on itself.
+ *
+ * `aiosAdapter.ts` has always done this (and asserts it in
+ * aiosAdapter.session.test.ts); this file is its sibling and simply never got
+ * the same treatment.
+ */
+const FETCH_CREDENTIALS: RequestCredentials = 'include';
+
 let mirrorEventSource: EventSource | null = null;
 
 const isDurableEventId = (value: string): boolean => {
@@ -24,7 +45,9 @@ const readJsonRecord = (data: string): Record<string, unknown> | null => {
 
 async function refreshMirrorSnapshot(): Promise<void> {
   try {
-    const response = await fetch(`${AIOS_BASE}/api/v1/mirror/snapshot`);
+    const response = await fetch(`${AIOS_BASE}/api/v1/mirror/snapshot`, {
+      credentials: FETCH_CREDENTIALS,
+    });
     if (response.ok) {
       const data = await response.json() as Record<string, unknown>;
       useMirrorStore.getState().setSnapshot(data);
@@ -41,7 +64,9 @@ export async function startMirrorClient(): Promise<void> {
 
   let lastEventId: number | null = null;
   try {
-    const response = await fetch(`${AIOS_BASE}/api/v1/mirror/snapshot`);
+    const response = await fetch(`${AIOS_BASE}/api/v1/mirror/snapshot`, {
+      credentials: FETCH_CREDENTIALS,
+    });
     if (response.ok) {
       const data = await response.json() as Record<string, unknown>;
       useMirrorStore.getState().setSnapshot(data);
@@ -58,7 +83,17 @@ export async function startMirrorClient(): Promise<void> {
   const streamUrl = lastEventId === null
     ? `${AIOS_BASE}/api/v1/mirror/stream`
     : `${AIOS_BASE}/api/v1/mirror/stream?last_event_id=${lastEventId}`;
-  const source = new EventSource(streamUrl);
+  // SAME BUG, SECOND HALF. `EventSource` sends no cookies cross-origin unless
+  // it is constructed with `withCredentials`, so `/api/v1/mirror/stream`
+  // answered 401 exactly as the snapshot did -- `onerror` fired, status went
+  // 'offline', and the surface reported "Control plane unavailable" even after
+  // the snapshot fetch above started succeeding.
+  //
+  // Visible in the real browser as a half-fixed page: "Models participating"
+  // flipped from Unavailable to a measured 0 while "Control plane" stayed
+  // offline, because those two read from different transports and only one of
+  // them had been taught to carry the session.
+  const source = new EventSource(streamUrl, { withCredentials: true });
   mirrorEventSource = source;
 
   source.onopen = () => {

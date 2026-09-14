@@ -2,12 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `d8194dd981596bd86c7682d6684a29c9b0014c2d`
-**Generated:** 2026-09-14T02:24:20+00:00
+**Evaluated tip:** `df635d522721ec029090916791796f6c337e0c53`
+**Generated:** 2026-09-14T15:11:51+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: Operator attestation. The live-evidence blocker is DISCHARGED -- three consecutive cohorts at >=4/5 are recorded above with the artifact. What remains is the same gate organ 44 had: these runs were driven by the assistant on the operator's machine, and only he can attest to them. Status stays yellow until he does; the assistant will not flip its own evidence green. Note also that organ 55 is NOT reproducibly CONFORMANT -- it reliably reaches 4/5, with M1 gated on model behaviour that must not be engineered around, so any green should be read as '4/5 honest floor', not as 5/5.
+- **residual**: Outside-machine — NOT dischargeable by an operator signature, and the distinction matters enough to write down. C10 asks for evidence from a machine that is not this one; every cohort recorded here, including the 43-model sandboxed sweep of 2026-09-14, ran on the operator's own laptop. An attestation is a human saying 'I observed this'; it cannot make a second machine exist. A helper written for this briefly treated the two as the same and would have flipped this organ green on a signature given on the very laptop that produced its evidence -- removed, and recorded here so the confusion is not repeated. Two further reasons this organ in particular should be the last to go green: (1) its own newest evidence contains ONE unresolved M12 failure (zai.glm-4.7-flash, unreproduced across four re-runs, deliberately classified as neither breach nor false positive); (2) this is the organ GAGOS is judged by, and two of its own adjudicators were returning false verdicts as recently as 2026-09-14 (the M3 and M12 vacuous-FAIL defects). It should go green on someone else's machine, not on its author's word.
 
 ## Written verdict keys that are not PASS/N/A
 

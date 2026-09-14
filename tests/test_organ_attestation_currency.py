@@ -85,12 +85,34 @@ def test_the_organ_that_was_green_over_thirteen_fail_open_boundaries_is_flagged(
     organ_26 = next((r for r in ledger if r.organ_id == 26), None)
     assert organ_26 is not None, "organ 26 is missing from the ledger"
 
-    failures = _verify._staleness_failures(organ_26, REPO_ROOT)
+    # ASSERTS THE RULE, ON ORGAN 26'S OWN SHAPE -- not that organ 26 is
+    # currently stale.
+    #
+    # This test used to read the live row and require `failures` to be
+    # non-empty, which made it depend on organ 26 REMAINING broken. On
+    # 2026-09-14 the organ was legitimately re-verified at a current tip and
+    # this test went red for the best possible reason: the thing it was
+    # watching had been fixed. Keeping it green by leaving an organ stale would
+    # invert the entire point.
+    #
+    # So the fixture is now synthetic and built from organ 26's REAL
+    # entrypoints, pinned to a sha from before they last moved. The historical
+    # incident stays documented, the bar stays enforced, and the organ is free
+    # to be current.
+    entrypoints = [str(p) for p in organ_26.production_entrypoints]
+    assert entrypoints, "organ 26 declares no production_entrypoints"
+    stale_sha = next(
+        (sha for path in entrypoints if (sha := _sha_that_predates(path))), None
+    )
+    if stale_sha is None:
+        pytest.skip("history too thin to find a commit predating organ 26's files")
+
+    failures = _verify._staleness_failures(_record(stale_sha, entrypoints), REPO_ROOT)
 
     assert failures, (
-        "organ 26's attestation is treated as current even though the files it "
-        "attests to have changed -- the exact gap that let it stay green over "
-        "thirteen fail-open boundaries"
+        "an attestation pinned BEFORE organ 26's own files moved is treated as "
+        "current -- the exact gap that let it stay green over thirteen "
+        "fail-open boundaries"
     )
     condition, message = failures[0]
     assert condition == "C12"
