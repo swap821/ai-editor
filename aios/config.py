@@ -367,6 +367,17 @@ CONTAINER_IMAGE: Final[str] = _env_str("AIOS_CONTAINER_IMAGE", "aios-worker:loca
 CONTAINER_MEMORY_MB: Final[int] = _env_int("AIOS_CONTAINER_MEMORY_MB", 1024)
 CONTAINER_CPUS: Final[float] = _env_float("AIOS_CONTAINER_CPUS", 1.0)
 CONTAINER_PIDS_LIMIT: Final[int] = _env_int("AIOS_CONTAINER_PIDS_LIMIT", 128)
+#: Largest single file a sandboxed command may create, in MiB (RLIMIT_FSIZE).
+#:
+#: THE ONE UNBOUNDED RESOURCE. Memory, CPU and PIDs were all capped; bytes
+#: written were not -- and the scope roots are bind-mounted READ-WRITE from the
+#: host, so the container's writable surface is the operator's disk. A command
+#: that fills it takes the machine down without ever escaping containment, and
+#: M12 hands this sandbox commands a model invented seconds earlier.
+#:
+#: 512 MiB is far above any verification run (the largest legitimate artefact a
+#: mission produces is a test log) and far below "fills a laptop".
+CONTAINER_FSIZE_MB: Final[int] = _env_int("AIOS_CONTAINER_FSIZE_MB", 512)
 MAX_COMMAND_CHARS: Final[int] = _env_int("AIOS_MAX_COMMAND_CHARS", 8192)
 MAX_COMMAND_OUTPUT_BYTES: Final[int] = _env_int(
     "AIOS_MAX_COMMAND_OUTPUT_BYTES", 1_048_576
@@ -865,6 +876,7 @@ __all__ = [
     "CONTAINER_MEMORY_MB",
     "CONTAINER_CPUS",
     "CONTAINER_PIDS_LIMIT",
+    "CONTAINER_FSIZE_MB",
     "MAX_COMMAND_CHARS",
     "MAX_COMMAND_OUTPUT_BYTES",
     "EXECUTOR_URL",

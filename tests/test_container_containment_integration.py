@@ -245,3 +245,129 @@ def test_the_writable_set_matches_the_declared_scope_roots(
         f"sandboxed command wrote into it. exit={exit_code} "
         f"stderr={stderr[:200]!r}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The controls that were only ever argv strings
+# --------------------------------------------------------------------------- #
+#
+# Write containment above is executed. `--network none`, `--read-only` and the
+# `/tmp` tmpfs were not: they were asserted by building the docker argv and
+# checking the flag is present, which proves construction and nothing about
+# whether Docker honoured it. That is the same declared-versus-actual gap M12
+# exists to close, pointed at the sandbox instead of the gateway -- and the gap
+# is not hypothetical here, because this repo has already shipped one control
+# that was present in the argv and ineffective in the container (a bind mount
+# that was read-write by default, live until 2026-08-19).
+#
+# Each probe asserts BOTH directions for the same reason the write probes do:
+# "the network is unreachable" passes trivially in a container that cannot run
+# anything at all.
+
+
+def test_the_sandbox_has_no_network(runner: DockerRunner) -> None:
+    """`--network none`, executed rather than described.
+
+    A sandbox that can open a socket can exfiltrate whatever it can read, and
+    M12 hands this container commands a model invented seconds earlier.
+
+    Paired with a control that proves the interpreter runs, so a probe that
+    fails because `python` is missing can never be mistaken for containment.
+    """
+    ok_out, ok_err, ok_code = _run(runner, 'python -c "print(1)"')
+    assert ok_code == 0, (
+        "the control probe could not run python, so a failing network probe "
+        f"would prove nothing. stdout={ok_out[:200]!r} stderr={ok_err[:200]!r}"
+    )
+    assert "1" in ok_out
+
+    # No semicolons: `parse_argv` rejects them as shell composition, so the
+    # import is inlined rather than written as two statements.
+    stdout, stderr, exit_code = _run(
+        runner,
+        "python -c \"__import__('socket').create_connection(('1.1.1.1',53),timeout=5)\"",
+    )
+
+    assert exit_code != 0, (
+        "CONTAINMENT ESCAPE: a sandboxed command opened an outbound connection. "
+        f"--network none is not in effect. stdout={stdout[:200]!r}"
+    )
+    assert "Error" in stderr or "error" in stderr, (
+        "the network probe failed without a Python exception, so the cause is "
+        f"unknown and may not be the network. stderr={stderr[:300]!r}"
+    )
+
+
+def test_the_sandbox_root_filesystem_is_read_only(runner: DockerRunner) -> None:
+    """`--read-only`, executed rather than described.
+
+    A writable rootfs lets a command drop a binary or edit interpreter config
+    and have it survive to the next process in the same container.
+    """
+    stdout, stderr, exit_code = _run(runner, "touch /etc/_containment_probe")
+
+    assert exit_code != 0, (
+        "CONTAINMENT ESCAPE: a sandboxed command wrote to /etc. --read-only is "
+        f"not in effect. stdout={stdout[:200]!r} stderr={stderr[:200]!r}"
+    )
+
+
+def test_the_sandbox_can_still_write_its_tmpfs(runner: DockerRunner) -> None:
+    """The other half of the read-only probe.
+
+    `HOME=/tmp` is set precisely because an arbitrary uid has no passwd entry,
+    so pytest and pip need a writable home. If this stops working, the rootfs
+    probe above starts passing for the wrong reason and every verification run
+    breaks at the same time.
+    """
+    stdout, stderr, exit_code = _run(runner, "touch /tmp/_containment_probe")
+
+    assert exit_code == 0, (
+        "the sandbox cannot write its own tmpfs, so HOME=/tmp is broken and "
+        f"the read-only probe above proves nothing. stderr={stderr[:300]!r}"
+    )
+
+
+def test_the_sandbox_cannot_fill_the_host_disk(runner: DockerRunner) -> None:
+    """RLIMIT_FSIZE, executed rather than described.
+
+    The only unbounded resource the sandbox had. `--memory`, `--cpus` and
+    `--pids-limit` cap what a command consumes inside the container; none of
+    them cap what it WRITES, and the scope roots are bind-mounted read-write
+    from the host. Taking the machine down that way needs no containment escape
+    at all -- it is a supported operation performed to excess.
+
+    Writes into the tmpfs rather than a scope root, so a failure of this test
+    cannot itself leave a large file on the operator's disk.
+    """
+    # 512 MiB limit, so 1 GiB must be refused. `seek` makes this a sparse write
+    # that costs nothing until the limit is hit, and carries no semicolon --
+    # `parse_argv` rejects those as shell composition.
+    stdout, stderr, exit_code = _run(
+        runner,
+        "python -c \"open('/tmp/_fsize_probe','wb').truncate(1024*1024*1024)\"",
+    )
+
+    assert exit_code != 0, (
+        "a sandboxed command created a 1 GiB file; RLIMIT_FSIZE is not in "
+        f"effect and the writable scope roots are the host's disk. "
+        f"stdout={stdout[:200]!r} stderr={stderr[:200]!r}"
+    )
+
+
+def test_the_fsize_cap_still_allows_a_normal_artefact(runner: DockerRunner) -> None:
+    """The other half. A cap that refuses ordinary output is an outage.
+
+    One mebibyte is larger than any log a verification run produces and three
+    orders of magnitude below the cap, so this failing means the limit is set
+    to something unusable rather than something protective.
+    """
+    stdout, stderr, exit_code = _run(
+        runner,
+        "python -c \"open('/tmp/_fsize_ok','wb').write(b'x'*1048576)\"",
+    )
+
+    assert exit_code == 0, (
+        "the sandbox could not write 1 MiB, so RLIMIT_FSIZE is set too low and "
+        f"real verification runs will fail. stderr={stderr[:300]!r}"
+    )
