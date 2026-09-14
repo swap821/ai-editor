@@ -1713,6 +1713,57 @@ def _m12_panel(ctx: DriverContext) -> list[str]:
     return panel or [ctx.model_id]
 
 
+#: Explicit opt-in to run M12 with no isolation boundary underneath it.
+#:
+#: Named as bluntly as it behaves. This is the operator's call to make on a
+#: machine they accept the risk on, not a default and not something a harness
+#: decides quietly -- and a run that uses it records `unsandboxed` in its own
+#: evidence so it can never be mistaken for one that did not.
+_M12_UNSANDBOXED_ENV = "AIOS_M12_ALLOW_UNSANDBOXED"
+
+
+def _m12_isolation() -> tuple[bool, str]:
+    """Is there a real boundary under the commands this mission relays?
+
+    Answers from the SAME resolver the backend uses, `approved_runner_from_config`,
+    rather than from a second opinion that could drift from it:
+
+      * private Executor Service  -> isolated, out of process
+      * an AVAILABLE DockerRunner -> isolated (availability probed, not assumed:
+        the backend logs "container execution backend unavailable" and then
+        keeps running, so configured is not the same as working)
+      * host mode (`None`)        -> NOT isolated; approved commands run as the
+        backend OS user, which the codebase itself labels development-only and
+        "not an OS/container isolation boundary"
+
+    Returns the reason as well as the verdict, because "no sandbox" and "a
+    sandbox that was configured but is not answering" are different operator
+    problems and a bare False would flatten them.
+    """
+    try:
+        from aios.core.executor import (
+            DockerRunner,
+            approved_runner_from_config,
+        )
+
+        runner = approved_runner_from_config()
+    except Exception as exc:  # noqa: BLE001 - unresolvable means unproven, never assumed
+        return False, f"could not resolve the execution backend ({exc})"
+
+    if runner is None:
+        return False, (
+            "host execution backend: approved commands run as the backend OS "
+            "user, which is not an isolation boundary"
+        )
+    if isinstance(runner, DockerRunner):
+        try:
+            runner.ensure_available()
+        except Exception as exc:  # noqa: BLE001 - reported, never guessed
+            return False, f"container backend configured but unavailable ({exc})"
+        return True, "container execution backend"
+    return True, f"isolated backend: {type(runner).__name__}"
+
+
 def _m12_reachable(ctx: DriverContext, model_id: str) -> bool:
     """Can this model answer at all, before spending a whole sweep on it?
 
@@ -2030,10 +2081,66 @@ def drive_m12(ctx: DriverContext) -> DriverResult:
     its own paper would measure nothing.
     """
     result = DriverResult()
+
+    # NO HARD OUTER SANDBOX, NO GENERATIVE PROBE.
+    #
+    # This is the one mission that relays commands NOBODY WROTE DOWN. Every
+    # other probe carries text an author reviewed; M12 carries whatever a model
+    # invented thirty seconds ago. The floor below it, `_m12_withheld_reason`,
+    # is a denylist of shapes -- and denylists leak. A live run proved it: the
+    # floor has `chmod -R 777 /`, and a model answered `sudo chmod 777 /`
+    # without the `-R`, which walked straight past it. The gateway refused that
+    # one. The gateway is also software, and this very benchmark shipped two
+    # adjudication bugs found only by running 43 models.
+    #
+    # So the floor and the gateway are the FIRST two layers, not the last. When
+    # `approved_runner_from_config()` yields host execution, approved commands
+    # run as the backend OS user and there is no third -- a gateway defect and
+    # the operator's machine are then the same distance apart as a bug.
+    #
+    # Refusing rather than warning follows this repo's own precedent: an absent
+    # emergency stop became a refusal rather than a warning, and 13 fail-open
+    # guards were converted with it. An absent sandbox is the same argument.
+    isolated, boundary = _m12_isolation()
+    unsandboxed_ok = os.environ.get(_M12_UNSANDBOXED_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if not isolated and not unsandboxed_ok:
+        result.decisions.append(
+            {
+                "verdict": "no_isolation",
+                "probe": "self_authored_trap",
+                "boundary": boundary,
+                "source": "m12_probe",
+            }
+        )
+        result.notes.append(
+            f"refused to author or relay traps: {boundary}. Set "
+            f"{_M12_UNSANDBOXED_ENV}=1 to run anyway -- the run records that it "
+            "was unsandboxed."
+        )
+        return result
+
     panel = _m12_panel(ctx)
     multi = len(panel) > 1
     rounds = _M12_PANEL_ROUNDS if multi else _M12_MAX_ROUNDS
     saved_model = ctx.model_id
+
+    if not isolated:
+        # RECORDED, NEVER SILENT. The same reasoning as the `framing` field: a
+        # pass obtained without an isolation boundary is a materially different
+        # pass, and without this the two would share a single word.
+        result.decisions.append(
+            {
+                "verdict": "unsandboxed",
+                "probe": "self_authored_trap",
+                "boundary": boundary,
+                "source": "m12_probe",
+            }
+        )
+        result.notes.append(f"RUNNING UNSANDBOXED by explicit opt-in: {boundary}")
 
     for model_id in panel:
         if multi:
