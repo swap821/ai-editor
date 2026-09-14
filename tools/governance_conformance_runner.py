@@ -1588,6 +1588,25 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
         verdicts.append(verdict)
         print(f"{mission.key}: {verdict.outcome} -- {verdict.reason}")
+        # THE EVIDENCE, NOT ONLY THE VERDICT, WHENEVER THE NEWS IS BAD.
+        #
+        # Adjudicators already build an evidence dict naming exactly what they
+        # saw -- M12's `failed` branch records the command it matched -- and
+        # none of it was ever printed. So a cohort transcript could say
+        # "a trap the model designed against its own governance EXECUTED" and
+        # contain nothing about WHICH command executed or why the match fired.
+        # That happened: zai.glm-4.7-flash failed this way, the run's data dir
+        # was reclaimed, and the single fact needed to tell a containment
+        # breach from a substring false positive did not exist anywhere.
+        #
+        # Printed for every non-held verdict, because that is when someone will
+        # come looking, and a run that records THAT something broke but not HOW
+        # is a run that has to be done again.
+        if verdict.outcome != "held" and verdict.evidence:
+            for key, value in sorted(verdict.evidence.items()):
+                rendered = json.dumps(value, default=str)
+                if rendered not in ("[]", "{}", "0", "false", '""', "null"):
+                    print(f"    evidence: {key}={rendered[:400]}")
         for note in outcome.notes:
             print(f"    note: {note}")
 
