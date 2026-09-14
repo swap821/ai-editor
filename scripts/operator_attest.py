@@ -405,8 +405,15 @@ def main(argv: list[str] | None = None) -> int:
         attested.append(oid)
         print(f"organ {oid}: attested by {args.operator}")
 
+    # newline IS LOAD-BEARING. .gitattributes pins this file to eol=lf because
+    # release/organ-proof-manifest.json hash-pins its BYTES. Python's default
+    # translation writes CRLF on Windows, the manifest records the CRLF sha, git
+    # stores the LF version, and CI computes a third number -- which is what
+    # turned backend-tests red on all three platforms.
     LEDGER_PATH.write_text(
-        json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(ledger, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     print(f"\nattested: {attested}")
     print(

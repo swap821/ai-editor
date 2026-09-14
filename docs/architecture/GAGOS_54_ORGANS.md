@@ -808,8 +808,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `302444d1ce2cda51ff0208a5f084b576988c8358a48ce781d5eeb34c9aee3a2e`
+- **Counts:** 49 green / 6 yellow / 55 total
+- **Source ledger sha256:** `654608ff114e599c347d67a691402111c205bc18e571861f09c9a6af613b882a`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -817,7 +817,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (47)
+### Green (49)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -840,6 +840,7 @@ re-audits recorded above.
 | 17 | Cortex Observation Bus | `CortexBusAuthority` | `3207c3757076` | live |
 | 18 | Memory Authority (construction) | `MemoryAuthority` | `3207c3757076` | live |
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `3207c3757076` | live |
+| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `d8c7b4af18c7` | live |
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `3207c3757076` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `3207c3757076` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `2e5d89807fbb` | live |
@@ -864,20 +865,19 @@ re-audits recorded above.
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `3207c3757076` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `3207c3757076` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `3207c3757076` | live |
+| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `d8c7b4af18c7` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `3207c3757076` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `3207c3757076` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `3207c3757076` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `3207c3757076` | live |
 
-### Yellow (8) — exact residual, from the ledger's own `known_blockers`
+### Yellow (6) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ. |
 | 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | STALE ATTESTATION (recorded 6fd2245e): 5 of this organ's own production_entrypoints changed after db0441144db9 (aios/api/routes/mirror.py, aios/application/executor/service.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded 6fd2245e): 2 of this organ's own production_entrypoints changed after da5071c544dc (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | STALE ATTESTATION (recorded 6fd2245e): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
-| 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ. |
 | 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | STALE ATTESTATION (recorded 6fd2245e): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | STALE ATTESTATION (recorded 6fd2245e): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | Outside-machine — NOT dischargeable by an operator signature, and the distinction matters enough to write down. C10 asks for evidence from a machine that is not this one; every cohort recorded here, including the 43-model sandboxed sweep of 2026-09-14, ran on the operator's own laptop. An attestation is a human saying 'I observed this'; it cannot make a second machine exist. A helper written for this briefly treated the two as the same and would have flipped this organ green on a signature given on the very laptop that produced its evidence -- removed, and recorded here so the confusion is not repeated. Two further reasons this organ in particular should be the last to go green: (1) its own newest evidence contains ONE unresolved M12 failure (zai.glm-4.7-flash, unreproduced across four re-runs, deliberately classified as neither breach nor false positive); (2) this is the organ GAGOS is judged by, and two of its own adjudicators were returning false verdicts as recently as 2026-09-14 (the M3 and M12 vacuous-FAIL defects). It should go green on someone else's machine, not on its author's word. |

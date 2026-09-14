@@ -782,7 +782,7 @@
   {
     "organ_id": 20,
     "name": "Living Mirror Reaction Registry (construction)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "LivingMirrorAuthority",
     "production_entrypoints": [
       "frontend/src/superbrain/lib/livingMirrorRegistry.ts"
@@ -795,14 +795,12 @@
     ],
     "live_evidence": [
       {
-        "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/",
+        "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/ || OPERATOR-ATTESTED by Swapnil Kumar at 2026-09-14T14:55:15+00:00 (tip 898ef8c3076b): \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\" — declared against the live evidence recorded on this organ, which the operator read before declaring.",
         "commit_sha": "d8c7b4af18c73dcecdb23c7862a94129027e3713",
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ."
-    ],
+    "known_blockers": [],
     "last_verified_sha": "d8c7b4af18c73dcecdb23c7862a94129027e3713",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -815,7 +813,7 @@
       "C7": "PASS — integration_tests resolve on disk: ['frontend/src/superbrain/lib/aiosMirror.test.ts']",
       "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "PASS — the browser-session residual is DISCHARGED: truthful-UI live evidence captured in the operator's own browser at :5173 (not headless), with a real enroll/login/reauth session, showing three distinct states and the 401->200 fix that made the surface able to see at all. release/organ-55/ui-evidence-2026-09-14/",
-      "C10": "FAIL — awaiting OPERATOR-ATTESTED. The evidence exists and is real (release/organ-55/ui-evidence-2026-09-14/: three states, real browser, real session), but it is a HUMAN OBSERVATION on a laptop, which this gate accepts only as an explicitly declared OPERATOR-ATTESTED referent. An agent cannot declare that about its own screenshots. Everything else for this organ is green.",
+      "C10": "PASS — OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-09-14T14:55:15+00:00: \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
       "C11": "PASS — last_verified_sha=f3cb6122fb8d86bf0ae5b603da8f60678d7231ad",
       "C12": "PASS — f3cb6122fb8d86bf0ae5b603da8f60678d7231ad must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
@@ -2167,7 +2165,7 @@
   {
     "organ_id": 48,
     "name": "Truthful Living Mirror (full truthful UI)",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "TruthfulMirrorAuthority",
     "production_entrypoints": [
       "aios/api/routes/mirror.py",
@@ -2183,14 +2181,12 @@
     ],
     "live_evidence": [
       {
-        "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/",
+        "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/ || OPERATOR-ATTESTED by Swapnil Kumar at 2026-09-14T14:55:15+00:00 (tip 898ef8c3076b): \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\" — declared against the live evidence recorded on this organ, which the operator read before declaring.",
         "commit_sha": "d8c7b4af18c73dcecdb23c7862a94129027e3713",
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ."
-    ],
+    "known_blockers": [],
     "last_verified_sha": "d8c7b4af18c73dcecdb23c7862a94129027e3713",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -2203,7 +2199,7 @@
       "C7": "PASS — integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
       "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "PASS — the browser-session residual is DISCHARGED: truthful-UI live evidence captured in the operator's own browser at :5173 (not headless), with a real enroll/login/reauth session, showing three distinct states and the 401->200 fix that made the surface able to see at all. release/organ-55/ui-evidence-2026-09-14/",
-      "C10": "FAIL — awaiting OPERATOR-ATTESTED. The evidence exists and is real (release/organ-55/ui-evidence-2026-09-14/: three states, real browser, real session), but it is a HUMAN OBSERVATION on a laptop, which this gate accepts only as an explicitly declared OPERATOR-ATTESTED referent. An agent cannot declare that about its own screenshots. Everything else for this organ is green.",
+      "C10": "PASS — OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-09-14T14:55:15+00:00: \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
       "C11": "PASS — last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
       "C12": "PASS — 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },

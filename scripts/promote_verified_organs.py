@@ -113,8 +113,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"   #{oid:>2} {why}")
 
     if args.apply:
+        # newline IS LOAD-BEARING — see .gitattributes: this file is pinned to
+        # eol=lf because the release manifest hash-pins its BYTES.
         LEDGER_PATH.write_text(
-            json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            json.dumps(ledger, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+            newline="\n",
         )
         print(
             "\nledger updated -- now run verify_organ_twelve_conditions.py; "

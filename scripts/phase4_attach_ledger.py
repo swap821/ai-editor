@@ -196,7 +196,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.dry_run:
         return 0
-    LEDGER_PATH.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    # newline IS LOAD-BEARING. .gitattributes pins this file to eol=lf because
+    # release/organ-proof-manifest.json hash-pins its BYTES. Python's default
+    # translation writes CRLF on Windows, the manifest records the CRLF sha, git
+    # stores the LF version, and CI computes a third number -- which is what
+    # turned backend-tests red on all three platforms.
+    LEDGER_PATH.write_text(
+        json.dumps(ledger, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     return 0
 
 
