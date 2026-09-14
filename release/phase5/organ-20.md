@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 20: Living Mirror Reaction Registry (construction)
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `2e5d89807fbbaf2ea174a2c9705dfea72fce5741`
-**Generated:** 2026-09-14T13:29:46+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `6fd2245ef2085a16c587c040084f4555d4843573`
+**Generated:** 2026-09-14T14:31:02+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: operator-attestation — browser-session residual is DISCHARGED (real operator browser at :5173, release/organ-55/ui-evidence-2026-09-14/). What remains is only the operator declaring that observation OPERATOR-ATTESTED so C10 has a checkable referent. No further agent work is possible on this organ.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C8, C10
+C8
 
 ## Notes
 
