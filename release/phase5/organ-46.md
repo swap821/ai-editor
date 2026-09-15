@@ -2,12 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `df635d522721ec029090916791796f6c337e0c53`
-**Generated:** 2026-09-14T15:11:49+00:00
+**Evaluated tip:** `2ed071ddee94b2cb3e23c1307e85dde0798785c2`
+**Generated:** 2026-09-15T05:12:23+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: STALE ATTESTATION (recorded 6fd2245e): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
+- **residual**: STALE ATTESTATION (recorded 2ed071dd): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
 
 ## Written verdict keys that are not PASS/N/A
 

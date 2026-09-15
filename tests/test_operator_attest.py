@@ -253,3 +253,87 @@ def test_the_gate_command_is_defined_once() -> None:
     assert source.count("verify_organ_twelve_conditions.py ") == 1, (
         "the gate command appears more than once; define it once and print it"
     )
+
+
+def test_a_browser_session_residual_is_something_a_person_can_supply() -> None:
+    """Organs 49/51 word their residual as a browser session, not "attestation".
+
+    Same request, different words: a person opens the UI at :5173 and looks at
+    it. `_WAITS_ON` matched only the literal phrase "operator attestation", so
+    the tool refused to offer these organs at all and their signature had no
+    route -- a wording gap, not a substantive one.
+
+    The pairing with the outside-machine test above is the point: this list
+    admits what a human CAN do and must keep excluding what they cannot.
+    """
+    verdict = (
+        "FAIL - yellow with named residual(s): ['browser-session - truthful UI "
+        "live evidence requires operator browser session at :5173 (not "
+        "inventable headless)']"
+    )
+    assert operator_attest._waits_on_attestation(verdict)
+
+
+def test_the_browser_phrase_still_excludes_outside_machine() -> None:
+    """Widening for 49/51 must not re-admit the residual a signature can't supply."""
+    outside = (
+        "Outside-machine - C10 asks for evidence from a machine that is not "
+        "this one; an attestation cannot make a second machine exist"
+    )
+    assert not operator_attest._waits_on_attestation(outside)
+
+
+def _row_with_attestation(*, stale: bool) -> dict:
+    """An organ already carrying an operator attestation, stale or current."""
+    blockers = ["STALE ATTESTATION (recorded abc123): 1 of this organ's own "
+                "production_entrypoints changed after def456 (aios/api/routes/mirror.py)"]
+    return {
+        "organ_id": 49,
+        "status": "yellow",
+        "known_blockers": blockers if stale else [],
+        "live_evidence": [
+            {
+                "proof_level": "live",
+                "commit_sha": "def456",
+                "description": (
+                    "OPERATOR-ATTESTED: operator browser session at :5173, "
+                    "Sovereign State panel observed"
+                ),
+            }
+        ],
+        "condition_verdicts": {
+            f"C{i}": "PASS - fine" for i in range(1, 13)
+        } | {
+            "C9": (
+                "FAIL - yellow with named residual(s): ['browser-session - truthful "
+                "UI live evidence requires operator browser session at :5173']"
+            )
+        },
+    }
+
+
+def test_a_stale_attestation_can_be_refreshed() -> None:
+    """The evidence aged out; the only tool that can renew it must not refuse.
+
+    Organs 49/51 were attested at 5c64cd54, `mirror.py` moved, and
+    verify_evidence_currency re-flagged them STALE. A blanket "already
+    attested" refusal made that a one-way door -- the row could never describe
+    HEAD again.
+    """
+    ok, why = operator_attest.eligibility(_row_with_attestation(stale=True), spine=set())
+    assert ok, why
+
+
+def test_a_current_attestation_still_cannot_be_signed_twice() -> None:
+    """The original protection is intact: only STALE rows may be refreshed."""
+    ok, why = operator_attest.eligibility(_row_with_attestation(stale=False), spine=set())
+    assert not ok
+    assert "current operator attestation" in why
+
+
+def test_a_spine_organ_is_still_refused_even_when_stale() -> None:
+    """Staleness must not become a route around the Ed25519 signature."""
+    row = _row_with_attestation(stale=True) | {"organ_id": 3}
+    ok, why = operator_attest.eligibility(row, spine={1, 2, 3, 4, 5})
+    assert not ok
+    assert "spine" in why.lower()

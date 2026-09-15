@@ -1,17 +1,17 @@
 # Phase 5 proof — Organ 40: Isolated Workspace and Executor (live proof)
 
-**Status under re-read:** `yellow`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `df635d522721ec029090916791796f6c337e0c53`
-**Generated:** 2026-09-14T15:11:48+00:00
+**Status under re-read:** `green`
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `2ed071ddee94b2cb3e23c1307e85dde0798785c2`
+**Generated:** 2026-09-15T05:12:22+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: STALE ATTESTATION (recorded 6fd2245e): 5 of this organ's own production_entrypoints changed after db0441144db9 (aios/api/routes/mirror.py, aios/application/executor/service.py, aios/application/governance/runtime_proof.py, aios/application/read_models/executor_projections.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
-C8, C9, C11, C12
+C8
 
 ## Notes
 

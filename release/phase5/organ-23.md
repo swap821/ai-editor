@@ -1,13 +1,13 @@
 # Phase 5 proof — Organ 23: Release Conformance Organ
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `df635d522721ec029090916791796f6c337e0c53`
-**Generated:** 2026-09-14T15:11:45+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `2ed071ddee94b2cb3e23c1307e85dde0798785c2`
+**Generated:** 2026-09-15T05:12:19+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C12**: last_verified_sha 2e5d89807fbbaf2ea174a2c9705dfea72fce5741 is not an ancestor of HEAD
 
 ## Written verdict keys that are not PASS/N/A
 
