@@ -44,6 +44,14 @@ LOG_PATH = AUDIT_DIR / "golden-mission-runs.jsonl"
 
 TURN_TIMEOUT_S = 900
 MAX_REPLAYS = 10
+#: Organ 34's breaker refuses a provider for 60s after 3 consecutive failures.
+#: Wait it out with margin rather than scoring the steps it skipped.
+UNREACHED_COOLDOWN_S = 70
+UNREACHED_RETRIES = 4
+#: Steps that, after retries, no provider ever served. A cohort with a
+#: non-empty list did not measure the model and its score must not be
+#: read as ability.
+_UNREACHED_STEPS: list[str] = []
 
 
 MISSIONS: dict[str, dict[str, Any]] = {
@@ -237,7 +245,9 @@ def compose_turn_text(prompt: str) -> str:
     return approval_policy_text() + "\n\n---\n\n" + prompt
 
 
-def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
+def _run_prompt(
+    prompt: str, session_id: str, model_id: str, reached: list[bool]
+) -> dict[str, Any]:
     tokens: list[str] = []
     approvals_granted: list[str] = []
     evidence: list[str] = []
@@ -289,6 +299,14 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                     "approvals": approvals_granted,
                     "evidence": evidence,
                 }
+            elif event == "cloud_route":
+                # Organ 34's breaker opens after 3 consecutive provider
+                # failures and then SKIPS the provider for 60s. A skipped
+                # turn still streams cleanly and still ends `unverified` --
+                # it just never asked the model anything. Without this frame
+                # the cohort cannot tell "the model failed" from "we never
+                # asked it", and scores the second as the first.
+                reached.append(True)
             elif event == "done":
                 finished = True
 
@@ -332,6 +350,22 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
     }
 
 
+def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str, Any]:
+    """Run one turn, reporting whether a provider actually served it.
+
+    ``reached_provider`` is False when organ 34's circuit breaker skipped every
+    candidate: the turn streams normally, ends with no verification evidence,
+    and is therefore indistinguishable from a model that wrote nothing -- except
+    by the absence of a ``cloud_route`` frame. Two cohorts on 2026-09-14 (nova-pro
+    and mistral-large-3) recorded a full 0/15 this way, their last two repeats
+    100% `unverified` at ~3s a mission, which reads as ability and is not.
+    """
+    reached: list[bool] = []
+    result = _run_prompt(prompt, session_id, model_id, reached)
+    result["reached_provider"] = bool(reached)
+    return result
+
+
 def reset_mission_files(mission: dict[str, Any]) -> None:
     for step in mission["steps"]:
         for rel in step.get("files", []):
@@ -369,7 +403,28 @@ class GoldenMissionEnduranceAuthority:
             )
 
             result = run_prompt(step["prompt"], session_id, model_id=model_id)
+            # A turn no provider served is an UNASKED QUESTION, not a wrong
+            # answer. Retrying it therefore cannot launder a real failure into a
+            # pass -- the model never saw the prompt, and no file was written --
+            # while scoring it would record ability the cohort never measured.
+            for attempt in range(UNREACHED_RETRIES):
+                if result.get("reached_provider") or result["outcome"] != "unverified":
+                    break
+                print(
+                    "    UNREACHED: no provider served this turn (organ-34 circuit "
+                    f"likely open); waiting {UNREACHED_COOLDOWN_S}s, retry "
+                    f"{attempt + 1}/{UNREACHED_RETRIES}",
+                    flush=True,
+                )
+                time.sleep(UNREACHED_COOLDOWN_S)
+                result = run_prompt(step["prompt"], session_id, model_id=model_id)
             expected = step["expect"]
+            step_unreached = (
+                not result.get("reached_provider")
+                and result["outcome"] == "unverified"
+            )
+            if step_unreached:
+                _UNREACHED_STEPS.append(f"{name}/s{step_idx}")
             step_passed = result["outcome"] == expected
 
             # Persist WHY, not only WHAT.
@@ -394,6 +449,10 @@ class GoldenMissionEnduranceAuthority:
                 step_record["error"] = result["error"]
             if result.get("reason"):
                 step_record["reason"] = result["reason"]
+            if step_unreached:
+                # The distinction the audit most needs: a score containing
+                # unreached steps is not a measurement of the model.
+                step_record["unreached"] = True
             if result.get("evidence"):
                 # The verifier's own verdict lines are the primary evidence for
                 # a verified_failure: they distinguish "the model wrote nothing"
@@ -508,12 +567,23 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(
         f"\n[golden] FINAL: {passed}/{total} mission runs passed ({round(passed / max(total, 1) * 100)}%)"
     )
+    # A score is only a measurement of the model if the model was asked.
+    # Say so loudly rather than letting a clean-looking percentage stand
+    # on steps that organ 34's breaker skipped.
+    if _UNREACHED_STEPS:
+        print(
+            f"[golden] INVALID: {len(_UNREACHED_STEPS)} step(s) were never "
+            f"served by any provider after {UNREACHED_RETRIES} retries -- this "
+            f"score does NOT measure the model: {', '.join(_UNREACHED_STEPS[:10])}"
+        )
     log_event(
         {
             "kind": "batch-summary",
             "passed": passed,
             "total": total,
             "rate": round(passed / max(total, 1), 3),
+            "unreached_steps": list(_UNREACHED_STEPS),
+            "valid": not _UNREACHED_STEPS,
         }
     )
 
