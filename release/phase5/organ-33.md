@@ -1,13 +1,13 @@
 # Phase 5 proof — Organ 33: Model Registry and Capability Passport
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `2ed071ddee94b2cb3e23c1307e85dde0798785c2`
-**Generated:** 2026-09-15T05:12:21+00:00
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `082da6ffe6080a13e9b90972419530648f46b689`
+**Generated:** 2026-09-19T16:44:17+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C12**: last_verified_sha 2e5d89807fbbaf2ea174a2c9705dfea72fce5741 is not an ancestor of HEAD
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
