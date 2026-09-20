@@ -222,7 +222,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; EdgeTrustAuthority + rp._probe_edge => owner=EdgeTrustAuthority; spoofed origin, host, and wildcard CORS requests were refused before mutation",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -246,7 +246,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -271,7 +271,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -295,7 +295,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -325,7 +325,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_mutation_authority => 95 mutating route declarations resolved through PolicyKernel; unknown mutation failed RED through ActionBroker",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -349,7 +349,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -374,7 +374,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_capabilities => exact capability issued, consumed once, replay refused, altered payload refused",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -398,7 +398,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -423,7 +423,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_mission => mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -447,7 +447,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -472,7 +472,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_turn_coordinator => deterministic mode selection and canonical turn event stream verified",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -496,7 +496,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -523,7 +523,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; WorkerFoundryAuthority.select deterministic => WorkerFoundryAuthority constructed; missing_principal=None; missing_lifecycle=None; select(deterministic)=DeterministicWorkerStrategy",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -547,7 +547,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -573,7 +573,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 401 detail='executor authentication failed' (construction fail-closed; live Docker isolation is organ 40)",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -597,7 +597,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -627,7 +627,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=bcd826160a214a7bac47b32ac09ce832 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-z26kqnb1\\staged-root\\bcd826160a214a7bac47b32ac09ce832 baseline=6fc358b543368ecf…",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -651,7 +651,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -686,7 +686,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_staging_and_promotion => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -710,7 +710,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -735,7 +735,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_staging_and_promotion (same live run as organ 15) => disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -759,7 +759,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -784,7 +784,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_cortex => canonical events advanced a durable consumer cursor across restart without duplicate replay",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -808,7 +808,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -843,7 +843,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_memory => unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -867,7 +867,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -892,7 +892,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; rp._probe_emergency_stop => emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded | TestClient GET /api/v1/governance/emergency-stop => HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -916,7 +916,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -981,7 +981,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime) => QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-z26kqnb1\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1005,7 +1005,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1035,7 +1035,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; evaluate_release(repo) live => evaluate_release ready=False version=1.0.0-prototype gate_count=17 failures=['exact_capabilities', 'edge_trust_boundary', 'mutation_authority', 'mission_lifecycle', 'isolated_executor', 'executor_runtime_available', 'staged_workspaces', 'verification_and_recovery', 'promotion_authority', 'turn_coordinator', 'cortex_consumer_cursors', 'truthful_mirror', 'memory_provenance', 'emergency_stop_controller', 'production_profile_fail_closed']",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1059,7 +1059,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1128,7 +1128,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1152,7 +1152,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1194,7 +1194,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1218,7 +1218,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 12 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 12 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1255,7 +1255,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1279,7 +1279,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 8 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 8 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1317,7 +1317,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=253952",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1341,7 +1341,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 9 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 9 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1375,7 +1375,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1399,7 +1399,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1436,7 +1436,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1460,7 +1460,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1494,7 +1494,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1518,7 +1518,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 5 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 5 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     },
     "requires_frontend_error_states": true
   },
@@ -1552,7 +1552,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; RepresentativeContextCompilerAuthority.compile => compiled context_digest=e45187cf313fcf00… privacy=local request_id=req-p4-31",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1576,7 +1576,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 5 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 5 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1622,7 +1622,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3…",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1646,7 +1646,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1725,7 +1725,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-15T03:57:00+00:00'",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1749,7 +1749,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 5 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 5 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1827,7 +1827,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ClerkDispatcherAuthority.dispatch deterministic/unqual/failing => decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1851,7 +1851,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1928,7 +1928,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -1952,7 +1952,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 6 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 6 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -1987,7 +1987,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; DeliberationCouncilAuthority via QueenCouncilAuthority => DeliberationCouncilAuthority wired on QueenCouncilAuthority; maybe_deliberate(no dissent)=None",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2011,7 +2011,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2085,7 +2085,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; PromotionRollbackLiveAuthority + rp._probe_staging_and_promotion => checkpoint_id_is_valid ok/bad/empty=True/False/False; staging_promo=disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2109,7 +2109,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2149,7 +2149,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2173,7 +2173,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2204,7 +2204,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2228,7 +2228,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 4 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 4 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2334,7 +2334,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2358,7 +2358,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2463,7 +2463,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2487,7 +2487,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2619,7 +2619,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-z26kqnb1\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2643,7 +2643,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 7b3805118d5423e8940488c4a1cf0acee4c0926a",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 10 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 10 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     },
     "requires_frontend_error_states": true
   },
@@ -2725,7 +2725,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '76fa6e96-3481-4f8b-9408-6b5197b104cf'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2749,7 +2749,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit ec6b089d65ad75997f87b5234d34f02dffc3e3b5",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 7 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2786,7 +2786,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='8b5ef4d32fc19b6d32bb2441a9a381218b8613d40e8b2aca031ec6431c01a48d', current_issued_at=1789444622.1864047, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789444682.1864047); reopen_configured=True db_bytes=8192",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2810,7 +2810,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 9 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 9 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2837,7 +2837,7 @@
       },
       {
         "description": "Phase 4 absolute live run on tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2 exit=0; artifact=release/phase4/live-evidence-2ed071ddee94.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
-        "commit_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
+        "commit_sha": "18df70e904c9111b4dec2b382dd0116b3f6f6d95",
         "proof_level": "live"
       },
       {
@@ -2861,7 +2861,7 @@
       "C9": "PASS — known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
       "C10": "PASS — live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 082da6ffe608 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {

@@ -130,96 +130,97 @@ def main() -> int:
         if not sha:
             continue
 
-        # An organ is in the lineage only when EVERY sha it cites is -- the
-        # attestation sha AND each live_evidence row's own commit_sha. C11/C12
-        # read the first; C10's currency check reads the second. Checking only
-        # the attestation sha left the rows pointing at commits that exist on
-        # no branch a clean checkout fetches, which passed here (this machine
-        # still has the unmerged branch) and failed in CI.
-        orphaned_rows = [
-            e
-            for e in (row.get("live_evidence") or [])
-            if str(e.get("commit_sha") or "") and not _is_ancestor(str(e["commit_sha"]))
+        # EVERY DISTINCT SHA THIS ORGAN CITES, not one of them.
+        #
+        # An organ is in the lineage only when the attestation sha AND every
+        # live_evidence row's commit_sha resolve. C11/C12 read the first;
+        # C10's currency check reads the second, per row.
+        #
+        # Handling a single orphan per organ was not enough, and the gap was
+        # invisible here: a branch that lands two commits leaves rows citing
+        # BOTH, and re-pointing only the first left 38 organs still citing
+        # 2ed071dd after the #345 squash. This machine resolves it because it
+        # holds the branch; a clean checkout does not, so CI failed and local
+        # runs passed. Collect the whole set and re-point each on its own
+        # merits.
+        cited = [sha] + [
+            str(e.get("commit_sha") or "") for e in (row.get("live_evidence") or [])
         ]
-        if _is_ancestor(sha) and not orphaned_rows:
+        orphans = sorted({s for s in cited if s and not _is_ancestor(s)})
+        if not orphans:
             in_lineage.append(oid)
             continue
-        attestation_orphaned = not _is_ancestor(sha)
-        if not attestation_orphaned and orphaned_rows:
-            # The attestation is fine; only the evidence rows trail. Re-point
-            # them against their own sha, on the same byte-identical warrant.
-            sha = str(orphaned_rows[0]["commit_sha"])
 
         paths = [str(p) for p in (row.get("production_entrypoints") or [])]
         if not paths:
             unprovable.append(
-                f"#{oid} orphaned sha {sha[:12]} and no production_entrypoints to compare"
-            )
-            continue
-        want = _fingerprint(sha, paths)
-        if any(b is None for b in want):
-            unprovable.append(
-                f"#{oid} orphaned sha {sha[:12]}; entrypoints do not resolve there"
+                f"#{oid} orphaned sha(s) {[s[:12] for s in orphans]} and no "
+                "production_entrypoints to compare"
             )
             continue
 
-        floor = _commit_date(sha)
-        match = next(
-            (c for c in _candidates(paths, floor) if _fingerprint(c, paths) == want),
-            None,
-        )
-        if match is None:
-            unprovable.append(
-                f"#{oid} orphaned sha {sha[:12]}: no ancestor of HEAD carries identical "
-                f"entrypoint content -- this is real staleness, re-verify rather than re-point"
-            )
-            continue
+        for orphan in orphans:
+            want = _fingerprint(orphan, paths)
+            if any(b is None for b in want):
+                unprovable.append(
+                    f"#{oid} orphaned sha {orphan[:12]}; entrypoints do not resolve there"
+                )
+                continue
 
-        repointed.append(
-            f"#{oid} {sha[:12]} ({_commit_date(sha)[:10]}) -> {match[:12]} "
-            f"({_commit_date(match)[:10]}), {len(paths)} entrypoint(s) byte-identical"
-        )
-        if args.update:
-            # Only touch what was actually orphaned. An attestation already in
-            # the lineage must not be rewritten just because a row beneath it
-            # trailed.
-            if attestation_orphaned:
+            floor = _commit_date(orphan)
+            match = next(
+                (c for c in _candidates(paths, floor) if _fingerprint(c, paths) == want),
+                None,
+            )
+            if match is None:
+                unprovable.append(
+                    f"#{oid} orphaned sha {orphan[:12]}: no ancestor of HEAD carries "
+                    "identical entrypoint content -- this is real staleness, re-verify "
+                    "rather than re-point"
+                )
+                continue
+
+            repointed.append(
+                f"#{oid} {orphan[:12]} ({_commit_date(orphan)[:10]}) -> {match[:12]} "
+                f"({_commit_date(match)[:10]}), {len(paths)} entrypoint(s) byte-identical"
+            )
+            if not args.update:
+                continue
+
+            # Re-point every citation of THIS orphan, and only this one. The
+            # attestation sha is rewritten only when it is the orphan being
+            # handled -- an attestation already in the lineage must not move
+            # because a row beneath it trailed.
+            if str(row.get("last_verified_sha") or "") == orphan:
                 row["last_verified_sha"] = match
-            # AND the evidence rows. `last_verified_sha` answers C11/C12;
-            # C10's currency check reads each live_evidence row's OWN
-            # commit_sha, so re-pointing only the former left the rows citing
-            # commits that exist on no branch a clean checkout fetches.
-            #
-            # That passed locally and failed in CI for a reason worth writing
-            # down: this machine still has the unmerged branch those commits
-            # live on, so git could resolve them; CI clones master plus the PR
-            # ref and cannot. A verifier that depends on the developer's extra
-            # branches is not verifying anything.
-            #
-            # Same warrant as the sha itself -- the entrypoint content is
-            # byte-identical at both commits -- so the row still describes what
-            # it always described.
             for evidence in row.get("live_evidence") or []:
-                if str(evidence.get("commit_sha") or "") == sha:
+                if str(evidence.get("commit_sha") or "") == orphan:
                     evidence["commit_sha"] = match
+            changed = True
+
+            # C11/C12 describe the ATTESTATION sha, so they are rewritten only
+            # when that is what moved. Restating them for an evidence-row-only
+            # re-point would have C11 claim a `last_verified_sha` the organ does
+            # not carry -- a verdict that reads as verified and is not.
+            if str(row.get("last_verified_sha") or "") != match:
+                continue
             note = (
-                f"Evidence sha re-pointed {sha[:12]} -> {match[:12]} on lineage grounds: "
-                f"the original commit is real but was squash-merged, so it is permanently "
-                f"not an ancestor of HEAD. All {len(paths)} of this organ's own "
-                f"production_entrypoints are byte-identical at both commits, so the evidence "
-                f"still describes code in HEAD's history. Verified by "
-                f"scripts/verify_evidence_lineage.py, which re-points only to a commit whose "
-                f"content matches and refuses otherwise."
+                f"Evidence sha re-pointed {orphan[:12]} -> {match[:12]} on lineage "
+                "grounds: the original commit is real but was squash-merged, so it is "
+                f"permanently not an ancestor of HEAD. All {len(paths)} of this organ's "
+                "own production_entrypoints are byte-identical at both commits, so the "
+                "evidence still describes code in HEAD's history. Verified by "
+                "scripts/verify_evidence_lineage.py, which re-points only to a commit "
+                "whose content matches and refuses otherwise."
             )
             verdicts = row.get("condition_verdicts") or {}
             verdicts["C11"] = f"PASS - last_verified_sha={match}"
             verdicts["C12"] = (
                 f"PASS - {match} must be an ancestor of HEAD (ordinary CI "
-                f"--require-sha-ancestry); exact tip match is --strict-release at tagged "
+                "--require-sha-ancestry); exact tip match is --strict-release at tagged "
                 f"evidence tip. {note}"
             )
             row["condition_verdicts"] = verdicts
-            changed = True
 
     head = _git("rev-parse", "HEAD")[1]
     print(f"HEAD {head[:12]}")
