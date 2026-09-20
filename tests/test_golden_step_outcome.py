@@ -94,9 +94,18 @@ def test_both_classification_paths_call_one_function() -> None:
 
     from tools import golden_mission_runner
 
-    src = executable_source(golden_mission_runner.run_prompt)
+    # The turn body moved behind a thin wrapper when `reached_provider` was
+    # added; the invariant is unchanged, so the assertion follows the code
+    # rather than being relaxed. The delegation is pinned too, so the body
+    # cannot be re-inlined into an unchecked second copy.
+    src = executable_source(golden_mission_runner._run_prompt)
+    wrapper = executable_source(golden_mission_runner.run_prompt)
+    assert "_run_prompt(prompt, session_id, model_id, reached)" in wrapper, (
+        "run_prompt must delegate the turn to _run_prompt; a second inline "
+        "implementation is exactly the drift this test exists to catch."
+    )
     assert src.count("outcome_from_evidence(evidence)") == 2, (
-        "run_prompt must classify through the shared helper on BOTH the error "
+        "_run_prompt must classify through the shared helper on BOTH the error "
         "path and the clean-finish path; a second inline rule is the drift."
     )
     assert '"outcome": "error"' not in src, (
