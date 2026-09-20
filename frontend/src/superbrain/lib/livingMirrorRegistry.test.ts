@@ -264,4 +264,29 @@ describe('Living Mirror reaction registry', () => {
     expect(spy).toHaveBeenCalledWith(ignored);
     spy.mockRestore();
   });
+
+  it('keeps every registered event row executable with a bounded fixture', () => {
+    const payload: Record<string, unknown> = {
+      label: 'observed signal', body: 'observed body', text: 'observed text', reason: 'observed reason',
+      goal: 'bounded goal', steps: ['inspect'], escalate: ['operator'], native: true, count: 1,
+      workflowId: 'workflow-1', recordId: 'record-1', memoryType: 'semantic',
+      workerId: 'worker-1', worker_id: 'worker-1', role: 'coder', missionId: 'mission-1', mission_id: 'mission-1',
+      requestId: 'request-1', request_id: 'request-1', approvalId: 'approval-1', approval_id: 'approval-1',
+      strategy: 'bounded', control: 'shell', controls: ['shell'], source: 'operator input',
+      tool: 'shell', output: '[VERIFY PASS] checked', type: 'tool_call', target: 'src/app.ts',
+      provider: 'ollama', model: 'qwen', model_id: 'qwen', privacy: 'local', data_classification: 'local',
+      verdict: 'pass', skill: 'living mirror', level: 2, command: 'inspect', filepath: 'src/app.ts',
+      caste: 'coder', subtask_index: 2, intent: 'inspect', confidence: 0.9,
+    };
+
+    registeredMirrorEventTypes().forEach((eventType, index) => {
+      useMirrorStore.setState(useMirrorStore.getInitialState(), true);
+      vi.clearAllMocks();
+      const canonical = {
+        schemaVersion: '1', eventId: `fixture-${index}`, eventType, payload, ...payload,
+      };
+      expect(dispatchLivingMirrorEvent({ id: 1, eventType, canonical, payload })).toBe(true);
+      expect(useMirrorStore.getState().lastAnnouncement).not.toBe('Backend event reaction unavailable.');
+    });
+  });
 });

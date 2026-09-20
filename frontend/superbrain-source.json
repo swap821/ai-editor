@@ -107,7 +107,7 @@
     "lib/lifecycleStateMachine.test.ts": "a9cdacfdf2cc25add711a4efe625b9ccd8cfb51e8cf60a81fd883e5e9853ba0d",
     "lib/lifecycleStateMachine.ts": "f9a9de4ab3a228e6c9624de2f1ae983ec1142bd3ad13d6d0fa624663a8844350",
     "lib/livingMirrorRegistry.admission.test.ts": "8d3730b388aa852e40a51a12243c8c140cd2cc43e2a665cbf5d72c84bb15544a",
-    "lib/livingMirrorRegistry.test.ts": "c901fa60d7e7934792781dc5f9cf2f8137eff48a93ae02ff81ed235c50372a30",
+    "lib/livingMirrorRegistry.test.ts": "638f3d3ab11ca80a70b350b5ef546f5b641e943d52b4d0f8855c6caa733044f3",
     "lib/livingMirrorRegistry.ts": "d4db68ca41c0c0fa1dd90803ee06d87af4ed84ff650fedd183dd1cae8b1ec8f1",
     "lib/livingOrchestrator.test.ts": "1cd9bae3c6edbf26145fff5d1b39a1d21e424b5d9eb4b76040efcc9ec479552c",
     "lib/livingOrchestrator.ts": "8fa01fc61406f846987dabbc0ff1fee8b96d4ca8a70ff450154bcd1460505eba",
