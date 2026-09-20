@@ -20,6 +20,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 import pytest
 
 from aios.application.governance import runtime_proof as rp
+from tests.source_rules import executable_source
 
 
 def test_remote_path_uses_posix_separators_on_any_host() -> None:
@@ -43,9 +44,7 @@ def test_windows_path_construction_would_be_refused() -> None:
 
 def test_probe_executor_builds_the_remote_path_with_purePosixPath() -> None:
     """Structural: the production line must not use the OS-dependent Path."""
-    import inspect
-
-    src = inspect.getsource(rp._probe_executor)
+    src = executable_source(rp._probe_executor)
     assert "PurePosixPath(config.EXECUTOR_REMOTE_WORKSPACE_ROOT)" in src, (
         "the remote workspace path must be built with PurePosixPath; "
         "pathlib.Path is separator-dependent and yields a 403 on Windows"

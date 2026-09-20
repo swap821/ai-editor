@@ -11,15 +11,14 @@ why they are pinned here rather than left to the reader.
 
 from __future__ import annotations
 
-import inspect
-
 from scripts import verify_evidence_lineage as lineage
+from tests.source_rules import executable_source
 
 
 def test_spine_organs_are_skipped_by_construction() -> None:
     """`evidence_digest` covers these rows; only the operator can re-sign."""
     assert lineage.SPINE == {1, 2, 3, 4, 5}
-    src = inspect.getsource(lineage.main)
+    src = executable_source(lineage.main)
     assert "if oid in SPINE:" in src and "continue" in src
 
 
@@ -31,9 +30,9 @@ def test_the_target_may_not_predate_the_verification() -> None:
     2026-09-14 -- asserting a verification ten days before it happened. Equal
     content at an older commit does not mean the organ was verified there.
     """
-    src = inspect.getsource(lineage.main)
+    src = executable_source(lineage.main)
     assert "floor = _commit_date(sha)" in src, "the evidence date must bound the search"
-    cand = inspect.getsource(lineage._candidates)
+    cand = executable_source(lineage._candidates)
     assert "--since=" in cand, (
         "candidates must be filtered to at/after the evidence date"
     )
@@ -47,7 +46,7 @@ def test_the_candidate_walk_is_not_path_filtered() -> None:
     does not modify those files -- and the search then falls through to HEAD,
     which asserts the evidence was gathered at HEAD. It was not.
     """
-    cand = inspect.getsource(lineage._candidates)
+    cand = executable_source(lineage._candidates)
     assert '"log", "--format=%H", "--reverse", f"--since={floor}", "HEAD"' in cand
     assert '"--", *paths' not in cand, (
         "a path-filtered walk cannot see the squash merge"
@@ -56,7 +55,7 @@ def test_the_candidate_walk_is_not_path_filtered() -> None:
 
 def test_an_unprovable_organ_is_reported_not_repointed() -> None:
     """The asymmetry that makes this a verifier rather than a green-maker."""
-    src = inspect.getsource(lineage.main)
+    src = executable_source(lineage.main)
     assert "if match is None:" in src
     assert "real staleness, re-verify rather than re-point" in src
     # The re-point must be unreachable when no matching ancestor was found.
@@ -66,5 +65,5 @@ def test_an_unprovable_organ_is_reported_not_repointed() -> None:
 
 def test_repointing_requires_byte_identical_entrypoints() -> None:
     """Content equality is the whole warrant for changing the sha."""
-    src = inspect.getsource(lineage.main)
+    src = executable_source(lineage.main)
     assert "_fingerprint(c, paths) == want" in src

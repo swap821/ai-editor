@@ -19,6 +19,7 @@ from typing import Any, Iterator
 import pytest
 
 from tools import golden_mission_runner as gmr
+from tests.source_rules import executable_source
 
 
 class _Resp:
@@ -99,8 +100,6 @@ def test_retry_is_bounded_and_waits_out_the_breaker() -> None:
 
 def test_a_cohort_with_unreached_steps_is_reported_invalid() -> None:
     """The score must carry its own validity, not just a percentage."""
-    import inspect
-
-    src = inspect.getsource(gmr.cmd_run)
+    src = executable_source(gmr.cmd_run)
     assert '"valid": not _UNREACHED_STEPS' in src
     assert "INVALID" in src

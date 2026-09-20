@@ -129,9 +129,26 @@ def main() -> int:
             continue
         if not sha:
             continue
-        if _is_ancestor(sha):
+
+        # An organ is in the lineage only when EVERY sha it cites is -- the
+        # attestation sha AND each live_evidence row's own commit_sha. C11/C12
+        # read the first; C10's currency check reads the second. Checking only
+        # the attestation sha left the rows pointing at commits that exist on
+        # no branch a clean checkout fetches, which passed here (this machine
+        # still has the unmerged branch) and failed in CI.
+        orphaned_rows = [
+            e
+            for e in (row.get("live_evidence") or [])
+            if str(e.get("commit_sha") or "") and not _is_ancestor(str(e["commit_sha"]))
+        ]
+        if _is_ancestor(sha) and not orphaned_rows:
             in_lineage.append(oid)
             continue
+        attestation_orphaned = not _is_ancestor(sha)
+        if not attestation_orphaned and orphaned_rows:
+            # The attestation is fine; only the evidence rows trail. Re-point
+            # them against their own sha, on the same byte-identical warrant.
+            sha = str(orphaned_rows[0]["commit_sha"])
 
         paths = [str(p) for p in (row.get("production_entrypoints") or [])]
         if not paths:
@@ -163,7 +180,28 @@ def main() -> int:
             f"({_commit_date(match)[:10]}), {len(paths)} entrypoint(s) byte-identical"
         )
         if args.update:
-            row["last_verified_sha"] = match
+            # Only touch what was actually orphaned. An attestation already in
+            # the lineage must not be rewritten just because a row beneath it
+            # trailed.
+            if attestation_orphaned:
+                row["last_verified_sha"] = match
+            # AND the evidence rows. `last_verified_sha` answers C11/C12;
+            # C10's currency check reads each live_evidence row's OWN
+            # commit_sha, so re-pointing only the former left the rows citing
+            # commits that exist on no branch a clean checkout fetches.
+            #
+            # That passed locally and failed in CI for a reason worth writing
+            # down: this machine still has the unmerged branch those commits
+            # live on, so git could resolve them; CI clones master plus the PR
+            # ref and cannot. A verifier that depends on the developer's extra
+            # branches is not verifying anything.
+            #
+            # Same warrant as the sha itself -- the entrypoint content is
+            # byte-identical at both commits -- so the row still describes what
+            # it always described.
+            for evidence in row.get("live_evidence") or []:
+                if str(evidence.get("commit_sha") or "") == sha:
+                    evidence["commit_sha"] = match
             note = (
                 f"Evidence sha re-pointed {sha[:12]} -> {match[:12]} on lineage grounds: "
                 f"the original commit is real but was squash-merged, so it is permanently "

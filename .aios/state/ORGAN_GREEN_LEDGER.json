@@ -936,7 +936,7 @@
     "live_evidence": [
       {
         "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/ || OPERATOR-ATTESTED by Swapnil Kumar at 2026-09-14T14:55:15+00:00 (tip 898ef8c3076b): \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\" — declared against the live evidence recorded on this organ, which the operator read before declaring.",
-        "commit_sha": "d8c7b4af18c73dcecdb23c7862a94129027e3713",
+        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
         "proof_level": "live"
       }
     ],
@@ -1080,7 +1080,7 @@
     "live_evidence": [
       {
         "description": "tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest and tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest both ran and PASSED in this gate run -- the two that re-derive the SHIPPED ledger and manifest rather than a fixture. command=`python -m pytest tests/test_organ_release_conformance.py` => 56 passed, 0 failed at the current tip. Re-gathered because this organ's own entrypoint tests/test_organ_release_conformance.py moved after the previous rows. Worth recording how it went: run twice against a ledger whose doc and manifest had not yet been regenerated, BOTH of those tests failed -- the organ detected its own inconsistency before I did, which is exactly the behaviour it claims. Passing only after build_organ_ledger_doc.py then build_release_manifest.py, in that order, because the manifest hash-pins the doc.",
-        "commit_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
+        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
         "proof_level": "live"
       }
     ],
@@ -1675,7 +1675,7 @@
     "live_evidence": [
       {
         "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model and suite CI's local-clerk-live job runs. tests/test_model_passport_live_integration.py::test_the_passport_faithfully_projects_a_real_qualification_run and tests/test_model_passport_live_integration.py::test_a_role_the_live_evidence_does_not_back_is_refused both ran and PASSED in this gate run (10 passed, 0 failed; merged via --extra-junit release/organ-33-37/clerk-junit-2026-09-14.xml). command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= --junit-xml=clerk-junit.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gathered at the current tip because this organ's own entrypoints moved after the previous row, which is what made it stale.",
-        "commit_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
+        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
         "proof_level": "live"
       }
     ],
@@ -1876,7 +1876,7 @@
     "live_evidence": [
       {
         "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model and suite CI's local-clerk-live job runs. tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model and tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence both ran and PASSED in this gate run (10 passed, 0 failed; merged via --extra-junit release/organ-33-37/clerk-junit-2026-09-14.xml). command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= --junit-xml=clerk-junit.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gathered at the current tip because this organ's own entrypoints moved after the previous row, which is what made it stale.",
-        "commit_sha": "2e5d89807fbbaf2ea174a2c9705dfea72fce5741",
+        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
         "proof_level": "live"
       }
     ],
@@ -2250,7 +2250,7 @@
     "live_evidence": [
       {
         "description": "command=`python tools/golden_mission_runner.py run --model gemini.gemini-2.5-flash`; artifact=release/organ-44/2026-08-11-first-live-cloud-cohort.md; FIRST LIVE CLOUD GOLDEN COHORT. Five missions, eight steps, ~14 minutes of real Google Gemini (Vertex AI, gemini-2.5-flash) calls through the real HTTP API with a real operator session and the real 428 capability protocol. RESULT 0/5, with three distinct failure modes (error / verified_failure / rejected) -- differentiated verdicts rather than one systemic fault, i.e. the evaluator is evaluating. This satisfies C5 ('runner does not invent cloud success without real providers') under load rather than by assertion. It does NOT establish that the system passes its golden missions; it establishes the opposite, honestly. Recorded while the organ remains YELLOW and is explicitly NOT a green claim. OPERATOR-ATTESTED: run on the operator's own machine and vouched for by him on 2026-08-19. Organ 44 cannot carry a release/phase4 artifact -- scripts/phase4_live_evidence.py deliberately does not claim outside-machine organs -- so a laptop measurement has no machine-derivable anchor by design. The artifact named above records the run in full, including the numbers that were bad.",
-        "commit_sha": "da5071c544dc0cd944a5caa6ae5505a313ce7e52",
+        "commit_sha": "461fd0b9803fb02c4d9a312d65d39ebddbd89162",
         "proof_level": "live"
       },
       {
@@ -2295,8 +2295,8 @@
       "C8": "N/A — requires_frontend_error_states is false",
       "C9": "PASS - known_blockers is empty and the final blocker was discharged against a measurement, not by deletion. The 2026-09-01 recount demoted this organ because its live evidence was stamped at an earlier commit than the evaluated one; the remedy it named was to regenerate live evidence at the evaluated tip. That was done: a golden cohort [5, 5, 5] (15/15, 100%) at tree 0022ceca, which is master af268809. Three earlier attempts the same day scored 87%, 67% and 73% and are recorded as misses in the artifact rather than withdrawn. Adversarial/failure-path coverage is present and passing in this organ's own suites (tests/test_organ_authority_owners.py).",
       "C10": "PASS - six proof_level=live rows, every one resolvable. One cites CI run 32240063690 (conclusion success, head_sha matching its commit_sha); the newest is the 2026-09-02 [5,5,5] cohort at af268809; the other four are OPERATOR-ATTESTED laptop measurements, declared rather than inferred. That split is structural, not a convenience: scripts/phase4_live_evidence.py deliberately does not claim outside-machine organs, so organ 44 cannot carry a release/phase4 artifact and a laptop run has no machine-derivable anchor. The 2026-08-11 rows record 0/5 and are deliberately retained -- an organ whose evidence trail shows only its best day is not an evidence trail, and marking a 0/5 run 'passed' in a phase4 artifact to make it checkable would have been laundering. Retaining them is possible because the live-evidence rule anchors currency to last_verified_sha rather than demanding every row carry the evaluated commit; the prior rule would have forced deleting all five (organ_ledger.py, 2026-09-02).",
-      "C11": "PASS - last_verified_sha af268809 is the commit at which the [5,5,5] cohort's code was measured. The run executed at 951e4ae6, the branch tip this repository squash-merged into af268809; both commits carry tree 0022ceca78b1e3641f6a593ccabc5224ab272745, so the citation and the stamp describe the same code. The distinction is recorded rather than smoothed over: 951e4ae6 is not an ancestor of master after the squash, which is why the tree hashes and not the commit ids are what make the stamp honest.",
-      "C12": "PASS - last_verified_sha af268809 is an ancestor of HEAD (it is the master tip this work was verified against); the CI tip gate applies and is satisfied."
+      "C11": "PASS - last_verified_sha=461fd0b9803fb02c4d9a312d65d39ebddbd89162",
+      "C12": "PASS - 461fd0b9803fb02c4d9a312d65d39ebddbd89162 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed da5071c544dc -> 461fd0b9803f on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
   {
@@ -2510,7 +2510,7 @@
     "live_evidence": [
       {
         "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/ || OPERATOR-ATTESTED by Swapnil Kumar at 2026-09-14T14:55:15+00:00 (tip 898ef8c3076b): \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\" — declared against the live evidence recorded on this organ, which the operator read before declaring.",
-        "commit_sha": "d8c7b4af18c73dcecdb23c7862a94129027e3713",
+        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
         "proof_level": "live"
       }
     ],
