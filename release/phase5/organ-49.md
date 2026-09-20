@@ -2,12 +2,12 @@
 
 **Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `082da6ffe6080a13e9b90972419530648f46b689`
-**Generated:** 2026-09-19T16:44:21+00:00
+**Evaluated tip:** `cc8492f314eb051c686baffb9fe80e640661efdd`
+**Generated:** 2026-09-20T09:26:36+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **residual**: STALE ATTESTATION (recorded 082da6ff): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
+- **residual**: STALE ATTESTATION (recorded cc8492f3): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.
 
 ## Written verdict keys that are not PASS/N/A
 
