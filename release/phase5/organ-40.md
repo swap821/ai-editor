@@ -1,13 +1,14 @@
 # Phase 5 proof — Organ 40: Isolated Workspace and Executor (live proof)
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `cc8492f314eb051c686baffb9fe80e640661efdd`
-**Generated:** 2026-09-20T09:26:35+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
+**Generated:** 2026-09-20T19:40:55+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C6**: focused_tests not executed here (needs vitest): frontend/src/workbench/CouncilDashboard.sovereign.test.tsx -- pass --frontend-junit or --allow-unexecuted-frontend
+- **C7**: no integration_tests proved anything here (unverified: tests/test_executor_integration.py (all 4 skipped))
 
 ## Written verdict keys that are not PASS/N/A
 

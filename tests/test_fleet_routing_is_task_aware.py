@@ -316,3 +316,108 @@ class TestTheLiveTurnPathSuppliesTheMeasuredSignals:
         ]
         assert _message_context_chars(junk) == 0
         assert _messages_have_images(junk) is False
+
+
+class TestTheLearnsFromOutcomesClaimIsConditioned:
+    """`_route_metrics` returns {} unless cloud routing is opted into.
+
+    The router's docstring said it "learns what actually performs on this
+    workload" with no qualifier, while on a stock install it ranks purely
+    heuristically and learns nothing. The short-circuit itself is right — with
+    no task cloud-eligible there is one candidate and metrics cannot change a
+    one-candidate decision — so the fix is the sentence, not the code.
+    """
+
+    def test_the_docstring_states_the_precondition(self) -> None:
+        from pathlib import Path
+
+        from aios import config
+
+        text = Path(config.PROJECT_ROOT, "aios", "core", "router.py").read_text(
+            encoding="utf-8"
+        )
+        assert "CALIBRATION IS OFF BY DEFAULT" in text
+        assert "ROUTER_CLOUD_TASKS" in text
+
+    def test_calibration_is_in_fact_inert_with_the_default_gate(self) -> None:
+        """Pins the behaviour the sentence describes, not just the sentence."""
+        from aios.core import router_wiring
+
+        assert not ROUTER_CLOUD_TASKS, (
+            "the default gate is no longer empty; the docstring's claim about "
+            "the default configuration needs rewriting"
+        )
+
+        class _Development:
+            def model_task_success_rates(self):  # pragma: no cover - must not run
+                raise AssertionError("metrics were read while the gate was shut")
+
+        assert router_wiring._route_metrics(_Development(), "auto") == {}
+
+
+class TestRoutePreviewCannotChangeAnything:
+    """A tool for inspecting the gate must not be a way around it."""
+
+    def test_the_default_preview_uses_the_real_gate(self, capsys, monkeypatch) -> None:
+        from tools import route_preview
+
+        monkeypatch.setattr(route_preview, "_live_providers", lambda: [])
+        assert route_preview.main([]) == 1
+        assert "nothing to preview" in capsys.readouterr().out
+
+    def test_as_if_drops_task_names_the_gate_would_drop(
+        self, capsys, monkeypatch
+    ) -> None:
+        """`_env_router_tasks` DROPS unrecognised entries; the preview must too.
+
+        A preview that accepted `general` would show a route the real policy can
+        never produce — which is worse than no preview, because it would be
+        believed.
+        """
+        from tools import route_preview
+
+        captured: dict[str, object] = {}
+
+        def _fake_candidates(task, providers, *, policy, **kwargs):
+            captured["cloud_tasks"] = policy.cloud_tasks
+            return []
+
+        monkeypatch.setattr(
+            route_preview,
+            "_live_providers",
+            lambda: [
+                router.Provider(
+                    name="ollama",
+                    privacy=router.PRIVACY_LOCAL,
+                    cost=router.COST_FREE,
+                    available=True,
+                    models=("llama3.1:8b",),
+                )
+            ],
+        )
+        monkeypatch.setattr(route_preview.router, "candidates", _fake_candidates)
+        route_preview.main(["--as-if", "coding,general,banana,vision"])
+        capsys.readouterr()
+        assert captured["cloud_tasks"] == ("coding", "vision")
+
+    def test_a_hypothetical_run_says_so_in_its_output(
+        self, capsys, monkeypatch
+    ) -> None:
+        """Otherwise a screenshot of a what-if reads as a statement of fact."""
+        from tools import route_preview
+
+        monkeypatch.setattr(
+            route_preview,
+            "_live_providers",
+            lambda: [
+                router.Provider(
+                    name="ollama",
+                    privacy=router.PRIVACY_LOCAL,
+                    cost=router.COST_FREE,
+                    available=True,
+                    models=("llama3.1:8b",),
+                )
+            ],
+        )
+        route_preview.main(["--as-if", "coding"])
+        assert "HYPOTHETICAL" in capsys.readouterr().out

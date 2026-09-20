@@ -1333,6 +1333,8 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 record_reuse(reused_ids, success=passed)
             except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
                 logger.warning("Failed to record skill reuse credit", exc_info=exc)
+        # Also dormant: `swarm_plan` can never be set while the strategy gate
+        # above stands, so this swarm-pattern write is unreachable in production.
         if swarm_plan:
             try:
                 swarm_patterns.record_attempt(
@@ -1664,6 +1666,15 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 _dispatch_path = telemetry.DISPATCH_PLAYBOOK
             yield sse(kind, ev)
         elif kind == "swarm_plan":
+            # DORMANT. The ant-colony cannot emit this today: `if req.swarm or
+            # req.role_pass:` above returns `strategy_unavailable` before any
+            # swarm runs, unconditionally, with no flag that opens it. This
+            # branch and the caste_start/caste_end one below are therefore
+            # unreachable from a live turn -- kept so the path is whole if the
+            # gate is ever lifted, labelled so it does not read as implemented.
+            # See the banner in aios/agents/swarm.py; both are pinned by
+            # tests/test_documented_reachability.py.
+            #
             # Plan event from the ant-colony; used internally for pattern
             # recording and also surfaced to the UI so the HUD can render it.
             swarm_plan = ev.get("plan")
