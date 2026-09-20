@@ -17,15 +17,15 @@ These tests pin both directions: what may be downgraded, and what may never be.
 
 from __future__ import annotations
 
-import inspect
 import re
 
+from tests.source_rules import executable_source
 from tools import learning_loop_prover as prover
 
 
 def _registrations(kind: str) -> list[str]:
     """Check names registered via ``check.<kind>(`` in the prover source."""
-    src = inspect.getsource(prover)
+    src = executable_source(prover)
     return re.findall(rf"check\.{kind}\(\s*\n\s*(f?\"[^\"]+\")", src)
 
 
@@ -87,7 +87,7 @@ def test_cerebellum_checks_are_gated_on_promotion() -> None:
     guarantee survives exactly where it means something: a playbook that WAS
     compiled and then fails to match or complete still fails the run.
     """
-    src = inspect.getsource(prover)
+    src = executable_source(prover)
     assert "if promoted:" in src, "the cerebellum assertions must be gated on promotion"
     gated = src.split("if promoted:", 1)[1]
     hard_block = gated.split("else:", 1)[0]
