@@ -56,6 +56,8 @@ _LIVE_NAMES = (
     "_latest_user",
     "_make_confirm_hook",
     "_make_failure_hook",
+    "_message_context_chars",
+    "_messages_have_images",
     "_recall_facts",
     "_recall_lessons",
     "_recall_memory",
@@ -113,7 +115,16 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
     user_text = context.directive
     chat_messages = _to_chat_messages(req.messages)
     session_id = context.session_id
-    task = infer_task(user_text)
+    # Routing signals the words cannot carry: an image is either attached or it
+    # is not, and a 200k-character history is a long-context problem whatever
+    # the last message asks for. Passing only `user_text` left `vision` and
+    # `long_context` unreachable in production even once the classifier could
+    # produce them -- the same declared-but-unreachable defect, one layer up.
+    task = infer_task(
+        user_text,
+        has_images=_messages_have_images(req.messages),
+        context_chars=_message_context_chars(req.messages),
+    )
     chat_client, model = _select_chat_client(
         req.model_id,
         client,

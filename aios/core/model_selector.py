@@ -31,7 +31,25 @@ TASK_CODING = "coding"
 TASK_REASONING = "reasoning"
 TASK_GENERAL = "general"
 TASK_FAST = "fast"
-TASKS = (TASK_CODING, TASK_REASONING, TASK_GENERAL, TASK_FAST)
+# Three classes the ROUTER has always accepted (`_VALID_ROUTER_TASKS` in
+# aios/security/limits.py) and that nothing could ever produce. `infer_task`
+# returned only coding/reasoning/general, and `_normalise_task` clamps anything
+# outside `TASKS` to `coding` -- so a request for one of these was silently
+# re-labelled, routed as coding, and its calibration evidence filed under
+# coding too. Declared-but-unreachable is the same defect the curriculum miner
+# had: a branch nobody can select is not a feature, it is a claim.
+TASK_RESEARCH = "research"
+TASK_VISION = "vision"
+TASK_LONG_CONTEXT = "long_context"
+TASKS = (
+    TASK_CODING,
+    TASK_REASONING,
+    TASK_GENERAL,
+    TASK_FAST,
+    TASK_RESEARCH,
+    TASK_VISION,
+    TASK_LONG_CONTEXT,
+)
 
 # --- Model family knowledge (matched as a prefix of the tag's family) -------
 _CODER_FAMILIES = (
@@ -134,6 +152,36 @@ _TIERS: dict[str, dict[str, int]] = {
         "weak": 200,
         "reasoning": 120,
         "unknown": 60,
+    },
+    # Research is synthesis over material the model did not write: closest to
+    # reasoning, with general instruct models ahead of code-specialised ones.
+    TASK_RESEARCH: {
+        "reasoning": 300,
+        "strong": 260,
+        "coder": 150,
+        "weak": 100,
+        "unknown": 50,
+    },
+    # LOCAL vision is deliberately hostile ground: `is_excluded` drops vision
+    # tags from local selection entirely, so this table exists to keep the task
+    # a first-class citizen for the CLOUD router rather than to pretend a local
+    # model can serve it. `select_model` will usually return None here, which is
+    # the honest answer -- and the router then has only cloud candidates.
+    TASK_VISION: {
+        "strong": 300,
+        "reasoning": 200,
+        "coder": 150,
+        "weak": 100,
+        "unknown": 50,
+    },
+    # Long context is about window, not family; size is the tiebreak that
+    # already favours the larger model, so the kinds sit close together.
+    TASK_LONG_CONTEXT: {
+        "strong": 300,
+        "reasoning": 280,
+        "coder": 220,
+        "weak": 100,
+        "unknown": 50,
     },
 }
 
@@ -317,23 +365,73 @@ _REASONING_HINTS = (
     r"\bevaluate\b",
     r"\bshould i\b",
 )
+#: Wording that says the answer lives OUTSIDE the model: current facts, other
+#: people's docs, the state of the world. Distinct from reasoning, which is
+#: synthesis over what the model already has.
+_RESEARCH_HINTS = (
+    r"\bsearch\b",
+    r"\blook up\b",
+    r"\bfind out\b",
+    r"\bdocumentation for\b",
+    r"\brelease notes\b",
+    r"\bchangelog\b",
+    r"\bwhat(?:'s| is) the latest\b",
+    r"\bcurrent(?:ly)? (?:version|price|status)\b",
+    r"\bcite\b",
+    r"\bsources?\b",
+    r"\bresearch\b",
+)
 _CODING_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _CODING_HINTS)
 _REASONING_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _REASONING_HINTS)
+_RESEARCH_HINT_PATTERNS = tuple(re.compile(pattern) for pattern in _RESEARCH_HINTS)
+
+#: Characters of input past which a turn is a long-context problem regardless of
+#: what it asks for. Deliberately a MEASUREMENT, not a keyword: "summarise this
+#: huge file" and a pasted 200k-character file are the same routing decision,
+#: and only one of them says so in words.
+LONG_CONTEXT_CHARS = 24_000
 
 
-def infer_task(text: Optional[str]) -> str:
+def infer_task(
+    text: Optional[str],
+    *,
+    has_images: bool = False,
+    context_chars: int = 0,
+) -> str:
     """Infer the task category from the latest user message (deterministic).
 
-    Coding is checked first — it is the agentic IDE loop's primary purpose and
-    the safest default when a request mixes signals — then reasoning, else
-    general. The caller still applies ``require_tools`` so a reasoning-leaning
-    request never lands the *tool loop* on a non-tool-calling model.
+    Order matters, and it is ordered by how MEASURABLE each signal is:
+
+    1. ``vision`` — an image is actually attached. Never inferred from wording:
+       "look at this screenshot" with no screenshot is not a vision turn, and
+       routing it to a vision model on the strength of the phrase would be
+       guessing dressed as classification.
+    2. ``long_context`` — the input is genuinely large (``LONG_CONTEXT_CHARS``).
+       Also a measurement rather than a phrase, for the same reason.
+    3. ``coding`` — the agentic IDE loop's primary purpose, and the safest
+       default when a request mixes signals.
+    4. ``research`` before ``reasoning`` — both are "think about it" wording,
+       but research says the answer is not in the model's head, which is the
+       stronger claim and the one that changes which model should serve it.
+    5. ``general`` otherwise.
+
+    The two keyword-driven classes stay below the two measured ones on purpose:
+    a phrase can be wrong about the world, a byte count cannot.
+
+    The caller still applies ``require_tools`` so a reasoning-leaning request
+    never lands the *tool loop* on a non-tool-calling model.
     """
+    if has_images:
+        return TASK_VISION
     t = (text or "").lower()
+    if max(int(context_chars or 0), len(t)) >= LONG_CONTEXT_CHARS:
+        return TASK_LONG_CONTEXT
     if not t.strip():
         return TASK_GENERAL
     if any(pattern.search(t) for pattern in _CODING_HINT_PATTERNS):
         return TASK_CODING
+    if any(pattern.search(t) for pattern in _RESEARCH_HINT_PATTERNS):
+        return TASK_RESEARCH
     if any(pattern.search(t) for pattern in _REASONING_HINT_PATTERNS):
         return TASK_REASONING
     return TASK_GENERAL

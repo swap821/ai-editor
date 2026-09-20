@@ -112,6 +112,76 @@ def cloud_capability(model_id: str) -> int:
     return 290  # unknown cloud model -- assume broadly capable
 
 
+#: What a model id says about the work it was BUILT for. Capability answered
+#: "how strong", and nothing answered "strong at what" -- so `cloud_capability`
+#: returned one number used for all five task classes, and a code-specialised
+#: model and a reasoning model ranked identically for every job. The local side
+#: has had this since the beginning (`model_selector._TIERS` maps family-kind to
+#: a per-task score); the cloud side simply never got it, which is why "route
+#: each model to the task it was designed for" could not be expressed.
+#:
+#: Matched against TOKENS, never substrings -- the same discipline the tier
+#: keywords above had to learn the hard way ("mini" inside "gemini").
+#: Keys are TASK names, not family names. Keying them on the family
+#: ("coder") was a silent no-op: the task class is "coding", so the equality
+#: check in `task_affinity` never fired and every affinity was zero -- a table
+#: that looks like a feature and does nothing, which is the exact defect this
+#: whole arc has been removing. A test pins every key against the task list.
+_KIND_TOKENS: dict[str, tuple[str, ...]] = {
+    "coding": ("coder", "code", "codestral", "devstral", "codex", "starcoder"),
+    "reasoning": (
+        "reasoning",
+        "reasoner",
+        "thinking",
+        "think",
+        "r1",
+        "o1",
+        "o3",
+        "qwq",
+    ),
+    "vision": ("vision", "vl", "vlm", "image", "pixtral"),
+    "long_context": ("128k", "200k", "256k", "1m", "longcontext"),
+}
+
+#: Deliberately smaller than the router's ``_LOCAL_BIAS`` (60). Affinity re-orders
+#: candidates WITHIN the cloud tier; it must not be able to flip a local-versus-
+#: cloud decision, because that is a privacy question and privacy is the policy's
+#: to decide, not a heuristic's. Same reasoning as the band note above: a scoring
+#: change large enough to move a policy boundary is a policy change wearing a
+#: heuristic's clothes.
+TASK_AFFINITY_BONUS = 40
+
+
+def model_kind(model_id: str) -> str:
+    """What *model_id* advertises itself as built for (``general`` if it says nothing).
+
+    Read off the id and nothing else. A model that does not announce a
+    specialism is not penalised for it -- ``general`` simply earns no affinity
+    either way, so an uncharacterised frontier model still out-ranks a small
+    specialist on raw capability.
+    """
+    tokens = _tokens(model_id)
+    for task, markers in _KIND_TOKENS.items():
+        if tokens & set(markers):
+            return task
+    return "general"
+
+
+def task_affinity(model_id: str, task: str) -> int:
+    """Bonus for a model serving the task it was built for; 0 otherwise.
+
+    Only ever a BONUS, never a penalty. A penalty would mean a coder model is
+    actively worse at reasoning than an unlabelled one of the same size, which
+    the id does not say and this module has no evidence for. Evidence-based
+    re-ranking is calibration's job, and calibration already outweighs this by
+    six to one (``_CALIBRATION_SCALE`` is 240) -- so measured performance always
+    beats a guess read off a name.
+    """
+    if not task:
+        return 0
+    return TASK_AFFINITY_BONUS if model_kind(model_id) == task.strip().lower() else 0
+
+
 #: Capability bump for the operator's configured default — a known-good model the
 #: account can definitely invoke, so cold-start prefers it before evidence exists.
 DEFAULT_BONUS = 20
