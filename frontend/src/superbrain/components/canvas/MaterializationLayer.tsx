@@ -78,7 +78,7 @@ function normalizeContent(content: MaterializedTabContent | null): MaterializedT
 function normalizeApproval(pending: PendingApproval | null): MaterializedApprovalSurface | null {
   if (!pending) return null;
   return {
-    token: String(pending.token ?? ''),
+    requestRef: 'conversation-approval',
     summary: String(pending.summary ?? 'Approval required'),
     explanation: String(pending.explanation ?? ''),
     diff: String(pending.diff ?? ''),
@@ -143,7 +143,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
           return;
         }
         const current = getMaterializedTabByKind('approval');
-        if (current?.kind === 'approval' && current.approval?.token !== 'dev-approval') {
+        if (current?.kind === 'approval' && current.approval?.requestRef !== 'dev-approval') {
           beginRetractingMaterializedTab(current.id);
         }
       }),
@@ -205,7 +205,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
       reabsorbInputSurface();
       return showApprovalSurface(
         {
-          token: 'dev-approval',
+          requestRef: 'dev-approval',
           summary: 'Approval required to materialize demo.py',
           explanation: 'Dev-only approval surface for embodied review.',
           diff: '+export const demo = true;\n',

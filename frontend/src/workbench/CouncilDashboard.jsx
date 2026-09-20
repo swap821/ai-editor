@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Cloud, FileText, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
-import { ensureSession } from '../superbrain/lib/sessionId';
+import { sendGuardedCommand } from '../livingMirror/commands';
+import { redactProjection } from '../livingMirror/redaction';
 import SovereignStatePanel from './SovereignStatePanel';
 import KnowledgeIngestPanel from './KnowledgeIngestPanel';
 import MemoryOperationsPanel from './MemoryOperationsPanel';
@@ -20,8 +21,64 @@ function titleCase(value) {
   return String(value || 'unknown').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
+class InvalidCouncilPayload extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'InvalidCouncilPayload';
+  }
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseSelfAnalysisPayload(data) {
+  if (!isRecord(data) || !Array.isArray(data.proposals)) {
+    throw new InvalidCouncilPayload('self-analysis envelope is invalid');
+  }
+  return data.proposals.map((proposal, index) => {
+    if (
+      !isRecord(proposal) ||
+      !Number.isInteger(proposal.id) ||
+      proposal.id < 1 ||
+      typeof proposal.target_path !== 'string' ||
+      typeof proposal.finding_type !== 'string' ||
+      typeof proposal.status !== 'string'
+    ) {
+      throw new InvalidCouncilPayload(`self-analysis proposal ${index} is invalid`);
+    }
+    return proposal;
+  });
+}
+
+function parseCouncilMissionsPayload(data) {
+  if (!isRecord(data) || !Array.isArray(data.missions) || !Number.isInteger(data.count) || data.count < data.missions.length) {
+    throw new InvalidCouncilPayload('council missions envelope is invalid');
+  }
+  const missions = data.missions.map((mission, index) => {
+    if (
+      !isRecord(mission) ||
+      typeof mission.missionId !== 'string' ||
+      !mission.missionId ||
+      typeof mission.mission !== 'string' ||
+      typeof mission.status !== 'string'
+    ) {
+      throw new InvalidCouncilPayload(`council mission ${index} is invalid`);
+    }
+    return mission;
+  });
+  if (new Set(missions.map((mission) => mission.missionId)).size !== missions.length) {
+    throw new InvalidCouncilPayload('council mission identities are duplicated');
+  }
+  return missions;
+}
+
+function firstArray(...values) {
+  return values.find((value) => Array.isArray(value)) ?? null;
+}
+
+function firstBoolean(...values) {
+  return values.find((value) => typeof value === 'boolean') ?? null;
 }
 
 function verdictTone(verdict) {
@@ -67,27 +124,9 @@ async function fetchJson(path, signal) {
 }
 
 async function postJson(path, body) {
-  const session = await ensureSession();
-  const sessionBody = session.bodySessionId ? { sessionId: session.bodySessionId } : {};
-  const request = (capability) => fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...API_HEADERS,
-      ...(capability ? { 'X-AIOS-Capability': capability } : {}),
-    },
-    body: JSON.stringify({ ...sessionBody, ...body }),
-  });
-  let response = await request('');
-  if (response.status === 428) {
-    const detail = await response.json();
-    const token = detail?.detail?.approvalToken;
-    if (!token) throw new Error('HTTP 428');
-    response = await request(token);
-  }
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const result = await sendGuardedCommand(path, body);
+  if (result.status !== 'accepted') throw new Error(result.message);
+  return result.data;
 }
 
 /** Self-Analysis findings review (T2 propose → HUMAN approve → T3 apply).
@@ -107,9 +146,11 @@ function SelfAnalysisProposals() {
     setError('');
     try {
       const data = await fetchJson('/api/v1/self-analysis/proposals', signal);
-      setProposals(asArray(data.proposals));
+      setProposals(parseSelfAnalysisPayload(data));
     } catch (err) {
-      if (err?.name !== 'AbortError') setError('Self-Analysis link offline');
+      if (err?.name !== 'AbortError') {
+        setError(err?.name === 'InvalidCouncilPayload' ? 'Self-Analysis unavailable' : 'Self-Analysis link offline');
+      }
     } finally {
       setLoading(false);
     }
@@ -148,6 +189,7 @@ function SelfAnalysisProposals() {
 
   return (
     <div className="council-dashboard__body" aria-label="Self-Analysis proposals">
+      {error && proposals.length > 0 ? <p className="council-dashboard__error">{error}</p> : null}
       {proposals.length === 0 ? (
         <div className="council-dashboard__empty">
           {loading ? 'Syncing proposals' : error || 'No proposed findings'}
@@ -193,7 +235,11 @@ export default function CouncilDashboard() {
   const [view, setView] = useState('missions');
   const [missions, setMissions] = useState([]);
   const [selectedId, setSelectedId] = useState('');
-  const [detail, setDetail] = useState(EMPTY_DETAIL);
+  const [detailRecord, setDetail] = useState(EMPTY_DETAIL);
+  const [detailRevision, refreshDetail] = useState(0);
+  const [detailError, setDetailError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detail = detailRecord.missionId === selectedId ? detailRecord : EMPTY_DETAIL;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -208,7 +254,7 @@ export default function CouncilDashboard() {
   const [originError, setOriginError] = useState('');
 
   const selectedSummary = useMemo(
-    () => missions.find((mission) => mission.missionId === selectedId) || missions[0] || null,
+    () => missions.find((mission) => mission.missionId === selectedId) || null,
     [missions, selectedId],
   );
 
@@ -217,14 +263,17 @@ export default function CouncilDashboard() {
     setError('');
     try {
       const data = await fetchJson('/api/v1/council/missions?limit=8', signal);
-      const rows = asArray(data.missions);
+      const rows = parseCouncilMissionsPayload(data);
       setMissions(rows);
+      refreshDetail((n) => n + 1);
       setSelectedId((current) => {
-        if (current && rows.some((row) => row.missionId === current)) return current;
+        if (current) return current;
         return rows[0]?.missionId || '';
       });
     } catch (err) {
-      if (err?.name !== 'AbortError') setError('Council link offline');
+      if (err?.name !== 'AbortError') {
+        setError(err?.name === 'InvalidCouncilPayload' ? 'Council missions unavailable' : 'Council link offline');
+      }
     } finally {
       setLoading(false);
     }
@@ -247,7 +296,8 @@ export default function CouncilDashboard() {
     setOriginBusy(true);
     setOriginError('');
     try {
-      await postJson('/api/v1/council/missions', { goal, allowedFiles, verificationCommands });
+      const created = await postJson('/api/v1/council/missions', { goal, allowedFiles, verificationCommands });
+      if (typeof created?.missionId === 'string') setSelectedId(created.missionId);
       setOriginGoal('');
       setOriginFiles('');
       setOriginVerification('');
@@ -280,11 +330,15 @@ export default function CouncilDashboard() {
     const ctrl = new AbortController();
     let alive = true;
     const loadDetail = async () => {
+      setDetailLoading(true);
+      setDetailError('');
       try {
         const data = await fetchJson(`/api/v1/council/missions/${encodeURIComponent(selectedId)}`, ctrl.signal);
         if (alive) setDetail(data);
       } catch (err) {
-        if (alive && err?.name !== 'AbortError') setDetail(EMPTY_DETAIL);
+        if (alive && err?.name !== 'AbortError') setDetailError('Detail refresh failed; previous records are stale. Decisions remain unavailable until refreshed.');
+      } finally {
+        if (alive) setDetailLoading(false);
       }
     };
     void loadDetail();
@@ -292,25 +346,36 @@ export default function CouncilDashboard() {
       alive = false;
       ctrl.abort();
     };
-  }, [selectedId]);
+  }, [selectedId, detailRevision]);
 
   const report = detail.report || selectedSummary || {};
   const ledger = detail.ledger || {};
-  const councilVerdicts = asArray(report.council_summary?.council_verdicts || selectedSummary?.councilVerdicts);
-  const files = asArray(report.files || selectedSummary?.filesTouched);
-  const blockedAttempts = asArray(ledger.blocked_attempts);
-  const verificationCommands = asArray(report.verification_result?.commands || ledger.verification?.commands);
-  const modelRouting = report.council_summary?.model_routing || selectedSummary?.modelRouting || {};
-  const pendingApprovals = asArray(detail.pendingApprovals || detail.summary?.pendingApprovals || selectedSummary?.pendingApprovals);
-  const pendingApproval = pendingApprovals[0] || null;
-  const kingDecision = detail.kingDecision || detail.summary?.kingDecision || selectedSummary?.kingDecision || null;
-  const approvalNeeded = report.approval_needed ?? selectedSummary?.approvalNeeded;
-  const rollbackAvailable = Boolean(report.rollback_available ?? selectedSummary?.rollbackAvailable);
+  const councilVerdicts = firstArray(report.council_summary?.council_verdicts, selectedSummary?.councilVerdicts);
+  const files = firstArray(report.files, selectedSummary?.filesTouched);
+  const blockedAttempts = Array.isArray(ledger.blocked_attempts) ? ledger.blocked_attempts : null;
+  const verificationCommands = firstArray(report.verification_result?.commands, ledger.verification?.commands);
+  const modelRouting = report.council_summary?.model_routing || selectedSummary?.modelRouting || null;
+  const pendingApprovals = firstArray(detail.pendingApprovals, detail.summary?.pendingApprovals, selectedSummary?.pendingApprovals);
+  const pendingApproval = pendingApprovals?.[0] || null;
+  const kingDecision = detail.kingDecision ?? detail.summary?.kingDecision ?? selectedSummary?.kingDecision;
+  const approvalNeeded = firstBoolean(report.approval_needed, selectedSummary?.approvalNeeded);
+  const rollbackAvailable = firstBoolean(report.rollback_available, selectedSummary?.rollbackAvailable);
   const rollbackId = report.rollback_id ?? selectedSummary?.rollbackId ?? null;
-  const canDecide = Boolean(selectedSummary && !kingDecision && (pendingApproval || approvalNeeded));
-  const canRollback = Boolean(selectedSummary && rollbackAvailable && rollbackId && !rollbackBusy);
-  const risk = report.risk || selectedSummary?.risk || 'GREEN';
+  const blockCount = blockedAttempts === null
+    ? null
+    : blockedAttempts.length || (typeof selectedSummary?.blockedAttempts === 'number' ? selectedSummary.blockedAttempts : 0);
+  const canDecide = Boolean(selectedSummary && detail.missionId === selectedId && !detailLoading && !detailError
+    && (pendingApproval || (!kingDecision && approvalNeeded === true && detail.missionAuthority?.contractDigest)));
+  const canRollback = Boolean(selectedSummary && !detailLoading && !detailError && detail.missionId === selectedId && rollbackAvailable === true && rollbackId && !rollbackBusy);
+  const risk = report.risk || selectedSummary?.risk || 'Unknown';
   const verification = deriveVerificationStrength(report, selectedSummary);
+  const decisionState = kingDecision
+    ? typeof kingDecision.approved === 'boolean'
+      ? kingDecision.approved ? 'Approved by King' : 'Rejected by King'
+      : 'Decision record incomplete'
+    : pendingApprovals === null || approvalNeeded === null
+      ? 'Unavailable'
+      : pendingApproval ? 'Pending worker approval' : approvalNeeded ? 'Awaiting decision' : 'Observe only';
 
   const submitDecision = useCallback(async (approved) => {
     if (!selectedSummary || !canDecide) return;
@@ -323,29 +388,18 @@ export default function CouncilDashboard() {
         contractDigest: detail.missionAuthority?.contractDigest,
         reason: approved ? 'Approved from Council dashboard' : 'Rejected from Council dashboard',
       });
-      const remainingApprovals = pendingApproval
-        ? pendingApprovals.filter((approval) => approval.requestId !== pendingApproval.requestId)
-        : pendingApprovals;
-      setDetail((current) => ({
-        ...current,
-        pendingApprovals: remainingApprovals,
-        kingDecision: data.decision,
-        summary: current.summary ? {
-          ...current.summary,
-          pendingApprovals: remainingApprovals,
-          kingDecision: data.decision,
-        } : current.summary,
-      }));
-      void loadMissions();
+      setDecisionError(data.execution === 'scheduled' ? 'Decision accepted; execution scheduled. Outcome requires refreshed evidence.' : 'Decision accepted. Refreshing authoritative state.');
     } catch (err) {
-      setDecisionError('Decision failed');
+      setDecisionError(err.message);
     } finally {
       setDecisionBusy(false);
+      refreshDetail((n) => n + 1);
+      void loadMissions();
     }
-  }, [canDecide, loadMissions, pendingApproval, pendingApprovals, selectedSummary]);
+  }, [canDecide, loadMissions, pendingApproval, selectedSummary, detail.missionAuthority?.contractDigest]);
 
   const submitRollback = useCallback(async () => {
-    if (!selectedSummary || !rollbackId || !rollbackAvailable) return;
+    if (!selectedSummary || !canRollback) return;
     const confirmed = window.confirm(
       `Rollback ${selectedSummary.missionId} to snapshot ${String(rollbackId).slice(0, 12)}?`,
     );
@@ -354,30 +408,20 @@ export default function CouncilDashboard() {
     setRollbackError('');
     try {
       const path = `/api/v1/council/missions/${encodeURIComponent(selectedSummary.missionId)}/rollback`;
-      const pending = await postJson(path, { snapshotId: rollbackId });
-      if (!pending.approvalToken) throw new Error('missing rollback approval token');
-      const restored = await postJson(path, {
-        snapshotId: rollbackId,
-        approvalToken: pending.approvalToken,
-      });
-      setDetail((current) => ({
-        ...current,
-        report: restored.report || current.report,
-        summary: current.summary ? {
-          ...current.summary,
-          status: restored.report?.status || 'rolled_back',
-          recommendation: restored.report?.recommendation || 'observe',
-          rollbackAvailable: false,
-          rollbackId: restored.snapshotId || rollbackId,
-        } : current.summary,
-      }));
-      void loadMissions();
+      const pending = await sendGuardedCommand(path, { snapshotId: rollbackId });
+      if (pending.status !== 'accepted' || !pending.continueRollback) throw new Error(pending.message);
+      const outcome = await pending.continueRollback();
+      if (outcome.status !== 'accepted') throw new Error(outcome.message);
+      const restored = outcome.data;
+      setRollbackError(restored.executed === true && restored.result?.restored === true ? 'Restoration confirmed by receipt.' : 'Restoration outcome requires refreshed evidence.');
     } catch (err) {
-      setRollbackError('Rollback failed');
+      setRollbackError(err.message);
     } finally {
       setRollbackBusy(false);
+      refreshDetail((n) => n + 1);
+      void loadMissions();
     }
-  }, [loadMissions, rollbackAvailable, rollbackId, selectedSummary]);
+  }, [loadMissions, canRollback, rollbackId, selectedSummary]);
 
   return (
     <aside className="council-dashboard" aria-label="Council runtime dashboard">
@@ -497,6 +541,7 @@ export default function CouncilDashboard() {
 
       <div className="council-dashboard__body">
         <div className="council-dashboard__missions" aria-label="Council missions">
+          {error && missions.length > 0 ? <p className="council-dashboard__error">{error}</p> : null}
           {missions.length === 0 ? (
             <div className="council-dashboard__empty">
               {loading ? 'Syncing council ledger' : error || 'No Council missions recorded'}
@@ -533,26 +578,25 @@ export default function CouncilDashboard() {
             <div className="council-dashboard__grid" aria-label="Mission state">
               <span><b>Status</b>{titleCase(report.status || selectedSummary.status)}</span>
               <span><b>Recommendation</b>{titleCase(report.recommendation || selectedSummary.recommendation)}</span>
-              <span><b>Approval</b>{approvalNeeded ? 'Needed' : 'Not needed'}</span>
-              <span><b>Recovery</b>{rollbackAvailable ? 'Ready' : report.status === 'rolled_back' ? 'Restored' : 'None'}</span>
+              <span><b>Approval</b>{approvalNeeded === true ? 'Needed' : approvalNeeded === false ? 'Not needed' : 'Unavailable'}</span>
+              <span><b>Recovery</b>{rollbackAvailable === true ? 'Ready' : report.status === 'rolled_back' ? 'Restored' : rollbackAvailable === false ? 'None' : 'Unavailable'}</span>
             </div>
 
             <div className="council-dashboard__section council-dashboard__decision">
               <h3><ShieldCheck size={14} aria-hidden="true" /> King Decision</h3>
-              <strong>
-                {kingDecision
-                  ? (kingDecision.approved ? 'Approved by King' : 'Rejected by King')
-                  : pendingApproval ? 'Pending worker approval' : approvalNeeded ? 'Awaiting decision' : 'Observe only'}
-              </strong>
+              <strong>{decisionState}</strong>
               {pendingApproval ? (
-                <p>{pendingApproval.action || 'approval'} · {pendingApproval.reason || 'No reason recorded'}</p>
+                <div><p>Request <code>{pendingApproval.requestId}</code> · {pendingApproval.reason || 'No reason recorded'}</p><pre>{JSON.stringify(redactProjection(pendingApproval.action), null, 2)}</pre></div>
               ) : null}
               {verification?.warning ? (
                 <p className="council-dashboard__caution" role="alert">
                   <AlertTriangle size={13} aria-hidden="true" /> {verification.warning}
                 </p>
               ) : null}
-              {decisionError ? <p className="council-dashboard__error">{decisionError}</p> : null}
+              {detailLoading && <p role="status">Refreshing the selected mission…</p>}
+              {detailError && <p role="status">{detailError}</p>}
+              {decisionError ? <p role="status" className="council-dashboard__error">{decisionError}</p> : null}
+              {detail.missionAuthority && <p>Contract <code>{detail.missionAuthority.contractDigest}</code> · Authoritative state: {detail.missionAuthority.state}</p>}
               {canDecide ? (
                 <div className="council-dashboard__decision-actions">
                   <button
@@ -600,7 +644,7 @@ export default function CouncilDashboard() {
             <div className="council-dashboard__section">
               <h3><ShieldCheck size={14} aria-hidden="true" /> Verdicts</h3>
               <div className="council-dashboard__verdicts">
-                {councilVerdicts.length ? councilVerdicts.map((verdict) => (
+                {councilVerdicts === null ? <span className="council-dashboard__muted">Verdicts unavailable</span> : councilVerdicts.length ? councilVerdicts.map((verdict) => (
                   <span key={`${verdict.queen}-${verdict.verdict}`} className={`council-dashboard__verdict is-${verdictTone(verdict.verdict)}`}>
                     {titleCase(verdict.queen)}: {titleCase(verdict.verdict)}
                   </span>
@@ -611,14 +655,14 @@ export default function CouncilDashboard() {
             <div className="council-dashboard__section">
               <h3><FileText size={14} aria-hidden="true" /> Files</h3>
               <div className="council-dashboard__mono-list">
-                {files.length ? files.slice(0, 4).map((file) => <span key={file}>{file}</span>) : <span>No files touched</span>}
+                {files === null ? <span>Files unavailable</span> : files.length ? files.slice(0, 4).map((file) => <span key={file}>{file}</span>) : <span>No files touched</span>}
               </div>
             </div>
 
             <div className="council-dashboard__section council-dashboard__split">
               <div>
                 <h3><AlertTriangle size={14} aria-hidden="true" /> Blocks</h3>
-                <strong>{blockedAttempts.length || selectedSummary.blockedAttempts || 0}</strong>
+                <strong>{blockCount === null ? 'Unavailable' : blockCount}</strong>
               </div>
               <div>
                 <h3><ShieldCheck size={14} aria-hidden="true" /> Verify</h3>
@@ -632,9 +676,11 @@ export default function CouncilDashboard() {
                   </strong>
                 ) : (
                   <strong>
-                    {verificationCommands.length
-                      ? verificationCommands.every((cmd) => cmd.returncode === 0) ? 'Passed' : 'Failed'
-                      : 'None'}
+                    {verificationCommands === null
+                      ? 'Unavailable'
+                      : verificationCommands.length
+                        ? verificationCommands.every((cmd) => typeof cmd?.returncode === 'number' && cmd.returncode === 0) ? 'Passed' : verificationCommands.some((cmd) => typeof cmd?.returncode === 'number') ? 'Failed' : 'Unavailable'
+                        : 'None'}
                   </strong>
                 )}
               </div>
@@ -643,9 +689,11 @@ export default function CouncilDashboard() {
             <div className="council-dashboard__section">
               <h3><Cloud size={14} aria-hidden="true" /> Model Route</h3>
               <div className="council-dashboard__route">
-                <span>{modelRouting.provider || 'local'}</span>
-                <span>{modelRouting.used_cloud ? 'cloud' : 'local'}</span>
-                <span>{modelRouting.fallback_used ? 'fallback' : 'primary'}</span>
+                {modelRouting ? <>
+                  <span>{modelRouting.provider || 'unavailable'}</span>
+                  <span>{typeof modelRouting.used_cloud === 'boolean' ? modelRouting.used_cloud ? 'cloud' : 'local' : 'unavailable'}</span>
+                  <span>{typeof modelRouting.fallback_used === 'boolean' ? modelRouting.fallback_used ? 'fallback' : 'primary' : 'unavailable'}</span>
+                </> : <span>Model route unavailable</span>}
               </div>
             </div>
           </section>

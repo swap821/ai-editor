@@ -38,20 +38,21 @@ describe('tabStore', () => {
     expect(getFirstMaterializedTab()?.content?.filepath).toBe('demo.py');
   });
 
-  it('keeps multiple content tabs and focuses the newest one', () => {
+  it('keeps multiple content tabs without stealing existing focus', () => {
     const first = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' }, { bornAt: 1, seatIndex: 2 });
     const second = showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' }, { bornAt: 2, seatIndex: 3 });
     expect(getTabStoreSnapshot().tabs).toHaveLength(2);
     expect(getFirstMaterializedTab()?.id).toBe(first.id);
-    expect(getFocusedMaterializedTab()?.id).toBe(second.id);
+    expect(getFocusedMaterializedTab()?.id).toBe(first.id);
     expect(getOccupiedVertebraSeats()).toEqual([2, 3]);
   });
 
   it('can move focus between seated workspace surfaces', () => {
     const first = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' }, { seatIndex: 2 });
     const second = showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' }, { seatIndex: 3 });
+    focusMaterializedTab(second.id);
     expect(getFocusedMaterializedTab()?.id).toBe(second.id);
-    expect(getTabStoreSnapshot().attention).toBeNull();
+    expect(getTabStoreSnapshot().attention?.toId).toBe(second.id);
     focusMaterializedTab(first.id);
     expect(getFocusedMaterializedTab()?.id).toBe(first.id);
     expect(getTabStoreSnapshot().attention).toMatchObject({
@@ -66,6 +67,7 @@ describe('tabStore', () => {
     const lower = showContentSurface({ code: 'c', language: 'python', filepath: 'c.py' }, { bornAt: 1, seatIndex: 5 });
     const upper = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' }, { bornAt: 2, seatIndex: 2 });
     const middle = showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' }, { bornAt: 3, seatIndex: 3 });
+    focusMaterializedTab(middle.id);
 
     expect(getFocusedMaterializedTab()?.id).toBe(middle.id);
     expect(focusNextMaterializedTab()?.id).toBe(lower.id);
@@ -116,7 +118,7 @@ describe('tabStore', () => {
   it('keeps the input surface while an approval surface claims a vertebra', () => {
     upsertInputSurface('create a file');
     const approval = showApprovalSurface({
-      token: 'tok-1',
+      requestRef: 'tok-1',
       summary: 'Approval required to create demo.py',
       explanation: 'Needs write access',
       diff: '+print("hello")\n',

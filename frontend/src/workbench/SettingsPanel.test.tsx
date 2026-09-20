@@ -48,8 +48,10 @@ describe('SettingsPanel', () => {
     await waitFor(() => {
       expect(screen.getByText(/Could not load current settings/)).toBeInTheDocument();
     });
-    // Defaults are still usable.
-    expect(screen.getByText('Ollama')).toBeInTheDocument();
+    expect(screen.getByText('Current settings are unavailable; controls are disabled until they can be read.')).toBeInTheDocument();
+    expect(screen.getByText('UNAVAILABLE (current state not read)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ollama' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Apply & Close' })).toBeDisabled();
   });
 
   it('saves config and closes', async () => {
@@ -58,7 +60,8 @@ describe('SettingsPanel', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'saved' }) });
 
-    const btn = screen.getByText('Apply & Close');
+    const btn = await screen.findByRole('button', { name: 'Apply & Close' });
+    await waitFor(() => expect(btn).toBeEnabled());
     fireEvent.click(btn);
 
     await waitFor(() => {
@@ -83,7 +86,8 @@ describe('SettingsPanel', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'restarting' }) });
 
-    const btn = screen.getByText('Restart Backend');
+    const btn = await screen.findByRole('button', { name: 'Restart Backend' });
+    await waitFor(() => expect(btn).toBeEnabled());
     fireEvent.click(btn);
 
     await waitFor(() => {

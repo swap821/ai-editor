@@ -25,8 +25,8 @@ describe('PolicyEnforcementHUD', () => {
       ok: true,
       json: async () => ({
         policies: [
-          { id: 'pol_12345678', text: 'Never delete user data', status: 'enacted' },
-          { id: 'pol_87654321', text: 'Always use JSON', status: 'proposed' }
+          { policy_id: 'pol_12345678', constraint: 'Never delete user data', status: 'enacted', version: 1, proposed_by: 'operator', enacted_at: null },
+          { policy_id: 'pol_87654321', constraint: 'Always use JSON', status: 'proposed', version: 1, proposed_by: 'operator', enacted_at: null }
         ],
       }),
     });
@@ -40,6 +40,20 @@ describe('PolicyEnforcementHUD', () => {
     
     expect(screen.getByText('Never delete user data')).toBeInTheDocument();
     expect(screen.getByText('Always use JSON')).toBeInTheDocument();
+  });
+
+  it('does not turn a malformed policy envelope into an empty active chain', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'ok' }),
+    });
+
+    render(<PolicyEnforcementHUD />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Policy chain unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No policies active in the chain.')).not.toBeInTheDocument();
   });
 
   it('submits a new policy proposal', async () => {
@@ -61,7 +75,7 @@ describe('PolicyEnforcementHUD', () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        policies: [{ id: 'new_pol', text: 'No internet access', status: 'proposed' }]
+        policies: [{ policy_id: 'new_pol', constraint: 'No internet access', status: 'proposed', version: 1, proposed_by: 'operator', enacted_at: null }]
       }),
     });
 
@@ -73,7 +87,7 @@ describe('PolicyEnforcementHUD', () => {
         expect.stringContaining('/api/v1/policy/propose'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ policyText: 'No internet access' })
+          body: JSON.stringify({ constraint: 'No internet access' })
         })
       );
     });
@@ -90,7 +104,7 @@ describe('PolicyEnforcementHUD', () => {
       ok: true,
       json: async () => ({
         policies: [
-          { id: 'pol_123', text: 'Test Policy', status: 'proposed' }
+          { policy_id: 'pol_123', constraint: 'Test Policy', status: 'proposed', version: 1, proposed_by: 'operator', enacted_at: null }
         ],
       }),
     });
@@ -100,6 +114,9 @@ describe('PolicyEnforcementHUD', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Policy')).toBeInTheDocument();
     });
+
+    fireEvent.change(screen.getByLabelText('Policy voting queen'), { target: { value: 'planner' } });
+    fireEvent.change(screen.getByLabelText('Policy vote reason'), { target: { value: 'Reviewed proposal' } });
 
     // Handle vote
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
@@ -111,7 +128,10 @@ describe('PolicyEnforcementHUD', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/api/v1/policy/pol_123/vote'),
-        expect.objectContaining({ method: 'POST' })
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ queen: 'planner', approve: true, reason: 'Reviewed proposal' }),
+        })
       );
     });
   });

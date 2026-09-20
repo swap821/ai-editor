@@ -33,6 +33,8 @@ export default function SettingsPanel({ onClose }) {
 
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [loadState, setLoadState] = useState('loading');
+  const settingsAvailable = loadState === 'available';
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -42,9 +44,13 @@ export default function SettingsPanel({ onClose }) {
         if (typeof data.autonomy === 'boolean') setAutonomy(data.autonomy);
         if (data.provider_source) setProviderSource(data.provider_source);
         if (data.autonomy_source) setAutonomySource(data.autonomy_source);
+        setLoadState('available');
       })
       .catch((err) => {
-        if (err?.name !== 'AbortError') setLoadError('Could not load current settings; showing defaults.');
+        if (err?.name !== 'AbortError') {
+          setLoadState('unavailable');
+          setLoadError('Could not load current settings; showing defaults only as unconfirmed values.');
+        }
       });
     return () => ctrl.abort();
   }, []);
@@ -59,8 +65,16 @@ export default function SettingsPanel({ onClose }) {
       onClose={onClose}
     >
       <div style={{ padding: '20px', color: 'var(--foreground)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {loadState === 'loading' && (
+          <p role="status" style={{ fontSize: '11px', color: 'var(--muted-foreground)', margin: 0 }}>Reading current settings…</p>
+        )}
         {loadError && (
-          <p style={{ fontSize: '11px', color: 'var(--danger)', margin: 0 }}>{loadError}</p>
+          <p role="alert" style={{ fontSize: '11px', color: 'var(--danger)', margin: 0 }}>{loadError}</p>
+        )}
+        {!settingsAvailable && loadState === 'unavailable' && (
+          <p style={{ fontSize: '11px', color: 'var(--muted-foreground)', margin: 0 }}>
+            Current settings are unavailable; controls are disabled until they can be read.
+          </p>
         )}
         
         {/* LLM Provider */}
@@ -70,23 +84,26 @@ export default function SettingsPanel({ onClose }) {
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>LLM Provider</strong>
           </div>
           <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
-            {providerSource === 'env' 
+            {!settingsAvailable
+              ? 'Current provider unavailable until the backend responds'
+              : providerSource === 'env'
               ? 'Hardcoded by .env file (AIOS_LLM_MODEL, AIOS_BEDROCK_MODEL, AIOS_GEMINI_MODEL)' 
               : 'Requires backend restart to take effect'}
           </div>
-          <div style={{ display: 'flex', gap: '8px', opacity: providerSource === 'env' ? 0.5 : 1, pointerEvents: providerSource === 'env' ? 'none' : 'auto' }}>
+          <div style={{ display: 'flex', gap: '8px', opacity: !settingsAvailable || providerSource === 'env' ? 0.5 : 1, pointerEvents: !settingsAvailable || providerSource === 'env' ? 'none' : 'auto' }}>
             {['Ollama', 'Bedrock', 'Gemini'].map(p => (
               <button
                 key={p}
                 onClick={() => setProvider(p)}
+                disabled={!settingsAvailable || providerSource === 'env'}
                 style={{
                   flex: 1,
                   padding: '8px',
-                  background: provider === p ? 'rgba(123, 245, 251, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${provider === p ? 'var(--ag-text-cyan)' : 'var(--border)'}`,
-                  color: provider === p ? '#fff' : 'var(--muted-foreground)',
+                  background: settingsAvailable && provider === p ? 'rgba(123, 245, 251, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${settingsAvailable && provider === p ? 'var(--ag-text-cyan)' : 'var(--border)'}`,
+                  color: settingsAvailable && provider === p ? '#fff' : 'var(--muted-foreground)',
                   borderRadius: '4px',
-                  cursor: 'pointer',
+                  cursor: !settingsAvailable || providerSource === 'env' ? 'not-allowed' : 'pointer',
                   fontSize: '12px'
                 }}
               >
@@ -103,15 +120,17 @@ export default function SettingsPanel({ onClose }) {
             <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earned Autonomy</strong>
           </div>
           <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
-            {autonomySource === 'env' 
+            {!settingsAvailable
+              ? 'Current autonomy state unavailable until the backend responds'
+              : autonomySource === 'env'
               ? 'Hardcoded by .env file (AIOS_EARNED_AUTONOMY)' 
               : 'Requires backend restart to take effect'}
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: autonomySource === 'env' ? 'not-allowed' : 'pointer', opacity: autonomySource === 'env' ? 0.5 : 1 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: !settingsAvailable || autonomySource === 'env' ? 'not-allowed' : 'pointer', opacity: !settingsAvailable || autonomySource === 'env' ? 0.5 : 1 }}>
             <div style={{
               width: '40px',
               height: '20px',
-              background: autonomy ? 'var(--ag-text-purple)' : 'rgba(255, 255, 255, 0.1)',
+              background: settingsAvailable && autonomy ? 'var(--ag-text-purple)' : 'rgba(255, 255, 255, 0.1)',
               borderRadius: '10px',
               position: 'relative',
               transition: 'background 0.2s',
@@ -124,19 +143,19 @@ export default function SettingsPanel({ onClose }) {
                 borderRadius: '50%',
                 position: 'absolute',
                 top: '2px',
-                left: autonomy ? '22px' : '2px',
+                left: settingsAvailable && autonomy ? '22px' : '2px',
                 transition: 'left 0.2s'
               }} />
             </div>
-            <input 
+              <input
               type="checkbox" 
               checked={autonomy}
               onChange={(e) => setAutonomy(e.target.checked)}
               style={{ display: 'none' }}
-              disabled={autonomySource === 'env'}
+              disabled={!settingsAvailable || autonomySource === 'env'}
             />
-            <span style={{ fontSize: '12px', color: autonomy ? '#e9d8fd' : 'var(--muted-foreground)' }}>
-              {autonomy ? 'ENABLED (YELLOW allowed)' : 'DISABLED (GREEN only)'}
+            <span style={{ fontSize: '12px', color: settingsAvailable && autonomy ? '#e9d8fd' : 'var(--muted-foreground)' }}>
+              {!settingsAvailable ? 'UNAVAILABLE (current state not read)' : autonomy ? 'ENABLED (YELLOW allowed)' : 'DISABLED (GREEN only)'}
             </span>
           </label>
         </div>
@@ -201,7 +220,7 @@ export default function SettingsPanel({ onClose }) {
           </button>
           
           <button 
-            disabled={busy}
+            disabled={busy || !settingsAvailable}
             style={{
               background: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid var(--border)',

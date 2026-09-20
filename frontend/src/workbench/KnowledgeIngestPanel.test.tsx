@@ -25,21 +25,41 @@ describe('KnowledgeIngestPanel', () => {
       ok: true,
       json: async () => ({
         sources: [
-          { id: '123', type: 'url', url: 'https://example.com', chunks: 5 },
+          {
+            id: 123,
+            filename: 'runbook.md',
+            mime_type: 'text/markdown',
+            chunk_count: 5,
+            created_at: '2026-09-20T10:00:00Z',
+          },
         ],
       }),
     });
 
     render(<KnowledgeIngestPanel />);
-    
+
     await waitFor(() => {
-      expect(screen.getByText(/example\.com/)).toBeInTheDocument();
+      expect(screen.getByText('runbook.md')).toBeInTheDocument();
     });
-    
+
     expect(screen.getByText('5 chunks')).toBeInTheDocument();
   });
 
-  it('submits a new URL source', async () => {
+  it('does not turn a malformed source envelope into an empty knowledge base', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    render(<KnowledgeIngestPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Knowledge sources unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No knowledge sources ingested yet.')).not.toBeInTheDocument();
+  });
+
+  it('submits raw text as the multipart file the backend accepts', async () => {
     // Initial load
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -52,38 +72,38 @@ describe('KnowledgeIngestPanel', () => {
       expect(screen.getByText('No knowledge sources ingested yet.')).toBeInTheDocument();
     });
 
-    // Setup for post
+    fireEvent.click(screen.getByText('Raw Text'));
+    const textArea = screen.getByPlaceholderText('Paste raw documentation or facts...');
+    fireEvent.change(textArea, { target: { value: 'This is a test fact.' } });
+
+    // Setup for multipart post
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ message: 'Ingested' }),
+      json: async () => ({ source_id: 8, filename: 'operator-notes.txt', chunks: 1, duplicate: false }),
     });
 
     // Setup for reload after post
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        sources: [{ id: '999', type: 'url', url: 'https://test.com', chunks: 10 }]
+        sources: [{ id: 999, filename: 'operator-notes.txt', mime_type: 'text/plain', chunk_count: 1, created_at: '2026-09-20T10:00:00Z' }]
       }),
     });
-
-    const input = screen.getByPlaceholderText('https://docs.example.com');
-    fireEvent.change(input, { target: { value: 'https://test.com' } });
-    
     const submitBtn = screen.getByText('Ingest Data');
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/knowledge/ingest'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ url: 'https://test.com' })
-        })
-      );
+      const ingestCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/v1/knowledge/ingest'));
+      expect(ingestCall).toBeTruthy();
+      const [, options] = ingestCall;
+      expect(options.method).toBe('POST');
+      expect(options.body).toBeInstanceOf(FormData);
+      expect(options.body.get('file').name).toBe('operator-notes.txt');
+      expect(options.body.get('file').type).toBe('text/plain');
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/test\.com/)).toBeInTheDocument();
+      expect(screen.getByText('operator-notes.txt')).toBeInTheDocument();
     });
   });
 
@@ -101,28 +121,7 @@ describe('KnowledgeIngestPanel', () => {
     const textArea = screen.getByPlaceholderText('Paste raw documentation or facts...');
     expect(textArea).toBeInTheDocument();
 
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'Ingested' }),
-    });
-    
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ sources: [] }), // dummy reload
-    });
-
-    fireEvent.change(textArea, { target: { value: 'This is a test fact.' } });
-    fireEvent.click(screen.getByText('Ingest Data'));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/knowledge/ingest'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ text: 'This is a test fact.' })
-        })
-      );
-    });
+    expect(textArea).toBeInTheDocument();
   });
 
   it('handles search queries', async () => {
@@ -135,13 +134,27 @@ describe('KnowledgeIngestPanel', () => {
     
     const searchInput = screen.getByPlaceholderText('Query the knowledge base...');
     fireEvent.change(searchInput, { target: { value: 'test query' } });
-    
+
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        results: [
-          { score: 0.95, text: 'Test match content', source_id: 'src_123' }
-        ]
+        entity: 'test query',
+        edges: [
+          {
+            subject: 'test query',
+            predicate: 'supports',
+            object: 'Test match content',
+            depth: 1,
+            confidence: 0.95,
+            path_confidence: 0.9,
+          },
+        ],
+        inference: {
+          answer: 'Test match content',
+          confidence: 0.95,
+          chain_length: 1,
+          reached_horizon: false,
+        },
       }),
     });
 
@@ -151,5 +164,32 @@ describe('KnowledgeIngestPanel', () => {
       expect(screen.getByText('Score: 95%')).toBeInTheDocument();
       expect(screen.getByText('Test match content')).toBeInTheDocument();
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/knowledge/query?entity=test%20query'),
+      expect.anything(),
+    );
+  });
+
+  it('does not turn a malformed graph response into no matching context', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ sources: [] }),
+    });
+
+    render(<KnowledgeIngestPanel />);
+    const searchInput = screen.getByPlaceholderText('Query the knowledge base...');
+    fireEvent.change(searchInput, { target: { value: 'broken graph' } });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    fireEvent.click(screen.getByText('Search'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Knowledge graph unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No matching context found.')).not.toBeInTheDocument();
   });
 });

@@ -22,6 +22,11 @@ describe('Phase 2 organ 49 ApprovalDecisionSurfaceAuthority reachability', () =>
   beforeEach(() => {
     globalThis.fetch = vi.fn((url) => {
       const path = String(url);
+      if (path.includes('/memory/facts/pending')) {
+        return jsonOk({ proposals: [
+          { id: 'fact-1', subject: 's', predicate: 'p', object: 'o' },
+        ] });
+      }
       if (path.includes('/curriculum/proposals')) {
         return jsonOk({ proposals: [{ fingerprint: 'skill-1' }] });
       }

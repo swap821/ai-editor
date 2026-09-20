@@ -33,12 +33,24 @@ function Metric({ label, value, status = 'measured' }) {
   );
 }
 
+function observationStatus(mirror, field) {
+  return mirror.observations?.[field]?.status ?? (mirror.status === 'offline' ? 'unavailable' : 'stale');
+}
+
+function observedCount(mirror, field, values) {
+  return observationStatus(mirror, field) === 'unavailable' ? null : values.length;
+}
+
 function LivingMind({ mirror }) {
   const bootFacts = mirror.bootFacts || {};
   const state = mirror.status === 'stale' ? 'stale' : mirror.status;
+  const missionObservation = observationStatus(mirror, 'activeMissions');
+  const workerObservation = observationStatus(mirror, 'activeWorkers');
+  const approvalObservation = observationStatus(mirror, 'approvalRequired');
   const modelsEngaged = mirror.activeModels.length > 0
     ? mirror.activeModels.length
     : bootFacts.models_engaged ?? null;
+  const approval = approvalObservation === 'unavailable' ? null : mirror.approvalRequired ? 'required' : 'none reported';
   return (
     <section className="gagos-space__home" aria-label="Living Mind">
       <div className="gagos-space__eyebrow">Home · measured self-portrait</div>
@@ -49,10 +61,10 @@ function LivingMind({ mirror }) {
       <div className="gagos-space__metrics">
         <Metric label="Control plane" value={state} status={state === 'online' ? 'measured' : state === 'stale' ? 'stale' : 'unavailable'} />
         <Metric label="Directive phase" value={mirror.phase} />
-        <Metric label="Active missions" value={mirror.activeMissions.length} />
-        <Metric label="Active workers" value={mirror.activeWorkers.length} />
+        <Metric label="Active missions" value={observedCount(mirror, 'activeMissions', mirror.activeMissions)} status={missionObservation} />
+        <Metric label="Active workers" value={observedCount(mirror, 'activeWorkers', mirror.activeWorkers)} status={workerObservation} />
         <Metric label="Models participating" value={modelsEngaged} />
-        <Metric label="Approval" value={mirror.approvalRequired ? 'required' : 'none reported'} status={mirror.approvalRequired ? 'measured' : 'measured'} />
+        <Metric label="Approval" value={approval} status={approvalObservation} />
       </div>
       <div className={`gagos-space__portrait gagos-space__portrait--${state}`}>
         <span className="gagos-space__pulse" aria-hidden="true" />
@@ -121,7 +133,7 @@ function History({ mirror }) {
         <ol className="gagos-space__timeline">
           {events.map((event) => (
             <li key={`${event.id}-${event.type}`}>
-              <time dateTime={event.occurredAt}>{new Date(event.occurredAt).toLocaleTimeString()}</time>
+              <time dateTime={event.occurredAt ?? undefined}>{event.occurredAt ? new Date(event.occurredAt).toLocaleTimeString() : 'Observation time unavailable'}</time>
               <div><strong>{event.type}</strong><span>{event.summary}</span></div>
               {event.missionId ? <small>mission · {event.missionId}</small> : null}
               {event.workerId ? <small>worker · {event.workerId}</small> : null}

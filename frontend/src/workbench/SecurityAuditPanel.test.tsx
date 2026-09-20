@@ -40,6 +40,39 @@ describe('SecurityAuditPanel', () => {
     });
   });
 
+  it('does not turn a malformed audit envelope into an empty ledger', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ chainValid: true }),
+    });
+
+    render(<SecurityAuditPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Security audit unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No audit events found.')).not.toBeInTheDocument();
+  });
+
+  it('keeps unknown chain and timestamp evidence visibly unavailable', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        entries: [
+          { entryId: 1, actor: 'operator', zone: 'GREEN', timestamp: 'not-a-date', payload: 'Observed event' },
+        ],
+      }),
+    });
+
+    render(<SecurityAuditPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hash chain: unavailable/)).toBeInTheDocument();
+      expect(screen.getByText('Observation time unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument();
+  });
+
   it('handles sandbox clear by POSTing an explicit confirm flag', async () => {
     window.confirm = vi.fn(() => true);
     window.alert = vi.fn();

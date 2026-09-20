@@ -70,4 +70,18 @@ describe('EcosystemDashboard', () => {
       expect(screen.getByText(/Meta-loop: ok · 2 proposal\(s\) \| Council memory: 4 deliberation\(s\)/i)).toBeInTheDocument();
     });
   });
+
+  it('does not turn missing scan metrics into confirmed zeroes', async () => {
+    globalThis.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ecosystem: { available: true, lastScan: { findingCount: 3 } } }),
+    });
+
+    render(<EcosystemDashboard onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/3 finding\(s\) · network calls unavailable/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/3 finding\(s\) · 0 network calls/i)).not.toBeInTheDocument();
+  });
 });

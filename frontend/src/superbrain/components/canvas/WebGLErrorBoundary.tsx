@@ -1,15 +1,39 @@
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { FallbackScene } from './FallbackScene';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  onRetry?: () => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+export function WebGLFallback({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="webgl-fallback" role="alert" aria-live="assertive">
+      <FallbackScene posture="idle" />
+      <div className="webgl-fallback__panel">
+        <p className="webgl-fallback__eyebrow">3D presence</p>
+        <h2>GAGOS is still here</h2>
+        <p>
+          The 3D presence is unavailable right now. Conversation and workspaces remain available.
+        </p>
+        {onRetry ? (
+          <button type="button" onClick={() => { onRetry(); }}>
+            Retry 3D presence
+          </button>
+        ) : (
+          <p className="webgl-fallback__note">Restore graphics support to bring the 3D presence back.</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export class WebGLErrorBoundary extends Component<Props, State> {
@@ -31,28 +55,11 @@ export class WebGLErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback;
       }
-      
-      return (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#010307] text-slate-200 z-[9000]">
-          <div className="flex flex-col items-center max-w-md p-8 border border-red-500/20 bg-black/50 backdrop-blur-md rounded-lg">
-            <h2 className="text-xl font-bold tracking-wider mb-2 text-red-400 uppercase">GPU Acceleration Failed</h2>
-            <p className="text-sm text-slate-400 text-center font-mono">
-              The 3D environment encountered a fatal rendering error.
-            </p>
-            {this.state.error && (
-              <p className="text-xs text-slate-500 font-mono mt-4 p-2 bg-black/40 rounded border border-slate-800 break-all">
-                {this.state.error.message}
-              </p>
-            )}
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="mt-6 px-6 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded font-mono text-sm transition-colors uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500/50"
-            >
-              Attempt Restart
-            </button>
-          </div>
-        </div>
-      );
+
+      return <WebGLFallback onRetry={() => {
+        this.setState({ hasError: false, error: null });
+        this.props.onRetry?.();
+      }} />;
     }
 
     return this.props.children;

@@ -20,5 +20,7 @@ describe('CouncilDeliberationPanel', () => {
     render(<CouncilDeliberationPanel onClose={vi.fn()} />);
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
     expect(screen.getByText(/Active Swarm State/i)).toBeInTheDocument();
+    expect(screen.getByText('Unavailable until a swarm snapshot arrives')).toBeInTheDocument();
+    expect(screen.getByText('No swarm observation yet')).toBeInTheDocument();
   });
 });

@@ -28,7 +28,7 @@ function approvalTab(seatIndex: number): MaterializedTabRecord {
     kind: 'approval',
     content: null,
     approval: {
-      token: 'approval-token',
+      requestRef: 'approval-token',
       summary: 'Approval required',
       explanation: '',
       diff: '+demo',

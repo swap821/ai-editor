@@ -9,6 +9,9 @@
 import { publishCognition } from './cognitionBus';
 import { humanizeRedactionMarkers } from './aiosAdapter';
 import { useMirrorStore } from './mirrorStore';
+import { isRecord } from '../../livingMirror/contracts';
+import { redactProjection } from '../../livingMirror/redaction';
+import { canonicalPayload } from '../../livingMirror/eventPayload';
 import {
   endSwarmCaste,
   markSwarmCloudSubtask,
@@ -21,6 +24,8 @@ export interface MirrorEventEnvelope {
   eventType: string;
   canonical: Record<string, unknown>;
   payload: Record<string, unknown>;
+  /** Historical or ambiguous replay restores records without reenacting work. */
+  replay?: boolean;
 }
 
 type ReactionSpec = {
@@ -341,7 +346,7 @@ const core: Record<string, ReactionSpec> = {
       const output = humanizeRedactionMarkers(rawOutput);
       if (kind === 'tool_call') publish({ type: 'agent-dispatch', label: tool.toUpperCase(), detail: `tool engaged: ${tool}`, intensity: 0.8, source: 'mirror' });
       else if (kind === 'tool_blocked') publish({ type: 'agent-dispatch', label: `${tool.toUpperCase()} BLOCKED`, detail: humanizeRedactionMarkers(text(payload, 'reason')).slice(0, 140), intensity: 0.4, source: 'mirror' });
-      else if (kind === 'tool_result' && (rawOutput.startsWith('[VERIFY PASS]') || rawOutput.startsWith('[VERIFY FAIL]'))) publish({ type: 'knowledge-acquired', label: rawOutput.startsWith('[VERIFY PASS]') ? 'VERIFICATION GREEN' : 'VERIFICATION RED', detail: output.slice(0, 140), intensity: 1, source: 'mirror' });
+      else if (kind === 'tool_result' && (rawOutput.startsWith('[VERIFY PASS]') || rawOutput.startsWith('[VERIFY FAIL]'))) publish({ type: 'knowledge-acquired', label: 'WORKER-REPORTED CHECK', detail: output.slice(0, 140), intensity: 0.4, source: 'mirror' });
       else if (kind === 'tool_result' && (tool === 'swarm' || tool === 'role_pass')) publish({ type: 'agent-dispatch', label: tool === 'swarm' ? 'SWARM' : 'ROLE-PASS', detail: text(payload, 'role').replace(/-/g, ' ').toUpperCase() || output.slice(0, 80), intensity: 0.5, source: 'mirror' });
       else if (kind === 'tool_result') publish({ type: 'knowledge-acquired', label: tool.toUpperCase() || 'SIGNAL', detail: output.slice(0, 140), intensity: 0.6, source: 'mirror' });
     },
@@ -375,16 +380,23 @@ export class LivingMirrorAuthority {
   }
 
   dispatch(event: MirrorEventEnvelope): boolean {
+    const current = useMirrorStore.getState();
+    if (!Number.isSafeInteger(event.id) || event.id < 0 || !isRecord(event.canonical) || !isRecord(event.payload)) return false;
+    // Admission is before state, accessibility and animation. Filtered streams need not be consecutive.
+    if (current.lastEventId !== null && event.id <= current.lastEventId) return true;
+    try { event = { ...event, payload: canonicalPayload(event.canonical, event.payload) }; }
+    catch { useMirrorStore.setState({ compatibility: 'Conflicting event identity; reconciliation required.' }); return false; }
     const spec = core[event.eventType];
     if (!spec) {
       // Unknown events are observations from a future/backend extension. They
       // never become frontend authority or animation.
-      console.debug(`[living-mirror] ignored unknown event: ${event.eventType}`);
+      useMirrorStore.setState({ compatibility: `Unsupported event: ${event.eventType}` });
       return false;
     }
 
     const schemaVersion = event.canonical.schemaVersion ?? event.canonical.schema_version;
     if (schemaVersion !== undefined && schemaVersion !== '1' && schemaVersion !== '1.0') {
+      useMirrorStore.setState({ compatibility: `Unsupported event schema: ${String(schemaVersion)}` });
       useMirrorStore.getState().setAnnouncement(`Unsupported event schema: ${String(schemaVersion)}`);
       return true;
     }
@@ -392,8 +404,14 @@ export class LivingMirrorAuthority {
       useMirrorStore.getState().setAnnouncement('Incomplete backend event ignored.');
       return true;
     }
-    useMirrorStore.getState().applyEvent(event.id, event.eventType, event.canonical);
+    event = { ...event, payload: redactProjection(event.payload) as Record<string, unknown> };
+    event.canonical = { ...event.canonical, payload: event.payload };
+    if (!useMirrorStore.getState().applyEvent(event.id, event.eventType, event.canonical)) return true;
+    if (event.replay) return true;
     if (spec.announcement) useMirrorStore.getState().setAnnouncement(spec.announcement(event.payload));
+    // A completed turn/mission cannot make a concurrent mission's body appear idle.
+    if (['turn.completed', 'mission.completed'].includes(event.eventType)
+      && useMirrorStore.getState().activeMissions.length > 0) return true;
     try {
       spec.react?.(event);
     } catch {

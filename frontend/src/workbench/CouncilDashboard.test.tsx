@@ -59,8 +59,10 @@ describe('CouncilDashboard', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    let approved = false;
     fetchMock = vi.fn((url: string, options?: RequestInit) => {
       if (options?.method === 'POST' && url.includes('/api/v1/council/approve')) {
+        approved = true;
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({
@@ -83,10 +85,23 @@ describe('CouncilDashboard', () => {
         });
       }
       if (url.includes('/api/v1/council/missions/mission-ui-1')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(detailPayload) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(approved ? {
+            ...detailPayload,
+            pendingApprovals: [],
+            kingDecision: { approved: true, decision: 'approve' },
+          } : detailPayload),
+        });
       }
       if (url.includes('/api/v1/council/missions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(missionsPayload) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(approved ? {
+            ...missionsPayload,
+            missions: [{ ...missionsPayload.missions[0], pendingApprovals: [], kingDecision: { approved: true } }],
+          } : missionsPayload),
+        });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
     });
@@ -198,6 +213,7 @@ describe('CouncilDashboard', () => {
       },
       summary: rollbackMission,
     };
+    let restored = false;
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fetchMock.mockImplementation((url: string, options?: RequestInit) => {
       if (options?.method === 'POST' && url.includes('/api/v1/council/missions/mission-ui-1/rollback')) {
@@ -208,11 +224,13 @@ describe('CouncilDashboard', () => {
             json: () => Promise.resolve({
               requiresApproval: true,
               approvalToken: 'rollback-token',
+              actionType: 'rollback',
               snapshotId: rollbackId,
               executed: false,
             }),
           });
         }
+        restored = true;
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({
@@ -231,10 +249,23 @@ describe('CouncilDashboard', () => {
         });
       }
       if (url.includes('/api/v1/council/missions/mission-ui-1')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(rollbackDetail) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(restored ? {
+            ...rollbackDetail,
+            report: { ...rollbackDetail.report, status: 'rolled_back', rollback_available: false },
+            summary: { ...rollbackMission, status: 'rolled_back', rollbackAvailable: false },
+          } : rollbackDetail),
+        });
       }
       if (url.includes('/api/v1/council/missions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ missions: [rollbackMission], count: 1 }) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            missions: [restored ? { ...rollbackMission, status: 'rolled_back', rollbackAvailable: false } : rollbackMission],
+            count: 1,
+          }),
+        });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
     });
@@ -242,6 +273,7 @@ describe('CouncilDashboard', () => {
     render(<CouncilDashboard />);
 
     const rollback = await screen.findByRole('button', { name: 'Rollback Council mission' });
+    await waitFor(() => expect(rollback).not.toBeDisabled());
     fireEvent.click(rollback);
 
     await waitFor(() => {
@@ -320,5 +352,57 @@ describe('CouncilDashboard', () => {
     // onChange must update only its own state.
     expect(filesField.value).toBe('training_ground/test_calculator.py');
     expect(goalField.value).toBe('add a docstring to a training_ground helper function');
+  });
+
+  it('does not turn a malformed mission envelope into an empty council ledger', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/api/v1/council/missions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+
+    render(<CouncilDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Council missions unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No Council missions recorded')).not.toBeInTheDocument();
+  });
+
+  it('keeps missing mission evidence unknown instead of treating it as empty or local', async () => {
+    const sparseMission = {
+      missionId: 'mission-sparse',
+      mission: 'Sparse mission record',
+      status: 'completed',
+      risk: 'YELLOW',
+    };
+    const sparseDetail = {
+      missionId: 'mission-sparse',
+      report: { mission: 'Sparse mission record', status: 'completed', risk: 'YELLOW' },
+      ledger: {},
+      pendingApprovals: [],
+      kingDecision: null,
+    };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/api/v1/council/missions/mission-sparse')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(sparseDetail) });
+      }
+      if (url.includes('/api/v1/council/missions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ missions: [sparseMission], count: 1 }) });
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    });
+
+    render(<CouncilDashboard />);
+
+    expect((await screen.findAllByText('Sparse mission record')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Approval').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Recovery').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Verdicts unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Files unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Blocks').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Verify').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Model route unavailable')).toBeInTheDocument();
   });
 });

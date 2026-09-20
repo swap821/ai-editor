@@ -23,6 +23,34 @@ async function postJson(path, body = {}) {
   return response.json();
 }
 
+class InvalidDebuggerPayload extends Error {}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseDebuggerPayload(payload) {
+  if (!isRecord(payload)) throw new InvalidDebuggerPayload('debugger state must be an object');
+  if (
+    !Array.isArray(payload.missions) ||
+    !Number.isInteger(payload.count) ||
+    payload.count < 0 ||
+    payload.count < payload.missions.length ||
+    typeof payload.steppable !== 'boolean' ||
+    typeof payload.note !== 'string' ||
+    !payload.missions.every(
+      (mission) =>
+        isRecord(mission) &&
+        typeof mission.missionId === 'string' &&
+        mission.missionId.length > 0 &&
+        typeof mission.status === 'string'
+    )
+  ) {
+    throw new InvalidDebuggerPayload('debugger state is incomplete');
+  }
+  return payload;
+}
+
 export default function ExecutionDebuggerPanel() {
   const [debuggerState, setDebuggerState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,9 +66,11 @@ export default function ExecutionDebuggerPanel() {
       // Real Council mission state (aios/api/routes/execution_debugger.py),
       // reusing the same source as the mission dashboard.
       const data = await fetchJson('/api/v1/execution/debugger/state', signal);
-      setDebuggerState(data);
+      setDebuggerState(parseDebuggerPayload(data));
     } catch (err) {
-      if (err?.name !== 'AbortError') setError('Debugger offline');
+      if (err?.name !== 'AbortError') {
+        setError(err instanceof InvalidDebuggerPayload ? 'Debugger state unavailable' : 'Debugger offline');
+      }
     } finally {
       setLoading(false);
     }
@@ -58,6 +88,12 @@ export default function ExecutionDebuggerPanel() {
   // control). These buttons stay disabled and explain why, rather than
   // pretend an action succeeded.
   const steppable = debuggerState?.steppable === true;
+  const stepResumeMessage = !debuggerState
+    ? 'Controls unavailable until verified debugger state arrives.'
+    : steppable
+      ? 'Control execution of a paused mission.'
+      : (debuggerState.note ||
+         'Council missions run atomically to completion; there is no interruptible step-machine to pause/resume.');
   const handleAction = async (action, missionId) => {
     if (!missionId) return;
     setBusyAction(`${action}-${missionId}`);
@@ -85,7 +121,7 @@ export default function ExecutionDebuggerPanel() {
           ) : error ? (
             <p className="council-dashboard__error">{error}</p>
           ) : !debuggerState ? (
-            <p className="council-dashboard__muted">No state available.</p>
+            <p className="council-dashboard__error">{error || 'Debugger state unavailable'}</p>
           ) : (
             <div className="council-dashboard__verdicts" style={{ marginTop: '12px' }}>
               <pre style={{ margin: 0, fontSize: '10px', overflowX: 'auto' }}>
@@ -100,10 +136,7 @@ export default function ExecutionDebuggerPanel() {
             <StepForward size={14} aria-hidden="true" /> Step / Resume
           </h3>
           <p className="council-dashboard__muted" style={{ marginBottom: '8px' }}>
-            {steppable
-              ? 'Control execution of a paused mission.'
-              : (debuggerState?.note ||
-                 'Council missions run atomically to completion; there is no interruptible step-machine to pause/resume.')}
+            {stepResumeMessage}
           </p>
           <div className="council-dashboard__originate">
             <input

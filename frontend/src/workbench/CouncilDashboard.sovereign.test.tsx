@@ -339,6 +339,24 @@ describe('CouncilDashboard sovereignty views', () => {
     );
   });
 
+  it('does not turn a malformed self-analysis envelope into no proposed findings', async () => {
+    const currentFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes('/self-analysis/proposals')) {
+        return { ok: true, status: 200, json: async () => ({}) } as unknown as Response;
+      }
+      return currentFetch(url, init);
+    }));
+
+    render(<CouncilDashboard />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Self-Analysis' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Self-Analysis unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No proposed findings')).not.toBeInTheDocument();
+  });
+
   it('renders sovereign sections and revokes an earned signature', async () => {
     render(<CouncilDashboard />);
     fireEvent.click(screen.getByRole('tab', { name: 'Sovereign State' }));

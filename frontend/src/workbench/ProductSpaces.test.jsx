@@ -76,6 +76,14 @@ describe('ProductSpaces', () => {
     expect(screen.getByText('Control plane unavailable')).toBeInTheDocument();
   });
 
+  it('does not turn unobserved live counts into confirmed zeroes', () => {
+    render(<ProductSpaces />);
+
+    expect(screen.getByText('Active missions').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Active workers').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
+  });
+
   it('keeps work surfaces closed until the operator opens them', () => {
     render(<ProductSpaces />);
     fireEvent.click(screen.getByRole('button', { name: /Workbench/ }));
@@ -102,5 +110,14 @@ describe('ProductSpaces', () => {
 
     expect(screen.getByRole('heading', { name: 'History' })).toBeInTheDocument();
     expect(screen.getByText('No operational events have been reported.')).toBeInTheDocument();
+  });
+
+  it('keeps missing event observation time unknown', () => {
+    mirror.current.recentEvents = [{ id: 1, type: 'worker.started', summary: 'Started', occurredAt: null, receivedAt: '2026-09-20T00:00:00.000Z' }];
+    render(<ProductSpaces />);
+    fireEvent.click(screen.getByRole('button', { name: /History/ }));
+
+    expect(screen.getByText('Observation time unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/12:00:00 AM/)).not.toBeInTheDocument();
   });
 });

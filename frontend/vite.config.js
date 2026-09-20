@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -24,6 +25,15 @@ export default defineConfig(({ mode }) => {
   } catch {
     // Keep the default local backend origin.
   }
+
+  // The isolated frontend worktree may use a junction to the shared dependency
+  // install. Vite checks the resolved request path, so permit that exact
+  // dependency directory for local previews without broadening the source
+  // root or changing production output.
+  const frontendNodeModules = path.resolve(__dirname, 'node_modules')
+  const resolvedFrontendNodeModules = fs.existsSync(frontendNodeModules)
+    ? fs.realpathSync(frontendNodeModules)
+    : frontendNodeModules
 
   // ── Content-Security-Policy (C18), MODE-AWARE ─────────────────────────────
   // The dev server MUST allow script 'unsafe-inline' — @vitejs/plugin-react
@@ -89,6 +99,11 @@ export default defineConfig(({ mode }) => {
       // embedding secrets in the frontend bundle exposes them to anyone who
       // views the source.
     },
+    server: {
+      fs: {
+        allow: [path.resolve(__dirname, '..'), frontendNodeModules, resolvedFrontendNodeModules],
+      },
+    },
     // ── W5-2 CODE-SPLIT ───────────────────────────────────────────────────────
     // The prod build used to emit one ~1.3 MB chunk (over Vite's 500 KB warning).
     // Split the heaviest, independently-cacheable libraries into their own vendor
@@ -136,6 +151,9 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./src/test/setup.js'],
       css: false,
+      // The port synchronizer owns its Node test runner. Keep it out of the
+      // browser suite so `npm test` reports only Vitest-managed tests.
+      exclude: ['**/node_modules/**', 'tools/**/*.test.mjs'],
       // Coverage honesty (operator-ordered 2026-07-02): the frontend had NO
       // coverage measurement at all — 411 green tests and no number. Scope:
       // everything under src/ is MEASURED so the truth is visible; floors are

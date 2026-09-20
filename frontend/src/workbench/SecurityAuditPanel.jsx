@@ -23,8 +23,31 @@ async function postJson(path, body = {}) {
   return response.json();
 }
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
+function invalidResponse(message) {
+  const error = new Error(message);
+  error.code = 'INVALID_RESPONSE';
+  return error;
+}
+
+function parseAuditPayload(data) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.entries)) {
+    throw invalidResponse('Security audit response did not contain an entries array');
+  }
+  if (data.entries.some((entry) => !entry || typeof entry !== 'object')) {
+    throw invalidResponse('Security audit response contained an invalid entry');
+  }
+  return {
+    entries: data.entries,
+    chainValid: typeof data.chainValid === 'boolean' ? data.chainValid : null,
+  };
+}
+
+function formatAuditTimestamp(value) {
+  if (typeof value !== 'string' || !value.trim()) return 'Observation time unavailable';
+  const timestamp = new Date(value);
+  return Number.isFinite(timestamp.getTime())
+    ? timestamp.toLocaleString()
+    : 'Observation time unavailable';
 }
 
 export default function SecurityAuditPanel() {
@@ -40,11 +63,13 @@ export default function SecurityAuditPanel() {
     setError('');
     try {
       // Real Ed25519-signed hash-chained ledger (aios/security/audit_logger.py).
-      const data = await fetchJson('/api/v1/security/audit', signal);
-      setAuditLog(asArray(data.entries));
+      const data = parseAuditPayload(await fetchJson('/api/v1/security/audit', signal));
+      setAuditLog(data.entries);
       setChainValid(data.chainValid);
     } catch (err) {
-      if (err?.name !== 'AbortError') setError('Security audit offline');
+      if (err?.name !== 'AbortError') {
+        setError(err?.code === 'INVALID_RESPONSE' ? 'Security audit unavailable' : 'Security audit offline');
+      }
     } finally {
       setLoading(false);
     }
@@ -105,9 +130,9 @@ export default function SecurityAuditPanel() {
           <h3>
             <Shield size={14} aria-hidden="true" /> Audit Log
           </h3>
-          {chainValid !== null && (
-            <p className={chainValid ? 'council-dashboard__badge is-ok' : 'council-dashboard__error'} style={{ display: 'inline-block', marginBottom: '8px' }}>
-              Hash chain: {chainValid ? 'valid' : 'BROKEN'}
+          {!loading && !error && (
+            <p className={chainValid === null ? 'council-dashboard__badge is-warn' : chainValid ? 'council-dashboard__badge is-ok' : 'council-dashboard__error'} style={{ display: 'inline-block', marginBottom: '8px' }}>
+              Hash chain: {chainValid === null ? 'unavailable' : chainValid ? 'valid' : 'BROKEN'}
             </p>
           )}
           {loading ? (
@@ -117,12 +142,12 @@ export default function SecurityAuditPanel() {
           ) : auditLog.length === 0 ? (
             <p className="council-dashboard__muted">No audit events found.</p>
           ) : (
-            auditLog.map((entry) => (
-              <div key={entry.entryId} className="council-dashboard__route" style={{ display: 'block', padding: '8px' }}>
+            auditLog.map((entry, index) => (
+              <div key={entry.entryId ?? `audit-entry-${index}`} className="council-dashboard__route" style={{ display: 'block', padding: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <strong>{entry.actor} — {entry.zone}</strong>
                   <span className="council-dashboard__muted" style={{ fontSize: '10px' }}>
-                    {new Date(entry.timestamp).toLocaleString()}
+                    {formatAuditTimestamp(entry.timestamp)}
                   </span>
                 </div>
                 <div className="council-dashboard__muted" style={{ fontSize: '11px' }}>

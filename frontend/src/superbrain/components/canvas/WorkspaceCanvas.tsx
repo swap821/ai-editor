@@ -5,8 +5,7 @@ import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } fr
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
-import { WebGLErrorBoundary } from './WebGLErrorBoundary';
-import { FallbackScene } from './FallbackScene';
+import { WebGLErrorBoundary, WebGLFallback } from './WebGLErrorBoundary';
 import CortexEngine from '../../core/CortexEngine';
 import { type BrainSurface, type SkyMode } from './SuperbrainScene.LEGACY';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
@@ -179,56 +178,56 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
   if (!webglAvailable) {
     return (
       <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
-        <div className="scene-layer" aria-hidden="true">
-          <FallbackScene posture="idle" />
-        </div>
-        {children}
+        {/* R3F children use Canvas hooks and must not be mounted outside a
+            renderer. The accessible fallback owns the 2D presence instead. */}
+        <WebGLFallback />
       </div>
     );
   }
 
   return (
       <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
-        <div className="scene-layer" aria-hidden="true">
-        <WebGLErrorBoundary>
-          <Canvas
-            key={glEpoch}
-            tabIndex={-1}
-            camera={{ position: [0, 0.25, 8.5], fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far }}
-            dpr={TIER_DPR[perfTier]}
-            onCreated={handleCreated}
-            gl={{
-              // The composer owns AA (4x MSAA on its input buffer at high
-              // tier — PostFX.tsx): the canvas backbuffer only ever shows
-              // the final fullscreen quad, so its own MSAA bought nothing.
-              antialias: false,
-              alpha: false,
-              powerPreference: 'high-performance',
-              // EffectComposer forces renderer.toneMapping = NoToneMapping, so
-              // tone mapping happens in PostFX (AgX effect). The prop below is
-              // inert while the composer is mounted; toneMappingExposure IS
-              // consumed by AgX (three uploads it to every program).
-              toneMapping: THREE.ACESFilmicToneMapping,
-              toneMappingExposure: POST_FX.toneMappingExposure,
-            }}
-          >
-            {/* operator call (2026-06-23): pure-black void — was the blue-black
-                #010307; the brain's own bloom/aura is additive WebGL light and
-                is unaffected, only the empty space goes true black. */}
-            <color attach="background" args={['#000000']} />
-            <fog attach="fog" args={['#000000', 50, 150]} />
-            <TierGovernor />
-            <Suspense fallback={null}>
-              <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
-              <ReadySignal />
-              {/* Product-side forge ports (editor/preview) mount here, INSIDE the
-                  one canvas, so the canon nerves plug into them. Renders nothing
-                  when no children are passed (home/?ui=superbrain unchanged). */}
-              {children}
-            </Suspense>
-          </Canvas>
+        <WebGLErrorBoundary onRetry={() => setGlEpoch((epoch) => epoch + 1)}>
+          <div className="scene-layer" aria-hidden="true">
+            <Canvas
+              key={glEpoch}
+              tabIndex={-1}
+              aria-hidden="true"
+              camera={{ position: [0, 0.25, 8.5], fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far }}
+              dpr={TIER_DPR[perfTier]}
+              onCreated={handleCreated}
+              gl={{
+                // The composer owns AA (4x MSAA on its input buffer at high
+                // tier — PostFX.tsx): the canvas backbuffer only ever shows
+                // the final fullscreen quad, so its own MSAA bought nothing.
+                antialias: false,
+                alpha: false,
+                powerPreference: 'high-performance',
+                // EffectComposer forces renderer.toneMapping = NoToneMapping, so
+                // tone mapping happens in PostFX (AgX effect). The prop below is
+                // inert while the composer is mounted; toneMappingExposure IS
+                // consumed by AgX (three uploads it to every program).
+                toneMapping: THREE.ACESFilmicToneMapping,
+                toneMappingExposure: POST_FX.toneMappingExposure,
+              }}
+            >
+              {/* operator call (2026-06-23): pure-black void — was the blue-black
+                  #010307; the brain's own bloom/aura is additive WebGL light and
+                  is unaffected, only the empty space goes true black. */}
+              <color attach="background" args={['#000000']} />
+              <fog attach="fog" args={['#000000', 50, 150]} />
+              <TierGovernor />
+              <Suspense fallback={null}>
+                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
+                <ReadySignal />
+                {/* Product-side forge ports (editor/preview) mount here, INSIDE the
+                    one canvas, so the canon nerves plug into them. Renders nothing
+                    when no children are passed (home/?ui=superbrain unchanged). */}
+                {children}
+              </Suspense>
+            </Canvas>
+          </div>
         </WebGLErrorBoundary>
-      </div>
       </div>
   );
 }

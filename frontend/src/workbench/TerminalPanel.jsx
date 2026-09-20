@@ -19,16 +19,10 @@ async function runTerminalCommand(command) {
   return response.json();
 }
 
-export default function TerminalPanel() {
-  const [isOpen, setIsOpen] = useState(false);
+export default function TerminalPanel({ embedded = false }) {
+  const [isOpen, setIsOpen] = useState(embedded);
   // Lazy initializer — avoids calling setState synchronously inside an effect
-  const [logs, setLogs] = useState(() => [{
-    id: Date.now(),
-    command: 'gag system start',
-    output: 'GAGOS v10 Terminal Online.',
-    returncode: 0,
-    timestamp: new Date().toISOString()
-  }]);
+  const [logs, setLogs] = useState([]);
   const [commandInput, setCommandInput] = useState('');
   const [running, setRunning] = useState(false);
   const bottomRef = useRef(null);
@@ -70,6 +64,7 @@ export default function TerminalPanel() {
 
   useEffect(() => {
     // Keyboard shortcut to toggle terminal (Ctrl+`)
+    if (embedded) return;
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key === '`') {
         e.preventDefault();
@@ -78,7 +73,7 @@ export default function TerminalPanel() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [embedded]);
 
 
   useEffect(() => {
@@ -98,7 +93,7 @@ export default function TerminalPanel() {
     <AnimatePresence>
       <div 
         style={{
-          position: 'fixed',
+          position: embedded ? 'relative' : 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
@@ -144,7 +139,7 @@ export default function TerminalPanel() {
             exit={{ y: '100%', opacity: 0, transition: { duration: 0.3 } }}
             style={{
               width: '100%',
-              height: '35vh',
+              height: embedded ? '60vh' : '35vh',
               background: 'var(--ag-surface-base)',
               borderTop: 'var(--hairline)',
               backdropFilter: 'var(--ag-blur-lg) var(--ag-saturate)',

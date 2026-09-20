@@ -25,7 +25,7 @@ export interface MaterializedInputSurface {
 }
 
 export interface MaterializedApprovalSurface {
-  token: string;
+  requestRef: string;
   summary: string;
   explanation: string;
   diff: string;
@@ -47,6 +47,20 @@ export interface MaterializedTabRecord {
   approval: MaterializedApprovalSurface | null;
   bornAt: number;
   phaseStartedAt: number;
+  missionId?: string | null;
+  workspaceId?: string | null;
+  artifactId?: string | null;
+  pinned?: boolean;
+}
+
+export interface WorkspacePanel {
+  id: string;
+  title: string;
+  kind: string;
+  seatIndex: number;
+  open: boolean;
+  pinned: boolean;
+  file?: { path: string; name?: string; content: string };
 }
 
 export interface AttentionTransfer {
@@ -60,6 +74,8 @@ export interface TabSnapshot {
   tabs: MaterializedTabRecord[];
   focusId: string | null;
   attention: AttentionTransfer | null;
+  panels?: WorkspacePanel[];
+  selectedMissionId?: string | null;
 }
 
 const SURFACE_DEFAULTS: Record<
@@ -94,7 +110,7 @@ function nextTabId(): string {
 }
 
 function replaceSnapshot(next: TabSnapshot) {
-  snapshot = next;
+  snapshot = { ...snapshot, ...next };
   emit();
 }
 
@@ -146,10 +162,39 @@ export function getMaterializedTabByKind(kind: MaterializedTabKind): Materialize
 }
 
 export function getOccupiedVertebraSeats(): number[] {
-  return snapshot.tabs
+  return [...snapshot.tabs
     .filter((tab) => tab.kind !== 'input' && tab.lifecycle !== 'retracting' && typeof tab.seatIndex === 'number')
-    .map((tab) => tab.seatIndex as number);
+    .map((tab) => tab.seatIndex as number), ...(snapshot.panels ?? []).filter((p) => p.open).map((p) => p.seatIndex)];
 }
+
+/** One attention owner for DOM workspaces and materialized scene surfaces. No backend commands here. */
+export function openWorkspacePanel(id: string, title: string, kind = id, file?: WorkspacePanel['file']): void {
+  const panels = snapshot.panels ?? [];
+  const current = panels.find((panel) => panel.id === id);
+  const occupied = new Set(getOccupiedVertebraSeats());
+  const seatIndex = [2, 3, 1, 4, 5, 0, 6, 7, 8, 9, 10, 11].find((seat) => !occupied.has(seat)) ?? panels.length % 12;
+  const panel: WorkspacePanel = current ? { ...current, open: true } : { id, title, kind, file, seatIndex, open: true, pinned: false };
+  replaceSnapshot({ ...snapshot, panels: current ? panels.map((p) => p.id === id ? panel : p) : [...panels, panel], focusId: id, attention: null });
+}
+
+export function focusWorkspace(id: string | null): void {
+  if (id === null || snapshot.panels?.some((panel) => panel.id === id && panel.open)) {
+    replaceSnapshot({ ...snapshot, focusId: id, attention: null });
+  } else focusMaterializedTab(id);
+}
+
+export function closeWorkspace(id: string): void {
+  if (snapshot.panels?.some((panel) => panel.id === id)) {
+    replaceSnapshot({ ...snapshot, panels: snapshot.panels.map((p) => p.id === id ? { ...p, open: false } : p), focusId: snapshot.focusId === id ? null : snapshot.focusId });
+  } else beginRetractingMaterializedTab(id);
+}
+
+export function pinWorkspace(id: string): void {
+  replaceSnapshot({ ...snapshot, panels: snapshot.panels?.map((p) => p.id === id ? { ...p, pinned: !p.pinned } : p),
+    tabs: snapshot.tabs.map((tab) => tab.id === id ? { ...tab, pinned: !tab.pinned } : tab) });
+}
+
+export function selectMission(id: string | null): void { replaceSnapshot({ ...snapshot, selectedMissionId: id }); }
 
 export function getSeatForPendingApproval(filepath?: string): number | null {
   const approval = snapshot.tabs.find((tab) => {
@@ -267,7 +312,7 @@ export function showContentSurface(
     };
     replaceSnapshot({
       tabs: snapshot.tabs.map((tab) => (tab.id === current.id ? next : tab)),
-      focusId: next.id,
+      focusId: snapshot.focusId ?? next.id,
       attention: null,
     });
     return next;
@@ -275,7 +320,7 @@ export function showContentSurface(
   const tab = buildMaterializedTab('content', { ...options, content });
   replaceSnapshot({
     tabs: [...snapshot.tabs, tab],
-    focusId: tab.id,
+    focusId: snapshot.focusId ?? tab.id,
     attention: null,
   });
   return tab;
@@ -354,7 +399,7 @@ export function showApprovalSurface(
     };
     replaceSnapshot({
       tabs: snapshot.tabs.map((tab) => (tab.id === current.id ? next : tab)),
-      focusId: next.id,
+      focusId: snapshot.focusId ?? next.id,
       attention: null,
     });
     return next;
@@ -362,7 +407,7 @@ export function showApprovalSurface(
   const tab = buildMaterializedTab('approval', { ...options, approval });
   replaceSnapshot({
     tabs: [...snapshot.tabs, tab],
-    focusId: tab.id,
+    focusId: snapshot.focusId ?? tab.id,
     attention: null,
   });
   return tab;

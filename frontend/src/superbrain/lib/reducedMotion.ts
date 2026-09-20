@@ -19,7 +19,21 @@ export function subscribeReducedMotion(
   if (!win || typeof win.matchMedia !== 'function') return () => {};
   const mql = win.matchMedia('(prefers-reduced-motion: reduce)');
   mql.addEventListener('change', onChange);
-  return () => mql.removeEventListener('change', onChange);
+  const addWindowListener = typeof win.addEventListener === 'function';
+  if (addWindowListener) win.addEventListener('gagos:motion-preference', onChange);
+  return () => {
+    mql.removeEventListener('change', onChange);
+    if (addWindowListener && typeof win.removeEventListener === 'function') {
+      win.removeEventListener('gagos:motion-preference', onChange);
+    }
+  };
+}
+
+export function setAmbientMotionPaused(paused: boolean): void {
+  try { window.localStorage.setItem('gagos-pause-motion-v1', String(paused)); } catch { /* preference unavailable */ }
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new Event('gagos:motion-preference'));
+  }
 }
 
 /** Current reduced-motion state (one source of truth: shouldReduceMotion). */

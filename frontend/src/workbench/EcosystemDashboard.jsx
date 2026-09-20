@@ -1,36 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { Activity, Server, Cpu, Database, Network } from 'lucide-react';
-import { API_BASE, API_HEADERS } from '../config';
+import { API_HEADERS } from '../config';
+import { useResource } from '../livingMirror/resource';
+import { parseV10EcosystemStatus } from '../livingMirror/v10Status';
+
+const V10_READ = Object.freeze({ headers: API_HEADERS });
+const neverEmpty = () => false;
+const count = (value, label) => value === null ? `${label} unavailable` : `${value} ${label}`;
 
 export default function EcosystemDashboard({ onClose }) {
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const resource = useResource('/api/v1/v10/status', parseV10EcosystemStatus, neverEmpty, V10_READ);
+  const status = resource.data;
 
   useEffect(() => {
-    async function loadStatus() {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/v10/status`, {
-          credentials: 'include',
-          headers: API_HEADERS,
-        });
-        if (!response.ok) {
-          throw new Error('Failed to load v10 truth surface');
-        }
-        const data = await response.json();
-        setStatus(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadStatus();
-    const interval = setInterval(loadStatus, 15000);
+    const interval = setInterval(resource.refresh, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [resource.refresh]);
 
   const ecosystem = status?.ecosystem;
   const ecosystemScan = ecosystem?.lastScan;
@@ -56,10 +42,10 @@ export default function EcosystemDashboard({ onClose }) {
           </h3>
         </div>
 
-        {loading && !status ? (
+        {resource.status === 'loading' && !status ? (
           <div style={{ fontSize: '12px', opacity: 0.6 }}>Reading ecosystem status...</div>
-        ) : error ? (
-          <div style={{ fontSize: '12px', color: 'var(--ag-text-red)' }}>Error: {error}</div>
+        ) : resource.error && !status ? (
+          <div role="alert" style={{ fontSize: '12px', color: 'var(--ag-text-red)' }}>{resource.error}</div>
         ) : !status ? (
           <div style={{ fontSize: '12px', opacity: 0.6 }}>No v10 status available.</div>
         ) : (
@@ -75,9 +61,13 @@ export default function EcosystemDashboard({ onClose }) {
                 <strong style={{ fontSize: '11px', textTransform: 'uppercase' }}>Ecosystem scanner</strong>
               </div>
               <div style={{ fontSize: '13px', color: '#bbf7d0' }}>
-                {ecosystemScan
-                  ? `${ecosystemScan.findingCount ?? 0} finding(s) · ${ecosystemScan.networkCalls ?? 0} network calls`
-                  : 'available · not scanned'}
+                {!ecosystem
+                  ? 'Ecosystem scanner status unavailable'
+                  : ecosystemScan === undefined
+                    ? 'Scan state unavailable'
+                    : ecosystemScan === null
+                      ? 'available · not scanned'
+                      : `${count(ecosystemScan.findingCount, 'finding(s)')} · ${count(ecosystemScan.networkCalls, 'network calls')}`}
               </div>
             </div>
 
@@ -92,9 +82,9 @@ export default function EcosystemDashboard({ onClose }) {
                 <strong style={{ fontSize: '11px', textTransform: 'uppercase' }}>Constitution</strong>
               </div>
               <div style={{ fontSize: '13px', color: '#bbf7d0' }}>
-                {constitution
-                  ? `${constitution.casteCount ?? 0} castes · ${constitution.frozenCoreProtected ? 'frozen protected' : 'needs review'}`
-                  : 'offline'}
+                {!constitution
+                  ? 'Constitution status unavailable'
+                  : `${count(constitution.casteCount, 'castes')} · ${constitution.frozenCoreProtected === null ? 'frozen-core status unavailable' : constitution.frozenCoreProtected ? 'frozen protected' : 'needs review'}`}
               </div>
             </div>
 
@@ -110,9 +100,13 @@ export default function EcosystemDashboard({ onClose }) {
                 <strong style={{ fontSize: '11px', textTransform: 'uppercase' }}>Symbol RepoMap</strong>
               </div>
               <div style={{ fontSize: '12px', color: '#bbf7d0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {repoMap?.lastScan
-                  ? `${repoMap.lastScan.symbolCount ?? 0} symbols · ${repoMap.lastScan.evidenceFileCount ?? 0} files · ${repoMap.activation}`
-                  : 'available · no symbol scan recorded'}
+                {!repoMap
+                  ? 'RepoMap status unavailable'
+                  : repoMap.lastScan === undefined
+                    ? 'Symbol scan state unavailable'
+                    : repoMap.lastScan === null
+                      ? 'available · no symbol scan recorded'
+                      : `${count(repoMap.lastScan.symbolCount, 'symbols')} · ${count(repoMap.lastScan.evidenceFileCount, 'files')} · ${repoMap.activation ?? 'activation unavailable'}`}
               </div>
             </div>
 
@@ -128,11 +122,12 @@ export default function EcosystemDashboard({ onClose }) {
                 <strong style={{ fontSize: '11px', textTransform: 'uppercase' }}>Meta-loop and council memory</strong>
               </div>
               <div style={{ fontSize: '12px', color: '#bbf7d0' }}>
-                Meta-loop: {metaLoop ? `${metaLoop.safetyStatus} · ${metaLoop.proposalCount ?? 0} proposal(s)` : 'offline'} | Council memory: {councilMemory ? `${councilMemory.deliberationCount ?? 0} deliberation(s)` : 'offline'}
+                Meta-loop: {metaLoop ? `${metaLoop.safetyStatus ?? 'safety status unavailable'} · ${count(metaLoop.proposalCount, 'proposal(s)')}` : 'Meta-loop status unavailable'} | Council memory: {councilMemory ? count(councilMemory.deliberationCount, 'deliberation(s)') : 'Council memory status unavailable'}
               </div>
             </div>
           </div>
         )}
+        {resource.error && status && <div role="alert" style={{ fontSize: '12px', color: 'var(--ag-text-red)' }}>{resource.error} Last-known ecosystem records are shown above.</div>}
       </div>
     </HUDPanel>
   );

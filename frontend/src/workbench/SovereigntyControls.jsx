@@ -19,7 +19,12 @@ export default function SovereigntyControls() {
   const [actionResult, setActionResult] = useState(null);
 
   const [pheromoneResource, setPheromoneResource] = useState('');
-  const [pheromoneType, setPheromoneType] = useState('success');
+  const [pheromoneId, setPheromoneId] = useState('');
+  const [pheromoneType, setPheromoneType] = useState('success-trail');
+  const [rollbackSnapshotId, setRollbackSnapshotId] = useState('');
+  const [rollbackMissionId, setRollbackMissionId] = useState('');
+  const [rollbackWorkspaceRoot, setRollbackWorkspaceRoot] = useState('');
+  const [rollbackFiles, setRollbackFiles] = useState('');
 
   const executeAction = async (actionId, path, body = {}, customSuccess = null) => {
     setBusyAction(actionId);
@@ -39,15 +44,27 @@ export default function SovereigntyControls() {
 
   const handlePheromone = async (e, actionType) => {
     e.preventDefault();
-    if (!pheromoneResource.trim()) return;
-    
-    let path = `/api/v1/pheromones/${actionType}`;
-    await executeAction(`pheromone-${actionType}`, path, {
-      resource: pheromoneResource,
-      type: pheromoneType,
-      amount: actionType === 'deposit' ? 1.0 : undefined
-    }, `Pheromone ${actionType} triggered on ${pheromoneResource}`);
+    let body = {};
+    if (actionType === 'deposit') {
+      if (!pheromoneResource.trim()) return;
+      body = { resource: pheromoneResource.trim(), ptype: pheromoneType, strength: 1.0, payload: {} };
+    } else if (actionType === 'reinforce') {
+      const id = Number(pheromoneId);
+      if (!Number.isSafeInteger(id) || id < 1) return;
+      body = { pheromoneId: id, boost: 0.2 };
+    }
+    const target = actionType === 'deposit' ? pheromoneResource.trim() : actionType === 'reinforce' ? `#${pheromoneId}` : 'surface';
+    await executeAction(`pheromone-${actionType}`, `/api/v1/pheromones/${actionType}`, body, `Pheromone ${actionType} triggered on ${target}`);
   };
+
+  const rollbackReady = rollbackSnapshotId.trim() && rollbackMissionId.trim() && rollbackWorkspaceRoot.trim();
+  const registerRollback = () => executeAction('register-rollback', '/api/v1/runtime/rollbacks/register', {
+    snapshotId: rollbackSnapshotId.trim(),
+    missionId: rollbackMissionId.trim(),
+    workspaceRoot: rollbackWorkspaceRoot.trim(),
+    filesCovered: rollbackFiles.split(/[\n,]/).map((entry) => entry.trim()).filter(Boolean),
+    metadata: {},
+  });
 
   return (
     <div className="council-dashboard__body" aria-label="Sovereignty Controls">
@@ -91,8 +108,8 @@ export default function SovereigntyControls() {
           <div className="council-dashboard__decision-actions" style={{ justifyContent: 'flex-start', gap: '8px' }}>
             <button 
               type="button" 
-              onClick={() => executeAction('register-rollback', '/api/v1/runtime/rollbacks/register')}
-              disabled={busyAction !== null}
+              onClick={registerRollback}
+              disabled={busyAction !== null || !rollbackReady}
             >
               <Box size={14} /> Register Snapshot
             </button>
@@ -108,6 +125,24 @@ export default function SovereigntyControls() {
             >
               <RotateCcw size={14} /> Prune Old Snapshots
             </button>
+          </div>
+          <div className="council-dashboard__originate" style={{ marginTop: '12px' }}>
+            <label>
+              Rollback snapshot ID
+              <input aria-label="Rollback snapshot ID" value={rollbackSnapshotId} onChange={(e) => setRollbackSnapshotId(e.target.value)} placeholder="Snapshot digest or ID" />
+            </label>
+            <label>
+              Rollback mission ID
+              <input aria-label="Rollback mission ID" value={rollbackMissionId} onChange={(e) => setRollbackMissionId(e.target.value)} placeholder="Mission ID" />
+            </label>
+            <label>
+              Rollback workspace root
+              <input aria-label="Rollback workspace root" value={rollbackWorkspaceRoot} onChange={(e) => setRollbackWorkspaceRoot(e.target.value)} placeholder="Enrolled workspace root" />
+            </label>
+            <label>
+              Files covered (optional)
+              <input aria-label="Rollback files covered" value={rollbackFiles} onChange={(e) => setRollbackFiles(e.target.value)} placeholder="One path per line or comma separated" />
+            </label>
           </div>
         </section>
 
@@ -134,10 +169,22 @@ export default function SovereigntyControls() {
               value={pheromoneType}
               onChange={(e) => setPheromoneType(e.target.value)}
             >
-              <option value="success">Success (Green)</option>
-              <option value="danger">Danger (Red)</option>
-              <option value="warning">Warning (Yellow)</option>
+              <option value="success-trail">Success trail</option>
+              <option value="failure-warning">Failure warning</option>
+              <option value="file-lock">File lock</option>
+              <option value="attention-signal">Attention signal</option>
             </select>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              className="council-dashboard__origin-files"
+              style={{ marginBottom: '8px' }}
+              value={pheromoneId}
+              onChange={(e) => setPheromoneId(e.target.value)}
+              placeholder="Pheromone ID"
+              aria-label="Pheromone ID"
+            />
 
             <div className="council-dashboard__decision-actions" style={{ justifyContent: 'flex-start', gap: '8px' }}>
               <button 
@@ -150,7 +197,7 @@ export default function SovereigntyControls() {
               <button 
                 type="submit" 
                 onClick={(e) => handlePheromone(e, 'reinforce')}
-                disabled={busyAction !== null || !pheromoneResource.trim()}
+                disabled={busyAction !== null || !Number.isSafeInteger(Number(pheromoneId)) || Number(pheromoneId) < 1}
               >
                 <Zap size={14} /> Reinforce
               </button>
@@ -158,7 +205,7 @@ export default function SovereigntyControls() {
                 type="submit" 
                 className="is-reject"
                 onClick={(e) => handlePheromone(e, 'decay')}
-                disabled={busyAction !== null || !pheromoneResource.trim()}
+                disabled={busyAction !== null}
               >
                 <Wind size={14} /> Decay
               </button>

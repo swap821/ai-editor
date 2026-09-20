@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useContext } from 'react';
+import { WorkspaceHostContext } from '../livingMirror/WorkspaceHostContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Minus, X, Maximize2 } from 'lucide-react';
 
@@ -15,6 +16,7 @@ export default function HUDPanel({
   const [isMinimized, setIsMinimized] = useState(false);
   const [size, setSize] = useState(defaultSize);
   const panelRef = useRef(null);
+  const embedded = useContext(WorkspaceHostContext);
 
   // Tint mapping for borders and glows
   const tintStyles = {
@@ -74,6 +76,11 @@ export default function HUDPanel({
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
+
+  if (embedded) return <section className="lm-embedded-panel" aria-label={title}>
+    {headerExtras && <div>{headerExtras}</div>}
+    {children}
+  </section>;
 
   return (
     <AnimatePresence>

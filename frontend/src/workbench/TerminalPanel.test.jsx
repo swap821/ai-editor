@@ -29,7 +29,7 @@ describe('TerminalPanel', () => {
     
     // Open terminal
     fireEvent.click(toggleBtn);
-    expect(screen.getByText('gag system start')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Type a command...')).toBeInTheDocument();
   });
 
   it('toggles via keyboard shortcut', () => {
@@ -37,7 +37,7 @@ describe('TerminalPanel', () => {
 
     // Simulate Ctrl+`
     fireEvent.keyDown(window, { key: '`', ctrlKey: true });
-    expect(screen.getByText('gag system start')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Type a command...')).toBeInTheDocument();
 
     // Close via shortcut
     fireEvent.keyDown(window, { key: '`', ctrlKey: true });

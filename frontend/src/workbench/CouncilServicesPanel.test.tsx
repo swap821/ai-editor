@@ -39,6 +39,38 @@ describe('CouncilServicesPanel', () => {
     });
   });
 
+  it('renders the backend health-map envelope without losing service identity', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        services: {
+          planner: { name: 'planner', alive: true, queue_depth: 2, processed: 4, errors: 1 },
+        },
+      }),
+    });
+
+    render(<CouncilServicesPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('planner')).toBeInTheDocument();
+      expect(screen.getByText('queue 2 · processed 4 · errors 1')).toBeInTheDocument();
+    });
+  });
+
+  it('does not turn a malformed services envelope into an empty service list', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'ok' }),
+    });
+
+    render(<CouncilServicesPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Council services unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No services found.')).not.toBeInTheDocument();
+  });
+
   it('toggles a service', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

@@ -13,8 +13,44 @@ async function postJson(path, body = {}) {
   return response.json();
 }
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
+class InvalidMemoryPayload extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'InvalidMemoryPayload';
+  }
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function parseMemorySearchPayload(data) {
+  if (!isRecord(data) || !Array.isArray(data.results)) {
+    throw new InvalidMemoryPayload('memory search envelope is invalid');
+  }
+  return data.results.map((result, index) => {
+    if (!isRecord(result) || typeof result.text !== 'string') {
+      throw new InvalidMemoryPayload(`memory result ${index} is invalid`);
+    }
+    if (result.score !== null && result.score !== undefined && finiteNumber(result.score) === null) {
+      throw new InvalidMemoryPayload(`memory result ${index} score is invalid`);
+    }
+    return {
+      id: result.id ?? null,
+      text: result.text,
+      score: result.score == null ? null : result.score,
+      memoryType: typeof result.memory_type === 'string' ? result.memory_type : null,
+      verificationStatus: typeof result.verification_status === 'string' ? result.verification_status : null,
+    };
+  });
+}
+
+function scoreLabel(score) {
+  return finiteNumber(score) === null ? 'Score unavailable' : `Score: ${Math.round(score * 100)}%`;
 }
 
 export default function MemoryOperationsPanel() {
@@ -49,7 +85,12 @@ export default function MemoryOperationsPanel() {
     if (!searchQuery.trim()) return;
     const data = await executeAction('search', '/api/v1/memory/search', { query: searchQuery });
     if (data) {
-      setSearchResults(asArray(data.results));
+      try {
+        setSearchResults(parseMemorySearchPayload(data));
+      } catch (err) {
+        setSearchResults(null);
+        setActionError(err?.name === 'InvalidMemoryPayload' ? 'Memory search unavailable' : 'Memory search failed');
+      }
     }
   };
 
@@ -123,9 +164,9 @@ export default function MemoryOperationsPanel() {
                   searchResults.map((res, i) => (
                     <div key={i} className="council-dashboard__route" style={{ display: 'block', padding: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <strong className="council-dashboard__badge is-ok">Score: {Math.round(res.score * 100)}%</strong>
+                        <strong className="council-dashboard__badge is-ok">{scoreLabel(res.score)}</strong>
                       </div>
-                      <p style={{ margin: 0, fontSize: '0.85em', whiteSpace: 'pre-wrap' }}>{res.text || res.content}</p>
+                      <p style={{ margin: 0, fontSize: '0.85em', whiteSpace: 'pre-wrap' }}>{res.text || 'Memory text unavailable'}</p>
                     </div>
                   ))
                 )}
