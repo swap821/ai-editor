@@ -169,7 +169,11 @@ def main() -> int:
 
             floor = _commit_date(orphan)
             match = next(
-                (c for c in _candidates(paths, floor) if _fingerprint(c, paths) == want),
+                (
+                    c
+                    for c in _candidates(paths, floor)
+                    if _fingerprint(c, paths) == want
+                ),
                 None,
             )
             if match is None:

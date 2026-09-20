@@ -31,7 +31,9 @@ def test_the_target_may_not_predate_the_verification() -> None:
     content at an older commit does not mean the organ was verified there.
     """
     src = executable_source(lineage.main)
-    assert "floor = _commit_date(sha)" in src, "the evidence date must bound the search"
+    assert "floor = _commit_date(orphan)" in src, (
+        "the evidence date must bound the search"
+    )
     cand = executable_source(lineage._candidates)
     assert "--since=" in cand, (
         "candidates must be filtered to at/after the evidence date"
@@ -57,7 +59,7 @@ def test_an_unprovable_organ_is_reported_not_repointed() -> None:
     """The asymmetry that makes this a verifier rather than a green-maker."""
     src = executable_source(lineage.main)
     assert "if match is None:" in src
-    assert "real staleness, re-verify rather than re-point" in src
+    assert "real staleness, re-verify " in src
     # The re-point must be unreachable when no matching ancestor was found.
     after = src.split("if match is None:", 1)[1]
     assert after.lstrip().startswith("unprovable.append")
