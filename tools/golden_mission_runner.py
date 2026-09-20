@@ -420,8 +420,7 @@ class GoldenMissionEnduranceAuthority:
                 result = run_prompt(step["prompt"], session_id, model_id=model_id)
             expected = step["expect"]
             step_unreached = (
-                not result.get("reached_provider")
-                and result["outcome"] == "unverified"
+                not result.get("reached_provider") and result["outcome"] == "unverified"
             )
             if step_unreached:
                 _UNREACHED_STEPS.append(f"{name}/s{step_idx}")

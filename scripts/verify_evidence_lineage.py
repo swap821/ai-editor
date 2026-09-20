@@ -93,7 +93,9 @@ def _candidates(paths: list[str], floor: str) -> list[str]:
     # settled days earlier), so a path-filtered walk misses it entirely and
     # falls through to HEAD.
     code, out = _git("log", "--format=%H", "--reverse", f"--since={floor}", "HEAD")
-    commits = [line.strip() for line in out.splitlines() if line.strip()] if code == 0 else []
+    commits = (
+        [line.strip() for line in out.splitlines() if line.strip()] if code == 0 else []
+    )
     head = _git("rev-parse", "HEAD")[1]
     if head and head not in commits:
         commits.append(head)
@@ -106,7 +108,11 @@ def main() -> int:
     args = parser.parse_args()
 
     payload = json.loads(LEDGER.read_text(encoding="utf-8"))
-    rows = payload["organs"] if isinstance(payload, dict) and "organs" in payload else payload
+    rows = (
+        payload["organs"]
+        if isinstance(payload, dict) and "organs" in payload
+        else payload
+    )
     seq = rows if isinstance(rows, list) else list(rows.values())
 
     in_lineage: list[int] = []
@@ -129,20 +135,20 @@ def main() -> int:
 
         paths = [str(p) for p in (row.get("production_entrypoints") or [])]
         if not paths:
-            unprovable.append(f"#{oid} orphaned sha {sha[:12]} and no production_entrypoints to compare")
+            unprovable.append(
+                f"#{oid} orphaned sha {sha[:12]} and no production_entrypoints to compare"
+            )
             continue
         want = _fingerprint(sha, paths)
         if any(b is None for b in want):
-            unprovable.append(f"#{oid} orphaned sha {sha[:12]}; entrypoints do not resolve there")
+            unprovable.append(
+                f"#{oid} orphaned sha {sha[:12]}; entrypoints do not resolve there"
+            )
             continue
 
         floor = _commit_date(sha)
         match = next(
-            (
-                c
-                for c in _candidates(paths, floor)
-                if _fingerprint(c, paths) == want
-            ),
+            (c for c in _candidates(paths, floor) if _fingerprint(c, paths) == want),
             None,
         )
         if match is None:
@@ -180,7 +186,9 @@ def main() -> int:
     head = _git("rev-parse", "HEAD")[1]
     print(f"HEAD {head[:12]}")
     print(f"  sha in HEAD's lineage:        {len(in_lineage)}")
-    print(f"  spine-attested, untouched:    {len(skipped_spine)} {sorted(skipped_spine)}")
+    print(
+        f"  spine-attested, untouched:    {len(skipped_spine)} {sorted(skipped_spine)}"
+    )
     print(f"  orphaned but provable:        {len(repointed)}")
     for line in repointed:
         print(f"    {line}")

@@ -285,8 +285,10 @@ def test_the_browser_phrase_still_excludes_outside_machine() -> None:
 
 def _row_with_attestation(*, stale: bool) -> dict:
     """An organ already carrying an operator attestation, stale or current."""
-    blockers = ["STALE ATTESTATION (recorded abc123): 1 of this organ's own "
-                "production_entrypoints changed after def456 (aios/api/routes/mirror.py)"]
+    blockers = [
+        "STALE ATTESTATION (recorded abc123): 1 of this organ's own "
+        "production_entrypoints changed after def456 (aios/api/routes/mirror.py)"
+    ]
     return {
         "organ_id": 49,
         "status": "yellow",
@@ -301,9 +303,8 @@ def _row_with_attestation(*, stale: bool) -> dict:
                 ),
             }
         ],
-        "condition_verdicts": {
-            f"C{i}": "PASS - fine" for i in range(1, 13)
-        } | {
+        "condition_verdicts": {f"C{i}": "PASS - fine" for i in range(1, 13)}
+        | {
             "C9": (
                 "FAIL - yellow with named residual(s): ['browser-session - truthful "
                 "UI live evidence requires operator browser session at :5173']"
@@ -320,13 +321,17 @@ def test_a_stale_attestation_can_be_refreshed() -> None:
     attested" refusal made that a one-way door -- the row could never describe
     HEAD again.
     """
-    ok, why = operator_attest.eligibility(_row_with_attestation(stale=True), spine=set())
+    ok, why = operator_attest.eligibility(
+        _row_with_attestation(stale=True), spine=set()
+    )
     assert ok, why
 
 
 def test_a_current_attestation_still_cannot_be_signed_twice() -> None:
     """The original protection is intact: only STALE rows may be refreshed."""
-    ok, why = operator_attest.eligibility(_row_with_attestation(stale=False), spine=set())
+    ok, why = operator_attest.eligibility(
+        _row_with_attestation(stale=False), spine=set()
+    )
     assert not ok
     assert "current operator attestation" in why
 

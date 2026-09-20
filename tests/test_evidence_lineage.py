@@ -34,7 +34,9 @@ def test_the_target_may_not_predate_the_verification() -> None:
     src = inspect.getsource(lineage.main)
     assert "floor = _commit_date(sha)" in src, "the evidence date must bound the search"
     cand = inspect.getsource(lineage._candidates)
-    assert "--since=" in cand, "candidates must be filtered to at/after the evidence date"
+    assert "--since=" in cand, (
+        "candidates must be filtered to at/after the evidence date"
+    )
 
 
 def test_the_candidate_walk_is_not_path_filtered() -> None:
@@ -47,7 +49,9 @@ def test_the_candidate_walk_is_not_path_filtered() -> None:
     """
     cand = inspect.getsource(lineage._candidates)
     assert '"log", "--format=%H", "--reverse", f"--since={floor}", "HEAD"' in cand
-    assert '"--", *paths' not in cand, "a path-filtered walk cannot see the squash merge"
+    assert '"--", *paths' not in cand, (
+        "a path-filtered walk cannot see the squash merge"
+    )
 
 
 def test_an_unprovable_organ_is_reported_not_repointed() -> None:

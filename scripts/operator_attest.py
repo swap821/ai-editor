@@ -116,7 +116,9 @@ def eligibility(row: dict, spine: set[int]) -> tuple[bool, str]:
     #
     # Staleness is read from the marker that verifier writes and withdraws,
     # never judged here, so this cannot drift from what the verifier believes.
-    if any(MARKER in str(e.get("description", "")) for e in live) and not _is_stale(row):
+    if any(MARKER in str(e.get("description", "")) for e in live) and not _is_stale(
+        row
+    ):
         return False, "already carries a current operator attestation"
     unsettled = _unsettled(row)
     if not unsettled:

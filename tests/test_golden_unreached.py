@@ -91,7 +91,9 @@ def test_retry_is_bounded_and_waits_out_the_breaker() -> None:
     lands inside the same open circuit and measures nothing again."""
     from aios.application.models.health import ProviderHealthBudgetAuthority
 
-    assert gmr.UNREACHED_COOLDOWN_S > ProviderHealthBudgetAuthority.recovery_after_seconds
+    assert (
+        gmr.UNREACHED_COOLDOWN_S > ProviderHealthBudgetAuthority.recovery_after_seconds
+    )
     assert gmr.UNREACHED_RETRIES >= 1
 
 
