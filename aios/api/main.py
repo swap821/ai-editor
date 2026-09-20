@@ -967,6 +967,59 @@ def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def _message_context_chars(messages: list[dict[str, Any]]) -> int:
+    """Total characters of text the turn is carrying, history included.
+
+    The routing signal for ``long_context`` is a MEASUREMENT, not a phrase:
+    "summarise this huge file" and a pasted 200k-character file are the same
+    routing decision, and only one of them says so in words. Counting the whole
+    history rather than the last message is the point — a long conversation is a
+    long-context problem even when the final turn is three words.
+    """
+    total = 0
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            total += len(content)
+        elif isinstance(content, list):
+            for block in cast(list[Any], content):
+                if isinstance(block, dict):
+                    total += len(str(cast(dict[str, Any], block).get("text") or ""))
+    return total
+
+
+#: Content-block keys that mean an image is present. Kept as data because the
+#: shape differs by client (Bedrock Converse, Anthropic, OpenAI all spell it
+#: differently) and a new one should be a one-line addition, not a rewrite.
+_IMAGE_BLOCK_KEYS = ("image", "image_url", "inline_data", "source")
+
+
+def _messages_have_images(messages: list[dict[str, Any]]) -> bool:
+    """Whether any message actually carries an image block.
+
+    Vision routing keys off this and never off wording: "look at this
+    screenshot" with no screenshot is not a vision turn, and sending it to a
+    vision model on the strength of the phrase is guessing dressed as
+    classification.
+
+    HONEST LIMIT: the frontend does not send image blocks today —
+    ``_to_chat_messages`` reads ``block["text"]`` and drops everything else — so
+    this returns False on every current request. It is the detector half of a
+    path whose other half does not exist yet, tested directly so it is correct
+    the day one arrives, rather than a claim that vision routing works now.
+    """
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in cast(list[Any], content):
+            if isinstance(block, dict) and any(
+                key in cast(dict[str, Any], block) for key in _IMAGE_BLOCK_KEYS
+            ):
+                return True
+    return False
+
+
 def _sse(
     event: str,
     data: dict[str, Any],
