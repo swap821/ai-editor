@@ -121,11 +121,44 @@ def _is_test_runner(command: str) -> bool:
     return _program_starts_with(tokens, base, _TEST_RUNNER_PAIRS)
 
 
+#: Flags that make a checker invocation assert nothing about any code. This is
+#: the checker-side counterpart of the ``passed_count > 0`` hollow-run defense:
+#: ``ruff --version`` exits 0, is a recognized checker at the program position,
+#: and inspects not one line of source. That did not matter while MEDIUM could
+#: never promote anything; it matters the moment MEDIUM becomes the learning
+#: floor, which is exactly the kind of latent hole a floor change activates.
+#: Matched CASE-SENSITIVELY against the raw command, which matters more than it
+#: looks: `_tokens` lowercases, and lowercasing collapses `-V` (print version,
+#: inspects nothing) into `-v` (verbose, a perfectly real check). Folding those
+#: together would either mint MEDIUM for `ruff -V` or refuse it for
+#: `ruff check -v aios/` — one hole and one silent blockage from the same typo
+#: in a frozenset.
+_CHECKER_NOOP_FLAGS: frozenset[str] = frozenset(
+    {"--version", "-V", "--help", "-h", "--show-settings", "--show-files"}
+)
+
+
+def _is_noop_checker_invocation(command: str) -> bool:
+    """True when a recognized checker was asked to do something other than check.
+
+    Split on ``=`` first: ``--help=x`` and ``--version=1`` are the same family
+    as the bare flags, and a set membership test on the whole token would let
+    the whole family through. Checking the flag NAME rather than the token is
+    the difference between a defense and a list of the spellings someone
+    happened to think of.
+    """
+    return any(
+        tok.split("=", 1)[0] in _CHECKER_NOOP_FLAGS for tok in command.split()[1:]
+    )
+
+
 def _is_checker(command: str) -> bool:
     tokens = _tokens(command)
     if not tokens:
         return False
     base = _program_basename(tokens).removesuffix(".exe")
+    if _is_noop_checker_invocation(command):
+        return False
     if base in _CHECKER_TOKENS:
         return True
     return _program_starts_with(tokens, base, _CHECKER_PAIRS)
@@ -198,13 +231,58 @@ def promotion_floor() -> VerificationStrength:
 
 
 def meets_promotion_floor(strength: VerificationStrength) -> bool:
-    """True if *strength* is strong enough to promote a skill/pattern/confidence."""
+    """True if *strength* is strong enough to promote a skill/pattern/confidence.
+
+    This is the AUTHORITY floor. It gates, among other things, whether a YELLOW
+    action class graduates to running unattended, so it stays at STRONG and is
+    deliberately NOT class-aware. Learning sites use
+    :func:`meets_learning_floor` instead; see its docstring for why the two
+    questions were wrong to share one answer.
+    """
     return strength >= promotion_floor()
+
+
+def learning_floor() -> VerificationStrength:
+    """The minimum strength eligible to teach the system something (default MEDIUM).
+
+    Clamped so it can never fall below MEDIUM. WEAK means "the command exited 0
+    and asserted nothing", and NONE means it failed outright; no configuration
+    may make either of those calibrate the future. As with
+    :func:`promotion_floor`, misconfiguration can only ever make the gate
+    STRICTER.
+    """
+    floor = strength_from_name(
+        config.LEARNING_PROMOTION_FLOOR, VerificationStrength.MEDIUM
+    )
+    return max(floor, VerificationStrength.MEDIUM)
+
+
+def meets_learning_floor(strength: VerificationStrength) -> bool:
+    """True if *strength* may promote a SKILL. Separate from authority on purpose.
+
+    STRONG is reachable only from a recognized test runner. With a single
+    STRONG floor, every skill whose evidence is a type-check, a build, or a
+    lint had an evidence CEILING below the bar: it could succeed forever and
+    never promote, and nothing said so — the counters just never moved.
+
+    MEDIUM is admitted because MEDIUM is not a weaker claim about the same
+    thing, it is a different KIND of claim that is itself spoof-resistant:
+    :func:`derive_strength` grants it only for a recognized checker at the
+    PROGRAM POSITION, never for a command that merely mentions one, and never
+    for a checker meta-invocation like ``ruff --version`` that inspects no code.
+
+    What this does NOT do is lower the bar for authority. ``mypy`` passing is
+    evidence that a skill is worth remembering; it is not evidence that a write
+    may run unattended. Those call sites keep :func:`meets_promotion_floor`.
+    """
+    return strength >= learning_floor()
 
 
 __all__ = [
     "VerificationStrength",
     "derive_strength",
+    "learning_floor",
+    "meets_learning_floor",
     "meets_promotion_floor",
     "parse_test_counts",
     "promotion_floor",

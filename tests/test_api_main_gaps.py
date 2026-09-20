@@ -1096,6 +1096,7 @@ def test_curriculum_proposals_lists_mined_candidates(
         rationale = "repeated pattern"
         source_pattern = "test_x"
         difficulty_delta = 0
+        held_out = False
 
     class FakeMiner:
         def list_proposals(self, max_proposals=10):
@@ -1137,6 +1138,7 @@ def test_accept_curriculum_proposal_success(client: TestClient, monkeypatch) -> 
         rationale = "r"
         source_pattern = "p"
         difficulty_delta = 0
+        held_out = True
 
     class FakeMiner:
         def list_proposals(self, max_proposals=50):
@@ -1151,6 +1153,16 @@ def test_accept_curriculum_proposal_success(client: TestClient, monkeypatch) -> 
     body = response.json()
     assert body["accepted"] is True
     assert body["prompt"] == "write a matching test"
+    # The accepted proposal was the HELD-OUT sibling. Dropping that flag on the
+    # way in filed it as one more training task, which is the difference
+    # between a level that can be mastered and one that never can -- and the
+    # route reported "accepted: true" either way.
+    stored = next(
+        row
+        for row in get_curriculum_manager().list("testing")
+        if row["prompt"] == "write a matching test"
+    )
+    assert stored["held_out"] == 1
 
 
 # --------------------------------------------------------------------------- #

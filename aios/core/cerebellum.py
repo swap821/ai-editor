@@ -13,7 +13,9 @@ acts from compiled experience, not external consultation.
 Compilation guards (beyond SkillMemory's promotion criteria):
   1. All steps must parse into compilable tool calls (read/execute/verify).
   2. All tool names must exist in the ToolAgent dispatch table.
-  3. Zero failures in the skill's lifetime (not just 80% — perfect).
+  3. Zero failures SINCE the skill's last success (a clean recent record).
+     This was once a clean *lifetime* record, which no skill could ever get
+     back after a single flake; the promotion bar itself is unchanged.
   4. Goal pattern must be non-empty after secret redaction.
 
 Decompilation: 2 consecutive replay failures marks the playbook as
@@ -409,10 +411,10 @@ class Cerebellum:
             rows = conn.execute(
                 """SELECT ps.id, ps.goal_pattern, ps.steps_json,
                           ps.success_count, ps.failure_count,
-                          ps.signature_v2
+                          ps.consecutive_failures, ps.signature_v2
                    FROM procedural_skills ps
                    WHERE ps.status = 'verified'
-                     AND ps.failure_count = 0
+                     AND ps.consecutive_failures = 0
                      AND NOT EXISTS (
                          SELECT 1 FROM compiled_playbooks cp
                          WHERE cp.skill_id = ps.id
@@ -433,7 +435,8 @@ class Cerebellum:
         with get_connection(self.db_path) as conn:
             row = conn.execute(
                 """SELECT id, goal_pattern, steps_json,
-                          success_count, failure_count, signature_v2
+                          success_count, failure_count,
+                          consecutive_failures, signature_v2
                    FROM procedural_skills
                    WHERE id = ? AND status = 'verified'""",
                 (skill_id,),
@@ -462,10 +465,15 @@ class Cerebellum:
         skill_id = int(skill_row["id"])
         goal = str(skill_row["goal_pattern"])
         steps_json = str(skill_row["steps_json"])
-        failure_count = int(skill_row["failure_count"])
         sig_v2 = str(skill_row["signature_v2"] or "")
 
-        if failure_count > 0:
+        # Guard 3: a clean RECENT record, not a clean lifetime. The lifetime
+        # form (`failure_count = 0`) was unrecoverable by construction -- the
+        # counter only grows -- so a single flake meant an arc could never earn
+        # a reflex again no matter how often it went on to succeed. The trust
+        # bar is unchanged and still sits upstream: only a `verified` skill
+        # (>=3 STRONG successes at >=80%) reaches this code at all.
+        if int(skill_row["consecutive_failures"] or 0) > 0:
             return None
 
         clean_goal = scan_and_redact(goal).scrubbed.strip()

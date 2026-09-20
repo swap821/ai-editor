@@ -16,7 +16,10 @@ from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 from aios import config
-from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_learning_floor,
+)
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
@@ -304,8 +307,15 @@ class MistakeMemory:
         Below-floor evidence leaves the lesson pending. Verified mistake lessons
         feed planner confidence, so a weak green must not graduate into that
         cross-task calibration path.
+
+        The floor asked here is the LEARNING floor (MEDIUM), not the authority
+        one. A lesson recorded when ``mypy aios/`` failed, and confirmed when
+        that same command later passes, has transferred in exactly the sense
+        this mechanism exists to capture -- but MEDIUM is the ceiling for
+        checker evidence, so under the authority floor it could never be
+        confirmed at all. WEAK still cannot promote anything.
         """
-        if not meets_promotion_floor(strength):
+        if not meets_learning_floor(strength):
             return
         with get_connection(self.db_path) as conn:
             conn.execute(

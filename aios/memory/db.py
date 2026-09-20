@@ -264,6 +264,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # recorded but ineligible to promote; the latest success's strength is kept.
         "weak_success_count": "INTEGER NOT NULL DEFAULT 0",
         "verification_strength": "TEXT",
+        # Failures since the last success — the recent-record counter the reflex
+        # compile guard uses in place of the lifetime `failure_count`. Existing
+        # rows backfill to 0, which is the honest reading: their recent history
+        # is unknown, and the `verified` status they already hold (>=3 STRONG
+        # successes at >=80%) is the evidence that gates them either way.
+        "consecutive_failures": "INTEGER NOT NULL DEFAULT 0",
     }
     for name, ddl in skill_additions.items():
         if skill_cols and name not in skill_cols:
@@ -331,12 +337,30 @@ def _migrate(conn: sqlite3.Connection) -> None:
         # the ctor defaults in aios/memory/skills.py).
         rate = successes / max(successes + failures, 1)
         status = "verified" if successes >= 3 and rate >= 0.8 else "candidate"
+        # The merged arc's recent record is the WORST of its fragments, not the
+        # keeper's. Counts add up across fragments, but "failures since the last
+        # success" does not, and there are no per-attempt timestamps to derive
+        # it from. Taking the max errs toward "this arc has not shown a clean
+        # run yet": that only delays a reflex until the next success clears it,
+        # whereas taking the keeper's 0 would let an arc whose recent runs
+        # failed compile immediately on the strength of a sibling row.
+        streak = max(int(r["consecutive_failures"] or 0) for r in rows)
         conn.execute(
             "UPDATE procedural_skills SET success_count = ?, failure_count = ?, "
             "reuse_success_count = ?, reuse_failure_count = ?, status = ?, "
+            "consecutive_failures = ?, "
             "updated_at = (SELECT MAX(updated_at) FROM procedural_skills "
             "WHERE signature_v2 = ? AND status != 'superseded') WHERE id = ?",
-            (successes, failures, reuse_s, reuse_f, status, sig_v2, keeper_id),
+            (
+                successes,
+                failures,
+                reuse_s,
+                reuse_f,
+                status,
+                streak,
+                sig_v2,
+                keeper_id,
+            ),
         )
         for row in rows:
             if int(row["id"]) == keeper_id:
