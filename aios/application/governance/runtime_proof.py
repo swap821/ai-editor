@@ -15,7 +15,7 @@ import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -510,7 +510,16 @@ def _probe_executor(scratch: Path) -> str:
             "    print('outside=blocked')\n",
             encoding="utf-8",
         )
-        remote = Path(config.EXECUTOR_REMOTE_WORKSPACE_ROOT) / workspace.name
+        # PurePosixPath, not Path: this is the path INSIDE the executor's Linux
+        # container, so it must be built with POSIX separators no matter what
+        # the host is. On Windows, `Path("/workspace/jobs") / name` renders as
+        # a backslash-separated string, which _workspace_allowed
+        # correctly rejects -- organ 40's own live probe then fails with
+        # HTTP 403 on any Windows host, and that failure reads as broken
+        # isolation rather than a mis-built string. The sibling
+        # integration test never caught it because it composes the same
+        # path with an f-string instead.
+        remote = PurePosixPath(config.EXECUTOR_REMOTE_WORKSPACE_ROOT) / workspace.name
         job_id = f"r14-proof-{uuid.uuid4().hex}"
         contract_digest = hashlib.sha256(job_id.encode()).hexdigest()
         result = client.execute(

@@ -82,6 +82,18 @@ def _unsettled(row: dict) -> list[str]:
     )
 
 
+#: Written and withdrawn by scripts/verify_evidence_currency.py, which asks git
+#: whether an organ's own production_entrypoints moved after the commit its
+#: evidence describes. Keyed off that marker so "is this attestation current?"
+#: has exactly one definition in the repository.
+_STALE_MARKER = "STALE ATTESTATION"
+
+
+def _is_stale(row: dict) -> bool:
+    """True when this organ's recorded evidence no longer describes HEAD."""
+    return any(_STALE_MARKER in str(b) for b in (row.get("known_blockers") or []))
+
+
 def eligibility(row: dict, spine: set[int]) -> tuple[bool, str]:
     """Can this organ be attested, and if not, why not."""
     oid = int(row["organ_id"])
@@ -94,8 +106,20 @@ def eligibility(row: dict, spine: set[int]) -> tuple[bool, str]:
     ]
     if not live:
         return False, "no live evidence to attest to"
-    if any(MARKER in str(e.get("description", "")) for e in live):
-        return False, "already carries an operator attestation"
+    # "Already attested" must mean already attested AT A COMMIT THAT STILL
+    # DESCRIBES HEAD. As a blanket refusal it was a one-way door: organs 49 and
+    # 51 hold an operator attestation taken at 5c64cd54, `mirror.py` moved
+    # afterwards, and `verify_evidence_currency` correctly re-flagged both as
+    # STALE ATTESTATION -- so their evidence no longer describes HEAD and the
+    # only mechanism that can refresh it refused to run. The check was written
+    # to stop a current row being signed twice, not to freeze a stale one.
+    #
+    # Staleness is read from the marker that verifier writes and withdraws,
+    # never judged here, so this cannot drift from what the verifier believes.
+    if any(MARKER in str(e.get("description", "")) for e in live) and not _is_stale(
+        row
+    ):
+        return False, "already carries a current operator attestation"
     unsettled = _unsettled(row)
     if not unsettled:
         return False, "nothing unsettled to attest"
@@ -183,6 +207,18 @@ _NOT_A_SIGNATURE = (
 _WAITS_ON = (
     "operator attestation",
     "operator-attestation",
+    # Organs 49 and 51 word their residual as "truthful UI live evidence
+    # requires operator browser session at :5173 (not inventable headless)".
+    # That is the same request as "operator attestation" in different words,
+    # and it passes the test this list exists to enforce: a PERSON opening the
+    # UI and looking at it is exactly the human act a signature declares.
+    #
+    # Contrast "outside-machine", which was removed from this list and must
+    # stay out: no signature can make a second machine exist, so a human
+    # saying "I observed it" cannot supply it. The line is whether a person
+    # CAN truthfully discharge the residual by doing something -- not whether
+    # the residual mentions the operator.
+    "operator browser session",
     "follows from c11",
 )
 

@@ -1,9 +1,9 @@
 {
   "schema": "phase4-live-evidence-v1",
-  "generated_at": "2026-09-19T16:26:57+00:00",
-  "tip_sha": "082da6ffe6080a13e9b90972419530648f46b689",
+  "generated_at": "2026-09-15T03:57:02+00:00",
+  "tip_sha": "2ed071ddee94b2cb3e23c1307e85dde0798785c2",
   "runner": "scripts/phase4_live_evidence.py",
-  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 082da6ffe6080a13e9b90972419530648f46b689",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 2ed071ddee94b2cb3e23c1307e85dde0798785c2",
   "docker_available": true,
   "docker_note": "docker info exit 0",
   "proofs": [
@@ -145,14 +145,14 @@
       "name": "Staged Workspace Manager (construction)",
       "passed": true,
       "command": "StagedWorkspaceAuthority.stage+load real disk",
-      "evidence": "staged lease_id=764ec3d10a6f45aea7396c597e19df2c mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-e0fsc4f0\\staged-root\\764ec3d10a6f45aea7396c597e19df2c baseline=6fc358b543368ecf\u2026"
+      "evidence": "staged lease_id=bcd826160a214a7bac47b32ac09ce832 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-z26kqnb1\\staged-root\\bcd826160a214a7bac47b32ac09ce832 baseline=6fc358b543368ecf\u2026"
     },
     {
       "organ_id": 21,
       "name": "Queen Council Orchestrator",
       "passed": true,
       "command": "QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime)",
-      "evidence": "QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-e0fsc4f0\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority"
+      "evidence": "QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-z26kqnb1\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority"
     },
     {
       "organ_id": 22,
@@ -229,7 +229,7 @@
       "name": "Cloud Budget and Provider-Health Organ",
       "passed": true,
       "command": "ProviderHealthBudgetAuthority circuit open",
-      "evidence": "after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-19T16:26:53+00:00'"
+      "evidence": "after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-15T03:57:00+00:00'"
     },
     {
       "organ_id": 36,
@@ -292,7 +292,7 @@
       "name": "Provenance and Explanation Surface",
       "passed": true,
       "command": "PrivacyAuditTracker.record + reopen real SQLite",
-      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-e0fsc4f0\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
+      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-z26kqnb1\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
     },
     {
       "organ_id": 19,
@@ -306,14 +306,14 @@
       "name": "Observability and Health Organ",
       "passed": true,
       "command": "ObservabilityAuthority.health + TestClient GET /health",
-      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '696d125a-1e60-419d-914d-022ef649a52f'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '76fa6e96-3481-4f8b-9408-6b5197b104cf'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
     },
     {
       "organ_id": 53,
       "name": "Installation, Configuration and Key Authority",
       "passed": true,
       "command": "InstallationConfigurationAuthority.rotate + reopen SQLite",
-      "evidence": "rotate persisted; state=ApiTokenRotationState(current_token_digest='02baa6843e47f38aa34bde58eff0a90d5e601a30a1d5cf0c07ab8885ec239582', current_issued_at=1789835216.311147, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789835276.311147); reopen_configured=True db_bytes=8192"
+      "evidence": "rotate persisted; state=ApiTokenRotationState(current_token_digest='8b5ef4d32fc19b6d32bb2441a9a381218b8613d40e8b2aca031ec6431c01a48d', current_issued_at=1789444622.1864047, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789444682.1864047); reopen_configured=True db_bytes=8192"
     },
     {
       "organ_id": 54,

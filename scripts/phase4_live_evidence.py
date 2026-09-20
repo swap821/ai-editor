@@ -67,6 +67,30 @@ def _docker_available() -> tuple[bool, str]:
     return True, "docker info exit 0"
 
 
+def _private_executor_reachable() -> bool:
+    """True when a live private Executor Service answers ``/health``.
+
+    Gates organ 40's live claim. Deliberately separate from
+    ``_docker_available``: a host can run the daemon and still run no executor
+    service, and organ 40's evidence is about the executor BOUNDARY, not the
+    daemon's presence.
+    """
+    try:
+        from aios import config
+        from aios.application.executor.service import StructuredExecutorClient
+    except Exception:  # noqa: BLE001 - import failure means "not available here"
+        return False
+    if not (config.EXECUTOR_URL and config.EXECUTOR_TOKEN):
+        return False
+    try:
+        StructuredExecutorClient(
+            base_url=config.EXECUTOR_URL, token=config.EXECUTOR_TOKEN, timeout_s=15
+        ).health()
+    except Exception:  # noqa: BLE001 - unreachable means OMIT, never "failed"
+        return False
+    return True
+
+
 def _run_wave(scratch: Path) -> list[OrganProof]:
     # Imports only after AIOS_DATA_DIR / verification keys are set by main().
     from aios.application.action_broker import ActionBrokerAuthority
@@ -510,6 +534,24 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
         "ExecutorServiceAuthority.execute fail-closed",
         _organ13,
     )
+
+    # --- organ 40 Isolated Workspace and Executor (LIVE Docker isolation) ---
+    # Organ 13 proves the construction refuses; organ 40 proves the real
+    # boundary actually holds -- uid 65534, network blocked, writes outside the
+    # workspace blocked, output truncated -- against a live private executor.
+    #
+    # Gated on reachability, matching the script's policy for every absent
+    # dependency: an unreachable executor OMITS the organ rather than claiming
+    # it and failing. Claiming-and-failing would turn "this host runs no
+    # executor" into "the isolation is broken" -- a different, false statement,
+    # and exactly the vacuous-FAIL shape this repo keeps paying for.
+    if _private_executor_reachable():
+        claim(
+            40,
+            "Isolated Workspace and Executor (live proof)",
+            "rp._probe_executor",
+            lambda: rp._probe_executor(scratch),
+        )
 
     # --- organ 14 Staged Workspace ---
     def _organ14() -> str:
