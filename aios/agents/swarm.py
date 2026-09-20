@@ -1,5 +1,25 @@
 """Ephemeral worker swarm over the single supervised tool loop — ant-colony.
 
+DORMANT: NOTHING IN THE PRODUCT CAN REACH THIS TODAY.
+-----------------------------------------------------
+``generate_pipeline`` rejects the request before any of this runs::
+
+    if req.swarm or req.role_pass:
+        ... yield sse("error", {"code": "strategy_unavailable", ...}); return
+
+There is no flag that opens it -- the gate is unconditional. Everything below is
+built, tested, and unreachable from a live turn, and the downstream SSE branches
+that handle ``swarm_plan`` / ``caste_start`` / ``caste_end`` sit after a `return`
+that always fires.
+
+This banner exists because the alternative is worse: a fully-wired-looking
+subsystem with an invisible gate reads as implemented to anyone auditing the
+product, and this repository has spent months removing exactly that kind of
+claim. Dormant is an honest state; silently dead is not. Pinned by
+``tests/test_documented_reachability.py``, which fails if the gate is removed
+without this banner being rewritten.
+
+
 The dynamic-fan-out generalization of the sequential role-pass
 (:mod:`aios.agents.role_pass`). A DECOMPOSER caste splits a task into independent
 subtasks; then one ephemeral WORKER caste :class:`~aios.agents.tool_agent.ToolAgent`

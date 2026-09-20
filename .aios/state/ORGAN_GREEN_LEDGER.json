@@ -1103,13 +1103,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
+        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
         "proof_level": "live"
       }
     ],
@@ -1159,13 +1154,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
+        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
         "proof_level": "live"
       }
     ],
@@ -1378,13 +1368,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; HumanStateInterpreterAuthority.classify => classify ASAP => state=rushed conf=0.6; noted => state=neutral",
+        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
         "proof_level": "live"
       }
     ],
@@ -1496,13 +1481,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3…",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3…",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3…",
+        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
         "proof_level": "live"
       }
     ],
@@ -1993,13 +1973,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
+        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
         "proof_level": "live"
       }
     ],
@@ -2544,13 +2519,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'e1d1413a-3d42-4fcb-ada8-a2b6e4c20dd4'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'abdee6c5-a863-4dce-a622-4f7d15496e66'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '48289dda-f661-4c9f-80de-b1783a46cf32'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
+        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
         "proof_level": "live"
       }
     ],

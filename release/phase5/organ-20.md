@@ -1,13 +1,14 @@
 # Phase 5 proof — Organ 20: Living Mirror Reaction Registry (construction)
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `cc8492f314eb051c686baffb9fe80e640661efdd`
-**Generated:** 2026-09-20T09:26:31+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
+**Generated:** 2026-09-20T19:40:51+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C6**: focused_tests not executed here (needs vitest): frontend/src/superbrain/lib/livingMirrorRegistry.test.ts -- pass --frontend-junit or --allow-unexecuted-frontend
+- **C7**: integration_tests not executed here (needs vitest): frontend/src/superbrain/lib/aiosMirror.test.ts -- pass --frontend-junit or --allow-unexecuted-frontend
 
 ## Written verdict keys that are not PASS/N/A
 

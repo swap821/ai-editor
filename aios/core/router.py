@@ -22,6 +22,17 @@ The design is **hybrid**, in three deterministic layers + one optional LLM layer
      with **evidence calibration** — the measured per-(provider, model, task)
      verified-success rate from the audit/dev metrics — so the router learns what
      actually performs on *this* workload. Cold-start falls back to the heuristic.
+
+     CALIBRATION IS OFF BY DEFAULT, and saying otherwise would be a claim the
+     wiring does not support. `_route_metrics` in `router_wiring` returns `{}`
+     unless `ROUTER_CLOUD_TASKS` is non-empty, so on a stock install the router
+     ranks purely heuristically and learns nothing from outcomes. That
+     short-circuit is correct rather than an oversight: with no task
+     cloud-eligible, the only candidate is the single local provider, and a
+     metrics read could not change a one-candidate decision. But it does mean
+     "the router learns" describes the opted-in configuration, not the default
+     one — and `ROUTER_CLOUD_TASKS` lives in the frozen core because what may
+     leave the machine is the operator's decision, not a default.
   3. **LOCAL-LLM PICK (optional, hybrid).** When a ``picker`` callable (a small
      local model) is supplied, it is offered ONLY the policy-allowed, ranked
      candidates and may re-order the preference; its choice is honoured **only if
