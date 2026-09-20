@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""Grade a reverse-engineering task, without letting the agent grade itself.
+
+THE TASK SHAPE
+--------------
+"Read ``<module>.<function>`` and write a test that pins what it actually
+does." Learning by reverse-engineering the system's own source, which is the
+operator's chosen starting point: the code is already written and already
+correct, so unlike "write code and write its tests", the agent cannot satisfy
+its grader by bending the thing under test.
+
+THE HOLE THAT LEAVES, AND THE CONTROL THAT CLOSES IT
+----------------------------------------------------
+``def test_x(): assert True`` passes. So does a test that imports the module
+and asserts nothing about it. A green pytest run therefore proves the agent
+wrote *a passing test*, not that it understood anything — and rewarding that
+would teach the system to write vacuous tests, which is worse than teaching it
+nothing.
+
+The control is the one this repo already trusts (the prover's
+``probe.broken-code-fails`` step): **a test that pins behaviour must FAIL when
+that behaviour is broken.** So the target function's body is replaced with
+``raise NotImplementedError`` and the new test is run again. If it still
+passes, it never touched the target, and the task is scored a failure no matter
+how green the first run was.
+
+Four things must all hold, and each is reported separately so a failure says
+which one broke:
+
+1. the new test passes against unmodified source;
+2. it fails when the target is mutated  (it actually exercises the target);
+3. the source outside ``tests/`` is unchanged (no "fix the code to match");
+4. the pre-existing suite selection still passes  (nothing else broke).
+"""
+
+from __future__ import annotations
+
+import ast
+import subprocess
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from aios.core.verification_strength import VerificationStrength
+from tools.self_corpus import Corpus, CorpusError, run_suite
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from aios.memory.skills import SkillMemory
+
+
+@dataclass(frozen=True)
+class Mutation:
+    """A reversible break in one function, used as a negative control."""
+
+    path: Path
+    function: str
+    original: str
+
+
+def mutate_function(path: Path, function: str) -> Mutation:
+    """Replace *function*'s body with ``raise NotImplementedError``.
+
+    The signature, decorators and docstring position are left alone and only
+    the statements are replaced, so the module still imports and the mutation
+    is felt exactly when the function is CALLED. A mutation that broke the
+    import instead would be failed by any test that so much as imports the
+    module, which would make the control pass for the wrong reason.
+
+    Nested definitions are not searched: the target is named by the caller, and
+    silently mutating a different function of the same name one scope down
+    would mean the control measured something nobody asked about.
+    """
+    original = path.read_text(encoding="utf-8")
+    tree = ast.parse(original)
+    node = next(
+        (
+            n
+            for n in tree.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name == function
+        ),
+        None,
+    )
+    if node is None:
+        # Also allow `Class.method` targets, one level in.
+        for top in tree.body:
+            if isinstance(top, ast.ClassDef):
+                node = next(
+                    (
+                        n
+                        for n in top.body
+                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and n.name == function
+                    ),
+                    None,
+                )
+                if node is not None:
+                    break
+    if node is None:
+        raise CorpusError(
+            f"no function named {function!r} at module or class level in {path}"
+        )
+
+    lines = original.splitlines(keepends=True)
+    first_stmt = node.body[0]
+    start = first_stmt.lineno - 1
+    end = node.body[-1].end_lineno
+    indent = " " * (first_stmt.col_offset)
+    mutated = (
+        lines[:start]
+        + [f'{indent}raise NotImplementedError("self-corpus negative control")\n']
+        + lines[end:]
+    )
+    path.write_text("".join(mutated), encoding="utf-8")
+    return Mutation(path=path, function=function, original=original)
+
+
+def restore(mutation: Mutation) -> None:
+    """Put the original bytes back. Always called from a ``finally``."""
+    mutation.path.write_text(mutation.original, encoding="utf-8")
+
+
+def source_is_untouched(corpus: Corpus) -> tuple[bool, str]:
+    """True when the agent changed nothing outside ``tests/``.
+
+    A reverse-engineering task is graded on the test the agent wrote, against
+    the code as it stands. Editing the code to match a wrong belief about it is
+    not a pass, it is the failure mode — and it would otherwise be invisible,
+    because both runs would be green.
+    """
+    status = subprocess.run(
+        ["git", "-C", str(corpus.root), "status", "--porcelain=v1", "-uall"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    offenders = []
+    for line in status.splitlines():
+        path = line[3:].strip().strip('"')
+        if not path or path.startswith("tests/"):
+            continue
+        if _is_build_artefact(path):
+            continue
+        offenders.append(line)
+    return (not offenders), "\n".join(offenders)
+
+
+#: Paths that RUNNING the suite creates. Excluded because the check would
+#: otherwise flag its own measurement: the clean run compiles the corpus,
+#: `__pycache__` appears, and a perfectly honest attempt is scored as having
+#: edited the source. Kept deliberately narrow — anything not on this list is
+#: an offender, including files a broader "ignore generated stuff" rule would
+#: have waved through.
+_ARTEFACT_SUFFIXES = (".pyc", ".pyo")
+_ARTEFACT_PARTS = ("__pycache__", ".pytest_cache")
+
+
+def _is_build_artefact(path: str) -> bool:
+    parts = path.replace("\\", "/").split("/")
+    return (
+        path.endswith(_ARTEFACT_SUFFIXES)
+        or any(part in _ARTEFACT_PARTS for part in parts)
+        or parts[-1] == ".coverage"
+    )
+
+
+@dataclass
+class PinVerdict:
+    """Why a reverse-engineering attempt passed or failed. Never a bare bool."""
+
+    passes_clean: bool = False
+    fails_when_mutated: bool = False
+    source_untouched: bool = False
+    suite_still_green: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def earned(self) -> bool:
+        return (
+            self.passes_clean
+            and self.fails_when_mutated
+            and self.source_untouched
+            and self.suite_still_green
+        )
+
+
+def grade_pin_test(
+    corpus: Corpus,
+    *,
+    new_test: list[str],
+    target_module: str,
+    target_function: str,
+    guard_selection: list[str],
+) -> PinVerdict:
+    """Run the four checks and report each one.
+
+    The order matters: the cheap structural check (did the agent edit source?)
+    runs before the expensive guard suite, and the mutation control runs even
+    when the clean run failed — knowing *both* "it does not pass" and "it would
+    not have caught anything anyway" is more useful than stopping at the first
+    red.
+    """
+    verdict = PinVerdict()
+
+    clean = run_suite(corpus, new_test)
+    verdict.passes_clean = clean.green
+    if not clean.green:
+        verdict.notes.append(f"clean run not green: {clean.tail}")
+
+    untouched, offenders = source_is_untouched(corpus)
+    verdict.source_untouched = untouched
+    if not untouched:
+        verdict.notes.append(
+            "source outside tests/ was modified — a pin test is graded against "
+            f"the code as it stands, not code bent to fit it:\n{offenders}"
+        )
+
+    module_path = corpus.root / Path(target_module)
+    mutation = mutate_function(module_path, target_function)
+    try:
+        mutated = run_suite(corpus, new_test)
+        verdict.fails_when_mutated = not mutated.green
+        if mutated.green:
+            verdict.notes.append(
+                f"NEGATIVE CONTROL FAILED: the test still passes with "
+                f"{target_function}() replaced by `raise NotImplementedError`, so it "
+                "does not exercise the target at all. A test that cannot fail is "
+                "not evidence of understanding."
+            )
+    finally:
+        restore(mutation)
+
+    guard = run_suite(corpus, guard_selection)
+    verdict.suite_still_green = guard.green
+    if not guard.green:
+        verdict.notes.append(f"pre-existing suite no longer green: {guard.tail}")
+
+    return verdict
+
+
+def record_pin_outcome(
+    skills: "SkillMemory",
+    verdict: PinVerdict,
+    *,
+    goal: str,
+    steps: list[str],
+) -> int:
+    """Turn a graded reverse-engineering attempt into learning evidence.
+
+    THE GRADER IS THE AUTHORITY HERE, NOT THE STRENGTH. A vacuous
+    ``assert True`` test run under pytest produces ``passed_count > 0`` and
+    ``failed_count == 0`` from a recognized runner at the program position, so
+    ``derive_strength`` calls it STRONG — correctly, by its own definition,
+    which is about the KIND of evidence and not about whether the test means
+    anything. The strength taxonomy cannot tell a real pin test from a test
+    that pins nothing; only the mutation control can.
+
+    So an attempt that did not EARN the task is recorded as a FAILURE, not as a
+    weak success. That distinction matters for what the system learns: a weak
+    success still resets `consecutive_failures` and still says "this arc ran
+    cleanly", which is exactly the wrong lesson to draw from an agent that
+    wrote a test incapable of failing.
+    """
+    return skills.record_attempt(
+        goal,
+        steps,
+        success=verdict.earned,
+        strength=(
+            VerificationStrength.STRONG if verdict.earned else VerificationStrength.NONE
+        ),
+    )

@@ -2312,6 +2312,9 @@ class RecordingCurriculum:
     def list(self, skill_name=None):
         return self.tasks
 
+    def mastery_blockers(self, skill_name=None):
+        return []
+
 
 class RecordingConsolidator:
     def run(self):

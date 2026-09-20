@@ -216,6 +216,67 @@ class CurriculumManager:
         )
         return True
 
+    def mastery_blockers(self, skill_name: str | None = None) -> list[dict[str, Any]]:
+        """Why each unmastered level is not mastered -- including unstated requirements.
+
+        `_refresh_level` gates mastery on `held_out_passed`, which is
+        ``bool(held_out) and all(...)``. When a level has NO held-out task that
+        is ``bool([])`` -> False, so the level can never be mastered -- and
+        nothing says so. The plumbing keeps recording successes on every
+        matching turn, the counters climb, and the transition is a permanent
+        no-op. Measured on this repo: no bootstrap, seed, or automatic path ever
+        creates a held-out task; the only caller that can is the privileged
+        operator route, so out of the box "brain growth" is inert and silent.
+
+        A requirement nobody states is indistinguishable from a system that does
+        not work. This reports it as a named blocker so the difference is
+        visible, in the same spirit as the organ ledger naming its residuals
+        rather than letting a row sit yellow for unexplained reasons.
+
+        Read-only: this decides nothing and changes nothing.
+        """
+        rows = self.list(skill_name)
+        levels: dict[tuple[str, int], list[dict[str, Any]]] = {}
+        for row in rows:
+            levels.setdefault((str(row["skill_name"]), int(row["level"])), []).append(
+                row
+            )
+
+        report: list[dict[str, Any]] = []
+        for (skill, level), group in sorted(levels.items()):
+            if all(str(row["status"]) == "mastered" for row in group):
+                continue
+            training = [row for row in group if not row["held_out"]]
+            held_out = [row for row in group if row["held_out"]]
+            passes = sum(int(row["successes"]) for row in training)
+
+            blockers: list[str] = []
+            if not held_out:
+                blockers.append(
+                    "no held-out task defined -- mastery is UNREACHABLE for this "
+                    "level until one exists, however many training passes accrue"
+                )
+            elif not all(int(row["successes"]) > 0 for row in held_out):
+                blockers.append("a held-out task has no verified success yet")
+            if not training:
+                blockers.append("no training task defined")
+            elif not all(int(row["successes"]) > 0 for row in training):
+                blockers.append("not every training task has a verified success yet")
+            if passes < self.training_passes_required:
+                blockers.append(
+                    f"training passes {passes}/{self.training_passes_required}"
+                )
+            if blockers:
+                report.append(
+                    {
+                        "skill_name": skill,
+                        "level": level,
+                        "reachable": bool(held_out),
+                        "blockers": blockers,
+                    }
+                )
+        return report
+
     def list(self, skill_name: str | None = None) -> list[dict[str, Any]]:
         """Return curriculum state; no task is ever executed here."""
         init_memory_db(self.db_path)

@@ -265,7 +265,21 @@ def test_default_strength_preserves_existing_behavior(tmp_path: Path) -> None:
     assert _status(skills, skill_id)["status"] == "verified"
 
 
-def test_medium_greens_are_ineligible_under_strong_floor(tmp_path: Path) -> None:
+def test_medium_greens_are_eligible_under_the_learning_floor(tmp_path: Path) -> None:
+    """Superseded 2026-09-20 by the learning/authority floor split (Phase B).
+
+    This test used to assert the OPPOSITE: that three clean type-check runs left
+    a skill at ``candidate`` with ``success_count == 0``. That was the defect,
+    not the contract. STRONG is reachable only from a recognized test runner, so
+    under one shared floor every type-check, lint, or build skill had an
+    evidence CEILING below the bar — it could succeed forever and never promote,
+    and nothing anywhere said so.
+
+    Skills now gate on ``meets_learning_floor`` (MEDIUM). AUTHORITY still gates
+    on ``meets_promotion_floor`` (STRONG), and that separation is pinned in
+    tests/test_learning_floor_is_not_authority.py — including that a MEDIUM
+    success can never graduate an action class to unattended execution.
+    """
     skills = _skills(tmp_path)
     skill_id = 0
     for _ in range(3):
@@ -274,6 +288,28 @@ def test_medium_greens_are_ineligible_under_strong_floor(tmp_path: Path) -> None
             ["edit"],
             success=True,
             strength=VerificationStrength.MEDIUM,
+        )
+    row = _status(skills, skill_id)
+    assert row["status"] == "verified"
+    assert row["success_count"] == 3
+    assert row["weak_success_count"] == 0
+
+
+def test_weak_greens_are_still_ineligible(tmp_path: Path) -> None:
+    """The half of the old test that was never the defect, kept explicit.
+
+    Lowering a floor and deleting the test that guarded it look identical in a
+    diff. WEAK means the command exited 0 and asserted nothing; it must remain
+    unable to promote anything, and that claim now has its own name.
+    """
+    skills = _skills(tmp_path)
+    skill_id = 0
+    for _ in range(3):
+        skill_id = skills.record_attempt(
+            "ran something",
+            ["edit"],
+            success=True,
+            strength=VerificationStrength.WEAK,
         )
     row = _status(skills, skill_id)
     assert row["status"] == "candidate"
