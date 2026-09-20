@@ -17,7 +17,7 @@ coverage==7.16.0
 cryptography==50.0.1
 faiss-cpu==1.15.0
 fastapi==0.141.1
-filelock==3.32.6
+filelock==4.0.0
 fsspec==2026.7.0
 gitdb==4.0.12
 GitPython==3.1.62
