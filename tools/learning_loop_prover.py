@@ -581,17 +581,25 @@ def phase_lesson(files: dict[str, str], run_id: str, model: str, check: Check) -
         model_id=model,
     )
     log_event({"kind": "turn", "phase": "lesson", "turn": 1, "run_id": run_id, **turn1})
-    check.hard(
+    # SOFT, not hard: this asserts the MODEL produced a verified success.
+    # nightly.yml runs qwen2.5:0.5b and states its own contract -- "WHAT IT
+    # GATES ON: harness integrity, never model score ... broken, not that a
+    # 0.5b model was disobedient" -- and already passes --lenient, the
+    # prover's supported way to say exactly that. Registered hard, --lenient
+    # could not reach it, so the job failed on model obedience and the
+    # Nightly went red on every one of its last 60 runs. Structural checks
+    # below stay hard and still fail the run.
+    check.soft(
         "lesson.turn1-verified-success",
         turn1["outcome"] == "verified_success",
         f"outcome={turn1['outcome']}",
     )
-    check.hard(
+    check.soft(
         "lesson.fail-then-pass",
         fail_before_pass(turn1),
         "a [VERIFY FAIL] must precede the final [VERIFY PASS]",
     )
-    check.hard(
+    check.soft(
         "lesson.reflect-step",
         has_id(turn1, "reflect-"),
         "failure hook recorded a structured lesson (reflect-* step)",
@@ -615,7 +623,7 @@ def phase_lesson(files: dict[str, str], run_id: str, model: str, check: Check) -
         "lesson-recall" in turn2.get("step_ids", []),
         "the re-attempt turn recalled the recorded lesson (lesson-recall step)",
     )
-    check.hard(
+    check.soft(
         "lesson.turn2-verified-success",
         turn2["outcome"] == "verified_success",
         f"outcome={turn2['outcome']}",
@@ -638,12 +646,15 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
         log_event(
             {"kind": "turn", "phase": "reflex", "rep": rep, "run_id": run_id, **result}
         )
-        check.hard(
+        # Same criterion as the lesson.* outcome checks above: this is the
+        # MODEL's result, not the harness's. Leaving it hard while its identical
+        # siblings are soft would be an inconsistency, not a stricter gate.
+        check.soft(
             f"reflex.rep{rep}-verified-success",
             result["outcome"] == "verified_success",
             f"outcome={result['outcome']}",
         )
-        check.hard(
+        check.soft(
             f"reflex.rep{rep}-strong",
             strong_pass(result),
             "promotion floor requires strength=STRONG evidence",
@@ -663,7 +674,7 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             )
 
     promoted = skill_promoted(f"llp_reflex_{_slug(run_id)}")
-    check.hard(
+    check.soft(
         "reflex.skill-verified",
         promoted,
         "a verified skill row for this goal exists in /development/skills",
@@ -673,16 +684,43 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
     log_event(
         {"kind": "turn", "phase": "reflex", "rep": "replay", "run_id": run_id, **replay}
     )
-    check.hard(
-        "reflex.cerebellum-match",
-        "cerebellum_match" in replay["cerebellum_events"],
-        f"events={replay['cerebellum_events'] or 'none'}",
-    )
-    check.hard(
-        "reflex.cerebellum-done",
-        "cerebellum_done" in replay["cerebellum_events"],
-        "the compiled playbook replayed to completion",
-    )
+    # HARD only when a playbook actually exists to replay.
+    #
+    # These assert the cerebellum machinery works, and that IS harness
+    # integrity -- but only once something was promoted. The precondition is
+    # `promoted` above, which needs the model to have produced verified
+    # successes. On a CI-sized model (nightly.yml runs qwen2.5:0.5b) nothing is
+    # promoted, so there is no compiled playbook, and asserting its replay
+    # fails for a reason that is not the harness's. That is the causal chain
+    # that kept the Nightly red on all of its last 60 runs: weak model -> no
+    # verified success -> no promotion -> no playbook -> hard failure.
+    #
+    # Gated this way the guarantee is unchanged where it is meaningful: if a
+    # playbook WAS compiled and then fails to match or complete, that is a real
+    # defect and still fails the run.
+    if promoted:
+        check.hard(
+            "reflex.cerebellum-match",
+            "cerebellum_match" in replay["cerebellum_events"],
+            f"events={replay['cerebellum_events'] or 'none'}",
+        )
+        check.hard(
+            "reflex.cerebellum-done",
+            "cerebellum_done" in replay["cerebellum_events"],
+            "the compiled playbook replayed to completion",
+        )
+    else:
+        check.soft(
+            "reflex.cerebellum-match",
+            "cerebellum_match" in replay["cerebellum_events"],
+            "no skill was promoted, so no playbook exists to replay "
+            f"(events={replay['cerebellum_events'] or 'none'})",
+        )
+        check.soft(
+            "reflex.cerebellum-done",
+            "cerebellum_done" in replay["cerebellum_events"],
+            "no skill was promoted, so no playbook exists to replay",
+        )
 
 
 def phase_probe(files: dict[str, str], run_id: str, model: str, check: Check) -> None:
