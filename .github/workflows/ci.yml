@@ -365,7 +365,19 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          # Node 22, not 20. `jsdom` has declared `^22.22.2 || ^24.15.0 ||
+          # >=26.0.0` since before this bump, so CI was already running an
+          # engine its own dependencies do not support — green by luck rather
+          # than by contract. This group update made the latent gap bite: jsdom,
+          # vitest and motion all reference the `Iterator` global (ES2025
+          # iterator helpers, available from Node 22.0), so on Node 20 every
+          # vitest forks worker died with `ReferenceError: Iterator is not
+          # defined` — 116 errors, zero tests executed, and coverage reported 0%
+          # against floors of 60-74%. The coverage failure was the symptom; the
+          # workers never started.
+          #
+          # GitHub has also deprecated Node 20 on its runners.
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
