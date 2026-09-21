@@ -49,6 +49,7 @@ import os
 import sys
 import uuid
 from dataclasses import asdict, dataclass, field
+from typing import Optional
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -305,6 +306,22 @@ def run_chain(
                 if tier_earned:
                     break
 
+        # --- A verify-only arc, so L5 has something it CAN replay ----------
+        # `tests/test_code_chunking.py` is real, fast and dependency-free, and
+        # the corpus is a real checkout of this repository -- so this is a real
+        # module being really tested, just without a write in the workflow.
+        print("\n  verify-only arc (read + verify, no writes)")
+        verify_skill_id, verify_detail = _verify_only_cycle(
+            corpus,
+            ladder[0][1],
+            skills,
+            target_test="tests/test_code_chunking.py",
+            repeats=3,
+        )
+        if verify_skill_id is not None:
+            organic_skill_ids.add(verify_skill_id)
+        print(f"    {verify_detail}")
+
         # --- L4: does anything the chain earned actually compile? -----------
         compiled = cerebellum.try_compile_all()
         # ONLY a playbook whose skill this run earned counts. Taking "the
@@ -340,6 +357,101 @@ def run_chain(
             )
 
     return list(links.values()), attempts, run_id
+
+
+VERIFY_ONLY_PROMPT = (
+    "Use the verify tool to run exactly this command and report the result: "
+    "`{command}`. Do not create or edit any files."
+)
+
+
+def _verify_only_cycle(
+    corpus,
+    client,
+    skills,
+    *,
+    target_test: str,
+    repeats: int,
+) -> tuple[Optional[int], str]:
+    """Earn an arc on real code that a reflex can actually replay.
+
+    WHY THIS SHAPE EXISTS. The pin task writes a file, and a replay may only
+    CONFIRM a `create_file` whose exact bytes a human approved. The self-corpus
+    has no human, so a pin arc can never be replayed -- not because replay is
+    broken, but because the write guard is doing its job. Registering
+    agent-written bytes as approved would be forging an approval.
+
+    A read+verify task has no such problem, and it is not a contrivance: the
+    learning-loop prover uses exactly this shape for its own reflex phase, for
+    exactly this reason. The work is real (a real module, a real suite that
+    really runs in the corpus); only the WRITE is absent.
+
+    The steps are derived by `turn_pipeline._workflow_step`, the production
+    function, so the arc is the same kind of object a chat turn would record.
+    """
+    from aios.agents.tool_agent import ToolAgent
+    from aios.api.turn_pipeline import _workflow_step
+    from aios.core.autonomy import UNGOVERNED_FIXTURE
+    from aios.core.executor import Executor
+    from aios.core.verification_strength import derive_strength
+    from aios.security.gateway import RateLimiter
+
+    command = f"pytest {target_test}"
+    goal = VERIFY_ONLY_PROMPT.format(command=command)
+    skill_id: Optional[int] = None
+    detail = ""
+
+    for attempt in range(1, repeats + 1):
+        agent = ToolAgent(
+            client,
+            Executor(
+                rate_limiter=RateLimiter(),
+                audit_log=lambda *a, **k: None,
+                emergency_stop=UNGOVERNED_FIXTURE,
+            ),
+            max_iters=4,
+            read_root=corpus.root,
+            session_id=f"organic-verify-{attempt}",
+        )
+        steps: list[str] = []
+        passed = False
+        verify_output = ""
+        try:
+            for event in agent.run([{"role": "user", "content": goal}]):
+                if event.get("type") == "tool_call":
+                    steps.append(_workflow_step(event))
+                if event.get("type") == "tool_result" and event.get("tool") == "verify":
+                    verify_output = str(event.get("output", ""))
+                    passed = "[VERIFY PASS]" in verify_output
+        except Exception as exc:  # noqa: BLE001 - a bad turn is a result
+            detail = f"turn {attempt} raised {type(exc).__name__}: {str(exc)[:90]}"
+            continue
+
+        if not steps:
+            detail = f"turn {attempt} made no tool calls"
+            continue
+
+        strength = derive_strength(
+            passed=passed,
+            passed_count=_passed_count(verify_output),
+            failed_count=0 if passed else 1,
+            command=command,
+        )
+        skill_id = skills.record_attempt(goal, steps, success=passed, strength=strength)
+        detail = f"{attempt} turn(s), last strength={strength.name}, passed={passed}"
+        print(
+            f"    verify-only turn {attempt}: passed={passed} "
+            f"strength={strength.name} steps={len(steps)}"
+        )
+    return skill_id, detail
+
+
+def _passed_count(verify_output: str) -> int:
+    """Tests reported passing, so a hollow verify cannot mint STRONG."""
+    import re as _re
+
+    match = _re.search(r"(\d+) passed", verify_output)
+    return int(match.group(1)) if match else 0
 
 
 def _reflect(reflector, command: str, error_output: str, run_id: str) -> int | None:
