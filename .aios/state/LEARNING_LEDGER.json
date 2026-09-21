@@ -1,0 +1,366 @@
+{
+  "schema": "learning-ledger/v1",
+  "purpose": "The animal's equivalent of ORGAN_GREEN_LEDGER.json. One record per learning faculty, judged against LC1..LC12 by scripts/verify_learning_conditions.py. Verdicts are COMPUTED, never written here by hand: this file declares the inputs (owner, entrypoints, callers, stores, tests, evidence) and the verifier decides. A faculty is green only when every condition passes or is declared N/A-BY-DESIGN with a referent.",
+  "honesty_note": "The first honest run of this ledger is expected to be mostly yellow. A ledger that goes green on the day it is written is not measuring anything.",
+  "faculties": [
+    {
+      "faculty_id": "L1",
+      "name": "Reflection (failure -> lesson)",
+      "authority_owner": "ReflectionAgent",
+      "production_entrypoints": [
+        "aios/agents/reflection_agent.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "mistake_pool",
+        "writes_via": "MistakeMemory.record"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "mistake_pool",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_reflection.py",
+        "tests/test_verification_strength.py"
+      ],
+      "focused_tests": [
+        "tests/test_reflection.py"
+      ],
+      "integration_tests": [
+        "tests/test_doctor_learning_loop.py"
+      ],
+      "mutation_probe": null,
+      "known_blockers": [
+        "Gate decisions (BLOCKED / REQUIRE_APPROVAL) are excluded from reflection by verifier.py _GATE_STATUSES, but the second entry point (tool_loop_helpers.reflect -> on_failure) has not been proven to carry the same guard."
+      ],
+      "live_evidence": [],
+      "last_verified_sha": null,
+      "na_by_design": {
+        "LC4": "Reflection keeps no append-only journal of its own; lessons are rows in mistake_pool, which is a mutable store by design (occurrence_count, verification_status). Referent: aios/memory/mistake.py::MistakeMemory"
+      },
+      "live_path_symbols": [
+        "ReflectionAgent"
+      ]
+    },
+    {
+      "faculty_id": "L2",
+      "name": "Lesson transfer (recall -> confirm -> promote)",
+      "authority_owner": "MistakeMemory",
+      "production_entrypoints": [
+        "aios/memory/mistake.py",
+        "aios/agents/tool_loop_helpers.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "mistake_pool",
+        "writes_via": "MistakeMemory.promote"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "mistake_pool",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_lesson_promotion_normalizes.py"
+      ],
+      "focused_tests": [
+        "tests/test_lesson_promotion_normalizes.py"
+      ],
+      "integration_tests": [
+        "tests/test_reflection.py"
+      ],
+      "mutation_probe": null,
+      "known_blockers": [
+        "All 87 lessons in the live pool carry an empty failed_command, so none can ever be confirmed by a later success. The promotion path is not broken; it has nothing promotable to act on. Retirement is Stage 5."
+      ],
+      "live_evidence": [],
+      "last_verified_sha": null,
+      "na_by_design": {
+        "LC4": "No journal of its own; promotion mutates the lesson row in place. Referent: aios/memory/mistake.py::MistakeMemory.promote"
+      },
+      "live_path_symbols": [
+        "MistakeMemory",
+        "_recall_pending_commands"
+      ]
+    },
+    {
+      "faculty_id": "L3",
+      "name": "Skill acquisition (attempt -> arc -> verified)",
+      "authority_owner": "SkillMemory",
+      "production_entrypoints": [
+        "aios/memory/skills.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "procedural_skills",
+        "writes_via": "SkillMemory.record_attempt"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "procedural_skills",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_skill_failure_streak.py",
+        "tests/test_superseded_does_not_block_relearning.py"
+      ],
+      "focused_tests": [
+        "tests/test_skill_failure_streak.py",
+        "tests/test_superseded_does_not_block_relearning.py"
+      ],
+      "integration_tests": [
+        "tests/test_skill_lifecycle.py"
+      ],
+      "mutation_probe": null,
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Three per-tier arcs reached `verified` from organic data on 2026-09-21: build_auto_verify_command via ollama.qwen2.5-coder-7b (3S/0F), next_step_after_blocked_read and next_step_after_noop via qwen.qwen3-coder-30b-a3b (3S/0F each). Repo-wide verified skills 3 -> 6. Produced by three runs of tools/reverse_engineer_gagos.py against a git worktree of this repository at a pinned sha, graded by the mutation negative control. NOT a claim about any other codebase, and NOT evidence that the resulting skills replay.",
+          "command": "python tools/reverse_engineer_gagos.py --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0,qwen.qwen3-coder-480b-a35b-v1:0 --targets 4 --retries 1",
+          "artifact": ".aios/audit/reverse-engineering-runs.jsonl",
+          "commit_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+      "na_by_design": {
+        "LC4": "Skill state is a mutable counter row, not a journal. The append-only record of the attempts that produced it is the self-corpus trail. Referent: .aios/audit/reverse-engineering-runs.jsonl"
+      },
+      "live_path_symbols": [
+        "runtime.skills",
+        "\"skills\": runtime.skills"
+      ]
+    },
+    {
+      "faculty_id": "L4",
+      "name": "Reflex compilation (skill -> playbook)",
+      "authority_owner": "Cerebellum",
+      "production_entrypoints": [
+        "aios/core/cerebellum.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "compiled_playbooks",
+        "writes_via": "Cerebellum.try_compile_all"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "compiled_playbooks",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "focused_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "integration_tests": [
+        "tests/test_repair_playbooks.py"
+      ],
+      "mutation_probe": null,
+      "known_blockers": [
+        "A decompiled playbook bars its skill from ever recompiling: the compile query excludes status IN ('compiled','decompiled') and no code path ever clears 'decompiled'. The module docstring claims recovery is possible once the skill re-earns verification; it is not. One live skill is in this state. Fix is Stage 5."
+      ],
+      "live_evidence": [],
+      "last_verified_sha": null,
+      "na_by_design": {},
+      "live_path_symbols": [
+        "Cerebellum"
+      ]
+    },
+    {
+      "faculty_id": "L5",
+      "name": "Reflex replay (a turn served with no LLM call)",
+      "authority_owner": "Cerebellum",
+      "production_entrypoints": [
+        "aios/core/cerebellum.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "compiled_playbooks",
+        "writes_via": "Cerebellum.record_replay"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "compiled_playbooks",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "focused_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "integration_tests": [
+        "tests/test_repair_playbooks.py"
+      ],
+      "mutation_probe": null,
+      "known_blockers": [
+        "2 replays have ever been served without an LLM. There is no dated artifact proving a replay served a real turn on organic data, which is the single claim that would show the loop pays for itself. Producing it is Stage 3 mission 4."
+      ],
+      "live_evidence": [],
+      "last_verified_sha": null,
+      "na_by_design": {},
+      "live_path_symbols": [
+        "Cerebellum"
+      ]
+    },
+    {
+      "faculty_id": "L6",
+      "name": "Curriculum progression (levels -> mastered)",
+      "authority_owner": "CurriculumManager",
+      "production_entrypoints": [
+        "aios/memory/curriculum.py",
+        "aios/memory/curriculum_miner.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "curriculum_tasks",
+        "writes_via": "CurriculumManager.add_task"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "curriculum_tasks",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_curriculum_mastery_is_reachable.py"
+      ],
+      "focused_tests": [
+        "tests/test_curriculum_mastery_is_reachable.py",
+        "tests/test_curriculum_miner_shapes.py"
+      ],
+      "integration_tests": [
+        "tests/test_curriculum_miner.py"
+      ],
+      "mutation_probe": null,
+      "known_blockers": [
+        "CurriculumMiner has zero references from the live turn path, so proposals are only generated when something calls it explicitly. Mastery itself is reachable (2 of 2 levels mastered)."
+      ],
+      "live_evidence": [],
+      "last_verified_sha": null,
+      "na_by_design": {},
+      "live_path_symbols": [
+        "runtime.curriculum",
+        "\"curriculum\": runtime.curriculum"
+      ]
+    },
+    {
+      "faculty_id": "L7",
+      "name": "Organic acquisition (self-corpus, contained)",
+      "authority_owner": "Corpus",
+      "production_entrypoints": [
+        "tools/self_corpus.py",
+        "tools/self_corpus_grading.py",
+        "tools/self_corpus_targets.py"
+      ],
+      "live_path_callers": [],
+      "durable_store": {
+        "table": null,
+        "writes_via": "git worktree at a pinned sha"
+      },
+      "journal": {
+        "kind": "jsonl",
+        "referent": ".aios/audit/reverse-engineering-runs.jsonl",
+        "append_only_claim": true
+      },
+      "fail_closed_tests": [
+        "tests/test_self_corpus_isolation.py",
+        "tests/test_self_corpus_grading.py"
+      ],
+      "focused_tests": [
+        "tests/test_self_corpus_isolation.py",
+        "tests/test_self_corpus_grading.py"
+      ],
+      "integration_tests": [
+        "tests/test_trail_survives_a_kill.py"
+      ],
+      "mutation_probe": {
+        "kind": "in-tool",
+        "referent": "tools/self_corpus_grading.py::mutate_function",
+        "claim": "The agent's new test must FAIL when the target function's body is replaced by `raise NotImplementedError`, else `assert True` would score as understanding."
+      },
+      "known_blockers": [
+        "The evidence trail lives under .aios/audit/, which is gitignored, so no third party can read it. A tracked trend summary is Stage 4."
+      ],
+      "live_evidence": [
+        {
+          "description": "Three full runs on 2026-09-21 against a worktree of this repository at a pinned sha, with AIOS_SCOPE_ROOTS replaced by the worktree and the live tree fingerprinted before and after. 4 of 4 targets earned per run; the positive control (grader earns on a known-correct pin test) passed before any model was asked. The live working tree was byte-identical afterwards.",
+          "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
+          "artifact": ".aios/audit/reverse-engineering-runs.jsonl",
+          "commit_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+      "na_by_design": {
+        "LC2": "L7 is an acquisition harness, not a turn-path faculty: it exists to FEED the loop from outside a chat turn, so reachability from generate_pipeline.py is not the right question for it. Referent: tools/reverse_engineer_gagos.py::main",
+        "LC3": "Its durability requirement is the opposite of the others': the worktree is deliberately thrown away after every run, and what must survive is the trail (LC4) and the skill rows it wrote (L3/LC3). Referent: tools/self_corpus.py::teardown"
+      }
+    },
+    {
+      "faculty_id": "L8",
+      "name": "Measurement integrity (floors, refusal, tier attribution)",
+      "authority_owner": "VerificationStrength",
+      "production_entrypoints": [
+        "aios/core/verification_strength.py",
+        "tools/self_corpus_grading.py"
+      ],
+      "live_path_callers": [
+        "aios/memory/skills.py"
+      ],
+      "durable_store": {
+        "table": null,
+        "writes_via": "pure functions; no state of its own"
+      },
+      "journal": {
+        "kind": "none",
+        "referent": null,
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_learning_floor_is_not_authority.py",
+        "tests/test_tier_is_recorded_only_when_asked.py",
+        "tests/test_self_corpus_grading.py"
+      ],
+      "focused_tests": [
+        "tests/test_verification_strength.py",
+        "tests/test_learning_floor_is_not_authority.py",
+        "tests/test_tier_is_recorded_only_when_asked.py"
+      ],
+      "integration_tests": [
+        "tests/test_runtime_verification_strength.py"
+      ],
+      "mutation_probe": {
+        "kind": "in-tool",
+        "referent": "tools/self_corpus_grading.py::_refuse_hollow",
+        "claim": "A pytest run that produced no output at all is refused rather than scored, in BOTH directions: it cannot become a model's failure, and it cannot satisfy the mutated negative control."
+      },
+      "known_blockers": [],
+      "live_evidence": [],
+      "last_verified_sha": null,
+      "na_by_design": {
+        "LC3": "Stateless by design: derive_strength and the floor helpers are pure functions. Durability is the property of whatever records their verdict. Referent: aios/core/verification_strength.py::derive_strength",
+        "LC4": "No journal: a classifier that writes nothing has nothing to journal. Its verdicts are recorded by L3 and by the self-corpus trail. Referent: aios/memory/skills.py::SkillMemory.record_attempt"
+      },
+      "live_path_symbols": [
+        "VerificationStrength"
+      ]
+    }
+  ]
+}
