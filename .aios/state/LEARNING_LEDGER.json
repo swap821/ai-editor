@@ -322,16 +322,20 @@
       "integration_tests": [
         "tests/test_curriculum_miner.py"
       ],
-      "mutation_probe": null,
+      "mutation_probe": {
+        "kind": "adversarial-tests",
+        "referent": "tests/test_curriculum_mining_is_live.py::TestBreakingMasteryIsNoticed",
+        "claim": "Breaking `_refresh_level` so it never promotes must stop any mastery signal reaching `on_mastered`; if one still arrives, the signal comes from somewhere other than the thing that decides mastery."
+      },
       "known_blockers": [
-        "CurriculumMiner has zero references from the live turn path, so proposals are only generated when something calls it explicitly. Mastery itself is reachable (2 of 2 levels mastered)."
+        "CurriculumMiner is now called from the live turn path (fail-open, default-on, ~90ms), so proposals are generated without anyone asking. But `_extract_module_name` matches `training_ground/<name>.py` and NOTHING else, and every escalation template describes creating a toy module -- so the miner structurally cannot propose from work on real code. LC10 is therefore unreachable for L6 until the miner is redesigned around real repositories, which is a design project rather than a regex change. Pinned by tests/test_curriculum_mining_is_live.py::test_it_can_only_mine_the_TOY_world."
       ],
       "live_evidence": [],
       "last_verified_sha": null,
       "na_by_design": {},
       "live_path_symbols": [
         "runtime.curriculum",
-        "\"curriculum\": runtime.curriculum"
+        "_mine_curriculum"
       ]
     },
     {

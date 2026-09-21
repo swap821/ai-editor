@@ -658,6 +658,23 @@ CURRICULUM_FUZZY_THRESHOLD: Final[float] = max(
 # until a named human approves it through the contradiction check. Default on
 # per the operator's 2026-07-02 four-layer directive; local and model-free.
 FACTS_AUTO_EXTRACT: Final[bool] = _env_bool("AIOS_FACTS_AUTO_EXTRACT", True)
+
+#: Mine curriculum proposals from a completed turn.
+#:
+#: `CurriculumMiner` was reachable only from `/api/v1/development/*`, so
+#: proposals existed only when someone asked for them by hand -- the
+#: "documented as canonical, called by nothing a real turn touches" shape
+#: that the learning ledger's LC2 exists to catch. Default ON because a
+#: curriculum nobody generates is not a curriculum; fail-OPEN because a
+#: learning improvement that can break a chat turn is not an improvement.
+CURRICULUM_MINING_ENABLED: Final[bool] = _env_bool(
+    "AIOS_CURRICULUM_MINING_ENABLED", True
+)
+#: Proposals generated per turn. Small on purpose: this runs inside the
+#: turn, and the cost is paid by the user waiting for their answer.
+CURRICULUM_MINING_MAX_PER_TURN: Final[int] = max(
+    1, _env_int("AIOS_CURRICULUM_MINING_MAX_PER_TURN", 3)
+)
 FACTS_AUTO_EXTRACT_MAX_PER_TURN: Final[int] = max(
     0, min(10, _env_int("AIOS_FACTS_AUTO_EXTRACT_MAX_PER_TURN", 3))
 )
@@ -943,6 +960,8 @@ __all__ = [
     "CRAG_LLM_JUDGE",
     "CURRICULUM_FUZZY",
     "CURRICULUM_FUZZY_THRESHOLD",
+    "CURRICULUM_MINING_ENABLED",
+    "CURRICULUM_MINING_MAX_PER_TURN",
     "FACTS_AUTO_EXTRACT",
     "FACTS_AUTO_EXTRACT_MAX_PER_TURN",
     "CORTEX_BUS",
