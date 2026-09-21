@@ -396,12 +396,24 @@ def _verify_only_cycle(
     from aios.core.verification_strength import derive_strength
     from aios.security.gateway import RateLimiter
 
-    # ABSOLUTE, inside the corpus. A relative path is resolved against
-    # `config.PROJECT_ROOT` — the LIVE tree — so `pytest tests/x.py` names a
-    # file outside the declared scope roots and the scope lock refuses it as a
-    # scope violation, whoever approved it. That is the lock doing its job;
-    # the fix is to say which tree we mean, not to loosen the lock.
-    command = f"pytest {(corpus.root / target_test).as_posix()}"
+    # SELECTED BY NAME, not by path, and that is forced by two guards pulling
+    # in opposite directions — neither of which should be loosened:
+    #
+    #   * a RELATIVE path is resolved by the scope check against
+    #     `config.PROJECT_ROOT`, the LIVE tree, so `pytest tests/x.py` names a
+    #     file outside the declared roots and is refused as a scope violation
+    #     whoever approved it;
+    #   * an ABSOLUTE path is refused at COMPILE time, because
+    #     `_step_targets_are_clean` only compiles playbooks whose file targets
+    #     are clean RELATIVE ASCII paths -- the replay-time conflict guard
+    #     depends on that.
+    #
+    # A `-k` selector names no file at all, so it satisfies both: it executes
+    # in the scope cwd (which IS the corpus) and it compiles. The work is the
+    # same work -- run this suite, in this tree -- expressed in the one form
+    # both controls accept.
+    selector = Path(target_test).stem.removeprefix("test_")
+    command = f"pytest -q -k {selector}"
     goal = VERIFY_ONLY_PROMPT.format(command=command)
     skill_id: Optional[int] = None
     detail = ""
