@@ -299,10 +299,28 @@ def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
     Read only when it can change the route — an ``auto`` turn with cloud opted in
     and calibration on — so a common local-only or explicit-model path never pays for a
     DB read. Fail-soft: any error yields ``{}`` (the router falls back to heuristic).
+
+    "CLOUD OPTED IN" IS ASKED OF THE POLICY, NOT OF THE ENV VAR. There are two
+    independent statements of which tasks may leave the machine: the active
+    RUNTIME PROFILE (what `_router_policy` enforces, and what the operator
+    actually switches) and `config.ROUTER_CLOUD_TASKS` (an env var). This
+    function used the second while the routing decision used the first, so
+    selecting the `operator` profile — the documented way to enable cloud —
+    opened cloud routing and left calibration switched off. The router would
+    route to cloud on every turn and never learn a thing from the outcomes,
+    which is precisely the capability calibration exists to provide.
+
+    One derivation, two callers: the gate below now reads the same policy the
+    route is ranked under, so the two can no longer disagree.
     """
+    try:
+        cloud_opted_in = bool(_router_policy().cloud_tasks)
+    except Exception as exc:  # noqa: BLE001 - calibration must never break a turn
+        logger.warning("Route policy unavailable for calibration", exc_info=exc)
+        cloud_opted_in = False
     if (
         model_id not in _AUTO_IDS
-        or not config.ROUTER_CLOUD_TASKS
+        or not cloud_opted_in
         or config.ROUTER_CALIBRATION_WEIGHT <= 0
     ):
         return {}

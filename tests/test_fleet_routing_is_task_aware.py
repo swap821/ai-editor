@@ -318,15 +318,77 @@ class TestTheLiveTurnPathSuppliesTheMeasuredSignals:
         assert _messages_have_images(junk) is False
 
 
-class TestTheLearnsFromOutcomesClaimIsConditioned:
-    """`_route_metrics` returns {} unless cloud routing is opted into.
+class TestCalibrationAsksTheSameGateTheRouteDoes:
+    """`_route_metrics` used the env var while the ROUTE used the profile.
 
-    The router's docstring said it "learns what actually performs on this
-    workload" with no qualifier, while on a stock install it ranks purely
-    heuristically and learns nothing. The short-circuit itself is right — with
-    no task cloud-eligible there is one candidate and metrics cannot change a
-    one-candidate decision — so the fix is the sentence, not the code.
+    Two independent statements of "which tasks may leave the machine" existed:
+    the active runtime profile (what `_router_policy` enforces and what the
+    operator actually switches) and `AIOS_ROUTER_CLOUD_TASKS`. Selecting the
+    `operator` profile -- the documented way to turn cloud on -- opened cloud
+    routing and left calibration switched off, so the router would route to
+    cloud on every turn and learn nothing from the outcomes.
+
+    These assert on whether the metrics method was CALLED, never on the return
+    value. The first version of this test asserted `== {}` and passed for the
+    wrong reason: the gate DID open, the call DID happen, it raised, and
+    `_route_metrics` swallowed the exception and returned {} anyway. A test that
+    passes because the thing it forbids blew up is worse than no test.
     """
+
+    class _SpyDevelopment:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def model_task_success_rates(self):
+            self.calls += 1
+            return {("bedrock", "m", "coding"): 0.9}
+
+    def _policy(self, *tasks):
+        return router.Policy(
+            cloud_tasks=tuple(tasks), max_cost=router.COST_HIGH, prefer_local=True
+        )
+
+    def test_metrics_are_read_when_the_policy_allows_cloud(self, monkeypatch) -> None:
+        from aios.core import router_wiring
+
+        monkeypatch.setattr(
+            router_wiring, "_router_policy", lambda: self._policy("coding", "reasoning")
+        )
+        spy = self._SpyDevelopment()
+        assert router_wiring._route_metrics(spy, "auto")
+        assert spy.calls == 1
+
+    def test_metrics_are_not_read_when_the_policy_shuts_cloud_out(
+        self, monkeypatch
+    ) -> None:
+        from aios.core import router_wiring
+
+        monkeypatch.setattr(router_wiring, "_router_policy", lambda: self._policy())
+        spy = self._SpyDevelopment()
+        assert router_wiring._route_metrics(spy, "auto") == {}
+        assert spy.calls == 0, "a local-only turn must not pay for a DB read"
+
+    def test_an_explicit_model_never_pays_for_the_read(self, monkeypatch) -> None:
+        from aios.core import router_wiring
+
+        monkeypatch.setattr(
+            router_wiring, "_router_policy", lambda: self._policy("coding")
+        )
+        spy = self._SpyDevelopment()
+        assert router_wiring._route_metrics(spy, "ollama.llama3.1:8b") == {}
+        assert spy.calls == 0
+
+    def test_an_unreadable_policy_fails_closed(self, monkeypatch) -> None:
+        """Calibration must never be the thing that breaks a turn — or opens one."""
+        from aios.core import router_wiring
+
+        def _boom():
+            raise RuntimeError("kernel unavailable")
+
+        monkeypatch.setattr(router_wiring, "_router_policy", _boom)
+        spy = self._SpyDevelopment()
+        assert router_wiring._route_metrics(spy, "auto") == {}
+        assert spy.calls == 0
 
     def test_the_docstring_states_the_precondition(self) -> None:
         from pathlib import Path
@@ -338,21 +400,6 @@ class TestTheLearnsFromOutcomesClaimIsConditioned:
         )
         assert "CALIBRATION IS OFF BY DEFAULT" in text
         assert "ROUTER_CLOUD_TASKS" in text
-
-    def test_calibration_is_in_fact_inert_with_the_default_gate(self) -> None:
-        """Pins the behaviour the sentence describes, not just the sentence."""
-        from aios.core import router_wiring
-
-        assert not ROUTER_CLOUD_TASKS, (
-            "the default gate is no longer empty; the docstring's claim about "
-            "the default configuration needs rewriting"
-        )
-
-        class _Development:
-            def model_task_success_rates(self):  # pragma: no cover - must not run
-                raise AssertionError("metrics were read while the gate was shut")
-
-        assert router_wiring._route_metrics(_Development(), "auto") == {}
 
 
 class TestRoutePreviewCannotChangeAnything:
