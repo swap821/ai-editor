@@ -413,7 +413,12 @@ def _verify_only_cycle(
     # same work -- run this suite, in this tree -- expressed in the one form
     # both controls accept.
     selector = Path(target_test).stem.removeprefix("test_")
-    command = f"pytest -q -k {selector}"
+    # NO `-q`. `pytest.ini` already carries one in addopts, so a second makes
+    # `-qq`, which suppresses the "N passed" summary line -- and that line is
+    # what `derive_strength` reads to mint STRONG. With it muted every turn
+    # scored NONE and the arc could never verify: the repo's own documented
+    # trap, hit from a new direction.
+    command = f"pytest -k {selector}"
     goal = VERIFY_ONLY_PROMPT.format(command=command)
     skill_id: Optional[int] = None
     detail = ""
