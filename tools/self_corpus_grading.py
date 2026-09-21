@@ -184,6 +184,26 @@ class PinVerdict:
         )
 
 
+def _refuse_hollow(result, what: str) -> None:
+    """Stop the run when a pytest invocation produced nothing at all.
+
+    Raising rather than returning a flag, for the same reason
+    `require_green_baseline` raises: once the instrument has stopped
+    reporting, every number after it is unattributable, and a verdict about a
+    MODEL is the one thing this run must never invent. An aborted run is
+    visible in the trail and costs a re-run; a fabricated failure is invisible
+    and costs the fleet's record.
+    """
+    if result.hollow:
+        raise CorpusError(
+            f"the suite run for {what} produced no output at all "
+            f"(rc={result.returncode}, 0 passed / 0 failed / 0 errors). pytest "
+            "always says something, so this is the runner dying rather than a "
+            "test result -- typically memory pressure on this machine. Scoring "
+            "it would record the laptop's failure as the model's."
+        )
+
+
 def grade_pin_test(
     corpus: Corpus,
     *,
@@ -203,6 +223,7 @@ def grade_pin_test(
     verdict = PinVerdict()
 
     clean = run_suite(corpus, new_test)
+    _refuse_hollow(clean, "the agent's new test")
     verdict.passes_clean = clean.green
     if not clean.green:
         verdict.notes.append(f"clean run not green: {clean.tail}")
@@ -219,6 +240,9 @@ def grade_pin_test(
     mutation = mutate_function(module_path, target_function)
     try:
         mutated = run_suite(corpus, new_test)
+        # Checked INSIDE the try so `restore()` still runs: leaving the corpus
+        # mutated would break every later attempt in the run.
+        _refuse_hollow(mutated, "the mutated negative control")
         verdict.fails_when_mutated = not mutated.green
         if mutated.green:
             verdict.notes.append(
@@ -231,6 +255,7 @@ def grade_pin_test(
         restore(mutation)
 
     guard = run_suite(corpus, guard_selection)
+    _refuse_hollow(guard, "the pre-existing guard suite")
     verdict.suite_still_green = guard.green
     if not guard.green:
         verdict.notes.append(f"pre-existing suite no longer green: {guard.tail}")

@@ -480,3 +480,135 @@ class _Earned:
 
     def __init__(self, earned: bool) -> None:
         self.earned = earned
+
+
+class TestAHollowRunIsNotAVerdict:
+    """pytest producing NOTHING is the runner dying, not a test result.
+
+    Observed live on 2026-09-21: after Ollama timed out at 300s with the
+    machine under memory pressure, six consecutive attempts across two cloud
+    tiers came back `rejected` in 1-4 seconds each with a completely empty
+    reason. A real red prints the assertion; a collection error prints the
+    traceback; even "collected 0 items" prints. Empty means the subprocess
+    died before saying anything -- and all six were recorded as the models'
+    failures.
+
+    `SuiteResult.green` already refused to call a hollow run a pass. Nothing
+    refused to call it a failure, and that is the half that gets attributed to
+    whoever wrote the test.
+    """
+
+    def test_an_empty_run_is_hollow_and_a_red_one_is_not(self) -> None:
+        from tools.self_corpus import SuiteResult
+
+        died = SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
+        assert died.hollow and not died.green
+
+        really_red = SuiteResult(
+            passed=0, failed=1, errors=0, returncode=1, tail="E   AssertionError"
+        )
+        assert not really_red.hollow, (
+            "a suite that ran and failed must stay a failure -- this guard "
+            "must not become a way for real reds to be waved through"
+        )
+
+        collected_nothing = SuiteResult(
+            passed=0, failed=0, errors=0, returncode=5, tail="collected 0 items"
+        )
+        assert not collected_nothing.hollow, (
+            "pytest said something, so the runner worked; an empty selection is "
+            "a real (and already-defended) result, not a dead subprocess"
+        )
+
+    def test_a_hollow_clean_run_aborts_instead_of_failing_the_model(
+        self, corpus, monkeypatch
+    ) -> None:
+        from tools.self_corpus import SuiteResult
+        from tools import self_corpus_grading
+
+        selection = _write_agent_test(
+            corpus,
+            "from calc import add\n\n\ndef test_a():\n    assert add(1, 1) == 2\n",
+        )
+        monkeypatch.setattr(
+            self_corpus_grading,
+            "run_suite",
+            lambda *a, **k: SuiteResult(
+                passed=0, failed=0, errors=0, returncode=1, tail=""
+            ),
+        )
+        with pytest.raises(CorpusError, match="no output at all"):
+            grade_pin_test(
+                corpus,
+                new_test=selection,
+                target_module="calc.py",
+                target_function="add",
+                guard_selection=["tests/test_existing.py"],
+            )
+
+    def test_a_hollow_MUTATED_run_cannot_satisfy_the_negative_control(
+        self, corpus, monkeypatch
+    ) -> None:
+        """The dangerous direction, and the less obvious one.
+
+        `fails_when_mutated` is `not mutated.green`, so a mutated run that
+        never happened satisfies the control for exactly the wrong reason: a
+        test that pins nothing gets EARNED because the run meant to catch it
+        died. That is a false GREEN produced by machine load.
+        """
+        from tools.self_corpus import SuiteResult, run_suite
+        from tools import self_corpus_grading
+
+        selection = _write_agent_test(
+            corpus,
+            "from calc import add\n\n\ndef test_a():\n    assert add(1, 1) == 2\n",
+        )
+        calls = {"n": 0}
+
+        def only_the_mutated_run_dies(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 2:  # clean, MUTATED, guard
+                return SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
+            return run_suite(*args, **kwargs)
+
+        monkeypatch.setattr(self_corpus_grading, "run_suite", only_the_mutated_run_dies)
+        with pytest.raises(CorpusError, match="mutated negative control"):
+            grade_pin_test(
+                corpus,
+                new_test=selection,
+                target_module="calc.py",
+                target_function="add",
+                guard_selection=["tests/test_existing.py"],
+            )
+
+    def test_the_corpus_is_restored_even_when_the_run_aborts(
+        self, corpus, monkeypatch
+    ) -> None:
+        """Otherwise the abort leaves calc.py mutated and poisons every later
+        attempt in the run -- turning one dead subprocess into a whole red run."""
+        from tools.self_corpus import SuiteResult, run_suite
+        from tools import self_corpus_grading
+
+        before = (corpus.root / "calc.py").read_text(encoding="utf-8")
+        selection = _write_agent_test(
+            corpus,
+            "from calc import add\n\n\ndef test_a():\n    assert add(1, 1) == 2\n",
+        )
+        calls = {"n": 0}
+
+        def only_the_mutated_run_dies(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                return SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
+            return run_suite(*args, **kwargs)
+
+        monkeypatch.setattr(self_corpus_grading, "run_suite", only_the_mutated_run_dies)
+        with pytest.raises(CorpusError):
+            grade_pin_test(
+                corpus,
+                new_test=selection,
+                target_module="calc.py",
+                target_function="add",
+                guard_selection=["tests/test_existing.py"],
+            )
+        assert (corpus.root / "calc.py").read_text(encoding="utf-8") == before

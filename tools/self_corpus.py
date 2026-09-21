@@ -266,6 +266,35 @@ class SuiteResult:
             self.returncode == 0 and self.passed > 0 and self.failed == self.errors == 0
         )
 
+    @property
+    def hollow(self) -> bool:
+        """The runner produced NOTHING: not a red suite, a suite that never ran.
+
+        `green` already refuses to call a hollow run a pass. Nothing refused to
+        call it a FAILURE, and that asymmetry is the dangerous half, because a
+        failure gets attributed to whoever wrote the test.
+
+        Observed live on 2026-09-21: right after Ollama timed out at 300s --
+        the machine under memory pressure -- six consecutive attempts across
+        two cloud tiers came back "rejected" in 1-4 seconds each with a
+        COMPLETELY EMPTY reason. pytest cannot produce no output; a real red
+        prints the assertion, a collection error prints the traceback, and even
+        "collected 0 items" prints. Empty means the subprocess died before
+        saying anything. Those six rejections were recorded as the models'
+        failures. They were the laptop's.
+
+        The other direction is worse and less obvious. `fails_when_mutated` is
+        computed as `not mutated.green`, so a hollow MUTATED run satisfies the
+        negative control for exactly the wrong reason -- a test that pins
+        nothing would be EARNED because the run that was supposed to catch it
+        never happened.
+
+        A tail is empty only when stdout and stderr were both empty, since
+        `_useful_tail` falls back to the last lines when it finds no failure
+        lines. So this is not a heuristic about what the output looked like.
+        """
+        return self.passed == self.failed == self.errors == 0 and not self.tail.strip()
+
 
 _COUNT_RE = re.compile(r"(\d+) (passed|failed|error|errors)")
 
