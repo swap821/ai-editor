@@ -141,6 +141,64 @@ def _mine_curriculum(curriculum: Any, development: Any) -> None:
         # Nothing proposed AND slow is the combination worth knowing about:
         # a tax with no return.
         log.info("Curriculum mining proposed nothing in %dms", elapsed_ms)
+    _record_proposals(proposals, elapsed_ms)
+
+
+def _record_proposals(proposals: list, elapsed_ms: int) -> None:
+    """Write proposals somewhere a human can actually read them.
+
+    The miner's whole contract is that it SUGGESTS and somebody else accepts.
+    Until this existed the suggestion went to a log line saying how many there
+    were, so nothing a person could accept ever left the process -- a proposal
+    nobody can see is not a proposal, and the authority boundary it was
+    protecting had nothing on the other side of it.
+
+    Appending, never rewriting, for the same reason the learning journal is
+    append-only: a proposal that was made and then withdrawn by a later run is
+    a different fact from one that was never made.
+
+    Fail-open like everything else on this path. A turn must not break because
+    a log file is unwritable.
+    """
+    if not proposals:
+        return
+    import json as _json
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from aios import config as _config
+    from aios.logging_config import get_logger
+
+    try:
+        path = (
+            Path(_config.PROJECT_ROOT)
+            / ".aios"
+            / "audit"
+            / "curriculum-proposals.jsonl"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with path.open("a", encoding="utf-8") as fh:
+            for proposal in proposals:
+                fh.write(
+                    _json.dumps(
+                        {
+                            "ts": stamp,
+                            "mining_ms": elapsed_ms,
+                            "skill_name": proposal.skill_name,
+                            "level": proposal.level,
+                            "prompt": proposal.prompt,
+                            "rationale": proposal.rationale,
+                            "held_out": proposal.held_out,
+                            "fingerprint": proposal.fingerprint,
+                            "accepted": False,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + chr(10)
+                )
+    except Exception as exc:  # noqa: BLE001 - recording must never break a turn
+        get_logger(__name__).warning("Curriculum proposals unrecorded", exc_info=exc)
 
 
 def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
