@@ -1154,8 +1154,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
+        "description": "Phase 4 absolute live run on tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8 exit=0; artifact=release/phase4/live-evidence-a70c1a728f7a.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
+        "commit_sha": "a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8",
         "proof_level": "live"
       }
     ],
@@ -1481,8 +1481,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip aea675025b2e8ade58db001d1960157865ff9e95: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95 exit=0; artifact=release/phase4/live-evidence-aea675025b2e.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3…",
-        "commit_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
+        "description": "Phase 4 absolute live run on tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8 exit=0; artifact=release/phase4/live-evidence-a70c1a728f7a.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3…",
+        "commit_sha": "a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8",
         "proof_level": "live"
       }
     ],
@@ -1574,13 +1574,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-14T07:25:24+00:00'",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-20T09:10:02+00:00'",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8 exit=0; artifact=release/phase4/live-evidence-a70c1a728f7a.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-21T00:53:50+00:00'",
+        "commit_sha": "a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8",
         "proof_level": "live"
       }
     ],
@@ -2018,13 +2013,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8 exit=0; artifact=release/phase4/live-evidence-a70c1a728f7a.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => apply_reuse_outcome success conf=0.55 success_count=1 state=active",
+        "commit_sha": "a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8",
         "proof_level": "live"
       }
     ],
@@ -2570,13 +2560,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 3207c375707626e95f1fece092e84936b6032f04: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3207c375707626e95f1fece092e84936b6032f04 exit=0; artifact=release/phase4/live-evidence-3207c3757076.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='a96bba0e9adf9fef7ad33df93ac4494b48b6576eba39bc9e7d698ecbbcd325b0', current_issued_at=1789370726.6993728, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789370786.6993728); reopen_configured=True db_bytes=8192",
-        "commit_sha": "3207c375707626e95f1fece092e84936b6032f04",
-        "proof_level": "live"
-      },
-      {
-        "description": "Phase 4 absolute live run on tip cc8492f314eb051c686baffb9fe80e640661efdd: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip cc8492f314eb051c686baffb9fe80e640661efdd exit=0; artifact=release/phase4/live-evidence-cc8492f314eb.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='3dcfac44574773641b7deea13381f12cba452963e460bb21d2a36e2265564417', current_issued_at=1789895404.5259364, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789895464.5259364); reopen_configured=True db_bytes=8192",
-        "commit_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
+        "description": "Phase 4 absolute live run on tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8 exit=0; artifact=release/phase4/live-evidence-a70c1a728f7a.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='fc7f6f2efbe0cd53fd3063e56d23659751605482ee7dd7d8866b36ff90f396b3', current_issued_at=1789952032.493869, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789952092.493869); reopen_configured=True db_bytes=8192",
+        "commit_sha": "a70c1a728f7a6758f3f4a30a96b2d8ecf3fd32c8",
         "proof_level": "live"
       }
     ],
