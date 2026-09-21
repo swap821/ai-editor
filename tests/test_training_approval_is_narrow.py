@@ -68,9 +68,11 @@ def corpus(tmp_path, monkeypatch):
     set_scope_roots(previous)
 
 
-#: Absolute and inside the scope root. A RELATIVE path resolves against
-#: PROJECT_ROOT -- the live tree -- and is refused as a scope violation
-#: whoever approved it, which is the third control these tests pin.
+#: Absolute and inside the scope root. A bare `tests/...` path resolves
+#: against the scope cwd -- which is the scope root's PARENT, not the root --
+#: and is refused as a scope violation whoever approved it. That is the third
+#: control these tests pin, and see `TestTheCommandSatisfiesEveryControl` for
+#: the form the harness actually uses.
 def _approved(corpus) -> str:
     return f"pytest {(corpus / 'tests' / 'test_code_chunking.py').as_posix()}"
 
@@ -181,3 +183,68 @@ class TestTheHarnessGrantsOnlyWhatItRuns:
         command = "pytest /tmp/corpus/tests/test_code_chunking.py"
         goal = VERIFY_ONLY_PROMPT.format(command=command)
         assert f"`{command}`" in goal
+
+
+class TestTheCommandSatisfiesEveryControl:
+    """The harness's own verify string, checked against all three controls.
+
+    Three guards constrain this one string and they pull in different
+    directions, so it is possible to satisfy two and fail the third silently.
+    Two full training runs were spent that way: a `-k` selector passed the
+    scope check and compiled, then collected from the scope cwd -- the scope
+    root's PARENT -- and reported `0 passed, 462 failed (exit 3)` from a pytest
+    INTERNALERROR. Nothing distinguished that from a model failing the task.
+
+    These assertions cost milliseconds; reaching the bug cost twenty minutes
+    per attempt.
+    """
+
+    def test_it_resolves_inside_the_declared_scope_root(self, tmp_path) -> None:
+        """Control 1: the scope check, against the base the command really uses."""
+        from aios.security.scope_lock import (
+            command_cwd,
+            get_scope_roots,
+            set_scope_roots,
+        )
+
+        from tools.organic_chain_run import verify_command
+
+        corpus = tmp_path / "ai-editor-selfcorpus"
+        corpus.mkdir()
+        previous = get_scope_roots()
+        set_scope_roots([corpus])
+        try:
+            selection = verify_command(corpus, "tests/test_code_chunking.py").split()[1]
+            landed = (command_cwd() / selection).resolve()
+        finally:
+            set_scope_roots(previous)
+        assert landed.is_relative_to(corpus.resolve()), (
+            f"the verify command points at {landed}, outside the corpus; this is "
+            "the bug that produced 462 phantom failures from the parent directory"
+        )
+
+    @staticmethod
+    def _compiles(command: str) -> bool:
+        """Exactly what `try_compile_all` asks of a step, via the same two
+        production functions -- parse, then the clean-target guard."""
+        from aios.core.cerebellum import _parse_step, _step_targets_are_clean
+
+        step = _parse_step(f"verify: command={command}")
+        return step is not None and _step_targets_are_clean(step)
+
+    def test_the_path_is_relative_and_ascii_so_it_can_compile(self, tmp_path) -> None:
+        """Control 2: the compile guard, which rejects absolute file targets."""
+        from tools.organic_chain_run import verify_command
+
+        corpus = tmp_path / "ai-editor-selfcorpus"
+        command = verify_command(corpus, "tests/test_code_chunking.py")
+        assert self._compiles(command), (
+            "a playbook that cannot compile makes L5 unreachable no matter how "
+            "many STRONG runs the arc earns"
+        )
+
+    def test_an_absolute_path_would_not_compile(self, tmp_path) -> None:
+        """The negative control: without it the assertion above proves nothing."""
+        corpus = tmp_path / "ai-editor-selfcorpus"
+        absolute = (corpus / "tests" / "test_code_chunking.py").as_posix()
+        assert not self._compiles(f"pytest {absolute}")

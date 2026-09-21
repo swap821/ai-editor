@@ -365,6 +365,17 @@ VERIFY_ONLY_PROMPT = (
 )
 
 
+def verify_command(corpus_root: Path, target_test: str) -> str:
+    """The suite selection, addressed relative to the cwd it will run in.
+
+    Factored out so `tests/test_training_approval_is_narrow.py` can check the
+    three controls agree about this string without launching a training run --
+    the bug it guards against was invisible for two runs precisely because the
+    only way to see it was to spend twenty minutes reaching it.
+    """
+    return f"pytest {corpus_root.name}/{target_test}"
+
+
 def _verify_only_cycle(
     corpus,
     client,
@@ -396,29 +407,38 @@ def _verify_only_cycle(
     from aios.core.verification_strength import derive_strength
     from aios.security.gateway import RateLimiter
 
-    # SELECTED BY NAME, not by path, and that is forced by two guards pulling
-    # in opposite directions — neither of which should be loosened:
+    # ADDRESSED RELATIVE TO THE SCOPE CWD, which is NOT the corpus root.
     #
-    #   * a RELATIVE path is resolved by the scope check against
-    #     `config.PROJECT_ROOT`, the LIVE tree, so `pytest tests/x.py` names a
-    #     file outside the declared roots and is refused as a scope violation
+    # `scope_lock.command_cwd()` returns `roots[0].resolve().parent` -- the
+    # PARENT of the scope root, so `training_ground` is importable as a
+    # package. With the corpus declared as the only root that parent is
+    # `<...>/`, and the corpus is one directory below it. Two consequences,
+    # both observed rather than reasoned about:
+    #
+    #   * `pytest tests/test_x.py` resolves against that parent, names a file
+    #     outside every declared root, and is refused as a scope violation
     #     whoever approved it;
-    #   * an ABSOLUTE path is refused at COMPILE time, because
-    #     `_step_targets_are_clean` only compiles playbooks whose file targets
-    #     are clean RELATIVE ASCII paths -- the replay-time conflict guard
-    #     depends on that.
+    #   * `pytest -k x` names no file, so it passes the scope check and then
+    #     COLLECTS FROM THE PARENT DIRECTORY -- the whole home directory. That
+    #     run reported `0 passed, 462 failed (exit 3)` with a pytest
+    #     INTERNALERROR, which read exactly like a model failing the task. It
+    #     was the harness pointing pytest at the wrong tree.
     #
-    # A `-k` selector names no file at all, so it satisfies both: it executes
-    # in the scope cwd (which IS the corpus) and it compiles. The work is the
-    # same work -- run this suite, in this tree -- expressed in the one form
-    # both controls accept.
-    selector = Path(target_test).stem.removeprefix("test_")
+    # An ABSOLUTE path is refused at COMPILE time instead: `_step_targets_are_
+    # clean` only compiles playbooks whose file targets are clean RELATIVE
+    # ASCII paths, because the replay-time conflict guard depends on that.
+    #
+    # The one form all three controls accept is the path relative to the cwd
+    # the command will actually run in: `<corpus-dir>/tests/test_x.py`. It is
+    # relative and ASCII (so it compiles), it resolves inside the declared root
+    # (so it passes the scope check), and it points pytest at the corpus rather
+    # than at its parent (so it measures the suite it claims to measure).
+    command = verify_command(corpus.root, target_test)
     # NO `-q`. `pytest.ini` already carries one in addopts, so a second makes
     # `-qq`, which suppresses the "N passed" summary line -- and that line is
     # what `derive_strength` reads to mint STRONG. With it muted every turn
     # scored NONE and the arc could never verify: the repo's own documented
     # trap, hit from a new direction.
-    command = f"pytest -k {selector}"
     goal = VERIFY_ONLY_PROMPT.format(command=command)
     skill_id: Optional[int] = None
     detail = ""
@@ -456,11 +476,11 @@ def _verify_only_cycle(
                 rate_limiter=RateLimiter(),
                 audit_log=lambda *a, **k: None,
                 emergency_stop=UNGOVERNED_FIXTURE,
-                # A `-k` selector still COLLECTS the whole corpus suite before
-                # filtering, and 6500 tests do not collect in the default 30s.
-                # This is a per-instance resource budget, not a security
-                # control, and it is raised only for this unattended harness --
-                # no default moves, and nothing else sees a longer leash.
+                # One corpus test file plus this repo's coverage addopts does
+                # not reliably finish in the default 30s. This is a per-instance
+                # resource budget, not a security control, and it is raised only
+                # for this unattended harness -- no default moves, and nothing
+                # else sees a longer leash.
                 timeout_s=300,
             ),
             max_iters=4,
