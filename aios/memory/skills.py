@@ -57,6 +57,43 @@ def _hours_since(timestamp: str, now: datetime) -> float:
     return max((now - parsed).total_seconds() / 3600.0, 0.0)
 
 
+def _free_legacy_signature(conn, signature: str) -> None:
+    """Let a SUPERSEDED row stop blocking the arc it used to be.
+
+    The two identity columns disagree about what superseding means, and only
+    one of them is right. ``signature_v2``'s unique index is PARTIAL --
+    ``WHERE status != 'superseded'`` -- so a retired row steps aside and the
+    arc can be learned again. The legacy ``signature`` column is
+    ``NOT NULL UNIQUE`` at table level, with no such exemption, so it keeps
+    blocking forever.
+
+    The consequence is worse than a stale row: ``record_attempt`` finds no
+    ACTIVE row (correct), tries to INSERT (correct), and dies on
+    ``UNIQUE constraint failed: procedural_skills.signature`` -- a crash, in
+    the middle of learning, for a skill the system is entitled to relearn.
+    Reachable without anyone touching the database by hand, since
+    ``consolidate`` supersedes fragments on every ``init_memory_db``.
+
+    The legacy column is lineage only: nothing looks a skill up by it (the
+    read above is by ``signature_v2``), and it exists to record the exact
+    goal+steps identity a row was born with. So the retired row keeps that
+    value in readable form with its id appended, the live row takes the true
+    signature, and no history is lost.
+
+    This is deliberately a repair at the write path rather than a schema
+    migration. Making the constraint partial is the CORRECT fix and needs a
+    SQLite table rebuild of the store that holds every lesson, skill and
+    playbook this system has ever learned -- not something to do as a side
+    effect of unblocking a training run.
+    """
+    conn.execute(
+        "UPDATE procedural_skills "
+        "SET signature = signature || ':superseded:' || id "
+        "WHERE signature = ? AND status = 'superseded'",
+        (signature,),
+    )
+
+
 class SkillMemory:
     """Store, promote, retrieve, and regress reusable verified workflows."""
 
@@ -141,6 +178,7 @@ class SkillMemory:
             # without failing, and it is the promotion floor's job (not this
             # counter's) to decide what counts as evidence.
             if row is None:
+                _free_legacy_signature(conn, sig)
                 cur = conn.execute(
                     "INSERT INTO procedural_skills "
                     "(signature, signature_v2, goal_pattern, steps_json, "
