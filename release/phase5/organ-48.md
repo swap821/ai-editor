@@ -1,13 +1,15 @@
 # Phase 5 proof — Organ 48: Truthful Living Mirror (full truthful UI)
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `cc8492f314eb051c686baffb9fe80e640661efdd`
-**Generated:** 2026-09-20T09:26:36+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
+**Generated:** 2026-09-20T19:40:57+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C6**: focused_tests not executed here (needs vitest): frontend/src/workbench/SovereignStatePanel.organ48.test.jsx -- pass --frontend-junit or --allow-unexecuted-frontend
+- **C6**: focused_tests not executed here (needs vitest): frontend/src/workbench/SovereignStatePanel.authorities.test.jsx -- pass --frontend-junit or --allow-unexecuted-frontend
+- **C7**: integration_tests not executed here (needs vitest): frontend/src/workbench/CouncilDashboard.sovereign.test.tsx -- pass --frontend-junit or --allow-unexecuted-frontend
 
 ## Written verdict keys that are not PASS/N/A
 

@@ -16,7 +16,10 @@ from pathlib import Path
 from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 from aios import config
-from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_learning_floor,
+)
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.relevance import relevance, skill_signature_v2, tokens
 from aios.security.secret_scanner import scan_and_redact
@@ -96,11 +99,20 @@ class SkillMemory:
         stored on insert as lineage.
 
         *strength* is the verification-strength that produced *success*. Only a
-        success at or above the promotion floor (default STRONG) increments the
+        success at or above the LEARNING floor (default MEDIUM) increments the
         promotion-eligible ``success_count``; a below-floor success is recorded in
         ``weak_success_count`` but can never make a skill ``verified`` — a weak
         green is remembered, but it cannot calibrate the future. Defaults to STRONG
         so callers that do not yet pass strength keep their existing behavior.
+
+        The learning floor is MEDIUM rather than STRONG because STRONG is only
+        reachable from a recognized test runner. Under one shared floor, a
+        type-check, build, or lint skill had an evidence CEILING below the bar:
+        it could succeed forever and never promote, silently. MEDIUM is not a
+        weaker claim about the same evidence — it is a recognized checker
+        passing at the program position, which ``derive_strength`` grants no
+        more freely than it grants STRONG. AUTHORITY is unaffected: whether an
+        action may run unattended still asks ``meets_promotion_floor``.
         """
         clean_steps = [
             scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
@@ -108,7 +120,7 @@ class SkillMemory:
         goal = scan_and_redact(goal.strip()).scrubbed
         if not goal or not clean_steps:
             raise ValueError("skill attempt requires a goal and workflow steps")
-        eligible = success and meets_promotion_floor(strength)
+        eligible = success and meets_learning_floor(strength)
         weak = success and not eligible
         sig = self._signature(goal, clean_steps)
         sig_v2 = skill_signature_v2(goal, clean_steps)
@@ -117,17 +129,24 @@ class SkillMemory:
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT id, success_count, failure_count, weak_success_count, steps_json "
-                "FROM procedural_skills "
+                "SELECT id, success_count, failure_count, weak_success_count, "
+                "consecutive_failures, steps_json FROM procedural_skills "
                 "WHERE signature_v2 = ? AND status != 'superseded'",
                 (sig_v2,),
             ).fetchone()
+            # `consecutive_failures` tracks the RECENT record, which is what the
+            # reflex compile guard needs: a lifetime tally can only ever grow, so
+            # one bad run would disqualify an arc forever. Any success resets it,
+            # including a weak one -- a below-floor green still means the arc ran
+            # without failing, and it is the promotion floor's job (not this
+            # counter's) to decide what counts as evidence.
             if row is None:
                 cur = conn.execute(
                     "INSERT INTO procedural_skills "
                     "(signature, signature_v2, goal_pattern, steps_json, "
                     "success_count, failure_count, weak_success_count, "
-                    "verification_strength) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "consecutive_failures, verification_strength) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         sig,
                         sig_v2,
@@ -136,6 +155,7 @@ class SkillMemory:
                         1 if eligible else 0,
                         0 if success else 1,
                         1 if weak else 0,
+                        0 if success else 1,
                         strength.name if success else None,
                     ),
                 )
@@ -146,10 +166,12 @@ class SkillMemory:
                 successes = int(row["success_count"]) + (1 if eligible else 0)
                 failures = int(row["failure_count"]) + (0 if success else 1)
                 weak_total = int(row["weak_success_count"] or 0) + (1 if weak else 0)
+                streak = 0 if success else int(row["consecutive_failures"] or 0) + 1
                 conn.execute(
                     "UPDATE procedural_skills SET success_count = ?, failure_count = ?, "
-                    "weak_success_count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (successes, failures, weak_total, skill_id),
+                    "weak_success_count = ?, consecutive_failures = ?, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (successes, failures, weak_total, streak, skill_id),
                 )
                 if success:
                     conn.execute(

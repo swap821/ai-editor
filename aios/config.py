@@ -166,6 +166,23 @@ COUNCIL_KING_REASONING: Final[bool] = _env_bool("AIOS_COUNCIL_KING_REASONING", F
 VERIFICATION_PROMOTION_FLOOR: Final[str] = _env_str(
     "AIOS_VERIFICATION_PROMOTION_FLOOR", "STRONG"
 )
+# The floor for LEARNING specifically (which skills may promote), kept separate
+# from the floor above, which also gates AUTHORITY — whether a YELLOW action
+# class graduates to running unattended. Those are different questions and were
+# sharing one answer.
+#
+# STRONG is only reachable from a recognized test runner, so with one floor a
+# type-check, build, or lint skill could succeed forever and never promote: its
+# evidence CEILING sat below the bar. Nothing reported that; the counters simply
+# never moved. MEDIUM is reachable only from a recognized checker at the program
+# position, so admitting it widens what the system can learn from without
+# admitting anything unverified.
+#
+# Clamped so it can never fall below MEDIUM: WEAK means "exit 0, asserted
+# nothing", and no configuration may make that teach the system anything.
+LEARNING_PROMOTION_FLOOR: Final[str] = _env_str(
+    "AIOS_LEARNING_PROMOTION_FLOOR", "MEDIUM"
+)
 # Phase 3 "real worker": opt-in LLM-driven worker that generates+applies the edit
 # and self-corrects. Off by default → the deterministic heartbeat worker (CI-safe).
 WORKER_REASONING: Final[bool] = _env_bool("AIOS_WORKER_REASONING", False)
@@ -819,6 +836,7 @@ __all__ = [
     "COUNCIL_CRITIQUE",
     "COUNCIL_KING_REASONING",
     "VERIFICATION_PROMOTION_FLOOR",
+    "LEARNING_PROMOTION_FLOOR",
     "WORKER_REASONING",
     "WORKER_MAX_REPAIRS",
     "WORKER_MAX_FILE_BYTES",

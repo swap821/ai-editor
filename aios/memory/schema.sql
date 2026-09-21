@@ -226,6 +226,13 @@ CREATE TABLE IF NOT EXISTS procedural_skills (
                     CHECK (status IN ('candidate','verified','superseded')),
     success_count   INTEGER NOT NULL DEFAULT 0,
     failure_count   INTEGER NOT NULL DEFAULT 0,
+    -- Failures since the last success. `failure_count` is a lifetime tally and
+    -- never decreases, so gating reflex compilation on it made ONE flake --
+    -- years ago, on an arc that has since succeeded fifty times -- a permanent
+    -- disqualification. This is the recent-record counter the compile guard
+    -- uses instead, and it mirrors compiled_playbooks.consecutive_failures on
+    -- the replay side. Reset to 0 by any success.
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
     -- Trail mechanics (stigmergy): arc-level identity + reuse pheromone.
     signature_v2        TEXT,                       -- goal tokens + argument-stripped tool sequence
     reuse_success_count INTEGER NOT NULL DEFAULT 0, -- ranking input; NEVER read by status logic

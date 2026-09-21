@@ -632,7 +632,15 @@ def test_models_auto_returns_by_task_map(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["task"] == "reasoning"
-    assert set(body["by_task"]) == {"coding", "reasoning", "general", "fast"}
+    # Asserted against TASKS rather than a frozen literal. The literal was
+    # {coding, reasoning, general, fast} and went stale the moment research,
+    # vision and long_context became reachable -- and a hardcoded list here
+    # would have hidden the opposite failure too, where a task class silently
+    # stops being routable at all. The contract is "every routable task
+    # appears", so say that.
+    from aios.core.model_selector import TASKS
+
+    assert set(body["by_task"]) == set(TASKS)
     # The fake's deepseek reasoner cannot accept tool specs, so every actual
     # agent-loop purpose resolves to the sole tool-capable model.
     assert body["model"] == "llama3.2:3b"
@@ -2311,6 +2319,9 @@ class RecordingCurriculum:
 
     def list(self, skill_name=None):
         return self.tasks
+
+    def mastery_blockers(self, skill_name=None):
+        return []
 
 
 class RecordingConsolidator:

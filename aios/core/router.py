@@ -17,10 +17,22 @@ The design is **hybrid**, in three deterministic layers + one optional LLM layer
      layer passes the configured process default instead. **The local LLM can
      never override the policy** — it only chooses *within* the allowed set.
   2. **DETERMINISTIC RANK.** The allowed candidates are scored by a transparent
-     heuristic (capability tier, a local-first bias, cost), optionally blended
+     heuristic (capability tier, a per-task AFFINITY bonus for a model built for
+     that kind of work, a local-first bias, cost), optionally blended
      with **evidence calibration** — the measured per-(provider, model, task)
      verified-success rate from the audit/dev metrics — so the router learns what
      actually performs on *this* workload. Cold-start falls back to the heuristic.
+
+     CALIBRATION IS OFF BY DEFAULT, and saying otherwise would be a claim the
+     wiring does not support. `_route_metrics` in `router_wiring` returns `{}`
+     unless `ROUTER_CLOUD_TASKS` is non-empty, so on a stock install the router
+     ranks purely heuristically and learns nothing from outcomes. That
+     short-circuit is correct rather than an oversight: with no task
+     cloud-eligible, the only candidate is the single local provider, and a
+     metrics read could not change a one-candidate decision. But it does mean
+     "the router learns" describes the opted-in configuration, not the default
+     one — and `ROUTER_CLOUD_TASKS` lives in the frozen core because what may
+     leave the machine is the operator's decision, not a default.
   3. **LOCAL-LLM PICK (optional, hybrid).** When a ``picker`` callable (a small
      local model) is supplied, it is offered ONLY the policy-allowed, ranked
      candidates and may re-order the preference; its choice is honoured **only if
@@ -37,8 +49,9 @@ clients and calls :func:`route`; this module never imports a client.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Sequence
+from typing import Callable, Mapping, Optional, Sequence
 
+from aios.core.catalog import task_affinity
 from aios.core.model_selector import (
     TASK_CODING,
     TASKS,
@@ -120,6 +133,13 @@ class Provider:
       cloud provider they are an **ordered** preference list (best first).
     * ``capability`` — overrides :func:`default_capability` if the registry knows
       better (e.g. a frontier vs. a small cloud model).
+    * ``models_by_task`` — per-task overrides of ``models``. A cloud provider
+      with several models is not equally good at all of them, and until this
+      existed it could not say so: ``_best_model_for`` returned ``models[0]``
+      for EVERY task, so "route each task to the model designed for it" was
+      structurally impossible on the cloud side while the local side had done it
+      all along. A task absent here falls back to ``models``, so a provider that
+      declares nothing behaves exactly as before.
     """
 
     name: str
@@ -128,6 +148,17 @@ class Provider:
     available: bool
     models: tuple[str, ...] = ()
     capability: Optional[int] = None
+    models_by_task: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+
+    def models_for(self, task: str) -> tuple[str, ...]:
+        """This provider's preference list for *task*, best first.
+
+        Falls back to the general list rather than to nothing: a provider that
+        has not been characterised for a task is still a candidate, it just is
+        not a specialist. Returning ``()`` instead would silently remove whole
+        providers from the fleet the moment a new task class was added.
+        """
+        return tuple(self.models_by_task.get(task) or self.models)
 
     @property
     def cap(self) -> int:
@@ -203,14 +234,19 @@ def _best_model_for(
     Local providers defer to :func:`select_model` (the tested local heuristic,
     honouring ``require_tools``); cloud providers take the first of their ordered
     preference list (best-first, already tool-capable via Converse/function-calls).
+
+    Both now read ``provider.models_for(task)`` rather than ``provider.models``,
+    which is what lets one cloud provider field a coder for ``coding`` and a
+    long-window model for ``long_context``. Before this, every cloud task got
+    ``models[0]`` -- the task argument was accepted and then ignored, so the
+    router's five task classes collapsed to one model per provider.
     """
-    if not provider.models:
+    models = provider.models_for(task)
+    if not models:
         return None
     if provider.privacy == PRIVACY_LOCAL:
-        return select_model(
-            list(provider.models), task=task, require_tools=require_tools
-        )
-    return provider.models[0]
+        return select_model(list(models), task=task, require_tools=require_tools)
+    return models[0]
 
 
 def _calibrated_score(
@@ -262,6 +298,14 @@ def candidates(
         if not model:
             continue
         base = float(prov.cap)
+        # Capability answers "how strong is this model"; affinity answers
+        # "strong at WHAT". They are kept apart on purpose: capability is a
+        # property of the model and belongs on the Provider row, while affinity
+        # is a property of the (model, task) PAIRING and only exists here, where
+        # the task is known. Folding affinity into `capability` would mean
+        # rebuilding every provider per task and would quietly redefine a row
+        # that other code reads as "how good is this model".
+        base += float(task_affinity(model, task))
         if policy.prefer_local and prov.privacy == PRIVACY_LOCAL:
             base += _LOCAL_BIAS
         score, rate = _calibrated_score(

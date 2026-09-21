@@ -1,13 +1,14 @@
 # Phase 5 proof — Organ 37: Local Model Qualification and Health
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `cc8492f314eb051c686baffb9fe80e640661efdd`
-**Generated:** 2026-09-20T09:26:34+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
+**Generated:** 2026-09-20T19:40:55+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C10**: cited test tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model did not run and pass
+- **C10**: cited test tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence did not run and pass
 
 ## Written verdict keys that are not PASS/N/A
 
