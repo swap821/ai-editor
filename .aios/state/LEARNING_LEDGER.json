@@ -336,7 +336,8 @@
       "authority_owner": "CurriculumManager",
       "production_entrypoints": [
         "aios/memory/curriculum.py",
-        "aios/memory/curriculum_miner.py"
+        "aios/memory/curriculum_miner.py",
+        "tools/organic_chain_run.py"
       ],
       "live_path_callers": [
         "aios/application/turns/generate_pipeline.py"
@@ -368,15 +369,29 @@
         "referent": "tests/test_curriculum_mining_is_live.py::TestBreakingMasteryIsNoticed",
         "claim": "Breaking `_refresh_level` so it never promotes must stop any mastery signal reaching `on_mastered`; if one still arrives, the signal comes from somewhere other than the thing that decides mastery."
       },
-      "known_blockers": [
-        "CurriculumMiner is now called from the live turn path (fail-open, default-on, ~90ms), so proposals are generated without anyone asking. But `_extract_module_name` matches `training_ground/<name>.py` and NOTHING else, and every escalation template describes creating a toy module -- so the miner structurally cannot propose from work on real code. LC10 is therefore unreachable for L6 until the miner is redesigned around real repositories, which is a design project rather than a regex change. Pinned by tests/test_curriculum_mining_is_live.py::test_it_can_only_mine_the_TOY_world."
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "ORGANIC, and stated as two separate claims because they are two separate claims. (1) PROGRESSION ON REAL CODE: run 20260921T222322-e4a34769 against the self-corpus pinned at aaa95d00 mastered `gagos-real-modules` level 1 -- two training passes and one held-out pass, every one STRONG, on real corpus suites proven green before they were used as tasks. The production CurriculumManager decided mastery; nothing in the harness decides what 'enough' is. (2) MINING REAL CODE: the same run's CurriculumMiner read this run's own pin attempts and proposed `Read aios/agents/tool_agent.py and then create tests/test_tool_agent_pinned_v2.py ...` -- a real module, which was structurally impossible before.",
+          "command": "python tools/organic_chain_run.py --targets 1 --retries 1",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "aaa95d0024c6d4061bba620772d95d638b7b3767",
+          "proof_level": "live",
+          "organic": true,
+          "scope_note": "WHAT IS NOT CLAIMED: the mined proposal was NOT executed, and nothing accepted it. Accepting a mined proposal into the curriculum is the one act the miner must never perform for itself, and a training harness performing it on the miner's behalf is the same act wearing a different hat. The level's tasks were authored by the harness over real corpus modules -- as curriculum tasks always are -- and lived in a RUN-SCOPED database, so the real curriculum is untouched by this evidence."
+        }
       ],
-      "live_evidence": [],
-      "last_verified_sha": null,
+      "last_verified_sha": "aaa95d0024c6d4061bba620772d95d638b7b3767",
       "na_by_design": {},
       "live_path_symbols": [
         "runtime.curriculum",
         "_mine_curriculum"
+      ],
+      "discharged_blockers": [
+        {
+          "blocker": "CurriculumMiner is now called from the live turn path (fail-open, default-on, ~90ms), so proposals are generated without anyone asking. But `_extract_module_name` matches `training_ground/<name>.py` and NOTHING else, and every escalation template describes creating a toy module -- so the miner structurally cannot propose from work on real code. LC10 is therefore unreachable for L6 until the miner is redesigned around real repositories, which is a design project rather than a regex change. Pinned by tests/test_curriculum_mining_is_live.py::test_it_can_only_mine_the_TOY_world.",
+          "discharged_by": "A real-code escalation family (`pin_real_behaviour`), selected by the TARGET being real rather than by the source prompt's verb. `_extract_module_name` is deliberately unchanged: the toy templates interpolate into a `training_ground/...` path, so widening the extractor alone would have pointed toy templates at real files. Proposals also LEAVE the process now (.aios/audit/curriculum-proposals.jsonl, accepted=false) -- what used to leave was a log line counting them, so the authority boundary the miner protects had nothing on the other side of it to accept. tests/test_curriculum_mining_is_live.py carries the positive assertions AND the negative control that the toy world still mines the toy way."
+        }
       ]
     },
     {
