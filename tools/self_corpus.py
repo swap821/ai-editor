@@ -49,6 +49,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -303,7 +304,23 @@ def run_suite(
         # and a second one makes `-qq`, which SUPPRESSES the "N passed" summary
         # line entirely -- leaving a green run indistinguishable from a run that
         # collected nothing. The counts are the evidence; do not mute them.
-        ["python", "-m", "pytest", *selection, "-p", "no:cacheprovider", "--no-cov"],
+        # `sys.executable`, never a bare "python". Found by Codex, not by me:
+        # a bare name resolves through PATH, and inside a virtualenv that is a
+        # DIFFERENT interpreter from the one running this code -- one without
+        # pytest installed. Seven self-corpus tests failed in his `.venv` while
+        # passing here, because on this machine `python` and `sys.executable`
+        # happen to be the same binary. "It works here because of an accident
+        # of this environment" is the defect this repository keeps finding in
+        # other places; this is the same one, in mine.
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            *selection,
+            "-p",
+            "no:cacheprovider",
+            "--no-cov",
+        ],
         cwd=str(corpus.root),
         capture_output=True,
         text=True,

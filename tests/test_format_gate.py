@@ -44,6 +44,29 @@ _ALLOWED_FORMAT_EXCLUSIONS = {
 }
 
 
+def _ruff_version_matches_pin() -> tuple[bool, str, str]:
+    """(matches, local, pinned) for the ruff this process would actually run.
+
+    A formatter's verdict is only about this repository when it is the SAME
+    formatter the gate pins. Ruff's formatting output legitimately changes
+    between releases, so a different version disagreeing is a fact about the
+    version, not about the code.
+
+    Measured 2026-09-21: the repository `.venv` carried ruff 0.9.10 while CI
+    pins 0.15.22, and 0.9.10 reported `tests/test_conversation_pipeline.py`
+    would be reformatted on a file 0.15.22 calls clean. A second agent lost an
+    investigation to that before the cause was found, and the failure said
+    nothing about versions.
+    """
+    pinned_match = re.search(r'^  RUFF_VERSION: "([^"]+)"$', _ci_text(), re.M)
+    pinned = pinned_match.group(1) if pinned_match else ""
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "--version"], capture_output=True, text=True
+    )
+    local = (result.stdout or "").split()[-1] if result.stdout.strip() else ""
+    return (bool(pinned) and local == pinned), local, pinned
+
+
 def _ruff_available() -> bool:
     """Is ruff importable in THIS environment?
 
@@ -133,6 +156,20 @@ def test_the_repo_is_format_clean() -> None:
     CI checks out the committed bytes, so this asks the same question. The
     re-check only runs on failures, so the ordinary path costs nothing.
     """
+    matches, local, pinned = _ruff_version_matches_pin()
+    if not matches:
+        # Same policy the sibling version test already states: a contributor on
+        # another ruff is not a broken repo, and a format verdict from a
+        # different formatter does not predict the gate's. Skipping SAYS that;
+        # failing would blame the repository for the toolchain.
+        pytest.skip(
+            f"local ruff {local or 'unknown'} != gate pin {pinned or 'unknown'}; "
+            "a format verdict from a different formatter version is not a "
+            "verdict on this repo. Align with `pip install ruff=="
+            + (pinned or "")
+            + "`"
+        )
+
     result = subprocess.run(
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         cwd=REPO_ROOT,
