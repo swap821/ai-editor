@@ -518,6 +518,13 @@ def _verify_only_cycle(
             f"    verify-only turn {attempt}: passed={passed} "
             f"strength={strength.name} steps={len(steps)}"
         )
+        if not passed:
+            # A turn that did not pass is a RESULT, and a result nobody can
+            # read is the hollow-run failure in miniature: `passed=False`
+            # alone cannot distinguish "the model got it wrong" from "the
+            # command never ran". Print what the verify tool actually said.
+            said = " ".join(verify_output.split())[:300] or "<no verify tool call>"
+            print(f"      why: {said}")
     return skill_id, detail
 
 
