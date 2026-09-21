@@ -38,6 +38,10 @@
 .lm-header { position: absolute; top: 20px; left: 28px; right: 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
 .lm-header h1 { font-size: 30px; letter-spacing: .04em; margin: 0; color: var(--lm-cyan); }
 .lm-subtitle { color: var(--lm-muted); font-size: 14px; }
+.lm-shell[data-experience-mode="beginner"] .lm-brand,
+.lm-shell[data-experience-mode="beginner"] .lm-navigation,
+.lm-shell[data-experience-mode="beginner"] .lm-connection,
+.lm-shell[data-experience-mode="beginner"] .lm-workspace-rail { display: none; }
 .lm-navigation { position: absolute; top: 98px; left: 28px; right: 28px; display: flex; gap: 8px; align-items: center; pointer-events: auto; }
 .lm-navigation button { background: var(--lm-canvas); border-color: transparent; }
 .lm-navigation button[aria-current="page"] { border-color: var(--lm-cyan); color: var(--lm-cyan); }

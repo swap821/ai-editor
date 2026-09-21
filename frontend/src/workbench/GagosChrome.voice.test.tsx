@@ -188,6 +188,15 @@ describe('GagosChrome voice UX', () => {
     expect(micBtn.style.getPropertyValue('--mic-level')).toBe('0');
   });
 
+  it('keeps voice inclusive while stating that risky actions still require approval', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome experienceMode="beginner" />);
+
+    expect(screen.getByText('Say it, type it, or choose an example. I explain first and ask before I act.')).toBeInTheDocument();
+    expect(screen.getByText('Voice is for conversation; actions still need your approval.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /hold to speak/i })).toBeInTheDocument();
+  });
+
   it('renders the chat model toggle showing LOCAL by default', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);

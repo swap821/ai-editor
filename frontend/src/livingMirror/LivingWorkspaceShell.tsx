@@ -8,6 +8,7 @@ import { ResourceNotice } from './ResourceNotice';
 import { useResource } from './resource';
 import { isRecord } from './contracts';
 import { useReducedMotion, setAmbientMotionPaused } from '../superbrain/lib/reducedMotion';
+import type { ExperienceMode } from './experienceMode';
 import './livingMirror.css';
 
 const Council = lazy(() => import('../workbench/CouncilDashboard'));
@@ -85,7 +86,7 @@ function PanelContent({ panel }: { panel: WorkspacePanel }) {
   }
 }
 
-export function LivingWorkspaceShell() {
+export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experienceMode?: ExperienceMode }) {
   const snapshot = useTabStore();
   const mirror = useMirrorStore();
   const [listOpen, setListOpen] = useState(false);
@@ -113,9 +114,9 @@ export function LivingWorkspaceShell() {
     };
     window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle);
   }, []);
-  return <div className="lm-shell">
+  return <div className="lm-shell" data-experience-mode={experienceMode}>
     <header className="lm-header">
-      <div><h1>GAGOS</h1><span className="lm-subtitle">Local-first intelligence. Human authority.</span></div>
+      <div className="lm-brand lm-expert-only"><h1>GAGOS</h1><span className="lm-subtitle">Local-first intelligence. Human authority.</span></div>
       <EmergencyControl />
     </header>
     <nav className="lm-navigation" aria-label="Workspaces">
