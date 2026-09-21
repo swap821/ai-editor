@@ -19,6 +19,7 @@ this closes it:
     the arc earns three STRONG runs    -> the skill verifies                 L3
     the verified arc compiles          -> a reflex exists                    L4
     the reflex serves the next request -> with the LLM rigged to raise       L5
+    a level about real modules masters -> on real verifier evidence          L6
 
 Every link is the PRODUCTION class doing its production job. Nothing here
 reimplements a link in order to watch it work.
@@ -207,6 +208,7 @@ def run_chain(
             ("skill_acquisition", "L3"),
             ("reflex_compilation", "L4"),
             ("reflex_replay", "L5"),
+            ("curriculum_progression", "L6"),
         )
     }
     attempts: list[Attempt] = []
@@ -357,6 +359,15 @@ def run_chain(
                 "no playbook from an ORGANIC arc to replay; a synthetic one "
                 "matching by chance would not be evidence"
             )
+
+        # --- L6: a curriculum about REAL code, mastered by real evidence ---
+        print()
+        print("  curriculum over real modules")
+        mastered, detail, refs = _curriculum_cycle(corpus, ladder[0][1], run_id=run_id)
+        links["curriculum_progression"].fired = mastered
+        links["curriculum_progression"].detail = detail
+        links["curriculum_progression"].refs.extend(refs)
+        print(f"    L6 {detail}")
 
     return list(links.values()), attempts, run_id, corpus_sha
 
@@ -548,6 +559,183 @@ def _verify_only_cycle(
             said = " ".join(verify_output.split())[:300] or "<no verify tool call>"
             print(f"      why: {said}")
     return skill_id, detail
+
+
+def _green_corpus_tests(corpus, wanted: int = 2) -> list[str]:
+    """Small corpus test files that are PROVEN green before anything uses them.
+
+    A curriculum task whose suite is already red can never be passed, and the
+    level it belongs to can never be mastered -- which would look exactly like
+    the loop failing to learn. This is `require_green_baseline`'s rule applied
+    per task: measure the instrument before blaming the subject.
+    """
+    from tools.self_corpus import run_suite
+
+    candidates = sorted(
+        (corpus.root / "tests").glob("test_*.py"),
+        key=lambda path: (path.stat().st_size, path.name),
+    )
+    green: list[str] = []
+    for path in candidates:
+        if len(green) >= wanted:
+            break
+        result = run_suite(corpus, [f"tests/{path.name}"], timeout=300)
+        if result.green and result.passed > 0:
+            green.append(f"{corpus.root.name}/tests/{path.name}")
+    return green
+
+
+def _curriculum_cycle(corpus, client, *, run_id: str) -> tuple[bool, str, list[str]]:
+    """Master a curriculum level whose subject is this repository's own code.
+
+    WHAT IS AND IS NOT CLAIMED HERE, because the distinction is the whole point.
+
+    The MINER can now propose from real code (`pin_real_behaviour`), and this
+    run exercises that against its own development evidence -- the proposal is
+    recorded and counted, and nothing accepts it. Accepting a mined proposal
+    into the real curriculum is the one thing the miner must never do for
+    itself, and a training harness doing it on the miner's behalf would be the
+    same act wearing a different hat.
+
+    What is MEASURED here is the other half: that a level whose tasks concern
+    real code can be mastered by real authoritative verifier evidence. The
+    tasks are authored by this harness over real corpus modules -- as curriculum
+    tasks always are -- and they live in a RUN-SCOPED database, so the real
+    curriculum is untouched. The production `CurriculumManager` decides; the
+    passes are whatever the model actually earns.
+    """
+    import sqlite3
+    import tempfile
+
+    from aios.agents.tool_agent import ToolAgent
+    from aios.core.autonomy import UNGOVERNED_FIXTURE
+    from aios.core.executor import Executor
+    from aios.core.verification_strength import derive_strength
+    from aios.memory.curriculum import CurriculumManager
+    from aios.memory.curriculum_miner import CurriculumMiner
+    from aios.memory.development import DevelopmentTracker
+    from aios.security.gateway import RateLimiter
+
+    selections = _green_corpus_tests(corpus, wanted=2)
+    if len(selections) < 2:
+        return (
+            False,
+            "fewer than two green corpus suites to build a level from; a "
+            "held-out task must be a DIFFERENT task or it proves nothing",
+            [],
+        )
+
+    scratch = Path(tempfile.mkdtemp(prefix="aios-curriculum-")) / "curriculum.sqlite"
+    curriculum = CurriculumManager(db_path=scratch)
+    development = DevelopmentTracker(db_path=scratch)
+    development.read_only = False
+    skill = "gagos-real-modules"
+    refs: list[str] = []
+
+    # The tasks, in the corpus's own addressing. `add_task` scrubs what it
+    # stores, so the STORED prompt is read back and used for both the agent
+    # goal and the outcome -- a drift between them would attribute nothing and
+    # look exactly like a failure to learn.
+    prompts: list[tuple[str, bool]] = []
+    for index, selection in enumerate(selections):
+        command = f"pytest {selection}"
+        held_out = index == 1
+        task_id = curriculum.add_task(
+            skill,
+            1,
+            VERIFY_ONLY_PROMPT.format(command=command),
+            held_out=held_out,
+        )
+        with sqlite3.connect(scratch) as conn:
+            stored = str(
+                conn.execute(
+                    "SELECT prompt FROM curriculum_tasks WHERE id = ?", (task_id,)
+                ).fetchone()[0]
+            )
+        prompts.append((stored, held_out))
+
+    mastered: list[str] = []
+
+    def _on_mastered(skill_name: str, level: int) -> None:
+        mastered.append(f"{skill_name} level {level}")
+
+    # Trainer twice (the manager's own `training_passes_required`), held-out
+    # once. Nothing here decides what "enough" is -- `_refresh_level` does.
+    schedule = [prompts[0]] * curriculum.training_passes_required + [prompts[1]]
+    for turn, (prompt, held_out) in enumerate(schedule, start=1):
+        command = prompt.split("`")[1]
+        agent = ToolAgent(
+            client,
+            Executor(
+                rate_limiter=RateLimiter(),
+                audit_log=lambda *a, **k: None,
+                emergency_stop=UNGOVERNED_FIXTURE,
+                timeout_s=300,
+            ),
+            max_iters=4,
+            read_root=corpus.root,
+            session_id=f"organic-curriculum-{turn}",
+            approved_commands=[command],
+        )
+        verify_output = ""
+        try:
+            for event in agent.run([{"role": "user", "content": prompt}]):
+                if event.get("type") == "tool_result" and event.get("tool") == "verify":
+                    verify_output = str(event.get("output", ""))
+        except Exception as exc:  # noqa: BLE001 - a bad turn is a result
+            print(f"    curriculum turn {turn} raised {type(exc).__name__}")
+            continue
+        if not verify_output.startswith(("[VERIFY PASS]", "[VERIFY FAIL]")):
+            # No authoritative verdict means the instrument did not run. That
+            # is not a failed attempt and must not be recorded as one.
+            print(f"    curriculum turn {turn}: no verifier verdict; not recorded")
+            continue
+        passed = verify_output.startswith("[VERIFY PASS]")
+        strength = derive_strength(
+            passed=passed,
+            passed_count=_passed_count(verify_output),
+            failed_count=0 if passed else 1,
+            command=command,
+        )
+        curriculum.record_matching(
+            prompt,
+            passed=passed,
+            evidence=verify_output,
+            strength=strength,
+            on_mastered=_on_mastered,
+        )
+        role = "held-out" if held_out else "training"
+        print(
+            f"    curriculum turn {turn} ({role}): passed={passed} "
+            f"strength={strength.name}"
+        )
+
+    # The miner, on this run's OWN development evidence. Proposals only.
+    development.record(
+        f"read {corpus.root.name}/{selections[0].split('/', 1)[1]} and verify it",
+        "verified_success" if mastered else "unverified",
+        tool_calls=1,
+        metadata={"run_id": run_id},
+    )
+    proposals = CurriculumMiner(db_path=scratch).mine_from_development()
+    real_proposals = [p for p in proposals if "training_ground/" not in p.prompt]
+    if real_proposals:
+        refs.append(f"mined proposal: {real_proposals[0].prompt[:90]}")
+
+    if not mastered:
+        return (
+            False,
+            "no level reached mastery; the passes the model earned were not "
+            "enough for _refresh_level, which is the only thing that decides it",
+            refs,
+        )
+    refs.insert(0, mastered[0])
+    return (
+        True,
+        f"{mastered[0]} MASTERED on real modules "
+        f"({len(real_proposals)} real-code proposal(s) mined, none accepted)",
+        refs,
+    )
 
 
 def _passed_count(verify_output: str) -> int:
