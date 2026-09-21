@@ -585,7 +585,9 @@ def _green_corpus_tests(corpus, wanted: int = 2) -> list[str]:
     return green
 
 
-def _curriculum_cycle(corpus, client, *, run_id: str) -> tuple[bool, str, list[str]]:
+def _curriculum_cycle(
+    corpus, client, *, run_id: str, attempts: list
+) -> tuple[bool, str, list[str]]:
     """Master a curriculum level whose subject is this repository's own code.
 
     WHAT IS AND IS NOT CLAIMED HERE, because the distinction is the whole point.
@@ -711,12 +713,19 @@ def _curriculum_cycle(corpus, client, *, run_id: str) -> tuple[bool, str, list[s
         )
 
     # The miner, on this run's OWN development evidence. Proposals only.
-    development.record(
-        f"read {corpus.root.name}/{selections[0].split('/', 1)[1]} and verify it",
-        "verified_success" if mastered else "unverified",
-        tool_calls=1,
-        metadata={"run_id": run_id},
-    )
+    #
+    # The events describe the pin attempts this run actually made against real
+    # modules, with the outcome each attempt actually had. An event naming the
+    # test file rather than the module was the first version of this, and it
+    # produced a proposal to write tests for a test -- true, and useless. What
+    # the run WORKED ON is the module.
+    for record in attempts:
+        development.record(
+            f"pin the behaviour of {record.target}",
+            "verified_success" if record.earned else "verified_failure",
+            tool_calls=1,
+            metadata={"run_id": run_id, "outcome": record.outcome},
+        )
     proposals = CurriculumMiner(db_path=scratch).mine_from_development()
     real_proposals = [p for p in proposals if "training_ground/" not in p.prompt]
     if real_proposals:
