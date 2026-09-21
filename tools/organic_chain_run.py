@@ -363,7 +363,9 @@ def run_chain(
         # --- L6: a curriculum about REAL code, mastered by real evidence ---
         print()
         print("  curriculum over real modules")
-        mastered, detail, refs = _curriculum_cycle(corpus, ladder[0][1], run_id=run_id)
+        mastered, detail, refs = _curriculum_cycle(
+            corpus, ladder[0][1], run_id=run_id, attempts=attempts
+        )
         links["curriculum_progression"].fired = mastered
         links["curriculum_progression"].detail = detail
         links["curriculum_progression"].refs.extend(refs)
