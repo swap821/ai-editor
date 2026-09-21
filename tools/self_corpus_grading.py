@@ -238,14 +238,62 @@ def grade_pin_test(
     return verdict
 
 
+#: ``skill_signature_v2`` keys an arc on the first 12 SORTED goal tokens and
+#: silently drops the rest. Two goals differing only in a dropped token are ONE
+#: arc -- which is precisely the per-tier collapse :func:`pin_goal` exists to
+#: prevent, reintroduced quietly. So the budget is checked rather than assumed.
+_GOAL_TOKEN_BUDGET = 12
+
+
+def pin_goal(target_label: str, model: str) -> str:
+    """The learning arc for *target_label* **as attempted by** *model*.
+
+    WHY THE MODEL BELONGS IN THE IDENTITY
+    -------------------------------------
+    The ladder asks several tiers the same question and stops at the first that
+    answers it. Recording one outcome per TARGET throws away the only thing
+    that run measured: *which tier could do it*. Worse, it makes the number
+    dishonest in both directions — a frontier model's success is credited to an
+    arc the 7B failed four times, and the 7B's failures drag the success rate
+    of work it never completed. With four tiers and one earning, the arc reads
+    25% and no skill can ever clear the 80% promotion rate, however reliable
+    any individual tier is.
+
+    Split by tier and both halves become answerable: a tier that reliably earns
+    a target verifies, a tier that reliably fails it stays ``candidate``. That
+    is the actual question the local-clerk-vs-cloud-frontier design is asking.
+
+    The model spec is folded to a single token (``:`` is a token boundary in
+    ``relevance._TOKEN``, ``.``/``/``/``-`` are not) so a tier costs one slot
+    of the signature budget rather than an unpredictable several.
+    """
+    from aios.memory.relevance import tokens
+
+    tier = "-".join(model.split()).replace(":", "-").strip("-").lower()
+    if not tier:
+        raise CorpusError("a pin outcome must name the model that attempted it")
+    goal = f"pin the behaviour of {target_label} via {tier}"
+    if len(tokens(goal)) > _GOAL_TOKEN_BUDGET:
+        raise CorpusError(
+            f"goal has {len(tokens(goal))} tokens, over the {_GOAL_TOKEN_BUDGET} "
+            "the arc signature keeps; the tier could be the token dropped, "
+            f"silently merging this attempt into another model's record: {goal}"
+        )
+    return goal
+
+
 def record_pin_outcome(
     skills: "SkillMemory",
     verdict: PinVerdict,
     *,
-    goal: str,
+    target_label: str,
+    model: str,
     steps: list[str],
 ) -> int:
     """Turn a graded reverse-engineering attempt into learning evidence.
+
+    One call is one TIER's verdict on one target — see :func:`pin_goal` for why
+    the tier is part of the arc identity rather than a detail of the run.
 
     THE GRADER IS THE AUTHORITY HERE, NOT THE STRENGTH. A vacuous
     ``assert True`` test run under pytest produces ``passed_count > 0`` and
@@ -262,7 +310,7 @@ def record_pin_outcome(
     wrote a test incapable of failing.
     """
     return skills.record_attempt(
-        goal,
+        pin_goal(target_label, model),
         steps,
         success=verdict.earned,
         strength=(

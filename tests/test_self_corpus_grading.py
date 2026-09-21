@@ -290,7 +290,8 @@ class TestTheGraderIsTheAuthorityNotTheStrength:
         record_pin_outcome(
             skills,
             verdict,
-            goal="pin calc.add",
+            target_label="calc.py::add",
+            model="qwen2.5-coder:7b",
             steps=["read calc.py", "verify: pytest"],
         )
         assert skills.list()[0]["success_count"] == 1
@@ -325,7 +326,8 @@ class TestTheGraderIsTheAuthorityNotTheStrength:
         record_pin_outcome(
             skills,
             verdict,
-            goal="pin calc.add",
+            target_label="calc.py::add",
+            model="qwen2.5-coder:7b",
             steps=["read calc.py", "verify: pytest"],
         )
         row = skills.list()[0]
@@ -335,3 +337,146 @@ class TestTheGraderIsTheAuthorityNotTheStrength:
             "below-floor success, it is a failed attempt at the task"
         )
         assert row["failure_count"] == 1
+
+
+class TestATierIsItsOwnArc:
+    """Who earned it is the measurement, so the tier is part of the identity.
+
+    The ladder asks several models the same question and stops at the first
+    that answers. Folding that into one per-target record loses the only thing
+    the run measured -- which tier could do it -- and makes the success rate
+    wrong in both directions: the frontier's win lands on an arc the small
+    local model failed four times, and those failures hold the arc under the
+    80% promotion rate forever. Live evidence of exactly that: four targets
+    closed by the ladder, every arc stuck `candidate` at 14-40%.
+    """
+
+    def test_two_models_on_one_target_are_two_arcs(self, tmp_path) -> None:
+        from aios.memory.db import init_memory_db
+        from aios.memory.skills import SkillMemory
+        from tools.self_corpus_grading import record_pin_outcome
+
+        db = tmp_path / "memory.sqlite"
+        init_memory_db(db)
+        skills = SkillMemory(db_path=db)
+        steps = ["read_file: calc.py", "create_file: test_calc.py", "verify: pytest"]
+
+        record_pin_outcome(
+            skills,
+            _Earned(False),
+            target_label="calc.py::add",
+            model="qwen2.5-coder:7b",
+            steps=steps,
+        )
+        record_pin_outcome(
+            skills,
+            _Earned(True),
+            target_label="calc.py::add",
+            model="bedrock.apac.anthropic.claude-sonnet-4",
+            steps=steps,
+        )
+
+        rows = {row["goal_pattern"]: row for row in skills.list()}
+        assert len(rows) == 2, (
+            "one row means the frontier's success and the clerk's failure were "
+            f"recorded against the same arc: {list(rows)}"
+        )
+        clerk = next(r for g, r in rows.items() if "7b" in g)
+        frontier = next(r for g, r in rows.items() if "sonnet" in g)
+        assert (clerk["success_count"], clerk["failure_count"]) == (0, 1)
+        assert (frontier["success_count"], frontier["failure_count"]) == (1, 0)
+
+    def test_one_tier_repeating_a_target_reinforces_one_arc(self, tmp_path) -> None:
+        """Splitting by tier must not also split by run, or nothing promotes."""
+        from aios.memory.db import init_memory_db
+        from aios.memory.skills import SkillMemory
+        from tools.self_corpus_grading import record_pin_outcome
+
+        db = tmp_path / "memory.sqlite"
+        init_memory_db(db)
+        skills = SkillMemory(db_path=db)
+        steps = ["read_file: calc.py", "create_file: test_calc.py", "verify: pytest"]
+
+        for _ in range(3):
+            record_pin_outcome(
+                skills,
+                _Earned(True),
+                target_label="calc.py::add",
+                model="qwen2.5-coder:7b",
+                steps=steps,
+            )
+
+        rows = skills.list()
+        assert len(rows) == 1
+        assert rows[0]["success_count"] == 3
+        assert rows[0]["status"] == "verified", (
+            "three clean STRONG runs by one tier on one target is exactly the "
+            "evidence the promotion floor asks for; if this stays candidate "
+            "the split went too far and no tier can ever verify"
+        )
+
+    def test_folding_the_spec_to_one_token_keeps_near_names_apart(self) -> None:
+        """`:` folds to `-` for the token budget; that must not merge two tiers."""
+        from tools.self_corpus_grading import pin_goal
+
+        assert pin_goal("calc.py::add", "ollama:qwen") != pin_goal(
+            "calc.py::add", "ollama:qwen2"
+        )
+
+    def test_a_goal_too_long_to_key_is_refused_not_silently_merged(self) -> None:
+        """Over 12 tokens the arc signature drops some -- possibly the tier.
+
+        A dropped tier token is silent: two models quietly share one arc and
+        the numbers look fine. Refusing is the only honest option, because the
+        failure mode is invisible in the data it produces.
+        """
+        from tools.self_corpus import CorpusError
+        from tools.self_corpus_grading import pin_goal
+
+        wordy = " ".join(f"part{i}" for i in range(12))
+        with pytest.raises(CorpusError, match="silently merging"):
+            pin_goal(f"calc.py::{wordy}", "qwen2.5-coder:7b")
+
+    def test_a_spec_the_secret_scanner_redacts_still_keys_its_own_arc(self) -> None:
+        """Some real model ids read as high-entropy and come back redacted.
+
+        `openai.qwen/qwen3-coder-480b-a35b-instruct` is one: the scanner
+        rewrites the tail to `<REDACTED:HIGH_ENTROPY:...>` before the goal is
+        stored, because a long random-looking token is exactly what a leaked
+        key looks like. That is the scanner being right, and it is frozen
+        (AGENTS.md VIII) -- so what has to hold is not that the name survives
+        but that the ARC does: the digest is content-derived, so two specs stay
+        two arcs and the same spec keys the same arc on every later run. If
+        that digest were ever salted per process, every run would mint a fresh
+        arc and nothing could accumulate to promotion.
+        """
+        from aios.security.secret_scanner import scan_and_redact
+        from tools.self_corpus_grading import pin_goal
+
+        a = scan_and_redact(
+            pin_goal("calc.py::add", "openai.qwen/qwen3-coder-480b-a35b-instruct")
+        ).scrubbed
+        b = scan_and_redact(
+            pin_goal("calc.py::add", "openai.qwen/qwen3-next-80b-a3b-instruct")
+        ).scrubbed
+        again = scan_and_redact(
+            pin_goal("calc.py::add", "openai.qwen/qwen3-coder-480b-a35b-instruct")
+        ).scrubbed
+
+        assert "REDACTED" in a, "this test is pointless if the spec survives intact"
+        assert a != b, "two frontier specs collapsed into one arc once redacted"
+        assert a == again, "the arc key is not stable, so it can never accumulate"
+
+    def test_an_unnamed_model_is_refused(self) -> None:
+        from tools.self_corpus import CorpusError
+        from tools.self_corpus_grading import pin_goal
+
+        with pytest.raises(CorpusError, match="must name the model"):
+            pin_goal("calc.py::add", "   ")
+
+
+class _Earned:
+    """The `.earned` half of a `PinVerdict` -- all `record_pin_outcome` reads."""
+
+    def __init__(self, earned: bool) -> None:
+        self.earned = earned

@@ -561,27 +561,35 @@ def main(argv: list[str] | None = None) -> int:
                             earned_by = spec
                             break
                         feedback = " | ".join(record.notes)[:600]
+                    # ONE OUTCOME PER TIER, not per target. This tier was asked
+                    # and either answered or did not; that is the datum. Rolling
+                    # the ladder up into a single per-target record credits a
+                    # frontier success to the arc the 7B failed on, and buries
+                    # the local-vs-cloud comparison the run exists to produce.
+                    #
+                    # The GRADER decides, not pytest: a vacuous test passes
+                    # pytest and is still a failed attempt at the task.
+                    record_pin_outcome(
+                        skills,
+                        _verdict_of(record),
+                        target_label=target.label,
+                        model=spec,
+                        steps=[
+                            f"read_file: {target.module}",
+                            f"create_file: {_test_filename(target)}",
+                            "verify: pytest",
+                        ],
+                    )
                     if earned_by:
+                        # Tiers above this one are never asked, so they get no
+                        # record either way: silence, not a failure. Scoring a
+                        # model on a question it was not put would be the
+                        # vacuous-FAIL shape all over again.
                         break
                 if earned_by:
                     print(f"    -> earned by {earned_by}")
-
-                best = max(
-                    (a for a in attempts if a.target == target.label),
-                    key=lambda a: a.earned,
-                )
-                # The GRADER decides, not pytest: a vacuous test passes pytest and
-                # must still be recorded as a failed attempt at the task.
-                record_pin_outcome(
-                    skills,
-                    _verdict_of(best),
-                    goal=f"pin the behaviour of {target.label}",
-                    steps=[
-                        f"read_file: {target.module}",
-                        f"create_file: {_test_filename(target)}",
-                        "verify: pytest",
-                    ],
-                )
+                else:
+                    print("    -> unearned by every tier in the ladder")
     except CorpusError as exc:
         print(f"\nFAIL  {exc}")
         _write_trail(args, attempts, error=str(exc))
