@@ -56,6 +56,8 @@ _LIVE_NAMES = (
     "_latest_user",
     "_make_confirm_hook",
     "_make_failure_hook",
+    "_message_context_chars",
+    "_messages_have_images",
     "_recall_facts",
     "_recall_lessons",
     "_recall_memory",
@@ -113,7 +115,16 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
     user_text = context.directive
     chat_messages = _to_chat_messages(req.messages)
     session_id = context.session_id
-    task = infer_task(user_text)
+    # Routing signals the words cannot carry: an image is either attached or it
+    # is not, and a 200k-character history is a long-context problem whatever
+    # the last message asks for. Passing only `user_text` left `vision` and
+    # `long_context` unreachable in production even once the classifier could
+    # produce them -- the same declared-but-unreachable defect, one layer up.
+    task = infer_task(
+        user_text,
+        has_images=_messages_have_images(req.messages),
+        context_chars=_message_context_chars(req.messages),
+    )
     chat_client, model = _select_chat_client(
         req.model_id,
         client,
@@ -1322,6 +1333,8 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 record_reuse(reused_ids, success=passed)
             except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
                 logger.warning("Failed to record skill reuse credit", exc_info=exc)
+        # Also dormant: `swarm_plan` can never be set while the strategy gate
+        # above stands, so this swarm-pattern write is unreachable in production.
         if swarm_plan:
             try:
                 swarm_patterns.record_attempt(
@@ -1653,6 +1666,15 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 _dispatch_path = telemetry.DISPATCH_PLAYBOOK
             yield sse(kind, ev)
         elif kind == "swarm_plan":
+            # DORMANT. The ant-colony cannot emit this today: `if req.swarm or
+            # req.role_pass:` above returns `strategy_unavailable` before any
+            # swarm runs, unconditionally, with no flag that opens it. This
+            # branch and the caste_start/caste_end one below are therefore
+            # unreachable from a live turn -- kept so the path is whole if the
+            # gate is ever lifted, labelled so it does not read as implemented.
+            # See the banner in aios/agents/swarm.py; both are pinned by
+            # tests/test_documented_reachability.py.
+            #
             # Plan event from the ant-colony; used internally for pattern
             # recording and also surfaced to the UI so the HUD can render it.
             swarm_plan = ev.get("plan")

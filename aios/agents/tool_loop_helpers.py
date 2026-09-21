@@ -12,7 +12,10 @@ import re
 from collections.abc import Iterator
 from typing import Any, Callable, Optional
 
-from aios.core.verification_strength import VerificationStrength, meets_promotion_floor
+from aios.core.verification_strength import (
+    VerificationStrength,
+    meets_learning_floor,
+)
 from aios.core.verifier import VerifierResult
 from aios.security.secret_scanner import scan_and_redact
 
@@ -221,6 +224,42 @@ def reflect(
     }
 
 
+#: Horizontal whitespace only — newlines survive normalization on purpose.
+_HORIZONTAL_WS = re.compile(r"[ \t\f\v]+")
+
+
+def normalize_command(command: str) -> str:
+    """Canonical form of a command, for MATCHING a failure to its later success.
+
+    A lesson is promoted when the command that produced it succeeds. Comparing
+    the two raw strings byte-for-byte means a retry that differs only in how it
+    was typed — CRLF from a Windows tool call, a trailing space, the model
+    re-indenting a wrapped line — reads as a different command, and the lesson
+    stays pending forever. That is a silent failure: nothing reports it, and
+    the counter just never moves.
+
+    Two deliberate limits:
+
+    * **Secrets are redacted on both sides.** A command containing a credential
+      is stored redacted (``scan_and_redact`` runs on the way into
+      ``mistake_pool``), so the raw retry could never equal the stored form.
+      Redaction is content-derived and therefore stable, which makes the
+      redacted forms comparable.
+    * **Flag order is NOT normalized, and neither are newlines.** Sorting
+      tokens would need a per-command grammar to keep ``--model`` attached to
+      its value, and collapsing newlines would equate two heredocs with
+      different bodies. Both would promote lessons on resemblance rather than
+      on the same command succeeding — and a wrongly-verified lesson is
+      recalled into every later turn, which is worse than one that stays
+      pending.
+    """
+    scrubbed = (
+        scan_and_redact(command).scrubbed.replace("\r\n", "\n").replace("\r", "\n")
+    )
+    lines = [_HORIZONTAL_WS.sub(" ", line).strip() for line in scrubbed.split("\n")]
+    return "\n".join(lines).strip()
+
+
 def confirm(
     pending_lessons: list[tuple[int, str]],
     command: str,
@@ -230,15 +269,24 @@ def confirm(
     strength: VerificationStrength = VerificationStrength.STRONG,
     preview_limit: int = 400,
 ) -> Iterator[dict[str, Any]]:
-    """Promote lessons only after their exact failed command succeeds."""
+    """Promote lessons once their failed command succeeds (see `normalize_command`)."""
+    target = normalize_command(command)
     promoted = [
-        mistake_id for mistake_id, failed in pending_lessons if failed == command
+        mistake_id
+        for mistake_id, failed in pending_lessons
+        if normalize_command(failed) == target
     ]
     if confirm_lesson is None or not promoted:
         return
-    if not meets_promotion_floor(strength):
+    # The LEARNING floor, matching `MistakeMemory.promote`. A lesson whose
+    # command is a type-check has MEDIUM as its ceiling, so asking the
+    # authority floor here would mean the confirmation hook fires and the store
+    # then silently refuses -- two gates disagreeing about the same decision.
+    if not meets_learning_floor(strength):
         return
-    pending_lessons[:] = [item for item in pending_lessons if item[1] != command]
+    pending_lessons[:] = [
+        item for item in pending_lessons if normalize_command(item[1]) != target
+    ]
     for mistake_id in promoted:
         try:
             confirm_lesson(mistake_id)

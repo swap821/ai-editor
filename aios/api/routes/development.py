@@ -248,8 +248,18 @@ def development_curriculum(
     skill_name: Optional[str] = None,
     curriculum: CurriculumManager = Depends(get_curriculum_manager),
 ) -> dict[str, Any]:
-    """List safe curriculum definitions and evidence state."""
-    return {"tasks": curriculum.list(skill_name)}
+    """List safe curriculum definitions, evidence state, and what blocks mastery.
+
+    ``blockers`` is the part that was missing. A level with no held-out task can
+    never be mastered — the gate reads ``bool(held_out) and all(...)`` — so the
+    counters climb on every matching turn while the transition silently never
+    fires. An unstated requirement is indistinguishable from a broken system,
+    so each unmastered level now says which of the two it is.
+    """
+    return {
+        "tasks": curriculum.list(skill_name),
+        "blockers": curriculum.mastery_blockers(skill_name),
+    }
 
 
 @router.post("/api/v1/development/curriculum")
@@ -288,6 +298,11 @@ def curriculum_proposals(
                 "rationale": p.rationale,
                 "source_pattern": p.source_pattern,
                 "difficulty_delta": p.difficulty_delta,
+                # Which proposal is the EVALUATION task, not another training
+                # one. A caller that cannot see this cannot tell that accepting
+                # one particular sibling is what makes the level masterable at
+                # all — it just looks like a fourth variant of the same thing.
+                "held_out": p.held_out,
             }
             for p in proposals
         ]
@@ -312,7 +327,13 @@ def accept_curriculum_proposal(
     if not match:
         raise HTTPException(status_code=404, detail="proposal not found")
     try:
-        task_id = curriculum.add_task(match.skill_name, match.level, match.prompt)
+        # `held_out` must be carried through. Dropping it silently filed every
+        # accepted proposal as a training task, so a mined held-out sibling --
+        # the whole reason a level can become masterable -- landed as one more
+        # training task and mastery stayed unreachable.
+        task_id = curriculum.add_task(
+            match.skill_name, match.level, match.prompt, held_out=match.held_out
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"id": task_id, "accepted": True, "prompt": match.prompt}

@@ -1,4 +1,29 @@
-"""Canonical R15 trajectory capture, skill activation and reuse flow."""
+"""R15 trajectory capture, skill activation and reuse — the MISSION-scoped system.
+
+WHAT REACHES THIS, AND WHAT DOES NOT
+------------------------------------
+This module was documented as the *canonical* skill flow. It is not, and saying
+so made a heavily-tested subsystem read as the thing driving the product when
+nothing in the chat path has ever called it.
+
+The honest wiring, verified by ``tests/test_documented_reachability.py``:
+
+* **Reaches here:** ``/api/v1/skills/*`` only, through
+  ``aios.api.deps.get_learning_service``. Mission-scoped work — expert
+  trajectory capture, authorised skill activation, reuse orchestration with
+  escalate-to-frontier.
+* **Does NOT reach here:** every ordinary chat turn. The turn path
+  (``aios/application/turns/generate_pipeline.py``) uses
+  ``aios.memory.skills.SkillMemory``, a different store with a different
+  schema, promoted by verification strength and compiled into cerebellum
+  playbooks.
+
+Two real systems at two scopes, then — not one canonical system and one legacy
+one. That is a defensible architecture; the claim that this one was canonical
+was the part that was not. If the two are ever unified, or if this is wired
+into the turn path, the reachability test fails and this docstring has to be
+rewritten — which is the point of pinning it.
+"""
 
 from __future__ import annotations
 

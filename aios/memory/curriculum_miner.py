@@ -35,6 +35,13 @@ class CurriculumProposal:
     rationale: str
     source_pattern: str
     difficulty_delta: str
+    #: A level with no held-out task can NEVER be mastered -- `_refresh_level`
+    #: gates on ``bool(held_out) and all(...)``, so an empty held-out set is
+    #: False forever. Nothing automatic ever created one, which made mastery
+    #: inert out of the box. Mining a held-out sibling alongside the training
+    #: variant is what lets a level become masterable without a hand-written
+    #: operator POST.
+    held_out: bool = False
 
     @property
     def fingerprint(self) -> str:
@@ -55,6 +62,25 @@ _ESCALATION_TEMPLATES: dict[str, list[str]] = {
         "Edit training_ground/{module}.py to add {description}. Then edit training_ground/test_{module}.py to add tests for the new functionality. Then verify that the tests pass.",
     ],
 }
+
+
+def _template_family(source_prompt: str) -> str:
+    """Which escalation family fits the SOURCE task's shape.
+
+    `_generate_variants` hardcoded "create_and_test", so the other two families
+    were unreachable: a refactor task escalated into a create task, and the
+    curriculum could only ever get harder along one axis. Derive it instead.
+
+    Ordering matters -- "refactor" is checked before the generic edit/add case
+    because a refactor prompt also contains "Edit".
+    """
+    lowered = source_prompt.lower()
+    if "refactor" in lowered:
+        return "refactor_and_test"
+    if lowered.startswith("edit ") or " to add " in lowered:
+        return "extend_and_test"
+    return "create_and_test"
+
 
 # Skill categories inferred from task patterns
 _SKILL_PATTERNS: dict[str, re.Pattern[str]] = {
@@ -234,7 +260,14 @@ class CurriculumMiner:
             return []
 
         proposals: list[CurriculumProposal] = []
-        templates = _ESCALATION_TEMPLATES.get("create_and_test", [])
+        # Pick the family from the SOURCE task's shape. This was hardcoded to
+        # "create_and_test", which made `refactor_and_test` and
+        # `extend_and_test` unreachable dead code -- every mined proposal came
+        # out a "create + test" variant no matter what the source task did, so
+        # a refactor skill could only ever be escalated into a create skill.
+        templates = _ESCALATION_TEMPLATES.get(
+            _template_family(source_prompt), _ESCALATION_TEMPLATES["create_and_test"]
+        )
 
         for template in templates:
             description = self._extract_description(source_prompt)
@@ -261,6 +294,45 @@ class CurriculumMiner:
             )
             existing_prompts.add(prompt)
             break
+
+        # A HELD-OUT SIBLING, from a different template than the training task.
+        #
+        # Without one the level can never be mastered: `_refresh_level` gates on
+        # ``bool(held_out) and all(...)``, so an empty held-out set is False
+        # forever and the transition is a silent permanent no-op. Nothing
+        # automatic created one -- only a privileged operator POST could -- so
+        # out of the box the curriculum recorded successes that could never
+        # amount to growth.
+        #
+        # It must be a DIFFERENT prompt, or it is not held out in any meaningful
+        # sense: mastery would be proven by the same task that trained it.
+        if proposals:
+            trained = proposals[0].prompt
+            for template in templates:
+                description = self._extract_description(source_prompt)
+                if not description:
+                    continue
+                harder_desc = self._escalate_description(description)
+                new_module = f"{module_name}_v{target_level}_holdout"
+                prompt = template.format(module=new_module, description=harder_desc)
+                if prompt == trained or prompt in existing_prompts:
+                    continue
+                proposals.append(
+                    CurriculumProposal(
+                        skill_name=skill_name,
+                        level=target_level,
+                        prompt=prompt,
+                        rationale=(
+                            "Held-out sibling: a level with no held-out task can "
+                            "never be mastered, however many training passes accrue"
+                        ),
+                        source_pattern=source_prompt[:200],
+                        difficulty_delta=f"level {target_level} held-out check",
+                        held_out=True,
+                    )
+                )
+                existing_prompts.add(prompt)
+                break
 
         return proposals
 

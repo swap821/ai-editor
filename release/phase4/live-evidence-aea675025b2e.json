@@ -1,0 +1,322 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-09-20T19:19:25+00:00",
+  "tip_sha": "aea675025b2e8ade58db001d1960157865ff9e95",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip aea675025b2e8ade58db001d1960157865ff9e95",
+  "docker_available": true,
+  "docker_note": "docker info exit 0",
+  "proofs": [
+    {
+      "organ_id": 9,
+      "name": "Exact Capability Authority",
+      "passed": true,
+      "command": "rp._probe_capabilities",
+      "evidence": "exact capability issued, consumed once, replay refused, altered payload refused"
+    },
+    {
+      "organ_id": 10,
+      "name": "Mission Authority",
+      "passed": true,
+      "command": "rp._probe_mission",
+      "evidence": "mission originated, deliberated, approved by a bound operator, executed, verified, and completed with evidence attribution"
+    },
+    {
+      "organ_id": 15,
+      "name": "Evidence and Verification Authority (construction)",
+      "passed": true,
+      "command": "rp._probe_staging_and_promotion",
+      "evidence": "disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test"
+    },
+    {
+      "organ_id": 16,
+      "name": "Promotion Authority (construction)",
+      "passed": true,
+      "command": "rp._probe_staging_and_promotion (same live run as organ 15)",
+      "evidence": "disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test"
+    },
+    {
+      "organ_id": 17,
+      "name": "Cortex Observation Bus",
+      "passed": true,
+      "command": "rp._probe_cortex",
+      "evidence": "canonical events advanced a durable consumer cursor across restart without duplicate replay"
+    },
+    {
+      "organ_id": 18,
+      "name": "Memory Authority (construction)",
+      "passed": true,
+      "command": "rp._probe_memory",
+      "evidence": "unverified recall remained advisory; verified promotion preserved operator, mission, action, and evidence provenance"
+    },
+    {
+      "organ_id": 19,
+      "name": "Emergency Stop Controller (construction)",
+      "passed": true,
+      "command": "rp._probe_emergency_stop",
+      "evidence": "emergency engage blocked capability, mission scheduling, and execution; durable restart held the latch; fresh privileged clear succeeded"
+    },
+    {
+      "organ_id": 6,
+      "name": "Edge Trust Boundary",
+      "passed": true,
+      "command": "EdgeTrustAuthority + rp._probe_edge",
+      "evidence": "owner=EdgeTrustAuthority; spoofed origin, host, and wildcard CORS requests were refused before mutation"
+    },
+    {
+      "organ_id": 1,
+      "name": "Security Gateway",
+      "passed": true,
+      "command": "SecurityGatewayAuthority.classify (read-only)",
+      "evidence": "owner=SecurityGatewayAuthority; 'echo hello'=>GREEN, 'pytest -q'=>YELLOW, 'rm -rf /'=>RED (Destructive operation: (?:^|[;|&\\s])\\S), 'curl|sh'=>RED (Network egress blocked: \\bcurl\\s), unknown 'git status'=>RED (Unknown command is not on the auto-execu) -- allowlist, fail-closed by default, three zones discriminated"
+    },
+    {
+      "organ_id": 2,
+      "name": "Scope Lock",
+      "passed": true,
+      "command": "ScopeLockAuthority.is_path_in_scope (read-only)",
+      "evidence": "owner=ScopeLockAuthority; roots=['C:\\\\Users\\\\kumar\\\\ai-editor\\\\training_ground', 'C:\\\\Users\\\\kumar\\\\ai-editor\\\\lab']; '../../etc/passwd' refused (in_scope=False, reason=Path 'C:\\Users\\kumar\\etc\\passwd' escapes all declared scope roots.)"
+    },
+    {
+      "organ_id": 3,
+      "name": "Secret Scanner",
+      "passed": true,
+      "command": "SecretScannerAuthority.scan_and_redact (read-only)",
+      "evidence": "owner=SecretScannerAuthority; real key detected=('OPENAI_API_KEY',) and absent from redacted output; ordinary prose not flagged"
+    },
+    {
+      "organ_id": 4,
+      "name": "Tamper-Evident Audit Logger",
+      "passed": true,
+      "command": "AuditLoggerAuthority.verify_chain (read-only)",
+      "evidence": "owner=AuditLoggerAuthority; appended a real entry to a real SQLite audit chain; verify_chain() valid=True over 1 entr(ies), signature_valid=True, tip_anchor_valid=True"
+    },
+    {
+      "organ_id": 5,
+      "name": "Prompt Injection Shield",
+      "passed": true,
+      "command": "InjectionShieldAuthority.is_injection (read-only)",
+      "evidence": "owner=InjectionShieldAuthority; canonical override-instruction injection detected=True; ordinary request detected=False"
+    },
+    {
+      "organ_id": 7,
+      "name": "Policy Kernel",
+      "passed": true,
+      "command": "PolicyKernelAuthority.decide unknown-route RED",
+      "evidence": "profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy"
+    },
+    {
+      "organ_id": 8,
+      "name": "Action Broker",
+      "passed": true,
+      "command": "rp._probe_mutation_authority",
+      "evidence": "95 mutating route declarations resolved through PolicyKernel; unknown mutation failed RED through ActionBroker"
+    },
+    {
+      "organ_id": 11,
+      "name": "Turn Coordinator",
+      "passed": true,
+      "command": "rp._probe_turn_coordinator",
+      "evidence": "deterministic mode selection and canonical turn event stream verified"
+    },
+    {
+      "organ_id": 12,
+      "name": "Worker Foundry",
+      "passed": true,
+      "command": "WorkerFoundryAuthority.select deterministic",
+      "evidence": "WorkerFoundryAuthority constructed; missing_principal=None; missing_lifecycle=None; select(deterministic)=DeterministicWorkerStrategy"
+    },
+    {
+      "organ_id": 13,
+      "name": "Isolated Executor Service (construction)",
+      "passed": true,
+      "command": "ExecutorServiceAuthority.execute fail-closed",
+      "evidence": "ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)"
+    },
+    {
+      "organ_id": 14,
+      "name": "Staged Workspace Manager (construction)",
+      "passed": true,
+      "command": "StagedWorkspaceAuthority.stage+load real disk",
+      "evidence": "staged lease_id=4ee56bfe1b1b4067b1a24361e9f1d26a mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-8yrmag0l\\staged-root\\4ee56bfe1b1b4067b1a24361e9f1d26a baseline=6fc358b543368ecf\u2026"
+    },
+    {
+      "organ_id": 21,
+      "name": "Queen Council Orchestrator",
+      "passed": true,
+      "command": "QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime)",
+      "evidence": "QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-8yrmag0l\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority"
+    },
+    {
+      "organ_id": 22,
+      "name": "V1 Release Declaration (gagos v1-check)",
+      "passed": true,
+      "command": "evaluate_release(repo) live",
+      "evidence": "evaluate_release ready=False version=1.0.0-prototype gate_count=17 failures=['exact_capabilities', 'edge_trust_boundary', 'mutation_authority', 'mission_lifecycle', 'isolated_executor', 'executor_runtime_available', 'staged_workspaces', 'verification_and_recovery', 'promotion_authority', 'turn_coordinator', 'cortex_consumer_cursors', 'truthful_mirror', 'memory_provenance', 'emergency_stop_controller', 'production_profile_fail_closed']"
+    },
+    {
+      "organ_id": 24,
+      "name": "Human Sovereign Identity",
+      "passed": true,
+      "command": "IdentityAuthority via rp._probe_identity",
+      "evidence": "owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified"
+    },
+    {
+      "organ_id": 25,
+      "name": "Constitutional Kernel",
+      "passed": true,
+      "command": "ConstitutionalKernelAuthority.get_active_snapshot after enroll",
+      "evidence": "enrolled+authenticated session_ok=True; active_snapshot version=1 digest="
+    },
+    {
+      "organ_id": 26,
+      "name": "Emergency Stop Organ (full boundary hard-wiring)",
+      "passed": true,
+      "command": "EmergencyStopHardWiringAuthority.assert_operational",
+      "evidence": "EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency"
+    },
+    {
+      "organ_id": 27,
+      "name": "Operator Taste Model",
+      "passed": true,
+      "command": "OperatorTasteModelAuthority.record + reopen SQLite",
+      "evidence": "saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=253952"
+    },
+    {
+      "organ_id": 28,
+      "name": "Project Understanding Organ",
+      "passed": true,
+      "command": "ProjectUnderstandingAuthority.record_scan + reopen SQLite",
+      "evidence": "record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28"
+    },
+    {
+      "organ_id": 29,
+      "name": "Correction and Interpretation-Lineage Organ",
+      "passed": true,
+      "command": "CorrectionLineageAuthority.lineage_for_session + reopen SQLite",
+      "evidence": "lineage_revisions=[2, 1] db_bytes=110592"
+    },
+    {
+      "organ_id": 30,
+      "name": "Communication and Human-State Interpreter",
+      "passed": true,
+      "command": "HumanStateInterpreterAuthority.classify",
+      "evidence": "classify ASAP => state=rushed conf=0.6; noted => state=neutral"
+    },
+    {
+      "organ_id": 31,
+      "name": "Human Representative Context Compiler",
+      "passed": true,
+      "command": "RepresentativeContextCompilerAuthority.compile",
+      "evidence": "compiled context_digest=e45187cf313fcf00\u2026 privacy=local request_id=req-p4-31"
+    },
+    {
+      "organ_id": 32,
+      "name": "Universal Intelligence Gateway",
+      "passed": true,
+      "command": "UniversalIntelligenceGatewayAuthority.route local model_call",
+      "evidence": "route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026"
+    },
+    {
+      "organ_id": 34,
+      "name": "Cloud Budget and Provider-Health Organ",
+      "passed": true,
+      "command": "ProviderHealthBudgetAuthority circuit open",
+      "evidence": "after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-09-20T19:19:21+00:00'"
+    },
+    {
+      "organ_id": 36,
+      "name": "Clerical Job Contract and Dispatcher",
+      "passed": true,
+      "command": "ClerkDispatcherAuthority.dispatch deterministic/unqual/failing",
+      "evidence": "decisions deterministic=deterministic, unqual=frontier_escalation, failing=frontier_escalation"
+    },
+    {
+      "organ_id": 38,
+      "name": "Durable Local-Clerk Provenance and Continuity Organ",
+      "passed": true,
+      "command": "ClerkProvenanceAuthority.record_advisory_job + reopen SQLite",
+      "evidence": "job_provenance after reopen status='rejected'"
+    },
+    {
+      "organ_id": 39,
+      "name": "Multi-Model Deliberation and Dissent Organ",
+      "passed": true,
+      "command": "DeliberationCouncilAuthority via QueenCouncilAuthority",
+      "evidence": "DeliberationCouncilAuthority wired on QueenCouncilAuthority; maybe_deliberate(no dissent)=None"
+    },
+    {
+      "organ_id": 41,
+      "name": "Promotion, Checkpoint and Rollback (live proof)",
+      "passed": true,
+      "command": "PromotionRollbackLiveAuthority + rp._probe_staging_and_promotion",
+      "evidence": "checkpoint_id_is_valid ok/bad/empty=True/False/False; staging_promo=disposable workspace staged, modified, strongly verified, promoted, post-checked, and rolled back on failed smoke test"
+    },
+    {
+      "organ_id": 42,
+      "name": "Recovery and Resumption",
+      "passed": true,
+      "command": "RecoveryResumptionAuthority journal append+verify real SQLite",
+      "evidence": "transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}"
+    },
+    {
+      "organ_id": 43,
+      "name": "Local Skill Reuse, Confidence and Demotion",
+      "passed": true,
+      "command": "SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite",
+      "evidence": "apply_reuse_outcome success conf=0.55 success_count=1 state=active"
+    },
+    {
+      "organ_id": 45,
+      "name": "Constitutional Amendment Authority",
+      "passed": true,
+      "command": "ConstitutionalAmendmentAuthority.ratify fail-closed",
+      "evidence": "ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None"
+    },
+    {
+      "organ_id": 47,
+      "name": "Read-Model and Projection Organ",
+      "passed": true,
+      "command": "ReadModelProjectionAuthority.build_governance_surface",
+      "evidence": "build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']"
+    },
+    {
+      "organ_id": 50,
+      "name": "Provenance and Explanation Surface",
+      "passed": true,
+      "command": "PrivacyAuditTracker.record + reopen real SQLite",
+      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-8yrmag0l\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
+    },
+    {
+      "organ_id": 19,
+      "name": "Emergency Stop Controller (construction)",
+      "passed": true,
+      "command": "TestClient GET /api/v1/governance/emergency-stop",
+      "evidence": "HTTP 200 body={'engaged': False, 'generation': 0, 'operatorId': None, 'authenticationEventId': None, 'reason': '', 'actions': {}, 'failure': None, 'engagedAt': None, 'clearedAt': None}"
+    },
+    {
+      "organ_id": 52,
+      "name": "Observability and Health Organ",
+      "passed": true,
+      "command": "ObservabilityAuthority.health + TestClient GET /health",
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '48289dda-f661-4c9f-80de-b1783a46cf32'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+    },
+    {
+      "organ_id": 53,
+      "name": "Installation, Configuration and Key Authority",
+      "passed": true,
+      "command": "InstallationConfigurationAuthority.rotate + reopen SQLite",
+      "evidence": "rotate persisted; state=ApiTokenRotationState(current_token_digest='f63633ba90c938bbd4282732bf95e49ffcf67758bdbab9ce3285b900f1801e1e', current_issued_at=1789931964.0415106, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1789932024.0415106); reopen_configured=True db_bytes=8192"
+    },
+    {
+      "organ_id": 54,
+      "name": "Backup and Disaster-Recovery Organ",
+      "passed": true,
+      "command": "create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup",
+      "evidence": "create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}

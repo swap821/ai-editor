@@ -33,20 +33,34 @@ def _insert_verified_skill(
     steps: list[str],
     *,
     failure_count: int = 0,
+    consecutive_failures: int = 0,
     signature: str = "sig_legacy",
     sig_v2: str = "sig_test",
     status: str = "verified",
 ) -> int:
     """Insert a procedural skill row directly, bypassing SkillMemory promotion
-    logic, so compilation guards can be tested in isolation."""
+    logic, so compilation guards can be tested in isolation.
+
+    ``failure_count`` is the lifetime tally and ``consecutive_failures`` the
+    run since the last success — separable here precisely because the compile
+    guard reads the second one, and a test that could not tell them apart
+    could not tell whether the guard had been loosened or merely moved."""
     init_memory_db(db_path)
     with get_connection(db_path) as conn:
         cur = conn.execute(
             """INSERT INTO procedural_skills
                (signature, signature_v2, goal_pattern, steps_json,
-                status, success_count, failure_count)
-               VALUES (?, ?, ?, ?, ?, 3, ?)""",
-            (signature, sig_v2, goal, json.dumps(steps), status, failure_count),
+                status, success_count, failure_count, consecutive_failures)
+               VALUES (?, ?, ?, ?, ?, 3, ?, ?)""",
+            (
+                signature,
+                sig_v2,
+                goal,
+                json.dumps(steps),
+                status,
+                failure_count,
+                consecutive_failures,
+            ),
         )
         return cur.lastrowid
 
@@ -180,18 +194,57 @@ def test_try_compile_all_compiles_verified_zero_failure_skill(db_path: Path) -> 
     ]
 
 
-def test_try_compile_all_skips_skill_with_failures(db_path: Path) -> None:
+def test_try_compile_all_skips_skill_that_failed_most_recently(db_path: Path) -> None:
+    """A skill whose last run failed is not muscle memory yet."""
     _insert_verified_skill(
         db_path,
         goal="run the test suite",
         steps=["read_file: src/foo.py"],
         failure_count=1,
+        consecutive_failures=1,
     )
     cerebellum = Cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 0
     assert cerebellum.compiled_count() == 0
+
+
+def test_an_old_flake_does_not_disqualify_a_skill_forever(db_path: Path) -> None:
+    """The guard used to read the LIFETIME failure tally, which only grows.
+
+    One bad run therefore barred an arc from ever compiling again, however many
+    times it later succeeded — and nothing surfaced that it had happened. The
+    trust bar is untouched: this skill is still `verified`, which already means
+    >=3 STRONG successes at >=80%.
+    """
+    _insert_verified_skill(
+        db_path,
+        goal="run the test suite",
+        steps=["read_file: src/foo.py"],
+        failure_count=1,
+        consecutive_failures=0,
+    )
+    cerebellum = Cerebellum(db_path)
+
+    assert cerebellum.try_compile_all() == 1
+    assert cerebellum.compiled_count() == 1
+
+
+def test_a_candidate_skill_with_a_clean_recent_record_still_cannot_compile(
+    db_path: Path,
+) -> None:
+    """Loosening guard 3 must not leak trust in from anywhere else."""
+    _insert_verified_skill(
+        db_path,
+        goal="run the test suite",
+        steps=["read_file: src/foo.py"],
+        consecutive_failures=0,
+        status="candidate",
+    )
+    cerebellum = Cerebellum(db_path)
+
+    assert cerebellum.try_compile_all() == 0
 
 
 def test_try_compile_all_skips_candidate_skill(db_path: Path) -> None:

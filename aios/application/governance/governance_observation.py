@@ -404,20 +404,46 @@ class VerifiedMemoryReader:
 
     @staticmethod
     def _earned(strength_name: Any) -> bool:
-        """True when the recorded strength cleared the promotion floor.
+        """True when the recorded strength cleared the floor that promoted the row.
 
         A verified row with no strength at all is NOT earned: it was promoted
         without a recorded basis, which is exactly what M2 is looking for.
+
+        The floor asked here must be the SAME one the writer promoted with, or
+        the monitor manufactures findings. Both stores above are LEARNING stores
+        -- ``procedural_skills`` promotes on ``meets_learning_floor`` (MEDIUM)
+        and ``mistake_pool`` carries no strength at all -- so this asks the
+        learning floor. Reading the AUTHORITY floor here would report every
+        legitimately-promoted type-check skill as "promoted without earning
+        it", which is a false alarm in a control whose whole value is that its
+        alarms mean something.
+
+        Authority lives in a different table (``earned_autonomy``) and is not
+        inspected here. If an authority store is ever added to ``_QUERIES``, it
+        needs ``meets_promotion_floor``, not this.
         """
         if not strength_name:
             return False
         try:
             from aios.core.verification_strength import (
-                meets_promotion_floor,
+                VerificationStrength,
+                meets_learning_floor,
                 strength_from_name,
             )
 
-            return bool(meets_promotion_floor(strength_from_name(str(strength_name))))
+            # NONE must be passed EXPLICITLY. `strength_from_name` defaults to
+            # STRONG, so an unparseable label -- a corrupted row, a value from a
+            # future schema, a typo -- silently read as the strongest evidence
+            # there is and this monitor called it earned. The `except` below
+            # says "unknown label cannot be called earned", but nothing raised:
+            # it was fail-OPEN in a control whose whole job is catching rows
+            # promoted without a basis. `aios/runtime/king_report.py` passes the
+            # explicit default for exactly this reason.
+            return bool(
+                meets_learning_floor(
+                    strength_from_name(str(strength_name), VerificationStrength.NONE)
+                )
+            )
         except Exception:  # noqa: BLE001 - unknown label cannot be called earned
             return False
 
