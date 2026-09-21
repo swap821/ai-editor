@@ -36,6 +36,7 @@ which one broke:
 from __future__ import annotations
 
 import ast
+import hashlib
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -305,6 +306,50 @@ def pin_goal(target_label: str, model: str) -> str:
             f"silently merging this attempt into another model's record: {goal}"
         )
     return goal
+
+
+def content_digest(source: str) -> str:
+    """The digest a `create_file` step carries. One derivation, several callers."""
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def pin_steps(target_module: str, test_rel: str, content_sha256: str) -> list[str]:
+    """The workflow steps for a pin attempt, in the shape PRODUCTION records.
+
+    The self-corpus used to record `create_file: <name>`, and the cerebellum's
+    `_parse_step` requires `create_file: filepath=..., content_sha256=<64 hex>`
+    — a step it cannot parse makes the WHOLE arc uncompilable, so every skill
+    the self-corpus ever earned was barred from becoming a reflex. Nothing
+    reported it: the arc verified, the compiler silently skipped it, and the
+    chain simply stopped one link early.
+
+    Two shapes of the same thing is the defect; this emits the one the turn
+    path emits (`turn_pipeline._workflow_step`), so a skill learned from the
+    self-corpus and a skill learned from a chat turn are the same kind of
+    object. `tests/test_self_corpus_steps_are_compilable.py` pins that with a
+    differential check rather than trusting this docstring.
+
+    The digest matters beyond parsing: a replay may only CONFIRM a
+    `create_file`, never perform it, and it confirms by comparing the file's
+    bytes to this hash. Recording the digest is what lets the reflex verify
+    the world still matches what it learned.
+    """
+    return [
+        f"read_file: filepath={target_module}",
+        f"create_file: filepath={test_rel}, content_sha256={content_sha256}",
+        f"verify: command={_pin_verify_command(test_rel)}",
+    ]
+
+
+def _pin_verify_command(test_rel: str) -> str:
+    """The verify command a pin attempt runs, as one derivation.
+
+    It appears in three places that must agree — the recorded step, the lesson
+    a failure is keyed to, and the success that confirms that lesson. If they
+    disagree by so much as a flag, the lesson can never be promoted, which is
+    the failure mode that left every lesson in the live pool unpromotable.
+    """
+    return f"pytest {test_rel}"
 
 
 def record_pin_outcome(

@@ -108,7 +108,12 @@ from aios.core.llm import LLMError  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
-from tools.self_corpus_grading import grade_pin_test, record_pin_outcome  # noqa: E402
+from tools.self_corpus_grading import (  # noqa: E402
+    content_digest,
+    grade_pin_test,
+    pin_steps,
+    record_pin_outcome,
+)
 from tools.self_corpus_targets import Target, collect_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "reverse-engineering-runs.jsonl"
@@ -168,6 +173,11 @@ class Attempt:
     #: measured, and charging it a failure would be a verdict on the network
     #: wearing a verdict on the model's face.
     reached_model: bool = False
+    #: Digest of the test the model wrote. Carried so the recorded
+    #: `create_file` step can be the production shape -- a replay CONFIRMS
+    #: a create by comparing bytes to this hash. The SOURCE is deliberately
+    #: not carried: it would bloat every trail row for no extra proof.
+    source_sha256: str = ""
     passes_clean: bool = False
     fails_when_mutated: bool = False
     source_untouched: bool = False
@@ -423,6 +433,7 @@ def _attempt_one(
         record.seconds = time.monotonic() - started
         return record
 
+    record.source_sha256 = content_digest(code)
     rel = _test_filename(target)
     path = corpus.root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -608,11 +619,17 @@ def main(argv: list[str] | None = None) -> int:
                             _verdict_of(tier_earned),
                             target_label=target.label,
                             model=spec,
-                            steps=[
-                                f"read_file: {target.module}",
-                                f"create_file: {_test_filename(target)}",
-                                "verify: pytest",
-                            ],
+                            # Production-shaped steps (`pin_steps`), not a
+                            # second format: a `create_file` without its content
+                            # digest cannot be parsed by the cerebellum, and one
+                            # unparseable step makes the whole arc uncompilable.
+                            # Every skill the self-corpus earned was silently
+                            # barred from becoming a reflex that way.
+                            steps=pin_steps(
+                                target.module,
+                                _test_filename(target),
+                                _last_digest(tier_attempts),
+                            ),
                         )
                         # A tier that only ever failed to emit a parseable block
                         # is usually an indictment of `_extract_code`, not of the
@@ -663,6 +680,20 @@ def main(argv: list[str] | None = None) -> int:
             "are recorded as failures and the scoreboard will show it."
         )
     return 0
+
+
+def _last_digest(tier_attempts: list["Attempt"]) -> str:
+    """The digest of the last test this tier actually wrote.
+
+    Empty when the tier never got as far as writing one (a transport
+    failure, or output with no parseable code block). An empty digest makes
+    the `create_file` step unparseable, which correctly keeps an arc built
+    from nothing out of the compiler.
+    """
+    for attempt in reversed(tier_attempts):
+        if attempt.source_sha256:
+            return attempt.source_sha256
+    return ""
 
 
 def tier_verdict(tier_attempts: list["Attempt"]) -> tuple[bool, bool, str]:

@@ -195,6 +195,33 @@ CREATE TABLE IF NOT EXISTS development_events (
     metadata_json       TEXT NOT NULL DEFAULT '{}'
 );
 
+-- == Learning journal =========================================================
+-- APPEND-ONLY. Every other learning table records the CURRENT state: a skill's
+-- counts, a playbook's status, a level's mastery. Each of those is an UPDATE,
+-- so the transition itself is destroyed by the row that records its result --
+-- "this reflex is retired" survives, "it was retired at 14:02 after two replay
+-- failures, having earned 4 successes" does not.
+--
+-- That is the difference between a store and a journal, and it is why LC4
+-- exists: a faculty whose history can be overwritten cannot be audited after
+-- the fact, only believed. Nothing here is ever UPDATEd or DELETEd, and
+-- `tests/test_learning_journal.py` fails if any code path tries.
+CREATE TABLE IF NOT EXISTS learning_events (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts            DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Which run produced this transition. Ties a journal entry back to the
+    -- self-corpus / organic-chain trail row that caused it.
+    run_id        TEXT NOT NULL DEFAULT '',
+    -- The ledger faculty this transition belongs to (L1..L8), so the journal
+    -- can answer "what has L4 actually done" without joining three tables.
+    faculty       TEXT NOT NULL,
+    transition    TEXT NOT NULL,
+    subject_id    INTEGER,
+    detail_json   TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_learning_events_faculty
+    ON learning_events(faculty, id);
+
 -- == Swarm decomposition patterns =============================================
 -- Cached subtask plans keyed by goal-pattern. A plan is promoted to 'verified'
 -- after repeated successful swarm outcomes; the scout caste may recall it to

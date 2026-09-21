@@ -189,8 +189,11 @@
       },
       "journal": {
         "kind": "table",
-        "referent": "compiled_playbooks",
-        "append_only_claim": false
+        "referent": "aios/memory/learning_journal.py::record",
+        "append_only_claim": true,
+        "transitions": "compiled",
+        "claim": "Every compile appends to learning_events inside the same transaction as the compile itself, so an entry cannot survive a rolled-back compile.",
+        "enforced_by": "tests/test_learning_journal.py::TestNothingCanRewriteIt"
       },
       "fail_closed_tests": [
         "tests/test_cerebellum.py"
@@ -247,8 +250,11 @@
       },
       "journal": {
         "kind": "table",
-        "referent": "compiled_playbooks",
-        "append_only_claim": false
+        "referent": "aios/memory/learning_journal.py::record",
+        "append_only_claim": true,
+        "transitions": "replayed / decompiled",
+        "claim": "Replays and all THREE retirement paths (explicit, repeated replay failure, source-skill demotion) append with their reason -- the part the mutable status column destroys.",
+        "enforced_by": "tests/test_learning_journal.py::TestNothingCanRewriteIt"
       },
       "fail_closed_tests": [
         "tests/test_cerebellum.py"
@@ -300,8 +306,11 @@
       },
       "journal": {
         "kind": "table",
-        "referent": "curriculum_tasks",
-        "append_only_claim": false
+        "referent": "aios/memory/learning_journal.py::record",
+        "append_only_claim": true,
+        "transitions": "level_mastered",
+        "claim": "Mastery fires once per level by construction, which is exactly why it needs journalling: the UPDATE that records it destroys when and by which run it happened.",
+        "enforced_by": "tests/test_learning_journal.py::TestNothingCanRewriteIt"
       },
       "fail_closed_tests": [
         "tests/test_curriculum_mastery_is_reachable.py"
