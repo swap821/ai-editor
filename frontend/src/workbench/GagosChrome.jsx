@@ -57,6 +57,8 @@ import './GagosChrome.css';
 import { useCognitionBus, formatActiveBrainChip } from './hooks/useCognitionBus';
 import { useWorkMaterialization, workFilepath, extractStreamingCode } from './hooks/useWorkMaterialization';
 import { useVoiceInput } from './hooks/useVoiceInput';
+import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
+import { BootstrapReadiness } from '../livingMirror/BootstrapReadiness';
 
 export { workFilepath, extractStreamingCode };
 
@@ -204,7 +206,7 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
   );
 }
 
-export default function GagosChrome({ integrated = false }) {
+export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {} }) {
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
@@ -447,7 +449,7 @@ export default function GagosChrome({ integrated = false }) {
   const showThinkingEcho = busy && (convPhase === 'thinking' || convPhase === 'awakening' || convPhase === 'streaming');
 
   return (
-    <div className="gagos-chrome" aria-label="GAGOS conversation">
+    <div className="gagos-chrome" data-experience-mode={experienceMode} aria-label="GAGOS conversation">
       <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
         Skip to the chat
       </button>
@@ -505,6 +507,10 @@ export default function GagosChrome({ integrated = false }) {
           </span>
         ) : null}
       </header>
+
+      <div className="gagos-experience-switch">
+        <ExperienceModeSwitch mode={experienceMode} onChange={onExperienceModeChange} />
+      </div>
 
       {verifyToast ? (
         <div
@@ -590,6 +596,9 @@ export default function GagosChrome({ integrated = false }) {
         {!backendVoice.stt && browserVoiceAvailable && <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
           Use browser recognition. Audio may be processed by the browser provider.
         </label>}
+        {experienceMode === 'beginner' ? (
+          <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
+        ) : null}
         {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
         {messages.length === 0 && !busy ? (
           <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
@@ -598,6 +607,12 @@ export default function GagosChrome({ integrated = false }) {
               I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
               remembers. Where shall we begin?
             </p>
+            {experienceMode === 'beginner' ? (
+              <p className="gagos-welcome__guidance">
+                Say it, type it, or choose an example. I explain first and ask before I act.
+              </p>
+            ) : null}
+            {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
             <div className="gagos-starters" role="list" aria-label="Suggested prompts">
               {[
                 'What can you help me with?',
@@ -753,7 +768,7 @@ export default function GagosChrome({ integrated = false }) {
           ) : null}
           <button
             type="button"
-            className="gagos-btn gagos-model"
+            className="gagos-btn gagos-model gagos-expert-only"
             onClick={cycleChatModel}
             aria-label={`Chat model: ${chatModelId ? 'Gemini' : 'Local (Ollama)'}. Click to switch to ${chatModelId ? 'Local (Ollama)' : 'Gemini'}.`}
             title={chatModelId ? 'Switch to Local (Ollama)' : 'Switch to Gemini'}
@@ -762,7 +777,7 @@ export default function GagosChrome({ integrated = false }) {
           </button>
           <button
             type="button"
-            className={`gagos-btn gagos-swarm ${swarmOn ? 'is-on' : ''}`}
+            className={`gagos-btn gagos-swarm gagos-expert-only ${swarmOn ? 'is-on' : ''}`}
             onClick={() => {
               setSwarmOn((prev) => {
                 const next = !prev;
