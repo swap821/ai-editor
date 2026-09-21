@@ -197,6 +197,17 @@ describe('GagosChrome voice UX', () => {
     expect(screen.getByRole('button', { name: /hold to speak/i })).toBeInTheDocument();
   });
 
+  it('offers three guided beginner paths that prefill the chat without submitting', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome experienceMode="beginner" />);
+
+    const input = screen.getByLabelText('Talk to GAGOS') as HTMLInputElement;
+    fireEvent.click(screen.getByRole('button', { name: /Guide me step by step/i }));
+
+    expect(input.value).toBe('Guide me through one safe first task');
+    expect(sendDirective).not.toHaveBeenCalled();
+  });
+
   it('renders the chat model toggle showing LOCAL by default', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);

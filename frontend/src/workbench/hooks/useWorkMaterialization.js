@@ -27,6 +27,7 @@ import {
   selectNextAvailableVertebraSeat,
 } from '../../superbrain/lib/materializedSurfaceAnchors';
 import { sanitizeToText } from '../../utils/sanitizeHtml';
+import { isCompleteWorkResult, isEstablishedTurn } from './turnOutcome';
 
 const MAX_MESSAGES = 40;
 
@@ -269,7 +270,7 @@ export function useWorkMaterialization({
           const language = fresh ? (fresh.language || 'text').toLowerCase() : extracted.language;
           const hasCode = Boolean((fresh || extracted.hasCode) && code.trim());
 
-          if (hasCode) {
+          if (isCompleteWorkResult(result, hasCode)) {
             const filepath =
               (fresh?.filepath ? fresh.filepath.split(/[\\/]/).pop() : '') || workFilepath(text, language);
             const base = filepath.split(/[\\/]/).pop();
@@ -308,6 +309,7 @@ export function useWorkMaterialization({
             }
           }
           releaseWorkMaterialization();
+          if (isEstablishedTurn(result)) setOnline(true);
         }
 
         if (getConversationPhase() !== 'error') {
@@ -343,8 +345,8 @@ export function useWorkMaterialization({
           return;
         }
         setConversationPhase('complete');
+        setOnline(true);
       }
-      setOnline(true);
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.6, data: { phase: 'reply-complete' } });
     } catch (error) {
       if (turnTokenRef.current !== token) return;

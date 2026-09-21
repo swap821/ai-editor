@@ -4,6 +4,7 @@ import { useTabStore, openWorkspacePanel, focusWorkspace, closeWorkspace, pinWor
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import { WorkspaceHostContext } from './WorkspaceHostContext';
 import { EmergencyControl } from './EmergencyControl';
+import { MirrorConnectionNotice } from './MirrorConnectionNotice';
 import { ResourceNotice } from './ResourceNotice';
 import { useResource } from './resource';
 import { isRecord } from './contracts';
@@ -88,7 +89,6 @@ function PanelContent({ panel }: { panel: WorkspacePanel }) {
 
 export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experienceMode?: ExperienceMode }) {
   const snapshot = useTabStore();
-  const mirror = useMirrorStore();
   const [listOpen, setListOpen] = useState(false);
   const reducedMotion = useReducedMotion();
   const systemReducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -129,12 +129,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
         {systemReducedMotion ? 'Motion reduced by system' : reducedMotion ? 'Resume ambient motion' : 'Pause ambient motion'}
       </button>
     </nav>
-    <div className="lm-connection" role="status">
-      <span>Local transport: {mirror.connection}</span>
-      <span>{mirror.snapshotReceivedAt ? `Snapshot received ${new Date(mirror.snapshotReceivedAt).toLocaleTimeString()} · ${mirror.projection === 'stale' ? 'stale' : 'continuity unconfirmed'}` : 'Operational state unavailable'}</span>
-      {mirror.compatibility && <span>{mirror.compatibility}</span>}
-      {mirror.approvalRequired && <button type="button" onClick={() => open('governance', 'Governance')}>Pending authority needs review</button>}
-    </div>
+    <MirrorConnectionNotice experienceMode={experienceMode} onOpenAuthority={() => open('governance', 'Governance')} />
     <aside className="lm-workspace-rail" aria-label="Spinal workspace anchors">
       {handles.slice(0, 4).map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'true' : undefined} onClick={() => focusWorkspace(handle.id)}>
         <span className="lm-vertebra" aria-hidden="true" />{handle.title}{handle.pinned ? ' · pinned' : ''}

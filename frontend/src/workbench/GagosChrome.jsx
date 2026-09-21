@@ -59,6 +59,7 @@ import { useWorkMaterialization, workFilepath, extractStreamingCode } from './ho
 import { useVoiceInput } from './hooks/useVoiceInput';
 import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
 import { BootstrapReadiness } from '../livingMirror/BootstrapReadiness';
+import { StarterPaths } from '../livingMirror/StarterPaths';
 
 export { workFilepath, extractStreamingCode };
 
@@ -613,23 +614,27 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
               </p>
             ) : null}
             {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
-            <div className="gagos-starters" role="list" aria-label="Suggested prompts">
-              {[
-                'What can you help me with?',
-                'Summarise this project',
-                'Find bugs in my code',
-                'Explain how this works',
-              ].map((text) => (
-                <button
-                  key={text}
-                  className="gagos-starter"
-                  role="listitem"
-                  onClick={() => { setDraft(text); inputRef.current?.focus(); }}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
+            {experienceMode === 'beginner' ? (
+              <StarterPaths onChoose={(text) => { setDraft(text); inputRef.current?.focus(); }} />
+            ) : (
+              <div className="gagos-starters" role="list" aria-label="Suggested prompts">
+                {[
+                  'What can you help me with?',
+                  'Summarise this project',
+                  'Find bugs in my code',
+                  'Explain how this works',
+                ].map((text) => (
+                  <button
+                    key={text}
+                    className="gagos-starter"
+                    role="listitem"
+                    onClick={() => { setDraft(text); inputRef.current?.focus(); }}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : null}
 
