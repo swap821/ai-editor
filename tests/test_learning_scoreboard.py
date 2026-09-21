@@ -14,6 +14,7 @@ Two failure modes matter here, and they are opposite:
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 import pytest
@@ -140,3 +141,95 @@ class TestUnreachableMasteryIsDistinguishedFromUnearned:
         stats = collect(db)
         assert stats["curriculum_levels_unreachable"] == 0
         assert "UNREACHABLE" not in render(stats)
+
+
+class TestTheScoreboardAlarmsInsteadOfOnlyPrinting:
+    """A dashboard nobody alarms on is how a loop quietly stops for a month.
+
+    The alarm is deliberately narrow. Not "is the number good" -- nobody can
+    agree on that and a subjective gate gets muted -- but "did something this
+    system had already proven stop being true".
+    """
+
+    def _trail(self, tmp_path, *rows):
+        path = tmp_path / "trail.jsonl"
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        return path
+
+    def test_a_dropped_counter_is_a_regression(self, tmp_path) -> None:
+        from scripts.learning_scoreboard import detect_regressions
+
+        trail = self._trail(tmp_path, {"skills_verified": 6, "playbooks_compiled": 3})
+        found = detect_regressions(
+            {"skills_verified": 4, "playbooks_compiled": 3}, trail
+        )
+        assert found == ["skills_verified: 6 -> 4"]
+
+    def test_holding_steady_is_not_a_regression(self, tmp_path) -> None:
+        from scripts.learning_scoreboard import detect_regressions
+
+        trail = self._trail(tmp_path, {"skills_verified": 6})
+        assert detect_regressions({"skills_verified": 6}, trail) == []
+
+    def test_rising_failures_are_not_a_regression(self, tmp_path) -> None:
+        """Failures going up is the loop WORKING — it is measuring things."""
+        from scripts.learning_scoreboard import detect_regressions
+
+        trail = self._trail(tmp_path, {"failures": 10, "skills_verified": 6})
+        assert detect_regressions({"failures": 40, "skills_verified": 6}, trail) == []
+
+    def test_the_first_ever_reading_cannot_regress(self, tmp_path) -> None:
+        from scripts.learning_scoreboard import detect_regressions
+
+        assert detect_regressions({"skills_verified": 1}, tmp_path / "absent") == []
+
+    def test_a_corrupt_last_row_falls_back_to_an_earlier_one(self, tmp_path) -> None:
+        """A half-written line must not disable the alarm entirely."""
+        from scripts.learning_scoreboard import detect_regressions
+
+        path = tmp_path / "t.jsonl"
+        path.write_text(
+            json.dumps({"skills_verified": 6}) + "\n{half-writt", encoding="utf-8"
+        )
+        assert detect_regressions({"skills_verified": 2}, path) == [
+            "skills_verified: 6 -> 2"
+        ]
+
+
+class TestTheTrackedSummary:
+    """`.aios/audit/` is gitignored, so without this nobody but this laptop can
+    check a single learning claim the project makes."""
+
+    def test_it_renders_the_recent_readings(self, tmp_path) -> None:
+        from scripts.learning_scoreboard import write_trend
+
+        trail = tmp_path / "t.jsonl"
+        trail.write_text(
+            json.dumps({"ts": "2026-09-21T00:00:00+00:00", "skills_verified": 6})
+            + "\n",
+            encoding="utf-8",
+        )
+        trend = tmp_path / "TREND.md"
+        write_trend(trail, trend)
+
+        text = trend.read_text(encoding="utf-8")
+        assert "| when | skills |" in text
+        assert "2026-09-21T00:00:00+00:00" in text and "| 6 |" in text
+
+    def test_a_missing_counter_renders_as_absent_not_zero(self, tmp_path) -> None:
+        """Reporting a column the DB never had as 0 is how a broken
+        measurement disguises itself as a bad result."""
+        from scripts.learning_scoreboard import write_trend
+
+        trail = tmp_path / "t.jsonl"
+        trail.write_text(json.dumps({"ts": "x"}) + "\n", encoding="utf-8")
+        trend = tmp_path / "TREND.md"
+        write_trend(trail, trend)
+        assert "| x | - | - |" in trend.read_text(encoding="utf-8")
+
+    def test_no_trail_means_no_file_invented(self, tmp_path) -> None:
+        from scripts.learning_scoreboard import write_trend
+
+        trend = tmp_path / "TREND.md"
+        write_trend(tmp_path / "absent.jsonl", trend)
+        assert not trend.exists()
