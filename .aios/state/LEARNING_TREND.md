@@ -17,6 +17,7 @@ the loop is not accumulating, which is a finding rather than a gap.
 | 2026-09-21T13:45:57+00:00 | 6 | 3 | 2 | 0 | 2 |
 | 2026-09-21T16:59:40+00:00 | 6 | 4 | 3 | 2 | 2 |
 | 2026-09-21T17:00:27+00:00 | 6 | 4 | 3 | 2 | 2 |
+| 2026-09-21T17:17:03+00:00 | 6 | 5 | 3 | 7 | 2 |
 
 The run detail lives under `.aios/audit/`, which is gitignored, so these
 summaries are the only part anyone but this machine can check. A REFUSED
@@ -38,9 +39,9 @@ that makes the other rows worth believing.
 
 | when | outcome | links fired | detail |
 |---|---|---|---|
-| 2026-09-21T16:11:14 | aborted | - | REFUSED — the suite run for the agent's new test produced no output at all (rc=1, 0 passed / 0 faile |
-| 2026-09-21T16:20:15 | completed | L1, L3, L5 | 1 earned, 3 graded, 0 not scored (model unreachable) |
 | 2026-09-21T16:25:56 | completed | L1, L3 | 2 earned, 8 graded, 0 not scored (model unreachable) |
 | 2026-09-21T16:31:57 | completed | L1, L3, L4 | 1 earned, 3 graded, 0 not scored (model unreachable) |
 | 2026-09-21T16:34:50 | completed | L1, L3 | 1 earned, 3 graded, 0 not scored (model unreachable) |
 | 2026-09-21T16:38:21 | completed | L1, L3, L4 | 1 earned, 5 graded, 0 not scored (model unreachable) |
+| 2026-09-21T17:13:23 | aborted | - | REFUSED — CONTAINMENT FAILURE: the live working tree changed during a training run (2a8de74ccdc5 ->  |
+| 2026-09-21T17:16:40 | completed | L1, L2, L3 | 2 earned, 4 graded, 0 not scored (model unreachable) |

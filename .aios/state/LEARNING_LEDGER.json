@@ -48,15 +48,15 @@
           "organic": false
         },
         {
-          "description": "A model genuinely got a REAL function wrong on real code and ReflectionAgent recorded it: lessons 88-95 in the live pool, each keyed to the exact failing command (e.g. `pytest tests/test_pin_aios_agents_tool_handlers_next_step_after_blocked_read.py`). Nothing was seeded -- the failures are whatever the models actually did, which the trail shows happening on roughly seven attempts in ten. NOT a claim that every failure produces a useful lesson.",
-          "command": "python tools/organic_chain_run.py --targets 4 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "description": "Run 20260921T172106 (COMPLETED, containment verified: live tree byte-identical before and after, HEAD unmoved). A model got a real function wrong twice and ReflectionAgent recorded lesson 99, keyed to the exact failing command `pytest tests/test_pin_aios_agents_tool_handlers_next_step_after_blocked_read.py`. The failure is whatever the model actually did; nothing was seeded.",
+          "command": "python tools/organic_chain_run.py --targets 2 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
           "artifact": ".aios/audit/organic-chain-runs.jsonl",
-          "commit_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         }
       ],
-      "last_verified_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
       "na_by_design": {
         "LC4": "Reflection keeps no append-only journal of its own; lessons are rows in mistake_pool, which is a mutable store by design (occurrence_count, verification_status). Referent: aios/memory/mistake.py::MistakeMemory"
       },
@@ -117,15 +117,15 @@
           "organic": false
         },
         {
-          "description": "Lessons 93, 94 and 95 reached `verified` -- the FIRST verified lessons this system has ever had (it was 0 of 87). Each was promoted by the production `confirm()` path when the identical failing command later succeeded: the local 7B failed a target, the cloud 30B earned it, and the same `pytest <file>` command passing closed the loop. NOT evidence that lessons transfer across sessions, only within a run.",
-          "command": "python tools/organic_chain_run.py --targets 4 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "description": "Same clean run: lesson 99 was PROMOTED to `verified` when the identical command later passed -- the 7B failed the target twice and earned it on try 3, so the fail-then-recover happened within one tier, through the production confirm() path. These are the first verified lessons this system has ever had (it was 0 of 87).",
+          "command": "python tools/organic_chain_run.py --targets 2 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
           "artifact": ".aios/audit/organic-chain-runs.jsonl",
-          "commit_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         }
       ],
-      "last_verified_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
       "na_by_design": {
         "LC4": "No journal of its own; promotion mutates the lesson row in place. Referent: aios/memory/mistake.py::MistakeMemory.promote"
       },
@@ -172,15 +172,15 @@
       "known_blockers": [],
       "live_evidence": [
         {
-          "description": "Three per-tier arcs reached `verified` from organic data on 2026-09-21: build_auto_verify_command via ollama.qwen2.5-coder-7b (3S/0F), next_step_after_blocked_read and next_step_after_noop via qwen.qwen3-coder-30b-a3b (3S/0F each). Repo-wide verified skills 3 -> 6. Produced by three runs of tools/reverse_engineer_gagos.py against a git worktree of this repository at a pinned sha, graded by the mutation negative control. NOT a claim about any other codebase, and NOT evidence that the resulting skills replay.",
-          "command": "python tools/reverse_engineer_gagos.py --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0,qwen.qwen3-coder-480b-a35b-v1:0 --targets 4 --retries 1",
-          "artifact": ".aios/audit/reverse-engineering-runs.jsonl",
-          "commit_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+          "description": "Same clean run: skill 66 (`pin the behaviour of aios/agents/tool_agent.py::build_auto_verify_command via ollama.qwen2.5-coder-7b`) earned another STRONG success on real code.",
+          "command": "python tools/organic_chain_run.py --targets 2 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         }
       ],
-      "last_verified_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
       "na_by_design": {
         "LC4": "Skill state is a mutable counter row, not a journal. The append-only record of the attempts that produced it is the self-corpus trail. Referent: .aios/audit/reverse-engineering-runs.jsonl"
       },
@@ -247,12 +247,12 @@
           "description": "Playbooks 7 and 8 compiled from `pin the behaviour of aios/agents/tool_agent.py::build_auto_verify_command via ollama.qwen2.5-coder-7b` -- an arc earned entirely on this repository's own source. Until this run no self-corpus arc could compile at all: its `create_file` step lacked the content digest `_parse_step` requires, so every organic skill was silently barred from becoming a reflex.",
           "command": "python tools/organic_chain_run.py --targets 4 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
           "artifact": ".aios/audit/organic-chain-runs.jsonl",
-          "commit_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         }
       ],
-      "last_verified_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
@@ -403,7 +403,7 @@
           "description": "Three full runs on 2026-09-21 against a worktree of this repository at a pinned sha, with AIOS_SCOPE_ROOTS replaced by the worktree and the live tree fingerprinted before and after. 4 of 4 targets earned per run; the positive control (grader earns on a known-correct pin test) passed before any model was asked. The live working tree was byte-identical afterwards.",
           "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
           "artifact": ".aios/audit/reverse-engineering-runs.jsonl",
-          "commit_sha": "940b1bec04fd7bd8bec633ccb504dfcb84f8ee5f",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         },
@@ -411,12 +411,12 @@
           "description": "Six self-corpus runs summarised in the TRACKED trend file, including the two refusals: a containment failure (the live tree changed mid-run) and a hollow suite run. The per-attempt detail stays gitignored; these summaries are what a third party can check without this laptop.",
           "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
           "artifact": ".aios/state/LEARNING_TREND.md",
-          "commit_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         }
       ],
-      "last_verified_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
       "na_by_design": {
         "LC2": "L7 is an acquisition harness, not a turn-path faculty: it exists to FEED the loop from outside a chat turn, so reachability from generate_pipeline.py is not the right question for it. Referent: tools/reverse_engineer_gagos.py::main",
         "LC3": "Its durability requirement is the opposite of the others': the worktree is deliberately thrown away after every run, and what must survive is the trail (LC4) and the skill rows it wrote (L3/LC3). Referent: tools/self_corpus.py::teardown"
@@ -466,12 +466,12 @@
           "description": "Measurement integrity refused three distinct ways during REAL runs, and each refusal is published: a containment failure aborted a run that had already spent its budget; an Ollama timeout on `normalize_command` was recorded as `model_error` and written NO arc row; and a pytest subprocess that produced no output at all was refused rather than scored as the model's failure. These are production refusals, not seeded ones.",
           "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
           "artifact": ".aios/state/LEARNING_TREND.md",
-          "commit_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
           "proof_level": "live",
           "organic": true
         }
       ],
-      "last_verified_sha": "3c07b95fd23f8ebd3a695e49f49dc23e25d128b3",
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
       "na_by_design": {
         "LC3": "Stateless by design: derive_strength and the floor helpers are pure functions. Durability is the property of whatever records their verdict. Referent: aios/core/verification_strength.py::derive_strength",
         "LC4": "No journal: a classifier that writes nothing has nothing to journal. Its verdicts are recorded by L3 and by the self-corpus trail. Referent: aios/memory/skills.py::SkillMemory.record_attempt"
