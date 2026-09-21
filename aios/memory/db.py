@@ -181,6 +181,33 @@ def _migrate_skill_signature_index(db_path: Path) -> None:
         conn.close()
 
 
+#: Every column the rebuilt table declares. The rebuild copies by name, and
+#: interpolates those names into SQL because SQL cannot bind an identifier --
+#: so the set of acceptable names is fixed here rather than trusted from the
+#: database being migrated.
+_REBUILT_COLUMNS = frozenset(
+    {
+        "id",
+        "created_at",
+        "updated_at",
+        "signature",
+        "goal_pattern",
+        "steps_json",
+        "status",
+        "success_count",
+        "failure_count",
+        "signature_v2",
+        "reuse_success_count",
+        "reuse_failure_count",
+        "last_reused_at",
+        "superseded_by",
+        "weak_success_count",
+        "verification_strength",
+        "consecutive_failures",
+    }
+)
+
+
 def _rebuild_skills_table(conn: sqlite3.Connection, db_path: Path) -> None:
     """The rebuild itself. Separate so the PRAGMA/rollback dance stays readable."""
     have = {
@@ -204,7 +231,6 @@ def _rebuild_skills_table(conn: sqlite3.Connection, db_path: Path) -> None:
     shutil.copy2(db_path, db_path.with_suffix(f".{stamp}.pre-sigindex.bak"))
 
     columns = [row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")]
-    column_list = ", ".join(columns)
     conn.execute("""
         CREATE TABLE procedural_skills_rebuilt (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,6 +253,20 @@ def _rebuild_skills_table(conn: sqlite3.Connection, db_path: Path) -> None:
             consecutive_failures INTEGER NOT NULL DEFAULT 0
         )
     """)
+    # Column names cannot be bound as parameters, so this list is interpolated
+    # -- which makes it worth being precise about why that is safe here rather
+    # than assuming it. The names come from `PRAGMA table_info` on a local
+    # store, and every one of them must appear in the schema declared three
+    # lines above; an unrecognised column raises instead of being copied or
+    # quietly dropped. Dropping is the worse failure: a column this rebuild
+    # does not know about is a row of learning nobody would notice losing.
+    unknown = [name for name in columns if name not in _REBUILT_COLUMNS]
+    if unknown:
+        raise RuntimeError(
+            f"procedural_skills has column(s) this rebuild does not know how to "
+            f"carry across: {unknown}. Refusing rather than dropping them."
+        )
+    column_list = ", ".join(f'"{name}"' for name in columns)
     conn.execute(
         f"INSERT INTO procedural_skills_rebuilt ({column_list}) "
         f"SELECT {column_list} FROM procedural_skills"
