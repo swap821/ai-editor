@@ -396,10 +396,41 @@ def _verify_only_cycle(
     from aios.core.verification_strength import derive_strength
     from aios.security.gateway import RateLimiter
 
-    command = f"pytest {target_test}"
+    # ABSOLUTE, inside the corpus. A relative path is resolved against
+    # `config.PROJECT_ROOT` — the LIVE tree — so `pytest tests/x.py` names a
+    # file outside the declared scope roots and the scope lock refuses it as a
+    # scope violation, whoever approved it. That is the lock doing its job;
+    # the fix is to say which tree we mean, not to loosen the lock.
+    command = f"pytest {(corpus.root / target_test).as_posix()}"
     goal = VERIFY_ONLY_PROMPT.format(command=command)
     skill_id: Optional[int] = None
     detail = ""
+
+    # THE OPERATOR-GRANTED APPROVAL, and the four things that keep it narrow.
+    #
+    # `pytest` is YELLOW at the gateway, so an unattended run has no approver
+    # and the verify never executes. The operator authorised a scoped approval
+    # for exactly this on 2026-09-22, so the harness holds the approval a human
+    # would otherwise give. It is deliberately the SMALLEST grant that makes
+    # the arc possible:
+    #
+    #   1. ONE EXACT STRING, not a pattern or a prefix. `execute_terminal`
+    #      tests `command in approved_commands`, so anything else the model
+    #      invents -- `pytest -x ...`, a different path -- is NOT approved and
+    #      still pauses.
+    #   2. RED IS STILL REFUSED. Approval routes through
+    #      `Executor.execute_approved` -> `policy_kernel.evaluate_approved`,
+    #      which blocks RED whoever approved it. Approval cannot buy a
+    #      destructive action.
+    #   3. THE WORKTREE ONLY. `AIOS_SCOPE_ROOTS` is already REPLACED with the
+    #      corpus for the run, so the command's working directory cannot be the
+    #      live tree even if the string were wrong.
+    #   4. PER RUN, NEVER AMBIENT. The set lives on this agent instance and
+    #      dies with it. Nothing is written to config; no default changes.
+    #
+    # The gateway is untouched: `pytest` stays YELLOW for everyone else. This
+    # grants an approval; it does not reclassify a command.
+    approved = [command]
 
     for attempt in range(1, repeats + 1):
         agent = ToolAgent(
@@ -412,6 +443,7 @@ def _verify_only_cycle(
             max_iters=4,
             read_root=corpus.root,
             session_id=f"organic-verify-{attempt}",
+            approved_commands=approved,
         )
         steps: list[str] = []
         passed = False
