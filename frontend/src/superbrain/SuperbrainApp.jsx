@@ -1,140 +1,28 @@
-/**
- * The superbrain experience — the single official frontend at the clean root /.
- *
- * CHROME (2026-06-20): the home was PURE 3D, but raw in-world 3D text read as
- * floating debug labels (operator: "not professional"). The being stays the
- * diegetic 3D hero on the canvas; identity / live status / the conversation now
- * live in <GagosChrome/>, a crisp 2D product layer DOM-sibling to the canvas.
- * GagosChrome drives turns through the same adapter and cognition bus the being
- * already listens to, so the organism still arrives, listens and reacts.
- *
- * VOICE (2026-08-04): this shell used to also mount <VoiceCommandHandler/> with
- * `isListening` hardcoded to false and an `onCommand` that only console.logged.
- * It could never activate, and it duplicated the real voice path, which lives in
- * <GagosChrome/>: a mic button backed by SpeechRecognition and wired to
- * sendVoiceTurn (see GagosChrome.voice.test.tsx). Removed rather than wired up,
- * because a second listener on the same shell would have raced the real one for
- * the microphone. Constitutional law X -- the interface must not present state
- * or affordances that do not originate from real backend state.
- */
-import { lazy, Suspense, useCallback, useState, useEffect } from 'react';
+/** One operational shell, one conversation owner, and the preserved connected organism. */
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
-import FileTree from '../workbench/FileTree';
-import TerminalPanel from '../workbench/TerminalPanel';
-import CodeEditor from '../workbench/CodeEditor';
-import BudgetMicroBar from '../workbench/BudgetMicroBar';
-import CouncilDeliberationPanel from '../workbench/CouncilDeliberationPanel';
-import EcosystemDashboard from '../workbench/EcosystemDashboard';
-import MemoryBrowser from '../workbench/MemoryBrowser';
-import SettingsPanel from '../workbench/SettingsPanel';
-import StigmergyPanel from '../workbench/StigmergyPanel';
-import VultureFeed from '../workbench/VultureFeed';
-import MobileHUD from '../components/MobileHUD';
-import PanelLauncher from '../workbench/PanelLauncher';
-import ProductSpaces from '../workbench/ProductSpaces';
-import './superbrain.css';
-
+import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
 import { startMirrorClient, stopMirrorClient } from './lib/aiosMirror';
+import { useTabStore } from './lib/tabStore';
+import './superbrain.css';
 
 const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas'));
 
 export default function SuperbrainApp() {
   const [booted, setBooted] = useState(false);
-  const [activeFile, setActiveFile] = useState(null);
-  // Product spaces are the primary surface. Legacy panels remain available
-  // through PanelLauncher, but do not cover the operator's first view.
-  const [fileTreeOpen, setFileTreeOpen] = useState(false);
-  const [councilOpen, setCouncilOpen] = useState(false);
-  const [memoryOpen, setMemoryOpen] = useState(false);
-  const [stigmergyOpen, setStigmergyOpen] = useState(false);
-  const [vultureOpen, setVultureOpen] = useState(false);
-  const [ecosystemOpen, setEcosystemOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
+  const snapshot = useTabStore();
+  const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open)
+    || snapshot.tabs.some((t) => t.id === snapshot.focusId && t.kind === 'content' && t.lifecycle !== 'retracting');
   const handleBootComplete = useCallback(() => setBooted(true), []);
-
-  useEffect(() => {
-    startMirrorClient();
-    return () => {
-      stopMirrorClient();
-    };
-  }, []);
-
-  return (
-    <div className="font-sans antialiased" style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      <BootSequence onComplete={handleBootComplete} />
-      
-      {/* Z-index: 0 */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-        <Suspense fallback={null}>
-          <WorkspaceCanvas booted={booted}>
-            <SuperbrainReactiveEffects />
-          </WorkspaceCanvas>
-        </Suspense>
-      </div>
-
-      {/* Z-index: 10 */}
-      <main aria-label="GAGOS" style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
-        <GagosChrome />
-      </main>
-
-      <ProductSpaces />
-
-      {/* Z-index: 15 (TerminalPanel handles its own fixed positioning) */}
-      <div style={{ zIndex: 15, position: 'relative' }}>
-        <TerminalPanel />
-      </div>
-
-      {/* Z-index: 20 */}
-      <MobileHUD>
-        <div style={{ position: 'absolute', inset: 0, zIndex: 20, pointerEvents: 'none' }}>
-          <BudgetMicroBar />
-          {fileTreeOpen && (
-            <FileTree 
-              onClose={() => setFileTreeOpen(false)} 
-              onOpenFile={(file) => setActiveFile(file)} 
-            />
-          )}
-          {activeFile && (
-            <CodeEditor 
-              file={activeFile} 
-              onClose={() => setActiveFile(null)} 
-            />
-          )}
-          {councilOpen && (
-            <CouncilDeliberationPanel onClose={() => setCouncilOpen(false)} />
-          )}
-          {memoryOpen && (
-            <MemoryBrowser onClose={() => setMemoryOpen(false)} />
-          )}
-          {stigmergyOpen && (
-            <StigmergyPanel onClose={() => setStigmergyOpen(false)} />
-          )}
-          {vultureOpen && (
-            <VultureFeed onClose={() => setVultureOpen(false)} />
-          )}
-          {ecosystemOpen && (
-            <EcosystemDashboard onClose={() => setEcosystemOpen(false)} />
-          )}
-          {settingsOpen && (
-            <SettingsPanel onClose={() => setSettingsOpen(false)} />
-          )}
-        </div>
-      </MobileHUD>
-
-      <PanelLauncher
-        panels={[
-          { name: 'File Tree', isOpen: fileTreeOpen, setOpen: setFileTreeOpen },
-          { name: 'Council', isOpen: councilOpen, setOpen: setCouncilOpen },
-          { name: 'Memory', isOpen: memoryOpen, setOpen: setMemoryOpen },
-          { name: 'Stigmergy', isOpen: stigmergyOpen, setOpen: setStigmergyOpen },
-          { name: 'Vulture Feed', isOpen: vultureOpen, setOpen: setVultureOpen },
-          { name: 'Ecosystem', isOpen: ecosystemOpen, setOpen: setEcosystemOpen },
-          { name: 'Settings', isOpen: settingsOpen, setOpen: setSettingsOpen },
-        ]}
-      />
-    </div>
-  );
+  useEffect(() => { void startMirrorClient(); return stopMirrorClient; }, []);
+  return <div className="lm-app" data-working={working ? 'true' : 'false'}>
+    <BootSequence onComplete={handleBootComplete} />
+    <div className="lm-scene"><Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
+      <WorkspaceCanvas booted={booted}><SuperbrainReactiveEffects /></WorkspaceCanvas>
+    </Suspense></div>
+    <main aria-label="GAGOS conversation"><GagosChrome integrated /></main>
+    <LivingWorkspaceShell />
+  </div>;
 }

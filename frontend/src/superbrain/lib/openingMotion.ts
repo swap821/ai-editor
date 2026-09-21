@@ -85,8 +85,9 @@ export function awakenNotice(elapsedMs: number): number {
 
 /** prefers-reduced-motion decision — SSR-safe, lives WITH the motion code. */
 export function shouldReduceMotion(win: Window | undefined = typeof window !== 'undefined' ? window : undefined): boolean {
-  if (!win || typeof win.matchMedia !== 'function') return false;
-  return win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!win) return false;
+  try { if (win.localStorage?.getItem('gagos-pause-motion-v1') === 'true') return true; } catch { /* storage unavailable */ }
+  return typeof win.matchMedia === 'function' && win.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /** THE SIGNAL: a user-issued directive (typed or voice) is the awakening

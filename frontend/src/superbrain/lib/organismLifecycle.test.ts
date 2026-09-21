@@ -32,7 +32,7 @@ function tab(
     approval:
       kind === 'approval'
         ? {
-            token: 'tok-1',
+            requestRef: 'tok-1',
             summary: 'Approval required',
             explanation: 'Needs operator consent',
             diff: '+export const value = true;\n',

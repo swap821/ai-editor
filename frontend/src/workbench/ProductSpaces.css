@@ -181,8 +181,6 @@
   .gagos-space__metrics,
   .gagos-space__surface-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gagos-space__mobile-note { display: block; }
-  .gagos-space__governance .council-dashboard__decision-actions,
-  .gagos-space__governance button[data-privileged='true'] { pointer-events: none; opacity: .48; }
   .gagos-space__timeline li { grid-template-columns: 1fr; gap: 4px; }
 }
 

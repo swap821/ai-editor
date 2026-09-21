@@ -11,6 +11,8 @@ export default function CouncilDeliberationPanel({ onClose }) {
     });
   }, []);
 
+  const hasObserved = swarmState.hasObserved !== false;
+
   return (
     <HUDPanel
       id="council-panel"
@@ -22,14 +24,16 @@ export default function CouncilDeliberationPanel({ onClose }) {
     >
       <div style={{ padding: '16px', color: 'var(--foreground)' }}>
         <h3 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--ag-text-cyan)' }}>
-          Active Swarm State: {swarmState.active ? 'ENGAGED' : 'STANDBY'}
+          Active Swarm State: {!hasObserved ? 'UNKNOWN' : swarmState.active ? 'ENGAGED' : 'STANDBY'}
         </h3>
         
         <div style={{ marginBottom: '16px' }}>
           <strong style={{ display: 'block', fontSize: '12px', color: 'var(--muted-foreground)', marginBottom: '8px', letterSpacing: '0.05em' }}>
             Current Castes
           </strong>
-          {swarmState.activeCastes.length === 0 ? (
+          {!hasObserved ? (
+            <span style={{ fontSize: '12px', opacity: 0.6 }}>Unavailable until a swarm snapshot arrives</span>
+          ) : swarmState.activeCastes.length === 0 ? (
             <span style={{ fontSize: '12px', opacity: 0.6 }}>No active castes</span>
           ) : (
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -53,7 +57,9 @@ export default function CouncilDeliberationPanel({ onClose }) {
           <strong style={{ display: 'block', fontSize: '12px', color: 'var(--muted-foreground)', marginBottom: '8px', letterSpacing: '0.05em' }}>
             Subtask Plan
           </strong>
-          {swarmState.plan.length === 0 ? (
+          {!hasObserved ? (
+            <span style={{ fontSize: '12px', opacity: 0.6 }}>No swarm observation yet</span>
+          ) : swarmState.plan.length === 0 ? (
             <span style={{ fontSize: '12px', opacity: 0.6 }}>Awaiting objective...</span>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>

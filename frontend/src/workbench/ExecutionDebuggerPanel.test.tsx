@@ -38,6 +38,20 @@ describe('ExecutionDebuggerPanel', () => {
     expect(preElement.textContent).toContain('completed');
   });
 
+  it('keeps malformed debugger envelopes unavailable instead of inventing empty state', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    render(<ExecutionDebuggerPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Debugger state unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No state available.')).not.toBeInTheDocument();
+  });
+
   it('disables Step/Resume and explains why when the backend reports non-steppable', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -52,7 +66,7 @@ describe('ExecutionDebuggerPanel', () => {
     render(<ExecutionDebuggerPanel />);
 
     await waitFor(() => {
-      expect(screen.getByText(/no interruptible step-machine/)).toBeInTheDocument();
+      expect(screen.getAllByText(/no interruptible step-machine/).length).toBeGreaterThan(0);
     });
 
     const input = screen.getByPlaceholderText('Mission ID');

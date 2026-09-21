@@ -55,4 +55,12 @@ describe('BudgetMicroBar', () => {
     expect(screen.getByText('31%')).toBeInTheDocument();
     expect(screen.getByText('cloud eligible subject to per-mission policy')).toBeInTheDocument();
   });
+
+  it('does not show normal zero budget values before a resource response arrives', () => {
+    fetchMock.mockImplementation(() => new Promise(() => {}));
+    render(<BudgetMicroBar />);
+
+    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
+  });
 });

@@ -1,39 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { ShieldAlert, Activity, CheckCircle, Shield } from 'lucide-react';
-import { API_BASE, API_HEADERS } from '../config';
+import { API_HEADERS } from '../config';
+import { useResource } from '../livingMirror/resource';
+import { parseV10VultureStatus } from '../livingMirror/v10Status';
+
+const V10_READ = Object.freeze({ headers: API_HEADERS });
+const neverEmpty = () => false;
 
 export default function VultureFeed({ onClose }) {
-  const [vulture, setVulture] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const resource = useResource('/api/v1/v10/status', parseV10VultureStatus, neverEmpty, V10_READ);
+  const vulture = resource.data;
 
   useEffect(() => {
-    async function loadVultureStatus() {
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/v10/status`, {
-          credentials: 'include',
-          headers: API_HEADERS,
-        });
-        if (!response.ok) {
-          throw new Error('Failed to load v10 truth surface');
-        }
-        const data = await response.json();
-        setVulture(data.vulture || null);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadVultureStatus();
-    const interval = setInterval(loadVultureStatus, 15000);
+    const interval = setInterval(resource.refresh, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [resource.refresh]);
 
   const lastScan = vulture?.lastScan;
-  const findings = Array.isArray(lastScan?.topFindings) ? lastScan.topFindings : [];
+  const findings = lastScan?.topFindings;
+  const findingCount = lastScan?.findingCount ?? null;
+  const cloudCalls = lastScan?.cloudCalls ?? null;
+  const writesPerformed = lastScan?.writesPerformed ?? null;
+  const metrics = lastScan ? `${cloudCalls === null ? 'Cloud calls unavailable' : `${cloudCalls} cloud calls`} · ${writesPerformed === null ? 'write outcome unavailable' : writesPerformed ? 'writes performed' : 'no writes'}` : null;
 
   return (
     <HUDPanel
@@ -63,26 +52,48 @@ export default function VultureFeed({ onClose }) {
           />
         </div>
 
-        {loading && !vulture ? (
+        {resource.status === 'loading' && !vulture && (
           <div style={{ fontSize: '12px', opacity: 0.6 }}>Reading immune scanner status...</div>
-        ) : error ? (
-          <div style={{ fontSize: '12px', color: 'var(--ag-text-red)' }}>Error: {error}</div>
-        ) : !vulture ? (
+        )}
+        {resource.error && (
+          <div role="alert" style={{ fontSize: '12px', color: 'var(--ag-text-red)' }}>
+            {resource.error}{vulture ? ' Last-known scanner records are shown below.' : ''}
+          </div>
+        )}
+        {!vulture && resource.status !== 'loading' && !resource.error && (
           <div style={{ fontSize: '12px', opacity: 0.6 }}>Vulture status unavailable.</div>
-        ) : !lastScan ? (
+        )}
+        {vulture && lastScan === undefined && (
+          <div style={{ fontSize: '12px', opacity: 0.7 }}>Last scan state unavailable.</div>
+        )}
+        {vulture && lastScan === null && (
           <div style={{ fontSize: '12px', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '6px' }}>
             <CheckCircle size={14} style={{ color: 'var(--ag-text-green)' }} />
             Scanner available; no explicit vulture scan has run.
           </div>
-        ) : findings.length === 0 ? (
+        )}
+        {vulture && lastScan && findings === null && (
+          <div style={{ fontSize: '12px', opacity: 0.7 }}>
+            {findingCount === null ? 'Finding details unavailable; finding count unavailable.' : `${findingCount} finding(s) recorded; details unavailable.`}
+            {metrics && <div>{metrics}</div>}
+          </div>
+        )}
+        {vulture && lastScan && findings && findings.length === 0 && findingCount === 0 && (
           <div style={{ fontSize: '12px', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '6px' }}>
             <CheckCircle size={14} style={{ color: 'var(--ag-text-green)' }} />
             Last scan found 0 quarantine proposals.
           </div>
-        ) : (
+        )}
+        {vulture && lastScan && findings && findings.length === 0 && findingCount !== 0 && (
+          <div style={{ fontSize: '12px', opacity: 0.7 }}>
+            {findingCount === null ? 'Finding details unavailable; finding count unavailable.' : `${findingCount} finding(s) recorded; details unavailable.`}
+            {metrics && <div>{metrics}</div>}
+          </div>
+        )}
+        {vulture && lastScan && findings && findings.length > 0 && (
           <div style={{ overflowY: 'auto', flex: 1, paddingRight: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
-              {lastScan.findingCount ?? findings.length} finding(s) · {lastScan.cloudCalls ?? 0} cloud calls · {lastScan.writesPerformed ? 'writes performed' : 'no writes'}
+              {findingCount === null ? 'Finding count unavailable' : `${findingCount} finding(s)`} · {metrics}
             </div>
             {findings.map((finding, idx) => {
               const isBlock = finding.severity === 'critical' || finding.severity === 'high';

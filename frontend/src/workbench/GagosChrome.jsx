@@ -204,7 +204,7 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
   );
 }
 
-export default function GagosChrome() {
+export default function GagosChrome({ integrated = false }) {
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
@@ -299,6 +299,7 @@ export default function GagosChrome() {
     startMic,
     stopMic,
     recognitionRef,
+    voiceState, voiceError, backendVoice, browserVoiceAvailable, browserVoiceAllowed, setBrowserVoiceAllowed,
   } = useVoiceInput({
     voiceLang,
     busyRef,
@@ -516,10 +517,10 @@ export default function GagosChrome() {
         </div>
       ) : null}
 
-      <SwarmHUD />
-      <CouncilDashboard />
-      <OperatorProfileCard />
-      <TrustHalo />
+      {!integrated && <SwarmHUD />}
+      {!integrated && <CouncilDashboard />}
+      {!integrated && <OperatorProfileCard />}
+      {!integrated && <TrustHalo />}
 
       {bondOpen ? <SovereigntyPanel onClose={() => setBondOpen(false)} /> : null}
 
@@ -585,9 +586,14 @@ export default function GagosChrome() {
       ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
+        <div className="gagos-voice-state" role="status">{voiceState}{voiceError ? ` · ${voiceError}` : ''}</div>
+        {!backendVoice.stt && browserVoiceAvailable && <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
+          Use browser recognition. Audio may be processed by the browser provider.
+        </label>}
+        {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
         {messages.length === 0 && !busy ? (
           <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
-            <p className="gagos-welcome__eyebrow">the voyaging mind · listening</p>
+            <p className="gagos-welcome__eyebrow">{listening ? 'Microphone capturing' : 'Begin a conversation'}</p>
             <p className="gagos-welcome__greeting">
               I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
               remembers. Where shall we begin?
@@ -681,14 +687,14 @@ export default function GagosChrome() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') { e.preventDefault(); setTranscriptPending(false); void submit(draft); }
               else if (e.key === 'Escape') {
-                if (listening) { recognitionRef.current?.stop(); }
+                if (listening) { stopMic(); }
                 else if (draft) { setDraft(''); setTranscriptPending(false); }
                 else { inputRef.current?.blur(); }
               }
             }}
             aria-label="Talk to GAGOS"
           />
-          {voiceSupported ? (
+          {voiceSupported || backendVoice.stt ? (
             <button
               type="button"
               className={`gagos-btn gagos-mic ${listening ? 'is-listening' : ''}`}
@@ -699,6 +705,7 @@ export default function GagosChrome() {
               onPointerDown={(e) => { e.preventDefault(); startMic(); }}
               onPointerUp={(e) => { e.preventDefault(); stopMic(); }}
               onPointerLeave={(e) => { e.preventDefault(); stopMic(); }}
+              onPointerCancel={stopMic}
               onKeyDown={(e) => {
                 if (e.repeat || busy) return;
                 if (e.key === ' ' || e.key === 'Enter') {

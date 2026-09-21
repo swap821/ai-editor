@@ -1,38 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { Search } from 'lucide-react';
+import { ResourceNotice } from '../livingMirror/ResourceNotice';
+import { useResource } from '../livingMirror/resource';
+import { isRecord } from '../livingMirror/contracts';
+
+const emptyGraph = (graph) => graph.edges.length === 0;
+
+function parseGraph(value, start) {
+  if (!isRecord(value) || value.start !== start || !Number.isInteger(value.depth) || value.depth < 1 || value.depth > 4
+    || !Array.isArray(value.edges) || !value.edges.every((edge) => isRecord(edge)
+      && ['subject', 'predicate', 'object', 'path'].every((key) => typeof edge[key] === 'string')
+      && Number.isInteger(edge.depth) && edge.depth >= 1 && edge.depth <= value.depth)) {
+    throw new Error('Graph data could not be read. The response does not match the requested graph.');
+  }
+  return value;
+}
 
 export default function StigmergyPanel({ onClose }) {
   const [startNode, setStartNode] = useState('system');
-  const [edges, setEdges] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const fetchGraph = async (node) => {
-    if (!node.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/v1/memory/facts/graph?start=${encodeURIComponent(node)}&depth=2`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch graph');
-      }
-      const data = await response.json();
-      setEdges(data.edges || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGraph(startNode);
-  }, []);
+  const [query, setQuery] = useState('system');
+  const parse = useCallback((value) => parseGraph(value, query), [query]);
+  const resource = useResource(`/api/v1/memory/facts/graph?start=${encodeURIComponent(query)}&depth=2`, parse, emptyGraph);
+  const edges = resource.data?.edges ?? [];
 
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchGraph(startNode);
+    const next = startNode.trim();
+    if (!next) return;
+    if (next === query) resource.refresh();
+    else setQuery(next);
   };
 
   return (
@@ -58,6 +55,7 @@ export default function StigmergyPanel({ onClose }) {
             <Search size={14} style={{ color: 'var(--ag-text-cyan)', marginRight: '8px' }} />
             <input 
               type="text" 
+              aria-label="Graph start node"
               value={startNode}
               onChange={(e) => setStartNode(e.target.value)}
               placeholder="Start node..."
@@ -71,7 +69,7 @@ export default function StigmergyPanel({ onClose }) {
               }}
             />
           </div>
-          <button type="submit" style={{
+          <button type="submit" disabled={!startNode.trim()} style={{
             background: 'rgba(123, 245, 251, 0.1)',
             border: '1px solid var(--ag-glow-cyan)',
             color: 'var(--ag-text-cyan)',
@@ -85,13 +83,9 @@ export default function StigmergyPanel({ onClose }) {
         </form>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading ? (
-            <div style={{ fontSize: '12px', opacity: 0.6 }}>Traversing lattice...</div>
-          ) : error ? (
-            <div style={{ fontSize: '12px', color: 'var(--ag-text-amber)' }}>Error: {error}</div>
-          ) : edges.length === 0 ? (
-            <div style={{ fontSize: '12px', opacity: 0.6 }}>No edges found for "{startNode}".</div>
-          ) : (
+          <ResourceNotice resource={resource} empty={`No edges found for "${query}".`} />
+          {resource.data && <p style={{ fontSize: '12px' }}>Graph from "{resource.data.start}" · {resource.data.depth} hops</p>}
+          {edges.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {edges.map((edge, idx) => (
                 <div key={idx} style={{

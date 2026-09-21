@@ -76,4 +76,24 @@ describe('VultureFeed', () => {
 
     expect(await screen.findByText(/Scanner available; no explicit vulture scan has run/i)).toBeInTheDocument();
   });
+
+  it('does not turn incomplete scan evidence into zero findings or zero cloud calls', async () => {
+    globalThis.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        vulture: {
+          available: true,
+          lastScan: { findingCount: 2, topFindings: [] },
+        },
+      }),
+    });
+
+    render(<VultureFeed onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/2 finding\(s\) recorded; details unavailable/i)).toBeInTheDocument();
+      expect(screen.getByText(/Cloud calls unavailable · write outcome unavailable/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Last scan found 0 quarantine proposals/i)).not.toBeInTheDocument();
+  });
 });

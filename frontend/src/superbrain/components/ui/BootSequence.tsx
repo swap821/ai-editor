@@ -28,13 +28,13 @@ interface BootLine {
 }
 
 const BOOT_LINES: BootLine[] = [
-  { text: 'GAGOS KERNEL v2.6 — NOUMENON PROTOCOL', head: true },
-  { text: 'verifying fable-class cognition core', status: 'OK' },
-  { text: 'mounting cortical lattice [2,605 nodes]', status: 'OK' },
-  { text: 'binding agent mesh', status: '9 / 15 ENGAGED' },
-  { text: 'indexing knowledge horizon', status: '18.23 GB' },
-  { text: 'establishing historical mythos link', status: 'CONFIRMED' },
-  { text: 'calibrating supermind', status: 'NOMINAL' },
+  { text: 'GAGOS — LIVING MIRROR', head: true },
+  { text: 'Preparing the visual organism', status: 'PRESENTATION' },
+  { text: 'Preserving the connected anatomy', status: 'PRESENTATION' },
+  { text: 'Opening readable work surfaces', status: 'PRESENTATION' },
+  { text: 'Operational state comes from the local service', status: 'SEPARATE' },
+  { text: 'Human controls remain available', status: 'CLIENT' },
+  { text: 'Select Skip to begin now', status: 'OPTIONAL ARRIVAL' },
 ];
 
 const BOOT_FACTS_BUDGET_MS = 1_600;
@@ -249,7 +249,7 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
             </div>
           </>
         ) : (
-          <p className={styles.finale}>GAGOS ONLINE</p>
+          <p className={styles.finale}>LIVING MIRROR</p>
         )}
       </div>
     </div>

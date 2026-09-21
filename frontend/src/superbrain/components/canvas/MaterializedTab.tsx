@@ -233,8 +233,7 @@ function getSurfaceFooter(tab: MaterializedTabRecord): string {
   }
   if (tab.kind === 'input') return 'press enter to send';
   if (!tab.approval) return 'human review';
-  const token = tab.approval.token ? tab.approval.token.slice(0, 10) : 'pending';
-  return `${toUiLabel(tab.approval.kindLabel)} ${token}`;
+  return `${toUiLabel(tab.approval.kindLabel)} · pending review`;
 }
 
 function getApprovalBody(approval: MaterializedApprovalSurface | null): string {
@@ -1078,7 +1077,7 @@ export default function MaterializedTab({
     if (tab.kind !== 'approval') {
       setApprovalBusy(false);
     }
-  }, [tab.kind, tab.approval?.token]);
+  }, [tab.kind, tab.approval?.requestRef]);
 
   useFrame((state) => {
     const now = performance.now();

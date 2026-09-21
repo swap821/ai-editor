@@ -33,8 +33,38 @@ async function deleteJson(path) {
   return response.json();
 }
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
+const SIGNAL_TYPES = ['file-lock', 'worker-active', 'attention-needed', 'progress-update'];
+
+function invalidResponse(message) {
+  const error = new Error(message);
+  error.code = 'INVALID_RESPONSE';
+  return error;
+}
+
+function parseSurfacePayload(data) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.signals)) {
+    throw invalidResponse('Runtime surface response did not contain a signals array');
+  }
+  return data.signals.map((signal) => {
+    if (!signal || typeof signal !== 'object'
+      || !Number.isSafeInteger(signal.signal_id)
+      || typeof signal.stype !== 'string' || !SIGNAL_TYPES.includes(signal.stype)
+      || typeof signal.resource !== 'string' || !signal.resource.trim()
+      || typeof signal.worker_id !== 'string' || !signal.worker_id.trim()
+      || !Number.isSafeInteger(signal.ttl_seconds) || signal.ttl_seconds < 1
+      || !signal.payload || typeof signal.payload !== 'object' || Array.isArray(signal.payload)) {
+      throw invalidResponse('Runtime surface response contained an invalid signal');
+    }
+    return {
+      id: signal.signal_id,
+      type: signal.stype,
+      resource: signal.resource,
+      workerId: signal.worker_id,
+      ttlSeconds: signal.ttl_seconds,
+      payload: signal.payload,
+      createdAt: signal.created_at,
+    };
+  });
 }
 
 export default function RuntimeSurfaceHUD() {
@@ -42,6 +72,10 @@ export default function RuntimeSurfaceHUD() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  const [emitType, setEmitType] = useState('');
+  const [emitResource, setEmitResource] = useState('');
+  const [emitWorker, setEmitWorker] = useState('');
+  const [emitTtl, setEmitTtl] = useState('30');
   const [emitPayload, setEmitPayload] = useState('{"type": "system_ping", "data": "test"}');
   const [emitBusy, setEmitBusy] = useState(false);
   const [emitError, setEmitError] = useState('');
@@ -53,9 +87,11 @@ export default function RuntimeSurfaceHUD() {
     setError('');
     try {
       const data = await fetchJson('/api/v1/runtime/surface', signal);
-      setSignals(asArray(data.signals));
+      setSignals(parseSurfacePayload(data));
     } catch (err) {
-      if (err?.name !== 'AbortError') setError('Runtime surface offline');
+      if (err?.name !== 'AbortError') {
+        setError(err?.code === 'INVALID_RESPONSE' ? 'Runtime surface unavailable' : 'Runtime surface offline');
+      }
     } finally {
       setLoading(false);
     }
@@ -69,7 +105,8 @@ export default function RuntimeSurfaceHUD() {
 
   const handleEmit = async (e) => {
     e.preventDefault();
-    if (!emitPayload.trim()) return;
+    const ttlSeconds = Number(emitTtl);
+    if (!emitType || !emitResource.trim() || !emitWorker.trim() || !Number.isSafeInteger(ttlSeconds) || ttlSeconds < 1 || !emitPayload.trim()) return;
     setEmitBusy(true);
     setEmitError('');
     try {
@@ -79,7 +116,13 @@ export default function RuntimeSurfaceHUD() {
       } catch {
         throw new Error('Payload must be valid JSON');
       }
-      await postJson('/api/v1/runtime/surface/emit', { payload: parsed });
+      await postJson('/api/v1/runtime/surface/emit', {
+        stype: emitType,
+        resource: emitResource.trim(),
+        workerId: emitWorker.trim(),
+        ttlSeconds,
+        payload: parsed,
+      });
       setEmitPayload('');
       void loadSurface();
     } catch (err) {
@@ -146,7 +189,7 @@ export default function RuntimeSurfaceHUD() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                   <strong>{sig.type || 'unknown'}</strong>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                     <span className="council-dashboard__muted" style={{ fontSize: '10px' }}>{sig.id.substring(0,8)}</span>
+                     <span className="council-dashboard__muted" style={{ fontSize: '10px' }}>{String(sig.id).substring(0,8)}</span>
                      <button type="button" style={{ background: 'none', border: 'none', padding: 0, color: 'var(--danger)' }} onClick={() => handleDelete(sig.id)}>
                        <Trash2 size={12} />
                      </button>
@@ -165,6 +208,25 @@ export default function RuntimeSurfaceHUD() {
             <Plus size={14} aria-hidden="true" /> Emit Signal
           </h3>
           <form className="council-dashboard__originate" onSubmit={handleEmit}>
+            <label>
+              Signal type
+              <select aria-label="Signal type" value={emitType} onChange={(e) => setEmitType(e.target.value)} required>
+                <option value="">Choose a signal type</option>
+                {SIGNAL_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+            <label>
+              Resource
+              <input aria-label="Signal resource" value={emitResource} onChange={(e) => setEmitResource(e.target.value)} required placeholder="Enrolled resource or mission" />
+            </label>
+            <label>
+              Worker ID
+              <input aria-label="Signal worker" value={emitWorker} onChange={(e) => setEmitWorker(e.target.value)} required placeholder="Bound worker identity" />
+            </label>
+            <label>
+              TTL seconds
+              <input aria-label="Signal TTL seconds" type="number" min="1" step="1" value={emitTtl} onChange={(e) => setEmitTtl(e.target.value)} required />
+            </label>
             <textarea
               className="council-dashboard__origin-goal"
               value={emitPayload}
@@ -175,7 +237,7 @@ export default function RuntimeSurfaceHUD() {
               required
             />
             {emitError ? <p className="council-dashboard__error">{emitError}</p> : null}
-            <button type="submit" disabled={emitBusy}>
+            <button type="submit" disabled={emitBusy || !emitType || !emitResource.trim() || !emitWorker.trim() || !Number.isSafeInteger(Number(emitTtl)) || Number(emitTtl) < 1}>
               {emitBusy ? 'Emitting...' : 'Emit to Surface'}
             </button>
           </form>

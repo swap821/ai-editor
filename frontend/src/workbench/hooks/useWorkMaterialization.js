@@ -284,7 +284,7 @@ export function useWorkMaterialization({
             if (dup) {
               beginRetractingMaterializedTab(writingTab.id);
               workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writingTab.id);
-              focusMaterializedTab(dup.id);
+              if (!getTabStoreSnapshot().focusId) focusMaterializedTab(dup.id);
             }
             updateMaterializedTab(targetId, { content: { code, language, filepath, streaming: false } });
             pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);

@@ -9,7 +9,9 @@ async function fetchTreeLevel(root, signal) {
     : `${API_BASE}/api/v1/files/tree`;
   const response = await fetch(url, { signal, credentials: 'include', headers: API_HEADERS });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const data = await response.json();
+  if (!Array.isArray(data)) throw new Error('Unsupported file tree response');
+  return data;
 }
 
 // The backend deliberately returns only ONE level per call (children: [] as a
@@ -50,7 +52,7 @@ const Badge = ({ type }) => {
   );
 };
 
-const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, onRightClick, loadingPaths }) => {
+const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, onRightClick, loadingPaths, childErrors, onRetry }) => {
   const isDir = node.type === 'directory';
   const isExpanded = expanded[node.path];
   const isLoadingChildren = Boolean(loadingPaths?.[node.path]);
@@ -74,6 +76,10 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
   return (
     <React.Fragment>
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={isDir ? isExpanded : undefined}
+        aria-label={`${node.type === 'directory' ? 'Folder' : 'File'} ${node.name}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -84,7 +90,14 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
         }}
         onClick={() => {
           if (isDir) toggleExpand(node);
-          else onSelect(node);
+          else onSelect?.(node);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (isDir) toggleExpand(node);
+            else onSelect?.(node);
+          }
         }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -114,6 +127,12 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
           Loading...
         </div>
       )}
+      {(isExpanded || hasMatchingChild) && isDir && childErrors?.[node.path] && (
+        <div role="alert" style={{ padding: `4px 8px 4px ${paddingLeft + 20}px`, fontSize: 'var(--text-sm)', color: 'var(--danger, #f87171)' }}>
+          {childErrors[node.path]}
+          <button type="button" onClick={() => onRetry(node)} style={{ marginLeft: 8 }}>Retry</button>
+        </div>
+      )}
       {(isExpanded || hasMatchingChild) && isDir && node.children && (
         <div>
           {node.children.map(child => (
@@ -127,6 +146,8 @@ const FileNode = ({ node, level, onSelect, expanded, toggleExpand, searchQuery, 
               searchQuery={searchQuery}
               onRightClick={onRightClick}
               loadingPaths={loadingPaths}
+              childErrors={childErrors}
+              onRetry={onRetry}
             />
           ))}
         </div>
@@ -139,23 +160,37 @@ export default function FileTree({ onClose, onOpenFile }) {
   const [treeData, setTreeData] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [loadingPaths, setLoadingPaths] = useState({});
+  const [rootLoading, setRootLoading] = useState(false);
+  const [childErrors, setChildErrors] = useState({});
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
   const containerRef = useRef(null);
   const loadedPaths = useRef(new Set());
+  const childControllers = useRef(new Map());
+  const rootController = useRef(null);
 
   const loadChildren = useCallback(async (node) => {
     if (loadedPaths.current.has(node.path)) return;
     loadedPaths.current.add(node.path);
+    const controller = new AbortController();
+    childControllers.current.set(node.path, controller);
     setLoadingPaths((prev) => ({ ...prev, [node.path]: true }));
+    setChildErrors((prev) => {
+      const next = { ...prev };
+      delete next[node.path];
+      return next;
+    });
     try {
-      const children = await fetchTreeLevel(node.path);
+      const children = await fetchTreeLevel(node.path, controller.signal);
       setTreeData((prev) => withChildrenAt(prev, node.path, children));
     } catch (e) {
-      console.error(`Failed to load children of ${node.path}`, e);
       loadedPaths.current.delete(node.path); // allow retry on next expand
+      if (e?.name !== 'AbortError') {
+        setChildErrors((prev) => ({ ...prev, [node.path]: `Could not load ${node.name}. Try again.` }));
+      }
     } finally {
+      childControllers.current.delete(node.path);
       setLoadingPaths((prev) => {
         const next = { ...prev };
         delete next[node.path];
@@ -170,29 +205,40 @@ export default function FileTree({ onClose, onOpenFile }) {
     if (willExpand) void loadChildren(node);
   };
 
-  useEffect(() => {
-    const ctrl = new AbortController();
-    fetchTreeLevel(null, ctrl.signal)
-      .then((data) => {
-        setTreeData(data);
-        // Auto-expand root directories, matching the original UX.
-        const initialExpanded = {};
-        data.forEach((n) => {
-          if (n.type === 'directory') {
-            initialExpanded[n.path] = true;
-            void loadChildren(n);
-          }
-        });
-        setExpanded(initialExpanded);
-      })
-      .catch((e) => {
-        if (e?.name !== 'AbortError') {
-          console.error('Failed to fetch file tree', e);
-          setError('File tree offline');
+  const loadRoot = useCallback(async (signal) => {
+    rootController.current?.abort();
+    rootController.current = signal;
+    setRootLoading(true);
+    setError('');
+    try {
+      const data = await fetchTreeLevel(null, signal);
+      setTreeData(data);
+      const initialExpanded = {};
+      data.forEach((n) => {
+        if (n.type === 'directory') {
+          initialExpanded[n.path] = true;
+          void loadChildren(n);
         }
       });
-    return () => ctrl.abort();
+      setExpanded(initialExpanded);
+    } catch (e) {
+      if (e?.name !== 'AbortError') setError('File tree offline');
+    } finally {
+      if (rootController.current === signal) rootController.current = null;
+      if (!signal.aborted) setRootLoading(false);
+    }
   }, [loadChildren]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    void loadRoot(ctrl.signal);
+    return () => {
+      ctrl.abort();
+      if (rootController.current === ctrl.signal) rootController.current = null;
+      childControllers.current.forEach((controller) => controller.abort());
+      childControllers.current.clear();
+    };
+  }, [loadRoot]);
 
   const handleRightClick = (node, e) => {
     setContextMenu({
@@ -241,7 +287,12 @@ export default function FileTree({ onClose, onOpenFile }) {
       
       <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {error ? (
-          <div style={{ padding: '8px', fontSize: 'var(--text-sm)', color: 'var(--danger, #f87171)' }}>{error}</div>
+          <div role="alert" style={{ padding: '8px', fontSize: 'var(--text-sm)', color: 'var(--danger, #f87171)' }}>
+            {error}
+            <button type="button" onClick={() => { const ctrl = new AbortController(); void loadRoot(ctrl.signal); }} disabled={rootLoading} style={{ marginLeft: 8 }}>
+              {rootLoading ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
         ) : (
           treeData.map(node => (
             <FileNode
@@ -254,6 +305,8 @@ export default function FileTree({ onClose, onOpenFile }) {
               searchQuery={searchQuery}
               onRightClick={handleRightClick}
               loadingPaths={loadingPaths}
+              childErrors={childErrors}
+              onRetry={loadChildren}
             />
           ))
         )}

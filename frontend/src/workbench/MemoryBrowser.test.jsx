@@ -21,7 +21,7 @@ describe('MemoryBrowser', () => {
     
     render(<MemoryBrowser onClose={vi.fn()} />);
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
-    expect(screen.getByText(/Loading memories.../i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading records/i)).toBeInTheDocument();
   });
 
   it('renders experiences on success', async () => {
@@ -40,7 +40,27 @@ describe('MemoryBrowser', () => {
     await waitFor(() => {
       expect(screen.getByText('TASK-1')).toBeInTheDocument();
       expect(screen.getByText('TASK-2')).toBeInTheDocument();
+      expect(screen.getByText('Learned A')).toBeInTheDocument();
     });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/files/read'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('experiences.jsonl'),
+      }),
+    );
+  });
+
+  it('keeps valid records visible while flagging malformed ledger lines', async () => {
+    globalThis.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ content: '{not-json}\n{"task_id":"TASK-3","lessons":"Keep the record"}' }),
+    });
+
+    render(<MemoryBrowser onClose={vi.fn()} />);
+
+    expect(await screen.findByText('TASK-3')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('1 ledger line could not be parsed');
   });
 
   it('renders error on failure', async () => {
@@ -49,7 +69,7 @@ describe('MemoryBrowser', () => {
     render(<MemoryBrowser onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Error: Network error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Local service could not be reached/i)).toBeInTheDocument();
     });
   });
 });

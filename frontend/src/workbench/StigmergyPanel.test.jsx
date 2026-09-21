@@ -20,16 +20,17 @@ describe('StigmergyPanel', () => {
     render(<StigmergyPanel onClose={vi.fn()} />);
     
     expect(screen.getByTestId('hud-panel')).toBeInTheDocument();
-    expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('start=system'));
+    expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringContaining('start=system'), expect.objectContaining({ credentials: 'include' }));
   });
 
   it('renders graph edges on success', async () => {
     globalThis.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
+        start: 'system', depth: 2,
         edges: [
-          { subject: 'system', predicate: 'depends_on', object: 'database', depth: 1 },
-          { subject: 'database', predicate: 'stores', object: 'users', depth: 2 }
+          { subject: 'system', predicate: 'depends_on', object: 'database', depth: 1, path: 'system -> database' },
+          { subject: 'database', predicate: 'stores', object: 'users', depth: 2, path: 'system -> database -> users' }
         ]
       })
     });

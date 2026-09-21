@@ -12,6 +12,7 @@ function titleCase(value) {
 export default function OperatorProfileCard() {
   const [model, setModel] = useState(EMPTY_MODEL);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     // loading already starts true (useState(true) above) and this effect
@@ -20,6 +21,8 @@ export default function OperatorProfileCard() {
     let alive = true;
     fetchOperatorModel().then((data) => {
       if (alive) setModel(data);
+    }).catch((reason) => {
+      if (alive) setError(reason instanceof Error ? reason.message : 'Operator records are unavailable.');
     }).finally(() => {
       if (alive) setLoading(false);
     });
@@ -43,7 +46,9 @@ export default function OperatorProfileCard() {
         <h2>Operator</h2>
       </div>
 
-      {isEmpty ? (
+      {error ? (
+        <div className="operator-profile-card__empty" role="alert">{error}</div>
+      ) : isEmpty ? (
         <div className="operator-profile-card__empty">No operator model yet</div>
       ) : (
         <div className="operator-profile-card__body">

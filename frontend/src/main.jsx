@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import './superbrain/lib/troikaConfig' // main-thread text (no blob worker / eval) — CSP hardening; must precede any <Text>
-import './superbrain/lib/monacoConfig'
 
 // GAGOS — THE VOYAGING MIND is the one and only frontend (operator's decision,
 // 2026-06-21): the points-being lives at the clean root URL. No ?ui flags, no

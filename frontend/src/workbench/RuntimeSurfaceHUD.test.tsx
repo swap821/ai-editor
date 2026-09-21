@@ -25,7 +25,7 @@ describe('RuntimeSurfaceHUD', () => {
       ok: true,
       json: async () => ({
         signals: [
-          { id: 'sig_12345678', type: 'test_event', payload: { foo: 'bar' } }
+          { signal_id: 7, stype: 'progress-update', resource: 'mission-1', worker_id: 'worker-1', ttl_seconds: 30, payload: { foo: 'bar' }, created_at: 123.4 }
         ],
       }),
     });
@@ -33,9 +33,23 @@ describe('RuntimeSurfaceHUD', () => {
     render(<RuntimeSurfaceHUD />);
     
     await waitFor(() => {
-      expect(screen.getByText('test_event')).toBeInTheDocument();
+      expect(screen.getAllByText('progress-update')[0]).toBeInTheDocument();
       expect(screen.getByText(/foo/)).toBeInTheDocument();
     });
+  });
+
+  it('does not turn a malformed surface envelope into a clean surface', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ total: 0 }),
+    });
+
+    render(<RuntimeSurfaceHUD />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Runtime surface unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Surface is clean.')).not.toBeInTheDocument();
   });
 
   it('submits a new signal', async () => {
@@ -45,6 +59,10 @@ describe('RuntimeSurfaceHUD', () => {
     });
 
     render(<RuntimeSurfaceHUD />);
+
+    fireEvent.change(screen.getByLabelText('Signal type'), { target: { value: 'progress-update' } });
+    fireEvent.change(screen.getByLabelText('Signal resource'), { target: { value: 'mission-1' } });
+    fireEvent.change(screen.getByLabelText('Signal worker'), { target: { value: 'worker-1' } });
     
     const input = screen.getByPlaceholderText(/{"type": "event", "data": 123}/);
     fireEvent.change(input, { target: { value: '{"type": "custom", "val": 42}' } });
@@ -60,7 +78,13 @@ describe('RuntimeSurfaceHUD', () => {
         expect.stringContaining('/api/v1/runtime/surface/emit'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ payload: { type: 'custom', val: 42 } })
+          body: JSON.stringify({
+            stype: 'progress-update',
+            resource: 'mission-1',
+            workerId: 'worker-1',
+            ttlSeconds: 30,
+            payload: { type: 'custom', val: 42 },
+          })
         })
       );
     });
@@ -73,7 +97,7 @@ describe('RuntimeSurfaceHUD', () => {
       ok: true,
       json: async () => ({
         signals: [
-          { id: 'sig_123', type: 'test_event', payload: {} }
+          { signal_id: 123, stype: 'progress-update', resource: 'mission-1', worker_id: 'worker-1', ttl_seconds: 30, payload: {}, created_at: 123.4 }
         ],
       }),
     });
@@ -81,7 +105,7 @@ describe('RuntimeSurfaceHUD', () => {
     render(<RuntimeSurfaceHUD />);
     
     await waitFor(() => {
-      expect(screen.getByText('test_event')).toBeInTheDocument();
+      expect(screen.getByText('progress-update')).toBeInTheDocument();
     });
 
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });

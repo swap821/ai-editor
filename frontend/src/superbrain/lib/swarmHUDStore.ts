@@ -7,6 +7,8 @@
  */
 
 export interface SwarmHUDState {
+  /** True after at least one swarm lifecycle snapshot/frame has been observed. */
+  hasObserved: boolean;
   /** True while any swarm leg is active. */
   active: boolean;
   /** Decomposed subtask plan (empty when no swarm plan has arrived). */
@@ -20,6 +22,7 @@ export interface SwarmHUDState {
 }
 
 const initialState: SwarmHUDState = {
+  hasObserved: false,
   active: false,
   plan: [],
   activeCastes: [],
@@ -56,6 +59,7 @@ export function resetSwarmHUD(): void {
 
 export function startSwarmPlan(plan: string[]): void {
   setState({
+    hasObserved: true,
     active: true,
     plan,
     activeCastes: [],
@@ -66,6 +70,7 @@ export function startSwarmPlan(plan: string[]): void {
 
 export function startSwarmCaste(caste: string): void {
   setState({
+    hasObserved: true,
     active: true,
     activeCastes: [...state.activeCastes, caste],
   });
@@ -73,6 +78,7 @@ export function startSwarmCaste(caste: string): void {
 
 export function endSwarmCaste(caste: string): void {
   setState({
+    hasObserved: true,
     activeCastes: state.activeCastes.filter((c) => c !== caste),
     completedLegs: state.completedLegs + 1,
   });
@@ -80,6 +86,6 @@ export function endSwarmCaste(caste: string): void {
 
 export function markSwarmCloudSubtask(index: number): void {
   if (!state.cloudIndices.includes(index)) {
-    setState({ cloudIndices: [...state.cloudIndices, index] });
+    setState({ hasObserved: true, cloudIndices: [...state.cloudIndices, index] });
   }
 }

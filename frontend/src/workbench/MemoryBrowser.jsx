@@ -1,46 +1,97 @@
-import { useEffect, useState } from 'react';
 import HUDPanel from '../components/HUDPanel';
+import { API_HEADERS } from '../config';
+import { ResourceNotice } from '../livingMirror/ResourceNotice';
+import { useResource } from '../livingMirror/resource';
+import './MemoryBrowser.css';
+
+const experienceRead = Object.freeze({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', ...API_HEADERS },
+  body: JSON.stringify({ path: '.aios/memory/experiences.jsonl' }),
+});
+
+function asText(value) {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function parseExperienceFile(value) {
+  if (!value || typeof value !== 'object' || typeof value.content !== 'string') {
+    throw new Error('The experience ledger response is incomplete.');
+  }
+
+  const records = [];
+  const malformedLines = [];
+  for (const [index, line] of value.content.split(/\r?\n/).entries()) {
+    if (!line.trim()) continue;
+    try {
+      const parsed = JSON.parse(line);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('record is not an object');
+      records.push({
+        id: asText(parsed.task_id) || `line-${index + 1}`,
+        taskId: asText(parsed.task_id),
+        timestamp: asText(parsed.ts),
+        goal: asText(parsed.goal),
+        plan: asText(parsed.plan),
+        actions: Array.isArray(parsed.actions) ? parsed.actions.filter((action) => typeof action === 'string') : [],
+        outcome: asText(parsed.outcome),
+        failureModes: asText(parsed.failure_modes),
+        fixes: asText(parsed.fixes),
+        lessons: asText(parsed.lessons),
+        confidence: typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence) ? parsed.confidence : null,
+      });
+    } catch {
+      malformedLines.push(index + 1);
+    }
+  }
+  return { records: records.reverse(), malformedLines };
+}
+
+const emptyExperiences = (data) => data.records.length === 0 && data.malformedLines.length === 0;
+
+function outcomeClass(outcome) {
+  if (/\bsuccess(?:ful)?\b/i.test(outcome || '')) return 'is-ok';
+  if (/\bfail(?:ure|ed)?\b/i.test(outcome || '')) return 'is-danger';
+  return 'is-warn';
+}
+
+function formatTimestamp(timestamp) {
+  if (!timestamp) return 'Time unavailable';
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? timestamp : parsed.toLocaleString();
+}
+
+function ExperienceRecord({ experience }) {
+  return (
+    <article className="memory-browser__record">
+      <header className="memory-browser__record-header">
+        <strong>{experience.taskId || 'Unidentified experience'}</strong>
+        <time dateTime={experience.timestamp || undefined}>{formatTimestamp(experience.timestamp)}</time>
+      </header>
+
+      {experience.goal ? <p><b>Goal</b>{experience.goal}</p> : null}
+      {experience.outcome ? <p><b>Outcome</b><span className={`memory-browser__outcome ${outcomeClass(experience.outcome)}`}>{experience.outcome}</span></p> : null}
+      {experience.lessons ? <p><b>Lesson</b>{experience.lessons}</p> : null}
+      {experience.confidence !== null ? <p><b>Confidence</b>{Math.round(experience.confidence * 100)}%</p> : null}
+
+      {(experience.plan || experience.actions.length || experience.failureModes || experience.fixes) ? (
+        <details>
+          <summary>Inspect the recorded path</summary>
+          <dl>
+            {experience.plan ? <><dt>Plan</dt><dd>{experience.plan}</dd></> : null}
+            {experience.actions.length ? <><dt>Actions</dt><dd><ol>{experience.actions.map((action, index) => <li key={`${experience.id}-action-${index}`}>{action}</li>)}</ol></dd></> : null}
+            {experience.failureModes ? <><dt>Failure modes</dt><dd>{experience.failureModes}</dd></> : null}
+            {experience.fixes ? <><dt>Fixes</dt><dd>{experience.fixes}</dd></> : null}
+          </dl>
+        </details>
+      ) : null}
+    </article>
+  );
+}
 
 export default function MemoryBrowser({ onClose }) {
-  const [experiences, setExperiences] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    async function loadExperiences() {
-      try {
-        const response = await fetch('/api/v1/files/read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: '.aios/memory/experiences.jsonl' })
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to load experiences.jsonl');
-        }
-        
-        const data = await response.json();
-        const content = data.content || '';
-        
-        // Parse JSONL
-        const parsed = content.trim().split('\n').filter(Boolean).map(line => {
-          try {
-            return JSON.parse(line);
-          } catch {
-            return null;
-          }
-        }).filter(Boolean);
-        
-        setExperiences(parsed.reverse()); // Newest first
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    loadExperiences();
-  }, []);
+  const resource = useResource('/api/v1/files/read', parseExperienceFile, emptyExperiences, experienceRead);
+  const records = resource.data?.records ?? [];
+  const malformedLines = resource.data?.malformedLines ?? [];
 
   return (
     <HUDPanel
@@ -51,61 +102,20 @@ export default function MemoryBrowser({ onClose }) {
       defaultSize={{ width: 500, height: 400 }}
       onClose={onClose}
     >
-      <div style={{ padding: '16px', color: 'var(--foreground)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <h3 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--ag-text-purple)' }}>
-          Experience Accumulator
-        </h3>
-        
-        {loading ? (
-          <div style={{ fontSize: '12px', opacity: 0.6 }}>Loading memories...</div>
-        ) : error ? (
-          <div style={{ fontSize: '12px', color: 'var(--ag-text-amber)' }}>Error: {error}</div>
-        ) : experiences.length === 0 ? (
-          <div style={{ fontSize: '12px', opacity: 0.6 }}>No experiences logged.</div>
-        ) : (
-          <div style={{ overflowY: 'auto', flex: 1, paddingRight: '8px' }}>
-            {experiences.map((exp, idx) => (
-              <div key={idx} style={{ 
-                marginBottom: '16px', 
-                padding: '12px',
-                background: 'var(--ag-surface-purple)',
-                border: '1px solid rgba(128, 90, 213, 0.2)',
-                borderRadius: '6px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <strong style={{ fontSize: '12px', color: '#e9d8fd' }}>
-                    {exp.task_id || 'Unknown Task'}
-                  </strong>
-                  <span style={{ fontSize: '10px', color: 'var(--muted-foreground)' }}>
-                    {exp.ts ? new Date(exp.ts).toLocaleString() : 'Unknown Time'}
-                  </span>
-                </div>
-                
-                {exp.goal && (
-                  <div style={{ fontSize: '11px', marginBottom: '8px' }}>
-                    <span style={{ color: 'var(--muted-foreground)' }}>Goal:</span> {exp.goal}
-                  </div>
-                )}
-                
-                {exp.outcome && (
-                  <div style={{ fontSize: '11px', marginBottom: '8px' }}>
-                    <span style={{ color: 'var(--muted-foreground)' }}>Outcome:</span>{' '}
-                    <span style={{ color: exp.outcome.includes('success') ? 'var(--ag-text-cyan)' : 'var(--ag-text-amber)' }}>
-                      {exp.outcome}
-                    </span>
-                  </div>
-                )}
-                
-                {exp.lessons && (
-                  <div style={{ fontSize: '11px' }}>
-                    <span style={{ color: 'var(--muted-foreground)' }}>Lesson:</span>{' '}
-                    <span style={{ color: '#d6bcfa' }}>{exp.lessons}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+      <div className="memory-browser" aria-label="Durable experience ledger">
+        <h3>Experience accumulator</h3>
+        <p className="memory-browser__intro">Recorded experience remains inspectable before it can influence future work.</p>
+        <ResourceNotice resource={resource} empty="The durable experience ledger is empty." />
+        {malformedLines.length ? (
+          <p className="memory-browser__warning" role="alert">
+            {malformedLines.length} ledger line{malformedLines.length === 1 ? '' : 's'} could not be parsed; valid records remain visible.
+          </p>
+        ) : null}
+        {records.length ? (
+          <div className="memory-browser__records">
+            {records.map((experience) => <ExperienceRecord key={experience.id} experience={experience} />)}
           </div>
-        )}
+        ) : null}
       </div>
     </HUDPanel>
   );

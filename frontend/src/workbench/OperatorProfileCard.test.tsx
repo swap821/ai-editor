@@ -49,4 +49,15 @@ describe('OperatorProfileCard', () => {
     expect(screen.getByText('FastAPI')).toBeInTheDocument();
     expect(screen.queryByText('No operator model yet')).not.toBeInTheDocument();
   });
+
+  it('keeps an unavailable operator model distinct from a confirmed empty model', async () => {
+    fetchOperatorModel.mockRejectedValue(new Error('Local operator records are unavailable.'));
+
+    render(<OperatorProfileCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Local operator records are unavailable.');
+    });
+    expect(screen.queryByText('No operator model yet')).not.toBeInTheDocument();
+  });
 });

@@ -16,7 +16,6 @@ import { fromEnvelope, displayValue, booleanTone, isMeasured } from '../types/me
 import { AlertTriangle, Cloud, FileText, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   approveFactProposal,
-  fetchPendingFacts,
   rejectFactProposal,
 } from '../superbrain/lib/aiosAdapter';
 import { API_BASE, API_HEADERS } from '../config';
@@ -46,12 +45,35 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function recordWithArray(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value[field])) {
+    throw new Error(`Unsupported ${field} response`);
+  }
+  return value;
+}
+
+function arrayField(value, field) {
+  return recordWithArray(value, field)[field];
+}
+
+function isAvailable(readStates, key) {
+  return readStates?.[key] === 'fulfilled';
+}
+
 const AUTONOMY_TONE = { earned: 'ok', probation: 'warn', revoked: 'danger' };
 
 function resourceTone(mode) {
   if (mode === 'normal') return 'ok';
   if (mode === 'conservation' || mode === 'hibernation') return 'warn';
   return 'danger';
+}
+
+function countOrUnavailable(value, label) {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value} ${label}` : `${label} unavailable`;
+}
+
+function textOrUnavailable(value) {
+  return typeof value === 'string' && value.trim() ? value : 'unavailable';
 }
 
 function collectCasteCounts(council) {
@@ -120,14 +142,18 @@ const PROVENANCE_EXPLANATION_SURFACE_AUTHORITY = new ProvenanceExplanationSurfac
 
 function scanSummary(surface) {
   if (!surface) return 'offline';
-  if (!surface.lastScan) return 'not scanned';
-  return `${surface.lastScan.findingCount ?? 0} finding(s) · ${surface.lastScan.cloudCalls ?? 0} cloud calls`;
+  if (!Object.prototype.hasOwnProperty.call(surface, 'lastScan')) return 'scan state unavailable';
+  if (surface.lastScan === null) return 'not scanned';
+  if (!surface.lastScan || typeof surface.lastScan !== 'object') return 'scan details unavailable';
+  return `${countOrUnavailable(surface.lastScan.findingCount, 'finding(s)')} · ${countOrUnavailable(surface.lastScan.cloudCalls, 'cloud calls')}`;
 }
 
 function repoMapSummary(surface) {
   if (!surface) return 'offline';
-  if (!surface.lastScan) return 'not scanned';
-  return `${surface.lastScan.symbolCount ?? 0} symbols · ${surface.activation}`;
+  if (!Object.prototype.hasOwnProperty.call(surface, 'lastScan')) return 'scan state unavailable';
+  if (surface.lastScan === null) return 'not scanned';
+  if (!surface.lastScan || typeof surface.lastScan !== 'object') return 'scan details unavailable';
+  return `${countOrUnavailable(surface.lastScan.symbolCount, 'symbols')} · ${textOrUnavailable(surface.activation)}`;
 }
 
 /** A MetricEnvelope-shaped field: {value, status, source, ...}. Renders the
@@ -210,6 +236,7 @@ export default function SovereignStatePanel() {
   const [actionError, setActionError] = useState('');
   const [busyKey, setBusyKey] = useState('');
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [readStates, setReadStates] = useState(null);
 
   const load = useCallback(async (signal) => {
     setLoading(true);
@@ -218,16 +245,16 @@ export default function SovereignStatePanel() {
     // Facts ride the adapter's existing quarantine helper (shared with the
     // memory halo) instead of a re-implemented fetch.
     const results = await Promise.allSettled([
-      getJson('/api/v1/development/autonomy', signal),
-      fetchPendingFacts(),
-      getJson('/api/v1/development/trails', signal),
-      getJson('/api/v1/development/curriculum/proposals', signal),
+      getJson('/api/v1/development/autonomy', signal).then((body) => recordWithArray(body, 'entries')),
+      getJson('/api/v1/memory/facts/pending', signal).then((body) => arrayField(body, 'proposals')),
+      getJson('/api/v1/development/trails', signal).then((body) => recordWithArray(body, 'trails')),
+      getJson('/api/v1/development/curriculum/proposals', signal).then((body) => recordWithArray(body, 'proposals')),
       getJson('/api/v1/projects/passport/status', signal),
       getJson('/api/v1/resource/status', signal),
       getJson('/api/v1/hibernation/status', signal),
       getJson('/api/v1/pheromones/surface', signal),
-      getJson('/api/v1/council/missions?limit=8', signal),
-      getJson('/api/v1/self-analysis/proposals', signal),
+      getJson('/api/v1/council/missions?limit=8', signal).then((body) => recordWithArray(body, 'missions')),
+      getJson('/api/v1/self-analysis/proposals', signal).then((body) => recordWithArray(body, 'proposals')),
       getJson('/api/v1/v10/status', signal),
       getJson('/api/v1/mirror/governance', signal),
       getJson('/api/v1/mirror/executor', signal),
@@ -253,6 +280,21 @@ export default function SovereignStatePanel() {
       governanceR,
       executorR,
     ] = results;
+    setReadStates({
+      autonomy: autonomyR.status,
+      facts: factsR.status,
+      trails: trailsR.status,
+      curriculum: curriculumR.status,
+      repoMap: repoMapR.status,
+      resource: resourceR.status,
+      hibernation: hibernationR.status,
+      pheromones: pheromonesR.status,
+      council: councilR.status,
+      selfAnalysis: selfAnalysisR.status,
+      v10: v10R.status,
+      governance: governanceR.status,
+      executor: executorR.status,
+    });
     if (autonomyR.status === 'fulfilled') setAutonomy(autonomyR.value);
     if (factsR.status === 'fulfilled') setFacts(asArray(factsR.value));
     if (trailsR.status === 'fulfilled') setTrails(trailsR.value);
@@ -295,12 +337,12 @@ export default function SovereignStatePanel() {
     [load],
   );
 
-  const entries = asArray(autonomy?.entries);
-  const trailRows = asArray(trails?.trails).slice(0, 8);
+  const entries = Array.isArray(autonomy?.entries) ? autonomy.entries : null;
+  const trailRows = Array.isArray(trails?.trails) ? trails.trails.slice(0, 8) : null;
   const repoMap = v7.repoMap;
   const resource = v7.resource;
   const hibernation = v7.hibernation;
-  const pheromoneRows = asArray(v7.pheromones?.pheromones).slice(0, 4);
+  const pheromoneRows = Array.isArray(v7.pheromones?.pheromones) ? v7.pheromones.pheromones.slice(0, 4) : null;
   const casteCounts = collectCasteCounts(v7.council);
   const pendingCount = APPROVAL_DECISION_SURFACE_AUTHORITY.pendingCount({
     facts,
@@ -309,12 +351,33 @@ export default function SovereignStatePanel() {
     selfAnalysis: v7.selfAnalysis,
   });
   const resourceMode = resource?.mode || 'unknown';
+  const resourceCloud = typeof resource?.cloud_allowed === 'boolean'
+    ? resource.cloud_allowed ? 'cloud allowed' : 'cloud blocked'
+    : 'cloud posture unavailable';
+  const resourceAvailability = readStates ? isAvailable(readStates, 'resource') : false;
   const repoLastScan = repoMap?.lastScan;
+  const hibernationRun = hibernation && Object.prototype.hasOwnProperty.call(hibernation, 'lastRun') ? hibernation.lastRun : undefined;
+  const hibernationSummary = !hibernation
+    ? 'offline'
+    : !Object.prototype.hasOwnProperty.call(hibernation, 'lastRun')
+      ? 'run state unavailable'
+      : hibernationRun === null
+        ? 'not run · writes/cloud blocked'
+        : hibernationRun && typeof hibernationRun === 'object'
+          ? `${countOrUnavailable(hibernationRun.proposalCount, 'proposals')} · ${countOrUnavailable(hibernationRun.cloudCalls, 'cloud calls')}`
+          : 'run details unavailable';
   const constitution = v10?.constitution;
   const metaLoop = v10?.metaLoop;
   const councilMemory = v10?.councilMemory;
   const provenance = PROVENANCE_EXPLANATION_SURFACE_AUTHORITY.project(governance);
   const stopBadge = SOVEREIGN_HEARTBEAT_SURFACE_AUTHORITY.badge(fromEnvelope(governance?.emergencyStop?.engaged));
+  const governanceAvailable = isAvailable(readStates, 'governance');
+  const factsAvailable = isAvailable(readStates, 'facts');
+  const trailsAvailable = isAvailable(readStates, 'trails');
+  const curriculumAvailable = isAvailable(readStates, 'curriculum');
+  const autonomyAvailable = isAvailable(readStates, 'autonomy');
+  const v7ApprovalSourcesAvailable = ['facts', 'curriculum', 'council', 'selfAnalysis'].every((key) => isAvailable(readStates, key));
+  const pendingDisplay = !readStates ? 'loading' : v7ApprovalSourcesAvailable ? `${pendingCount} pending item(s)` : 'unavailable';
 
   return (
     <div className="council-dashboard__body" aria-label="Sovereign state">
@@ -342,18 +405,18 @@ export default function SovereignStatePanel() {
           <section className="council-dashboard__section" aria-label="V10 truth surface">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Sovereign Organism v10
-              <span className={`council-dashboard__badge is-${v10?.localOnly ? 'ok' : 'warn'}`}>
-                {v10?.localOnly ? 'local only' : 'offline'}
+              <span className={`council-dashboard__badge is-${v10?.localOnly === true ? 'ok' : 'warn'}`}>
+                {v10?.localOnly === true ? 'local only' : v10?.localOnly === false ? 'cloud-capable' : 'unavailable'}
               </span>
               <span className="council-dashboard__badge is-warn">
-                {v10?.authority || 'proposal/evidence'}
+                {textOrUnavailable(v10?.authority)}
               </span>
             </h3>
             <div className="council-dashboard__grid">
               <span>
                 <b>Constitution</b>
                 {constitution
-                  ? `${constitution.casteCount ?? 0} castes · ${constitution.frozenCoreProtected ? 'frozen core protected' : 'frozen core unknown'}`
+                  ? `${countOrUnavailable(constitution.casteCount, 'castes')} · ${constitution.frozenCoreProtected === true ? 'frozen core protected' : constitution.frozenCoreProtected === false ? 'frozen core unknown' : 'frozen-core status unavailable'}`
                   : 'offline'}
               </span>
               <span>
@@ -366,7 +429,7 @@ export default function SovereignStatePanel() {
               </span>
               <span>
                 <b>Council memory</b>
-                {councilMemory ? `${councilMemory.deliberationCount ?? 0} deliberation(s)` : 'offline'}
+                {councilMemory ? countOrUnavailable(councilMemory.deliberationCount, 'deliberation(s)') : 'offline'}
               </span>
               <span>
                 <b>Symbol RepoMap</b>
@@ -375,7 +438,7 @@ export default function SovereignStatePanel() {
               <span>
                 <b>Meta-loop</b>
                 {metaLoop
-                  ? `${metaLoop.safetyStatus} · ${metaLoop.proposalCount ?? 0} proposal(s)`
+                  ? `${textOrUnavailable(metaLoop.safetyStatus)} · ${countOrUnavailable(metaLoop.proposalCount, 'proposal(s)')}`
                   : 'offline'}
               </span>
             </div>
@@ -430,16 +493,18 @@ export default function SovereignStatePanel() {
           </section>
 
           <section className="council-dashboard__section" aria-label="Provider health, measured">
-            <h3>
-              <ShieldCheck size={14} aria-hidden="true" /> Provider Health
-              <span className="council-dashboard__badge is-ok">
-                {(governance?.providerHealth ?? []).length} observed
+              <h3>
+                <ShieldCheck size={14} aria-hidden="true" /> Provider Health
+              <span className={`council-dashboard__badge is-${governanceAvailable ? 'ok' : 'warn'}`}>
+                {governanceAvailable ? `${(governance?.providerHealth ?? []).length} observed` : 'unavailable'}
               </span>
             </h3>
             <p className="council-dashboard__muted">
               Only providers with at least one real recorded call outcome are shown — a never-called provider is never presented as "healthy".
             </p>
-            {(governance?.providerHealth ?? []).length === 0 ? (
+            {!governanceAvailable ? (
+              <p>Provider observations are unavailable.</p>
+            ) : (governance?.providerHealth ?? []).length === 0 ? (
               <p>No provider calls observed yet this process.</p>
             ) : (
               (governance?.providerHealth ?? []).map((p) => (
@@ -464,16 +529,18 @@ export default function SovereignStatePanel() {
           </section>
 
           <section className="council-dashboard__section" aria-label="Pending approvals, measured">
-            <h3>
-              <AlertTriangle size={14} aria-hidden="true" /> Pending Approvals
+              <h3>
+                <AlertTriangle size={14} aria-hidden="true" /> Pending Approvals
               <span className="council-dashboard__badge is-warn">
-                {(governance?.approvals ?? []).length} pending
+                {governanceAvailable ? `${(governance?.approvals ?? []).length} pending` : 'unavailable'}
               </span>
             </h3>
             <p className="council-dashboard__muted">
               A real, read-only enumeration of every capability awaiting consumption (CapabilityAuthority) — never exposes a usable bearer token.
             </p>
-            {(governance?.approvals ?? []).length === 0 ? (
+            {!governanceAvailable ? (
+              <p>Pending approvals are unavailable.</p>
+            ) : (governance?.approvals ?? []).length === 0 ? (
               <p>Nothing awaiting consumption right now.</p>
             ) : (
               (governance?.approvals ?? []).map((a, index) => (
@@ -487,16 +554,18 @@ export default function SovereignStatePanel() {
           </section>
 
           <section className="council-dashboard__section" aria-label="Routing decisions, measured">
-            <h3>
-              <ShieldCheck size={14} aria-hidden="true" /> Provenance &amp; Explanation
-              <span className="council-dashboard__badge is-ok">
-                {provenance.routingDecisions.length} recent turn(s)
+              <h3>
+                <ShieldCheck size={14} aria-hidden="true" /> Provenance &amp; Explanation
+              <span className={`council-dashboard__badge is-${governanceAvailable ? 'ok' : 'warn'}`}>
+                {governanceAvailable ? `${provenance.routingDecisions.length} recent turn(s)` : 'unavailable'}
               </span>
             </h3>
             <p className="council-dashboard__muted">
               Why the router picked a model, for the most recent real turns — sourced from durably recorded routing metadata, never guessed.
             </p>
-            {provenance.routingDecisions.length === 0 ? (
+            {!governanceAvailable ? (
+              <p>Routing decisions are unavailable.</p>
+            ) : provenance.routingDecisions.length === 0 ? (
               <p>No routed turn recorded yet this session.</p>
             ) : (
               provenance.routingDecisions.map((d, index) => (
@@ -530,7 +599,9 @@ export default function SovereignStatePanel() {
             <p className="council-dashboard__muted" style={{ marginTop: '8px' }}>
               What was sent / what was removed before a cloud call — real per-call redaction counts, never a second logging sink.
             </p>
-            {provenance.privacyAudits.length === 0 ? (
+            {!governanceAvailable ? (
+              <p>Privacy audits are unavailable.</p>
+            ) : provenance.privacyAudits.length === 0 ? (
               <p>No cloud call audited yet this session.</p>
             ) : (
               provenance.privacyAudits.map((a, index) => (
@@ -583,58 +654,62 @@ export default function SovereignStatePanel() {
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Sovereign Superorganism v7
               <span className={`council-dashboard__badge is-${repoMap?.localOnly ? 'ok' : 'warn'}`}>
-                {repoMap?.localOnly ? 'local only' : 'status partial'}
+                {!readStates || !isAvailable(readStates, 'repoMap') ? 'unavailable' : repoMap?.localOnly ? 'local only' : 'status partial'}
               </span>
-              <span className={`council-dashboard__badge is-${resourceTone(resourceMode)}`}>
-                {resourceMode}
+              <span className={`council-dashboard__badge is-${resourceAvailability ? resourceTone(resourceMode) : 'warn'}`}>
+                {resourceAvailability ? resourceMode : readStates ? 'unavailable' : 'loading'}
               </span>
             </h3>
             <div className="council-dashboard__grid">
               <span>
                 <b>RepoMap</b>
                 {repoMap
-                  ? repoLastScan
-                    ? `${String(repoLastScan.purpose || 'scanned').slice(0, 54)} · ${repoMap.activation}`
-                    : `ready · ${repoMap.activation}`
+                  ? !Object.prototype.hasOwnProperty.call(repoMap, 'lastScan')
+                    ? 'scan state unavailable'
+                    : repoLastScan === null
+                      ? `not scanned · ${textOrUnavailable(repoMap.activation)}`
+                      : repoLastScan && typeof repoLastScan === 'object'
+                        ? `${String(repoLastScan.purpose || 'scanned').slice(0, 54)} · ${textOrUnavailable(repoMap.activation)}`
+                        : 'scan details unavailable'
                   : 'offline'}
               </span>
               <span>
                 <b>Resource</b>
-                {resource
-                  ? `${resourceMode} · ${resource.cloud_allowed ? 'cloud allowed' : 'cloud blocked'}`
+                {!resourceAvailability ? (readStates ? 'unavailable' : 'loading') : resource
+                  ? `${resourceMode} · ${resourceCloud}`
                   : 'offline'}
               </span>
               <span>
                 <b>Hibernation</b>
-                {hibernation
-                  ? hibernation.lastRun
-                    ? `${hibernation.lastRun.proposalCount ?? 0} proposals · ${hibernation.lastRun.cloudCalls ?? 0} cloud calls`
-                    : 'not run · writes/cloud blocked'
-                  : 'offline'}
+                {hibernationSummary}
               </span>
               <span>
                 <b>Pheromones</b>
-                {v7.pheromones ? `${pheromoneRows.length} advisory signal(s)` : 'disabled or offline'}
+                {!isAvailable(readStates, 'pheromones') || pheromoneRows === null ? 'unavailable' : `${pheromoneRows.length} advisory signal(s)`}
               </span>
               <span>
                 <b>Caste contracts</b>
-                {casteCounts.length
+                {!isAvailable(readStates, 'council') ? 'unavailable' : casteCounts.length
                   ? casteCounts.map(([caste, count]) => `${caste} x${count}`).join(', ')
                   : 'none contracted'}
               </span>
               <span>
                 <b>Pending proposals</b>
-                {pendingCount} pending item(s)
+                {pendingDisplay}
               </span>
             </div>
             <p className="council-dashboard__muted">
               RepoMap and pheromones are proposal evidence only; security, verification, and King approval stay authoritative.
             </p>
-            {pheromoneRows.length ? (
+            {pheromoneRows?.length ? (
               <div className="council-dashboard__route" aria-label="Pheromone trails">
                 {pheromoneRows.map((trail) => (
                   <span key={`${trail.type}-${trail.resource}-${trail.id}`}>
-                    {trail.type} · {String(trail.resource).slice(0, 42)} · {Math.round((trail.strength ?? 0) * 100)}%
+                    {trail.type} · {String(trail.resource).slice(0, 42)} · {
+                      typeof trail.strength === 'number' && Number.isFinite(trail.strength)
+                        ? `${Math.round(trail.strength * 100)}%`
+                        : 'strength unavailable'
+                    }
                   </span>
                 ))}
               </div>
@@ -644,13 +719,15 @@ export default function SovereignStatePanel() {
           <section className="council-dashboard__section" aria-label="Earned autonomy ledger">
             <h3>
               <ShieldCheck size={14} aria-hidden="true" /> Earned Autonomy
-              {autonomy ? (
+              {autonomyAvailable && autonomy ? (
                 <span className={`council-dashboard__badge is-${autonomy.enabled ? 'ok' : 'warn'}`}>
                   {autonomy.enabled ? `armed · floor ${autonomy.min_successes}` : 'disabled'}
                 </span>
               ) : null}
             </h3>
-            {entries.length === 0 ? (
+            {!autonomyAvailable || entries === null ? (
+              <p>Autonomy ledger unavailable.</p>
+            ) : entries.length === 0 ? (
               <p>No action class has earned autonomy — every write still pauses for you.</p>
             ) : (
               entries.map((entry) => (
@@ -686,7 +763,9 @@ export default function SovereignStatePanel() {
             <h3>
               <AlertTriangle size={14} aria-hidden="true" /> Facts Awaiting Your Review
             </h3>
-            {facts.length === 0 ? (
+            {!factsAvailable ? (
+              <p>Pending fact proposals are unavailable.</p>
+            ) : facts.length === 0 ? (
               <p>Quarantine is empty — nothing waits to become knowledge.</p>
             ) : (
               facts.map((fact) => (
@@ -735,11 +814,13 @@ export default function SovereignStatePanel() {
               <Cloud size={14} aria-hidden="true" /> Skill Trails
               {trails?.summary ? (
                 <span className="council-dashboard__badge is-ok">
-                  {trails.summary.verified ?? 0} verified · {trails.summary.candidate ?? 0} candidate
+              {countOrUnavailable(trails.summary.verified, 'verified')} · {countOrUnavailable(trails.summary.candidate, 'candidate')}
                 </span>
               ) : null}
             </h3>
-            {trailRows.length === 0 ? (
+            {!trailsAvailable || trailRows === null ? (
+              <p>Skill trails are unavailable.</p>
+            ) : trailRows.length === 0 ? (
               <p>No trails yet — experience is still being earned.</p>
             ) : (
               trailRows.map((trail, index) => (
@@ -748,7 +829,7 @@ export default function SovereignStatePanel() {
                     {trail.quarantined ? 'quarantined' : trail.status}
                   </span>
                   <span>{String(trail.goal_pattern ?? trail.goal ?? '').slice(0, 64)}</span>
-                  <span>{Math.round((trail.strength ?? 0) * 100)}%</span>
+                  <span>{typeof trail.strength === 'number' && Number.isFinite(trail.strength) ? `${Math.round(trail.strength * 100)}%` : 'strength unavailable'}</span>
                 </div>
               ))
             )}
@@ -758,7 +839,9 @@ export default function SovereignStatePanel() {
             <h3>
               <FileText size={14} aria-hidden="true" /> Curriculum Proposals
             </h3>
-            {curriculum.length === 0 ? (
+            {!curriculumAvailable ? (
+              <p>Curriculum proposals are unavailable.</p>
+            ) : curriculum.length === 0 ? (
               <p>No mined proposals — the curriculum is current.</p>
             ) : (
               curriculum.map((proposal) => (

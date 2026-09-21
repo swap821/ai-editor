@@ -49,7 +49,16 @@ describe('MemoryOperationsPanel', () => {
       ok: true,
       json: async () => ({
         results: [
-          { score: 0.88, text: 'Memory chunk 1' }
+          {
+            id: 'memory-1',
+            text: 'Memory chunk 1',
+            score: 0.88,
+            bm25: 0.8,
+            faiss: 0.9,
+            recency: 0.7,
+            memory_type: 'lesson',
+            verification_status: 'verified',
+          }
         ]
       }),
     });
@@ -74,6 +83,46 @@ describe('MemoryOperationsPanel', () => {
       expect(screen.getByText('Score: 88%')).toBeInTheDocument();
       expect(screen.getByText('Memory chunk 1')).toBeInTheDocument();
     });
+  });
+
+  it('does not turn a malformed memory envelope into no vectors found', async () => {
+    render(<MemoryOperationsPanel />);
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({}),
+    });
+
+    const searchInput = screen.getByPlaceholderText('Search vector space...');
+    fireEvent.change(searchInput, { target: { value: 'broken memory' } });
+    fireEvent.click(screen.getByText('Search', { selector: 'button[type="submit"]' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Memory search unavailable')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No vectors found.')).not.toBeInTheDocument();
+  });
+
+  it('renders incomplete scores as unavailable instead of NaN', async () => {
+    render(<MemoryOperationsPanel />);
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        query: 'partial',
+        results: [{ id: 'memory-2', text: 'Partial memory', score: null }],
+      }),
+    });
+
+    const searchInput = screen.getByPlaceholderText('Search vector space...');
+    fireEvent.change(searchInput, { target: { value: 'partial' } });
+    fireEvent.click(screen.getByText('Search', { selector: 'button[type="submit"]' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Score unavailable')).toBeInTheDocument();
+      expect(screen.getByText('Partial memory')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
   });
 
   it('handles fact reconciliation', async () => {

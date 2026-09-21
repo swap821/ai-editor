@@ -23,8 +23,69 @@ async function postJson(path, body = {}) {
   return response.json();
 }
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
+function invalidResponse(message) {
+  const error = new Error(message);
+  error.code = 'INVALID_RESPONSE';
+  return error;
+}
+
+function metric(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function normalizeService(service, fallbackName) {
+  if (!service || typeof service !== 'object') {
+    throw invalidResponse('Council service entry is not an object');
+  }
+
+  const name = typeof service.name === 'string' && service.name.trim()
+    ? service.name
+    : fallbackName;
+  const running = typeof service.running === 'boolean'
+    ? service.running
+    : typeof service.alive === 'boolean'
+      ? service.alive
+      : null;
+  if (!name || running === null) {
+    throw invalidResponse('Council service entry is missing identity or lifecycle state');
+  }
+
+  if (typeof service.description === 'string' && service.description.trim()) {
+    return { name, running, description: service.description };
+  }
+
+  const metrics = [
+    ['queue_depth', 'queue'],
+    ['processed', 'processed'],
+    ['errors', 'errors'],
+  ]
+    .map(([key, label]) => {
+      const value = metric(service[key]);
+      return value === null ? null : `${label} ${value}`;
+    })
+    .filter(Boolean);
+
+  return {
+    name,
+    running,
+    description: metrics.length ? metrics.join(' · ') : 'Description unavailable',
+  };
+}
+
+function parseServicesPayload(data) {
+  if (!data || typeof data !== 'object' || !Object.prototype.hasOwnProperty.call(data, 'services')) {
+    throw invalidResponse('Council services response did not contain a services field');
+  }
+
+  if (Array.isArray(data.services)) {
+    return data.services.map((service, index) => normalizeService(service, `service-${index + 1}`));
+  }
+
+  if (!data.services || typeof data.services !== 'object') {
+    throw invalidResponse('Council services response contained an invalid services field');
+  }
+
+  return Object.entries(data.services).map(([name, service]) => normalizeService(service, name));
 }
 
 export default function CouncilServicesPanel() {
@@ -46,9 +107,11 @@ export default function CouncilServicesPanel() {
     setError('');
     try {
       const data = await fetchJson('/api/v1/council/services', signal);
-      setServices(asArray(data.services));
+      setServices(parseServicesPayload(data));
     } catch (err) {
-      if (err?.name !== 'AbortError') setError('Council services offline');
+      if (err?.name !== 'AbortError') {
+        setError(err?.code === 'INVALID_RESPONSE' ? 'Council services unavailable' : 'Council services offline');
+      }
     } finally {
       setLoading(false);
     }

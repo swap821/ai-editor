@@ -18,6 +18,8 @@
 import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
 import { __resetSessionForTests, ensureSession } from './sessionId';
+import { parseSkills, type SkillContract } from '../../livingMirror/contracts';
+import { readResource } from '../../livingMirror/resource';
 import {
   resetSwarmHUD,
 } from './swarmHUDStore';
@@ -744,15 +746,15 @@ export interface OperatorModel {
 }
 
 /** Read the structured snapshot of what the system knows about the operator.
- *  Returns all-empty sections if the backend is unreachable. */
+ *  A confirmed empty response is distinct from an unavailable local service;
+ *  callers must preserve that distinction in their UI. */
 export async function fetchOperatorModel(): Promise<OperatorModel> {
-  const empty: OperatorModel = { preferences: [], attributes: {}, projectContext: [] };
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/operator/model`, {
       credentials: FETCH_CREDENTIALS,
       headers: authHeaders(),
     });
-    if (!res.ok) return empty;
+    if (!res.ok) throw new Error(`Operator records could not be read (HTTP ${res.status}).`);
     const data = (await res.json()) as Record<string, unknown>;
     return {
       preferences: Array.isArray(data.preferences) ? (data.preferences as OperatorModel['preferences']) : [],
@@ -763,8 +765,9 @@ export async function fetchOperatorModel(): Promise<OperatorModel> {
         ? (data.project_context as OperatorModel['projectContext'])
         : [],
     };
-  } catch {
-    return empty;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Operator records could not be read')) throw error;
+    throw new Error('Local operator records are unavailable.');
   }
 }
 
@@ -1067,18 +1070,8 @@ export async function fetchHiringProposals(): Promise<any[]> {
   }
 }
 
-export async function fetchSkills(): Promise<any[]> {
-  try {
-    const res = await fetch(`${AIOS_BASE}/api/v1/skills`, {
-      credentials: FETCH_CREDENTIALS,
-      headers: authHeaders(),
-    });
-    if (!res.ok) return [];
-    const body = await res.json();
-    return Array.isArray(body?.items) ? body.items : [];
-  } catch {
-    return [];
-  }
+export async function fetchSkills(): Promise<SkillContract[]> {
+  return (await readResource('/api/v1/skills', parseSkills)).items;
 }
 
 export async function fetchMaintenanceFindings(): Promise<any[]> {

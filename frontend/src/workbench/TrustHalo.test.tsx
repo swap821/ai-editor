@@ -142,13 +142,10 @@ describe('computeTrustLevel', () => {
     expect(computeTrustLevel({ human_intervention_rate: 0.4, verification_coverage: 0.8 })).toBe('attention');
   });
 
-  it('treats missing fields as 0', () => {
-    // Missing intervention_rate (0) + missing verification_coverage (0) -> critical (coverage < 0.3)
-    expect(computeTrustLevel({})).toBe('critical');
-    // Missing verification_coverage (0) -> critical
-    expect(computeTrustLevel({ human_intervention_rate: 0.1 })).toBe('critical');
-    // Missing intervention_rate (0) + high coverage -> healthy
-    expect(computeTrustLevel({ verification_coverage: 0.9 })).toBe('healthy');
+  it('keeps incomplete telemetry unknown instead of treating missing fields as 0', () => {
+    expect(computeTrustLevel({})).toBe('unknown');
+    expect(computeTrustLevel({ human_intervention_rate: 0.1 })).toBe('unknown');
+    expect(computeTrustLevel({ verification_coverage: 0.9 })).toBe('unknown');
   });
 
   it('handles exact boundary at 0.3 intervention rate', () => {

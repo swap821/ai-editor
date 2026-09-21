@@ -1,0 +1,125 @@
+.memory-browser {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  overflow: hidden;
+  padding: 16px;
+  color: var(--text-1);
+}
+
+.memory-browser h3 {
+  margin: 0;
+  color: var(--ag-text-purple);
+  font-size: 14px;
+}
+
+.memory-browser__intro {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.memory-browser__records {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.memory-browser__record {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(176, 110, 255, 0.22);
+  border-radius: 6px;
+  background: rgba(176, 110, 255, 0.08);
+}
+
+.memory-browser__record-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.memory-browser__record-header strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #e9d8fd;
+  font-size: 12px;
+}
+
+.memory-browser__record-header time {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 10px;
+}
+
+.memory-browser__record p {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.memory-browser__record p b {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.memory-browser__outcome.is-ok { color: var(--ag-text-cyan); }
+.memory-browser__outcome.is-warn { color: var(--ag-text-amber); }
+.memory-browser__outcome.is-danger { color: #ff9a83; }
+
+.memory-browser__record details {
+  border-top: 1px solid rgba(176, 110, 255, 0.16);
+  padding-top: 8px;
+}
+
+.memory-browser__record summary {
+  cursor: pointer;
+  color: var(--ag-text-purple);
+  font-size: 11px;
+}
+
+.memory-browser__record dl {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.memory-browser__record dt { color: var(--text-3); }
+.memory-browser__record dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+.memory-browser__record ol { margin: 0; padding-left: 18px; }
+
+.memory-browser__warning {
+  margin: 0;
+  color: var(--ag-text-amber);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .memory-browser { padding: 12px; }
+  .memory-browser__record-header { align-items: flex-start; flex-direction: column; gap: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-browser *,
+  .memory-browser *::before,
+  .memory-browser *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

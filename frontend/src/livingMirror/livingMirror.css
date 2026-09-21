@@ -1,0 +1,161 @@
+.lm-app {
+  --lm-canvas: #030108;
+  --lm-surface: #0c0916;
+  --lm-cyan: #7bf5fb;
+  --lm-purple: #b06eff;
+  --lm-green: #54f0a0;
+  --lm-orange: #ff7e40;
+  --lm-text: #e8e6ee;
+  --lm-muted: #aaa5b8;
+  --lm-line: rgba(232,230,238,.16);
+  position: relative;
+  width: 100%; height: 100dvh; min-height: 520px;
+  overflow: hidden; background: var(--lm-canvas); color: var(--lm-text);
+  font: 400 16px/1.55 var(--font-inter), sans-serif;
+}
+.lm-scene { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+/* The canon scene owns a full-screen fixed root. Inside the Living Mirror it
+   must follow this shell's scene pane so workspaces can claim readable space;
+   the override is scoped to this product-owned host and does not affect the
+   standalone canon route. */
+.lm-scene > .superbrain-experience { position: absolute; inset: 0; }
+.lm-app[data-working="false"] { --lm-conversation-rail: clamp(300px, 35vw, 450px); }
+.lm-app[data-working="false"] .lm-scene { left: var(--lm-conversation-rail); }
+.lm-app[data-working="true"] .lm-scene { right: 68%; }
+.lm-shell { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+.lm-shell button, .lm-shell input, .lm-shell select, .lm-shell textarea { font: inherit; }
+.lm-shell button, .lm-shell select { min-height: 44px; cursor: pointer; }
+.lm-shell button { border: 1px solid var(--lm-line); border-radius: 8px; background: var(--lm-surface); color: var(--lm-text); padding: 8px 14px; }
+.lm-shell button:hover { border-color: var(--lm-cyan); }
+.lm-shell button:disabled { opacity: .5; cursor: default; }
+.lm-shell :focus-visible { outline: 2px solid var(--lm-cyan); outline-offset: 3px; }
+.lm-shell input, .lm-shell textarea, .lm-shell select { color: var(--lm-text); background: var(--lm-canvas); border: 1px solid var(--lm-line); border-radius: 6px; padding: 10px; min-width: 0; }
+.lm-shell h1, .lm-shell h2, .lm-shell h3 { font-family: var(--font-outfit), sans-serif; font-weight: 500; line-height: 1.2; }
+.lm-shell p { max-width: 75ch; }
+.lm-shell code, .lm-shell pre { font-family: var(--font-jetbrains-mono), monospace; font-size: 14px; }
+.lm-shell code { overflow-wrap: anywhere; }
+.lm-shell pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lm-header { position: absolute; top: 20px; left: 28px; right: 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.lm-header h1 { font-size: 30px; letter-spacing: .04em; margin: 0; color: var(--lm-cyan); }
+.lm-subtitle { color: var(--lm-muted); font-size: 14px; }
+.lm-navigation { position: absolute; top: 98px; left: 28px; right: 28px; display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+.lm-navigation button { background: var(--lm-canvas); border-color: transparent; }
+.lm-navigation button[aria-current="page"] { border-color: var(--lm-cyan); color: var(--lm-cyan); }
+.lm-more { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--lm-muted); }
+.lm-more select { max-width: 190px; }
+.lm-connection { position: absolute; bottom: 18px; left: 28px; right: 28px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; color: var(--lm-muted); font-size: 13px; pointer-events: auto; }
+.lm-connection button { min-height: 32px; font-size: 13px; color: var(--lm-orange); }
+.lm-workspace-rail { position: absolute; top: 160px; right: 28px; display: flex; flex-direction: column; gap: 8px; max-width: 250px; pointer-events: auto; }
+.lm-workspace-rail > button { display: flex; gap: 10px; align-items: center; text-align: left; overflow-wrap: anywhere; font-size: 14px; }
+.lm-vertebra { display: block; flex: 0 0 10px; height: 18px; border: 1px solid var(--lm-cyan); border-radius: 7px 7px 4px 4px; }
+.lm-workspace-rail > button[aria-current="true"] { border-color: var(--lm-cyan); }
+.lm-workspace-list { max-height: 45vh; overflow: auto; padding: 8px; background: var(--lm-surface); border: 1px solid var(--lm-line); border-radius: 10px; display: grid; gap: 6px; }
+.lm-app[data-working="true"] .lm-workspace-rail { right: auto; left: 28px; top: 166px; width: calc(32% - 56px); }
+.lm-surface { position: absolute; top: 162px; right: 28px; bottom: 78px; width: calc(68% - 28px); display: flex; flex-direction: column; pointer-events: auto; background: var(--lm-surface); border: 1px solid var(--lm-line); border-radius: 14px; overflow: hidden; }
+.lm-surface[hidden], .lm-surface__body[hidden] { display: none; }
+.lm-surface__header { display: flex; align-items: center; gap: 8px; padding: 16px 20px; border-bottom: 1px solid var(--lm-line); }
+.lm-surface__header h2 { flex: 1; min-width: 0; font-size: 23px; margin: 0; overflow-wrap: anywhere; }
+.lm-surface__header button { background: transparent; font-size: 14px; }
+.lm-surface__body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px; }
+.lm-surface__body h3 { font-size: 23px; }
+.lm-surface__body small { font-size: 14px; color: var(--lm-muted); }
+.lm-surface__body li { margin-bottom: 20px; }
+.lm-surface__body details { margin-block: 14px; }
+.lm-surface__body summary { cursor: pointer; min-height: 44px; display: list-item; padding-block: 8px; }
+.lm-surface__body dl { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 3fr); gap: 10px 20px; }
+.lm-surface__body dt { color: var(--lm-muted); }
+.lm-surface__body dd { margin: 0; overflow-wrap: anywhere; }
+.lm-surface__body .council-dashboard { position: relative; inset: auto; width: 100%; max-height: none; background: none; box-shadow: none; border: 0; backdrop-filter: none; animation: none; }
+.lm-surface__body .council-dashboard button, .lm-surface__body .council-dashboard input, .lm-surface__body .council-dashboard textarea { font-size: 16px; }
+.lm-embedded-panel { display: flex; flex-direction: column; min-height: 480px; height: 100%; }
+.lm-resource { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-block: 16px; color: var(--lm-muted); }
+.lm-resource button { font-size: 14px; margin-left: auto; }
+.lm-history { padding-left: 20px; }
+.lm-history li { border-left: 1px solid var(--lm-line); padding-left: 20px; }
+.lm-artifact { padding: 20px; background: var(--lm-canvas); border-radius: 8px; line-height: 1.7; }
+.lm-form { display: grid; gap: 16px; max-width: 720px; }
+.lm-form label { display: grid; gap: 6px; }
+.lm-check { display: flex; gap: 12px; align-items: flex-start; margin-block: 16px; }
+.lm-check input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--lm-cyan); }
+.lm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.lm-mission > details { border-top: 1px solid var(--lm-line); padding-top: 12px; }
+.gagos-voice-state, .gagos-voice-route { font-size: 13px; color: var(--lm-muted); line-height: 1.4; pointer-events: auto; }
+.gagos-voice-route { display: flex; gap: 8px; align-items: flex-start; }
+.lm-surface__body .operator-profile-card { position: relative; inset: auto; width: 100%; max-height: none; box-shadow: none; background: none; border: 0; backdrop-filter: none; }
+.lm-stop { position: relative; display: flex; gap: 6px; pointer-events: auto; }
+.lm-stop .lm-stop__engage { border-color: var(--lm-orange); color: var(--lm-orange); }
+.lm-stop__detail { position: absolute; z-index: 60; right: 0; top: 54px; width: min(450px, calc(100vw - 40px)); max-height: calc(100dvh - 110px); overflow: auto; padding: 24px; background: var(--lm-surface); border: 1px solid var(--lm-orange); border-radius: 12px; box-shadow: 0 15px 60px rgba(0,0,0,.6); }
+.lm-stop__detail label { display: grid; gap: 8px; margin-block: 18px; }
+.lm-stop__detail dl > div { margin-block: 10px; }
+.lm-stop__detail dd { margin-left: 0; font-family: var(--font-jetbrains-mono), monospace; font-size: 14px; }
+.lm-app .gagos-status { top: auto; right: auto; left: 28px; bottom: 80px; flex-direction: row; flex-wrap: wrap; max-width: calc(32% - 40px); }
+.lm-app .gagos-status > .gagos-pill { font-size: 12px; }
+.lm-app .gagos-chat { left: 28px; bottom: 154px; width: min(390px, 32vw); max-height: calc(100dvh - 330px); }
+.lm-app[data-working="false"] .gagos-chat { width: min(390px, calc(var(--lm-conversation-rail) - 40px)); }
+.lm-app[data-working="true"] .gagos-chat {
+  /* The active workspace gives the scene only its left-side companion pane.
+     Keep the composer inside that pane and give its remaining voice controls
+     a quiet near-black membrane so they stay readable over the organism. */
+  box-sizing: border-box;
+  width: calc(32% - 56px);
+  max-width: calc(32% - 56px);
+  padding: 10px 18px 10px 10px;
+  background: linear-gradient(90deg, rgba(3, 1, 8, .96) 0%, rgba(3, 1, 8, .88) 78%, rgba(3, 1, 8, 0) 100%);
+  border-radius: 0 16px 16px 0;
+}
+.lm-app[data-working="true"] .gagos-bar { flex-wrap: wrap; gap: 6px; }
+.lm-app[data-working="true"] .gagos-bar .gagos-input { flex: 1 1 70px; }
+.lm-app[data-working="true"] .gagos-thread, .lm-app[data-working="true"] .gagos-welcome { display: none; }
+.lm-app[data-working="true"] .gagos-coach, .lm-app[data-working="true"] .gagos-hint { display: none; }
+.lm-app .gagos-title, .lm-app .gagos-identity { display: none; }
+.lm-app .gagos-chat input, .lm-app .gagos-chat textarea { font-size: 16px; }
+.lm-app .gagos-chat button { min-width: 44px; min-height: 44px; }
+@media (max-width: 1199px) {
+  .lm-navigation { gap: 2px; }
+  .lm-navigation button { padding-inline: 8px; font-size: 14px; }
+  .lm-workspace-rail > button:nth-child(n+3):not(:last-of-type) { display: none; }
+}
+@media (max-width: 767px) {
+  .lm-header { top: 12px; left: 16px; right: 16px; }
+  .lm-header h1 { font-size: 23px; }
+  .lm-subtitle { display: none; }
+  .lm-stop > button { font-size: 12px; padding: 8px; }
+  .lm-navigation { top: 72px; left: 12px; right: 12px; overflow-x: auto; align-items: stretch; padding-bottom: 8px; }
+  .lm-navigation > * { flex-shrink: 0; }
+  .lm-more > select { width: 160px; }
+  .lm-scene, .lm-app[data-working="true"] .lm-scene { top: 110px; right: 0; bottom: 45%; }
+  .lm-app[data-working="false"] .lm-scene { left: 0; }
+  .lm-app[data-working="true"] .lm-scene { bottom: calc(100% - 290px); }
+  .lm-surface { top: 286px; left: 12px; right: 12px; width: auto; bottom: 164px; }
+  .lm-surface__header { padding: 10px 12px; }
+  .lm-surface__header h2 { font-size: 20px; }
+  .lm-surface__body { padding: 16px; }
+  .lm-surface__body dl { grid-template-columns: 1fr; gap: 4px; }
+  .lm-surface__body dd { margin-bottom: 12px; }
+  .lm-workspace-rail, .lm-app[data-working="true"] .lm-workspace-rail { top: 130px; right: 12px; left: auto; width: auto; max-width: 45%; }
+  .lm-workspace-rail > button:not(:last-of-type) { display: none; }
+  .lm-connection { left: 16px; bottom: 8px; right: 16px; font-size: 11px; gap: 0 10px; }
+  .lm-app .gagos-chat {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    bottom: 65px;
+    height: 42dvh;
+    max-height: 42dvh;
+    overflow: hidden;
+  }
+  .lm-app .gagos-bar { flex-wrap: wrap; gap: 6px; }
+  .lm-app .gagos-bar .gagos-input { flex: 1 1 90px; }
+  .lm-app .gagos-welcome { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .lm-app .gagos-thread { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .lm-app .gagos-coach { display: none; }
+  .lm-app[data-working="true"] .gagos-chat { height: auto; max-height: 42dvh; }
+  .lm-app[data-working="true"] .gagos-chat { width: auto; max-width: none; }
+  .lm-app[data-working="false"] .gagos-chat { width: auto; }
+  .lm-app .gagos-status { display: none; }
+  .lm-app .gagos-pill--bond { display: inline-flex; }
+  .lm-embedded-panel { min-height: 360px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lm-shell *, .lm-shell *::before, .lm-shell *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
