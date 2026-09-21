@@ -285,8 +285,12 @@ def mission_5_decompiled_reflex_recovers(tmp: Path) -> MissionResult:
     cerebellum = Cerebellum(db)
     cerebellum.try_compile_all()
 
-    with get_connection(db) as conn:
-        conn.execute("UPDATE compiled_playbooks SET status = 'decompiled'")
+    # Retire it through the PRODUCTION path, not a hand-written UPDATE. The
+    # raw SQL version left `decompiled_at_successes` NULL, so the mission was
+    # measuring a state the system cannot actually produce -- the same
+    # write-the-row-by-hand shortcut this file warns about elsewhere.
+    [skill_id] = [pb.skill_id for pb in cerebellum._cache.values()]
+    assert cerebellum.invalidate_for_skill(skill_id), "nothing was decompiled"
 
     # Re-earn it: three more STRONG successes on the same arc.
     _insert_verified_skill(db, "run the tests", ["read_file: a.py", "verify: pytest"])

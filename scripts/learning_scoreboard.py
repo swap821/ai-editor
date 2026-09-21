@@ -154,9 +154,12 @@ def collect(db_path: Path) -> dict:
         # whose last run failed (`consecutive_failures > 0`), and the next
         # success clears it. Worth showing, not worth alarm.
         #
-        # The second is not: a playbook that was decompiled once keeps its skill
-        # out forever, because the NOT EXISTS clause matches 'decompiled' rows
-        # too. Nothing ever clears that, so it is counted separately.
+        # The second used to be permanent: a playbook decompiled once kept its
+        # skill out forever, because the compile guard matched 'decompiled'
+        # rows and nothing ever cleared them. It is now recoverable -- the
+        # skill must earn MORE promotable successes than it had when the
+        # reflex was retired -- but it is still counted separately, because
+        # "needs fresh evidence" and "ready to compile" are different states.
         if {"procedural_skills", "compiled_playbooks"} <= present:
             if "consecutive_failures" in _columns(conn, "procedural_skills"):
                 stats["skills_awaiting_a_clean_run"] = _scalar(
@@ -254,8 +257,10 @@ def render(stats: dict) -> str:
         )
     if g("skills_blocked_by_decompile"):
         notes.append(
-            f"{g('skills_blocked_by_decompile')} skill(s) were decompiled once and "
-            "are excluded from recompilation forever"
+            f"{g('skills_blocked_by_decompile')} skill(s) have a retired reflex "
+            "and must earn NEW promotable successes before it can recompile "
+            "(recoverable since the decompile-recovery fix; it used to be "
+            "permanent)"
         )
     if g("lessons_pending") and not g("lessons_verified"):
         notes.append(

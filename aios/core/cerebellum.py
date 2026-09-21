@@ -34,7 +34,7 @@ import logging
 import hashlib
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
@@ -418,7 +418,29 @@ class Cerebellum:
                      AND NOT EXISTS (
                          SELECT 1 FROM compiled_playbooks cp
                          WHERE cp.skill_id = ps.id
-                           AND cp.status IN ('compiled', 'decompiled')
+                           AND (
+                             -- An existing reflex always blocks: one arc, one
+                             -- playbook, no duplicates.
+                             cp.status = 'compiled'
+                             -- A RETIRED reflex blocks only until its skill has
+                             -- earned more than it had when it was retired.
+                             -- This module's docstring has always promised
+                             -- exactly this ("cannot recompile WITHOUT the
+                             -- underlying skill re-earning verification"), and
+                             -- until now nothing implemented the second half:
+                             -- two replay flakes removed a reflex permanently,
+                             -- with no path back. The comparison is on
+                             -- `success_count`, which only moves on a success
+                             -- at or above the LEARNING floor -- so a weak
+                             -- green cannot buy a reflex back, and neither can
+                             -- a failure (which also trips
+                             -- `consecutive_failures` above).
+                             OR (
+                               cp.status = 'decompiled'
+                               AND ps.success_count <=
+                                   COALESCE(cp.decompiled_at_successes, ps.success_count)
+                             )
+                           )
                      )"""
             ).fetchall()
             for row in rows:
@@ -949,7 +971,12 @@ class Cerebellum:
         with get_connection(self.db_path) as conn:
             conn.execute(
                 """UPDATE compiled_playbooks
-                   SET status = 'decompiled', updated_at = CURRENT_TIMESTAMP
+                   SET status = 'decompiled',
+                       updated_at = CURRENT_TIMESTAMP,
+                       decompiled_at_successes = (
+                           SELECT ps.success_count FROM procedural_skills ps
+                           WHERE ps.id = compiled_playbooks.skill_id
+                       )
                    WHERE id = ?""",
                 (playbook_id,),
             )
@@ -998,7 +1025,11 @@ class Cerebellum:
                 conn.execute(
                     """UPDATE compiled_playbooks
                        SET status = 'decompiled',
-                           updated_at = CURRENT_TIMESTAMP
+                           updated_at = CURRENT_TIMESTAMP,
+                           decompiled_at_successes = (
+                               SELECT ps.success_count FROM procedural_skills ps
+                               WHERE ps.id = compiled_playbooks.skill_id
+                           )
                        WHERE id = ?""",
                     (playbook_id,),
                 )
@@ -1020,7 +1051,12 @@ class Cerebellum:
         with get_connection(self.db_path) as conn:
             cur = conn.execute(
                 """UPDATE compiled_playbooks
-                   SET status = 'decompiled', updated_at = CURRENT_TIMESTAMP
+                   SET status = 'decompiled',
+                       updated_at = CURRENT_TIMESTAMP,
+                       decompiled_at_successes = (
+                           SELECT ps.success_count FROM procedural_skills ps
+                           WHERE ps.id = compiled_playbooks.skill_id
+                       )
                    WHERE skill_id = ? AND status = 'compiled'""",
                 (skill_id,),
             )

@@ -19,6 +19,8 @@ most -- that an ACTIVE row is still protected from duplication.
 
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from aios.memory.db import get_connection, init_memory_db
@@ -118,4 +120,134 @@ class TestWhatMustNotChange:
         assert ":superseded:" not in untouched["signature"], (
             "only the colliding signature may be freed; rewriting every "
             "retired row would destroy lineage nobody asked about"
+        )
+
+
+class TestTheSchemaNoLongerNeedsTheRepair:
+    """`_free_legacy_signature` treats the symptom; the migration removes it.
+
+    The table-level `UNIQUE` on `signature` is what made a superseded row
+    permanently block its own arc. Rebuilding the table with a PARTIAL unique
+    index -- the same rule `signature_v2` has always had -- means the write
+    path no longer has to work around the schema. The repair stays as a
+    fallback for stores that have not migrated yet.
+    """
+
+    def _legacy_store(self, tmp_path):
+        """A store shaped the way pre-migration databases really are."""
+        db = tmp_path / "legacy.sqlite"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            """
+            CREATE TABLE procedural_skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                signature TEXT NOT NULL UNIQUE,
+                goal_pattern TEXT NOT NULL,
+                steps_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'candidate'
+                    CHECK (status IN ('candidate','verified','superseded')),
+                success_count INTEGER NOT NULL DEFAULT 0,
+                failure_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE compiled_playbooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                skill_id INTEGER NOT NULL REFERENCES procedural_skills(id),
+                goal_pattern TEXT NOT NULL,
+                steps_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'compiled'
+                    CHECK (status IN ('compiled','decompiled'))
+            );
+            INSERT INTO procedural_skills (signature, goal_pattern, steps_json)
+                VALUES ('sig-a', 'goal a', '[]'), ('sig-b', 'goal b', '[]');
+            INSERT INTO compiled_playbooks (skill_id, goal_pattern, steps_json)
+                VALUES (2, 'goal b', '[]');
+            """
+        )
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_the_rebuild_keeps_every_row_and_every_id(self, tmp_path) -> None:
+        db = self._legacy_store(tmp_path)
+        init_memory_db(db)
+
+        conn = sqlite3.connect(db)
+        ids = [
+            r[0] for r in conn.execute("SELECT id FROM procedural_skills ORDER BY id")
+        ]
+        assert ids == [1, 2], "ids must survive — compiled_playbooks points at them"
+        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert (
+            conn.execute("SELECT skill_id FROM compiled_playbooks").fetchone()[0] == 2
+        )
+
+    def test_the_table_level_unique_is_gone_and_the_partial_one_is_there(
+        self, tmp_path
+    ) -> None:
+        db = self._legacy_store(tmp_path)
+        init_memory_db(db)
+
+        conn = sqlite3.connect(db)
+        ddl = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' "
+            "AND name='procedural_skills'"
+        ).fetchone()[0]
+        assert "UNIQUE" not in ddl
+        indexes = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND tbl_name='procedural_skills'"
+            )
+        }
+        assert "idx_skills_active_sig" in indexes
+
+    def test_a_superseded_row_no_longer_blocks_its_signature(self, tmp_path) -> None:
+        """The whole point, expressed at the schema level."""
+        db = self._legacy_store(tmp_path)
+        init_memory_db(db)
+
+        conn = sqlite3.connect(db)
+        conn.execute("UPDATE procedural_skills SET status='superseded' WHERE id=1")
+        conn.execute(
+            "INSERT INTO procedural_skills (signature, goal_pattern, steps_json) "
+            "VALUES ('sig-a', 'goal a again', '[]')"
+        )  # must not raise
+        conn.commit()
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM procedural_skills WHERE signature='sig-a'"
+            ).fetchone()[0]
+            == 2
+        )
+
+    def test_two_ACTIVE_rows_still_cannot_share_a_signature(self, tmp_path) -> None:
+        """The constraint's real job survives the migration."""
+        db = self._legacy_store(tmp_path)
+        init_memory_db(db)
+
+        conn = sqlite3.connect(db)
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO procedural_skills (signature, goal_pattern, steps_json) "
+                "VALUES ('sig-a', 'a duplicate', '[]')"
+            )
+
+    def test_it_takes_a_backup_before_rebuilding(self, tmp_path) -> None:
+        db = self._legacy_store(tmp_path)
+        init_memory_db(db)
+        assert list(tmp_path.glob("*.pre-sigindex.bak")), (
+            "a table rebuild of the store holding every lesson, skill and "
+            "playbook must leave a way back"
+        )
+
+    def test_running_it_again_changes_nothing(self, tmp_path) -> None:
+        db = self._legacy_store(tmp_path)
+        init_memory_db(db)
+        backups = len(list(tmp_path.glob("*.pre-sigindex.bak")))
+        init_memory_db(db)
+        assert len(list(tmp_path.glob("*.pre-sigindex.bak"))) == backups, (
+            "a second run must be a no-op, not another rebuild"
         )

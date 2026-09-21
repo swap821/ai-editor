@@ -32,11 +32,22 @@
       "integration_tests": [
         "tests/test_doctor_learning_loop.py"
       ],
-      "mutation_probe": null,
-      "known_blockers": [
-        "Gate decisions (BLOCKED / REQUIRE_APPROVAL) are excluded from reflection by verifier.py _GATE_STATUSES, but the second entry point (tool_loop_helpers.reflect -> on_failure) has not been proven to carry the same guard."
+      "mutation_probe": {
+        "kind": "adversarial-tests",
+        "referent": "tests/test_unpromotable_lessons_are_retired.py::TestAGateDecisionIsNotAMistake",
+        "claim": "Flipping the `failed` flag for a BLOCKED/REQUIRE_APPROVAL result would refill the pool with gate-decision lessons; these tests fail if it does, in both directions (a real failure must still report failure)."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Both reflection entry points proven gate-guarded: verifier.py _GATE_STATUSES excludes BLOCKED/REQUIRE_APPROVAL, and tool_handlers returns failed=False for both, so the tool-loop path cannot reflect on a gate decision either. NOT organic: proven against seeded data and the live store's structure, not against a skill learned from real code.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "50240016cd891e938206492dec89f3c4addb96a2",
+          "proof_level": "live",
+          "organic": false
+        }
       ],
-      "live_evidence": [],
       "last_verified_sha": null,
       "na_by_design": {
         "LC4": "Reflection keeps no append-only journal of its own; lessons are rows in mistake_pool, which is a mutable store by design (occurrence_count, verification_status). Referent: aios/memory/mistake.py::MistakeMemory"
@@ -79,15 +90,21 @@
         "referent": "tests/test_learning_conformance.py::test_m1_fails_when_promotion_does_nothing",
         "claim": "Disabling MistakeMemory.promote must turn mission M1 red; a lesson that silently fails to promote would otherwise be invisible."
       },
-      "known_blockers": [
-        "All 87 lessons in the live pool carry an empty failed_command, so none can ever be confirmed by a later success. The promotion path is not broken; it has nothing promotable to act on. Retirement is Stage 5."
-      ],
+      "known_blockers": [],
       "live_evidence": [
         {
           "description": "Mission M1: a lesson recorded through MistakeMemory.record_or_increment with a real failed_command was promoted to `verified` when that command later succeeded, through the production confirm() path. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
           "command": "python tools/learning_conformance_runner.py",
           "artifact": ".aios/audit/learning-conformance.jsonl",
           "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "The 87 structurally unpromotable lessons (empty failed_command, so nothing a later success could ever match) were retired to 'superseded' with a backup; recall now excludes them, and a lesson WITH a real command still promotes (conformance M1). NOT organic: proven against seeded data and the live store's structure, not against a skill learned from real code.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "50240016cd891e938206492dec89f3c4addb96a2",
           "proof_level": "live",
           "organic": false
         }
@@ -185,19 +202,25 @@
         "tests/test_repair_playbooks.py"
       ],
       "mutation_probe": {
-        "kind": "conformance-mission",
-        "referent": "tools/learning_conformance_runner.py::mission_3_skill_compiles",
-        "claim": "A verified skill that does not compile leaves zero rows in compiled_playbooks, which M3 reads directly."
+        "kind": "adversarial-tests",
+        "referent": "tests/test_decompiled_reflex_can_recover.py::TestWhatMustStayBarred",
+        "claim": "Recovery must be buyable ONLY with new promotable successes: a WEAK green, a failure, and simply re-running the compiler each leave the reflex retired."
       },
-      "known_blockers": [
-        "A decompiled playbook bars its skill from ever recompiling: the compile query excludes status IN ('compiled','decompiled') and no code path ever clears 'decompiled'. The module docstring claims recovery is possible once the skill re-earns verification; it is not. One live skill is in this state. Fix is Stage 5."
-      ],
+      "known_blockers": [],
       "live_evidence": [
         {
           "description": "Mission M3 of the learning conformance benchmark: a skill earned through three STRONG successes via the real SkillMemory compiles to a `compiled` playbook row via the real Cerebellum. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
           "command": "python tools/learning_conformance_runner.py",
           "artifact": ".aios/audit/learning-conformance.jsonl",
           "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "Decompile recovery implemented: a retired reflex recompiles once its skill earns MORE promotable successes than it had at retirement. Applied to the live store; the one retired reflex there now reads 'needs > 4' instead of being permanently barred. NOT organic: proven against seeded data and the live store's structure, not against a skill learned from real code.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "50240016cd891e938206492dec89f3c4addb96a2",
           "proof_level": "live",
           "organic": false
         }
@@ -242,7 +265,7 @@
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
       "known_blockers": [
-        "2 replays have ever been served without an LLM. There is no dated artifact proving a replay served a real turn on organic data, which is the single claim that would show the loop pays for itself. Producing it is Stage 3 mission 4."
+        "A reflex has been proven to serve a whole turn with zero LLM calls (conformance mission M4), but only against a benchmark-seeded skill. There is still no dated artifact of a replay serving a turn whose skill was learned from organic data, which is what LC10 asks for."
       ],
       "live_evidence": [
         {

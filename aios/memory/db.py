@@ -13,9 +13,11 @@ import functools
 import hashlib
 import json
 import re
+import shutil
 import sqlite3
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -125,9 +127,130 @@ def init_memory_db(db_path: Path = config.MEMORY_DB_PATH) -> None:
     cannot add to a pre-existing table. Re-running is safe.
     """
     schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
+    _migrate_skill_signature_index(db_path)
     with get_connection(db_path) as conn:
         conn.executescript(schema_sql)
         _migrate(conn)
+
+
+def _migrate_skill_signature_index(db_path: Path) -> None:
+    """Make the legacy `signature` constraint mean what `signature_v2` means.
+
+    `procedural_skills` carries two identity columns that disagree about what
+    superseding means, and only one of them is right. `signature_v2`'s unique
+    index is PARTIAL -- ``WHERE status != 'superseded'`` -- so a retired row
+    steps aside and the arc can be learned again. The legacy `signature`
+    column is ``NOT NULL UNIQUE`` at table level, with no such exemption.
+
+    The consequence is a CRASH, not a stale row: `record_attempt` finds no
+    active row (correct), INSERTs (correct), and dies on
+    ``UNIQUE constraint failed`` -- in the middle of learning, after the model
+    has already done the work. `_free_legacy_signature` repairs it at the write
+    path and stays as a fallback; this removes the cause.
+
+    SQLite cannot drop a column-level UNIQUE, so the table is rebuilt. Three
+    things make that safe enough to do automatically:
+
+    * **A backup first**, beside the database, named with a timestamp.
+    * **ids are preserved**, so `compiled_playbooks.skill_id` foreign keys
+      still point where they pointed.
+    * **The row count is asserted** before the old table is dropped, and the
+      whole thing runs in the caller's transaction, so a mismatch rolls the
+      rebuild back rather than committing half of it.
+
+    Runs on its OWN connection, outside the caller's transaction, because
+    SQLite's documented rebuild procedure needs ``PRAGMA foreign_keys = OFF``
+    and that pragma is a NO-OP inside a transaction. `defer_foreign_keys` is
+    not a substitute here: `DROP TABLE` performs an implicit `DELETE FROM`
+    that fires `compiled_playbooks`'s reference immediately.
+
+    Idempotent: it does nothing once the partial index exists.
+    """
+    if not db_path.is_file():
+        return  # nothing to rebuild in a database that does not exist yet
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        _rebuild_skills_table(conn, db_path)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.close()
+
+
+def _rebuild_skills_table(conn: sqlite3.Connection, db_path: Path) -> None:
+    """The rebuild itself. Separate so the PRAGMA/rollback dance stays readable."""
+    have = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' "
+            "AND tbl_name='procedural_skills'"
+        )
+    }
+    if "idx_skills_active_sig" in have:
+        return
+    table_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='procedural_skills'"
+    ).fetchone()
+    if not table_sql or "UNIQUE" not in str(table_sql[0]):
+        return  # a store created fresh from schema.sql has nothing to rebuild
+
+    before = conn.execute("SELECT COUNT(*) FROM procedural_skills").fetchone()[0]
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    shutil.copy2(db_path, db_path.with_suffix(f".{stamp}.pre-sigindex.bak"))
+
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(procedural_skills)")]
+    column_list = ", ".join(columns)
+    conn.execute("""
+        CREATE TABLE procedural_skills_rebuilt (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            signature       TEXT NOT NULL,
+            goal_pattern    TEXT NOT NULL,
+            steps_json      TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'candidate'
+                            CHECK (status IN ('candidate','verified','superseded')),
+            success_count   INTEGER NOT NULL DEFAULT 0,
+            failure_count   INTEGER NOT NULL DEFAULT 0,
+            signature_v2 TEXT,
+            reuse_success_count INTEGER NOT NULL DEFAULT 0,
+            reuse_failure_count INTEGER NOT NULL DEFAULT 0,
+            last_reused_at DATETIME,
+            superseded_by INTEGER,
+            weak_success_count INTEGER NOT NULL DEFAULT 0,
+            verification_strength TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    conn.execute(
+        f"INSERT INTO procedural_skills_rebuilt ({column_list}) "
+        f"SELECT {column_list} FROM procedural_skills"
+    )
+    after = conn.execute("SELECT COUNT(*) FROM procedural_skills_rebuilt").fetchone()[0]
+    if after != before:
+        # Raising rolls back the caller's transaction, so the original table is
+        # untouched. Losing a learning row to a migration would be worse than
+        # the bug being migrated away.
+        raise RuntimeError(
+            f"procedural_skills rebuild would lose rows ({before} -> {after}); "
+            "refusing and leaving the original table in place"
+        )
+    conn.execute("DROP TABLE procedural_skills")
+    conn.execute("ALTER TABLE procedural_skills_rebuilt RENAME TO procedural_skills")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_skills_status ON procedural_skills(status)"
+    )
+    # The PARTIAL UNIQUE indexes are deliberately NOT created here. `_migrate`
+    # backfills `signature_v2` and then CONSOLIDATES rows that share an arc;
+    # creating a unique index before that runs turns a pair of fragments
+    # destined for consolidation into an IntegrityError mid-migration. They are
+    # created at the end of `_migrate`, once the data is in a state that can
+    # satisfy them.
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
@@ -144,6 +267,45 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE mistake_pool ADD COLUMN failed_command TEXT NOT NULL DEFAULT ''"
         )
+
+    # compiled_playbooks.decompiled_at_successes — the skill's promotable
+    # success_count when a playbook was retired, so "re-earned since" is a
+    # question the compile guard can actually ask. Existing decompiled rows are
+    # backfilled to their skill's CURRENT count: we cannot know what it was, so
+    # they require growth from here rather than being permanently barred (the
+    # bug) or silently forgiven (the over-correction).
+    playbook_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(compiled_playbooks)")
+    }
+    if playbook_cols and "decompiled_at_successes" not in playbook_cols:
+        conn.execute(
+            "ALTER TABLE compiled_playbooks ADD COLUMN decompiled_at_successes INTEGER"
+        )
+        playbook_cols.add("decompiled_at_successes")
+    if "decompiled_at_successes" in playbook_cols:
+        # Stamped whenever a retired row lacks a number, not only when the
+        # column is created: an unstamped row means "needs more than it has
+        # right now", and the compile guard cannot express that without a
+        # number -- with NULL it would compare the skill's count against
+        # itself and bar the reflex forever, the defect this column ends.
+        #
+        # READ FIRST. `init_memory_db` runs on essentially every memory
+        # operation, and an unconditional UPDATE here takes a write lock every
+        # time: it collided with concurrent writers and burned the full 30s
+        # busy timeout before raising `database is locked`. A SELECT takes no
+        # write lock, and in the steady state there is nothing to fix.
+        unstamped = conn.execute(
+            "SELECT 1 FROM compiled_playbooks "
+            "WHERE status = 'decompiled' AND decompiled_at_successes IS NULL "
+            "LIMIT 1"
+        ).fetchone()
+        if unstamped:
+            conn.execute(
+                "UPDATE compiled_playbooks SET decompiled_at_successes = ("
+                "  SELECT ps.success_count FROM procedural_skills ps"
+                "  WHERE ps.id = compiled_playbooks.skill_id"
+                ") WHERE status = 'decompiled' AND decompiled_at_successes IS NULL"
+            )
 
     # Correction transitions are first persisted in the conversation database
     # and then mirrored to the separate immutable authenticated ledger. Keep a
@@ -377,6 +539,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_active_sig_v2 "
         "ON procedural_skills(signature_v2) WHERE status != 'superseded'"
+    )
+    # The legacy `signature`, same rule. Only possible once the table-level
+    # UNIQUE has been rebuilt away (`_migrate_skill_signature_index`); on a
+    # store that still has it this is a harmless duplicate of the constraint.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_active_sig "
+        "ON procedural_skills(signature) WHERE status != 'superseded'"
     )
 
     local_worker_cols = {

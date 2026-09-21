@@ -256,7 +256,16 @@ CREATE TABLE IF NOT EXISTS compiled_playbooks (
     status                TEXT NOT NULL DEFAULT 'compiled'
                           CHECK (status IN ('compiled','decompiled')),
     replay_count          INTEGER NOT NULL DEFAULT 0,
-    consecutive_failures  INTEGER NOT NULL DEFAULT 0
+    consecutive_failures  INTEGER NOT NULL DEFAULT 0,
+    -- The skill's promotable success_count at the moment this playbook was
+    -- retired. A decompiled playbook bars its skill from recompiling until the
+    -- skill earns MORE than this -- which is what "re-earning verification
+    -- from scratch" has always meant in the cerebellum's own docstring, and
+    -- what nothing in the code previously enforced. NULL on rows retired
+    -- before the column existed; those are backfilled to the skill's count at
+    -- migration time, so they require growth from then on rather than being
+    -- either permanently barred or silently forgiven.
+    decompiled_at_successes INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_compiled_skill ON compiled_playbooks(skill_id);
 CREATE INDEX IF NOT EXISTS idx_compiled_status ON compiled_playbooks(status);

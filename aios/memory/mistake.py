@@ -176,8 +176,21 @@ class MistakeMemory:
         """
         with get_connection(self.db_path) as conn:
             return conn.execute(
+                # A lesson with no `failed_command` can NEVER be confirmed: the
+                # promotion path matches a later success against that exact
+                # command, so an empty one has nothing to match. Recalling it
+                # spends the limited recall budget on something structurally
+                # incapable of graduating, and crowds out lessons that can.
+                #
+                # This is not hypothetical. Every one of the 87 lessons in the
+                # live pool has an empty `failed_command` -- the column landed
+                # in the same change that started populating it, so everything
+                # written before that day is permanently unpromotable. Reading
+                # "0 verified lessons" as a broken promotion path is the wrong
+                # conclusion; the path works and had nothing to work on.
                 "SELECT * FROM mistake_pool "
                 "WHERE task_id = ? AND verification_status = 'pending' "
+                "  AND failed_command IS NOT NULL AND TRIM(failed_command) != '' "
                 "ORDER BY timestamp DESC, id DESC LIMIT ?",
                 (task_id, limit),
             ).fetchall()
