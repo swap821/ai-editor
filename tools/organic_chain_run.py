@@ -55,6 +55,45 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+
+def _load_env_file() -> None:
+    """Provider credentials into this process BEFORE any `aios` import.
+
+    `aios.config` derives `BEDROCK_ENABLED` at import time, so a `--env-file`
+    read inside `main()` is too late by the length of the import block below —
+    the ladder prints "routes to Bedrock, which is not configured" and falls
+    back to local-only with real credentials two frames away. Observed here
+    exactly once before this existed.
+
+    Unlike the ladder's version this does NOT re-exec: `os.execv` on Windows is
+    spawn-then-exit, which detaches the run and makes the launcher return 0
+    immediately. Reading the file here is enough, because this happens above
+    the imports rather than inside `main()`.
+    """
+    argv = sys.argv[1:]
+    if "--env-file" not in argv:
+        return
+    index = argv.index("--env-file") + 1
+    path = Path(argv[index]) if index < len(argv) else None
+    if path is None or not path.is_file():
+        return  # main() reports it properly; bootstrapping must not swallow it
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ[key.strip()] = value.strip().strip("<>").strip()
+    # The ladder module runs its OWN bootstrap at import time, and that one
+    # re-execs when it sees `--env-file`. On Windows `os.execv` is
+    # spawn-then-exit, so importing it would detach this run and hand the
+    # launcher a silent exit 0 — observed exactly that, once. This is the
+    # ladder's own marker saying "already loaded"; setting it makes the
+    # imported bootstrap return instead of restarting the process.
+    os.environ["_AIOS_RE_ENV_LOADED"] = "1"
+
+
+_load_env_file()
+
 # Same bootstrap as the ladder: credentials must land before `aios.config`
 # freezes provider flags at import time.
 from tools.reverse_engineer_gagos import (  # noqa: E402
@@ -170,6 +209,9 @@ def run_chain(
         )
     }
     attempts: list[Attempt] = []
+    # Skills this run actually recorded. L4/L5 may only ever cite a
+    # playbook whose skill is in here -- see `_organic_playbook`.
+    organic_skill_ids: set[int] = set()
 
     print(f"run id  : {run_id}")
     print("ladder  : " + " -> ".join(spec for spec, _ in ladder))
@@ -256,6 +298,7 @@ def run_chain(
                         target.module, test_rel, _last_digest(tier_attempts)
                     ),
                 )
+                organic_skill_ids.add(skill_id)
                 if tier_earned:
                     links["skill_acquisition"].fired = True
                     links["skill_acquisition"].refs.append(f"skill {skill_id}")
@@ -264,12 +307,13 @@ def run_chain(
 
         # --- L4: does anything the chain earned actually compile? -----------
         compiled = cerebellum.try_compile_all()
-        with get_connection(DB) as conn:
-            live = conn.execute(
-                "SELECT id, goal_pattern FROM compiled_playbooks "
-                "WHERE status = 'compiled' ORDER BY id DESC LIMIT 1"
-            ).fetchone()
-        if compiled:
+        # ONLY a playbook whose skill this run earned counts. Taking "the
+        # newest compiled playbook" instead made L5 light up on a leftover
+        # `lab/` seed from the synthetic prover -- a pass for a reason
+        # unrelated to organic learning, which is the lucky-pass failure this
+        # benchmark's own rules forbid.
+        live = _organic_playbook(DB, organic_skill_ids)
+        if compiled and live is not None:
             links["reflex_compilation"].fired = True
             links["reflex_compilation"].detail = f"{compiled} newly compiled"
             links["reflex_compilation"].refs.append(
@@ -290,7 +334,10 @@ def run_chain(
                 links["reflex_replay"].refs.append(f"playbook {live['id']}")
             print(f"  L5 {'SERVED with zero LLM calls' if served else detail}")
         else:
-            links["reflex_replay"].detail = "no compiled playbook to replay"
+            links["reflex_replay"].detail = (
+                "no playbook from an ORGANIC arc to replay; a synthetic one "
+                "matching by chance would not be evidence"
+            )
 
     return list(links.values()), attempts, run_id
 
@@ -336,6 +383,27 @@ def _replay_without_llm(db: Path, goal: str) -> tuple[bool, str]:
     )
 
 
+def _organic_playbook(db: Path, skill_ids: set[int]):
+    """The newest compiled playbook whose skill THIS run earned, or None.
+
+    The restriction is the whole point. The store also holds playbooks
+    compiled from the synthetic prover's `lab/` seeds, and replaying one of
+    those proves the replay machinery works — not that anything learned from
+    real code can be replayed. Those are different claims and LC10 asks for
+    the second.
+    """
+    if not skill_ids:
+        return None
+    placeholders = ",".join("?" * len(skill_ids))
+    with get_connection(db) as conn:
+        return conn.execute(
+            "SELECT id, goal_pattern, skill_id FROM compiled_playbooks "
+            f"WHERE status = 'compiled' AND skill_id IN ({placeholders}) "
+            "ORDER BY id DESC LIMIT 1",
+            tuple(skill_ids),
+        ).fetchone()
+
+
 class _V:
     """The `.earned` half of a PinVerdict — all `record_pin_outcome` reads."""
 
@@ -371,6 +439,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--retries", type=int, default=1)
     parser.add_argument("--models", default="ollama.qwen2.5-coder:7b")
     parser.add_argument("--model-timeout", type=int, default=300)
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        help="provider credentials, read before any aios import (see _load_env_file)",
+    )
     args = parser.parse_args(argv)
 
     try:

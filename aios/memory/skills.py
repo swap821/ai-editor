@@ -57,6 +57,53 @@ def _hours_since(timestamp: str, now: datetime) -> float:
     return max((now - parsed).total_seconds() / 3600.0, 0.0)
 
 
+def _compilable_count(steps_json: str) -> int:
+    """How many of these steps the cerebellum could actually replay.
+
+    Imported lazily: `cerebellum` is a consumer of this module's data, and a
+    module-level import would make the dependency circular.
+    """
+    from aios.core.cerebellum import _parse_step
+
+    try:
+        steps = json.loads(steps_json or "[]")
+    except json.JSONDecodeError:
+        return 0
+    return sum(1 for step in steps if _parse_step(str(step)) is not None)
+
+
+def _better_recipe(incoming: str, stored: str) -> bool:
+    """Is *incoming* a better stored recipe than *stored*?
+
+    Two axes, both about whether the recipe is USABLE later rather than about
+    whether the arc succeeded — counts are never touched here:
+
+    * fewer redaction artifacts, because recalled steps are injected verbatim
+      into future agent context and ``<REDACTED:…>.py`` is a useless
+      instruction;
+    * more COMPILABLE steps, because a recipe the cerebellum cannot parse can
+      never become a reflex no matter how often the arc verifies.
+
+    Strictly better on one axis and not worse on the other. A recipe that
+    gained a compilable step while losing a redaction-free one is not an
+    obvious improvement, and silently swapping it would be the kind of
+    unexplained change that makes stored history untrustworthy.
+    """
+    if not stored:
+        return True
+    redactions_in, redactions_stored = (
+        incoming.count("<REDACTED:"),
+        stored.count("<REDACTED:"),
+    )
+    compilable_in = _compilable_count(incoming)
+    compilable_stored = _compilable_count(stored)
+    no_worse = redactions_in <= redactions_stored and compilable_in >= compilable_stored
+    strictly_better = (
+        redactions_in < redactions_stored or compilable_in > compilable_stored
+    )
+    return no_worse and strictly_better
+
+
 def _free_legacy_signature(conn, signature: str) -> None:
     """Let a SUPERSEDED row stop blocking the arc it used to be.
 
@@ -221,9 +268,17 @@ class SkillMemory:
                 # replaces the stored recipe, because recalled steps are
                 # injected verbatim into future agent context and a
                 # "<REDACTED:…>.py" step is a useless instruction.
-                if success and steps_json.count("<REDACTED:") < str(
-                    row["steps_json"]
-                ).count("<REDACTED:"):
+                #
+                # COMPILABILITY is the same kind of improvement and a more
+                # consequential one. A stored recipe whose steps the cerebellum
+                # cannot parse can never become a reflex, however many times the
+                # arc verifies — and because this UPDATE was the only path that
+                # touches `steps_json`, an arc first recorded in a poorer shape
+                # stayed uncompilable forever. Observed live: skill 66, verified
+                # at 8 successes and 0 failures from real code, silently unable
+                # to compile because its `create_file` step predated the
+                # production step format.
+                if success and _better_recipe(steps_json, str(row["steps_json"])):
                     conn.execute(
                         "UPDATE procedural_skills SET steps_json = ? WHERE id = ?",
                         (steps_json, skill_id),
