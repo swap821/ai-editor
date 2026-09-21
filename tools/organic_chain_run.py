@@ -416,10 +416,13 @@ def _verify_only_cycle(
         steps: list[str] = []
         passed = False
         verify_output = ""
+        blocked = False
         try:
             for event in agent.run([{"role": "user", "content": goal}]):
                 if event.get("type") == "tool_call":
                     steps.append(_workflow_step(event))
+                if event.get("type") == "tool_blocked":
+                    blocked = True
                 if event.get("type") == "tool_result" and event.get("tool") == "verify":
                     verify_output = str(event.get("output", ""))
                     passed = "[VERIFY PASS]" in verify_output
@@ -427,6 +430,23 @@ def _verify_only_cycle(
             detail = f"turn {attempt} raised {type(exc).__name__}: {str(exc)[:90]}"
             continue
 
+        if blocked and not passed:
+            # THE SECOND GUARD. `pytest` is on the gateway's YELLOW list
+            # (approval-required); the auto-execute allowlist is `echo` and
+            # `pwd` and nothing else. An unattended training run has no
+            # approval authority, so the verify never executes.
+            #
+            # That is the cage working, not a bug -- and together with the
+            # write-confirm rule it means L5 cannot be proven on organic data
+            # without an operator decision about who may approve a pytest run
+            # inside a throwaway worktree. Self-authorising that would be
+            # exactly the trade this whole effort refuses.
+            detail = (
+                "BLOCKED by the approval gate: `pytest` is YELLOW and an "
+                "unattended run has no approver, so the verify never ran"
+            )
+            print(f"    verify-only turn {attempt}: {detail}")
+            return None, detail
         if not steps:
             detail = f"turn {attempt} made no tool calls"
             continue

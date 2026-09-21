@@ -295,7 +295,10 @@
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
       "known_blockers": [
-        "A reflex serves a whole turn with zero LLM calls (conformance M4, and once against a leftover synthetic playbook during an organic run). But an ORGANIC arc cannot be replayed: the pin task writes a file, replay may only CONFIRM a `create_file` whose exact bytes a human approved (`playbook_blobs` via replay_writes.load_content), and the self-corpus has no human. Registering agent-written bytes as approved would be forging an approval, so this stays unproven rather than being bought with a bad trade. A verify-only organic task shape would close it and is not built."
+        "L5 is proven MECHANICALLY (conformance mission M4: a compiled reflex serves a whole turn with the LLM client rigged to raise, llm_calls=0). It cannot be proven on ORGANIC data without an operator decision, because TWO correct guards stand in the way and neither may be self-authorised:",
+        "(1) WRITE-CONFIRM. A self-corpus pin arc contains a `create_file` step. A replay may only CONFIRM such a step when the exact bytes were approved by a human (`playbook_blobs` via `aios/core/replay_writes.py::load_content`). The self-corpus has no human, and registering agent-written bytes as approved would be forging an approval.",
+        "(2) APPROVAL GATE. The write-free alternative -- a read+verify arc over a real module -- is blocked at the gateway: `pytest` is on the YELLOW (approval-required) list, and the auto-execute allowlist is `echo` and `pwd` only. An unattended training run has no approver, so the verify never executes. Observed directly: `tool_blocked` on `pytest tests/test_code_chunking.py` inside the corpus.",
+        "WHAT WOULD UNBLOCK IT (operator's call, not mine): granting the training harness a scoped approval authority for `pytest` INSIDE the throwaway worktree only. That is a real authority change and belongs to the operator. `tools/organic_chain_run.py::_verify_only_cycle` already implements the arc and reports the block by name, so the moment such an authority exists the evidence follows."
       ],
       "live_evidence": [
         {
