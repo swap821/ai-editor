@@ -81,10 +81,32 @@ def fingerprint(repo: Path) -> str:
     just as surely as an edit does. HEAD is folded in because a run that moved
     the branch has also changed the tree, even if the status is clean.
     """
-    head = _git(repo, "rev-parse", "HEAD").strip()
-    status = _git(repo, "status", "--porcelain=v1", "-uall")
+    head, status = _tree_state(repo)
     digest = hashlib.sha256(f"{head}\n{status}".encode("utf-8")).hexdigest()
     return digest
+
+
+def _tree_state(repo: Path) -> tuple[str, str]:
+    return (
+        _git(repo, "rev-parse", "HEAD").strip(),
+        _git(repo, "status", "--porcelain=v1", "-uall"),
+    )
+
+
+def _changed_paths(before_status: str, after_status: str) -> list[str]:
+    """Paths present in one status listing and not the other.
+
+    A digest tells you THAT the tree moved; only the paths tell you whether it
+    matters. The first real containment alarm fired because a second agent was
+    editing `frontend/` in the same checkout at the same time -- a true
+    statement the message could not distinguish from a training run escaping
+    into the live tree, which is the one thing it exists to catch.
+    """
+    before = set(before_status.splitlines())
+    after = set(after_status.splitlines())
+    return sorted(
+        line[3:].strip().strip('"') for line in (after - before) | (before - after)
+    )
 
 
 def assert_isolated(repo: Path, dest: Path) -> None:
@@ -190,6 +212,7 @@ def self_corpus(repo: Path, dest: Path, *, ref: str = "HEAD") -> Iterator[Corpus
     the two trees the evidence came from.
     """
     repo = repo.resolve()
+    before_head, before_status = _tree_state(repo)
     before = fingerprint(repo)
     corpus = provision(repo, dest, ref=ref)
     try:
@@ -199,11 +222,23 @@ def self_corpus(repo: Path, dest: Path, *, ref: str = "HEAD") -> Iterator[Corpus
         teardown(corpus)
         after = fingerprint(repo)
         if after != before:
+            after_head, after_status = _tree_state(repo)
+            paths = _changed_paths(before_status, after_status)
+            listing = "\n  ".join(paths[:12]) or "(HEAD moved, status unchanged)"
+            if len(paths) > 12:
+                listing += f"\n  ... and {len(paths) - 12} more"
+            if before_head != after_head:
+                listing += f"\nHEAD also moved: {before_head[:12]} -> {after_head[:12]}"
             raise CorpusError(
                 "CONTAINMENT FAILURE: the live working tree changed during a "
-                f"training run ({before[:12]} -> {after[:12]}). Inspect "
-                f"`git -C {repo} status` before trusting anything this run "
-                "produced; its evidence cannot be attributed to the worktree."
+                f"training run ({before[:12]} -> {after[:12]}).\n"
+                f"Paths that differ:\n  {listing}\n"
+                "Read them before drawing a conclusion. Training writes ONLY "
+                "inside the worktree, so a path under the live tree points at a "
+                "concurrent writer -- another agent in this checkout, an editor "
+                "saving, a background job -- far more often than at an escape. "
+                "Either way this run's evidence cannot be attributed to the "
+                "worktree, so it is refused rather than reported."
             )
 
 

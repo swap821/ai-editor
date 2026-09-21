@@ -140,7 +140,16 @@ def collect_targets(root: Path, *, limit: int | None = None) -> list[Target]:
     lexicographic so the order never depends on filesystem iteration or a clock.
     """
     found: list[Target] = []
-    for path in sorted(root.rglob("*.py")):
+    # Walk `aios/` only. Globbing from the repository root also walks
+    # `.aios/tmp/pytest-root` -- 383 session directories of throwaway test
+    # fixtures on this machine -- plus node_modules and every sibling worktree.
+    # `_is_candidate_module` rejected them all, but only AFTER the filesystem
+    # had been walked, and the first real run sat in that walk long enough to
+    # look hung. A filter that runs after the expensive part is not a filter.
+    package = root / "aios"
+    if not package.is_dir():
+        return []
+    for path in sorted(package.rglob("*.py")):
         rel = path.relative_to(root).as_posix()
         if not _is_candidate_module(rel):
             continue

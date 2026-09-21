@@ -30,7 +30,7 @@ WHAT MAKES THIS HONEST RATHER THAN A DEMO
   when it succeeds is how "we ran it" becomes indistinguishable from "it worked".
 
     python tools/reverse_engineer_gagos.py --targets 3
-    python tools/reverse_engineer_gagos.py --targets 5 --model qwen2.5-coder:7b
+    python tools/reverse_engineer_gagos.py --targets 5 --model bedrock.some-frontier-id
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from aios.core.llm import LLMError, OllamaClient  # noqa: E402
+from aios.core.llm import LLMError  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
@@ -126,6 +126,88 @@ def test_it_wraps_the_arg_and_empties_inherited_addopts():
 """
 
 
+def load_provider_env(path: Path) -> list[str]:
+    """Put provider credentials from *path* into this process's environment.
+
+    Returns the variable NAMES loaded, never the values. Nothing is printed,
+    written, or logged -- the file is the operator's, it stays gitignored, and
+    this only bridges it into the environment that `aios.config` reads at
+    import. Values are stripped of `<` `>` because placeholder brackets copied
+    in with a secret have caused 401s against a healthy endpoint here before.
+
+    Loaded BEFORE `aios.config` is imported by anything that matters, since
+    `BEDROCK_ENABLED` is derived at import from `AIOS_BEDROCK_REGION`.
+    """
+    import os
+
+    if not path.is_file():
+        raise CorpusError(f"no provider env file at {path}")
+    names: list[str] = []
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        os.environ[key] = value.strip().strip("<>").strip()
+        names.append(key)
+    return sorted(set(names))
+
+
+def resolve_client(model_id: str, *, timeout_s: int):
+    """The client for *model_id*, using the product's own prefix dispatch.
+
+    `ollama.x` / `gemini.x` / `openai.x` / `anthropic.x` / `vertexmaas.x`, and a
+    bare id falls through to Bedrock -- exactly the rules `router_wiring` applies
+    to an explicit model, so this tool cannot reach a provider the product
+    would not.
+
+    Hardcoding Ollama here would have quietly capped the whole exercise at
+    whatever is installed locally, and reported a 7B's limits as the system's.
+    The reason the first runs used `qwen2.5-coder:7b` is narrower than that and
+    worth stating: this process has NO cloud credentials in its environment --
+    no AWS, Gemini, OpenAI, Anthropic or xAI variable is set -- so Ollama was
+    the only provider that could answer at all.
+    """
+    from aios.api import deps
+
+    # No "a bare id looks local" shortcut. I wrote one -- `"." not in
+    # model_id.split(":")[0]` -- and it sent `qwen2.5-coder:7b` to Bedrock,
+    # because the "2.5" in the family name is a dot. Inventing a second rule
+    # alongside the product's is the exact defect this session keeps removing;
+    # a local model is spelled `ollama.<tag>` here for the same reason it is
+    # spelled that way everywhere else.
+    if model_id.startswith("ollama."):
+        from aios.core.llm import OllamaClient
+
+        tag = model_id[len("ollama.") :]
+        return OllamaClient(model=tag, timeout_s=timeout_s), tag
+
+    prefixes = {
+        "gemini.": deps.get_gemini_client,
+        "openai.": deps.get_openai_client,
+        "anthropic.": deps.get_anthropic_client,
+        "vertexmaas.": deps.get_vertex_maas_client,
+    }
+    for prefix, getter in prefixes.items():
+        if model_id.startswith(prefix):
+            client = getter()
+            if client is None:
+                raise CorpusError(
+                    f"{prefix.rstrip('.')} selected but not configured -- the "
+                    "credentials for it are absent from this process environment"
+                )
+            return client, model_id[len(prefix) :]
+
+    bedrock = deps.get_bedrock_client()
+    if bedrock is None:
+        raise CorpusError(
+            f"model {model_id!r} routes to Bedrock, which is not configured "
+            "(BEDROCK_ENABLED is false or AWS credentials are absent here)"
+        )
+    return bedrock, model_id
+
+
 def run_self_check(corpus) -> tuple[bool, str]:
     """Prove the grader can EARN before any model is asked to try.
 
@@ -151,6 +233,30 @@ def run_self_check(corpus) -> tuple[bool, str]:
     return False, " | ".join(verdict.notes)[:600] or "control did not earn"
 
 
+def complete_via(client, prompt: str, *, system: str) -> str:
+    """One completion from ANY provider client, over the interface they share.
+
+    `.complete()` exists on the Ollama and OpenAI-compatible clients and NOT on
+    Bedrock or Gemini, which expose only `.chat(messages)`. Assuming
+    `.complete()` is why the first Bedrock probe died with AttributeError on
+    three models in a row and looked like a credential problem. `.chat` is the
+    one method all four share, so it is the one this depends on.
+    """
+    if hasattr(client, "complete"):
+        return client.complete(prompt, system=system)
+    joined = system + "\n\n" + prompt
+    messages = [{"role": "user", "content": joined}]
+    reply = client.chat(messages)
+    if isinstance(reply, dict):
+        content = reply.get("content")
+        if isinstance(content, list):  # Converse-shaped content blocks
+            return "".join(
+                block.get("text", "") for block in content if isinstance(block, dict)
+            )
+        return str(content or "")
+    return str(reply or "")
+
+
 def _extract_code(reply: str) -> str | None:
     match = _CODE_FENCE.search(reply or "")
     if match:
@@ -174,7 +280,7 @@ def _test_filename(target: Target) -> str:
 
 
 def _attempt_one(
-    corpus, client: OllamaClient, target: Target, *, attempt: int, extra: str = ""
+    corpus, client, target: Target, *, attempt: int, extra: str = ""
 ) -> Attempt:
     started = time.monotonic()
     record = Attempt(target=target.label, outcome="unknown", attempt=attempt)
@@ -189,7 +295,7 @@ def _attempt_one(
         prompt += f"\nYour previous attempt was rejected. Fix exactly this:\n{extra}\n"
 
     try:
-        reply = client.complete(prompt, system=SYSTEM)
+        reply = complete_via(client, prompt, system=SYSTEM)
     except LLMError as exc:
         record.outcome = "model_error"
         record.notes.append(str(exc)[:300])
@@ -235,7 +341,13 @@ def _attempt_one(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--targets", type=int, default=3)
-    parser.add_argument("--model", default="qwen2.5-coder:7b")
+    parser.add_argument("--model", default="ollama.qwen2.5-coder:7b")
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        help="provider credentials to load into the environment first",
+    )
     parser.add_argument(
         "--model-timeout",
         type=int,
@@ -250,6 +362,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.env_file:
+        try:
+            loaded = load_provider_env(args.env_file)
+        except CorpusError as exc:
+            print(f"FAIL  {exc}")
+            return 1
+        print(f"env     : loaded {len(loaded)} var(s) from {args.env_file}")
+
     if WORKTREE.exists():
         print(f"FAIL  {WORKTREE} already exists — remove it before running")
         return 1
@@ -259,13 +379,18 @@ def main(argv: list[str] | None = None) -> int:
         print("no targets matched the selection rule")
         return 1
 
-    # A 7B writing a whole test file routinely needs more than the chat default.
-    client = OllamaClient(model=args.model, timeout_s=args.model_timeout)
+    # A model writing a whole test file routinely needs more than the chat
+    # default, local or cloud.
+    try:
+        client, served = resolve_client(args.model, timeout_s=args.model_timeout)
+    except CorpusError as exc:
+        print(f"FAIL  {exc}")
+        return 1
     db = REPO_ROOT / "data" / "aios_memory.db"
     init_memory_db(db)
     skills = SkillMemory(db_path=db)
 
-    print(f"model   : {args.model}")
+    print(f"model   : {args.model}  (serving id: {served})")
     print(f"targets : {len(targets)}")
     for t in targets:
         print(f"          {t.label}")
