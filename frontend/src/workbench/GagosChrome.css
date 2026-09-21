@@ -909,6 +909,15 @@
   margin-top: 1rem;
   justify-content: center;
 }
+.gagos-starters--paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 38rem);
+  margin-inline: auto;
+  justify-content: stretch;
+  align-items: stretch;
+  gap: 0.6rem;
+}
 .gagos-starter {
   font: inherit;
   background: rgba(255, 255, 255, 0.04);
@@ -933,6 +942,20 @@
   outline: 2px solid rgba(123, 245, 251, 0.6);
   outline-offset: 2px;
 }
+.gagos-starter--path {
+  display: flex;
+  min-height: 118px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
+  text-align: left;
+  white-space: normal;
+}
+.gagos-starter__title { color: rgba(236, 242, 255, 0.92); font-size: 0.88rem; font-weight: 560; }
+.gagos-starter__description { color: rgba(228, 236, 250, 0.62); font-size: 0.75rem; line-height: 1.45; }
+.gagos-starter__action { color: rgba(123, 245, 251, 0.82); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
 
 @keyframes gagos-welcome-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -991,6 +1014,8 @@
   .gagos-thread { max-height: 42vh; }
   .gagos-welcome__greeting { font-size: 15px; max-width: none; }
   .gagos-starter { font-size: 13px; min-height: 46px; }
+  .gagos-starters--paths { grid-template-columns: 1fr; width: 100%; }
+  .gagos-starter--path { min-height: 88px; }
 }
 
 /* ── Intent preview — the dock membrane tints toward the predicted mode ─────
