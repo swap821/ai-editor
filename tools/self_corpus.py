@@ -233,6 +233,22 @@ class SuiteResult:
 
 _COUNT_RE = re.compile(r"(\d+) (passed|failed|error|errors)")
 
+#: Lines that actually say what went wrong. A plain last-N-lines tail is mostly
+#: pytest's summary furniture, and on a truncated log the one line a reader needs
+#: -- the assertion -- is the line that got cut. That cost a manual reproduction
+#: the first time this tool reported a failure: the note said "clean run not
+#: green" and then showed the banner above the error instead of the error.
+_SIGNAL = re.compile(r"^(E\s|assert |FAILED |ERROR |>\s)", re.MULTILINE)
+
+
+def _useful_tail(output: str, *, limit: int = 30) -> str:
+    """The failure lines when there are any, else the last few lines."""
+    lines = (output or "").splitlines()
+    signal = [line for line in lines if _SIGNAL.match(line)]
+    if signal:
+        return "\n".join(signal[:limit])
+    return "\n".join(lines[-12:])
+
 
 def run_suite(
     corpus: Corpus, selection: list[str], *, timeout: int = 1800
@@ -268,7 +284,7 @@ def run_suite(
         failed=counts["failed"],
         errors=max(counts["error"], counts["errors"]),
         returncode=result.returncode,
-        tail="\n".join(output.splitlines()[-25:]),
+        tail=_useful_tail(output),
     )
 
 
