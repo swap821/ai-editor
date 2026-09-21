@@ -74,11 +74,24 @@
       "integration_tests": [
         "tests/test_reflection.py"
       ],
-      "mutation_probe": null,
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tests/test_learning_conformance.py::test_m1_fails_when_promotion_does_nothing",
+        "claim": "Disabling MistakeMemory.promote must turn mission M1 red; a lesson that silently fails to promote would otherwise be invisible."
+      },
       "known_blockers": [
         "All 87 lessons in the live pool carry an empty failed_command, so none can ever be confirmed by a later success. The promotion path is not broken; it has nothing promotable to act on. Retirement is Stage 5."
       ],
-      "live_evidence": [],
+      "live_evidence": [
+        {
+          "description": "Mission M1: a lesson recorded through MistakeMemory.record_or_increment with a real failed_command was promoted to `verified` when that command later succeeded, through the production confirm() path. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        }
+      ],
       "last_verified_sha": null,
       "na_by_design": {
         "LC4": "No journal of its own; promotion mutates the lesson row in place. Referent: aios/memory/mistake.py::MistakeMemory.promote"
@@ -118,7 +131,11 @@
       "integration_tests": [
         "tests/test_skill_lifecycle.py"
       ],
-      "mutation_probe": null,
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tests/test_learning_conformance.py::test_m2_fails_when_the_successes_are_below_floor",
+        "claim": "Forcing every success to WEAK must turn mission M2 red, proving the promotion floor is what verifies a skill and not the count alone."
+      },
       "known_blockers": [],
       "live_evidence": [
         {
@@ -167,11 +184,24 @@
       "integration_tests": [
         "tests/test_repair_playbooks.py"
       ],
-      "mutation_probe": null,
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tools/learning_conformance_runner.py::mission_3_skill_compiles",
+        "claim": "A verified skill that does not compile leaves zero rows in compiled_playbooks, which M3 reads directly."
+      },
       "known_blockers": [
         "A decompiled playbook bars its skill from ever recompiling: the compile query excludes status IN ('compiled','decompiled') and no code path ever clears 'decompiled'. The module docstring claims recovery is possible once the skill re-earns verification; it is not. One live skill is in this state. Fix is Stage 5."
       ],
-      "live_evidence": [],
+      "live_evidence": [
+        {
+          "description": "Mission M3 of the learning conformance benchmark: a skill earned through three STRONG successes via the real SkillMemory compiles to a `compiled` playbook row via the real Cerebellum. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        }
+      ],
       "last_verified_sha": null,
       "na_by_design": {},
       "live_path_symbols": [
@@ -206,11 +236,24 @@
       "integration_tests": [
         "tests/test_repair_playbooks.py"
       ],
-      "mutation_probe": null,
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tests/test_learning_conformance.py::test_m4_fails_when_there_is_no_reflex_to_serve_the_turn",
+        "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
+      },
       "known_blockers": [
         "2 replays have ever been served without an LLM. There is no dated artifact proving a replay served a real turn on organic data, which is the single claim that would show the loop pays for itself. Producing it is Stage 3 mission 4."
       ],
-      "live_evidence": [],
+      "live_evidence": [
+        {
+          "description": "Mission M4 (the acceptance test): a compiled reflex served a COMPLETE turn through ToolAgent with the LLM client rigged to raise if touched -- cerebellum_done=True, llm_calls=0. The replay dispatched through the full gateway. This is the first proof the loop pays for itself. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        }
+      ],
       "last_verified_sha": null,
       "na_by_design": {},
       "live_path_symbols": [
