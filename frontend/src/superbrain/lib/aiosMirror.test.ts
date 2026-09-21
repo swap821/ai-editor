@@ -30,6 +30,12 @@ it('connection opening never promotes a snapshot to a continuously fresh project
   expect(useMirrorStore.getState()).toMatchObject({ connection: 'connected', projection: 'snapshot' });
   expect(useMirrorStore.getState().status).not.toBe('online');
 });
+it('only promotes the mirror after sync_complete closes the snapshot cursor', async () => {
+  await startMirrorClient(); sources[0].onopen!();
+  expect(useMirrorStore.getState()).toMatchObject({ projection: 'snapshot', status: 'stale' });
+  sources[0].listeners.sync_complete({ data: '{"cursor":4}' });
+  expect(useMirrorStore.getState()).toMatchObject({ projection: 'fresh', status: 'online', lastEventId: 4 });
+});
 it('invalid snapshot remains unavailable even when the stream opens', async () => {
   vi.mocked(fetch).mockResolvedValue(response({ history: [] }));
   await startMirrorClient(); sources[0].onopen!();
@@ -58,7 +64,7 @@ it('gap recovery closes the old source and reconciles a fresh snapshot before re
 });
 it('replayed events restore once and never reenact work without a live barrier', async () => {
   await startMirrorClient();
-  const message = { data: JSON.stringify({ schemaVersion: '1', eventType: 'worker.started', payload: { workerId: 'w1' } }), lastEventId: '7' };
+  const message = { data: JSON.stringify({ schemaVersion: '1', eventType: 'worker.started', payload: { workerId: 'w1' } }), lastEventId: '5' };
   sources[0].onmessage!(message); sources[0].onmessage!(message);
   expect(useMirrorStore.getState().activeWorkers).toEqual(['w1']);
   expect(useMirrorStore.getState().recentEvents).toHaveLength(1);

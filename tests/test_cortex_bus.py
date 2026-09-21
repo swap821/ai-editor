@@ -143,6 +143,34 @@ def test_dispatch_delivers_pending_and_marks_them(tmp_path: Path) -> None:
     assert bus.dispatch_pending() == 0
 
 
+def test_subscribe_replay_captures_a_barrier_before_live_delivery(
+    tmp_path: Path,
+) -> None:
+    """A mirror subscriber cannot miss an event between replay and subscribe.
+
+    Events already dispatched are replayed from the durable journal.  The
+    subscription is then live at the returned barrier, so an event appended
+    afterwards is delivered through the live handler rather than falling into
+    the old fetch-then-subscribe race.
+    """
+    bus = _bus(tmp_path)
+    _append(bus, "turn.completed", "session-1", {"n": 1})
+    bus.dispatch_pending()
+    second = _append(bus, "turn.completed", "session-1", {"n": 2})
+    bus.dispatch_pending()
+
+    seen: list[BusEvent] = []
+    subscription = bus.subscribe_replay(1, seen.append)
+
+    assert [event.id for event in subscription.events] == [second]
+    assert subscription.barrier_event_id == second
+    third = _append(bus, "turn.completed", "session-1", {"n": 3})
+    bus.dispatch_pending()
+    assert [event.id for event in seen] == [third]
+
+    subscription.unsubscribe()
+
+
 def test_per_entity_ordering_is_preserved(tmp_path: Path) -> None:
     bus = _bus(tmp_path)
     order: list[tuple[str, int]] = []

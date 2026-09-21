@@ -63,14 +63,16 @@ async function connect(epoch: number): Promise<void> {
   if (!active()) return;
   const stream = new EventSource(`${API_BASE}/api/v1/mirror/stream${watermark === null ? '' : `?last_event_id=${watermark}`}`, { withCredentials: true });
   source = stream;
+  let streamSynchronized = false;
+  let barrierCursor: number | null = null;
   const owns = () => active() && source === stream;
   stream.onopen = () => {
     if (!owns()) return;
     retryDelay = 1000;
     useMirrorStore.getState().setConnection('connected');
-    // This backend has no replay/live barrier. A connection is not a synchronized projection.
-    useMirrorStore.getState().setAnnouncement('Event transport connected. Snapshot continuity is not yet confirmed.');
-    // Periodically replace the snapshot so a silent replay/subscription gap cannot age invisibly.
+    useMirrorStore.getState().setAnnouncement('Event transport connected. Replaying changes before declaring the picture current.');
+    // The projection stays snapshot/stale until the server proves the
+    // replay-to-live handoff with a named sync_complete frame.
     timer = setTimeout(() => reconnect('Refreshing the last-known snapshot.', true), 30000);
   };
   stream.onerror = () => { if (owns()) reconnect('Event connection interrupted; displayed records are last-known.'); };
@@ -79,6 +81,20 @@ async function connect(epoch: number): Promise<void> {
     const data = record((event as MessageEvent<string>).data ?? '');
     useMirrorStore.getState().setSnapshotRequired(typeof data?.reason === 'string' ? data.reason : undefined);
     reconnect('A fresh snapshot is required before continuity can be assessed.', true);
+  });
+  stream.addEventListener('sync_complete', (event) => {
+    if (!owns()) return;
+    const data = record((event as MessageEvent<string>).data ?? '');
+    const cursor = data && typeof data.cursor === 'number' && Number.isSafeInteger(data.cursor) && data.cursor >= 0
+      ? data.cursor : null;
+    if (cursor === null || !useMirrorStore.getState().confirmFresh(cursor)) {
+      useMirrorStore.getState().setSnapshotRequired('sync_incomplete');
+      reconnect('The backend could not prove a contiguous replay-to-live handoff.', true);
+      return;
+    }
+    barrierCursor = cursor;
+    streamSynchronized = true;
+    useMirrorStore.getState().setAnnouncement('Live mirror synchronized.');
   });
   stream.onmessage = (event) => {
     if (!owns()) return;
@@ -89,10 +105,17 @@ async function connect(epoch: number): Promise<void> {
     if (!/^\d+$/.test(event.lastEventId) || !Number.isSafeInteger(Number(event.lastEventId))) {
       useMirrorStore.getState().setAnnouncement('Mirror event missing a durable cursor; event ignored.'); return;
     }
+    const id = Number(event.lastEventId);
+    const currentCursor = useMirrorStore.getState().lastEventId;
+    if (currentCursor !== null && id > currentCursor + 1) {
+      useMirrorStore.getState().setSnapshotRequired('live_gap');
+      reconnect('A durable cursor gap appeared on the live channel.', true);
+      return;
+    }
     const payload = Object.fromEntries(Object.entries(canonical.payload).map(([key, value]) => [key, typeof value === 'string' ? humanizeRedactionMarkers(value) : value]));
-    // Without a supported live barrier, replay and live delivery cannot be distinguished.
-    // Admit observations but do not reenact them as present-tense animation or announcements.
-    dispatchLivingMirrorEvent({ id: Number(event.lastEventId), eventType: canonical.eventType.trim(), canonical, payload, replay: true });
+    // Before the barrier events restore durable state silently. Only events
+    // admitted after sync_complete may produce present-tense reactions.
+    dispatchLivingMirrorEvent({ id, eventType: canonical.eventType.trim(), canonical, payload, replay: !streamSynchronized || (barrierCursor !== null && id <= barrierCursor) });
   };
 }
 
