@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,37 @@ def _run(cwd: Path, *args: str) -> str:
         ["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True
     )
     return result.stdout
+
+
+def test_run_suite_uses_the_active_python_interpreter(tmp_path, monkeypatch) -> None:
+    """The isolated suite must use the interpreter that owns its pytest."""
+    from tools import self_corpus as self_corpus_module
+
+    corpus = Corpus(
+        root=tmp_path / "worktree",
+        sha="deadbeef",
+        source=tmp_path / "repo",
+    )
+    corpus.root.mkdir()
+    observed: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["kwargs"] = kwargs
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="1 passed in 0.01s\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(self_corpus_module.subprocess, "run", fake_run)
+
+    result = run_suite(corpus, ["test_green.py"])
+
+    assert result.green
+    assert observed["command"][:3] == [sys.executable, "-m", "pytest"]
+    assert observed["kwargs"]["cwd"] == str(corpus.root)
 
 
 @pytest.fixture()
