@@ -184,6 +184,26 @@ class PinVerdict:
         )
 
 
+def _refuse_hollow(result, what: str) -> None:
+    """Stop the run when a pytest invocation produced nothing at all.
+
+    Raising rather than returning a flag, for the same reason
+    `require_green_baseline` raises: once the instrument has stopped
+    reporting, every number after it is unattributable, and a verdict about a
+    MODEL is the one thing this run must never invent. An aborted run is
+    visible in the trail and costs a re-run; a fabricated failure is invisible
+    and costs the fleet's record.
+    """
+    if result.hollow:
+        raise CorpusError(
+            f"the suite run for {what} produced no output at all "
+            f"(rc={result.returncode}, 0 passed / 0 failed / 0 errors). pytest "
+            "always says something, so this is the runner dying rather than a "
+            "test result -- typically memory pressure on this machine. Scoring "
+            "it would record the laptop's failure as the model's."
+        )
+
+
 def grade_pin_test(
     corpus: Corpus,
     *,
@@ -203,6 +223,7 @@ def grade_pin_test(
     verdict = PinVerdict()
 
     clean = run_suite(corpus, new_test)
+    _refuse_hollow(clean, "the agent's new test")
     verdict.passes_clean = clean.green
     if not clean.green:
         verdict.notes.append(f"clean run not green: {clean.tail}")
@@ -219,6 +240,9 @@ def grade_pin_test(
     mutation = mutate_function(module_path, target_function)
     try:
         mutated = run_suite(corpus, new_test)
+        # Checked INSIDE the try so `restore()` still runs: leaving the corpus
+        # mutated would break every later attempt in the run.
+        _refuse_hollow(mutated, "the mutated negative control")
         verdict.fails_when_mutated = not mutated.green
         if mutated.green:
             verdict.notes.append(
@@ -231,6 +255,7 @@ def grade_pin_test(
         restore(mutation)
 
     guard = run_suite(corpus, guard_selection)
+    _refuse_hollow(guard, "the pre-existing guard suite")
     verdict.suite_still_green = guard.green
     if not guard.green:
         verdict.notes.append(f"pre-existing suite no longer green: {guard.tail}")
@@ -238,14 +263,62 @@ def grade_pin_test(
     return verdict
 
 
+#: ``skill_signature_v2`` keys an arc on the first 12 SORTED goal tokens and
+#: silently drops the rest. Two goals differing only in a dropped token are ONE
+#: arc -- which is precisely the per-tier collapse :func:`pin_goal` exists to
+#: prevent, reintroduced quietly. So the budget is checked rather than assumed.
+_GOAL_TOKEN_BUDGET = 12
+
+
+def pin_goal(target_label: str, model: str) -> str:
+    """The learning arc for *target_label* **as attempted by** *model*.
+
+    WHY THE MODEL BELONGS IN THE IDENTITY
+    -------------------------------------
+    The ladder asks several tiers the same question and stops at the first that
+    answers it. Recording one outcome per TARGET throws away the only thing
+    that run measured: *which tier could do it*. Worse, it makes the number
+    dishonest in both directions — a frontier model's success is credited to an
+    arc the 7B failed four times, and the 7B's failures drag the success rate
+    of work it never completed. With four tiers and one earning, the arc reads
+    25% and no skill can ever clear the 80% promotion rate, however reliable
+    any individual tier is.
+
+    Split by tier and both halves become answerable: a tier that reliably earns
+    a target verifies, a tier that reliably fails it stays ``candidate``. That
+    is the actual question the local-clerk-vs-cloud-frontier design is asking.
+
+    The model spec is folded to a single token (``:`` is a token boundary in
+    ``relevance._TOKEN``, ``.``/``/``/``-`` are not) so a tier costs one slot
+    of the signature budget rather than an unpredictable several.
+    """
+    from aios.memory.relevance import tokens
+
+    tier = "-".join(model.split()).replace(":", "-").strip("-").lower()
+    if not tier:
+        raise CorpusError("a pin outcome must name the model that attempted it")
+    goal = f"pin the behaviour of {target_label} via {tier}"
+    if len(tokens(goal)) > _GOAL_TOKEN_BUDGET:
+        raise CorpusError(
+            f"goal has {len(tokens(goal))} tokens, over the {_GOAL_TOKEN_BUDGET} "
+            "the arc signature keeps; the tier could be the token dropped, "
+            f"silently merging this attempt into another model's record: {goal}"
+        )
+    return goal
+
+
 def record_pin_outcome(
     skills: "SkillMemory",
     verdict: PinVerdict,
     *,
-    goal: str,
+    target_label: str,
+    model: str,
     steps: list[str],
 ) -> int:
     """Turn a graded reverse-engineering attempt into learning evidence.
+
+    One call is one TIER's verdict on one target — see :func:`pin_goal` for why
+    the tier is part of the arc identity rather than a detail of the run.
 
     THE GRADER IS THE AUTHORITY HERE, NOT THE STRENGTH. A vacuous
     ``assert True`` test run under pytest produces ``passed_count > 0`` and
@@ -262,7 +335,7 @@ def record_pin_outcome(
     wrote a test incapable of failing.
     """
     return skills.record_attempt(
-        goal,
+        pin_goal(target_label, model),
         steps,
         success=verdict.earned,
         strength=(
