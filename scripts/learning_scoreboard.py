@@ -348,6 +348,61 @@ _TREND_COLUMNS = (
 )
 
 
+#: The run trails, summarised into the TRACKED trend file. The trails
+#: themselves are gitignored (they carry per-attempt detail), so without this a
+#: third party cannot check a single organic-learning claim this project makes
+#: — which is L7's standing blocker, and an evidence problem rather than a
+#: presentation one.
+SELF_CORPUS_TRAIL = REPO_ROOT / ".aios" / "audit" / "reverse-engineering-runs.jsonl"
+ORGANIC_CHAIN_TRAIL = REPO_ROOT / ".aios" / "audit" / "organic-chain-runs.jsonl"
+
+
+def _summarise_runs(trail: Path, limit: int = 6) -> list[str]:
+    """One markdown row per run: what it did, and what it refused to score."""
+    if not trail.exists():
+        return []
+    rows = []
+    for line in trail.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("kind") == "attempt":
+            continue  # per-attempt rows are detail, not summary
+        rows.append(row)
+
+    out = []
+    for row in rows[-limit:]:
+        attempts = row.get("attempts") or []
+        graded = [
+            a
+            for a in attempts
+            if a.get("outcome") not in ("model_error", "no_code_block")
+        ]
+        not_scored = len(attempts) - len(graded)
+        links = row.get("links") or []
+        fired = ", ".join(link["faculty"] for link in links if link.get("fired")) or "-"
+        outcome = row.get("outcome", "completed")
+        if outcome == "aborted":
+            # A refusal belongs in the public summary. Publishing only clean
+            # runs is how "we ran it" quietly starts to mean "it worked".
+            detail = f"REFUSED — {' '.join(str(row.get('error', '')).split())[:90]}"
+        else:
+            earned = row.get("earned")
+            if earned is None:
+                earned = len([a for a in attempts if a.get("earned")])
+            detail = (
+                f"{earned} earned, {len(graded)} graded, "
+                f"{not_scored} not scored (model unreachable)"
+            )
+        out.append(
+            f"| {str(row.get('ts', '?'))[:19]} | {outcome} | {fired} | {detail} |"
+        )
+    return out
+
+
 def write_trend(trail: Path = TRAIL, trend: Path = TREND) -> None:
     """Render the last few readings into a tracked markdown table.
 
@@ -387,8 +442,41 @@ def write_trend(trail: Path = TRAIL, trend: Path = TREND) -> None:
         "This file is TRACKED and the trail is not, so these are the only\n"
         "learning numbers anyone but this machine can check. A flat table means\n"
         "the loop is not accumulating, which is a finding rather than a gap.\n\n"
-        f"{header}\n{divider}\n" + "\n".join(body) + "\n",
+        f"{header}\n{divider}\n" + "\n".join(body) + "\n" + _runs_section(),
         encoding="utf-8",
+    )
+
+
+def _runs_section() -> str:
+    """The organic runs behind the numbers above, so they can be checked.
+
+    Without this, every organic-learning claim rests on files under
+    `.aios/audit/` that are gitignored — readable by this machine and nobody
+    else. That is L7's standing blocker, and it is an evidence problem rather
+    than a presentation one.
+    """
+    parts = []
+    for title, trail_path in (
+        ("Self-corpus runs", SELF_CORPUS_TRAIL),
+        ("Organic chain runs", ORGANIC_CHAIN_TRAIL),
+    ):
+        rows = _summarise_runs(trail_path)
+        if not rows:
+            continue
+        parts.append(
+            f"\n## {title}\n\n"
+            "| when | outcome | links fired | detail |\n|---|---|---|---|\n"
+            + "\n".join(rows)
+            + "\n"
+        )
+    if not parts:
+        return ""
+    return (
+        "\nThe run detail lives under `.aios/audit/`, which is gitignored, so "
+        "these\nsummaries are the only part anyone but this machine can check. "
+        "A REFUSED\nrow is a result, not a gap: the grader declining to score "
+        "is the behaviour\nthat makes the other rows worth believing.\n"
+        + "".join(parts)
     )
 
 

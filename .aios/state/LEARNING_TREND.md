@@ -15,3 +15,32 @@ the loop is not accumulating, which is a finding rather than a gap.
 | 2026-09-21T12:09:29+00:00 | 6 | 3 | 2 | 0 | 2 |
 | 2026-09-21T13:23:19+00:00 | 6 | 3 | 2 | 0 | 2 |
 | 2026-09-21T13:45:57+00:00 | 6 | 3 | 2 | 0 | 2 |
+| 2026-09-21T16:59:40+00:00 | 6 | 4 | 3 | 2 | 2 |
+| 2026-09-21T17:00:27+00:00 | 6 | 4 | 3 | 2 | 2 |
+
+The run detail lives under `.aios/audit/`, which is gitignored, so these
+summaries are the only part anyone but this machine can check. A REFUSED
+row is a result, not a gap: the grader declining to score is the behaviour
+that makes the other rows worth believing.
+
+## Self-corpus runs
+
+| when | outcome | links fired | detail |
+|---|---|---|---|
+| 2026-09-21T11:01:05 | completed | - | 0 earned, 0 graded, 0 not scored (model unreachable) |
+| 2026-09-21T11:42:20 | completed | - | 4 earned, 7 graded, 1 not scored (model unreachable) |
+| 2026-09-21T12:00:10 | completed | - | 4 earned, 10 graded, 3 not scored (model unreachable) |
+| 2026-09-21T12:09:10 | completed | - | 4 earned, 10 graded, 1 not scored (model unreachable) |
+| 2026-09-21T13:14:07 | completed | - | 1 earned, 7 graded, 0 not scored (model unreachable) |
+| 2026-09-21T13:24:29 | aborted | - | REFUSED — CONTAINMENT FAILURE: the live working tree changed during a training run (91d3e888a3b0 ->  |
+
+## Organic chain runs
+
+| when | outcome | links fired | detail |
+|---|---|---|---|
+| 2026-09-21T16:11:14 | aborted | - | REFUSED — the suite run for the agent's new test produced no output at all (rc=1, 0 passed / 0 faile |
+| 2026-09-21T16:20:15 | completed | L1, L3, L5 | 1 earned, 3 graded, 0 not scored (model unreachable) |
+| 2026-09-21T16:25:56 | completed | L1, L3 | 2 earned, 8 graded, 0 not scored (model unreachable) |
+| 2026-09-21T16:31:57 | completed | L1, L3, L4 | 1 earned, 3 graded, 0 not scored (model unreachable) |
+| 2026-09-21T16:34:50 | completed | L1, L3 | 1 earned, 3 graded, 0 not scored (model unreachable) |
+| 2026-09-21T16:38:21 | completed | L1, L3, L4 | 1 earned, 5 graded, 0 not scored (model unreachable) |
