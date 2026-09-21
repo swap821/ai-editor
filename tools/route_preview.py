@@ -67,6 +67,59 @@ def _live_providers() -> list[router.Provider]:
         return []
 
 
+def _profile_cloud_tasks() -> tuple[str, ...] | None:
+    """The active runtime profile's cloud tasks, or None if unreadable."""
+    try:
+        from aios.api.deps import get_policy_kernel
+
+        return tuple(get_policy_kernel().active_runtime_profile().router_cloud_tasks)
+    except Exception:  # noqa: BLE001 - a preview must not require a live stack
+        return None
+
+
+def _effective_cloud_tasks() -> tuple[str, ...]:
+    """What the ROUTER will actually treat as cloud-eligible."""
+    profile_tasks = _profile_cloud_tasks()
+    return tuple(ROUTER_CLOUD_TASKS) if profile_tasks is None else profile_tasks
+
+
+def _warn_if_the_two_gates_disagree() -> None:
+    """Report a split between the two independent statements of cloud eligibility.
+
+    There are two, and they are enforced by different code:
+
+    * the active RUNTIME PROFILE (`profile.router_cloud_tasks`) decides which
+      tasks the ROUTER will rank a cloud provider for;
+    * ``AIOS_ROUTER_CLOUD_TASKS`` (`config.ROUTER_CLOUD_TASKS`) is what
+      ``build_constitution`` hands the ``ConstitutionEnforcer``, which BLOCKS a
+      cloud request whose task is not listed.
+
+    Switching to the ``operator`` profile without also setting the env var
+    therefore produces a half-enabled state: the router picks a cloud model and
+    the constitution refuses the call. It fails closed, which is the right
+    direction, but silently — the operator sees "cloud is on" in one place and
+    local answers in practice.
+
+    Collapsing the two into one source is a governance decision, not a cleanup,
+    because a mismatch currently fails CLOSED and a single source would remove
+    that second lock. So this reports rather than resolves.
+    """
+    profile = _profile_cloud_tasks()
+    if profile is None:
+        return
+    profile_tasks = set(profile)
+    env_tasks = set(ROUTER_CLOUD_TASKS)
+    if profile_tasks == env_tasks:
+        return
+    print("WARNING: the two cloud gates disagree.")
+    print(f"  runtime profile allows : {sorted(profile_tasks) or '(none)'}")
+    print(f"  AIOS_ROUTER_CLOUD_TASKS: {sorted(env_tasks) or '(none)'}")
+    print("  The router ranks cloud by the FIRST; the ConstitutionEnforcer blocks")
+    print("  by the SECOND. Tasks in only one of them are routed and then refused.")
+    print("  Set both to the same list.")
+    print()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -87,7 +140,14 @@ def main(argv: list[str] | None = None) -> int:
             if t.strip().lower() in _VALID_ROUTER_TASKS
         )
     else:
-        cloud_tasks = tuple(ROUTER_CLOUD_TASKS)
+        # The ACTIVE PROFILE, not the env var. The profile is what
+        # `_router_policy` hands to the ranker, so previewing the env var would
+        # have shown a route the product does not take — a preview that is wrong
+        # in exactly the situation it exists to diagnose. Falls back to the env
+        # var only when the policy kernel cannot be reached at all.
+        cloud_tasks = _effective_cloud_tasks()
+
+    _warn_if_the_two_gates_disagree()
 
     providers = _live_providers()
     if not providers:
