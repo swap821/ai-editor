@@ -507,6 +507,14 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(stats, indent=2) if args.json else render(stats))
 
     if args.check:
+        if not stats.get("db_present"):
+            # "no regression" here would be a green that means nothing: with no
+            # store there are no counters, so the comparison never ran. Saying
+            # so is this repository's own rule -- a measurement that never
+            # happened is not a result -- applied to this script's verdict.
+            # Not an error either: there is nothing to alarm on.
+            print("\nNOT CHECKED — no memory database, so nothing was compared")
+            return 0
         regressions = detect_regressions(stats)
         if regressions:
             print("\nREGRESSION — learning went backwards:")

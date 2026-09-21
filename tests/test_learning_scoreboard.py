@@ -196,6 +196,44 @@ class TestTheScoreboardAlarmsInsteadOfOnlyPrinting:
         ]
 
 
+class TestAnUnmeasuredCheckSaysSo:
+    """The alarm must not report a verdict it did not reach.
+
+    On a machine with no store -- a fresh CI runner, a clean clone --
+    `collect()` returns no counters at all, so `detect_regressions` compares
+    None against None and finds nothing. Printing "no regression" there is a
+    green that means nothing, which is the exact failure class this ledger
+    exists to catch: a hollow run scored as a verdict.
+    """
+
+    def test_no_database_is_reported_as_not_checked(self, tmp_path, capsys) -> None:
+        from scripts.learning_scoreboard import main
+
+        exit_code = main(["--check", "--db", str(tmp_path / "absent.sqlite")])
+        out = capsys.readouterr().out
+        assert "NOT CHECKED" in out
+        assert "no regression" not in out, (
+            "an unmeasured check claimed a clean comparison"
+        )
+        # Nothing to alarm on either: an absent store is not a regression.
+        assert exit_code == 0
+
+    def test_a_real_database_still_reaches_a_verdict(self, db, capsys) -> None:
+        """The negative control: without it the assertion above would pass on a
+        scoreboard that had stopped checking anything at all.
+
+        WHICH verdict is not the point and is not asserted -- this store is
+        empty and the recorded trail belongs to whichever machine ran it, so
+        either answer is legitimate. What must be true is that one was reached.
+        """
+        from scripts.learning_scoreboard import main
+
+        main(["--check", "--db", str(db)])
+        out = capsys.readouterr().out
+        assert "NOT CHECKED" not in out
+        assert "no regression" in out or "REGRESSION" in out
+
+
 class TestTheTrackedSummary:
     """`.aios/audit/` is gitignored, so without this nobody but this laptop can
     check a single learning claim the project makes."""
