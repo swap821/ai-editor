@@ -175,7 +175,7 @@ def run_chain(
     targets: int,
     retries: int,
     model_timeout: int,
-) -> tuple[list[LinkEvidence], list[Attempt], str]:
+) -> tuple[list[LinkEvidence], list[Attempt], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
 
@@ -213,12 +213,14 @@ def run_chain(
     # Skills this run actually recorded. L4/L5 may only ever cite a
     # playbook whose skill is in here -- see `_organic_playbook`.
     organic_skill_ids: set[int] = set()
+    corpus_sha = ""
 
     print(f"run id  : {run_id}")
     print("ladder  : " + " -> ".join(spec for spec, _ in ladder))
 
     with self_corpus(REPO_ROOT, WORKTREE) as corpus:
         print(f"corpus  : {corpus.root} @ {corpus.sha[:12]}\n")
+        corpus_sha = corpus.sha
         chosen = collect_targets(corpus.root, limit=targets)
 
         for target in chosen:
@@ -356,7 +358,7 @@ def run_chain(
                 "matching by chance would not be evidence"
             )
 
-    return list(links.values()), attempts, run_id
+    return list(links.values()), attempts, run_id, corpus_sha
 
 
 VERIFY_ONLY_PROMPT = (
@@ -662,7 +664,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        links, attempts, run_id = run_chain(
+        links, attempts, run_id, corpus_sha = run_chain(
             models=args.models,
             targets=args.targets,
             retries=args.retries,
@@ -687,6 +689,11 @@ def main(argv: list[str] | None = None) -> int:
             "kind": "run",
             "run_id": run_id,
             "outcome": "completed",
+            # The commit the corpus was pinned to. It was printed in the
+            # header but never written down, so the durable row could not
+            # answer "which source did this measure?" -- the one question
+            # LC11/LC12 (evidence currency and lineage) ask of it.
+            "corpus_sha": corpus_sha,
             "models": args.models,
             "links": [asdict(link) for link in links],
             "attempts": [asdict(a) for a in attempts],

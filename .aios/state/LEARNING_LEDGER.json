@@ -294,12 +294,7 @@
         "referent": "tests/test_learning_conformance.py::test_m4_fails_when_there_is_no_reflex_to_serve_the_turn",
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
-      "known_blockers": [
-        "L5 is proven MECHANICALLY (conformance mission M4: a compiled reflex serves a whole turn with the LLM client rigged to raise, llm_calls=0). It cannot be proven on ORGANIC data without an operator decision, because TWO correct guards stand in the way and neither may be self-authorised:",
-        "(1) WRITE-CONFIRM. A self-corpus pin arc contains a `create_file` step. A replay may only CONFIRM such a step when the exact bytes were approved by a human (`playbook_blobs` via `aios/core/replay_writes.py::load_content`). The self-corpus has no human, and registering agent-written bytes as approved would be forging an approval.",
-        "(2) APPROVAL GATE. The write-free alternative -- a read+verify arc over a real module -- is blocked at the gateway: `pytest` is on the YELLOW (approval-required) list, and the auto-execute allowlist is `echo` and `pwd` only. An unattended training run has no approver, so the verify never executes. Observed directly: `tool_blocked` on `pytest tests/test_code_chunking.py` inside the corpus.",
-        "WHAT WOULD UNBLOCK IT (operator's call, not mine): granting the training harness a scoped approval authority for `pytest` INSIDE the throwaway worktree only. That is a real authority change and belongs to the operator. `tools/organic_chain_run.py::_verify_only_cycle` already implements the arc and reports the block by name, so the moment such an authority exists the evidence follows."
-      ],
+      "known_blockers": [],
       "live_evidence": [
         {
           "description": "Mission M4 (the acceptance test): a compiled reflex served a COMPLETE turn through ToolAgent with the LLM client rigged to raise if touched -- cerebellum_done=True, llm_calls=0. The replay dispatched through the full gateway. This is the first proof the loop pays for itself. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
@@ -308,12 +303,31 @@
           "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
           "proof_level": "live",
           "organic": false
+        },
+        {
+          "description": "ORGANIC, and the first time this link has ever fired on real code. Run 20260921T220054-16cdf659 against the self-corpus pinned at 613f9332: a read+verify task over this repository's own tests/test_code_chunking.py earned three STRONG turns (3 passed each), the arc verified, the cerebellum compiled it (playbook 15), and the next request for that goal was served with the LLM client rigged to raise if consulted -- llm_calls=0, events ended cerebellum_done. The playbook cited is one THIS run earned: `_organic_playbook` refuses to count the newest compiled playbook, because an earlier check did exactly that and lit up on a leftover synthetic seed.",
+          "command": "python tools/organic_chain_run.py --targets 1 --retries 1",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "613f93329f1ee56f9fd5ef740a839b5eda4d9c8f",
+          "proof_level": "live",
+          "organic": true,
+          "note": "Two runs before this one reported passed=False strength=NONE and looked like a model failing. They were the harness: the scope cwd is the scope root's PARENT, so `pytest -k ...` collected the home directory and returned a pytest INTERNALERROR. The same selection run in the corpus is `3 passed in 10s`. A failing measurement is not a failing subject -- checked first, as L8 requires."
         }
       ],
-      "last_verified_sha": null,
+      "last_verified_sha": "613f93329f1ee56f9fd5ef740a839b5eda4d9c8f",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
+      ],
+      "discharged_blockers": [
+        {
+          "blocker": "(1) WRITE-CONFIRM. A self-corpus pin arc contains a `create_file` step. A replay may only CONFIRM such a step when the exact bytes were approved by a human (`playbook_blobs` via `aios/core/replay_writes.py::load_content`). The self-corpus has no human, and registering agent-written bytes as approved would be forging an approval.",
+          "discharged_by": "Not discharged -- ROUTED AROUND. A pin arc still cannot be replayed, and that guard is correct: registering agent-written bytes as human-approved would be forging an approval. The verify-only arc has no create_file step, so the guard never applies rather than being weakened. `playbook_blobs` and `replay_writes.load_content` are untouched."
+        },
+        {
+          "blocker": "(2) APPROVAL GATE. The write-free alternative -- a read+verify arc over a real module -- is blocked at the gateway: `pytest` is on the YELLOW (approval-required) list, and the auto-execute allowlist is `echo` and `pwd` only. An unattended training run has no approver, so the verify never executes. Observed directly: `tool_blocked` on `pytest tests/test_code_chunking.py` inside the corpus.",
+          "discharged_by": "Operator granted the scoped approval on 2026-09-22 (asked for by name in this ledger's previous revision). The harness now holds ONE exact command string for the duration of one run: not a prefix, not a pattern, nothing written to config. The gateway is unchanged -- `pytest` stays YELLOW for everyone else, which tests/test_training_approval_is_narrow.py::TestTheGatewayItselfIsUnchanged fails if anyone reclassifies it. Approval still cannot buy RED (execute_approved re-evaluates) and the scope lock still confines the command to the throwaway worktree; both directions are asserted in that file."
+        }
       ]
     },
     {
