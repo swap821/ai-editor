@@ -456,6 +456,12 @@ def _verify_only_cycle(
                 rate_limiter=RateLimiter(),
                 audit_log=lambda *a, **k: None,
                 emergency_stop=UNGOVERNED_FIXTURE,
+                # A `-k` selector still COLLECTS the whole corpus suite before
+                # filtering, and 6500 tests do not collect in the default 30s.
+                # This is a per-instance resource budget, not a security
+                # control, and it is raised only for this unattended harness --
+                # no default moves, and nothing else sees a longer leash.
+                timeout_s=300,
             ),
             max_iters=4,
             read_root=corpus.root,
