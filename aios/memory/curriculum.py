@@ -17,6 +17,7 @@ from aios.core.verification_strength import (
     strength_from_text,
 )
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.learning_journal import record as journal
 from aios.memory.relevance import relevance
 from aios.security.secret_scanner import scan_and_redact
 
@@ -150,13 +151,23 @@ class CurriculumManager:
                 updated.append(task_id)
                 skill_name = str(row["skill_name"])
                 level = int(row["level"])
-                if (
-                    self._refresh_level(conn, skill_name, level)
-                    and on_mastered is not None
-                ):
+                if self._refresh_level(conn, skill_name, level):
                     # Fires only on the transition to mastered (a mastered
-                    # level's tasks leave 'available', so it cannot re-fire).
-                    on_mastered(skill_name, level)
+                    # level's tasks leave 'available', so it cannot re-fire),
+                    # which is exactly what makes it worth journalling: the
+                    # UPDATE that records mastery destroys the moment it
+                    # happened, and "level 2 was mastered" is a much weaker
+                    # statement than "level 2 was mastered at 14:02 by this
+                    # run, having cleared its held-out task".
+                    journal(
+                        "L6",
+                        "level_mastered",
+                        subject_id=level,
+                        detail={"skill_name": skill_name, "level": level},
+                        conn=conn,
+                    )
+                    if on_mastered is not None:
+                        on_mastered(skill_name, level)
         return updated
 
     def _fuzzy_rows(self, conn, prompt: str) -> list:

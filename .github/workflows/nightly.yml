@@ -125,7 +125,15 @@ jobs:
           OLLAMA_HOST: http://127.0.0.1:11434
         run: python tools/preflight.py
 
-      - name: Run the learning-loop prover
+      # HARNESS GATE, NOT EVIDENCE OF LEARNING. A 0.5b model cannot exercise
+      # the chain -- it is testing a lock by pushing on the door gently -- so
+      # what this proves is that the PLUMBING still carries water, nightly.
+      # The claim that the loop learns rests on the operator-machine drive
+      # (tools/learning_drive.py) and on the conformance benchmark
+      # (tools/learning_conformance_runner.py), neither of which runs here.
+      # Saying so in the job name is the difference between a modest true
+      # claim and a green tick that reads as more than it is.
+      - name: Run the learning-loop prover (harness gate, 0.5b — not a learning claim)
         env:
           AIOS_PROBE_BASE: http://127.0.0.1:8300
           AIOS_PROBE_HOST: localhost:8300

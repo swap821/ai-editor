@@ -46,6 +46,17 @@ from aios import config  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-scoreboard.jsonl"
 
+#: A TRACKED summary, unlike the trail. `.aios/audit/` is gitignored, so every
+#: learning claim this project makes currently lives on one laptop with no
+#: backup and no way for anyone else to check it. The detail stays untracked
+#: (it is long, and it carries run specifics), but the handful of numbers the
+#: claims actually rest on belong in the repository next to `RESUME.md`.
+TREND = REPO_ROOT / ".aios" / "state" / "LEARNING_TREND.md"
+
+#: Rows kept in the tracked summary. Enough to see a trend, few enough that the
+#: file stays readable in a diff.
+_TREND_ROWS = 20
+
 
 def _tables(conn: sqlite3.Connection) -> set[str]:
     rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
@@ -143,9 +154,12 @@ def collect(db_path: Path) -> dict:
         # whose last run failed (`consecutive_failures > 0`), and the next
         # success clears it. Worth showing, not worth alarm.
         #
-        # The second is not: a playbook that was decompiled once keeps its skill
-        # out forever, because the NOT EXISTS clause matches 'decompiled' rows
-        # too. Nothing ever clears that, so it is counted separately.
+        # The second used to be permanent: a playbook decompiled once kept its
+        # skill out forever, because the compile guard matched 'decompiled'
+        # rows and nothing ever cleared them. It is now recoverable -- the
+        # skill must earn MORE promotable successes than it had when the
+        # reflex was retired -- but it is still counted separately, because
+        # "needs fresh evidence" and "ready to compile" are different states.
         if {"procedural_skills", "compiled_playbooks"} <= present:
             if "consecutive_failures" in _columns(conn, "procedural_skills"):
                 stats["skills_awaiting_a_clean_run"] = _scalar(
@@ -243,8 +257,10 @@ def render(stats: dict) -> str:
         )
     if g("skills_blocked_by_decompile"):
         notes.append(
-            f"{g('skills_blocked_by_decompile')} skill(s) were decompiled once and "
-            "are excluded from recompilation forever"
+            f"{g('skills_blocked_by_decompile')} skill(s) have a retired reflex "
+            "and must earn NEW promotable successes before it can recompile "
+            "(recoverable since the decompile-recovery fix; it used to be "
+            "permanent)"
         )
     if g("lessons_pending") and not g("lessons_verified"):
         notes.append(
@@ -273,6 +289,197 @@ def render(stats: dict) -> str:
     return "\n".join(lines)
 
 
+#: Counters that may only ever go UP. Each is a thing the system has proven
+#: at least once; losing one means either a real regression or that something
+#: rewrote history, and both deserve a red build rather than a quieter number
+#: on the next dashboard. `failures` is deliberately absent -- failures rising
+#: is the loop working, not the loop breaking.
+_MONOTONIC = (
+    "skills_verified",
+    "playbooks_compiled",
+    "reflex_replays",
+    "successes_promotable",
+    "lessons_verified",
+    "curriculum_levels_mastered",
+)
+
+
+def last_recorded(trail: Path = TRAIL) -> dict | None:
+    """The previous reading, or None when there is nothing to compare against."""
+    if not trail.exists():
+        return None
+    rows = [
+        line for line in trail.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    for line in reversed(rows):
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def detect_regressions(stats: dict, trail: Path = TRAIL) -> list[str]:
+    """Counters that went DOWN since the last recorded reading.
+
+    A scoreboard that only ever prints is a dashboard, and a dashboard nobody
+    alarms on is how a loop quietly stops working for a month. This is the
+    smallest honest alarm: not "is the number good", which nobody can agree
+    on, but "did something the system had already proven stop being true".
+    """
+    previous = last_recorded(trail)
+    if previous is None:
+        return []
+    out: list[str] = []
+    for key in _MONOTONIC:
+        was, now = previous.get(key), stats.get(key)
+        if isinstance(was, int) and isinstance(now, int) and now < was:
+            out.append(f"{key}: {was} -> {now}")
+    return out
+
+
+_TREND_COLUMNS = (
+    ("ts", "when"),
+    ("skills_verified", "skills"),
+    ("playbooks_compiled", "reflexes"),
+    ("reflex_replays", "replays"),
+    ("lessons_verified", "lessons"),
+    ("curriculum_levels_mastered", "levels"),
+)
+
+
+#: The run trails, summarised into the TRACKED trend file. The trails
+#: themselves are gitignored (they carry per-attempt detail), so without this a
+#: third party cannot check a single organic-learning claim this project makes
+#: — which is L7's standing blocker, and an evidence problem rather than a
+#: presentation one.
+SELF_CORPUS_TRAIL = REPO_ROOT / ".aios" / "audit" / "reverse-engineering-runs.jsonl"
+ORGANIC_CHAIN_TRAIL = REPO_ROOT / ".aios" / "audit" / "organic-chain-runs.jsonl"
+
+
+def _summarise_runs(trail: Path, limit: int = 6) -> list[str]:
+    """One markdown row per run: what it did, and what it refused to score."""
+    if not trail.exists():
+        return []
+    rows = []
+    for line in trail.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if row.get("kind") == "attempt":
+            continue  # per-attempt rows are detail, not summary
+        rows.append(row)
+
+    out = []
+    for row in rows[-limit:]:
+        attempts = row.get("attempts") or []
+        graded = [
+            a
+            for a in attempts
+            if a.get("outcome") not in ("model_error", "no_code_block")
+        ]
+        not_scored = len(attempts) - len(graded)
+        links = row.get("links") or []
+        fired = ", ".join(link["faculty"] for link in links if link.get("fired")) or "-"
+        outcome = row.get("outcome", "completed")
+        if outcome == "aborted":
+            # A refusal belongs in the public summary. Publishing only clean
+            # runs is how "we ran it" quietly starts to mean "it worked".
+            detail = f"REFUSED — {' '.join(str(row.get('error', '')).split())[:90]}"
+        else:
+            earned = row.get("earned")
+            if earned is None:
+                earned = len([a for a in attempts if a.get("earned")])
+            detail = (
+                f"{earned} earned, {len(graded)} graded, "
+                f"{not_scored} not scored (model unreachable)"
+            )
+        out.append(
+            f"| {str(row.get('ts', '?'))[:19]} | {outcome} | {fired} | {detail} |"
+        )
+    return out
+
+
+def write_trend(trail: Path = TRAIL, trend: Path = TREND) -> None:
+    """Render the last few readings into a tracked markdown table.
+
+    Deliberately derived, never authored: it is regenerated from the trail on
+    every `--record`, so it cannot drift from the numbers it summarises. If
+    this file and the trail ever disagree, the trail is right and this is
+    stale -- which is why it says so at the top.
+    """
+    if not trail.exists():
+        return
+    rows: list[dict] = []
+    for line in trail.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    rows = rows[-_TREND_ROWS:]
+
+    header = "| " + " | ".join(label for _key, label in _TREND_COLUMNS) + " |"
+    divider = "|" + "|".join("---" for _ in _TREND_COLUMNS) + "|"
+    body = []
+    for row in rows:
+        cells = []
+        for key, _label in _TREND_COLUMNS:
+            value = row.get(key)
+            cells.append(str(value) if value is not None else "-")
+        body.append("| " + " | ".join(cells) + " |")
+
+    trend.parent.mkdir(parents=True, exist_ok=True)
+    trend.write_text(
+        "# Learning trend\n\n"
+        "Generated by `scripts/learning_scoreboard.py --record`. Do not edit by\n"
+        "hand: it is rewritten from `.aios/audit/learning-scoreboard.jsonl` on\n"
+        "every recording, and if the two ever disagree the trail is the truth.\n\n"
+        "This file is TRACKED and the trail is not, so these are the only\n"
+        "learning numbers anyone but this machine can check. A flat table means\n"
+        "the loop is not accumulating, which is a finding rather than a gap.\n\n"
+        f"{header}\n{divider}\n" + "\n".join(body) + "\n" + _runs_section(),
+        encoding="utf-8",
+    )
+
+
+def _runs_section() -> str:
+    """The organic runs behind the numbers above, so they can be checked.
+
+    Without this, every organic-learning claim rests on files under
+    `.aios/audit/` that are gitignored — readable by this machine and nobody
+    else. That is L7's standing blocker, and it is an evidence problem rather
+    than a presentation one.
+    """
+    parts = []
+    for title, trail_path in (
+        ("Self-corpus runs", SELF_CORPUS_TRAIL),
+        ("Organic chain runs", ORGANIC_CHAIN_TRAIL),
+    ):
+        rows = _summarise_runs(trail_path)
+        if not rows:
+            continue
+        parts.append(
+            f"\n## {title}\n\n"
+            "| when | outcome | links fired | detail |\n|---|---|---|---|\n"
+            + "\n".join(rows)
+            + "\n"
+        )
+    if not parts:
+        return ""
+    return (
+        "\nThe run detail lives under `.aios/audit/`, which is gitignored, so "
+        "these\nsummaries are the only part anyone but this machine can check. "
+        "A REFUSED\nrow is a result, not a gap: the grader declining to score "
+        "is the behaviour\nthat makes the other rows worth believing.\n"
+        + "".join(parts)
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Report whether the learning chain is accumulating anything."
@@ -289,16 +496,42 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(config.MEMORY_DB_PATH),
         help="memory database to read (default: the configured store)",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="exit non-zero if learning REGRESSED against the last recorded row",
+    )
     args = parser.parse_args(argv)
 
     stats = collect(args.db)
     print(json.dumps(stats, indent=2) if args.json else render(stats))
 
+    if args.check:
+        if not stats.get("db_present"):
+            # "no regression" here would be a green that means nothing: with no
+            # store there are no counters, so the comparison never ran. Saying
+            # so is this repository's own rule -- a measurement that never
+            # happened is not a result -- applied to this script's verdict.
+            # Not an error either: there is nothing to alarm on.
+            print("\nNOT CHECKED — no memory database, so nothing was compared")
+            return 0
+        regressions = detect_regressions(stats)
+        if regressions:
+            print("\nREGRESSION — learning went backwards:")
+            for line in regressions:
+                print(f"  {line}")
+            return 1
+        print("\nno regression against the last recorded reading")
+
     if args.record:
         TRAIL.parent.mkdir(parents=True, exist_ok=True)
         with TRAIL.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(stats, ensure_ascii=False) + "\n")
-        print(f"\nrecorded to {TRAIL.relative_to(REPO_ROOT).as_posix()}")
+        write_trend()
+        print(
+            f"\nrecorded to {TRAIL.relative_to(REPO_ROOT).as_posix()}"
+            f" (tracked summary: {TREND.relative_to(REPO_ROOT).as_posix()})"
+        )
     return 0
 
 

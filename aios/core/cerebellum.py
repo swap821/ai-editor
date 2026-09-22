@@ -34,12 +34,13 @@ import logging
 import hashlib
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.learning_journal import record as journal
 from aios.memory.relevance import relevance
 from aios.core.replay_writes import load_content as load_write_content
 from aios.security.scope_lock import is_path_in_scope
@@ -418,7 +419,29 @@ class Cerebellum:
                      AND NOT EXISTS (
                          SELECT 1 FROM compiled_playbooks cp
                          WHERE cp.skill_id = ps.id
-                           AND cp.status IN ('compiled', 'decompiled')
+                           AND (
+                             -- An existing reflex always blocks: one arc, one
+                             -- playbook, no duplicates.
+                             cp.status = 'compiled'
+                             -- A RETIRED reflex blocks only until its skill has
+                             -- earned more than it had when it was retired.
+                             -- This module's docstring has always promised
+                             -- exactly this ("cannot recompile WITHOUT the
+                             -- underlying skill re-earning verification"), and
+                             -- until now nothing implemented the second half:
+                             -- two replay flakes removed a reflex permanently,
+                             -- with no path back. The comparison is on
+                             -- `success_count`, which only moves on a success
+                             -- at or above the LEARNING floor -- so a weak
+                             -- green cannot buy a reflex back, and neither can
+                             -- a failure (which also trips
+                             -- `consecutive_failures` above).
+                             OR (
+                               cp.status = 'decompiled'
+                               AND ps.success_count <=
+                                   COALESCE(cp.decompiled_at_successes, ps.success_count)
+                             )
+                           )
                      )"""
             ).fetchall()
             for row in rows:
@@ -426,6 +449,20 @@ class Cerebellum:
                 if pb is not None:
                     self._cache[pb.id] = pb
                     compiled += 1
+                    # Journalled inside the SAME transaction as the compile, so
+                    # the entry cannot survive a rolled-back compile and
+                    # describe something that never happened.
+                    journal(
+                        "L4",
+                        "compiled",
+                        subject_id=pb.id,
+                        detail={
+                            "skill_id": pb.skill_id,
+                            "goal_pattern": pb.goal_pattern[:160],
+                            "steps": len(pb.steps),
+                        },
+                        conn=conn,
+                    )
         return compiled
 
     def try_compile_skill(self, skill_id: int) -> Optional[CompiledPlaybook]:
@@ -949,9 +986,21 @@ class Cerebellum:
         with get_connection(self.db_path) as conn:
             conn.execute(
                 """UPDATE compiled_playbooks
-                   SET status = 'decompiled', updated_at = CURRENT_TIMESTAMP
+                   SET status = 'decompiled',
+                       updated_at = CURRENT_TIMESTAMP,
+                       decompiled_at_successes = (
+                           SELECT ps.success_count FROM procedural_skills ps
+                           WHERE ps.id = compiled_playbooks.skill_id
+                       )
                    WHERE id = ?""",
                 (playbook_id,),
+            )
+            journal(
+                "L5",
+                "decompiled",
+                subject_id=playbook_id,
+                detail={"reason": "explicit"},
+                conn=conn,
             )
         pb = self._cache.get(playbook_id)
         if pb is not None:
@@ -972,6 +1021,7 @@ class Cerebellum:
                    WHERE id = ?""",
                 (playbook_id,),
             )
+            journal("L5", "replayed", subject_id=playbook_id, conn=conn)
         pb = self._cache.get(playbook_id)
         if pb is not None:
             pb.replay_count += 1
@@ -998,9 +1048,23 @@ class Cerebellum:
                 conn.execute(
                     """UPDATE compiled_playbooks
                        SET status = 'decompiled',
-                           updated_at = CURRENT_TIMESTAMP
+                           updated_at = CURRENT_TIMESTAMP,
+                           decompiled_at_successes = (
+                               SELECT ps.success_count FROM procedural_skills ps
+                               WHERE ps.id = compiled_playbooks.skill_id
+                           )
                        WHERE id = ?""",
                     (playbook_id,),
+                )
+                journal(
+                    "L5",
+                    "decompiled",
+                    subject_id=playbook_id,
+                    detail={
+                        "reason": "consecutive replay failures",
+                        "threshold": self.max_consecutive_failures,
+                    },
+                    conn=conn,
                 )
                 pb = self._cache.get(playbook_id)
                 if pb is not None:
@@ -1020,11 +1084,26 @@ class Cerebellum:
         with get_connection(self.db_path) as conn:
             cur = conn.execute(
                 """UPDATE compiled_playbooks
-                   SET status = 'decompiled', updated_at = CURRENT_TIMESTAMP
+                   SET status = 'decompiled',
+                       updated_at = CURRENT_TIMESTAMP,
+                       decompiled_at_successes = (
+                           SELECT ps.success_count FROM procedural_skills ps
+                           WHERE ps.id = compiled_playbooks.skill_id
+                       )
                    WHERE skill_id = ? AND status = 'compiled'""",
                 (skill_id,),
             )
             if cur.rowcount > 0:
+                journal(
+                    "L5",
+                    "decompiled",
+                    subject_id=skill_id,
+                    detail={
+                        "reason": "source skill demoted from verified",
+                        "playbooks": cur.rowcount,
+                    },
+                    conn=conn,
+                )
                 self._refresh_cache()
                 return True
         return False

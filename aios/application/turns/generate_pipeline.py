@@ -99,6 +99,108 @@ def _refresh_main_bindings() -> None:
         namespace[name] = getattr(api_main, name)
 
 
+def _mine_curriculum(curriculum: Any, development: Any) -> None:
+    """Turn this turn's development evidence into curriculum proposals.
+
+    Fail-open by construction: every failure path logs and returns. The turn
+    has already produced its answer by the time this runs, and a chat that
+    broke because curriculum mining raised would be a learning feature
+    damaging the product it is meant to improve.
+
+    The duration is logged rather than trusted. This is the only learning step
+    that runs INSIDE a turn, so its cost is paid by a user waiting, and "it is
+    probably cheap" is how a 200ms tax becomes permanent and unmeasured.
+    """
+    # Imported locally rather than relying on the module-global `config` and
+    # `logger`, which this module does not import -- they are injected by
+    # `_refresh_main_bindings()` at call time. Depending on that ordering would
+    # make this helper work only when called from inside `stream_generate`.
+    from aios import config as _config
+    from aios.logging_config import get_logger
+
+    log = get_logger(__name__)
+    started = time.monotonic()
+    try:
+        from aios.memory.curriculum_miner import CurriculumMiner
+
+        miner = CurriculumMiner()
+        proposals = miner.mine_from_development(
+            max_proposals=_config.CURRICULUM_MINING_MAX_PER_TURN
+        )
+    except Exception as exc:  # noqa: BLE001 - mining must never break a turn
+        log.warning("Curriculum mining failed", exc_info=exc)
+        return
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    if proposals:
+        log.info(
+            "Curriculum mining proposed %d task(s) in %dms",
+            len(proposals),
+            elapsed_ms,
+        )
+    elif elapsed_ms > 250:
+        # Nothing proposed AND slow is the combination worth knowing about:
+        # a tax with no return.
+        log.info("Curriculum mining proposed nothing in %dms", elapsed_ms)
+    _record_proposals(proposals, elapsed_ms)
+
+
+def _record_proposals(proposals: list, elapsed_ms: int) -> None:
+    """Write proposals somewhere a human can actually read them.
+
+    The miner's whole contract is that it SUGGESTS and somebody else accepts.
+    Until this existed the suggestion went to a log line saying how many there
+    were, so nothing a person could accept ever left the process -- a proposal
+    nobody can see is not a proposal, and the authority boundary it was
+    protecting had nothing on the other side of it.
+
+    Appending, never rewriting, for the same reason the learning journal is
+    append-only: a proposal that was made and then withdrawn by a later run is
+    a different fact from one that was never made.
+
+    Fail-open like everything else on this path. A turn must not break because
+    a log file is unwritable.
+    """
+    if not proposals:
+        return
+    import json as _json
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from aios import config as _config
+    from aios.logging_config import get_logger
+
+    try:
+        path = (
+            Path(_config.PROJECT_ROOT)
+            / ".aios"
+            / "audit"
+            / "curriculum-proposals.jsonl"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with path.open("a", encoding="utf-8") as fh:
+            for proposal in proposals:
+                fh.write(
+                    _json.dumps(
+                        {
+                            "ts": stamp,
+                            "mining_ms": elapsed_ms,
+                            "skill_name": proposal.skill_name,
+                            "level": proposal.level,
+                            "prompt": proposal.prompt,
+                            "rationale": proposal.rationale,
+                            "held_out": proposal.held_out,
+                            "fingerprint": proposal.fingerprint,
+                            "accepted": False,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + chr(10)
+                )
+    except Exception as exc:  # noqa: BLE001 - recording must never break a turn
+        get_logger(__name__).warning("Curriculum proposals unrecorded", exc_info=exc)
+
+
 def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
     """Prepare server-owned generation state before the response is created.
 
@@ -1157,6 +1259,21 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             )
         except Exception as exc:  # noqa: BLE001 - metrics must never break chat
             logger.warning("Development metrics recording failed", exc_info=exc)
+        # Curriculum mining, from the evidence the line above just wrote.
+        #
+        # `CurriculumMiner` used to be reachable only from
+        # `/api/v1/development/*`, so proposals existed only when a human asked
+        # for them -- a self-curriculum that never proposed anything unless
+        # someone remembered to ask is not self-anything. It mines
+        # `development_events`, which is exactly what `record_development`
+        # above appends to, so the turn that produced the evidence is the
+        # natural place to read it.
+        #
+        # FAIL-OPEN and timed. A learning improvement that can break a chat
+        # turn is not an improvement, and the cost lands on a user waiting for
+        # an answer, so it is measured rather than assumed to be free.
+        if config.CURRICULUM_MINING_ENABLED and curriculum is not None:
+            _mine_curriculum(curriculum, development)
         if config.FACTS_AUTO_EXTRACT:
             try:
                 proposed_count = 0

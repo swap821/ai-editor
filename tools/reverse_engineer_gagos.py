@@ -28,6 +28,13 @@ WHAT MAKES THIS HONEST RATHER THAN A DEMO
 * Every attempt appends an audit row whatever the outcome, so a run that earned
   nothing is as visible as one that earned something. A tool that only writes
   when it succeeds is how "we ran it" becomes indistinguishable from "it worked".
+  The row is flushed and fsynced the moment the attempt ends, so a run that is
+  KILLED still keeps what it had done — and because the closing summary row is
+  what marks a run complete, attempt rows with no summary read as exactly what
+  they are: a run that was interrupted.
+* A tier is recorded only if it ANSWERED. A provider that timed out was never
+  put the question, so it earns neither a success nor a failure; the ladder
+  escalates and the outage goes in the trail instead.
 
     python tools/reverse_engineer_gagos.py --targets 3
     python tools/reverse_engineer_gagos.py --targets 5 --model bedrock.some-frontier-id
@@ -37,9 +44,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -99,7 +108,12 @@ from aios.core.llm import LLMError  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
-from tools.self_corpus_grading import grade_pin_test, record_pin_outcome  # noqa: E402
+from tools.self_corpus_grading import (  # noqa: E402
+    content_digest,
+    grade_pin_test,
+    pin_steps,
+    record_pin_outcome,
+)
 from tools.self_corpus_targets import Target, collect_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "reverse-engineering-runs.jsonl"
@@ -153,6 +167,17 @@ class Attempt:
     outcome: str
     model: str = ""
     earned: bool = False
+    #: The model ANSWERED — it was reached and returned a completion. False for
+    #: `model_error` only. This is the predicate that decides whether the tier
+    #: gets a learning record at all: a provider that timed out was not
+    #: measured, and charging it a failure would be a verdict on the network
+    #: wearing a verdict on the model's face.
+    reached_model: bool = False
+    #: Digest of the test the model wrote. Carried so the recorded
+    #: `create_file` step can be the production shape -- a replay CONFIRMS
+    #: a create by comparing bytes to this hash. The SOURCE is deliberately
+    #: not carried: it would bloat every trail row for no extra proof.
+    source_sha256: str = ""
     passes_clean: bool = False
     fails_when_mutated: bool = False
     source_untouched: bool = False
@@ -399,6 +424,8 @@ def _attempt_one(
         record.seconds = time.monotonic() - started
         return record
 
+    record.reached_model = True
+
     code = _extract_code(reply)
     if not code:
         record.outcome = "no_code_block"
@@ -406,6 +433,7 @@ def _attempt_one(
         record.seconds = time.monotonic() - started
         return record
 
+    record.source_sha256 = content_digest(code)
     rel = _test_filename(target)
     path = corpus.root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -513,6 +541,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"          {t.label}")
     print()
 
+    run_id = new_run_id()
+    print(f"run id  : {run_id}")
     attempts: list[Attempt] = []
     try:
         with self_corpus(REPO_ROOT, WORKTREE) as corpus:
@@ -539,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
                 # the target and costs a frontier call.
                 for spec, client, _served in ladder:
                     feedback = ""
+                    tier_attempts: list[Attempt] = []
                     for n in range(1, args.retries + 2):
                         record = _attempt_one(
                             corpus,
@@ -549,6 +580,9 @@ def main(argv: list[str] | None = None) -> int:
                             model=spec,
                         )
                         attempts.append(record)
+                        tier_attempts.append(record)
+                        # Durable BEFORE anything else can go wrong.
+                        record_attempt_row(run_id, record)
                         flag = "EARNED " if record.earned else "       "
                         print(
                             f"    {flag}{record.outcome:<14} {spec:<34} "
@@ -569,17 +603,48 @@ def main(argv: list[str] | None = None) -> int:
                     #
                     # The GRADER decides, not pytest: a vacuous test passes
                     # pytest and is still a failed attempt at the task.
-                    record_pin_outcome(
-                        skills,
-                        _verdict_of(record),
-                        target_label=target.label,
-                        model=spec,
-                        steps=[
-                            f"read_file: {target.module}",
-                            f"create_file: {_test_filename(target)}",
-                            "verify: pytest",
-                        ],
-                    )
+                    #
+                    # But ONLY IF THE TIER ANSWERED. A tier whose every attempt
+                    # died in transport was never put the question, and a
+                    # failure row for it is a verdict on the network wearing the
+                    # model's name. Near-miss on 2026-09-21: a 300s Ollama
+                    # timeout on try 1; had try 2 also timed out, the 7B would
+                    # carry a permanent false failure for a target it never saw.
+                    should_record, tier_earned, why = tier_verdict(tier_attempts)
+                    if not should_record:
+                        print(f"            NOT RECORDED — never reached ({why})")
+                    else:
+                        record_pin_outcome(
+                            skills,
+                            _verdict_of(tier_earned),
+                            target_label=target.label,
+                            model=spec,
+                            # Production-shaped steps (`pin_steps`), not a
+                            # second format: a `create_file` without its content
+                            # digest cannot be parsed by the cerebellum, and one
+                            # unparseable step makes the whole arc uncompilable.
+                            # Every skill the self-corpus earned was silently
+                            # barred from becoming a reflex that way.
+                            steps=pin_steps(
+                                target.module,
+                                _test_filename(target),
+                                _last_digest(tier_attempts),
+                            ),
+                        )
+                        # A tier that only ever failed to emit a parseable block
+                        # is usually an indictment of `_extract_code`, not of the
+                        # model: `nemotron-nano-9b` scored 0/8 that way on an
+                        # unclosed fence. Recorded as a failure (it WAS reached
+                        # and its output WAS unusable), but said out loud.
+                        if all(
+                            a.outcome == "no_code_block"
+                            for a in tier_attempts
+                            if a.reached_model
+                        ):
+                            print(
+                                "            NOTE — every answer was unparseable; "
+                                "suspect the extractor before the model"
+                            )
                     if earned_by:
                         # Tiers above this one are never asked, so they get no
                         # record either way: silence, not a failure. Scoring a
@@ -592,10 +657,10 @@ def main(argv: list[str] | None = None) -> int:
                     print("    -> unearned by every tier in the ladder")
     except CorpusError as exc:
         print(f"\nFAIL  {exc}")
-        _write_trail(args, attempts, error=str(exc))
+        _write_trail(args, attempts, run_id=run_id, error=str(exc))
         return 1
 
-    _write_trail(args, attempts)
+    _write_trail(args, attempts, run_id=run_id)
     earned = [a for a in attempts if a.earned]
     print(f"\n{len(earned)} earned / {len({a.target for a in attempts})} target(s)")
     # Per-model, on IDENTICAL targets: the datum multi-model exists to produce.
@@ -617,31 +682,138 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _last_digest(tier_attempts: list["Attempt"]) -> str:
+    """The digest of the last test this tier actually wrote.
+
+    Empty when the tier never got as far as writing one (a transport
+    failure, or output with no parseable code block). An empty digest makes
+    the `create_file` step unparseable, which correctly keeps an arc built
+    from nothing out of the compiler.
+    """
+    for attempt in reversed(tier_attempts):
+        if attempt.source_sha256:
+            return attempt.source_sha256
+    return ""
+
+
+def tier_verdict(tier_attempts: list["Attempt"]) -> tuple[bool, bool, str]:
+    """``(should_record, earned, why)`` for one tier's whole retry budget.
+
+    Extracted so the ladder and its tests ask the SAME question. The rule this
+    encodes is the one the run's honesty rests on:
+
+        a tier is recorded IFF it answered at least once.
+
+    `model_error` means the provider was unreachable — a timeout, a 401, a
+    throttle. That tier was never put the question, so it earns neither a
+    success nor a failure; the ladder escalates and the trail records the
+    outage. Charging it a failure would publish a verdict on the network under
+    the model's name, which is the same shape as scoring a hollow pytest run:
+    a measurement that never happened, reported as a result.
+
+    `no_code_block` DOES count as a failure — the model was reached and its
+    output was unusable — but the caller says so out loud when it is the only
+    outcome, because that pattern usually indicts the extractor.
+
+    `earned` is taken over the whole budget rather than the last attempt, so
+    the verdict cannot depend on the ORDER in which retries happened.
+    """
+    answered = [a for a in tier_attempts if a.reached_model]
+    if not answered:
+        return (
+            False,
+            False,
+            "; ".join(a.outcome for a in tier_attempts) or "no attempts",
+        )
+    return True, any(a.earned for a in answered), ""
+
+
 class _V:
-    """Adapt an :class:`Attempt` back to what `record_pin_outcome` expects."""
+    """The `.earned` half of a `PinVerdict` — all `record_pin_outcome` reads."""
 
-    def __init__(self, a: Attempt) -> None:
-        self.earned = a.earned
-
-
-def _verdict_of(a: Attempt) -> _V:
-    return _V(a)
+    def __init__(self, earned: bool) -> None:
+        self.earned = earned
 
 
-def _write_trail(args, attempts: list[Attempt], *, error: str | None = None) -> None:
+def _verdict_of(earned: bool) -> _V:
+    """A tier's verdict over its whole retry budget, not its last attempt.
+
+    Taking the last attempt made the recorded outcome depend on the ORDER of
+    the failures: a tier that earned on try 1 and then was never re-asked is
+    the same tier as one whose try 2 died in transport, and reading only the
+    final record would score them differently.
+    """
+    return _V(earned)
+
+
+def new_run_id() -> str:
+    """A run identity that sorts by time and cannot collide between runs."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    return f"{stamp}-{uuid.uuid4().hex[:8]}"
+
+
+def append_trail(row: dict) -> None:
+    """Append one row and make it survive the process dying immediately after.
+
+    ``flush`` defeats a kill; ``fsync`` defeats a crash or power loss. Both are
+    cheap here -- rows are small and arrive at most once per model call, which
+    takes seconds to minutes -- and the alternative is the failure this
+    function exists to end.
+    """
     TRAIL.parent.mkdir(parents=True, exist_ok=True)
-    row = {
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "models": args.models,
-        "targets": args.targets,
-        "retries": args.retries,
-        "attempts": [asdict(a) for a in attempts],
-        "earned": sum(1 for a in attempts if a.earned),
-    }
-    if error:
-        row["error"] = error
     with TRAIL.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def record_attempt_row(run_id: str, record: Attempt) -> None:
+    """Persist ONE attempt the moment it finishes.
+
+    The module docstring promised this from the beginning -- "Every attempt
+    appends an audit row whatever the outcome" -- and it was not true: the
+    trail was written once, at the end. A run killed or crashed mid-flight left
+    NOTHING, so on 2026-09-21 a stopped run's absence was briefly read as the
+    previous run's result. A tool whose evidence appears only on a clean exit
+    has the same blind spot as one that only writes when it succeeds.
+    """
+    append_trail(
+        {
+            "kind": "attempt",
+            "run_id": run_id,
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "attempt": asdict(record),
+        }
+    )
+
+
+def _write_trail(
+    args,
+    attempts: list[Attempt],
+    *,
+    run_id: str,
+    error: str | None = None,
+) -> None:
+    """Close the run with a summary row.
+
+    The summary is what makes a run COMPLETE. Attempt rows carrying a
+    ``run_id`` with no matching summary are a partial run by definition, which
+    is how a killed run stays visible as killed rather than as nothing.
+    """
+    append_trail(
+        {
+            "kind": "run",
+            "run_id": run_id,
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "outcome": "aborted" if error else "completed",
+            "models": args.models,
+            "targets": args.targets,
+            "retries": args.retries,
+            "attempts": [asdict(a) for a in attempts],
+            "earned": sum(1 for a in attempts if a.earned),
+            **({"error": error} if error else {}),
+        }
+    )
 
 
 if __name__ == "__main__":

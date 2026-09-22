@@ -57,6 +57,90 @@ def _hours_since(timestamp: str, now: datetime) -> float:
     return max((now - parsed).total_seconds() / 3600.0, 0.0)
 
 
+def _compilable_count(steps_json: str) -> int:
+    """How many of these steps the cerebellum could actually replay.
+
+    Imported lazily: `cerebellum` is a consumer of this module's data, and a
+    module-level import would make the dependency circular.
+    """
+    from aios.core.cerebellum import _parse_step
+
+    try:
+        steps = json.loads(steps_json or "[]")
+    except json.JSONDecodeError:
+        return 0
+    return sum(1 for step in steps if _parse_step(str(step)) is not None)
+
+
+def _better_recipe(incoming: str, stored: str) -> bool:
+    """Is *incoming* a better stored recipe than *stored*?
+
+    Two axes, both about whether the recipe is USABLE later rather than about
+    whether the arc succeeded — counts are never touched here:
+
+    * fewer redaction artifacts, because recalled steps are injected verbatim
+      into future agent context and ``<REDACTED:…>.py`` is a useless
+      instruction;
+    * more COMPILABLE steps, because a recipe the cerebellum cannot parse can
+      never become a reflex no matter how often the arc verifies.
+
+    Strictly better on one axis and not worse on the other. A recipe that
+    gained a compilable step while losing a redaction-free one is not an
+    obvious improvement, and silently swapping it would be the kind of
+    unexplained change that makes stored history untrustworthy.
+    """
+    if not stored:
+        return True
+    redactions_in, redactions_stored = (
+        incoming.count("<REDACTED:"),
+        stored.count("<REDACTED:"),
+    )
+    compilable_in = _compilable_count(incoming)
+    compilable_stored = _compilable_count(stored)
+    no_worse = redactions_in <= redactions_stored and compilable_in >= compilable_stored
+    strictly_better = (
+        redactions_in < redactions_stored or compilable_in > compilable_stored
+    )
+    return no_worse and strictly_better
+
+
+def _free_legacy_signature(conn, signature: str) -> None:
+    """Let a SUPERSEDED row stop blocking the arc it used to be.
+
+    The two identity columns disagree about what superseding means, and only
+    one of them is right. ``signature_v2``'s unique index is PARTIAL --
+    ``WHERE status != 'superseded'`` -- so a retired row steps aside and the
+    arc can be learned again. The legacy ``signature`` column is
+    ``NOT NULL UNIQUE`` at table level, with no such exemption, so it keeps
+    blocking forever.
+
+    The consequence is worse than a stale row: ``record_attempt`` finds no
+    ACTIVE row (correct), tries to INSERT (correct), and dies on
+    ``UNIQUE constraint failed: procedural_skills.signature`` -- a crash, in
+    the middle of learning, for a skill the system is entitled to relearn.
+    Reachable without anyone touching the database by hand, since
+    ``consolidate`` supersedes fragments on every ``init_memory_db``.
+
+    The legacy column is lineage only: nothing looks a skill up by it (the
+    read above is by ``signature_v2``), and it exists to record the exact
+    goal+steps identity a row was born with. So the retired row keeps that
+    value in readable form with its id appended, the live row takes the true
+    signature, and no history is lost.
+
+    This is deliberately a repair at the write path rather than a schema
+    migration. Making the constraint partial is the CORRECT fix and needs a
+    SQLite table rebuild of the store that holds every lesson, skill and
+    playbook this system has ever learned -- not something to do as a side
+    effect of unblocking a training run.
+    """
+    conn.execute(
+        "UPDATE procedural_skills "
+        "SET signature = signature || ':superseded:' || id "
+        "WHERE signature = ? AND status = 'superseded'",
+        (signature,),
+    )
+
+
 class SkillMemory:
     """Store, promote, retrieve, and regress reusable verified workflows."""
 
@@ -141,6 +225,7 @@ class SkillMemory:
             # without failing, and it is the promotion floor's job (not this
             # counter's) to decide what counts as evidence.
             if row is None:
+                _free_legacy_signature(conn, sig)
                 cur = conn.execute(
                     "INSERT INTO procedural_skills "
                     "(signature, signature_v2, goal_pattern, steps_json, "
@@ -183,9 +268,17 @@ class SkillMemory:
                 # replaces the stored recipe, because recalled steps are
                 # injected verbatim into future agent context and a
                 # "<REDACTED:…>.py" step is a useless instruction.
-                if success and steps_json.count("<REDACTED:") < str(
-                    row["steps_json"]
-                ).count("<REDACTED:"):
+                #
+                # COMPILABILITY is the same kind of improvement and a more
+                # consequential one. A stored recipe whose steps the cerebellum
+                # cannot parse can never become a reflex, however many times the
+                # arc verifies — and because this UPDATE was the only path that
+                # touches `steps_json`, an arc first recorded in a poorer shape
+                # stayed uncompilable forever. Observed live: skill 66, verified
+                # at 8 successes and 0 failures from real code, silently unable
+                # to compile because its `create_file` step predated the
+                # production step format.
+                if success and _better_recipe(steps_json, str(row["steps_json"])):
                     conn.execute(
                         "UPDATE procedural_skills SET steps_json = ? WHERE id = ?",
                         (steps_json, skill_id),
