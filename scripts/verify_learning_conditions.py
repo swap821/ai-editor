@@ -352,6 +352,28 @@ def evaluate(record: dict, results: dict[str, dict]) -> FacultyResult:
                     "not an excuse)",
                 ),
             )
+        elif not _sha_is_ancestor(str(latest.get("commit_sha") or "")):
+            # THE GAP THAT LET THE SQUASH THROUGH. Only `last_verified_sha` was
+            # ancestry-checked (LC12), so a row could cite a commit no clone of
+            # this branch can resolve and still read PASS here. When #359 was
+            # squash-merged every faculty's evidence commit was discarded and
+            # this condition would have kept saying PASS over citations nobody
+            # could check.
+            #
+            # A claim whose commit cannot be resolved is not weaker evidence --
+            # it is unverifiable, which is worse than stale. The organ ledger
+            # already asks this (tests/test_evidence_shas_are_reachable.py);
+            # the learning ledger now asks it too.
+            put(
+                "LC10",
+                Verdict(
+                    "FAIL",
+                    f"organic evidence cites {str(latest.get('commit_sha'))[:12]}, "
+                    "which is NOT an ancestor of HEAD — a squash merge discarded "
+                    "the commit that produced it. Re-earn the evidence at a "
+                    "commit this branch contains; do not re-point the sha.",
+                ),
+            )
         else:
             put(
                 "LC10",
