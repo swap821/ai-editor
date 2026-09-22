@@ -43,6 +43,7 @@ describe('SuperbrainReactiveEffects', () => {
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
     const { container } = render(<SuperbrainReactiveEffects />);
 
+    expect(container.querySelector('[data-testid="semantic-being-halo"]')).not.toBeNull();
     expect(getAuroraState().intensity).toBe(0);
     expect(container.querySelector('[data-testid="verify-aurora"]')).toBeNull();
   });

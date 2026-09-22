@@ -8,7 +8,7 @@
  *   - verify pass  → green aurora bloom around the cortex
  *   - caste_start/end → orbiting worker motes at vertebra seats
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
@@ -16,6 +16,12 @@ import {
   subscribeSwarmHUD,
 } from '../superbrain/lib/swarmHUDStore';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { getConversationPhase, subscribeConversationPhase } from '../superbrain/lib/conversationPhaseBus';
+import { getPendingApproval, subscribePendingApproval } from '../superbrain/lib/aiosAdapter';
+import { useMirrorStore } from '../superbrain/lib/mirrorStore';
+import { deriveSemanticSignals } from '../livingMirror/being/semanticSignals';
+import { deriveBeingPresentation } from '../livingMirror/being/beingPresentation';
+import { deriveBeingScenePresentation } from '../livingMirror/being/beingScenePresentation';
 import { getKnownTrails } from '../superbrain/lib/aiosAdapter';
 import {
   fuseSpinePoint,
@@ -110,6 +116,77 @@ function getStableRandom(seed) {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
+function activeTurnForConversation(phase) {
+  switch (phase) {
+    case 'awakening':
+    case 'thinking':
+      return 'planning';
+    case 'streaming':
+      return 'acting';
+    case 'complete':
+      return 'checking';
+    case 'error':
+      return 'recovering';
+    default:
+      return 'idle';
+  }
+}
+
+function emergencyStopFromMirror(events) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const type = events[index]?.type;
+    if (type === 'governance.emergency_stop.engaged') return true;
+    if (type === 'governance.emergency_stop.released' || type === 'governance.emergency_stop.disengaged') return false;
+  }
+  return false;
+}
+
+function SemanticBeingHalo({ presentation }) {
+  const ringRef = useRef(null);
+  const materialRef = useRef(null);
+  const targetColor = useMemo(() => new THREE.Color(presentation.color), [presentation.color]);
+  const [cx, cy, cz] = getCortexAnchor();
+  const position = useMemo(
+    () => new THREE.Vector3(cx, cy, cz).multiplyScalar(getBrainDockScale()),
+    [cx, cy, cz],
+  );
+
+  useFrame((_, delta) => {
+    if (materialRef.current) {
+      materialRef.current.color.lerp(targetColor, Math.min(1, delta * 4));
+      materialRef.current.opacity = THREE.MathUtils.damp(
+        materialRef.current.opacity,
+        presentation.haloOpacity,
+        4,
+        delta,
+      );
+    }
+    if (!ringRef.current) return;
+    const targetScale = presentation.haloScale;
+    const scale = THREE.MathUtils.damp(ringRef.current.scale.x, targetScale, 3, delta);
+    ringRef.current.scale.setScalar(scale);
+    if (presentation.motionIntensity > 0) {
+      ringRef.current.rotation.z += delta * presentation.flow * presentation.motionIntensity * 0.18;
+    }
+  });
+
+  return (
+    <group name="semantic-being-halo" position={position}>
+      <mesh ref={ringRef} data-testid="semantic-being-halo" rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.48, 0.012, 8, 48]} />
+        <meshBasicMaterial
+          ref={materialRef}
+          color={presentation.color}
+          transparent
+          opacity={presentation.haloOpacity}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 export default function SuperbrainReactiveEffects() {
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
@@ -117,8 +194,40 @@ export default function SuperbrainReactiveEffects() {
   const motesRef = useRef({});
   const [aurora, setAurora] = useState(getAuroraState);
   const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
+  const mirror = useMirrorStore();
+  const [conversationPhase, setConversationPhase] = useState(() => getConversationPhase());
+  const [pendingApproval, setPendingApproval] = useState(() => getPendingApproval());
   const lastCloudIndices = useRef(new Set());
   const lastCastes = useRef(new Set());
+
+  useEffect(() => {
+    const sync = () => setConversationPhase(getConversationPhase());
+    const unsubscribe = subscribeConversationPhase(sync);
+    const timer = window.setInterval(sync, 500);
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => subscribePendingApproval(setPendingApproval), []);
+
+  const semanticSignals = deriveSemanticSignals(mirror.recentEvents);
+  const beingPresentation = useMemo(() => deriveBeingScenePresentation(deriveBeingPresentation({
+    mirrorSnapshot: mirror,
+    connectionState: mirror.connection,
+    activeTurn: activeTurnForConversation(conversationPhase),
+    pendingApproval: Boolean(pendingApproval) || mirror.approvalRequired,
+    emergencyStop: emergencyStopFromMirror(mirror.recentEvents),
+    recentSemanticSignals: semanticSignals,
+    reducedMotion: typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
+    qualityTier: 'high',
+    verificationState: semanticSignals.includes('verification-pass')
+      ? 'passed'
+      : semanticSignals.includes('verification-fail')
+        ? 'failed'
+        : 'none',
+  })), [conversationPhase, mirror, pendingApproval, semanticSignals]);
 
   useEffect(() => {
     // Sync local React state with the product-only aurora bridge so the
@@ -262,6 +371,7 @@ export default function SuperbrainReactiveEffects() {
 
   return (
     <group name="superbrain-reactive-effects">
+      <SemanticBeingHalo presentation={beingPresentation} />
       {lightnings.map((l) => (
         <Line
           key={l.id}
