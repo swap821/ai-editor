@@ -38,12 +38,22 @@
 .lm-header { position: absolute; top: 20px; left: 28px; right: 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
 .lm-header h1 { font-size: 30px; letter-spacing: .04em; margin: 0; color: var(--lm-cyan); }
 .lm-subtitle { color: var(--lm-muted); font-size: 14px; }
+.lm-shell[data-experience-mode="beginner"] .lm-brand,
+.lm-shell[data-experience-mode="beginner"] .lm-navigation,
+.lm-shell[data-experience-mode="beginner"] .lm-workspace-rail { display: none; }
 .lm-navigation { position: absolute; top: 98px; left: 28px; right: 28px; display: flex; gap: 8px; align-items: center; pointer-events: auto; }
 .lm-navigation button { background: var(--lm-canvas); border-color: transparent; }
 .lm-navigation button[aria-current="page"] { border-color: var(--lm-cyan); color: var(--lm-cyan); }
 .lm-more { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--lm-muted); }
 .lm-more select { max-width: 190px; }
-.lm-connection { position: absolute; bottom: 18px; left: 28px; right: 28px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; color: var(--lm-muted); font-size: 13px; pointer-events: auto; }
+.lm-connection { position: absolute; bottom: 18px; left: 28px; right: 28px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; color: var(--lm-muted); font-size: 13px; pointer-events: auto; }
+.lm-connection__signal { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--lm-orange); box-shadow: 0 0 12px currentColor; }
+.lm-connection--checking .lm-connection__signal { color: var(--lm-cyan); background: var(--lm-cyan); }
+.lm-connection--stale .lm-connection__signal { color: var(--lm-orange); }
+.lm-connection--ready .lm-connection__signal { color: var(--lm-green); background: var(--lm-green); }
+.lm-connection__message { display: inline-flex; flex-wrap: wrap; gap: 0 8px; }
+.lm-connection__message strong { color: var(--lm-text); font-weight: 600; }
+.lm-connection__technical, .lm-connection__snapshot { font-family: var(--font-jetbrains-mono), monospace; font-size: 12px; overflow-wrap: anywhere; }
 .lm-connection button { min-height: 32px; font-size: 13px; color: var(--lm-orange); }
 .lm-workspace-rail { position: absolute; top: 160px; right: 28px; display: flex; flex-direction: column; gap: 8px; max-width: 250px; pointer-events: auto; }
 .lm-workspace-rail > button { display: flex; gap: 10px; align-items: center; text-align: left; overflow-wrap: anywhere; font-size: 14px; }
@@ -134,7 +144,8 @@
   .lm-surface__body dd { margin-bottom: 12px; }
   .lm-workspace-rail, .lm-app[data-working="true"] .lm-workspace-rail { top: 130px; right: 12px; left: auto; width: auto; max-width: 45%; }
   .lm-workspace-rail > button:not(:last-of-type) { display: none; }
-  .lm-connection { left: 16px; bottom: 8px; right: 16px; font-size: 11px; gap: 0 10px; }
+  .lm-connection { left: 16px; bottom: 8px; right: 16px; font-size: 11px; gap: 4px 10px; }
+  .lm-connection__technical, .lm-connection__snapshot { font-size: 10px; }
   .lm-app .gagos-chat {
     left: 16px;
     right: 16px;
