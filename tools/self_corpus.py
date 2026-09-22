@@ -191,11 +191,29 @@ def training_scope(corpus: Corpus) -> Iterator[Corpus]:
     was unset — leaving a widened scope behind after a crash is precisely the
     kind of residue that turns a scoped experiment into a standing hole.
     """
+    # BOTH mechanisms, because they cover different processes and only one of
+    # them was here. `AIOS_SCOPE_ROOTS` is read when `aios.security.limits` is
+    # IMPORTED, so setting it in a process that already imported aios changes
+    # nothing in that process -- this block's own docstring claimed the
+    # executor's scope lock was confined, and in-process it was not. It was
+    # still effective for CHILD processes, which import aios fresh, and the
+    # worktree plus the before/after fingerprint were doing the real work.
+    #
+    # `set_scope_roots` is the supported in-process re-declaration, so the two
+    # together make the documented guarantee true for the runner AND anything
+    # it spawns. Both are restored on the way out: a widened scope left behind
+    # after a crash is exactly the residue that turns a scoped experiment into
+    # a standing hole.
+    from aios.security.scope_lock import get_scope_roots, set_scope_roots
+
     previous = os.environ.get("AIOS_SCOPE_ROOTS")
+    previous_roots = get_scope_roots()
     os.environ["AIOS_SCOPE_ROOTS"] = corpus.scope_roots
+    set_scope_roots([corpus.root])
     try:
         yield corpus
     finally:
+        set_scope_roots(previous_roots)
         if previous is None:
             os.environ.pop("AIOS_SCOPE_ROOTS", None)
         else:

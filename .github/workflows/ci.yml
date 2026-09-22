@@ -554,6 +554,59 @@ jobs:
       - name: Repo-wide format check
         run: ruff format --check .
 
+  learning-ledger:
+    # The learning side's equivalent of `verify_organ_twelve_conditions`.
+    #
+    # Until this existed the Learning Ledger was computed only when somebody
+    # remembered to run the script -- which is the same defect the ledger's own
+    # LC2 exists to catch, one level up: an apparatus reachable from nothing
+    # that runs on its own is not an apparatus, it is a document. A faculty
+    # whose evidence went stale, whose named test disappeared, or whose
+    # last_verified_sha stopped being an ancestor of HEAD would have stayed
+    # green in the committed JSON with nothing to notice.
+    #
+    # Fail-closed by construction: the ledger has no field anyone can write
+    # "PASS" into, so this job cannot be satisfied by editing it. It re-derives
+    # every verdict from LC1..LC12 and exits non-zero if any faculty that
+    # claims green cannot prove it here.
+    #
+    # `scripts/learning_scoreboard.py --check` is deliberately NOT here.
+    # It compares counters in `data/aios_memory.db`, which is gitignored and
+    # does not exist on a fresh runner -- so in CI it would measure nothing and
+    # print a pass. A green that means nothing is worse than no check, and it
+    # is the exact failure class this ledger was built to catch. The scoreboard
+    # belongs on a machine that has actually run the system; the operator's
+    # scheduled drive (`tools/learning_drive.py`) is where it earns its keep.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # LC12 asks whether each evidence sha is an ancestor of HEAD -- the
+          # same anti-replay question the organ gate asks, with the same
+          # answer in a depth-1 clone: `git merge-base --is-ancestor` cannot
+          # tell, and it fails CLOSED. Without full history every faculty
+          # would report a lineage failure it does not have.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify the learning conditions (LC1..LC12)
+        env:
+          AIOS_VERIFICATION_AUTHORITY_KEY: "ci-verification-authority-key-32-bytes-long!"
+          AIOS_PROMOTION_AUTHORITY_KEY: "ci-promotion-authority-key-32-bytes-long!!"
+          CHECKPOINT_AUTHORITY_KEY: "ci-checkpoint-authority-key-32-bytes-long!"
+        run: python scripts/verify_learning_conditions.py
+
+
   release-authority:
     # This job is intentionally separate from the platform matrix: it checks
     # the shipped topology and architecture invariants once on Linux, where

@@ -53,17 +53,32 @@ class TestTemplateFamilyFollowsTheSourceTask:
         """A refactor prompt also contains 'Edit' -- ordering is load-bearing."""
         assert _template_family("Edit x.py to refactor y") == "refactor_and_test"
 
-    def test_every_declared_family_is_reachable(self) -> None:
+    def test_every_declared_family_is_reachable(self, tmp_path) -> None:
         """Guards the mapping, not today's strings.
 
         The original bug was a whole family of templates that no input could
         ever select. A template nobody can reach is not a feature.
+
+        `pin_real_behaviour` is selected one level up -- by the target being
+        real, not by the source prompt's verb -- so reaching it means actually
+        generating from a real-code source rather than calling
+        `_template_family`. Checking only the latter would have declared it
+        unreachable while it worked, or reachable while it did not.
         """
         reachable = {
             _template_family("Create training_ground/a.py with a thing."),
             _template_family("Edit training_ground/a.py to refactor a thing."),
             _template_family("Edit training_ground/a.py to add a thing."),
         }
+        miner = CurriculumMiner(db_path=tmp_path / "reachable.sqlite")
+        real = miner._generate_variants(
+            "read aios/memory/relevance.py and pin relevance()",
+            "python-general",
+            3,
+            set(),
+        )
+        assert real, "the real-code family produced nothing and is unreachable"
+        reachable.add("pin_real_behaviour")
         assert reachable == set(_ESCALATION_TEMPLATES), (
             f"unreachable template families: {set(_ESCALATION_TEMPLATES) - reachable}"
         )

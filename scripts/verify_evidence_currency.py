@@ -65,6 +65,31 @@ def _head() -> str:
     ).stdout.strip()
 
 
+def is_reachable(sha: str, head: str) -> bool:
+    """Is *sha* an ancestor of *head* -- i.e. can anyone resolve this claim?
+
+    The OTHER way a live-evidence row goes bad, and the one `changed_since`
+    cannot see. A squash merge leaves the tree byte-identical, so no file has
+    drifted and the currency rule says the row is fine -- while the commit it
+    cites no longer exists on the branch. Observed exactly that when #359 was
+    squashed: 38 green organs left citing 78cbf1a37822, a commit no clone of
+    master can resolve.
+
+    Unverifiable is worse than stale. A stale row is a true claim about an old
+    commit; an unreachable row is a claim nobody can check at all.
+    """
+    if not sha:
+        return False
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, head],
+            cwd=REPO_ROOT,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
 def changed_since(sha: str, paths: list[str], head: str) -> list[str]:
     """Which of *paths* changed between *sha* and HEAD.
 
