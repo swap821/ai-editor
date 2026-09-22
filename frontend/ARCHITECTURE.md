@@ -1,7 +1,12 @@
 # GAGOS Frontend Architecture (v10)
 
 ## Overview
-The GAGOS frontend is a single-page React application that serves as the visual "nervous system" for the underlying AI Operating System (AI-OS). Unlike traditional dashboards, this interface renders the state of the AI as a diegetic 3D entity alongside a crisp 2D product layer (GagosChrome) for telemetry and interaction.
+The GAGOS frontend is a single-root React application that serves as the visual
+"nervous system" for the underlying AI Operating System (AI-OS). It renders the
+state of the system as a diegetic 3D entity alongside a product-authored 2D
+conversation layer and an explicit Expert/Mirror workbench. Beginner mode is
+the default; Expert/Mirror exposes more of the same measured state without
+creating a second authority.
 
 ## Core Stack
 - **React 18**: The primary UI rendering library.
@@ -26,10 +31,15 @@ A crisp glassmorphism product layer DOM-sibling to the canvas. Contains various 
 - **`CouncilDeliberationPanel`**: Visualizes the internal dialog of the multi-agent council.
 - **`CodeEditor` & `TerminalPanel`**: Tools for viewing and editing code directly within the OS.
 
-### 4. `MobileHUD` & `VoiceCommandHandler`
-Responsive wrapper for mobile devices and a continuous-listening speech-to-text interface (via Web Speech API) allowing the operator to speak directly to the AI-OS.
+### 4. `LivingWorkspaceShell` & voice surfaces
+`LivingWorkspaceShell` hosts the backend-backed Expert/Mirror workbench and
+truthful runtime surfaces. Voice is an optional conversation channel through
+`GagosChrome`; it never redeems an approval or authorizes a mutation.
 
 ## State Management & Communication
-- **Server-Sent Events (SSE)**: Real-time telemetry is streamed from the backend (`aiosAdapter.sse.ts`).
-- **WebSocket Fallback**: (`websocketAdapter.ts`) Provides a resilient fallback if SSE drops.
-- **Cognition Bus**: Internal event bus that dispatches UI interactions back to the AI-OS agents.
+- **Server-Sent Events (SSE)**: supervised turns use `aiosAdapter.ts`, while
+  `aiosMirror.ts` consumes the canonical mirror snapshot/journal stream.
+- **Cognition Bus**: Internal event bus translates admitted backend events into
+  bounded body reactions; it never creates authority.
+- **Mirror store/registry**: typed state and event admission preserve measured,
+  stale, unavailable, blocked, and verified distinctions.

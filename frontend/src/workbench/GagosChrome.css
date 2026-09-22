@@ -106,6 +106,78 @@
   align-items: flex-end;
   gap: 7px;
 }
+
+/* The experience switch is a persistent product boundary: the guided front
+   door and the full mirror are two views over the same supervised backend. */
+.gagos-experience-switch {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 55;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+.gagos-experience-mode {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 7px 5px 12px;
+  border: 1px solid rgba(123, 245, 251, 0.2);
+  border-radius: 999px;
+  color: rgba(228, 236, 250, 0.76);
+  background: rgba(6, 4, 15, 0.78);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  white-space: nowrap;
+}
+.gagos-experience-mode__label,
+.gagos-experience-mode__state {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.gagos-experience-mode__label {
+  color: rgba(228, 236, 250, 0.54);
+}
+.gagos-experience-mode__state {
+  min-width: 104px;
+  color: rgba(123, 245, 251, 0.72);
+}
+.gagos-experience-mode__choices {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.gagos-experience-mode__choice {
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 999px;
+  color: rgba(228, 236, 250, 0.68);
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.gagos-experience-mode__choice:hover,
+.gagos-experience-mode__choice:focus-visible {
+  color: #eaf0fb;
+  background: var(--hairline);
+}
+.gagos-experience-mode__choice.is-active {
+  color: #06121a;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 14px rgba(123, 245, 251, 0.22);
+}
+.gagos-chrome[data-experience-mode="beginner"] .gagos-expert-only,
+.gagos-chrome[data-experience-mode="beginner"] .gagos-hint {
+  display: none;
+}
 .gagos-pill {
   display: inline-flex;
   align-items: center;
@@ -778,6 +850,52 @@
   max-width: 31ch;
   text-shadow: 0 1px 16px rgba(0, 0, 0, 0.6);
 }
+.gagos-welcome__guidance {
+  max-width: 32ch;
+  margin-top: -5px;
+  color: rgba(228, 236, 250, 0.68);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.gagos-readiness {
+  max-width: 38ch;
+  margin-top: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: rgba(228, 236, 250, 0.72);
+  background: rgba(6, 4, 15, 0.54);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.gagos-readiness__label,
+.gagos-readiness__status,
+.gagos-readiness__detail { margin: 0; }
+.gagos-readiness__label {
+  color: rgba(228, 236, 250, 0.5);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.gagos-readiness__status { margin-top: 3px; color: #7bf5fb; font-weight: 600; }
+.gagos-readiness__detail { margin-top: 3px; }
+.gagos-readiness--blocked { border-color: rgba(255, 126, 64, 0.42); }
+.gagos-readiness--blocked .gagos-readiness__status { color: #ffb08d; }
+.gagos-readiness--unavailable { border-color: rgba(255, 255, 255, 0.2); }
+.gagos-readiness--unavailable .gagos-readiness__status { color: rgba(228, 236, 250, 0.9); }
+.gagos-readiness__checks { margin: 7px 0 0; padding-left: 17px; }
+.gagos-readiness__checks li { margin: 0; }
+.gagos-readiness__recovery-link { display: inline-block; margin-top: 7px; color: #7bf5fb; }
+.gagos-readiness__recovery { margin-top: 7px; }
+.gagos-readiness__recovery summary { cursor: pointer; color: rgba(228, 236, 250, 0.78); }
+.gagos-readiness__recovery p { margin: 6px 0 0; }
+.gagos-voice-note {
+  max-width: 38ch;
+  margin: 0;
+  color: rgba(228, 236, 250, 0.58);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .gagos-welcome__name {
   color: #aef3ff;
   font-weight: 560;
@@ -790,6 +908,15 @@
   gap: 0.5rem;
   margin-top: 1rem;
   justify-content: center;
+}
+.gagos-starters--paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 38rem);
+  margin-inline: auto;
+  justify-content: stretch;
+  align-items: stretch;
+  gap: 0.6rem;
 }
 .gagos-starter {
   font: inherit;
@@ -815,6 +942,20 @@
   outline: 2px solid rgba(123, 245, 251, 0.6);
   outline-offset: 2px;
 }
+.gagos-starter--path {
+  display: flex;
+  min-height: 118px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
+  text-align: left;
+  white-space: normal;
+}
+.gagos-starter__title { color: rgba(236, 242, 255, 0.92); font-size: 0.88rem; font-weight: 560; }
+.gagos-starter__description { color: rgba(228, 236, 250, 0.62); font-size: 0.75rem; line-height: 1.45; }
+.gagos-starter__action { color: rgba(123, 245, 251, 0.82); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
 
 @keyframes gagos-welcome-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -859,6 +1000,11 @@
   .gagos-chat { width: min(420px, 52vw); }
 }
 @media (max-width: 640px) {
+  .gagos-experience-switch { top: 10px; }
+  .gagos-experience-mode { gap: 5px; padding-left: 7px; }
+  .gagos-experience-mode__label,
+  .gagos-experience-mode__state { display: none; }
+  .gagos-experience-mode__choice { min-height: 30px; padding-inline: 8px; }
   .gagos-lockup { top: 18px; left: 18px; gap: 7px; }
   .gagos-wordmark { font-size: 18px; letter-spacing: 0.34em; margin-right: -0.34em; }
   .gagos-subtitle { font-size: 8.5px; letter-spacing: 0.34em; margin-right: -0.34em; }
@@ -868,6 +1014,8 @@
   .gagos-thread { max-height: 42vh; }
   .gagos-welcome__greeting { font-size: 15px; max-width: none; }
   .gagos-starter { font-size: 13px; min-height: 46px; }
+  .gagos-starters--paths { grid-template-columns: 1fr; width: 100%; }
+  .gagos-starter--path { min-height: 88px; }
 }
 
 /* ── Intent preview — the dock membrane tints toward the predicted mode ─────
