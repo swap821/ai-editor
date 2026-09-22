@@ -107,6 +107,92 @@
   gap: 7px;
 }
 
+/* The status language is a projection of the living mirror, not a second
+   source of operational truth. Guided mode gets meaning; Expert gets the
+   measured vocabulary alongside it. */
+.gagos-being-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(330px, 42vw);
+  padding: 7px 11px;
+  border: 1px solid rgba(123, 245, 251, 0.18);
+  border-radius: 12px;
+  color: rgba(228, 236, 250, 0.78);
+  background: rgba(6, 4, 15, 0.72);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  text-align: left;
+}
+.gagos-being-status__pulse {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 14px currentColor;
+}
+.gagos-being-status__copy { display: grid; gap: 1px; min-width: 0; }
+.gagos-being-status__copy strong { color: rgba(242, 247, 255, 0.94); font-size: 12px; font-weight: 600; }
+.gagos-being-status__copy span { color: rgba(228, 236, 250, 0.64); font-size: 11px; line-height: 1.3; }
+.gagos-being-status__technical { color: rgba(228, 236, 250, 0.48); font: 10px/1.3 var(--font-jetbrains-mono), monospace; }
+.gagos-being-status--acting .gagos-being-status__pulse,
+.gagos-being-status--reflex .gagos-being-status__pulse { background: var(--neon-green); color: var(--neon-green); }
+.gagos-being-status--awaiting-human .gagos-being-status__pulse,
+.gagos-being-status--verifying .gagos-being-status__pulse { background: var(--neon-orange); color: var(--neon-orange); }
+.gagos-being-status--stale .gagos-being-status__pulse,
+.gagos-being-status--degraded .gagos-being-status__pulse { background: var(--neon-orange); color: var(--neon-orange); opacity: .65; }
+.gagos-being-status--stopped { border-color: rgba(255, 126, 64, 0.55); }
+.gagos-being-status--stopped .gagos-being-status__pulse { background: var(--neon-orange); color: var(--neon-orange); box-shadow: none; }
+
+.gagos-task-story {
+  pointer-events: auto;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(123, 245, 251, 0.16);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(10, 7, 23, 0.88), rgba(8, 11, 25, 0.62));
+  box-shadow: 0 12px 42px rgba(0, 0, 0, 0.26);
+}
+.gagos-task-story__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.gagos-task-story__eyebrow { margin: 0; color: rgba(123, 245, 251, 0.62); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
+.gagos-task-story h2 { margin: 2px 0 0; color: rgba(242, 247, 255, 0.94); font-size: 15px; font-weight: 600; }
+.gagos-task-story__signal { width: 8px; height: 8px; flex: 0 0 8px; margin-top: 5px; border-radius: 50%; background: var(--neon-cyan); box-shadow: 0 0 12px currentColor; }
+.gagos-task-story__goal { margin: 0; color: rgba(228, 236, 250, 0.78); font-size: 12px; overflow-wrap: anywhere; }
+.gagos-task-story__detail { margin: 0; color: rgba(228, 236, 250, 0.64); font-size: 12px; line-height: 1.42; }
+.gagos-task-story__steps { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin: 2px 0 0; padding: 0; list-style: none; }
+.gagos-task-story__step { display: grid; gap: 4px; min-width: 0; color: rgba(228, 236, 250, 0.38); font-size: 9px; line-height: 1.15; text-align: center; }
+.gagos-task-story__step span:last-child { overflow-wrap: anywhere; }
+.gagos-task-story__step-dot { width: 7px; height: 7px; margin: 0 auto; border: 1px solid rgba(228, 236, 250, 0.32); border-radius: 50%; }
+.gagos-task-story__step--complete { color: rgba(84, 240, 160, 0.78); }
+.gagos-task-story__step--complete .gagos-task-story__step-dot { border-color: var(--neon-green); background: var(--neon-green); }
+.gagos-task-story__step--current { color: rgba(242, 247, 255, 0.94); }
+.gagos-task-story__step--current .gagos-task-story__step-dot { border-color: var(--neon-cyan); background: var(--neon-cyan); box-shadow: 0 0 10px rgba(123, 245, 251, 0.72); }
+.gagos-task-story__next { margin: 0; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.08); color: rgba(228, 236, 250, 0.7); font-size: 11px; }
+.gagos-task-story--needs-permission { border-color: rgba(255, 126, 64, 0.46); }
+.gagos-task-story--stale, .gagos-task-story--stopped { border-color: rgba(255, 126, 64, 0.36); }
+
+.gagos-outcome-receipt {
+  pointer-events: auto;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid rgba(84, 240, 160, 0.35);
+  border-radius: 12px;
+  background: rgba(7, 23, 20, 0.82);
+}
+.gagos-outcome-receipt--done-unverified, .gagos-outcome-receipt--failed, .gagos-outcome-receipt--refused, .gagos-outcome-receipt--stopped { border-color: rgba(255, 126, 64, 0.44); background: rgba(28, 15, 12, 0.82); }
+.gagos-outcome-receipt__mark { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 22px; border: 1px solid currentColor; border-radius: 50%; color: var(--neon-green); font-weight: 700; }
+.gagos-outcome-receipt--done-unverified .gagos-outcome-receipt__mark, .gagos-outcome-receipt--failed .gagos-outcome-receipt__mark, .gagos-outcome-receipt--refused .gagos-outcome-receipt__mark, .gagos-outcome-receipt--stopped .gagos-outcome-receipt__mark { color: var(--neon-orange); }
+.gagos-outcome-receipt__body { min-width: 0; }
+.gagos-outcome-receipt h2 { margin: 0; color: rgba(242, 247, 255, 0.94); font-size: 13px; font-weight: 600; }
+.gagos-outcome-receipt p { margin: 3px 0 0; color: rgba(228, 236, 250, 0.68); font-size: 11px; line-height: 1.4; }
+.gagos-outcome-receipt__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.gagos-outcome-receipt__actions button { min-height: 32px; padding: 5px 9px; border: 1px solid rgba(228, 236, 250, 0.2); border-radius: 7px; color: rgba(242, 247, 255, 0.88); background: rgba(255,255,255,.04); font: inherit; font-size: 11px; cursor: pointer; }
+
 /* The experience switch is a persistent product boundary: the guided front
    door and the full mirror are two views over the same supervised backend. */
 .gagos-experience-switch {

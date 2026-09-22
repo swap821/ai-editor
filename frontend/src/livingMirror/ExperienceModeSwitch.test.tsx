@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { ExperienceModeSwitch } from './ExperienceModeSwitch';
 
 describe('ExperienceModeSwitch', () => {
-  it('marks Beginner as the safe guided default and explains the current surface', () => {
+  it('marks Guided as the safe default and explains the current surface', () => {
     render(<ExperienceModeSwitch mode="beginner" onChange={vi.fn()} />);
 
     expect(screen.getByRole('group', { name: 'Experience mode' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Beginner' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Guided' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Expert / Mirror' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('Guided front door')).toBeInTheDocument();
   });

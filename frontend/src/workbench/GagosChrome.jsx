@@ -60,6 +60,13 @@ import { useVoiceInput } from './hooks/useVoiceInput';
 import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
 import { BootstrapReadiness } from '../livingMirror/BootstrapReadiness';
 import { StarterPaths } from '../livingMirror/StarterPaths';
+import { useMirrorStore } from '../superbrain/lib/mirrorStore';
+import { deriveBeingPresentation } from '../livingMirror/being/beingPresentation';
+import { deriveSemanticSignals } from '../livingMirror/being/semanticSignals';
+import { BeingStatus } from '../livingMirror/being/BeingStatus';
+import { deriveHumanTaskState } from '../livingMirror/experience/humanTaskStory';
+import { GuidedTaskStory } from '../livingMirror/experience/GuidedTaskStory';
+import { OutcomeReceipt } from '../livingMirror/experience/OutcomeReceipt';
 
 export { workFilepath, extractStreamingCode };
 
@@ -218,6 +225,8 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   const [hintDismissed, setHintDismissed] = useState(true);
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
+  const [taskOutcome, setTaskOutcome] = useState(null);
+  const [emergencyStopEngaged, setEmergencyStopEngaged] = useState(null);
   // Organ 30: which message's human-state correction picker is open (at most
   // one at a time -- a second tap on another message's affordance replaces it).
   const [openHumanStateMsgId, setOpenHumanStateMsgId] = useState(null);
@@ -268,6 +277,8 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
     setPendingApproval,
   } = useCognitionBus(reducedMotion);
 
+  const mirror = useMirrorStore();
+
   // 2. Work Materialization custom hook
   const {
     messages,
@@ -310,8 +321,65 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
     setDraft,
   });
 
+  useEffect(() => {
+    let alive = true;
+    const readStop = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/mirror/governance`, { credentials: 'include' });
+        if (!response.ok) return;
+        const value = await response.json();
+        const engaged = value?.emergencyStop?.engaged?.value;
+        if (alive && typeof engaged === 'boolean') setEmergencyStopEngaged(engaged);
+      } catch {
+        // Unknown stop state stays unknown; it must never be rendered as clear.
+      }
+    };
+    void readStop();
+    const id = window.setInterval(readStop, 12000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
+
   const { tabs: liveTabs } = useTabStore();
   const beingWorking = liveTabs.some((t) => t.kind !== 'input' && t.lifecycle !== 'retracting');
+
+  useEffect(() => {
+    if (verifyToast?.verdict) setTaskOutcome(String(verifyToast.verdict).toLowerCase() === 'pass' ? 'verified' : 'failed');
+  }, [verifyToast]);
+
+  const handleSubmit = useCallback((text) => {
+    setTaskOutcome(null);
+    void submit(text);
+  }, [submit]);
+
+  const handleStop = useCallback(() => {
+    setTaskOutcome('stopped');
+    stopTurn();
+  }, [stopTurn]);
+
+  const semanticSignals = deriveSemanticSignals(mirror.recentEvents);
+  const activeTurn = listening ? 'listening'
+    : convPhase === 'thinking' || convPhase === 'awakening' ? 'planning'
+      : convPhase === 'streaming' ? 'acting'
+        : convPhase === 'complete' ? 'checking'
+          : convPhase === 'error' ? 'recovering' : 'idle';
+  const taskState = deriveHumanTaskState({
+    hasGoal: messages.some((message) => message.role === 'user'),
+    turnPhase: activeTurn,
+    pendingApproval: !!pendingApproval,
+    continuity: mirror.projection === 'fresh' ? 'fresh' : mirror.projection === 'snapshot' ? 'snapshot' : mirror.projection === 'stale' ? 'stale' : emergencyStopEngaged ? 'stopped' : 'unknown',
+    outcome: taskOutcome,
+  });
+  const presentation = deriveBeingPresentation({
+    mirrorSnapshot: mirror,
+    connectionState: mirror.connection,
+    activeTurn,
+    pendingApproval: !!pendingApproval,
+    emergencyStop: emergencyStopEngaged === true,
+    recentSemanticSignals: semanticSignals,
+    reducedMotion,
+    qualityTier: 'high',
+    verificationState: verifyToast ? (String(verifyToast.verdict).toLowerCase() === 'pass' ? 'passed' : 'failed') : busy ? 'pending' : 'none',
+  });
 
   // Keep newest message in view
   useEffect(() => {
@@ -457,6 +525,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
       <div className="gagos-sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
 
       <header className="gagos-status" aria-label="GAGOS status">
+        <BeingStatus presentation={presentation} taskState={taskState} expert={experienceMode === 'expert'} />
         <span className={`gagos-pill ${online ? 'gagos-pill--model' : 'gagos-pill--offline'}`}>
           <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} aria-hidden="true" />
           <span className="gagos-pill__copy">
@@ -542,6 +611,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
             const target = outcome.filepath
               || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
             if (outcome.action === 'reject') {
+              setTaskOutcome('refused');
               if (writeId) {
                 beginRetractingMaterializedTab(writeId);
                 workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
@@ -553,6 +623,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
               return;
             }
             if (!outcome.succeeded) {
+              setTaskOutcome('failed');
               // The replay did not actually complete -- never narrate a write,
               // run or fetch that never happened.
               if (writeId) {
@@ -593,6 +664,8 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
       ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
+        {experienceMode === 'beginner' ? <GuidedTaskStory state={taskState} goal={messages.find((message) => message.role === 'user')?.text} /> : null}
+        {experienceMode === 'beginner' ? <OutcomeReceipt state={taskState} /> : null}
         <div className="gagos-voice-state" role="status">{voiceState}{voiceError ? ` · ${voiceError}` : ''}</div>
         {!backendVoice.stt && browserVoiceAvailable && <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
           Use browser recognition. Audio may be processed by the browser provider.
@@ -605,8 +678,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
             <p className="gagos-welcome__eyebrow">{listening ? 'Microphone capturing' : 'Begin a conversation'}</p>
             <p className="gagos-welcome__greeting">
-              I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
-              remembers. Where shall we begin?
+              What would you like to get done?
             </p>
             {experienceMode === 'beginner' ? (
               <p className="gagos-welcome__guidance">
@@ -656,7 +728,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
                       {renderWithRedactionChips(sanitizeToText(m.text))}
                       {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                       {m.retry ? (
-                        <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
+                        <button type="button" className="gagos-retry" onClick={() => handleSubmit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
                           Retry
                         </button>
                       ) : null}
@@ -705,7 +777,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
             onChange={(e) => { setDraft(e.target.value); setTranscriptPending(false); }}
             onAnimationEnd={() => setTranscriptPending(false)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); setTranscriptPending(false); void submit(draft); }
+              if (e.key === 'Enter') { e.preventDefault(); setTranscriptPending(false); handleSubmit(draft); }
               else if (e.key === 'Escape') {
                 if (listening) { stopMic(); }
                 else if (draft) { setDraft(''); setTranscriptPending(false); }
@@ -803,7 +875,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           <button
             type="button"
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}
-            onClick={() => { if (busy) stopTurn(); else void submit(draft); }}
+            onClick={() => { if (busy) handleStop(); else handleSubmit(draft); }}
             disabled={!canSend && !busy}
             aria-disabled={!canSend && !busy}
             aria-busy={busy}
