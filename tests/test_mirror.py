@@ -255,6 +255,57 @@ def test_mirror_stream_recovery(mock_cortex_bus):
         app.dependency_overrides.clear()
 
 
+def test_mirror_stream_real_bus_emits_sync_complete_after_replay(
+    tmp_path: Path,
+) -> None:
+    bus = CortexBus(tmp_path / "cortex.db")
+    first = append_event(bus, "turn.completed", "session-1", {"n": 1})
+    bus.dispatch_pending()
+    second = append_event(bus, "worker.started", "worker-1", {"workerId": "worker-1"})
+
+    app.dependency_overrides[get_cortex_bus] = lambda: bus
+    try:
+        with patch("fastapi.Request.is_disconnected") as mock_is_disconnected:
+
+            async def fake_is_disconnected():
+                return True
+
+            mock_is_disconnected.side_effect = fake_is_disconnected
+
+            with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+                with test_client.stream(
+                    "GET",
+                    "/api/v1/mirror/stream",
+                    headers={"Last-Event-ID": str(first)},
+                ) as response:
+                    lines = [line for line in response.iter_lines() if line]
+
+        assert response.status_code == 200
+        assert lines[0] == f"id: {second}"
+        assert "worker.started" in lines[1]
+        assert lines[2] == "event: sync_complete"
+        assert json.loads(lines[3].removeprefix("data: ")) == {
+            "cursor": second,
+            "replayed": True,
+        }
+    finally:
+        app.dependency_overrides.clear()
+        projection_module._PROJECTIONS.clear()
+
+
+def test_mirror_snapshot_and_stream_require_a_bonded_operator(
+    mock_cortex_bus,
+) -> None:
+    app.dependency_overrides[get_cortex_bus] = lambda: mock_cortex_bus
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+            test_client.cookies.clear()
+            assert test_client.get("/api/v1/mirror/snapshot").status_code == 401
+            assert test_client.get("/api/v1/mirror/stream").status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_mirror_stream_emits_snapshot_required_on_replay_gap(mock_cortex_bus):
     mock_cortex_bus.fetch_since.side_effect = ConsumerReplayGap("mirror", 1, 7)
     app.dependency_overrides[get_cortex_bus] = lambda: mock_cortex_bus
