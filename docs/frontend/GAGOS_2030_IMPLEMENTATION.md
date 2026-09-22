@@ -43,13 +43,21 @@ Implemented in this workstream:
 
 ## Still open before blueprint completion
 
-- The current authenticated continuity PR (#361) is open and merge-blocked by
-  stale live evidence for green organs 17, 25, 47, and 50; do not bypass that
-  gate. Claude review is pending.
+- PR #361 is merged into `master` at `86fc6bc4`. Its exact-tip continuity
+  evidence, replay/live barrier, clean backend suite, and hosted release-
+  authority proof are now part of the current base; no stale-organ bypass was
+  used.
+- PR #362 was reconciled against the actual `master` base in commits
+  `03cda1a7` and `97adba8e`. The generated source manifest still matches the
+  checked-in product and ignored lab; `npm run port:check` reports 193 files
+  with no changes. Its fresh hosted checks must finish before the frontend
+  tranche is called repository-green.
 - The operator must personally approve or reject the sacred palette/textures
   and WebGL aesthetic. A screenshot or WebGL2 probe cannot substitute for that
   human decision.
 - The 3-person non-builder novice acceptance test is not yet performed.
 - The semantic model is now a single truthful foundation, but all organism
   shader reactions, progressive Expert anatomy layers, contextual workspace
-  collapse, and every blueprint journey still need explicit end-to-end evidence.
+  collapse, and every blueprint journey still need explicit end-to-end
+  evidence. The next engineering tranche is Phase D/E/F: measured organism
+  reactions, contextual workspaces, and plain-language approval/result flows.
