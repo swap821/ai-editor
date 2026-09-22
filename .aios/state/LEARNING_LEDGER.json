@@ -1,0 +1,516 @@
+{
+  "schema": "learning-ledger/v1",
+  "purpose": "The animal's equivalent of ORGAN_GREEN_LEDGER.json. One record per learning faculty, judged against LC1..LC12 by scripts/verify_learning_conditions.py. Verdicts are COMPUTED, never written here by hand: this file declares the inputs (owner, entrypoints, callers, stores, tests, evidence) and the verifier decides. A faculty is green only when every condition passes or is declared N/A-BY-DESIGN with a referent.",
+  "honesty_note": "The first honest run of this ledger is expected to be mostly yellow. A ledger that goes green on the day it is written is not measuring anything.",
+  "faculties": [
+    {
+      "faculty_id": "L1",
+      "name": "Reflection (failure -> lesson)",
+      "authority_owner": "ReflectionAgent",
+      "production_entrypoints": [
+        "aios/agents/reflection_agent.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "mistake_pool",
+        "writes_via": "MistakeMemory.record"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "mistake_pool",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_reflection.py",
+        "tests/test_verification_strength.py"
+      ],
+      "focused_tests": [
+        "tests/test_reflection.py"
+      ],
+      "integration_tests": [
+        "tests/test_doctor_learning_loop.py"
+      ],
+      "mutation_probe": {
+        "kind": "adversarial-tests",
+        "referent": "tests/test_unpromotable_lessons_are_retired.py::TestAGateDecisionIsNotAMistake",
+        "claim": "Flipping the `failed` flag for a BLOCKED/REQUIRE_APPROVAL result would refill the pool with gate-decision lessons; these tests fail if it does, in both directions (a real failure must still report failure)."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Both reflection entry points proven gate-guarded: verifier.py _GATE_STATUSES excludes BLOCKED/REQUIRE_APPROVAL, and tool_handlers returns failed=False for both, so the tool-loop path cannot reflect on a gate decision either. NOT organic: proven against seeded data and the live store's structure, not against a skill learned from real code.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "50240016cd891e938206492dec89f3c4addb96a2",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "Run 20260921T172106 (COMPLETED, containment verified: live tree byte-identical before and after, HEAD unmoved). A model got a real function wrong twice and ReflectionAgent recorded lesson 99, keyed to the exact failing command `pytest tests/test_pin_aios_agents_tool_handlers_next_step_after_blocked_read.py`. The failure is whatever the model actually did; nothing was seeded.",
+          "command": "python tools/organic_chain_run.py --targets 2 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+      "na_by_design": {
+        "LC4": "Reflection keeps no append-only journal of its own; lessons are rows in mistake_pool, which is a mutable store by design (occurrence_count, verification_status). Referent: aios/memory/mistake.py::MistakeMemory"
+      },
+      "live_path_symbols": [
+        "ReflectionAgent"
+      ]
+    },
+    {
+      "faculty_id": "L2",
+      "name": "Lesson transfer (recall -> confirm -> promote)",
+      "authority_owner": "MistakeMemory",
+      "production_entrypoints": [
+        "aios/memory/mistake.py",
+        "aios/agents/tool_loop_helpers.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "mistake_pool",
+        "writes_via": "MistakeMemory.promote"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "mistake_pool",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_lesson_promotion_normalizes.py"
+      ],
+      "focused_tests": [
+        "tests/test_lesson_promotion_normalizes.py"
+      ],
+      "integration_tests": [
+        "tests/test_reflection.py"
+      ],
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tests/test_learning_conformance.py::test_m1_fails_when_promotion_does_nothing",
+        "claim": "Disabling MistakeMemory.promote must turn mission M1 red; a lesson that silently fails to promote would otherwise be invisible."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Mission M1: a lesson recorded through MistakeMemory.record_or_increment with a real failed_command was promoted to `verified` when that command later succeeded, through the production confirm() path. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "The 87 structurally unpromotable lessons (empty failed_command, so nothing a later success could ever match) were retired to 'superseded' with a backup; recall now excludes them, and a lesson WITH a real command still promotes (conformance M1). NOT organic: proven against seeded data and the live store's structure, not against a skill learned from real code.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "50240016cd891e938206492dec89f3c4addb96a2",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "Same clean run: lesson 99 was PROMOTED to `verified` when the identical command later passed -- the 7B failed the target twice and earned it on try 3, so the fail-then-recover happened within one tier, through the production confirm() path. These are the first verified lessons this system has ever had (it was 0 of 87).",
+          "command": "python tools/organic_chain_run.py --targets 2 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+      "na_by_design": {
+        "LC4": "No journal of its own; promotion mutates the lesson row in place. Referent: aios/memory/mistake.py::MistakeMemory.promote"
+      },
+      "live_path_symbols": [
+        "MistakeMemory",
+        "_recall_pending_commands"
+      ]
+    },
+    {
+      "faculty_id": "L3",
+      "name": "Skill acquisition (attempt -> arc -> verified)",
+      "authority_owner": "SkillMemory",
+      "production_entrypoints": [
+        "aios/memory/skills.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "procedural_skills",
+        "writes_via": "SkillMemory.record_attempt"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "procedural_skills",
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_skill_failure_streak.py",
+        "tests/test_superseded_does_not_block_relearning.py"
+      ],
+      "focused_tests": [
+        "tests/test_skill_failure_streak.py",
+        "tests/test_superseded_does_not_block_relearning.py"
+      ],
+      "integration_tests": [
+        "tests/test_skill_lifecycle.py"
+      ],
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tests/test_learning_conformance.py::test_m2_fails_when_the_successes_are_below_floor",
+        "claim": "Forcing every success to WEAK must turn mission M2 red, proving the promotion floor is what verifies a skill and not the count alone."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Same clean run: skill 66 (`pin the behaviour of aios/agents/tool_agent.py::build_auto_verify_command via ollama.qwen2.5-coder-7b`) earned another STRONG success on real code.",
+          "command": "python tools/organic_chain_run.py --targets 2 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+      "na_by_design": {
+        "LC4": "Skill state is a mutable counter row, not a journal. The append-only record of the attempts that produced it is the self-corpus trail. Referent: .aios/audit/reverse-engineering-runs.jsonl"
+      },
+      "live_path_symbols": [
+        "runtime.skills",
+        "\"skills\": runtime.skills"
+      ]
+    },
+    {
+      "faculty_id": "L4",
+      "name": "Reflex compilation (skill -> playbook)",
+      "authority_owner": "Cerebellum",
+      "production_entrypoints": [
+        "aios/core/cerebellum.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "compiled_playbooks",
+        "writes_via": "Cerebellum.try_compile_all"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "aios/memory/learning_journal.py::record",
+        "append_only_claim": true,
+        "transitions": "compiled",
+        "claim": "Every compile appends to learning_events inside the same transaction as the compile itself, so an entry cannot survive a rolled-back compile.",
+        "enforced_by": "tests/test_learning_journal.py::TestNothingCanRewriteIt"
+      },
+      "fail_closed_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "focused_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "integration_tests": [
+        "tests/test_repair_playbooks.py"
+      ],
+      "mutation_probe": {
+        "kind": "adversarial-tests",
+        "referent": "tests/test_decompiled_reflex_can_recover.py::TestWhatMustStayBarred",
+        "claim": "Recovery must be buyable ONLY with new promotable successes: a WEAK green, a failure, and simply re-running the compiler each leave the reflex retired."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Mission M3 of the learning conformance benchmark: a skill earned through three STRONG successes via the real SkillMemory compiles to a `compiled` playbook row via the real Cerebellum. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "Decompile recovery implemented: a retired reflex recompiles once its skill earns MORE promotable successes than it had at retirement. Applied to the live store; the one retired reflex there now reads 'needs > 4' instead of being permanently barred. NOT organic: proven against seeded data and the live store's structure, not against a skill learned from real code.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "50240016cd891e938206492dec89f3c4addb96a2",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "Playbooks 7 and 8 compiled from `pin the behaviour of aios/agents/tool_agent.py::build_auto_verify_command via ollama.qwen2.5-coder-7b` -- an arc earned entirely on this repository's own source. Until this run no self-corpus arc could compile at all: its `create_file` step lacked the content digest `_parse_step` requires, so every organic skill was silently barred from becoming a reflex.",
+          "command": "python tools/organic_chain_run.py --targets 4 --retries 2 --env-file <provider env> --models ollama.qwen2.5-coder:7b,qwen.qwen3-coder-30b-a3b-v1:0",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+      "na_by_design": {},
+      "live_path_symbols": [
+        "Cerebellum"
+      ]
+    },
+    {
+      "faculty_id": "L5",
+      "name": "Reflex replay (a turn served with no LLM call)",
+      "authority_owner": "Cerebellum",
+      "production_entrypoints": [
+        "aios/core/cerebellum.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "compiled_playbooks",
+        "writes_via": "Cerebellum.record_replay"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "aios/memory/learning_journal.py::record",
+        "append_only_claim": true,
+        "transitions": "replayed / decompiled",
+        "claim": "Replays and all THREE retirement paths (explicit, repeated replay failure, source-skill demotion) append with their reason -- the part the mutable status column destroys.",
+        "enforced_by": "tests/test_learning_journal.py::TestNothingCanRewriteIt"
+      },
+      "fail_closed_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "focused_tests": [
+        "tests/test_cerebellum.py"
+      ],
+      "integration_tests": [
+        "tests/test_repair_playbooks.py"
+      ],
+      "mutation_probe": {
+        "kind": "conformance-mission",
+        "referent": "tests/test_learning_conformance.py::test_m4_fails_when_there_is_no_reflex_to_serve_the_turn",
+        "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Mission M4 (the acceptance test): a compiled reflex served a COMPLETE turn through ToolAgent with the LLM client rigged to raise if touched -- cerebellum_done=True, llm_calls=0. The replay dispatched through the full gateway. This is the first proof the loop pays for itself. NOT organic: the goals are seeded by the benchmark, so this proves the link works, not that it works on real code. LC10 stays red on purpose.",
+          "command": "python tools/learning_conformance_runner.py",
+          "artifact": ".aios/audit/learning-conformance.jsonl",
+          "commit_sha": "a85bf30a648fb2ee5308dc75c3b063571935260a",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "ORGANIC, and the first time this link has ever fired on real code. Run 20260921T220054-16cdf659 against the self-corpus pinned at 613f9332: a read+verify task over this repository's own tests/test_code_chunking.py earned three STRONG turns (3 passed each), the arc verified, the cerebellum compiled it (playbook 15), and the next request for that goal was served with the LLM client rigged to raise if consulted -- llm_calls=0, events ended cerebellum_done. The playbook cited is one THIS run earned: `_organic_playbook` refuses to count the newest compiled playbook, because an earlier check did exactly that and lit up on a leftover synthetic seed.",
+          "command": "python tools/organic_chain_run.py --targets 1 --retries 1",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "613f93329f1ee56f9fd5ef740a839b5eda4d9c8f",
+          "proof_level": "live",
+          "organic": true,
+          "note": "Two runs before this one reported passed=False strength=NONE and looked like a model failing. They were the harness: the scope cwd is the scope root's PARENT, so `pytest -k ...` collected the home directory and returned a pytest INTERNALERROR. The same selection run in the corpus is `3 passed in 10s`. A failing measurement is not a failing subject -- checked first, as L8 requires."
+        }
+      ],
+      "last_verified_sha": "613f93329f1ee56f9fd5ef740a839b5eda4d9c8f",
+      "na_by_design": {},
+      "live_path_symbols": [
+        "Cerebellum"
+      ],
+      "discharged_blockers": [
+        {
+          "blocker": "(1) WRITE-CONFIRM. A self-corpus pin arc contains a `create_file` step. A replay may only CONFIRM such a step when the exact bytes were approved by a human (`playbook_blobs` via `aios/core/replay_writes.py::load_content`). The self-corpus has no human, and registering agent-written bytes as approved would be forging an approval.",
+          "discharged_by": "Not discharged -- ROUTED AROUND. A pin arc still cannot be replayed, and that guard is correct: registering agent-written bytes as human-approved would be forging an approval. The verify-only arc has no create_file step, so the guard never applies rather than being weakened. `playbook_blobs` and `replay_writes.load_content` are untouched."
+        },
+        {
+          "blocker": "(2) APPROVAL GATE. The write-free alternative -- a read+verify arc over a real module -- is blocked at the gateway: `pytest` is on the YELLOW (approval-required) list, and the auto-execute allowlist is `echo` and `pwd` only. An unattended training run has no approver, so the verify never executes. Observed directly: `tool_blocked` on `pytest tests/test_code_chunking.py` inside the corpus.",
+          "discharged_by": "Operator granted the scoped approval on 2026-09-22 (asked for by name in this ledger's previous revision). The harness now holds ONE exact command string for the duration of one run: not a prefix, not a pattern, nothing written to config. The gateway is unchanged -- `pytest` stays YELLOW for everyone else, which tests/test_training_approval_is_narrow.py::TestTheGatewayItselfIsUnchanged fails if anyone reclassifies it. Approval still cannot buy RED (execute_approved re-evaluates) and the scope lock still confines the command to the throwaway worktree; both directions are asserted in that file."
+        }
+      ]
+    },
+    {
+      "faculty_id": "L6",
+      "name": "Curriculum progression (levels -> mastered)",
+      "authority_owner": "CurriculumManager",
+      "production_entrypoints": [
+        "aios/memory/curriculum.py",
+        "aios/memory/curriculum_miner.py",
+        "tools/organic_chain_run.py"
+      ],
+      "live_path_callers": [
+        "aios/application/turns/generate_pipeline.py"
+      ],
+      "durable_store": {
+        "table": "curriculum_tasks",
+        "writes_via": "CurriculumManager.add_task"
+      },
+      "journal": {
+        "kind": "table",
+        "referent": "aios/memory/learning_journal.py::record",
+        "append_only_claim": true,
+        "transitions": "level_mastered",
+        "claim": "Mastery fires once per level by construction, which is exactly why it needs journalling: the UPDATE that records it destroys when and by which run it happened.",
+        "enforced_by": "tests/test_learning_journal.py::TestNothingCanRewriteIt"
+      },
+      "fail_closed_tests": [
+        "tests/test_curriculum_mastery_is_reachable.py"
+      ],
+      "focused_tests": [
+        "tests/test_curriculum_mastery_is_reachable.py",
+        "tests/test_curriculum_miner_shapes.py"
+      ],
+      "integration_tests": [
+        "tests/test_curriculum_miner.py"
+      ],
+      "mutation_probe": {
+        "kind": "adversarial-tests",
+        "referent": "tests/test_curriculum_mining_is_live.py::TestBreakingMasteryIsNoticed",
+        "claim": "Breaking `_refresh_level` so it never promotes must stop any mastery signal reaching `on_mastered`; if one still arrives, the signal comes from somewhere other than the thing that decides mastery."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "ORGANIC, and stated as two separate claims because they are two separate claims. (1) PROGRESSION ON REAL CODE: run 20260921T222322-e4a34769 against the self-corpus pinned at aaa95d00 mastered `gagos-real-modules` level 1 -- two training passes and one held-out pass, every one STRONG, on real corpus suites proven green before they were used as tasks. The production CurriculumManager decided mastery; nothing in the harness decides what 'enough' is. (2) MINING REAL CODE: the same run's CurriculumMiner read this run's own pin attempts and proposed `Read aios/agents/tool_agent.py and then create tests/test_tool_agent_pinned_v2.py ...` -- a real module, which was structurally impossible before.",
+          "command": "python tools/organic_chain_run.py --targets 1 --retries 1",
+          "artifact": ".aios/audit/organic-chain-runs.jsonl",
+          "commit_sha": "aaa95d0024c6d4061bba620772d95d638b7b3767",
+          "proof_level": "live",
+          "organic": true,
+          "scope_note": "WHAT IS NOT CLAIMED: the mined proposal was NOT executed, and nothing accepted it. Accepting a mined proposal into the curriculum is the one act the miner must never perform for itself, and a training harness performing it on the miner's behalf is the same act wearing a different hat. The level's tasks were authored by the harness over real corpus modules -- as curriculum tasks always are -- and lived in a RUN-SCOPED database, so the real curriculum is untouched by this evidence."
+        }
+      ],
+      "last_verified_sha": "aaa95d0024c6d4061bba620772d95d638b7b3767",
+      "na_by_design": {},
+      "live_path_symbols": [
+        "runtime.curriculum",
+        "_mine_curriculum"
+      ],
+      "discharged_blockers": [
+        {
+          "blocker": "CurriculumMiner is now called from the live turn path (fail-open, default-on, ~90ms), so proposals are generated without anyone asking. But `_extract_module_name` matches `training_ground/<name>.py` and NOTHING else, and every escalation template describes creating a toy module -- so the miner structurally cannot propose from work on real code. LC10 is therefore unreachable for L6 until the miner is redesigned around real repositories, which is a design project rather than a regex change. Pinned by tests/test_curriculum_mining_is_live.py::test_it_can_only_mine_the_TOY_world.",
+          "discharged_by": "A real-code escalation family (`pin_real_behaviour`), selected by the TARGET being real rather than by the source prompt's verb. `_extract_module_name` is deliberately unchanged: the toy templates interpolate into a `training_ground/...` path, so widening the extractor alone would have pointed toy templates at real files. Proposals also LEAVE the process now (.aios/audit/curriculum-proposals.jsonl, accepted=false) -- what used to leave was a log line counting them, so the authority boundary the miner protects had nothing on the other side of it to accept. tests/test_curriculum_mining_is_live.py carries the positive assertions AND the negative control that the toy world still mines the toy way."
+        }
+      ]
+    },
+    {
+      "faculty_id": "L7",
+      "name": "Organic acquisition (self-corpus, contained)",
+      "authority_owner": "Corpus",
+      "production_entrypoints": [
+        "tools/self_corpus.py",
+        "tools/self_corpus_grading.py",
+        "tools/self_corpus_targets.py"
+      ],
+      "live_path_callers": [],
+      "durable_store": {
+        "table": null,
+        "writes_via": "git worktree at a pinned sha"
+      },
+      "journal": {
+        "kind": "jsonl",
+        "referent": ".aios/audit/reverse-engineering-runs.jsonl",
+        "append_only_claim": true
+      },
+      "fail_closed_tests": [
+        "tests/test_self_corpus_isolation.py",
+        "tests/test_self_corpus_grading.py"
+      ],
+      "focused_tests": [
+        "tests/test_self_corpus_isolation.py",
+        "tests/test_self_corpus_grading.py"
+      ],
+      "integration_tests": [
+        "tests/test_trail_survives_a_kill.py"
+      ],
+      "mutation_probe": {
+        "kind": "in-tool",
+        "referent": "tools/self_corpus_grading.py::mutate_function",
+        "claim": "The agent's new test must FAIL when the target function's body is replaced by `raise NotImplementedError`, else `assert True` would score as understanding."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Three full runs on 2026-09-21 against a worktree of this repository at a pinned sha, with AIOS_SCOPE_ROOTS replaced by the worktree and the live tree fingerprinted before and after. 4 of 4 targets earned per run; the positive control (grader earns on a known-correct pin test) passed before any model was asked. The live working tree was byte-identical afterwards.",
+          "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
+          "artifact": ".aios/audit/reverse-engineering-runs.jsonl",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        },
+        {
+          "description": "Six self-corpus runs summarised in the TRACKED trend file, including the two refusals: a containment failure (the live tree changed mid-run) and a hollow suite run. The per-attempt detail stays gitignored; these summaries are what a third party can check without this laptop.",
+          "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
+          "artifact": ".aios/state/LEARNING_TREND.md",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+      "na_by_design": {
+        "LC2": "L7 is an acquisition harness, not a turn-path faculty: it exists to FEED the loop from outside a chat turn, so reachability from generate_pipeline.py is not the right question for it. Referent: tools/reverse_engineer_gagos.py::main",
+        "LC3": "Its durability requirement is the opposite of the others': the worktree is deliberately thrown away after every run, and what must survive is the trail (LC4) and the skill rows it wrote (L3/LC3). Referent: tools/self_corpus.py::teardown"
+      }
+    },
+    {
+      "faculty_id": "L8",
+      "name": "Measurement integrity (floors, refusal, tier attribution)",
+      "authority_owner": "VerificationStrength",
+      "production_entrypoints": [
+        "aios/core/verification_strength.py",
+        "tools/self_corpus_grading.py"
+      ],
+      "live_path_callers": [
+        "aios/memory/skills.py"
+      ],
+      "durable_store": {
+        "table": null,
+        "writes_via": "pure functions; no state of its own"
+      },
+      "journal": {
+        "kind": "none",
+        "referent": null,
+        "append_only_claim": false
+      },
+      "fail_closed_tests": [
+        "tests/test_learning_floor_is_not_authority.py",
+        "tests/test_tier_is_recorded_only_when_asked.py",
+        "tests/test_self_corpus_grading.py"
+      ],
+      "focused_tests": [
+        "tests/test_verification_strength.py",
+        "tests/test_learning_floor_is_not_authority.py",
+        "tests/test_tier_is_recorded_only_when_asked.py"
+      ],
+      "integration_tests": [
+        "tests/test_runtime_verification_strength.py"
+      ],
+      "mutation_probe": {
+        "kind": "in-tool",
+        "referent": "tools/self_corpus_grading.py::_refuse_hollow",
+        "claim": "A pytest run that produced no output at all is refused rather than scored, in BOTH directions: it cannot become a model's failure, and it cannot satisfy the mutated negative control."
+      },
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "Measurement integrity refused three distinct ways during REAL runs, and each refusal is published: a containment failure aborted a run that had already spent its budget; an Ollama timeout on `normalize_command` was recorded as `model_error` and written NO arc row; and a pytest subprocess that produced no output at all was refused rather than scored as the model's failure. These are production refusals, not seeded ones.",
+          "command": "python tools/reverse_engineer_gagos.py --targets 4 --retries 1",
+          "artifact": ".aios/state/LEARNING_TREND.md",
+          "commit_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+          "proof_level": "live",
+          "organic": true
+        }
+      ],
+      "last_verified_sha": "afc9c75bc96b979d116eecd4aaa7ec90730046f0",
+      "na_by_design": {
+        "LC3": "Stateless by design: derive_strength and the floor helpers are pure functions. Durability is the property of whatever records their verdict. Referent: aios/core/verification_strength.py::derive_strength",
+        "LC4": "No journal: a classifier that writes nothing has nothing to journal. Its verdicts are recorded by L3 and by the self-corpus trail. Referent: aios/memory/skills.py::SkillMemory.record_attempt"
+      },
+      "live_path_symbols": [
+        "VerificationStrength"
+      ]
+    }
+  ]
+}

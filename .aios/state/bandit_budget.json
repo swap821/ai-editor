@@ -67,6 +67,7 @@
     "B608:aios/infrastructure/memory/authority_store.py": 1,
     "B608:aios/infrastructure/missions/sqlite_mission_repository.py": 1,
     "B608:aios/memory/compaction.py": 1,
+    "B608:aios/memory/db.py": 1,
     "B608:aios/memory/doc_ingest.py": 1,
     "B608:aios/memory/facts.py": 1,
     "B608:aios/memory/pheromones.py": 1,

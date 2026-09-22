@@ -61,6 +61,24 @@ _ESCALATION_TEMPLATES: dict[str, list[str]] = {
     "extend_and_test": [
         "Edit training_ground/{module}.py to add {description}. Then edit training_ground/test_{module}.py to add tests for the new functionality. Then verify that the tests pass.",
     ],
+    # THE REAL-CODE FAMILY.
+    #
+    # Every family above names `training_ground/`, so a verified success on
+    # this repository's own source produced no proposal at all: the miner could
+    # RUN on real turns and still only ever propose toy work. That was L6's
+    # standing blocker, and it is a design limit rather than a regex typo --
+    # which is why the fix is a family, not a widened pattern.
+    #
+    # The escalation for real code is to PIN MORE OF ITS BEHAVIOUR: read the
+    # module, write characterisation tests, run them. It never edits the
+    # source, because a curriculum that proposes editing this repository's own
+    # code as practice is a different and much larger proposition than one that
+    # proposes describing it. The proposal is still only a proposal -- nothing
+    # here accepts it.
+    "pin_real_behaviour": [
+        "Read {path} and then create {test_path} with pytest tests that pin the current behaviour of {description}. Do not edit {path}. Then verify that the tests pass.",
+        "Read {path} and then create {test_path} with pytest tests that pin {description}, including the error paths. Do not edit {path}. Then verify that the tests pass.",
+    ],
 }
 
 
@@ -113,9 +131,74 @@ def _infer_skill(prompt: str) -> str:
     return "python-general"
 
 
+#: Directories that hold DISPOSABLE practice code. Work inside them is the toy
+#: world; work anywhere else in the repository is real.
+_TOY_ROOTS = ("training_ground/", "lab/")
+
+#: Any repo-relative python file named in a prompt. Deliberately not anchored to
+#: one directory -- that anchoring WAS the blocker.
+_PY_TARGET = re.compile(r"\b([A-Za-z0-9_][\w./-]*/)?([A-Za-z_]\w*)\.py\b")
+
+
+@dataclass(frozen=True)
+class MiningTarget:
+    """The file a source task worked on, and which world it lives in."""
+
+    path: str
+    module: str
+
+    @property
+    def real(self) -> bool:
+        """True when this is the repository's own code rather than practice code.
+
+        A bare filename with no directory is treated as toy: it names nothing
+        this repository can locate, so proposing work against it would be
+        proposing work against a guess.
+        """
+        return "/" in self.path and not self.path.startswith(_TOY_ROOTS)
+
+
+def _extract_target(prompt: str) -> Optional[MiningTarget]:
+    """The first python file a prompt names, toy or real.
+
+    Test files are skipped when the prompt also names a non-test module: a task
+    about `tool_agent.py` that happens to mention `test_tool_agent.py` is about
+    the module, and proposing tests-for-the-tests is escalation in name only.
+    """
+    matches = [
+        MiningTarget(path=(m.group(1) or "") + m.group(2) + ".py", module=m.group(2))
+        for m in _PY_TARGET.finditer(prompt)
+    ]
+    if not matches:
+        return None
+    for target in matches:
+        if not target.module.startswith("test_"):
+            return target
+    return matches[0]
+
+
 def _extract_module_name(prompt: str) -> Optional[str]:
+    """The toy-world module name, unchanged.
+
+    Kept exactly as it was: the toy families interpolate `{module}` into a
+    `training_ground/...` path, so widening THIS function would have silently
+    pointed toy templates at real files. The real family uses `_extract_target`
+    and its own templates instead.
+    """
     m = re.search(r"training_ground/(\w+)\.py", prompt)
     return m.group(1) if m else None
+
+
+#: A symbol the source task named, for the proposal to be about something
+#: narrower than "the whole module".
+_SYMBOL = re.compile(r"(?:::|\b(?:function|method|class)\s+)([A-Za-z_]\w*)")
+
+
+def _real_description(prompt: str, target: MiningTarget) -> str:
+    match = _SYMBOL.search(prompt)
+    if match:
+        return f"{match.group(1)}()"
+    return f"the public functions of {target.module}"
 
 
 def _task_complexity_score(prompt: str) -> int:
@@ -255,6 +338,12 @@ class CurriculumMiner:
         target_level: int,
         existing_prompts: set[str],
     ) -> list[CurriculumProposal]:
+        target = _extract_target(source_prompt)
+        if target is not None and target.real:
+            return self._generate_real_variants(
+                source_prompt, target, skill_name, target_level, existing_prompts
+            )
+
         module_name = _extract_module_name(source_prompt)
         if not module_name:
             return []
@@ -334,6 +423,66 @@ class CurriculumMiner:
                 existing_prompts.add(prompt)
                 break
 
+        return proposals
+
+    def _generate_real_variants(
+        self,
+        source_prompt: str,
+        target: MiningTarget,
+        skill_name: str,
+        target_level: int,
+        existing_prompts: set[str],
+    ) -> list[CurriculumProposal]:
+        """Escalate work on the repository's own code.
+
+        Same two-proposal shape as the toy path -- one training task and one
+        held-out sibling from a DIFFERENT template -- because the reason for the
+        held-out task does not change with the subject: a level with no held-out
+        task can never be mastered, so mining only the trainer would propose a
+        level that is permanently un-masterable.
+
+        The proposals describe reading and pinning, never editing. Nothing here
+        accepts them; `add_task` is still somebody else's call.
+        """
+        templates = _ESCALATION_TEMPLATES["pin_real_behaviour"]
+        description = _real_description(source_prompt, target)
+        proposals: list[CurriculumProposal] = []
+
+        for template in templates:
+            suffix = "_holdout" if proposals else ""
+            prompt = template.format(
+                path=target.path,
+                test_path=f"tests/test_{target.module}_pinned_v{target_level}{suffix}.py",
+                description=description,
+            )
+            if prompt in existing_prompts:
+                continue
+            if not proposals and any(
+                relevance(prompt, ep) > 0.85 for ep in list(existing_prompts)[:50]
+            ):
+                continue
+            held_out = bool(proposals)
+            proposals.append(
+                CurriculumProposal(
+                    skill_name=skill_name,
+                    level=target_level,
+                    prompt=prompt,
+                    rationale=(
+                        f"Held-out sibling for {target.path}"
+                        if held_out
+                        else f"Escalation from verified work on {target.path}"
+                    ),
+                    source_pattern=source_prompt[:200],
+                    difficulty_delta=(
+                        f"level {target_level} "
+                        + ("held-out check" if held_out else "(pin real behaviour)")
+                    ),
+                    held_out=held_out,
+                )
+            )
+            existing_prompts.add(prompt)
+            if held_out:
+                break
         return proposals
 
     def _extract_description(self, prompt: str) -> Optional[str]:
