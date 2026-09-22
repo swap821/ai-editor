@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # One derivation of 'has this file moved since that sha', two callers.
-from verify_evidence_currency import changed_since  # noqa: E402
+from verify_evidence_currency import changed_since, is_reachable  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LEDGER_PATH = REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     updated: list[int] = []
     skipped_attested: list[int] = []
     superseded: list[tuple[int, str]] = []
+    unreachable: list[tuple[int, str]] = []
     for row in ledger:
         oid = int(row["organ_id"])
         proofs = by_organ.get(oid)
@@ -135,11 +136,17 @@ def main(argv: list[str] | None = None) -> int:
             if old.get("commit_sha") == tip:
                 continue
             if old.get("proof_level") == "live":
-                drift = changed_since(
-                    str(old.get("commit_sha") or ""), entrypoints, tip
-                )
-                if drift:
-                    superseded.append((oid, str(old.get("commit_sha") or "")[:12]))
+                old_sha = str(old.get("commit_sha") or "")
+                # UNREACHABLE FIRST, because `changed_since` cannot see it. A
+                # squash merge leaves the tree identical, so the drift check
+                # below says "nothing moved" about a commit that no longer
+                # exists -- and the row survives as a claim nobody can check.
+                # That is how master went red after #359 was squashed.
+                if not is_reachable(old_sha, tip):
+                    unreachable.append((oid, old_sha[:12]))
+                    continue
+                if changed_since(old_sha, entrypoints, tip):
+                    superseded.append((oid, old_sha[:12]))
                     continue
             prior.append(old)
         row["live_evidence"] = prior + [evidence]
@@ -187,6 +194,11 @@ def main(argv: list[str] | None = None) -> int:
                 # these were deliberately left alone, not missed.
                 "organs_skipped_spine_attested": sorted(skipped_attested),
                 # Named, never silent: a dropped row is a claim withdrawn.
+                # Two different ways a row dies, reported apart: one was
+                # true once, the other can no longer be checked at all.
+                "unreachable_live_rows": [
+                    f"organ {o}: {sha}" for o, sha in sorted(unreachable)
+                ],
                 "superseded_stale_live_rows": [
                     f"organ {o}: {sha}" for o, sha in sorted(superseded)
                 ],

@@ -19,6 +19,7 @@ the loop is not accumulating, which is a finding rather than a gap.
 | 2026-09-21T17:00:27+00:00 | 6 | 4 | 3 | 2 | 2 |
 | 2026-09-21T17:17:03+00:00 | 6 | 5 | 3 | 7 | 2 |
 | 2026-09-21T22:29:58+00:00 | 8 | 7 | 7 | 7 | 2 |
+| 2026-09-22T05:02:18+00:00 | 8 | 7 | 10 | 7 | 2 |
 
 The run detail lives under `.aios/audit/`, which is gitignored, so these
 summaries are the only part anyone but this machine can check. A REFUSED
@@ -40,9 +41,9 @@ that makes the other rows worth believing.
 
 | when | outcome | links fired | detail |
 |---|---|---|---|
-| 2026-09-21T21:37:46 | completed | L1 | 0 earned, 2 graded, 0 not scored (model unreachable) |
-| 2026-09-21T21:45:47 | completed | L3, L4 | 1 earned, 1 graded, 0 not scored (model unreachable) |
-| 2026-09-21T21:54:09 | completed | L1 | 0 earned, 2 graded, 0 not scored (model unreachable) |
 | 2026-09-21T22:02:47 | completed | L3, L4, L5 | 1 earned, 1 graded, 0 not scored (model unreachable) |
 | 2026-09-21T22:20:48 | completed | L3, L5, L6 | 1 earned, 1 graded, 0 not scored (model unreachable) |
 | 2026-09-21T22:25:55 | completed | L3, L5, L6 | 1 earned, 1 graded, 0 not scored (model unreachable) |
+| 2026-09-22T04:36:26 | completed | L3, L5, L6 | 1 earned, 1 graded, 0 not scored (model unreachable) |
+| 2026-09-22T04:46:43 | completed | L1, L3, L5, L6 | 1 earned, 6 graded, 1 not scored (model unreachable) |
+| 2026-09-22T04:56:57 | completed | L1, L3, L5, L6 | 2 earned, 14 graded, 0 not scored (model unreachable) |
