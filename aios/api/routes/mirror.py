@@ -447,7 +447,9 @@ async def stream_journal(
             # Replay is emitted before the barrier.  A duplicate already
             # queued by at-least-once dispatch is harmless and is suppressed
             # below by the durable cursor.
-            sent_event_id = last_event_id if barrier_supported and last_event_id is not None else -1
+            sent_event_id = (
+                last_event_id if barrier_supported and last_event_id is not None else -1
+            )
             for event in replay_events:
                 if barrier_supported and event.id <= sent_event_id:
                     continue
