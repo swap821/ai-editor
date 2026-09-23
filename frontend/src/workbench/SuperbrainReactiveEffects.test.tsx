@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { act } from 'react';
-import { publishCognition } from '../superbrain/lib/cognitionBus';
 import {
   startSwarmPlan,
   markSwarmCloudSubtask,
   resetSwarmHUD,
 } from '../superbrain/lib/swarmHUDStore';
+import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import { setSpineFusion, __resetSpineFusionForTests } from '../superbrain/lib/spineFusionBus';
 import {
   getAuroraState,
@@ -35,6 +35,13 @@ describe('SuperbrainReactiveEffects', () => {
     __resetAuroraBridgeForTests();
     __resetSpineFlashBridgeForTests();
     resetSwarmHUD();
+    useMirrorStore.setState({
+      lastEventId: null,
+      lastVerification: null,
+      recentEvents: [],
+      workers: {},
+      approvalRequired: false,
+    });
     // Give the fusion bus a deterministic transform so seat math is safe.
     setSpineFusion(1, [0, 0, 0]);
   });
@@ -47,22 +54,23 @@ describe('SuperbrainReactiveEffects', () => {
     expect(container.querySelector('[data-testid="verify-aurora"]')).toBeNull();
   });
 
-  it('spikes the verify aurora intensity on a verify pass event and renders the bloom', async () => {
+  it('spikes the verify aurora from an admitted mirror verification and renders the bloom', async () => {
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
     const { container } = render(<SuperbrainReactiveEffects />);
 
     expect(getAuroraState().intensity).toBe(0);
 
     act(() => {
-      publishCognition({
-        type: 'verify',
-        source: 'aios',
-        data: { verdict: 'pass', target: 'test.py' },
+      useMirrorStore.getState().applyEvent(1, 'verification.passed', {
+        verdict: 'pass',
+        target: 'test.py',
       });
     });
 
-    expect(getAuroraState().intensity).toBe(1);
-    expect(container.querySelector('[data-testid="verify-aurora"]')).not.toBeNull();
+    await vi.waitFor(() => {
+      expect(getAuroraState().intensity).toBe(1);
+      expect(container.querySelector('[data-testid="verify-aurora"]')).not.toBeNull();
+    });
   });
 
   it('renders a lightning element when a cloud_route index is added', async () => {
@@ -95,6 +103,7 @@ describe('SuperbrainReactiveEffects', () => {
     await vi.waitFor(() => {
       const flash = container.querySelector('[data-testid="spine-flash"]');
       expect(flash).toBeTruthy();
+      expect(flash).toHaveAttribute('data-points', '9');
     });
   });
 });

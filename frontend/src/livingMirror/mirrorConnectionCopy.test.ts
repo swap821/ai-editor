@@ -44,7 +44,7 @@ describe('mirror connection copy', () => {
       snapshotReceivedAt: '2026-09-21T12:00:00.000Z',
       lastEventId: 18,
     }, 'beginner')).toMatchObject({
-      label: 'GAGOS is connected',
+      label: 'Connection open',
       detail: 'Checking that the live picture has no gap.',
       tone: 'checking',
       canRetry: false,
@@ -64,6 +64,20 @@ describe('mirror connection copy', () => {
       detail: 'The live picture is current.',
       tone: 'ready',
       canRetry: false,
+    });
+  });
+
+  it('distinguishes reachable service health from unavailable mirror access', () => {
+    expect(getMirrorConnectionCopy({
+      ...base,
+      connection: 'connecting',
+      projection: 'unavailable',
+      lastAnnouncement: 'Snapshot unavailable (HTTP 401).',
+    }, 'beginner')).toMatchObject({
+      label: 'Operational picture unavailable',
+      detail: 'GAGOS is reachable, but the live picture is unavailable in this session.',
+      tone: 'unavailable',
+      canRetry: true,
     });
   });
 

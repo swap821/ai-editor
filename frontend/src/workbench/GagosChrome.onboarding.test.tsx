@@ -68,7 +68,7 @@ describe('GagosChrome onboarding coach', () => {
     });
 
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     await waitFor(() => {
       // "what is this" — the identity, the front door's missing half.
@@ -78,6 +78,24 @@ describe('GagosChrome onboarding coach', () => {
     });
     // ...alongside the safe first action.
     expect(screen.getByText(/Type a goal and press Enter/i)).toBeInTheDocument();
+  });
+
+  it('keeps later milestone guidance in human language in Guided mode', async () => {
+    fetchOnboardingState.mockResolvedValue({
+      firstDirective: true,
+      firstApproval: true,
+      firstVerify: true,
+      firstCloudRoute: true,
+      firstAutonomy: false,
+    });
+
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome experienceMode="beginner" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Trusted routines can become quicker after repeated verified success/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/earned autonomy|cloud factory|worker colony|council/i)).not.toBeInTheDocument();
   });
 
   it('advances to the approval milestone card after firstDirective', async () => {
@@ -93,7 +111,7 @@ describe('GagosChrome onboarding coach', () => {
     render(<GagosChrome />);
 
     await waitFor(() => {
-      expect(screen.getByText(/pause for your approval/i)).toBeInTheDocument();
+      expect(screen.getByText(/pause before I change files, run commands, or fetch pages/i)).toBeInTheDocument();
     });
   });
 
@@ -109,7 +127,7 @@ describe('GagosChrome onboarding coach', () => {
     });
 
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/Try: 'scaffold a FastAPI \/health endpoint'/i)).toBeInTheDocument();
@@ -129,7 +147,7 @@ describe('GagosChrome onboarding coach', () => {
     });
 
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     await waitFor(() => {
       expect(screen.getByRole('note', { name: /Onboarding hint/i })).toBeInTheDocument();

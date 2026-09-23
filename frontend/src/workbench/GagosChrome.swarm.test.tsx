@@ -59,7 +59,7 @@ describe('GagosChrome swarm chip', () => {
 
   it('toggles the adapter swarm singleton and aria-pressed together', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     const chip = screen.getByRole('button', { name: /swarm mode off/i });
     expect(chip).toHaveAttribute('aria-pressed', 'false');
@@ -79,7 +79,7 @@ describe('GagosChrome swarm chip', () => {
   it('seeds the chip from the singleton so a remount cannot desync them', async () => {
     setSwarmMode(true);
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
     expect(screen.getByRole('button', { name: /swarm mode on/i })).toHaveAttribute(
       'aria-pressed',
       'true',

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EmergencyControl } from './EmergencyControl';
+import { getEmergencyStopPresentation, setEmergencyStopPresentation } from './emergencyStopPresentation';
 
 const state = (overrides: Record<string, unknown> = {}) => ({
   engaged: false,
@@ -18,6 +19,7 @@ const state = (overrides: Record<string, unknown> = {}) => ({
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  setEmergencyStopPresentation('unknown');
 });
 
 describe('EmergencyControl', () => {
@@ -38,6 +40,7 @@ describe('EmergencyControl', () => {
     render(<EmergencyControl />);
     fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
     expect(await screen.findByText('Confirmed latch disengaged.')).toBeInTheDocument();
+    await waitFor(() => expect(getEmergencyStopPresentation()).toBe('clear'));
 
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'maintenance' } });
     fireEvent.click(screen.getByRole('button', { name: 'Emergency stop' }));
@@ -83,8 +86,87 @@ describe('EmergencyControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
 
     expect(await screen.findByText('Confirmed latch engaged.')).toBeInTheDocument();
+    // The fetched DOM snapshot and the external presentation store are
+    // published by separate React commits. Wait for the store itself so this
+    // regression proves the action-bearing shell sees the measured latch,
+    // rather than depending on passive-effect scheduling.
+    await waitFor(() => expect(getEmergencyStopPresentation()).toBe('engaged'));
     expect(screen.getByText('Stopping is only partially confirmed; inspect the recorded hooks.')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('worker termination receipt unavailable');
     expect(screen.getByText('auth-event-9')).toBeInTheDocument();
+  });
+
+  it('keeps raw stop hook and operator identities out of Guided details', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(state({
+        engaged: true,
+        operatorId: 'operator-guided-hidden',
+        authenticationEventId: 'auth-guided-hidden',
+        actions: {
+          revoke_capabilities: 'completed',
+          kill_active_workers: 'completed',
+        },
+      })),
+    } as Response)));
+
+    render(<EmergencyControl guided />);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
+
+    expect(await screen.findByText('Confirmed stop is on.')).toBeInTheDocument();
+    expect(screen.getByText('Some stop actions are still being confirmed.')).toBeInTheDocument();
+    expect(screen.queryByText('The stop actions recorded by GAGOS are complete.')).not.toBeInTheDocument();
+    expect(screen.getByText('Expert/Mirror can show the recorded stop details.')).toBeInTheDocument();
+    expect(screen.queryByText('operator-guided-hidden')).not.toBeInTheDocument();
+    expect(screen.queryByText('auth-guided-hidden')).not.toBeInTheDocument();
+    expect(screen.queryByText('revoke capabilities')).not.toBeInTheDocument();
+    expect(screen.queryByText('kill active workers')).not.toBeInTheDocument();
+  });
+
+  it('uses human stop language throughout Guided controls', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(state({ engaged: true, actions: { preserve_evidence: 'completed' } })),
+    } as Response)));
+
+    render(<EmergencyControl guided />);
+    expect(await screen.findByRole('button', { name: 'Stop is on' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
+
+    expect(await screen.findByText('Confirmed stop is on.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Reason')).toHaveValue('I asked GAGOS to stop');
+    expect(screen.getByRole('button', { name: 'Request resume' })).toBeInTheDocument();
+    expect(screen.getByText('Resuming requires a fresh security check and does not restart work.')).toBeInTheDocument();
+    expect(screen.queryByText(/latch|privileged authentication|operator requested/i)).not.toBeInTheDocument();
+  });
+
+  it('updates the untouched default reason when the experience mode changes', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(state({ engaged: true })),
+    } as Response)));
+
+    const view = render(<EmergencyControl />);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
+    expect(await screen.findByDisplayValue('Operator requested emergency stop')).toBeInTheDocument();
+
+    view.rerender(<EmergencyControl guided />);
+
+    expect(screen.getByLabelText('Reason')).toHaveValue('I asked GAGOS to stop');
+  });
+
+  it('restores focus to the details trigger when the disclosure closes', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(state()),
+    } as Response)));
+
+    render(<EmergencyControl guided />);
+    const details = screen.getByRole('button', { name: 'Inspect emergency stop' });
+    fireEvent.click(details);
+    expect(await screen.findByText('Confirmed stop is off.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
+    await waitFor(() => expect(details).toHaveFocus());
   });
 });

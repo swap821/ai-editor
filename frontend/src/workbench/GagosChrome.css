@@ -152,8 +152,8 @@
   background: rgba(255, 255, 255, 0.04);
 }
 .gagos-experience-mode__choice {
-  min-height: 28px;
-  padding: 3px 9px;
+  min-height: 44px;
+  padding: 8px 9px;
   border: 0;
   border-radius: 999px;
   color: rgba(228, 236, 250, 0.68);
@@ -242,10 +242,16 @@
     0 0 18px rgba(248, 113, 113, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+.gagos-pill--checking {
+  color: rgba(205, 220, 238, 0.82);
+  background: rgba(123, 245, 251, 0.06);
+  border-color: rgba(123, 245, 251, 0.22);
+}
 /* Sovereign bond pill — a real <button>: gold when the bond holds (the one
    human is present), dim accent-cyan while unbound. Gold is deliberately
    reserved for this pill alone: sovereignty, not status. */
 .gagos-pill--bond {
+  min-height: 44px;
   cursor: pointer;
   font: inherit;
   letter-spacing: 0.06em;
@@ -314,6 +320,123 @@
 .gagos-dot--offline {
   background: #f87171;
   box-shadow: 0 0 9px rgba(248, 113, 113, 0.85), 0 0 18px rgba(248, 113, 113, 0.28);
+}
+
+/* Guided account status is a read-only report. Credential ceremony remains
+   Expert-only so the front door never turns identity into a technical task. */
+.gagos-account-panel {
+  pointer-events: auto;
+  position: absolute;
+  top: 72px;
+  right: 28px;
+  z-index: 30;
+  width: min(390px, calc(100vw - 56px));
+  max-height: 70vh;
+  overflow: auto;
+  color: rgba(234, 240, 251, 0.94);
+  background: rgba(6, 10, 16, 0.92);
+  border: 1px solid rgba(123, 245, 251, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.46), 0 0 26px rgba(92, 225, 230, 0.1);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.gagos-account-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 16px 8px;
+}
+.gagos-account-panel__eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(123, 245, 251, 0.72);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+.gagos-account-panel h2 {
+  margin: 0;
+  color: rgba(245, 247, 255, 0.96);
+  font-size: 18px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+}
+.gagos-account-panel__close,
+.gagos-account-panel__primary,
+.gagos-account-panel__secondary {
+  min-height: 40px;
+  font: inherit;
+  cursor: pointer;
+}
+.gagos-account-panel__close {
+  flex: none;
+  padding: 7px 8px;
+  color: rgba(190, 202, 226, 0.78);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.gagos-account-panel__close:hover,
+.gagos-account-panel__secondary:hover { border-color: rgba(123, 245, 251, 0.42); }
+.gagos-account-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+.gagos-account-panel__body p {
+  margin: 0;
+  color: rgba(228, 236, 250, 0.86);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.gagos-account-panel__note {
+  color: rgba(190, 202, 226, 0.65) !important;
+  font-size: 12px !important;
+}
+.gagos-account-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 3px;
+}
+.gagos-account-panel__primary,
+.gagos-account-panel__secondary {
+  padding: 9px 13px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.gagos-account-panel__primary {
+  color: #06121a;
+  background: var(--neon-cyan);
+  border: 1px solid var(--neon-cyan);
+}
+.gagos-account-panel__secondary {
+  color: rgba(228, 236, 250, 0.84);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.gagos-account-panel__close:focus-visible,
+.gagos-account-panel__primary:focus-visible,
+.gagos-account-panel__secondary:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 3px;
+}
+
+@media (max-width: 780px) {
+  .gagos-account-panel { right: 14px; left: 14px; width: auto; top: 64px; }
+}
+.gagos-dot--checking {
+  background: rgba(123, 245, 251, 0.72);
+  box-shadow: 0 0 8px rgba(123, 245, 251, 0.4);
+}
+.gagos-dot--reachable {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 9px rgba(123, 245, 251, 0.72), 0 0 18px rgba(123, 245, 251, 0.24);
 }
 /* SwarmHUD sits below the top-right status cluster so they don't overlap. */
 .swarm-hud {
@@ -594,6 +717,14 @@
   width: 4px;
   height: 4px;
 }
+.gagos-reflex-echo {
+  align-self: flex-start;
+  margin: -2px 0 -3px 22px;
+  padding: 2px 0;
+  color: rgba(151, 226, 190, .86);
+  font-size: 12px;
+  letter-spacing: .04em;
+}
 
 /* Streaming caret — the reply types itself out with a living cyan cursor. */
 .gagos-caret {
@@ -677,6 +808,7 @@
 .gagos-input {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   background: transparent;
   border: none;
   outline: none;
@@ -887,7 +1019,13 @@
 .gagos-readiness__checks li { margin: 0; }
 .gagos-readiness__recovery-link { display: inline-block; margin-top: 7px; color: #7bf5fb; }
 .gagos-readiness__recovery { margin-top: 7px; }
-.gagos-readiness__recovery summary { cursor: pointer; color: rgba(228, 236, 250, 0.78); }
+.gagos-readiness__recovery summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: rgba(228, 236, 250, 0.78);
+}
 .gagos-readiness__recovery p { margin: 6px 0 0; }
 .gagos-voice-note {
   max-width: 38ch;
@@ -993,6 +1131,16 @@
   .gagos-skip { transition: none; }
 }
 
+/* The Expert motion control and the shared reduced-motion store also cover
+   product-owned DOM motion. State copy, focus, and controls remain intact;
+   only travel, pulses, and decorative transitions are removed. */
+.gagos-chrome[data-motion-reduced="true"] *,
+.gagos-chrome[data-motion-reduced="true"] *::before,
+.gagos-chrome[data-motion-reduced="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
 /* ── Responsive: keep the front door usable on tablets + phones ───────────
    The being stays the centered hero; the conversation reflows to the bottom
    edge so it never fights the spine on narrow screens. */
@@ -1004,7 +1152,7 @@
   .gagos-experience-mode { gap: 5px; padding-left: 7px; }
   .gagos-experience-mode__label,
   .gagos-experience-mode__state { display: none; }
-  .gagos-experience-mode__choice { min-height: 30px; padding-inline: 8px; }
+  .gagos-experience-mode__choice { min-height: 44px; padding-inline: 8px; }
   .gagos-lockup { top: 18px; left: 18px; gap: 7px; }
   .gagos-wordmark { font-size: 18px; letter-spacing: 0.34em; margin-right: -0.34em; }
   .gagos-subtitle { font-size: 8.5px; letter-spacing: 0.34em; margin-right: -0.34em; }
@@ -1298,4 +1446,117 @@
   background: rgba(123, 245, 251, 0.12);
   color: #7bf5fb;
   box-shadow: 0 0 0 1px rgba(123, 245, 251, 0.35), 0 0 18px rgba(123, 245, 251, 0.25);
+}
+.approval-panel--guided .approval-human-facts {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.approval-panel--guided .approval-human-facts > div {
+  display: grid;
+  grid-template-columns: minmax(5rem, 7rem) 1fr;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.approval-panel--guided .approval-human-facts dt {
+  color: var(--lm-orange, #ffb36b);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.approval-panel--guided .approval-human-facts dd {
+  margin: 0;
+  color: var(--lm-text, #eef3f9);
+  line-height: 1.45;
+}
+
+.approval-panel .approval-evidence {
+  margin: 0.85rem 0;
+}
+
+.approval-panel .approval-evidence summary {
+  color: var(--lm-muted, rgba(232, 238, 250, 0.68));
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.approval-panel .approval-evidence[open] summary {
+  color: var(--lm-text, #eef3f9);
+}
+
+.gagos-approval-hold {
+  width: min(100%, 34rem);
+  margin: 0.75rem 0 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 190, 105, 0.5);
+  border-radius: 0.85rem;
+  background: rgba(34, 24, 16, 0.78);
+  color: var(--lm-text, #eef3f9);
+  line-height: 1.45;
+}
+
+.gagos-receipt {
+  width: min(100%, 34rem);
+  margin: 0.75rem 0 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(190, 207, 223, 0.22);
+  border-radius: 0.85rem;
+  background: rgba(12, 17, 24, 0.82);
+  color: var(--lm-text, #eef3f9);
+}
+
+.gagos-receipt--verified-success { border-color: rgba(117, 220, 155, 0.55); }
+.gagos-receipt--finished-unverified { border-color: rgba(255, 190, 105, 0.55); }
+.gagos-receipt--refusal { border-color: rgba(190, 174, 255, 0.5); }
+.gagos-receipt--failure,
+.gagos-receipt--failure-rollback { border-color: rgba(255, 132, 115, 0.55); }
+
+.gagos-receipt__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.gagos-receipt__target {
+  max-width: 55%;
+  overflow: hidden;
+  color: var(--lm-muted, rgba(232, 238, 250, 0.68));
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gagos-receipt p { margin: 0.45rem 0 0; line-height: 1.45; }
+
+.gagos-receipt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.gagos-receipt__actions button {
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid rgba(190, 207, 223, 0.3);
+  border-radius: 999px;
+  color: var(--lm-text, #eef3f9);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.gagos-receipt__actions button:hover,
+.gagos-receipt__actions button:focus-visible { border-color: var(--lm-orange, #ffb36b); }
+
+.gagos-receipt__explanation { color: var(--lm-muted, rgba(232, 238, 250, 0.68)); font-size: 0.82rem; }
+
+@media (max-width: 560px) {
+  .approval-panel--guided .approval-human-facts > div {
+    grid-template-columns: 1fr;
+    gap: 0.18rem;
+  }
 }

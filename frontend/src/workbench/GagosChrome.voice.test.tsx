@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { __resetActiveBrainForTests } from '../superbrain/lib/activeBrain';
 import { __resetTabStoreForTests } from '../superbrain/lib/tabStore';
 import { __resetVoiceSpeakForTests } from './voiceSpeak';
 
-const { sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState, isWorkIntent } = vi.hoisted(() => ({
+const { sendDirective, sendVoiceTurn, approvePendingApproval, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState, isWorkIntent, recognitionProbe } = vi.hoisted(() => ({
   sendDirective: vi.fn().mockResolvedValue({ paused: false, answer: 'ok' }),
   sendVoiceTurn: vi.fn().mockResolvedValue('ok'),
+  approvePendingApproval: vi.fn().mockResolvedValue({ paused: false, ok: true, answer: 'approved' }),
   getLastEmittedCode: vi.fn(() => null),
   previewIntent: vi.fn().mockResolvedValue({ intent: 'code', confidence: 0.9, tool: 'create_file' }),
   fetchOnboardingState: vi.fn().mockResolvedValue({
@@ -20,6 +21,7 @@ const { sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOn
   transcribeAudio: vi.fn().mockResolvedValue({ text: 'hello world', language: 'en', confidence: 0.95 }),
   correctHumanState: vi.fn().mockResolvedValue(true),
   isWorkIntent: vi.fn(() => true),
+  recognitionProbe: { current: null as { onresult: ((event: unknown) => void) | null } | null },
 }));
 
 vi.mock('../superbrain/SuperbrainApp', () => ({
@@ -37,7 +39,7 @@ vi.mock('../superbrain/lib/aiosAdapter', async () => {
   const actual = await vi.importActual<typeof import('../superbrain/lib/aiosAdapter')>(
     '../superbrain/lib/aiosAdapter',
   );
-  return { ...actual, sendDirective, sendVoiceTurn, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState };
+  return { ...actual, sendDirective, sendVoiceTurn, approvePendingApproval, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState };
 });
 
 describe('GagosChrome voice UX', () => {
@@ -47,9 +49,11 @@ describe('GagosChrome voice UX', () => {
     __resetVoiceSpeakForTests();
     sendDirective.mockClear();
     sendVoiceTurn.mockClear().mockResolvedValue('ok');
+    approvePendingApproval.mockClear().mockResolvedValue({ paused: false, ok: true, answer: 'approved' });
     transcribeAudio.mockClear();
     correctHumanState.mockClear().mockResolvedValue(true);
     isWorkIntent.mockReset().mockReturnValue(true);
+    recognitionProbe.current = null;
     localStorage.clear();
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -72,6 +76,7 @@ describe('GagosChrome voice UX', () => {
       onend: (() => void) | null = null;
       onerror: (() => void) | null = null;
       onresult: ((e: unknown) => void) | null = null;
+      constructor() { recognitionProbe.current = this; }
       start() { this.onstart?.(); }
       stop() { this.onend?.(); }
       abort() { this.onend?.(); }
@@ -93,6 +98,10 @@ describe('GagosChrome voice UX', () => {
       onerror: (() => void) | null = null;
       constructor(text: string) { this.text = text; }
     });
+  });
+
+  afterEach(() => {
+    (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
   });
 
   it('renders the language toggle button showing EN by default', async () => {
@@ -137,6 +146,43 @@ describe('GagosChrome voice UX', () => {
     await act(async () => {
       fireEvent.pointerUp(micBtn);
     });
+  });
+
+  it('keeps a spoken approval phrase as draft text and never authorizes a pending mutation', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const approvalHost = window as unknown as {
+      __injectApproval?: (over?: Record<string, unknown>) => void;
+      __clearApproval?: () => void;
+    };
+    approvalHost.__clearApproval?.();
+    render(<GagosChrome experienceMode="beginner" />);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /use browser recognition/i }));
+    await waitFor(() => expect(recognitionProbe.current).not.toBeNull());
+
+    act(() => {
+      approvalHost.__injectApproval?.({
+        summary: 'Approval required to run the project tests',
+        kind: 'command',
+        command: 'npm test',
+      });
+    });
+    const approval = await screen.findByRole('alertdialog', { name: 'GAGOS permission request' });
+    expect(approval).toBeInTheDocument();
+
+    const input = screen.getByLabelText('Talk to GAGOS') as HTMLInputElement;
+    const micBtn = screen.getByRole('button', { name: /hold to speak/i });
+    await act(async () => {
+      fireEvent.pointerDown(micBtn);
+      recognitionProbe.current?.onresult?.({
+        results: [{ isFinal: true, 0: { transcript: 'yes, go ahead' } }],
+      });
+    });
+
+    expect(input).toHaveValue('yes, go ahead');
+    expect(approvePendingApproval).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog', { name: 'GAGOS permission request' })).toBeInTheDocument();
+    fireEvent.pointerUp(micBtn);
   });
 
   it('applies has-transcript class to input after transcription populates draft', async () => {
@@ -197,12 +243,26 @@ describe('GagosChrome voice UX', () => {
     expect(screen.getByRole('button', { name: /hold to speak/i })).toBeInTheDocument();
   });
 
+  it('keeps browser voice consent explicit without making it compete with the first-run paths', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome experienceMode="beginner" />);
+
+    const options = document.querySelector('.gagos-voice-options') as HTMLDetailsElement;
+    expect(options).toBeInTheDocument();
+    expect(options.open).toBe(false);
+    expect(screen.getByRole('checkbox', { name: /use browser recognition/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Voice options (optional)'));
+    expect(options.open).toBe(true);
+    expect(screen.getByText(/voice is for conversation/i)).toBeInTheDocument();
+  });
+
   it('offers three guided beginner paths that prefill the chat without submitting', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome experienceMode="beginner" />);
 
     const input = screen.getByLabelText('Talk to GAGOS') as HTMLInputElement;
-    fireEvent.click(screen.getByRole('button', { name: /Guide me step by step/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Guide me/i }));
 
     expect(input.value).toBe('Guide me through one safe first task');
     expect(sendDirective).not.toHaveBeenCalled();
@@ -210,7 +270,7 @@ describe('GagosChrome voice UX', () => {
 
   it('renders the chat model toggle showing LOCAL by default', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     const modelBtn = screen.getByRole('button', { name: /chat model/i });
     expect(modelBtn).toBeInTheDocument();
@@ -219,7 +279,7 @@ describe('GagosChrome voice UX', () => {
 
   it('cycles the chat model from LOCAL to GEMINI on click and persists to localStorage', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     const modelBtn = screen.getByRole('button', { name: /chat model/i });
     await act(async () => {
@@ -240,7 +300,7 @@ describe('GagosChrome voice UX', () => {
   it('threads the selected chat model into sendVoiceTurn for a CHAT turn', async () => {
     isWorkIntent.mockReturnValue(false);
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome />);
+    render(<GagosChrome experienceMode="expert" />);
 
     const modelBtn = screen.getByRole('button', { name: /chat model/i });
     await act(async () => {
@@ -277,6 +337,26 @@ describe('GagosChrome voice UX', () => {
     await waitFor(() => expect(sendVoiceTurn).toHaveBeenCalled());
     const [, opts] = sendVoiceTurn.mock.calls[0];
     expect(opts.modelId).toBeUndefined();
+  });
+
+  it('renders the real chat reply in the accessible conversation log', async () => {
+    isWorkIntent.mockReturnValue(false);
+    sendVoiceTurn.mockResolvedValue('Here is what I can help with.');
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'what can you help me with' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Here is what I can help with.')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).toHaveTextContent(
+      'GAGOS: Here is what I can help with.',
+    );
   });
 
   it('organ 30: renders the human-state hint and submits a real correction', async () => {
