@@ -60,12 +60,30 @@ export default defineConfig(({ mode }) => {
     "base-uri 'self'",
     "frame-ancestors 'none'",
   ].join('; ') + ';'
+  // `frame-ancestors` and the companion response security headers are only
+  // enforced when delivered as HTTP headers. Keep a browser-compatible CSP
+  // meta for static builds, but deliver the complete policy through Vite's
+  // dev/preview response headers so the app does not claim that ineffective
+  // meta tags provide clickjacking or MIME-sniffing protection.
+  const cspMeta = csp
+    .split(';')
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .filter((directive) => !directive.startsWith('frame-ancestors'))
+    .join('; ') + ';'
+  const responseSecurityHeaders = {
+    'Content-Security-Policy': csp,
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+  }
   const cspPlugin = {
     name: 'gagos-csp',
     transformIndexHtml() {
       return [{
         tag: 'meta',
-        attrs: { 'http-equiv': 'Content-Security-Policy', content: csp },
+        attrs: { 'http-equiv': 'Content-Security-Policy', content: cspMeta },
         injectTo: 'head-prepend',
       }]
     },
@@ -100,9 +118,13 @@ export default defineConfig(({ mode }) => {
       // views the source.
     },
     server: {
+      headers: responseSecurityHeaders,
       fs: {
         allow: [path.resolve(__dirname, '..'), frontendNodeModules, resolvedFrontendNodeModules],
       },
+    },
+    preview: {
+      headers: responseSecurityHeaders,
     },
     // ── W5-2 CODE-SPLIT ───────────────────────────────────────────────────────
     // The prod build used to emit one ~1.3 MB chunk (over Vite's 500 KB warning).

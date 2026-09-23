@@ -16,7 +16,7 @@ export function ExperienceModeSwitch({ mode, onChange }: ExperienceModeSwitchPro
           aria-pressed={mode === 'beginner'}
           onClick={() => onChange('beginner')}
         >
-          Beginner
+          Guided
         </button>
         <button
           type="button"

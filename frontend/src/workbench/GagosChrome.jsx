@@ -17,7 +17,7 @@
  * sendVoiceTurn) and publishes the same cognition events (directive /
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   getLastEmittedCode,
   cancelPendingApproval,
@@ -45,13 +45,10 @@ import {
   updateMaterializedTab,
   beginRetractingMaterializedTab,
   releaseWorkMaterialization,
+  focusMaterializedTab,
 } from '../superbrain/lib/tabStore';
 import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
-import SwarmHUD from '../superbrain/components/ui/SwarmHUD';
-import CouncilDashboard from './CouncilDashboard';
-import OperatorProfileCard from './OperatorProfileCard';
-import TrustHalo from './TrustHalo';
 import './GagosChrome.css';
 
 import { useCognitionBus, formatActiveBrainChip } from './hooks/useCognitionBus';
@@ -60,23 +57,56 @@ import { useVoiceInput } from './hooks/useVoiceInput';
 import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
 import { BootstrapReadiness } from '../livingMirror/BootstrapReadiness';
 import { StarterPaths } from '../livingMirror/StarterPaths';
+import GuidedApprovalPanel from '../livingMirror/GuidedApprovalPanel';
+import { GuidedAccountPanel } from '../livingMirror/GuidedAccountPanel';
+import { presentVoiceStatus } from '../livingMirror/voicePresentation';
+import { ReceiptCard } from '../livingMirror/experience/ReceiptCard';
+import { deriveReceipt } from '../livingMirror/experience/receipts';
+import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
+import { beingStatusText } from '../livingMirror/being/presentationFromStores';
+import { useEmergencyStopPresentation } from '../livingMirror/emergencyStopPresentation';
 
 export { workFilepath, extractStreamingCode };
+
+// These surfaces are Expert-only. Keep their modules out of Guided startup;
+// the same components remain available when the technical mode is selected.
+const ExpertSwarmHUD = lazy(() => import('../superbrain/components/ui/SwarmHUD'));
+const ExpertCouncilDashboard = lazy(() => import('./CouncilDashboard'));
+const ExpertOperatorProfileCard = lazy(() => import('./OperatorProfileCard'));
+const ExpertTrustHalo = lazy(() => import('./TrustHalo'));
 
 const EXAMPLE_DIRECTIVE = "Try: 'scaffold a FastAPI /health endpoint'";
 const HINT_DISMISSED_KEY = 'gagos-onboarding-hint-dismissed';
 
-function deriveCoachCards(state) {
+function deriveCoachCards(state, guided = false) {
   if (!state) return [];
   if (!state.firstDirective)
     return [
-      'GAGOS — a local-first AI that acts only with your approval.',
+      guided
+        ? 'GAGOS explains first and asks before it acts.'
+        : 'GAGOS — a local-first AI that acts only with your approval.',
       'Type a goal and press Enter.',
     ];
-  if (!state.firstApproval) return ['I pause for your approval on writes, commands, and fetches.'];
-  if (!state.firstVerify) return ['Watch for the green verify badge when a tool passes.'];
-  if (!state.firstCloudRoute) return ['Some subtasks burst to the cloud factory — see the spine flash.'];
-  if (!state.firstAutonomy) return ['Earned autonomy lets trusted actions run automatically.'];
+  if (!state.firstApproval) {
+    return [guided
+      ? 'I pause before I change files, run commands, or fetch pages.'
+      : 'I pause for your approval on writes, commands, and fetches.'];
+  }
+  if (!state.firstVerify) {
+    return [guided
+      ? 'I check important work before I call it done.'
+      : 'Watch for the green verify badge when a tool passes.'];
+  }
+  if (!state.firstCloudRoute) {
+    return [guided
+      ? 'Some work may be handled away from this device when your settings allow it.'
+      : 'Some subtasks burst to the cloud factory — see the spine flash.'];
+  }
+  if (!state.firstAutonomy) {
+    return [guided
+      ? 'Trusted routines can become quicker after repeated verified success.'
+      : 'Earned autonomy lets trusted actions run automatically.'];
+  }
   return ["You're fully underway. Keep building."];
 }
 
@@ -208,16 +238,21 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
 }
 
 export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {} }) {
+  const guided = experienceMode === 'beginner';
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
     () => typeof window !== 'undefined' && !!(window.SpeechRecognition ?? window.webkitSpeechRecognition),
   );
   const [swarmOn, setSwarmOn] = useState(() => getSwarmMode());
-  const [online, setOnline] = useState(true);
+  // A health link is unknown until the first measured response. Starting in
+  // "connected" would turn boot latency into a false operational claim.
+  const [online, setOnline] = useState(null);
   const [onboarded, setOnboarded] = useState(true);
   const [hintDismissed, setHintDismissed] = useState(true);
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
+  const [receipt, setReceipt] = useState(null);
+  const receiptInputRef = useRef(null);
   // Organ 30: which message's human-state correction picker is open (at most
   // one at a time -- a second tap on another message's affordance replaces it).
   const [openHumanStateMsgId, setOpenHumanStateMsgId] = useState(null);
@@ -225,6 +260,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   // Sovereign bond: measured identity state + the Bond ceremony panel.
   const [sovereign, setSovereign] = useState({ sessionActive: false, operatorId: null, measured: 'unknown' });
   const [bondOpen, setBondOpen] = useState(false);
+  const bondButtonRef = useRef(null);
   useEffect(() => {
     const unsub = subscribeSovereignStatus(setSovereign);
     refreshSovereignStatus();
@@ -265,8 +301,12 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
     pendingApproval,
     convPhase,
     verifyToast,
+    reflexActive,
     setPendingApproval,
   } = useCognitionBus(reducedMotion);
+  const beingPresentation = useBeingPresentation();
+  const emergencyStopPresentation = useEmergencyStopPresentation();
+  const emergencyStopped = beingPresentation.signals.includes('emergency-stop') || emergencyStopPresentation === 'engaged';
 
   // 2. Work Materialization custom hook
   const {
@@ -313,6 +353,19 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   const { tabs: liveTabs } = useTabStore();
   const beingWorking = liveTabs.some((t) => t.kind !== 'input' && t.lifecycle !== 'retracting');
 
+  // A completed replay is deliberately held as unverified until a real
+  // verifier enriches the same materialized tab. No visual receipt is allowed
+  // to promote itself based on elapsed time or a successful network response.
+  useEffect(() => {
+    const input = receiptInputRef.current;
+    if (!input || !receipt || input.verification !== 'unknown' || !input.targetTabId) return;
+    const tab = liveTabs.find((candidate) => candidate.id === input.targetTabId);
+    const verdict = tab?.kind === 'content' ? tab.content?.verifyVerdict : undefined;
+    if (verdict !== 'pass' && verdict !== 'fail') return;
+    const next = deriveReceipt({ ...input, verification: verdict });
+    if (next.kind !== receipt.kind) setReceipt(next);
+  }, [liveTabs, receipt]);
+
   // Keep newest message in view
   useEffect(() => {
     const el = threadRef.current;
@@ -339,7 +392,10 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
       } catch {
         if (alive) setOnline(false);
       } finally {
-        window.clearTimeout(to);
+        // A rejected probe may settle after a test/document teardown. The
+        // browser timer is best-effort cleanup and must not become a second
+        // failure when the global window is already gone.
+        if (typeof window !== 'undefined') window.clearTimeout(to);
       }
     };
     ping();
@@ -425,9 +481,23 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
 
   const canSend = draft.trim().length > 0 && !busy;
 
-  const statusAnnouncement = !online
-    ? 'GAGOS is offline'
-    : convPhase === 'thinking' || convPhase === 'awakening'
+  const closeBond = useCallback(() => {
+    setBondOpen(false);
+    window.setTimeout(() => bondButtonRef.current?.focus(), 0);
+  }, []);
+
+  const openExpertAccount = useCallback(() => {
+    closeBond();
+    onExperienceModeChange('expert');
+  }, [closeBond, onExperienceModeChange]);
+
+  const statusAnnouncement = online === null
+    ? 'Checking the GAGOS connection'
+    : !online
+      ? 'GAGOS is offline'
+    : reflexActive
+      ? 'GAGOS is reusing a verified routine'
+      : convPhase === 'thinking' || convPhase === 'awakening'
       ? 'GAGOS is thinking'
       : convPhase === 'streaming'
         ? 'GAGOS is replying'
@@ -447,21 +517,118 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   });
 
   const showHint = !hintDismissed && onboarded && messages.length === 0 && !busy;
-  const showThinkingEcho = busy && (convPhase === 'thinking' || convPhase === 'awakening' || convPhase === 'streaming');
+  const voicePresentation = presentVoiceStatus({
+    state: voiceState,
+    error: voiceError,
+    guided,
+  });
+  // Streaming is already a reply in flight, not model-thought. Keep the
+  // visible progress cue aligned with the same distinction used by the live
+  // status announcement and the presentation kernel.
+  const showThinkingEcho = busy && !reflexActive && (convPhase === 'thinking' || convPhase === 'awakening');
+  const showReplyingEcho = busy && !reflexActive && convPhase === 'streaming';
+
+  const handleApprovalSettled = (outcome) => {
+    setPendingApproval(getPendingApproval());
+    const writeId = writingTabIdRef.current;
+    writingTabIdRef.current = null;
+    if (!outcome) return;
+    // A capability replay may encounter another real human_required frame.
+    // Keep the newly captured approval as the only decision surface; do not
+    // retract work or emit a receipt for a turn that has not completed.
+    if (outcome.action === 'authorize' && outcome.paused && getPendingApproval()) return;
+    const target = outcome.filepath
+      || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
+    if (outcome.action === 'reject') {
+      if (writeId) {
+        beginRetractingMaterializedTab(writeId);
+        workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+      }
+      releaseWorkMaterialization();
+      receiptInputRef.current = {
+        action: 'reject',
+        succeeded: outcome.succeeded,
+        target,
+        verification: 'unknown',
+      };
+      setReceipt(deriveReceipt(receiptInputRef.current));
+      pushMessage('gagos', outcome.succeeded
+        ? 'Stood down — that action was declined.'
+        : 'Stood down — that action was declined (unconfirmed by the server).');
+      return;
+    }
+    if (!outcome.succeeded) {
+      if (writeId) {
+        beginRetractingMaterializedTab(writeId);
+        workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+      }
+      releaseWorkMaterialization();
+      receiptInputRef.current = {
+        action: 'authorize',
+        succeeded: false,
+        target,
+        verification: 'unknown',
+      };
+      setReceipt(deriveReceipt(receiptInputRef.current));
+      pushMessage('gagos', `↳ Failed to authorize ${target} — the request did not complete.`);
+      return;
+    }
+    if (writeId) {
+      const isFileKind = outcome.kind === 'create' || outcome.kind === 'edit';
+      const emittedNow = getLastEmittedCode();
+      const code =
+        (outcome.kind === 'create' ? outcome.content : outcome.kind === 'edit' ? (outcome.content || outcome.diff) : '') ||
+        (emittedNow && emittedNow.code) ||
+        '';
+      if (isFileKind && code.trim()) {
+        const filepath = outcome.filepath ? outcome.filepath.split(/[\\/]/).pop() : 'file';
+        const ext = (filepath.split('.').pop() || '').toLowerCase();
+        const language = (emittedNow && emittedNow.language)
+          || (ext === 'py' ? 'python' : ext === 'ts' ? 'typescript' : ext === 'js' ? 'javascript' : ext || 'text');
+        updateMaterializedTab(writeId, { content: { code, language, filepath, streaming: false } });
+      } else {
+        beginRetractingMaterializedTab(writeId);
+        workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+      }
+      releaseWorkMaterialization();
+    }
+    receiptInputRef.current = {
+      action: 'authorize',
+      succeeded: true,
+      target,
+      verification: 'unknown',
+      targetTabId: writeId || undefined,
+    };
+    setReceipt(deriveReceipt(receiptInputRef.current));
+    const verb = outcome.kind === 'create' ? 'Created'
+      : outcome.kind === 'edit' ? 'Updated'
+      : outcome.kind === 'command' ? 'Ran'
+      : outcome.kind === 'browse' ? 'Fetched'
+      : 'Approved';
+    pushMessage('gagos', `↳ ${verb} ${target}.`);
+  };
 
   return (
-    <div className="gagos-chrome" data-experience-mode={experienceMode} aria-label="GAGOS conversation">
+    <div
+      className="gagos-chrome"
+      data-experience-mode={experienceMode}
+      data-motion-reduced={reducedMotion ? 'true' : 'false'}
+      aria-label="GAGOS conversation"
+    >
       <button type="button" className="gagos-skip" onClick={() => inputRef.current?.focus()}>
         Skip to the chat
       </button>
       <div className="gagos-sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
+      <div className="gagos-sr-only" role="status" aria-label="GAGOS organism status" aria-live="polite" aria-atomic="true">
+        {beingStatusText(beingPresentation)}
+      </div>
 
       <header className="gagos-status" aria-label="GAGOS status">
-        <span className={`gagos-pill ${online ? 'gagos-pill--model' : 'gagos-pill--offline'}`}>
-          <span className={`gagos-dot ${online ? 'gagos-dot--model' : 'gagos-dot--offline'}`} aria-hidden="true" />
+        <span className={`gagos-pill ${online === null ? 'gagos-pill--checking' : online ? (guided ? 'gagos-pill--reachable' : 'gagos-pill--model') : 'gagos-pill--offline'}`}>
+          <span className={`gagos-dot ${online === null ? 'gagos-dot--checking' : online ? (guided ? 'gagos-dot--reachable' : 'gagos-dot--model') : 'gagos-dot--offline'}`} aria-hidden="true" />
           <span className="gagos-pill__copy">
-            <span className="gagos-pill__main">{online ? brainChip.name : 'offline'}</span>
-            {online && brainChip.meta ? <span className="gagos-pill__meta">{brainChip.meta}</span> : null}
+            <span className="gagos-pill__main">{online === null ? 'checking…' : guided ? (online ? 'reachable' : 'offline') : (online ? brainChip.name : 'offline')}</span>
+            {!guided && online && brainChip.meta ? <span className="gagos-pill__meta">{brainChip.meta}</span> : null}
           </span>
         </span>
         <span
@@ -469,18 +636,21 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           aria-label="Supervised: a human approval gate guards risky actions"
         >
           <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
-          <span className="gagos-pill__main">supervised</span>
+          <span className="gagos-pill__main">{guided ? 'approval protected' : 'supervised'}</span>
         </span>
         <button
+          ref={bondButtonRef}
           type="button"
           className={`gagos-pill gagos-pill--bond${sovereign.operatorId ? ' gagos-pill--bond-sovereign' : ''}`}
           onClick={() => setBondOpen((open) => !open)}
           aria-haspopup="dialog"
           aria-expanded={bondOpen}
           aria-label={
-            sovereign.operatorId
+            sovereign.operatorId && !guided
               ? `Sovereign bond held by ${sovereign.operatorId}. Open the bond panel.`
-              : 'No sovereign session. Open the bond panel to claim or present a credential.'
+              : guided
+                ? 'Account identity status. Open the account panel.'
+                : 'No sovereign session. Open the bond panel to claim or present a credential.'
           }
         >
           <span
@@ -489,16 +659,16 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           />
           <span className="gagos-pill__main">
             {sovereign.measured !== 'measured'
-              ? 'bond…'
+              ? (guided ? 'account…' : 'bond…')
               : sovereign.operatorId
-                ? 'sovereign'
-                : 'unbound'}
+                ? (guided ? 'account linked' : 'sovereign')
+                : (guided ? 'account not linked' : 'unbound')}
           </span>
-          {sovereign.operatorId ? (
+          {sovereign.operatorId && !guided ? (
             <span className="gagos-pill__meta">{sovereign.operatorId}</span>
           ) : null}
         </button>
-        {online && brainChip.mode ? (
+        {!guided && online && brainChip.mode ? (
           <span
             className={`gagos-pill gagos-pill--mode gagos-pill--mode-${brainChip.mode}`}
             aria-label={`Turn mode: ${brainChip.mode}`}
@@ -524,80 +694,57 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
         </div>
       ) : null}
 
-      {!integrated && <SwarmHUD />}
-      {!integrated && <CouncilDashboard />}
-      {!integrated && <OperatorProfileCard />}
-      {!integrated && <TrustHalo />}
+      {!integrated && !guided ? (
+        <Suspense fallback={null}>
+          <ExpertSwarmHUD />
+          <ExpertCouncilDashboard />
+          <ExpertOperatorProfileCard />
+          <ExpertTrustHalo />
+        </Suspense>
+      ) : null}
 
-      {bondOpen ? <SovereigntyPanel onClose={() => setBondOpen(false)} /> : null}
-
-      {pendingApproval ? (
-        <ApprovalPanel
-          pending={pendingApproval}
-          onSettled={(outcome) => {
-            setPendingApproval(getPendingApproval());
-            const writeId = writingTabIdRef.current;
-            writingTabIdRef.current = null;
-            if (!outcome) return;
-            const target = outcome.filepath
-              || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
-            if (outcome.action === 'reject') {
-              if (writeId) {
-                beginRetractingMaterializedTab(writeId);
-                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
-              }
-              releaseWorkMaterialization();
-              pushMessage('gagos', outcome.succeeded
-                ? 'Stood down — that action was declined.'
-                : 'Stood down — that action was declined (unconfirmed by the server).');
-              return;
-            }
-            if (!outcome.succeeded) {
-              // The replay did not actually complete -- never narrate a write,
-              // run or fetch that never happened.
-              if (writeId) {
-                beginRetractingMaterializedTab(writeId);
-                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
-              }
-              releaseWorkMaterialization();
-              pushMessage('gagos', `↳ Failed to authorize ${target} — the request did not complete.`);
-              return;
-            }
-            if (writeId) {
-              const isFileKind = outcome.kind === 'create' || outcome.kind === 'edit';
-              const emittedNow = getLastEmittedCode();
-              const code =
-                (outcome.kind === 'create' ? outcome.content : outcome.kind === 'edit' ? (outcome.content || outcome.diff) : '') ||
-                (emittedNow && emittedNow.code) ||
-                '';
-              if (isFileKind && code.trim()) {
-                const filepath = outcome.filepath ? outcome.filepath.split(/[\\/]/).pop() : 'file';
-                const ext = (filepath.split('.').pop() || '').toLowerCase();
-                const language = (emittedNow && emittedNow.language)
-                  || (ext === 'py' ? 'python' : ext === 'ts' ? 'typescript' : ext === 'js' ? 'javascript' : ext || 'text');
-                updateMaterializedTab(writeId, { content: { code, language, filepath, streaming: false } });
-              } else {
-                beginRetractingMaterializedTab(writeId);
-                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
-              }
-              releaseWorkMaterialization();
-            }
-            const verb = outcome.kind === 'create' ? 'Created'
-              : outcome.kind === 'edit' ? 'Updated'
-              : outcome.kind === 'command' ? 'Ran'
-              : outcome.kind === 'browse' ? 'Fetched'
-              : 'Approved';
-            pushMessage('gagos', `↳ ${verb} ${target}.`);
-          }}
+      {bondOpen ? guided ? (
+        <GuidedAccountPanel
+          status={sovereign}
+          onClose={closeBond}
+          onOpenExpert={openExpertAccount}
         />
+      ) : (
+        <SovereigntyPanel onClose={closeBond} />
+      ) : null}
+
+      {pendingApproval && emergencyStopped ? (
+        <div className="gagos-approval-hold" role="alert" aria-live="assertive">
+          Emergency stop is engaged. This permission request is being held.
+        </div>
+      ) : null}
+
+      {pendingApproval && !emergencyStopped ? (
+        guided ? (
+          <GuidedApprovalPanel pending={pendingApproval} onSettled={handleApprovalSettled} />
+        ) : (
+          <ApprovalPanel
+            pending={pendingApproval}
+            onSettled={handleApprovalSettled}
+          />
+        )
       ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
-        <div className="gagos-voice-state" role="status">{voiceState}{voiceError ? ` · ${voiceError}` : ''}</div>
-        {!backendVoice.stt && browserVoiceAvailable && <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
-          Use browser recognition. Audio may be processed by the browser provider.
-        </label>}
-        {experienceMode === 'beginner' ? (
+        <div className="gagos-voice-state" role="status">
+          {voicePresentation.status}{voicePresentation.error ? ` · ${voicePresentation.error}` : ''}
+        </div>
+        {!backendVoice.stt && browserVoiceAvailable ? (
+          <details className="gagos-voice-options">
+            <summary>{experienceMode === 'beginner' ? 'Voice options (optional)' : 'Voice route'}</summary>
+            <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
+              Use browser recognition. Audio may be processed by your browser's speech service.
+            </label>
+            {experienceMode === 'beginner' ? (
+              <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
+            ) : null}
+          </details>
+        ) : experienceMode === 'beginner' ? (
           <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
         ) : null}
         {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
@@ -605,15 +752,14 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
             <p className="gagos-welcome__eyebrow">{listening ? 'Microphone capturing' : 'Begin a conversation'}</p>
             <p className="gagos-welcome__greeting">
-              I'm <span className="gagos-welcome__name">GAGOS</span>, a supervised mind that
-              remembers. Where shall we begin?
+              I'm <span className="gagos-welcome__name">GAGOS</span>. I remember useful context.
+              What would you like to get done?
             </p>
             {experienceMode === 'beginner' ? (
               <p className="gagos-welcome__guidance">
                 Say it, type it, or choose an example. I explain first and ask before I act.
               </p>
             ) : null}
-            {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
             {experienceMode === 'beginner' ? (
               <StarterPaths onChoose={(text) => { setDraft(text); inputRef.current?.focus(); }} />
             ) : (
@@ -635,6 +781,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
                 ))}
               </div>
             )}
+            {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
           </div>
         ) : null}
 
@@ -677,11 +824,39 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           })}
         </div>
 
-        {showThinkingEcho ? (
+        {showThinkingEcho || showReplyingEcho ? (
           <div className="gagos-thinking-echo" aria-hidden="true">
-            <span className="gagos-thinking-echo__label">thinking…</span>
+            <span className="gagos-thinking-echo__label">{showReplyingEcho ? 'replying…' : 'thinking…'}</span>
             <span className="gagos-typing"><i /><i /><i /></span>
           </div>
+        ) : null}
+        {reflexActive && busy ? (
+          <div className="gagos-reflex-echo" role="status">
+            {guided ? 'Using a verified routine.' : 'Used a verified routine. No model call.'}
+          </div>
+        ) : null}
+
+        {receipt ? (
+          <ReceiptCard
+            receipt={receipt}
+            onReview={() => {
+              if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
+              else inputRef.current?.focus();
+            }}
+            onCheck={() => {
+              if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
+              setDraft(`Run a check for ${receipt.target}.`);
+              inputRef.current?.focus();
+            }}
+            onDiscard={() => {
+              if (receipt.targetTabId) {
+                beginRetractingMaterializedTab(receipt.targetTabId);
+                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== receipt.targetTabId);
+              }
+              pushMessage('gagos', 'Removed the unverified work surface. The receipt remains available.');
+            }}
+            onPrimary={() => inputRef.current?.focus()}
+          />
         ) : null}
 
         <div
@@ -771,35 +946,39 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
               {voiceLang === 'en-IN' ? 'EN' : 'HI'}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="gagos-btn gagos-model gagos-expert-only"
-            onClick={cycleChatModel}
-            aria-label={`Chat model: ${chatModelId ? 'Gemini' : 'Local (Ollama)'}. Click to switch to ${chatModelId ? 'Local (Ollama)' : 'Gemini'}.`}
-            title={chatModelId ? 'Switch to Local (Ollama)' : 'Switch to Gemini'}
-          >
-            {chatModelId ? 'GEMINI' : 'LOCAL'}
-          </button>
-          <button
-            type="button"
-            className={`gagos-btn gagos-swarm gagos-expert-only ${swarmOn ? 'is-on' : ''}`}
-            onClick={() => {
-              setSwarmOn((prev) => {
-                const next = !prev;
-                setSwarmMode(next);
-                return next;
-              });
-            }}
-            aria-pressed={swarmOn}
-            aria-label={
-              swarmOn
-                ? 'Swarm mode on: directives decompose across an ephemeral worker colony. Click to disable.'
-                : 'Swarm mode off. Click to run directives as an ephemeral worker swarm.'
-            }
-            title={swarmOn ? 'Swarm mode ON' : 'Run as swarm'}
-          >
-            SWARM
-          </button>
+          {!guided ? (
+            <>
+              <button
+                type="button"
+                className="gagos-btn gagos-model gagos-expert-only"
+                onClick={cycleChatModel}
+                aria-label={`Chat model: ${chatModelId ? 'Gemini' : 'Local (Ollama)'}. Click to switch to ${chatModelId ? 'Local (Ollama)' : 'Gemini'}.`}
+                title={chatModelId ? 'Switch to Local (Ollama)' : 'Switch to Gemini'}
+              >
+                {chatModelId ? 'GEMINI' : 'LOCAL'}
+              </button>
+              <button
+                type="button"
+                className={`gagos-btn gagos-swarm gagos-expert-only ${swarmOn ? 'is-on' : ''}`}
+                onClick={() => {
+                  setSwarmOn((prev) => {
+                    const next = !prev;
+                    setSwarmMode(next);
+                    return next;
+                  });
+                }}
+                aria-pressed={swarmOn}
+                aria-label={
+                  swarmOn
+                    ? 'Swarm mode on: directives decompose across an ephemeral worker colony. Click to disable.'
+                    : 'Swarm mode off. Click to run directives as an ephemeral worker swarm.'
+                }
+                title={swarmOn ? 'Swarm mode ON' : 'Run as swarm'}
+              >
+                SWARM
+              </button>
+            </>
+          ) : null}
           <button
             type="button"
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}
@@ -817,7 +996,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
           <>
             {!onboarded ? (
               <div className="gagos-coach" role="dialog" aria-label="Getting started">
-                {deriveCoachCards(milestones).map((text, i) => (
+                {deriveCoachCards(milestones, guided).map((text, i) => (
                   <div key={i} className="gagos-coach__card">
                     <p>{text}</p>
                   </div>
@@ -830,7 +1009,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
                 </div>
               </div>
             ) : null}
-            {showHint ? (
+            {showHint && !guided ? (
               <div className="gagos-hint" role="note" aria-label="Onboarding hint">
                 <span className="gagos-hint__text">▣ ORGANS · forge (Ctrl+`)</span>
                 <button

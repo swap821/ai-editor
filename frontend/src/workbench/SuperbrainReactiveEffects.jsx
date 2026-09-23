@@ -5,8 +5,8 @@
  * shares the same R3F context as the being but lives outside the ported lab files.
  * It adds:
  *   - cloud_route  → jagged lightning arc up the spine
- *   - verify pass  → green aurora bloom around the cortex
- *   - caste_start/end → orbiting worker motes at vertebra seats
+ *   - semantic verification  → aurora bloom around the cortex
+ *   - semantic worker posture → bounded motes at vertebra seats
  */
 import { useEffect, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -19,6 +19,7 @@ import { subscribeCognition } from '../superbrain/lib/cognitionBus';
 import { getKnownTrails } from '../superbrain/lib/aiosAdapter';
 import {
   fuseSpinePoint,
+  getSpineFusion,
   getBrainDockScale,
   getCortexAnchor,
 } from '../superbrain/lib/spineFusionBus';
@@ -29,10 +30,18 @@ import {
   subscribeAurora,
 } from './verifyAuroraBridge';
 import {
-  advanceSpineFlash,
   getSpineFlashState,
   subscribeSpineFlash,
 } from './spineFlashBridge';
+import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
+import {
+  deriveSemanticEffectTransition,
+  isActionPresentationStopped,
+  pruneExpiredWorkerMotes,
+} from '../livingMirror/being/semanticEffects';
+import { coherenceSemanticsFor } from '../livingMirror/being/coherenceSemantics';
+import { useReducedMotion } from '../superbrain/lib/reducedMotion';
+import { updateLineGeometryPoints } from './lineGeometry';
 
 const CLOUD_COLORS = {
   bedrock: new THREE.Color('#f5c542'),
@@ -73,6 +82,9 @@ function seatForIndex(index) {
 }
 
 const BEAD_HALF_ANCHORS = 2;
+const MAX_LIGHTNINGS = 4;
+const MAX_MOTES = 8;
+const SPINE_FLASH_DURATION_S = 1.6;
 
 function anchorWorldPosition(i) {
   const clamped = Math.min(SEGMENT_ANCHORS.length - 1, Math.max(0, i));
@@ -89,16 +101,62 @@ function sampleWorldPosition(t) {
   return a.clone().lerp(b, frac);
 }
 
+// Keep the initial Drei <Line> geometry at the same bounded size as the
+// ref-mutated frame-loop scratch pool. A shorter initial point list causes
+// BufferGeometry.setFromPoints to warn and reallocate when the flash reaches
+// the middle of the spine, even though the visual effect is capped.
+const FLASH_POINT_COUNT = BEAD_HALF_ANCHORS * 4 + 1;
+
 function beadPointsForProgress(progress) {
   const n = SEGMENT_ANCHORS.length;
   const center = progress * (n - 1);
   const start = Math.max(0, center - BEAD_HALF_ANCHORS);
   const end = Math.min(n - 1, center + BEAD_HALF_ANCHORS);
-  const steps = Math.max(2, Math.ceil(end - start) * 2 + 1);
   const points = [];
-  for (let s = 0; s < steps; s += 1) {
-    const t = start + (end - start) * (s / (steps - 1));
+  for (let s = 0; s < FLASH_POINT_COUNT; s += 1) {
+    const t = start + (end - start) * (s / (FLASH_POINT_COUNT - 1));
     points.push(sampleWorldPosition(t));
+  }
+  return points;
+}
+
+// The travelling spine bead is the one product-owned effect that can touch
+// the frame loop continuously. Keep its hot path on a fixed scratch pool so a
+// long cloud-route flash does not create short-lived Vector3/array garbage on
+// every frame. The existing allocating helpers remain for initial JSX props
+// and event-time construction, where they are not frame-bound.
+function anchorWorldPositionInto(index, target, dockScale) {
+  const clamped = Math.min(SEGMENT_ANCHORS.length - 1, Math.max(0, index));
+  const raw = SEGMENT_ANCHORS[clamped];
+  const fusion = getSpineFusion();
+  if (fusion.ready) {
+    target.set(
+      raw.x * fusion.spineScale + fusion.weld[0],
+      raw.y * fusion.spineScale + fusion.weld[1],
+      raw.z * fusion.spineScale + fusion.weld[2],
+    );
+  } else {
+    target.set(raw.x, raw.y, raw.z);
+  }
+  return target.multiplyScalar(dockScale);
+}
+
+function sampleWorldPositionInto(t, target, start, end, dockScale) {
+  const i0 = Math.floor(t);
+  const frac = t - i0;
+  anchorWorldPositionInto(i0, start, dockScale);
+  anchorWorldPositionInto(i0 + 1, end, dockScale);
+  return target.lerpVectors(start, end, frac);
+}
+
+function beadPointsForProgressInto(progress, points, start, end, dockScale) {
+  const n = SEGMENT_ANCHORS.length;
+  const center = progress * (n - 1);
+  const from = Math.max(0, center - BEAD_HALF_ANCHORS);
+  const to = Math.min(n - 1, center + BEAD_HALF_ANCHORS);
+  for (let s = 0; s < points.length; s += 1) {
+    const t = from + (to - from) * (s / (points.length - 1));
+    sampleWorldPositionInto(t, points[s], start, end, dockScale);
   }
   return points;
 }
@@ -111,6 +169,10 @@ function getStableRandom(seed) {
 }
 
 export default function SuperbrainReactiveEffects() {
+  const being = useBeingPresentation();
+  const actionPresentationStopped = isActionPresentationStopped(being);
+  const coherenceSemantics = coherenceSemanticsFor(being.coherence);
+  const reducedMotion = useReducedMotion();
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
   const [stigmergyTrails, setStigmergyTrails] = useState(() => [...(getKnownTrails() || [])]);
@@ -118,18 +180,113 @@ export default function SuperbrainReactiveEffects() {
   const [aurora, setAurora] = useState(getAuroraState);
   const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
   const lastCloudIndices = useRef(new Set());
-  const lastCastes = useRef(new Set());
+  const moteNodesRef = useRef({});
+  const moteAnglesRef = useRef({});
+  // Keep a product-owned mutable animation snapshot. The bridge state is
+  // replaced on event boundaries; the frame loop must not spread a new object
+  // on every tick just to decay intensity.
+  const auroraAnimationRef = useRef({ ...getAuroraState() });
+  const auroraMeshRef = useRef(null);
+  const auroraMaterialRef = useRef(null);
+  const spineFlashAnimationRef = useRef(getSpineFlashState());
+  const spineFlashElapsedRef = useRef(0);
+  const spineFlashLineRef = useRef(null);
+  const spineFlashBeadRef = useRef(null);
+  const spineFlashScratchRef = useRef(null);
+  if (spineFlashScratchRef.current === null) {
+    spineFlashScratchRef.current = {
+      points: Array.from({ length: FLASH_POINT_COUNT }, () => new THREE.Vector3()),
+      start: new THREE.Vector3(),
+      end: new THREE.Vector3(),
+      sample: new THREE.Vector3(),
+    };
+  }
+  const previousBeingRef = useRef(null);
+  const terminalWorkerExpiryRef = useRef({});
+  const semanticEffectsRef = useRef({ enteredSignals: [], workerVisualStates: [], actionPulse: false });
+  const semanticPulseRef = useRef(0);
+  const semanticPulseMeshRef = useRef(null);
+  const semanticPulseMaterialRef = useRef(null);
+  const actionPresentationStoppedRef = useRef(actionPresentationStopped);
+  const reducedMotionRef = useRef(reducedMotion);
+  const coherenceSemanticsRef = useRef(coherenceSemantics);
+
+  useEffect(() => {
+    actionPresentationStoppedRef.current = actionPresentationStopped;
+  }, [actionPresentationStopped]);
+
+  useEffect(() => {
+    reducedMotionRef.current = reducedMotion;
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    coherenceSemanticsRef.current = coherenceSemantics;
+  }, [coherenceSemantics]);
+
+  // The presentation kernel is the source for semantic organism cues in this
+  // product-owned R3F seam. Raw buses remain available to evidence-specific
+  // projections, but posture transitions do not branch on event strings here.
+  useEffect(() => {
+    const transition = deriveSemanticEffectTransition(previousBeingRef.current, being);
+    previousBeingRef.current = being;
+    semanticEffectsRef.current = transition;
+    if (!actionPresentationStopped && !reducedMotion && transition.actionPulse) semanticPulseRef.current = Math.max(semanticPulseRef.current, 0.72);
+    if (!actionPresentationStopped && !reducedMotion && transition.enteredSignals.includes('verification-pass')) setAuroraIntensity(1, 'pass');
+    if (!actionPresentationStopped && !reducedMotion && transition.enteredSignals.includes('verification-fail')) setAuroraIntensity(1, 'fail');
+  }, [actionPresentationStopped, being, reducedMotion]);
+
+  useEffect(() => {
+    if (!actionPresentationStopped) return;
+    // Stop is a presentation boundary: remove transient action effects and
+    // freeze their local bridges while preserving workers and evidence trails.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the stop boundary must synchronously clear an already-mounted transient.
+    setLightnings([]);
+    setAuroraIntensity(0, 'caution');
+    setSpineFlash({ intensity: 0, progress: 1 });
+    spineFlashAnimationRef.current = { intensity: 0, progress: 1 };
+    spineFlashElapsedRef.current = SPINE_FLASH_DURATION_S;
+    semanticPulseRef.current = 0;
+  }, [actionPresentationStopped]);
+
+  useEffect(() => {
+    if (!reducedMotion) return;
+    // Reduced motion keeps the measured state and DOM explanation, but drops
+    // product-owned travel, bloom, and pulse effects. The underlying canvas
+    // receives the same preference through its existing shared store; this
+    // seam must not reintroduce motion around it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear already-mounted transient effects at the preference boundary.
+    setLightnings([]);
+    setAuroraIntensity(0, 'caution');
+    setSpineFlash({ intensity: 0, progress: 1 });
+    spineFlashAnimationRef.current = { intensity: 0, progress: 1 };
+    spineFlashElapsedRef.current = SPINE_FLASH_DURATION_S;
+    semanticPulseRef.current = 0;
+  }, [reducedMotion]);
 
   useEffect(() => {
     // Sync local React state with the product-only aurora bridge so the
     // sphere mounts/unmounts and animates correctly.
-    const unsub = subscribeAurora(setAurora);
+    const unsub = subscribeAurora((next) => {
+      auroraAnimationRef.current.intensity = next.intensity;
+      auroraAnimationRef.current.verdict = next.verdict;
+      setAurora(next);
+    });
     return unsub;
   }, []);
 
   useEffect(() => {
     // Sync local React state with the product-only spine-flash bridge.
-    const unsub = subscribeSpineFlash(setSpineFlash);
+    const unsub = subscribeSpineFlash((next) => {
+      spineFlashAnimationRef.current = next;
+      if (reducedMotionRef.current) {
+        setSpineFlash({ intensity: 0, progress: 1 });
+        spineFlashAnimationRef.current = { intensity: 0, progress: 1 };
+        spineFlashElapsedRef.current = SPINE_FLASH_DURATION_S;
+        return;
+      }
+      if (next.intensity > 0) spineFlashElapsedRef.current = 0;
+      setSpineFlash(next);
+    });
     return unsub;
   }, []);
 
@@ -137,6 +294,10 @@ export default function SuperbrainReactiveEffects() {
     // Cloud-route lightning.
     const unsubSwarm = subscribeSwarmHUD((state) => {
       const current = new Set(state.cloudIndices);
+      if (actionPresentationStoppedRef.current || reducedMotionRef.current) {
+        lastCloudIndices.current = current;
+        return;
+      }
       const added = [...current].filter((i) => !lastCloudIndices.current.has(i));
       if (added.length > 0) {
         setLightnings((prev) => {
@@ -156,7 +317,7 @@ export default function SuperbrainReactiveEffects() {
               born: performance.now(),
             });
           }
-          return next;
+          return next.slice(-MAX_LIGHTNINGS);
         });
       }
       lastCloudIndices.current = current;
@@ -165,9 +326,6 @@ export default function SuperbrainReactiveEffects() {
     // Verify-pass aurora and Stigmergy trails/scars updates.
     // getKnownTrails might return the same array reference so we spread.
     const unsubCognition = subscribeCognition((event) => {
-      if (event.type === 'verify' && event.data?.verdict) {
-        setAuroraIntensity(1, event.data.verdict);
-      }
       if (event.type === 'telemetry') {
         setStigmergyTrails([...(getKnownTrails() || [])]);
       }
@@ -179,68 +337,150 @@ export default function SuperbrainReactiveEffects() {
     };
   }, []);
 
-  // Caste start/end motes: compare activeCastes sets.
+  // Temporary worker motes are derived from bounded semantic worker posture,
+  // not worker IDs or caste event names. Terminal states get a short visual
+  // reabsorption window and cannot remain mounted forever.
   useEffect(() => {
-    const unsub = subscribeSwarmHUD((state) => {
-      const current = new Set(state.activeCastes);
-      const added = [...current].filter((c) => !lastCastes.current.has(c));
-      const removed = [...lastCastes.current].filter((c) => !current.has(c));
-      if (added.length === 0 && removed.length === 0) return;
-
-      setMotes((prev) => {
-        const next = { ...prev };
-        for (const caste of removed) delete next[caste];
-        for (let i = 0; i < added.length; i++) {
-          const caste = added[i];
-          const seat = seatForIndex(Object.keys(next).length + i);
-          const raw = SEGMENT_ANCHORS[seat];
-          const fused = new THREE.Vector3(...fuseSpinePoint([raw.x, raw.y, raw.z]));
-          next[caste] = {
-            seat,
-            origin: fused,
-            angle: Math.random() * Math.PI * 2,
-            speed: 0.5 + Math.random() * 0.4,
-            radius: 0.18 + Math.random() * 0.06,
-          };
-        }
-        return next;
+    const workerVisualStates = deriveSemanticEffectTransition(null, being).workerVisualStates;
+    const now = performance.now();
+    setMotes((prev) => {
+      const next = {};
+      workerVisualStates.forEach((visualState, index) => {
+        const key = `worker-${index}`;
+        const existing = prev[key];
+        const terminal = visualState === 'returning' || visualState === 'dissolved';
+        if (!terminal) delete terminalWorkerExpiryRef.current[key];
+        const rememberedTerminalAt = terminalWorkerExpiryRef.current[key] ?? null;
+        const terminalAt = existing?.terminalAt ?? rememberedTerminalAt ?? (terminal ? now : null);
+        if (terminal && terminalAt !== null) terminalWorkerExpiryRef.current[key] = terminalAt;
+        if (terminalAt !== null && now - terminalAt >= 1600) return;
+        const seat = existing?.seat ?? seatForIndex(index);
+        const raw = SEGMENT_ANCHORS[seat];
+        const fused = existing?.origin ?? new THREE.Vector3(...fuseSpinePoint([raw.x, raw.y, raw.z]));
+        const angle = existing?.angle ?? Math.random() * Math.PI * 2;
+        next[key] = {
+          seat,
+          origin: fused,
+          angle,
+          speed: existing?.speed ?? 0.5 + Math.random() * 0.4,
+          radius: existing?.radius ?? 0.18 + Math.random() * 0.06,
+          visualState,
+          terminalAt,
+        };
+        moteAnglesRef.current[key] = angle;
       });
-      lastCastes.current = current;
+      for (const key of Object.keys(moteAnglesRef.current)) {
+        if (!next[key]) delete moteAnglesRef.current[key];
+      }
+      return Object.fromEntries(Object.entries(next).slice(0, MAX_MOTES));
     });
-    return unsub;
-  }, []);
+  }, [being]);
+
+  // Expire transient effects on a coarse timer. Their visual movement is
+  // handled by refs below; React only reconciles lifecycle changes, never each
+  // rendered frame.
+  useEffect(() => {
+    if (lightnings.length === 0) return undefined;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      setLightnings((prev) => {
+        const next = prev.filter((lightning) => now - lightning.born < 900);
+        return next.length === prev.length ? prev : next;
+      });
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [lightnings.length]);
+
+  // Terminal workers must reabsorb even when the mirror goes quiet after the
+  // return/dissolve event. This coarse lifecycle timer never drives motion;
+  // it only removes expired React entities from the bounded visual pool.
+  const hasTerminalWorkerMotes = Object.values(motes).some((mote) => mote.terminalAt !== null);
+  useEffect(() => {
+    if (!hasTerminalWorkerMotes) return undefined;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      setMotes((prev) => pruneExpiredWorkerMotes(prev, now));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [hasTerminalWorkerMotes]);
 
   useFrame((_, delta) => {
-    // Decay aurora intensity in the bridge; the subscriber updates React state.
-    const currentState = getAuroraState();
-    if (currentState.intensity > 0) {
-      const target = Math.max(0, currentState.intensity - delta * 0.9);
-      if (target !== currentState.intensity) {
-        setAuroraIntensity(target);
+    if (actionPresentationStopped || reducedMotionRef.current) {
+      semanticPulseRef.current = 0;
+      if (semanticPulseMaterialRef.current) semanticPulseMaterialRef.current.opacity = 0;
+      return;
+    }
+    const coherence = coherenceSemanticsRef.current;
+    // Decay transient effects through refs and native scene objects. React
+    // state changes only when a real cognition event arrives, not per frame.
+    const currentAurora = auroraAnimationRef.current;
+    if (currentAurora.intensity > 0) {
+      const intensity = Math.max(0, currentAurora.intensity - delta * 0.9);
+      currentAurora.intensity = intensity;
+      if (auroraMeshRef.current) auroraMeshRef.current.scale.setScalar(0.22 + intensity * 0.18);
+      if (auroraMaterialRef.current) auroraMaterialRef.current.opacity = intensity * 0.14 * coherence.opacity;
+    }
+
+    const flash = spineFlashAnimationRef.current;
+    if (flash.intensity > 0 || flash.progress < 1) {
+      // Older/incomplete projections may retain a historical flash, but it
+      // must conduct more slowly and at lower opacity than fresh truth.
+      spineFlashElapsedRef.current += delta * Math.max(0.12, coherence.motionScale);
+      const progress = Math.min(1, spineFlashElapsedRef.current / SPINE_FLASH_DURATION_S);
+      const intensity = Math.max(0, 1 - spineFlashElapsedRef.current / (SPINE_FLASH_DURATION_S * 0.85));
+      spineFlashAnimationRef.current.intensity = intensity;
+      spineFlashAnimationRef.current.progress = progress;
+      if (spineFlashLineRef.current) {
+        const scratch = spineFlashScratchRef.current;
+        beadPointsForProgressInto(
+          progress,
+          scratch.points,
+          scratch.start,
+          scratch.end,
+          getBrainDockScale(),
+        );
+        updateLineGeometryPoints(spineFlashLineRef.current.geometry, scratch.points);
+        spineFlashLineRef.current.material.opacity = intensity * 0.85 * coherence.opacity;
+      }
+      if (spineFlashBeadRef.current) {
+        const scratch = spineFlashScratchRef.current;
+        sampleWorldPositionInto(
+          progress * (SEGMENT_ANCHORS.length - 1),
+          scratch.sample,
+          scratch.start,
+          scratch.end,
+          getBrainDockScale(),
+        );
+        spineFlashBeadRef.current.position.copy(scratch.sample);
+        spineFlashBeadRef.current.material.opacity = intensity * 0.45 * coherence.opacity;
       }
     }
 
-    // Advance the first-cloud-route spine flash; the subscriber updates React state.
-    advanceSpineFlash(delta);
-
-    // Age-out lightnings only when there are any to avoid per-frame re-renders.
-    const now = performance.now();
-    setLightnings((prev) => {
-      if (prev.length === 0) return prev;
-      const next = prev.filter((l) => now - l.born < 900);
-      return next.length === prev.length ? prev : next;
-    });
-
-    // Orbit motes only when there are any.
-    if (Object.keys(motesRef.current).length > 0) {
-      setMotes((prev) => {
-        if (Object.keys(prev).length === 0) return prev;
-        const next = {};
-        for (const [caste, m] of Object.entries(prev)) {
-          next[caste] = { ...m, angle: m.angle + m.speed * delta };
-        }
-        return next;
-      });
+    // Orbit motes by mutating pooled mesh nodes. No React state update occurs
+    // in this frame path, and the bounded pool cannot grow with event history.
+    for (const [caste, m] of Object.entries(motesRef.current)) {
+      const node = moteNodesRef.current[caste];
+      if (!node) continue;
+      const motionScale = (m.visualState === 'held' ? 0 : m.visualState === 'conduct' ? 1 : 0.42)
+        * coherence.motionScale;
+      const angle = (moteAnglesRef.current[caste] ?? m.angle) + m.speed * delta * motionScale;
+      moteAnglesRef.current[caste] = angle;
+      const scale = getBrainDockScale();
+      const radiusScale = m.visualState === 'bud' ? 0.32 : m.visualState === 'branch' ? 0.68 : 1;
+      node.position.set(
+        (m.origin.x + Math.cos(angle) * m.radius * radiusScale) * scale,
+        m.origin.y * scale,
+        (m.origin.z + Math.sin(angle) * m.radius * radiusScale) * scale,
+      );
+      const visualScale = m.visualState === 'held' ? 0.82 : m.visualState === 'conduct' ? 1.2 : 1;
+      node.scale.setScalar(visualScale);
+    }
+    semanticPulseRef.current = Math.max(0, semanticPulseRef.current - delta * 0.8);
+    if (semanticPulseMeshRef.current) {
+      semanticPulseMeshRef.current.scale.setScalar(0.24 + semanticPulseRef.current * 0.2);
+    }
+    if (semanticPulseMaterialRef.current) {
+      semanticPulseMaterialRef.current.opacity = semanticPulseRef.current * 0.12 * coherence.opacity;
     }
   });
 
@@ -252,6 +492,7 @@ export default function SuperbrainReactiveEffects() {
   const [cx, cy, cz] = getCortexAnchor();
   const cortex = new THREE.Vector3(cx, cy, cz).multiplyScalar(getBrainDockScale());
   const auroraScale = 0.22 + aurora.intensity * 0.18;
+  const coherenceOpacity = coherenceSemantics.opacity;
   
   const VERDICT_COLORS = {
     pass: '#2fffa1',
@@ -262,29 +503,32 @@ export default function SuperbrainReactiveEffects() {
 
   return (
     <group name="superbrain-reactive-effects">
-      {lightnings.map((l) => (
+      {!actionPresentationStopped && lightnings.map((l) => (
         <Line
           key={l.id}
           points={l.points}
           color={l.color}
           lineWidth={l.thickness}
           transparent
-          opacity={0.9}
+          opacity={0.9 * coherenceOpacity}
         />
       ))}
 
       {/* First-cloud-route spine flash: a bright bead travelling down the spine. */}
-      {spineFlash.intensity > 0.01 && (
+      {!actionPresentationStopped && spineFlash.intensity > 0.01 && (
         <group name="spine-flash">
           <Line
+            ref={spineFlashLineRef}
             data-testid="spine-flash"
             points={beadPointsForProgress(spineFlash.progress)}
             color="#e0ffff"
             lineWidth={5}
+            frustumCulled={false}
             transparent
-            opacity={spineFlash.intensity * 0.85}
+            opacity={spineFlash.intensity * 0.85 * coherenceOpacity}
           />
           <mesh
+            ref={spineFlashBeadRef}
             data-testid="spine-flash-bead"
             position={sampleWorldPosition(spineFlash.progress * (SEGMENT_ANCHORS.length - 1))}
             scale={[
@@ -297,7 +541,7 @@ export default function SuperbrainReactiveEffects() {
             <meshBasicMaterial
               color="#e0ffff"
               transparent
-              opacity={spineFlash.intensity * 0.45}
+              opacity={spineFlash.intensity * 0.45 * coherenceOpacity}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
             />
@@ -306,17 +550,19 @@ export default function SuperbrainReactiveEffects() {
       )}
 
       {/* Verify-pass aurora: a soft, transient bloom around the cortex. */}
-      {aurora.intensity > 0.01 && (
+      {!actionPresentationStopped && aurora.intensity > 0.01 && (
         <mesh
+          ref={auroraMeshRef}
           data-testid="verify-aurora"
           position={cortex}
           scale={[auroraScale, auroraScale, auroraScale]}
         >
           <sphereGeometry args={[1, 32, 32]} />
           <meshBasicMaterial
+            ref={auroraMaterialRef}
             color={auroraColor}
             transparent
-            opacity={aurora.intensity * 0.14}
+            opacity={aurora.intensity * 0.14 * coherenceOpacity}
             depthWrite={false}
             side={THREE.DoubleSide}
             blending={THREE.AdditiveBlending}
@@ -324,26 +570,54 @@ export default function SuperbrainReactiveEffects() {
         </mesh>
       )}
 
-      {/* Worker caste orbiters. */}
+      {/* Conduct pulse: a bounded semantic cue around the cortex. */}
+      {!actionPresentationStopped && <mesh ref={semanticPulseMeshRef} position={cortex} scale={[0.24, 0.24, 0.24]}>
+        <sphereGeometry args={[1, 20, 20]} />
+        <meshBasicMaterial
+          ref={semanticPulseMaterialRef}
+          color="#7bf5fb"
+          transparent
+          opacity={0}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>}
+
+      {/* Temporary worker postures derived from the semantic kernel. */}
       {Object.entries(motes).map(([caste, m]) => {
-        const pos = m.origin.clone();
-        pos.x += Math.cos(m.angle) * m.radius;
-        pos.z += Math.sin(m.angle) * m.radius;
-        pos.multiplyScalar(getBrainDockScale());
+        const angle = m.angle;
+        const scale = getBrainDockScale();
+        const pos = [
+          (m.origin.x + Math.cos(angle) * m.radius) * scale,
+          m.origin.y * scale,
+          (m.origin.z + Math.sin(angle) * m.radius) * scale,
+        ];
         
-        const CASTE_COLORS = {
-          builder: '#ff8a00',
-          scout: '#00e5ff',
-          soldier: '#ff2a2a',
-          default: '#aefeff',
+        const WORKER_COLORS = {
+          bud: '#b9a7ff',
+          branch: '#cf9cff',
+          conduct: '#50e8ff',
+          held: '#ffb36b',
+          returning: '#82f0b5',
+          dissolved: '#71809d',
         };
-        const c = caste.toLowerCase();
-        const color = CASTE_COLORS[c] || CASTE_COLORS.default;
+        const color = WORKER_COLORS[m.visualState] || WORKER_COLORS.bud;
+        const opacity = (m.visualState === 'dissolved' ? 0.32 : m.visualState === 'held' ? 0.64 : 0.85)
+          * coherenceOpacity;
         
         return (
-          <mesh key={caste} position={pos}>
+          <mesh
+            key={caste}
+            data-testid="worker-mote"
+            position={pos}
+            ref={(node) => {
+              if (node) moteNodesRef.current[caste] = node;
+              else delete moteNodesRef.current[caste];
+            }}
+          >
             <sphereGeometry args={[0.04, 8, 8]} />
-            <meshBasicMaterial color={color} transparent opacity={0.85} />
+            <meshBasicMaterial color={color} transparent opacity={opacity} />
           </mesh>
         );
       })}

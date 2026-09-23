@@ -1,6 +1,6 @@
 import type { ExperienceMode } from './experienceMode';
 
-export type MirrorConnectionTone = 'offline' | 'checking' | 'stale' | 'ready';
+export type MirrorConnectionTone = 'offline' | 'unavailable' | 'checking' | 'stale' | 'ready';
 
 export type MirrorConnectionState = {
   status: 'offline' | 'online' | 'stale';
@@ -8,6 +8,8 @@ export type MirrorConnectionState = {
   projection: 'unknown' | 'synchronizing' | 'snapshot' | 'fresh' | 'stale' | 'unavailable';
   snapshotReceivedAt: string | null;
   lastEventId: number | null;
+  /** Product-owned transport explanation; never shown raw in Guided mode. */
+  lastAnnouncement?: string | null;
 };
 
 export type MirrorConnectionCopy = {
@@ -40,6 +42,24 @@ export function getMirrorConnectionCopy(
     };
   }
 
+  // A healthy HTTP service can still reject the mirror projection because the
+  // current browser session is unauthenticated. Keep that measured boundary
+  // distinct from offline and from a merely connecting EventSource. The raw
+  // response is technical evidence and never becomes Guided copy.
+  const mirrorAccessUnavailable = state.projection === 'unavailable'
+    || /(?:http\s*(?:401|403)|unauthori[sz]ed)/i.test(state.lastAnnouncement ?? '');
+  if (mirrorAccessUnavailable) {
+    return {
+      label: 'Operational picture unavailable',
+      detail: mode === 'expert'
+        ? 'The service answered, but this session cannot read a confirmed operational picture.'
+        : 'GAGOS is reachable, but the live picture is unavailable in this session.',
+      tone: 'unavailable',
+      canRetry: true,
+      technical,
+    };
+  }
+
   if (hasSnapshot && (state.projection === 'stale' || state.connection !== 'connected' || (state.status === 'stale' && state.projection !== 'snapshot'))) {
     return {
       label: mode === 'expert' ? 'Transport reconnecting' : 'Showing the last known picture',
@@ -64,7 +84,7 @@ export function getMirrorConnectionCopy(
 
   if (state.connection === 'connected' && state.projection === 'snapshot') {
     return {
-      label: mode === 'expert' ? 'Transport connected' : 'GAGOS is connected',
+      label: mode === 'expert' ? 'Transport connected' : 'Connection open',
       detail: mode === 'expert'
         ? 'Transport is open, but continuity is not yet confirmed.'
         : 'Checking that the live picture has no gap.',

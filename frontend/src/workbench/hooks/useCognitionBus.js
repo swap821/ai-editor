@@ -34,6 +34,7 @@ export function useCognitionBus(reducedMotion = false) {
   const [pendingApproval, setPendingApproval] = useState(null);
   const [convPhase, setConvPhase] = useState(() => getConversationPhase());
   const [verifyToast, setVerifyToast] = useState(null);
+  const [reflexActive, setReflexActive] = useState(false);
 
   // Live active-LLM line from router `route` events
   useEffect(() => {
@@ -69,6 +70,20 @@ export function useCognitionBus(reducedMotion = false) {
           turn_id: event.data.turn_id,
           mode: event.data.mode,
         });
+      }
+    });
+  }, []);
+
+  // A real cerebellum replay is not model thinking. This is a measured
+  // cognition event and never authorizes the replayed action.
+  useEffect(() => {
+    return subscribeCognition((event) => {
+      if (event.type === 'reflex-recall') {
+        setReflexActive(true);
+        return;
+      }
+      if (['directive', 'route', 'verify', 'error', 'approval-required', 'approval-resolved'].includes(event.type)) {
+        setReflexActive(false);
       }
     });
   }, []);
@@ -128,6 +143,7 @@ export function useCognitionBus(reducedMotion = false) {
     pendingApproval,
     convPhase,
     verifyToast,
+    reflexActive,
     setVerifyToast,
     setConvPhase,
     setPendingApproval,

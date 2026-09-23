@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE, API_HEADERS } from '../config';
+import { getBootstrapReadinessHumanCopy } from './bootstrapReadinessCopy';
 
 export type BootstrapCheck = {
   name: string;
@@ -63,6 +64,7 @@ type BootstrapReadinessProps = {
 
 export function BootstrapReadiness({ apiBase = API_BASE }: BootstrapReadinessProps) {
   const [readiness, setReadiness] = useState<BootstrapReadinessState>(LOADING_STATE);
+  const humanCopy = getBootstrapReadinessHumanCopy(readiness);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,6 +98,7 @@ export function BootstrapReadiness({ apiBase = API_BASE }: BootstrapReadinessPro
     return <section className="gagos-readiness" aria-label="Local setup readiness">
       <p className="gagos-readiness__label">Local setup</p>
       <p className="gagos-readiness__status" role="status">Reading local setup status</p>
+      <p className="gagos-readiness__detail">{humanCopy.detail}</p>
     </section>;
   }
 
@@ -103,24 +106,20 @@ export function BootstrapReadiness({ apiBase = API_BASE }: BootstrapReadinessPro
     return <section className="gagos-readiness gagos-readiness--ready" aria-label="Local setup readiness">
       <p className="gagos-readiness__label">Local setup</p>
       <p className="gagos-readiness__status" role="status">Local setup is ready.</p>
-      <p className="gagos-readiness__detail">{readiness.summary}</p>
+      <p className="gagos-readiness__detail">{humanCopy.detail}</p>
     </section>;
   }
 
-  const failedChecks = readiness.checks.filter((check) => !check.passed);
   return <section className={`gagos-readiness gagos-readiness--${readiness.state}`} aria-label="Local setup readiness">
     <p className="gagos-readiness__label">Local setup</p>
     <p className="gagos-readiness__status" role="status">
       {readiness.state === 'blocked' ? 'Setup needs attention.' : 'Setup status is unavailable.'}
     </p>
-    <p className="gagos-readiness__detail">{readiness.summary}</p>
-    {failedChecks.length > 0 ? <ul className="gagos-readiness__checks">
-      {failedChecks.map((check) => <li key={check.name}><strong>{check.name}</strong>: {check.message}</li>)}
-    </ul> : null}
+    <p className="gagos-readiness__detail">{humanCopy.detail}</p>
     <a className="gagos-readiness__recovery-link" href="#gagos-recovery">Recovery guidance</a>
     <details id="gagos-recovery" className="gagos-readiness__recovery">
       <summary>What to check</summary>
-      <p>Keep the local API running, confirm the data folder is writable, and make sure Ollama or another permitted provider is available. Refresh this status before starting a task.</p>
+      <p>Keep the local GAGOS service running and refresh this status before starting a task.</p>
     </details>
   </section>;
 }
