@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import sqlite3
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -39,6 +40,15 @@ class BusEvent:
 
 
 @dataclass(frozen=True)
+class ReplaySubscription:
+    """The replay window and live handoff for one in-process subscriber."""
+
+    events: tuple[BusEvent, ...]
+    barrier_event_id: int
+    unsubscribe: Callable[[], None]
+
+
+@dataclass(frozen=True)
 class ConsumerCursor:
     """Durable progress for one independent observation consumer."""
 
@@ -59,6 +69,19 @@ class ConsumerReplayGap(RuntimeError):
         super().__init__(
             f"consumer {consumer_name!r} is behind retention boundary: "
             f"cursor={cursor}, earliest_event_id={earliest_event_id}; snapshot required"
+        )
+
+
+class ReplayWindowTooLarge(RuntimeError):
+    """Raised when a mirror must snapshot instead of replaying an unbounded page."""
+
+    def __init__(self, cursor: int, limit: int, latest_event_id: int) -> None:
+        self.cursor = cursor
+        self.limit = limit
+        self.latest_event_id = latest_event_id
+        super().__init__(
+            f"mirror replay exceeds limit: cursor={cursor}, limit={limit}, "
+            f"latest_event_id={latest_event_id}; snapshot required"
         )
 
 
@@ -202,6 +225,12 @@ class CortexBusAuthority:
         )
         self.hint_path = hint_path or self.db_path.with_suffix(".hint")
         self._handlers: list[Callable[[BusEvent], None]] = []
+        # The mirror's replay/live handoff is an in-process critical section.
+        # A dispatcher may run in another thread while an HTTP generator is
+        # establishing its subscription; without one lock, fetch-then-
+        # subscribe can still lose an event at the exact boundary we promise
+        # to expose as a durable cursor.
+        self._delivery_lock = threading.RLock()
         self._init()
 
     @contextmanager
@@ -517,15 +546,90 @@ class CortexBusAuthority:
     def subscribe(self, handler: Callable[[BusEvent], None]) -> Callable[[], None]:
         """Register an in-process handler. Handlers MUST be idempotent (an event
         may be delivered more than once on replay) and MUST NOT carry authority."""
-        self._handlers.append(handler)
+        with self._delivery_lock:
+            self._handlers.append(handler)
 
         def unsubscribe() -> None:
-            try:
-                self._handlers.remove(handler)
-            except ValueError:
-                pass
+            with self._delivery_lock:
+                try:
+                    self._handlers.remove(handler)
+                except ValueError:
+                    pass
 
         return unsubscribe
+
+    def subscribe_replay(
+        self,
+        event_id: int,
+        handler: Callable[[BusEvent], None],
+        *,
+        limit: int = 1000,
+    ) -> ReplaySubscription:
+        """Atomically establish a replay window and its live handoff.
+
+        Registration happens before the journal window is read and both are
+        protected by the same delivery lock used by ``dispatch_pending``. An
+        event committed while this method is running is therefore either in
+        the returned replay window or queued through ``handler`` after the
+        returned barrier. The HTTP layer can deduplicate the at-least-once
+        overlap without ever claiming a gap-free stream from two unrelated
+        operations.
+        """
+        cursor = int(event_id)
+        page_size = max(1, int(limit))
+        if cursor < 0:
+            raise ValueError("mirror replay cursor cannot be negative")
+
+        with self._delivery_lock:
+            self._handlers.append(handler)
+            try:
+                with self._connect() as conn:
+                    earliest_row = conn.execute(
+                        "SELECT MIN(id) AS first_id FROM cortex_events"
+                    ).fetchone()
+                    latest_row = conn.execute(
+                        "SELECT MAX(id) AS last_id FROM cortex_events"
+                    ).fetchone()
+                    earliest = (
+                        int(earliest_row["first_id"])
+                        if earliest_row and earliest_row["first_id"] is not None
+                        else None
+                    )
+                    latest = (
+                        int(latest_row["last_id"])
+                        if latest_row and latest_row["last_id"] is not None
+                        else cursor
+                    )
+                    if earliest is not None and cursor < earliest - 1:
+                        raise ConsumerReplayGap("mirror", cursor, earliest)
+                    rows = conn.execute(
+                        "SELECT id, event_type, signature, payload, content_digest "
+                        "FROM cortex_events WHERE id > ? ORDER BY id ASC LIMIT ?",
+                        (cursor, page_size + 1),
+                    ).fetchall()
+                if len(rows) > page_size:
+                    raise ReplayWindowTooLarge(cursor, page_size, latest)
+                events = tuple(_row_to_event(row) for row in rows)
+                barrier = max(cursor, latest)
+            except Exception:
+                try:
+                    self._handlers.remove(handler)
+                except ValueError:
+                    pass
+                raise
+
+        def unsubscribe() -> None:
+            with self._delivery_lock:
+                try:
+                    self._handlers.remove(handler)
+                except ValueError:
+                    pass
+
+        return ReplaySubscription(
+            events=events,
+            barrier_event_id=barrier,
+            unsubscribe=unsubscribe,
+        )
 
     def peek_pending(self, limit: int = 1000) -> list[BusEvent]:
         with self._connect() as conn:
@@ -602,8 +706,9 @@ class CortexBusAuthority:
         dispatched = 0
         for event in self.peek_pending(limit=limit):
             try:
-                for handler in self._handlers:
-                    handler(event)
+                with self._delivery_lock:
+                    for handler in tuple(self._handlers):
+                        handler(event)
             except Exception:  # noqa: BLE001 - a bad handler must not sink the bus
                 logger.warning(
                     "cortex handler failed for event %s (%s); leaving pending",
@@ -676,5 +781,7 @@ __all__ = [
     "CortexBus",
     "CortexBusPayloadTamperedError",
     "CortexBusVerifyStatus",
+    "ReplaySubscription",
+    "ReplayWindowTooLarge",
     "cortex_event_content_digest",
 ]

@@ -8,13 +8,13 @@ Approved scope: the operator's 30-section blueprint, frontend ownership while Cl
 | --- | --- | --- |
 | 0 | Inventory and reversible lab reconciliation | Complete; accepted product is the source baseline and 5 port-guard tests pass |
 | 1 | Runtime contracts, uncertainty and entity bindings | Implemented in typed fixtures and backend-shaped reads; file reads use POST JSON, graph envelopes are validated, operator/sovereign unavailable states stay distinct from confirmed empty results; focused and integrated tests pass; no live backend proof |
-| 2 | Event admission, transport vs projection, reconnect | Partial; admission/dedupe/reconnect logic is covered, but the server lacks a replay/live barrier |
+| 2 | Event admission, transport vs projection, reconnect | Implemented; the real Cortex bus registers the live handler before reading the replay window, emits a durable `sync_complete` barrier, and the client refuses to promote a mismatched cursor |
 | 3 | One shell, workspace attention, conversation owner | Implemented with persistent emergency-stop inspection, responsive scene-pane composition, and contained/wrapping active-workspace composer controls; browser verifies resting, workspace-open/close, keyboard Escape close, and reduced-motion toggle |
-| 4 | Connected opening/intake and one useful workspace | Product implementation now includes a plain-language connection/recovery notice and three guided Beginner intake paths; authenticated connected opening and operator visual verification remain pending |
-| 5 | Spinal workspace anchors, pinning, responsive focus | Implemented in the product shell with keyboard focus restoration, pin/unpin controls, and narrow-layout reflow; live workspace evidence and operator visual review remain pending |
+| 4 | Connected opening/intake and one useful workspace | Product implementation now includes a plain-language connection/recovery notice and three guided Beginner intake paths; an authenticated live opening is proven against a disposable API session |
+| 5 | Spinal workspace anchors, pinning, responsive focus | Implemented in the product shell with keyboard focus restoration, pin/unpin controls, narrow-layout reflow, and an authenticated current-picture opening; subjective operator visual review remains human-owned |
 | 6 | Mission authority/evidence/effects/recovery inspection | Partial; mission decision/recovery surfaces are guarded and refresh-authoritative; generic public evidence bundles remain unavailable |
 | 7 | Experience and operations integration | Partial; the experience ledger is read from the real local file endpoint with typed records, newest-first ordering, confidence/outcome/lesson visibility, and malformed-row disclosure; graph, operator, sovereign operations, persisted settings, council swarm, v10/v7 evidence, security audit, service operations, policy/runtime surfaces, knowledge/memory, Council/self-analysis, and alignment/debugger reads now validate backend-shaped envelopes, preserve unavailable/unknown versus explicit empty/unconfirmed state, map health maps and multipart ingest, and keep missing timestamps/metrics from becoming fabricated zeroes; governed writes and broader operations remain backend-dependent |
-| 8 | Interruption, accessibility, performance, independent review | Constrained automated gates pass: 134 Vitest files / 769 tests, TypeScript, build, lint (0 errors / 121 warnings), CSS/texture canon, and 5/5 port-unit tests. Browser checks show zero horizontal overflow at 375x812 and 320x568 and keyboard reachability for the skip link and mode switch. The accessible WebGL fallback remains contract-tested; forced runtime WebGL failure, actual browser zoom, the authenticated live journey, operator visual review, and independent reviewer completion remain pending |
+| 8 | Interruption, accessibility, performance, independent review | Automated gates pass: 134 Vitest files / 770 tests, TypeScript, production build, CSS/texture canon, and 5/5 port-unit tests. Browser evidence now includes an authenticated current-picture opening and a rendered WebGL canvas; lint remains a separate baseline warning report, actual browser zoom and the operator's subjective palette/texture approval remain human-owned |
 
 ## Capability migration inventory
 
@@ -40,7 +40,7 @@ Approved scope: the operator's 30-section blueprint, frontend ownership while Cl
 
 - Council artifact missions are one family; report state differs from `missionAuthority.state`.
 - Snapshot metrics carry measurement metadata. Arrival, defaults and stream-open prove no operational state.
-- Current stream replays before subscribing, without a sync-complete barrier. Display a dated snapshot with unresolved continuity until a race-free handoff exists.
+- The production stream establishes replay and live delivery under one bus-level handoff, then emits `sync_complete` with the barrier cursor. The client keeps the snapshot stale until that exact cursor is confirmed.
 - Approval projection lacks actionable request identity, expiry and digest. Council detail is required for its supported actions.
 - Executor projection reports reachability, not receipts. Exact diff/verification/promotion/checkpoint/recovery require redacted public bundles where missing.
 - Skill activation needs server-validated consumed authority. Reuse creates a governed draft or escalation, not execution.
@@ -52,7 +52,7 @@ The old ignored lab predates product. `npm run port:bootstrap` creates this work
 
 ## Proof rules
 
-Record tests, build/typecheck/lint, source hashes and limitations per phase. Fixtures never count as live backend journeys. Completion requires the 18-step journey and operator visual review. No backend edits, frozen-core changes or commits are included.
+Record tests, build/typecheck/lint, source hashes and limitations per phase. Fixtures never count as live backend journeys. Completion requires the 18-step journey and operator visual review. This tranche includes backend replay/live work but does not touch the frozen security spine; generated product files were changed only through the guarded lab port.
 
 ## 2026-09-20 offline browser journey checkpoint
 
@@ -80,3 +80,17 @@ The isolated preview ran on `http://127.0.0.1:5176/` with a temporary process-on
 The Beginner opening now presents three ordinary-language paths: understand something, make something useful, or get step-by-step guidance. Each path only prefills the composer. The mirror notice distinguishes offline, connecting, last-known/stale, transport-connected/continuity-unconfirmed, and ready/fresh states; Expert mode adds transport/projection/cursor evidence. Interrupted work streams no longer become complete materializations or restore the online pill unless a terminal or approval frame was received.
 
 Responsive browser checks measured `scrollWidth === clientWidth` at `320x568` and `375x812`; the first keyboard stops were the skip link and Beginner switch. The browser console after reload contained the existing Three.js deprecation warning only. `npm run port:check` remains blocked in this clean worktree because the ignored nested lab is absent while the tracked manifest names `components/QualityTierProvider.tsx`; the fail-closed guard was not weakened. The backend replay/live barrier remains a backend-owned follow-up, so continuity is intentionally not claimed.
+
+## 2026-09-21 authenticated continuity checkpoint
+
+This checkpoint closes the replay/live implementation gap in an isolated Codex worktree. `CortexBusAuthority.subscribe_replay()` registers the live handler before reading the durable journal under one delivery lock, bounds replay to 1000 events, and fails closed with `snapshot_required` on retention gaps or oversized windows. The authenticated stream emits replay frames before the named `sync_complete` frame; the client only promotes the mirror to fresh when that frame's cursor exactly matches the applied snapshot/replay cursor, and it reconnects on a durable live gap.
+
+Live evidence used a disposable data directory and one-time operator enrollment. A real HTTP client received `201` enrollment, `200` login/session/snapshot/stream responses, and `sync_complete: {"cursor": 0, "replayed": true}`. A browser session at `http://localhost:5174/` received the authenticated snapshot/stream, rendered the WebGL canvas (`832x720`, WebGL2), and displayed `GAGOS is ready — The live picture is current.` The reviewed screenshot is ephemeral evidence outside the repository; the operator remains the final authority for subjective palette/texture approval.
+
+Verification for this tranche: 43 focused backend tests passed; 134 frontend files / 770 tests passed; TypeScript passed; production build passed; `npm run port:check` reported 193 files with no changes; all 5 port guard tests passed. The canonical full-suite run from the long Codex worktree reached 100% without the historical child `MemoryError` but was red for 18 unrelated environment/baseline failures (Windows path-length and the `.codex` worktree path being classified as a credential directory, plus the existing worker/council cascade); those failures are not credited as green evidence. A short-root clean-run reproduction is required before claiming the full backend suite green.
+
+## 2026-09-22 clean-root backend gate
+
+The canonical backend command was rerun from a detached short-root checkout at `C:\\w`, with both pytest's temporary root and `AIOS_TEST_TMP_ROOT` kept under that checkout. It reached `100%` without the historical child `MemoryError`, and coverage reported `88%`. The only failure was the existing `tests/test_organ_attestation_currency.py::test_no_green_organ_outside_the_spine_has_stale_evidence`, which identifies green organs `[17, 25, 47, 50]`. This tranche changes neither `.aios/state/ORGAN_GREEN_LEDGER.json` nor that test; the repository-wide backend gate therefore remains honestly red for an unrelated baseline evidence problem. The mirror-focused backend, frontend, format, type, build, port, and authenticated HTTP/browser evidence remain green as recorded above. The disposable runner was removed after capture; its test-generated `bandit_budget.json` mutation was not promoted.
+
+This closes the environment/path and child-memory uncertainty, not the organ-ledger blocker. The WebGL2 screenshot and authenticated ready/current browser state are engineering evidence; the operator still owns the final palette/texture approval.

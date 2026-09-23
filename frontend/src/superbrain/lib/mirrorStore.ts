@@ -37,6 +37,7 @@ export interface CortexMirrorState {
   setAnnouncement: (announcement: string | null) => void;
   setSnapshotRequired: (reason?: string) => void;
   setSnapshot: (data: Record<string, unknown>) => void;
+  confirmFresh: (cursor: number) => boolean;
   applyEvent: (id: number, type: string, payload: Record<string, unknown>) => boolean;
   markStale: (reason?: string) => void;
 }
@@ -96,6 +97,25 @@ export const useMirrorStore = create<CortexMirrorState>()(subscribeWithSelector(
       metrics: isRecord(data.metrics) ? data.metrics as CortexMirrorState['metrics'] : s.metrics,
       bootFacts: isRecord(data.boot_facts) ? data.boot_facts : s.bootFacts };
   }),
+  confirmFresh: (cursor) => {
+    const state = get();
+    // A named barrier is meaningful only when it closes the exact snapshot
+    // cursor we have applied.  Accepting a larger cursor would hide a replay
+    // gap; accepting a smaller one would roll the durable watermark back.
+    if (!Number.isSafeInteger(cursor) || cursor < 0 || state.lastEventId !== cursor
+      || state.connection !== 'connected' || state.projection !== 'snapshot'
+      || state.snapshotRequired || state.status === 'offline') return false;
+    set((s) => ({
+      status: 'online',
+      projection: 'fresh',
+      snapshotRequired: false,
+      observations: Object.fromEntries(Object.entries(s.observations).map(([key, observation]) => [
+        key,
+        observation.status === 'unavailable' ? observation : { ...observation, status: observation.status === 'derived' ? 'derived' : 'measured' },
+      ])) as CortexMirrorState['observations'],
+    }));
+    return true;
+  },
   applyEvent: (id, type, envelope) => {
     if (!Number.isSafeInteger(id) || id < 0 || (get().lastEventId !== null && id <= get().lastEventId!)) return false;
     let payload: Record<string, unknown>;

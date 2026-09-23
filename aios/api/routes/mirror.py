@@ -16,7 +16,12 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from aios.api.main import get_cortex_bus
-from aios.runtime.cortex_bus import BusEvent, ConsumerReplayGap, CortexBus
+from aios.runtime.cortex_bus import (
+    BusEvent,
+    ConsumerReplayGap,
+    CortexBus,
+    ReplayWindowTooLarge,
+)
 from aios.application.read_models.projection import get_system_projection
 from aios.application.read_models.governance_projections import (
     ReadModelProjectionAuthority,
@@ -93,7 +98,11 @@ def get_snapshot(
     skills: Optional[SkillMemory] = Depends(get_skill_memory),
     authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> JSONResponse:
-    """Return the organism's current truthful state (fresh boot state)."""
+    """Return truthful operational state for the authenticated mirror client.
+
+    The HTTP edge performs the bonded-operator/API-token check before this
+    dependency is reached; an unbonded loopback process is not a viewer.
+    """
     if bus is None:
         return JSONResponse(
             content={"status": "offline", "reason": "CORTEX_BUS_DISABLED"}
@@ -323,7 +332,14 @@ async def stream_journal(
     last_event_id_query: Optional[int] = Query(None, alias="last_event_id"),
     bus: Optional[CortexBus] = Depends(get_cortex_bus),
 ) -> StreamingResponse:
-    """Stream the durable cortex journal (Last-Event-ID recovery + heartbeat)."""
+    """Stream an authenticated, barriered durable cortex journal.
+
+    The edge middleware requires a bonded operator session (or the configured
+    API token) before this route can expose operational state.  A real
+    ``CortexBus`` establishes its replay window and live handler atomically;
+    ``sync_complete`` is the only frame that lets the client promote a
+    snapshot to continuously fresh.
+    """
     if bus is None:
         raise ValueError("CORTEX_BUS must be enabled to stream the journal")
 
@@ -339,6 +355,9 @@ async def stream_journal(
         loop = asyncio.get_running_loop()
         replay_issue: dict[str, Any] | None = None
         unsubscribe = lambda: None
+        replay_events: list[BusEvent] = []
+        barrier_event_id: int | None = None
+        barrier_supported = False
 
         def _on_event(event: BusEvent) -> None:
             # Dispatcher runs in a separate thread, use the captured loop
@@ -350,15 +369,21 @@ async def stream_journal(
 
             loop.call_soon_threadsafe(_enqueue)
 
-        # 1. Recovery: Replay missed events from Last-Event-ID
-        if last_event_id is not None:
+        # 1. Recovery + live handoff.  Production CortexBus performs both
+        # under one delivery lock.  The fallback keeps older test doubles and
+        # integrations readable, but is deliberately not allowed to claim a
+        # sync barrier that they do not implement.
+        if isinstance(bus, CortexBus):
             try:
-                missed_events = bus.fetch_since(last_event_id, limit=1000)
-                for ev in missed_events:
-                    if queue.full():
-                        queue_overflowed.set()
-                        break
-                    queue.put_nowait(ev)
+                subscription = bus.subscribe_replay(
+                    last_event_id or 0,
+                    _on_event,
+                    limit=1000,
+                )
+                unsubscribe = subscription.unsubscribe
+                replay_events = list(subscription.events)
+                barrier_event_id = subscription.barrier_event_id
+                barrier_supported = True
             except ConsumerReplayGap as exc:
                 logger.warning(
                     "mirror_replay_gap",
@@ -373,12 +398,38 @@ async def stream_journal(
                     "cursor": exc.cursor,
                     "earliest_event_id": exc.earliest_event_id,
                 }
+            except ReplayWindowTooLarge as exc:
+                logger.warning(
+                    "mirror_replay_too_large",
+                    extra={
+                        "cursor": exc.cursor,
+                        "limit": exc.limit,
+                        "latest_event_id": exc.latest_event_id,
+                    },
+                )
+                replay_issue = {
+                    "reason": "replay_too_large",
+                    "cursor": exc.cursor,
+                    "limit": exc.limit,
+                    "latest_event_id": exc.latest_event_id,
+                }
             except Exception:
                 logger.warning("mirror_replay_failed", exc_info=True)
                 replay_issue = {"reason": "replay_failed"}
-
-        # 2. Subscription: Listen for live events
-        unsubscribe = bus.subscribe(_on_event)
+        else:
+            if last_event_id is not None:
+                try:
+                    replay_events = bus.fetch_since(last_event_id, limit=1000)
+                except ConsumerReplayGap as exc:
+                    replay_issue = {
+                        "reason": "replay_gap",
+                        "cursor": exc.cursor,
+                        "earliest_event_id": exc.earliest_event_id,
+                    }
+                except Exception:
+                    logger.warning("mirror_replay_failed", exc_info=True)
+                    replay_issue = {"reason": "replay_failed"}
+            unsubscribe = bus.subscribe(_on_event)
 
         try:
             if replay_issue is not None:
@@ -386,6 +437,37 @@ async def stream_journal(
                     "event: snapshot_required\n"
                     f"data: {json.dumps(replay_issue, ensure_ascii=False)}\n\n"
                 )
+                return
+
+            def _format_event(event: BusEvent) -> str:
+                payload_str = json.dumps(event.payload, ensure_ascii=False)
+                payload_str = payload_str.replace("\r", "\\r").replace("\n", "\\n")
+                return f"id: {event.id}\ndata: {payload_str}\n\n"
+
+            # Replay is emitted before the barrier.  A duplicate already
+            # queued by at-least-once dispatch is harmless and is suppressed
+            # below by the durable cursor.
+            sent_event_id = (
+                last_event_id if barrier_supported and last_event_id is not None else -1
+            )
+            for event in replay_events:
+                if barrier_supported and event.id <= sent_event_id:
+                    continue
+                yield _format_event(event)
+                sent_event_id = max(sent_event_id, event.id)
+
+            if barrier_supported:
+                if barrier_event_id is None:
+                    yield 'event: snapshot_required\ndata: {"reason":"barrier_missing"}\n\n'
+                    return
+                if sent_event_id < barrier_event_id:
+                    yield 'event: snapshot_required\ndata: {"reason":"replay_incomplete"}\n\n'
+                    return
+                yield (
+                    "event: sync_complete\n"
+                    f"data: {json.dumps({'cursor': barrier_event_id, 'replayed': last_event_id is not None})}\n\n"
+                )
+                sent_event_id = barrier_event_id
 
             # 3. Stream loop with heartbeat
             while not await request.is_disconnected():
@@ -396,12 +478,16 @@ async def stream_journal(
                     # Wait for next event or heartbeat timeout
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
 
-                    # Format payload for SSE
-                    payload_str = json.dumps(event.payload, ensure_ascii=False)
-                    payload_str = payload_str.replace("\r", "\\r").replace("\n", "\\n")
+                    if barrier_supported and event.id <= sent_event_id:
+                        queue.task_done()
+                        continue
+                    if barrier_supported and event.id > sent_event_id + 1:
+                        yield 'event: snapshot_required\ndata: {"reason":"live_gap"}\n\n'
+                        queue.task_done()
+                        break
 
-                    yield f"id: {event.id}\n"
-                    yield f"data: {payload_str}\n\n"
+                    yield _format_event(event)
+                    sent_event_id = max(sent_event_id, event.id)
 
                     queue.task_done()
 
