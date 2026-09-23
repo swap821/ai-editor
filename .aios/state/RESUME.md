@@ -1,5 +1,11 @@
 # AI-OS Builder Resume
 
+**Latest delivery:** The dedicated renovation was committed as
+`a3ab9e0a05153d4b3e0d520fd3b4e59d08d9e1f3`, pushed as
+`codex/frontend-2030-v1`, and opened for review as GitHub PR #363 targeting
+`master`. The PR body preserves the exact gate results and explicitly does not
+claim production readiness. No merge has been performed.
+
 **Latest constrained gate refresh:** After resuming the renovation, typecheck,
 production build (4,311 modules), lint (0 errors / 120 warnings), port-unit
 (5/5), CSS/texture canon, frozen-core, JSONL, and diff checks passed. The
@@ -565,9 +571,8 @@ The production bundle has now also been checked at 1440×900 and 320×568 with
 the same render/header boundary; the forced renderer checkpoint above adds
 measured loss → fallback → retry remount evidence.
 
-**Single next action:** Handoff the refreshed focused-gate and integrity
-evidence snapshot to non-builder Claude for review; do not commit, merge, or
-edit the main checkout.
+**Single next action:** Obtain review of PR #363 and resolve only actionable
+review findings; do not merge to `master` or edit the main checkout.
 
 **Open blockers/approvals:** This is not a production-readiness claim. Human validation by at least three non-builders, operator visual/WebGL review, field GPU/driver recovery, screen-reader validation, reduced-motion browser capture, authenticated live journey, backend replay/live barrier, and p75 performance evidence remain pending or backend-owned. `npm run port:check` remains blocked by the pre-existing lab mirror gap: the dedicated worktree omits the ignored lab tree, and a read-only main-checkout audit found 193 manifest files versus 49 lab files with 163 missing sources, first reported as `components/canvas/AnatomicalConductorOverlay.tsx`; do not bypass this by editing generated Superbrain files. No commit or merge has been made.
 
