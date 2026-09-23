@@ -1,5 +1,17 @@
 # AI-OS Builder Resume
 
+**Latest CI repair:** PR #363's failing backend guards were traced to stale
+green-organ evidence inherited from `master` after a squash: the ledger cited
+unreachable `fc8ee90ab336...` rows. A real Phase 4 live-evidence run at the
+exact PR head `164c7d572fc6c777822fe70b054dbe61bc7c32a7` passed all 39 eligible
+organs; 38 non-spine rows were refreshed, spine-attested organs 1–5 were left
+untouched, and 8 yellow organs remain honestly stale/unverified. The focused
+evidence suite passes 24/24, generated ledger/manifest checks pass, and the
+full local Python 3.14 run reached 88.47% coverage but exposed 7 unrelated
+Windows/Docker-environment failures; no source or security code was changed.
+The single next action is to commit and push this evidence-only CI repair,
+then read the new remote matrix result instead of claiming local parity.
+
 **Latest delivery:** The dedicated renovation is published on
 `codex/frontend-2030-v1` as GitHub PR #363 targeting `master`. After GitHub
 reported conflicts, current `origin/master` was fetched and merged into this
