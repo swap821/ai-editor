@@ -854,3 +854,10 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Honest limit:** this is one automated focus-return slice, not full keyboard/touch, assistive-technology, mobile, visual or human acceptance. No acceptance points added; accepted completion remains 3/100. Android 17 and iOS 27 are target OS versions, handset models TBD.
 - **Process correction:** the rail trigger is removed as the selected workspace closes; focusing it before React commits the removal leaves focus on the document body. Keep the safe Conversation fallback and test surviving focus targets, not transient DOM assumptions.
 - **Next:** commit this branch-local slice and evidence, then request a hash-pinned independent review; operator visual review remains open.
+
+## 2026-09-24 — CEO addendum (store-owned workspace closure)
+
+- **Implemented locally:** focus now returns to the saved, surviving workspace launcher if an embedded child or another store owner closes the active surface. Explicitly selecting Conversation makes Conversation the target, avoiding a stale launcher winning after React commits.
+- **Evidence:** the new store-close regression failed before the fix; focused continuity is 3/3, focus + narrow-layout is 2 files / 11 tests, full frontend is 176 files / 966 tests, TypeScript, production build, changed-file ESLint, and 193-file `port:check` pass. The fresh worktree's absent ignored authoring lab was restored by the guarded restore operation from accepted mirror bytes.
+- **Honest limit:** no physical touch/keyboard journey, device or human acceptance; no product 3D or visual change. No completion points added; accepted score remains 3/100. `npm ci` surfaced two moderate advisories; dependencies were left unchanged.
+- **Next:** commit the exact bounded diff and request hash-pinned independent review; LB-04 art review is still an operator gate.

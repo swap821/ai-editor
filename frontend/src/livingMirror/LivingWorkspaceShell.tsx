@@ -153,6 +153,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     ...snapshot.tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').map((t) => ({ id: t.id, title: t.content?.filepath ?? 'Approval review', seat: t.seatIndex, pinned: t.pinned })),
   ];
   const working = !!focused || !!artifact;
+  const wasWorking = useRef(working);
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
     const media = window.matchMedia(NARROW_VIEWPORT_QUERY);
@@ -165,9 +166,6 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     media.addListener?.(sync);
     return () => media.removeListener?.(sync);
   }, []);
-  useEffect(() => {
-    if (working) heading.current?.focus({ preventScroll: true });
-  }, [snapshot.focusId, working]);
   const rememberReturnFocus = (trigger?: HTMLElement | null) => {
     const active = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     returnFocus.current = active === document.body ? null : active;
@@ -193,8 +191,15 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   };
   const dismiss = () => {
     if (snapshot.focusId) closeWorkspace(snapshot.focusId);
-    restoreWorkspaceFocus();
   };
+  useEffect(() => {
+    if (working) {
+      heading.current?.focus({ preventScroll: true });
+    } else if (wasWorking.current) {
+      restoreWorkspaceFocus();
+    }
+    wasWorking.current = working;
+  }, [snapshot.focusId, working]);
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (experienceMode !== 'expert' || event.defaultPrevented || event.key !== '`' || !event.ctrlKey) return;
@@ -232,7 +237,10 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       <EmergencyControl guided={experienceMode === 'beginner'} />
     </header>
     <nav className="lm-navigation" aria-label="Workspaces">
-      <button ref={conversationButton} type="button" aria-current={!working ? 'page' : undefined} onClick={() => focusWorkspace(null)}>Conversation</button>
+      <button ref={conversationButton} type="button" aria-current={!working ? 'page' : undefined} onClick={(event) => {
+        returnFocus.current = event.currentTarget;
+        focusWorkspace(null);
+      }}>Conversation</button>
       {experienceMode === 'expert'
         ? narrowViewport ? renderMobileExpertGroups() : renderDesktopExpertGroups()
         : guidedSurfaces.map(([id, title]) => <button key={id} type="button" aria-current={focused?.id === id ? 'page' : undefined} onClick={(event) => open(id, title, event.currentTarget)}>{title}</button>)}
