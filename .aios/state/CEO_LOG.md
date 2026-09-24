@@ -907,3 +907,9 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Verification:** combined full frontend 176 files / 973 tests, source-port 16/16, restore 193 + no-drift check + idempotent rerun, typecheck, 4,317-module build, lint 0 errors / 123 warnings, palette and protected-texture guards. The tracked commit is clean.
 - **Honest status:** accepted completion remains 3/100. The 2030 living visual, user/human acceptance, Android/iPhone physical runs and desktop-class baseline are not established. Android/iOS OS targets remain 17/27; handset models are TBD.
 - **Next:** update continuity documents for the integrated hash, then hand off the final clean tree for independent hash-pinned review. No push or master landing is included.
+
+## 2026-09-24 — CEO addendum (continuity checkpoint committed)
+
+- **Documentation checkpoint:** blueprint, acceptance ledger and builder resume now record integration commit `421471b8`; the docs/ledger checkpoint is committed as `e3b83c1b655be60fad98349ed287059a138217e4`.
+- **Current state:** source code verification remains attributable to `421471b8`; no product files changed in the documentation follow-up. Android 17/iOS 27 remain targets only, physical models TBD, and accepted completion remains **3/100**.
+- **Next:** hand off the current clean branch tip for the required read-only, hash-pinned independent review. Keep the builder tree unchanged until that review completes.

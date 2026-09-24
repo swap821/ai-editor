@@ -2,7 +2,7 @@
 
 **Current goal:** Build the official GAGOS frontend toward the user's 2030 living-being vision in evidence-gated LB-01–LB-20 tickets. Desktop and mobile are equally important. The external GAG demo is visual reference/authoring lab; backend authority, palette, and protected textures remain authoritative.
 
-**Worktree / branch:** C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-20260924 / codex/gagos-living-being-massive-20260924. Verified code integration commit: 421471b880d7111dcd6040df6be5ff3c395a4ada, based on current origin/master #365 plus LB-01 restore. Isolated from the dirty main checkout and both hash-pinned review trees.
+**Worktree / branch:** C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-20260924 / codex/gagos-living-being-massive-20260924. Verified code integration commit: 421471b880d7111dcd6040df6be5ff3c395a4ada; blueprint/ledger checkpoint: e3b83c1b655be60fad98349ed287059a138217e4. Based on current origin/master #365 plus LB-01 restore; isolated from the dirty main checkout and both earlier review trees.
 
 **Current tickets:** LB-01 is integrated and automated-verified. LB-02's import/evidence map and fixed 100-point ledger are recorded but remain partial because no Android/iPhone handset or desktop-class target system is selected.
 
