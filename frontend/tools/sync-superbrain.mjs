@@ -6,7 +6,11 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const extensions = ['.ts', '.tsx', '.js', '.jsx', '.css', '.json'];
-const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
+// Git may convert CRLF/LF on checkout. Normalize CRLF to LF for the digest;
+// every other source byte remains pinned across platforms.
+const hash = (bytes) => createHash('sha256')
+  .update(Buffer.from(bytes.toString('latin1').replace(/\r\n/g, '\n'), 'latin1'))
+  .digest('hex');
 const portable = (path) => path.split(sep).join('/');
 const inside = (root, path) => path === root || path.startsWith(root + sep);
 const managed = (path) => typeof path === 'string' && path.length > 0 && !isAbsolute(path)
@@ -17,7 +21,7 @@ function readManifest(manifestPath) {
   const entry = lstatSync(manifestPath);
   if (entry.isSymbolicLink() || !entry.isFile()) throw new Error('Source manifest must be a regular file.');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  if (manifest.version !== 1 || !manifest.files || typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
+  if (manifest.version !== 2 || !manifest.files || typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
     throw new Error('Invalid source manifest: unsupported shape or version.');
   }
   for (const [path, digest] of Object.entries(manifest.files)) {
@@ -166,7 +170,7 @@ export function syncSuperbrain(root, mode) {
       mkdirSync(dirname(join(lab, path)), { recursive: true });
       writeFileSync(join(lab, path), readFileSync(join(product, path)));
     }
-    writeFileSync(manifestPath, JSON.stringify({ version: 1, baseline: 'accepted product; see implementation ledger', files }, null, 2) + '\n');
+    writeFileSync(manifestPath, JSON.stringify({ version: 2, baseline: 'accepted product; source SHA-256 normalizes CRLF to LF', files }, null, 2) + '\n');
     return { mode, files: Object.keys(files).length, changed: [] };
   }
   const manifest = readManifest(manifestPath);

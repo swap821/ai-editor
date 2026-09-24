@@ -838,3 +838,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Honest limit:** no current screenshot, operator visual approval, human session, or phone run. Android 17/iOS 27 are only OS targets; handset models remain TBD. Accepted goal score stays 3/100, and LB-04 art direction still needs review at `:5173`.
 - **Highest-leverage next move:** operator reviews LB-04 and LB-05 truth states at `:5173`; record accept/revise before broad redesign or LB-06.
 - **Risk to watch:** automated truth convergence does not prove the visual signal reads correctly or performs smoothly on real desktop/mobile hardware. Do not convert the 959-test result into visual or device acceptance.
+
+## 2026-09-24 — CEO note (LB-06 identity slice + portable mirror)
+
+- **Implemented locally:** workspace seats no longer collide on close/reopen, animated reabsorption or capacity overflow; the reabsorption tie-break no longer depends on tab arrival order.
+- **Source recovery:** fresh-worktree restore exposed mixed line endings in the byte-hash manifest. Migrated all 193 verified entries to v2 hashes that normalize only CRLF/LF; actual content drift remains a hard refusal.
+- **Evidence:** 4 new regressions were observed failing first; then full frontend 175 files / 963 tests, port 15/15, typecheck, build (4,316 modules), targeted ESLint and `port:check` passed.
+- **Honest limit:** LB-06 is partial; no keyboard/touch journey, operator visual review or independent review is claimed. Overall accepted completion remains 3/100; Android/iPhone models and desktop hardware are still TBD.
+- **Next:** operator review of LB-04/LB-05 at `:5173`; no broad visual redesign before that review.

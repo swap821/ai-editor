@@ -96,6 +96,8 @@ const SURFACE_DEFAULTS: Record<
   },
 };
 
+const WORKSPACE_SEAT_ORDER = [2, 3, 1, 4, 5, 0, 6, 7, 8, 9, 10, 11];
+
 let snapshot: TabSnapshot = { tabs: [], focusId: null, attention: null };
 const listeners = new Set<() => void>();
 let tabSequence = 0;
@@ -163,8 +165,12 @@ export function getMaterializedTabByKind(kind: MaterializedTabKind): Materialize
 
 export function getOccupiedVertebraSeats(): number[] {
   return [...snapshot.tabs
-    .filter((tab) => tab.kind !== 'input' && tab.lifecycle !== 'retracting' && typeof tab.seatIndex === 'number')
+    .filter((tab) => tab.kind !== 'input' && typeof tab.seatIndex === 'number')
     .map((tab) => tab.seatIndex as number), ...(snapshot.panels ?? []).filter((p) => p.open).map((p) => p.seatIndex)];
+}
+
+function nextAvailableWorkspaceSeat(occupied: ReadonlySet<number>): number | null {
+  return WORKSPACE_SEAT_ORDER.find((seat) => !occupied.has(seat)) ?? null;
 }
 
 /** One attention owner for DOM workspaces and materialized scene surfaces. No backend commands here. */
@@ -172,8 +178,14 @@ export function openWorkspacePanel(id: string, title: string, kind = id, file?: 
   const panels = snapshot.panels ?? [];
   const current = panels.find((panel) => panel.id === id);
   const occupied = new Set(getOccupiedVertebraSeats());
-  const seatIndex = [2, 3, 1, 4, 5, 0, 6, 7, 8, 9, 10, 11].find((seat) => !occupied.has(seat)) ?? panels.length % 12;
-  const panel: WorkspacePanel = current ? { ...current, open: true } : { id, title, kind, file, seatIndex, open: true, pinned: false };
+  const currentSeatIsValid = current && Number.isInteger(current.seatIndex)
+    && current.seatIndex >= 0 && current.seatIndex < WORKSPACE_SEAT_ORDER.length;
+  const canReuseCurrentSeat = currentSeatIsValid && (current.open || !occupied.has(current.seatIndex));
+  const seatIndex = canReuseCurrentSeat ? current.seatIndex : nextAvailableWorkspaceSeat(occupied);
+  if (seatIndex === null) return;
+  const panel: WorkspacePanel = current
+    ? { ...current, seatIndex, open: true }
+    : { id, title, kind, file, seatIndex, open: true, pinned: false };
   replaceSnapshot({ ...snapshot, panels: current ? panels.map((p) => p.id === id ? panel : p) : [...panels, panel], focusId: id, attention: null });
 }
 

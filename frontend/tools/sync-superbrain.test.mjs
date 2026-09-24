@@ -90,6 +90,32 @@ test('restore recreates a missing lab from accepted product bytes and preserves 
   assert.deepEqual(syncSuperbrain(f.root, 'check').changed, []);
 });
 
+test('restore accepts Git newline conversion but still rejects source drift', () => {
+  const f = fixture();
+  writeFileSync(join(f.product, 'index.ts'), "import './value';\nexport const live = true;\n");
+  writeFileSync(join(f.product, 'value.ts'), 'export const value = 1;\n');
+  syncSuperbrain(f.root, 'bootstrap');
+  rmSync(join(f.root, 'GAG demo'), { recursive: true, force: true });
+
+  const checkedOutBytes = new Map(['index.ts', 'value.ts'].map((path) => {
+    const source = readFileSync(join(f.product, path), 'utf8');
+    const converted = Buffer.from(source.replace(/\n/g, '\r\n'));
+    writeFileSync(join(f.product, path), converted);
+    return [path, converted];
+  }));
+
+  const restored = syncSuperbrain(f.root, 'restore');
+
+  assert.deepEqual(restored.restored, ['index.ts', 'value.ts']);
+  for (const [path, bytes] of checkedOutBytes) {
+    assert.deepEqual(readFileSync(join(f.lab, path)), bytes);
+  }
+  assert.deepEqual(syncSuperbrain(f.root, 'check').changed, []);
+
+  writeFileSync(join(f.product, 'value.ts'), 'export const value = 2;\r\n');
+  assert.throws(() => syncSuperbrain(f.root, 'restore'), /Product drift/);
+});
+
 test('restore leaves matching files untouched, reports them, and safely fills a partial rerun', () => {
   const f = fixture();
   syncSuperbrain(f.root, 'bootstrap');
@@ -139,6 +165,7 @@ test('restore rejects product drift before restoring any missing file', () => {
 
 test('restore rejects malformed manifests and invalid SHA-256 digests before writes', () => {
   for (const invalid of [
+    (manifest) => { manifest.version = 1; },
     (manifest) => { manifest.files = []; },
     (manifest) => { manifest.files['value.ts'] = 'not-a-digest'; },
   ]) {

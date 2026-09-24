@@ -102,4 +102,16 @@ describe('anatomicalConductor', () => {
     expect(anatomy.conductingSeatIndexes).toEqual([0, 1, 2, 3, 4, 5]);
     expect(anatomy.trunkTint).toBe('#a9fff3');
   });
+
+  it('keeps the reabsorption target stable when retracting surfaces arrive in a different order', () => {
+    const lower = contentTab('retracting-lower', 2, { lifecycle: 'retracting' });
+    const upper = contentTab('retracting-upper', 5, { lifecycle: 'retracting' });
+    const derive = (tabs: MaterializedTabRecord[]) => deriveAnatomicalConductor({
+      tabs,
+      orchestration: { phase: 'reabsorbing', focusId: null, activeSeatIndex: null },
+    });
+
+    expect(derive([lower, upper]).activeSeatIndex).toBe(2);
+    expect(derive([upper, lower]).activeSeatIndex).toBe(2);
+  });
 });
