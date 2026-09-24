@@ -884,4 +884,5 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Regression proof:** three assertions failed against the previous fallback and pass with the change. Focused group **4 files / 40 tests**; combined full frontend **176 files / 973 tests**; TypeScript, 4,317-module build, port tests **15/15**, `port:check` **193/no drift**, palette/texture guards and changed-file lint passed. Full lint: **0 errors / 123 warnings**.
 - **Combined branch:** includes the separate, committed keyboard-aware composer slice; its earlier 14-port-test evidence remains historical, while the combined branch now passes 15 port tests and the 193-file source check.
 - **Honest limit:** no live browser, physical keyboard/touch, device, assistive-technology or visual/human acceptance. Android 17 and iOS 27 are OS targets; phone models remain TBD. No points added; accepted completion remains **3/100**.
-- **Next:** commit the combined local branch, then hash-pin it for independent review. No push, PR or merge was requested.
+- **Committed locally:** combined branch merge commit `62ef2629de70196309f0b9f47d61182a377934ff` on `codex/gagos-living-being-continuation-20260924`; not pushed.
+- **Next:** hash-pin this clean commit for independent review. Do not push, open a PR, or merge into master without a separate request.

@@ -10,10 +10,12 @@
 
 **Accepted completion:** **3/100**. Android 17 and iOS 27 are OS targets; exact handset models remain TBD. Desktop host/GPU, operator visual review and human evidence remain unverified. This checkpoint earns no new acceptance points.
 
-**Next single action:** Commit the verified combined branch locally, then submit that exact tree for hash-pinned independent review.
+**Combined branch commit:** `62ef2629de70196309f0b9f47d61182a377934ff` (local merge commit; not pushed).
+
+**Next single action:** Submit the clean committed tree for hash-pinned independent review.
 
 **Open gates:** LB-04/LB-05 operator review, independent LB06/keyboard review, exact phone models, named desktop hardware/browser/GPU, visual and human acceptance. Do not infer a pass from automated tests.
 
 **Active files:** Managed source `GAG demo/gag-orchestrator/src/lib/tabStore.ts` and `tabStore.attention.test.ts` (port into `frontend/src/superbrain/lib/`); keyboard shell files `frontend/src/livingMirror/keyboardViewport.ts`, `livingMirror.css`, and `frontend/src/superbrain/SuperbrainApp.jsx`; acceptance ledger, execution pack, CEO log and experiences.
 
-**Do not repeat:** Do not edit the main checkout or either hash-pinned review tree. Keep managed source lab-first and use `npm run port`; no push, PR or merge was requested for this checkpoint.
+**Do not repeat:** Do not edit the main checkout or either hash-pinned review tree. Keep managed source lab-first and use `npm run port`; do not push, open a PR, or merge into master without a separate request.
