@@ -2,7 +2,7 @@
 
 **Current goal:** Implement the GAGOS living-being frontend blueprint in the official `frontend/`, equally capable on desktop and mobile, in isolated branch `codex/gagos-living-being-v2`.
 
-**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8`; GitHub reports PR #363 merged. Worktree: `C:/Users/kumar/.codex/worktrees/gagos-living-being-v2/ai-editor`. Branch `codex/gagos-living-being-v2`; latest task commit `cfe73adf`; Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
+**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8`; GitHub reports PR #363 merged. Worktree: `C:/Users/kumar/.codex/worktrees/gagos-living-being-v2/ai-editor`. Branch `codex/gagos-living-being-v2`; LB-02 ledger checkpoint `cfe73adf`; continuity checkpoint is current branch HEAD. Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
 
 **Last completed + verified:** LB-01 committed as `c3181fd3`; 14/14 port tests, 193-file restore/check, product mirror/manifest unchanged, serial Vitest 175 files / 953 tests, typecheck, lint (0 errors / 123 warnings), and 4,316-module build passed. LB-02 ledger committed as `cfe73adf`; 29 weighted criteria sum to 100, evidence links resolve (11/11), and `git diff --check` passed. Documentation-only; no application suite rerun. Accepted evidence = 3/100 (INT-01 only).
 
