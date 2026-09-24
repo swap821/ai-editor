@@ -140,6 +140,48 @@ def _record_emergency_stop_engaged(principal: Principal, reason: str) -> None:
         )
 
 
+def _record_emergency_stop_cleared(principal: Principal) -> None:
+    """Put the RESTORATION on the observation bus, for the same reason.
+
+    `_record_emergency_stop_engaged` above exists because a state row is not a
+    point on a timeline. Only the engagement ever got one, so the bus recorded
+    that authority was revoked and never that it returned -- "for how long was
+    GAGOS halted?" was unanswerable by ordering the record, which is the same
+    failure that comment describes, in the other direction.
+
+    It surfaced as a UI defect: the Living Mirror's `stopState()` reads the last
+    `emergency_stop` event on the bus, so after a legitimate clear it kept
+    finding the old `engaged` one and showed the organism frozen for the rest of
+    the session. That is the frontend reading the bus correctly and the bus
+    being incomplete.
+
+    Best-effort by design, exactly like the engagement: an observation must
+    never take down the latch it is observing. The clear has already happened
+    and been persisted by the time this runs.
+    """
+    try:
+        from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
+
+        bus = get_cortex_observation_bus()
+        if bus is None:
+            return
+        bus.append(
+            CanonicalEvent(
+                event_type=CanonicalEventType.GOVERNANCE_EMERGENCY_STOP_CLEARED.value,
+                phase=EventPhase.REFLEX.value,
+                status="cleared",
+                trust="verified",
+                source="aios.api.routes.governance",
+                session_id=getattr(principal, "session_id", "") or "emergency-stop",
+                payload={"operator_id": principal.principal_id},
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - never let an observation block the latch
+        logging.getLogger(__name__).warning(
+            "Failed to record emergency-stop clear", exc_info=exc
+        )
+
+
 @router.post("/api/v1/governance/emergency-stop/clear")
 def clear_emergency_stop(
     request: Request,
@@ -156,6 +198,7 @@ def clear_emergency_stop(
         )
     except EmergencyStopError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    _record_emergency_stop_cleared(principal)
     return _state_payload(controller) | {"engaged": state.engaged}
 
 
