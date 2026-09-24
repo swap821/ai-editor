@@ -74,6 +74,11 @@ PUBLISHED_CANONICAL_EVENTS: frozenset[CanonicalEventType] = frozenset(
         CanonicalEventType.CEREBELLUM_REPLAYED,  # aios/core/cerebellum.py
         CanonicalEventType.CEREBELLUM_ABSTAINED,  # aios/core/cerebellum.py
         CanonicalEventType.GOVERNANCE_EMERGENCY_STOP_ENGAGED,  # routes/governance.py
+        # The clear, added 2026-09-24. Only the ENGAGE was ever published, so
+        # the bus recorded that authority was revoked and never that it came
+        # back -- and the Living Mirror's stopState(), reading the bus
+        # correctly, stayed frozen on 'engaged' for the rest of the session.
+        CanonicalEventType.GOVERNANCE_EMERGENCY_STOP_CLEARED,  # routes/governance.py
         CanonicalEventType.WORKER_WORK_INCOMPLETE,  # workers/foundry.py
     }
 )
