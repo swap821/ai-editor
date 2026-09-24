@@ -4,13 +4,13 @@
 
 **Current branch/worktree:** `codex/gagos-living-being-keyboard-safe`, `C:/Users/kumar/.codex/worktrees/gagos-living-being-live-audit`, based on `975b9fb9119f20824ad0414b4ba05a7186636c32` (LB-05 source checkpoint). This is separate from the original v2 tree, whose staged LB-04 sheet and memory edit must remain untouched. Codex holds the builder lease for `gagos-2030-living-being-mobile-keyboard-20260924`.
 
-**Last completed + verified:** Added mobile composer VisualViewport tracking with app-root-aware occlusion, blur/unmount cleanup, pinch-zoom/button-focus exclusions, and short-viewport sizing. A red regression reproduced the 520px minimum-height/short-landscape mismatch; correction is verified. Focused suite **7/7**; full frontend **175 files / 962 tests**; TypeScript; build (**4,317 modules**); `test:port` **14/14**; lint **0 errors / 123 warnings**; changed-file lint and whitespace checks passed. `port:check` stops because this worktree lacks the ignored authoring-lab `components/QualityTierProvider.tsx`; no port-check pass is claimed.
+**Last completed + verified:** Added mobile composer VisualViewport tracking with app-root-aware occlusion, blur/unmount cleanup, pinch-zoom/button-focus exclusions, and short-viewport sizing. A red regression reproduced the 520px minimum-height/short-landscape mismatch; correction is verified. Commit `8b71d7c7358587c4e7e17f28a30eb3981b47d397` is local and unpushed. Focused suite **7/7**; full frontend **175 files / 962 tests**; TypeScript; build (**4,317 modules**); `test:port` **14/14**; lint **0 errors / 123 warnings**; changed-file lint and whitespace checks passed. `port:check` stops because this worktree lacks the ignored authoring-lab `components/QualityTierProvider.tsx`; no port-check pass is claimed.
 
-**Current ticket:** UX-04 keyboard-aware composer implementation slice is ready for local commit/review. It is not physical mobile acceptance. LB-04 art direction and LB-05 truth states still need operator visual review; no browser or human visual sign-off is recorded.
+**Current ticket:** UX-04 keyboard-aware composer implementation slice is committed locally as `8b71d7c7`. It is not physical mobile acceptance. LB-04 art direction and LB-05 truth states still need operator visual review; no browser or human visual sign-off is recorded.
 
 **Accepted completion:** **3/100** (INT-01 only). UX-04 remains **0/5, blocked**: Android 17 and iOS 27 are OS targets only; both physical phone models remain TBD. Desktop-class hardware, named browser/GPU, human usability evidence and live WorkerFoundry integration remain unverified.
 
-**Next single action:** Operator reviews the local keyboard-safe branch diff; then select exact Android/iPhone models before claiming or scheduling physical UX-04 acceptance.
+**Next single action:** Operator reviews commit `8b71d7c7` on the local branch; physical UX-04 remains unclaimable until exact Android/iPhone models are selected.
 
 **Open approvals / blockers:** Exact physical handset models are TBD; no real keyboard/browser/touch/safe-area run. Operator review of LB-04/LB-05 and desktop-class selection remain open. No visual acceptance is claimed. `port:check` is unavailable in this worktree until the ignored authoring lab is present.
 
