@@ -48,7 +48,7 @@ Approved scope: the operator's 30-section blueprint, frontend ownership while Cl
 
 ## Source workflow
 
-The old ignored lab predates product. `npm run port:bootstrap` creates this worktree's lab from accepted product bytes exactly once. Author managed changes in `GAG demo/gag-orchestrator/src`. `npm run port:check` validates imports and detects product drift without writes; `npm run port` copies validated changes. The tracked manifest records every managed hash. Assets and product-owned `SuperbrainApp.jsx` are excluded. No automatic source deletion. A clean clone can bootstrap its own lab after explicitly archiving/removing its existing manifest; never seed from the stale original lab.
+The old ignored lab predates product. `npm run port:bootstrap` creates this worktree's lab from accepted product bytes exactly once. If the ignored lab is missing, `npm run port:restore` reconstructs only missing authoring files from the tracked manifest's accepted product bytes; it validates every product hash and every destination before writing, leaves identical files untouched, and stops on differing files or symlink/junction paths. It never changes the manifest. Author managed changes in `GAG demo/gag-orchestrator/src`. `npm run port:check` validates imports and detects product drift without writes; `npm run port` copies validated changes. The tracked manifest records every managed hash. Assets and product-owned `SuperbrainApp.jsx` are excluded. No automatic source deletion. A clean clone can bootstrap its own lab after explicitly archiving/removing its existing manifest; never seed from the stale original lab.
 
 ## Proof rules
 
