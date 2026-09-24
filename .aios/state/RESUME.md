@@ -10,7 +10,7 @@
 
 **Accepted completion:** **3/100** (INT-01 only). Android 17 and iOS 27 are OS targets; physical models remain TBD. Desktop hardware/GPU, human comprehension, visual sign-off and live WorkerFoundry integration remain unverified.
 
-**Next single action:** Commit this evidence/continuity checkpoint, confirm the branch is clean, then submit the exact tree for hash-pinned independent review.
+**Next single action:** Confirm the committed tree is clean, submit this exact source-and-evidence state for hash-pinned independent review, then wait for verdict before editing this tree.
 
 **Open approvals / blockers:** The prior focus branch's independent review remains pending in its separate tree; do not edit it. LB-04/LB-05 operator review remains open. The new source commit is not yet independently reviewed. Two moderate npm advisories were reported by the lockfile install; no dependency changed.
 
