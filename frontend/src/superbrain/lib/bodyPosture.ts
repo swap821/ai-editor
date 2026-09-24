@@ -12,7 +12,20 @@
  */
 import type { OrganismLifecyclePhase } from './organismLifecycle';
 
-export type BodyPostureKey = 'rest' | 'think' | 'stream' | 'hold' | 'complete' | 'error';
+export type BodyPostureKey = 'rest' | 'think' | 'stream' | 'hold' | 'complete' | 'unverified' | 'error' | 'stopped';
+
+/** Narrow, presentation-only view of the official frontend's physical snapshot.
+ * The product computes this once; this structural contract lets the managed
+ * renderer consume it without owning a second semantic store. */
+export interface PhysicalBodyProjection {
+  phase: string;
+  taskState: string;
+  coherence: string;
+  motion: string;
+  cortex: { posture: string };
+  verification: { state: string };
+  membrane: { state: string };
+}
 
 export interface BodyPosture {
   key: BodyPostureKey;
@@ -38,7 +51,9 @@ export const BODY_POSTURES: Record<BodyPostureKey, BodyPosture> = {
   stream: { key: 'stream', color: [123, 245, 251], flow: 1.0, tint: 0.7, label: 'Streaming' },
   hold: { key: 'hold', color: [255, 126, 64], flow: 0.34, tint: 0.5, label: 'Holding' },
   complete: { key: 'complete', color: [84, 240, 160], flow: 0.3, tint: 0.55, label: 'Complete' },
+  unverified: { key: 'unverified', color: [158, 120, 245], flow: 0.1, tint: 0.08, label: 'Unverified' },
   error: { key: 'error', color: [255, 92, 72], flow: 0.22, tint: 0.8, label: 'Error' },
+  stopped: { key: 'stopped', color: [158, 120, 245], flow: 0, tint: 0, label: 'Stopped' },
 };
 
 /** Gold signal motes + snow dust accents (spectral-v1), not lifecycle states. */
@@ -73,8 +88,43 @@ export function postureKeyForPhase(phase: OrganismLifecyclePhase): BodyPostureKe
   return PHASE_TO_POSTURE[phase] ?? 'rest';
 }
 
+function postureKeyForPhysicalProjection(physical: PhysicalBodyProjection): BodyPostureKey {
+  if (physical.phase === 'stopped' || physical.cortex.posture === 'stopped') return 'stopped';
+  if (physical.membrane.state === 'held') return 'hold';
+  if (physical.cortex.posture === 'recover' || physical.verification.state === 'fail' || physical.membrane.state === 'refused') {
+    return 'error';
+  }
+  if (physical.taskState === 'done-verified' && physical.verification.state === 'pass') return 'complete';
+  if (physical.taskState === 'done-unverified' || physical.cortex.posture === 'unverified' || physical.coherence === 'unverified') {
+    return 'unverified';
+  }
+  if (physical.motion === 'reabsorb') return 'complete';
+  if (physical.cortex.posture === 'conduct') return 'stream';
+  if (['arrive', 'attention', 'verify'].includes(physical.cortex.posture)) return 'think';
+  return 'rest';
+}
+
+/** Map canonical semantic state into the preserved legacy shader lifecycle vocabulary. */
+export function lifecyclePhaseForPhysicalProjection(physical: PhysicalBodyProjection): OrganismLifecyclePhase {
+  if (physical.phase === 'booting') return 'booting';
+  if (physical.phase === 'arriving') return 'arrival';
+  const key = postureKeyForPhysicalProjection(physical);
+  switch (key) {
+    case 'think': return 'attentive';
+    case 'stream': return 'working';
+    case 'hold': return 'approval_hold';
+    case 'complete': return physical.motion === 'reabsorb' ? 'reabsorbing' : 'completion_settle';
+    case 'error': return 'error_repair';
+    case 'rest':
+    case 'unverified':
+    case 'stopped':
+    default: return 'rest';
+  }
+}
+
 /** Resolve the body posture for the current lifecycle phase. */
-export function deriveBodyPosture(input: { phase: OrganismLifecyclePhase }): BodyPosture {
+export function deriveBodyPosture(input: { phase: OrganismLifecyclePhase; physical?: PhysicalBodyProjection }): BodyPosture {
+  if (input.physical) return BODY_POSTURES[postureKeyForPhysicalProjection(input.physical)];
   return BODY_POSTURES[postureKeyForPhase(input.phase)];
 }
 

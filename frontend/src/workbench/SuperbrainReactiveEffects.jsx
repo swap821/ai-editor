@@ -46,7 +46,10 @@ import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
 import { derivePhysicalMaterialization } from '../livingMirror/being/physicalMaterialization';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
 import { updateLineGeometryPoints } from './lineGeometry';
-import { recordFrontendSceneDiagnostic } from '../livingMirror/observability/frontendMetrics';
+import {
+  createComposerFrameDrawCallSampler,
+  recordFrontendSceneDiagnostic,
+} from '../livingMirror/observability/frontendMetrics';
 
 const CLOUD_COLORS = {
   bedrock: new THREE.Color('#f5c542'),
@@ -104,6 +107,7 @@ const CORTEX_POSTURE_COLORS = {
   attention: '#7bf5fb',
   conduct: '#54f0a0',
   verify: '#54f0a0',
+  unverified: '#9e78f5',
   recover: '#ffb454',
   stopped: '#ff5f6d',
 };
@@ -118,6 +122,7 @@ const VERIFICATION_FIELD_COLORS = {
   pending: '#ffb454',
   pass: '#2fffa1',
   fail: '#ff5f6d',
+  unverified: '#9e78f5',
 };
 
 function anchorWorldPosition(i) {
@@ -203,15 +208,19 @@ function getStableRandom(seed) {
 }
 
 /**
- * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null }} [props]
+ * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null,
+ *   physicalOverride?: import('../livingMirror/being/physicalSnapshot').PhysicalSnapshot | null }} [props]
  */
-export default function SuperbrainReactiveEffects({ presentationOverride = null } = {}) {
+export default function SuperbrainReactiveEffects({ presentationOverride = null, physicalOverride = null } = {}) {
   const liveBeing = useBeingPresentation();
   // The override is a development/test inspection seam only. Production uses
   // the live presentation projection; the gallery never mutates a store or
   // claims that a fixture represents backend truth.
   const being = presentationOverride ?? liveBeing;
-  const physical = derivePhysicalSnapshot(being);
+  const physical = useMemo(
+    () => physicalOverride ?? derivePhysicalSnapshot(being),
+    [being, physicalOverride],
+  );
   const { tier } = useQualityTier();
   const { tabs, focusId, attention } = useTabStore();
   const orchestration = useMemo(
@@ -268,6 +277,8 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const spineFlashBeadRef = useRef(null);
   const spineFlashScratchRef = useRef(null);
   const sceneDiagnosticElapsedRef = useRef(0);
+  const rendererInfoRef = useRef(null);
+  const composerDrawCallSamplerRef = useRef(null);
   if (spineFlashScratchRef.current === null) {
     spineFlashScratchRef.current = {
       points: Array.from({ length: FLASH_POINT_COUNT }, () => new THREE.Vector3()),
@@ -284,6 +295,12 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const actionPresentationStoppedRef = useRef(actionPresentationStopped);
   const reducedMotionRef = useRef(reducedMotion);
   const coherenceSemanticsRef = useRef(coherenceSemantics);
+
+  useEffect(() => () => {
+    composerDrawCallSamplerRef.current?.dispose();
+    composerDrawCallSamplerRef.current = null;
+    rendererInfoRef.current = null;
+  }, []);
 
   useEffect(() => {
     actionPresentationStoppedRef.current = actionPresentationStopped;
@@ -414,7 +431,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   // not worker IDs or caste event names. Terminal states get a short visual
   // reabsorption window and cannot remain mounted forever.
   useEffect(() => {
-    const branches = derivePhysicalSnapshot(being).branches;
+    const branches = physical.branches;
     const now = performance.now();
     setMotes((prev) => {
       const next = {};
@@ -447,7 +464,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
       }
       return Object.fromEntries(Object.entries(next).slice(0, MAX_MOTES));
     });
-  }, [being]);
+  }, [physical]);
 
   // Expire transient effects on a coarse timer. Their visual movement is
   // handled by refs below; React only reconciles lifecycle changes, never each
@@ -491,29 +508,11 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const conductorLineWidth = tier === 'high' ? 1.8 : tier === 'medium' ? 1.35 : 1;
 
   useFrame((state, delta) => {
-    sceneDiagnosticElapsedRef.current += delta;
-    if (sceneDiagnosticElapsedRef.current >= 1) {
-      let sceneObjects = 0;
-      state?.scene?.traverse?.(() => {
-        sceneObjects += 1;
-      });
-      const info = state?.gl?.info;
-      const workerMoteCount = Object.keys(motesRef.current).length;
-      const lightningCount = lightnings.length;
-      const materializationSurfaceCount = physicalSurfaces.length;
-      const workerBranchCount = physical.branches.length;
-      recordFrontendSceneDiagnostic({
-        sceneObjects,
-        renderCalls: info?.render?.calls ?? 0,
-        geometries: info?.memory?.geometries ?? 0,
-        textures: info?.memory?.textures ?? 0,
-        transientPoolSize: workerMoteCount + lightningCount + (spineFlash.intensity > 0.01 ? 1 : 0) + (aurora.intensity > 0.01 ? 1 : 0),
-        workerBranchCount,
-        workerMoteCount,
-        materializationSurfaceCount,
-        lightningCount,
-      });
-      sceneDiagnosticElapsedRef.current = 0;
+    const info = state?.gl?.info ?? null;
+    if (info !== rendererInfoRef.current) {
+      composerDrawCallSamplerRef.current?.dispose();
+      rendererInfoRef.current = info ?? null;
+      composerDrawCallSamplerRef.current = createComposerFrameDrawCallSampler(info);
     }
     if (actionPresentationStopped || reducedMotionRef.current) {
       semanticPulseRef.current = 0;
@@ -612,6 +611,37 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
     }
   });
 
+  // EffectComposer takes render priority 1 and performs multiple WebGL draws.
+  // Sample at priority 2 so this frame's aggregate is captured after its final
+  // pass; renderer.info is reset once here, not once per internal pass.
+  useFrame((state, delta) => {
+    const drawCalls = composerDrawCallSamplerRef.current?.capture() ?? null;
+    sceneDiagnosticElapsedRef.current += delta;
+    if (sceneDiagnosticElapsedRef.current < 1) return;
+
+    let sceneObjects = 0;
+    state?.scene?.traverse?.(() => {
+      sceneObjects += 1;
+    });
+    const info = state?.gl?.info;
+    const workerMoteCount = Object.keys(motesRef.current).length;
+    const lightningCount = lightnings.length;
+    const materializationSurfaceCount = physicalSurfaces.length;
+    const workerBranchCount = physical.branches.length;
+    recordFrontendSceneDiagnostic({
+      sceneObjects,
+      drawCalls,
+      geometries: info?.memory?.geometries ?? null,
+      textures: info?.memory?.textures ?? null,
+      transientPoolSize: workerMoteCount + lightningCount + (spineFlash.intensity > 0.01 ? 1 : 0) + (aurora.intensity > 0.01 ? 1 : 0),
+      workerBranchCount,
+      workerMoteCount,
+      materializationSurfaceCount,
+      lightningCount,
+    });
+    sceneDiagnosticElapsedRef.current = 0;
+  }, 2);
+
   // Keep a ref in sync so useFrame can guard against empty-object churn.
   useEffect(() => {
     motesRef.current = motes;
@@ -683,8 +713,8 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const auroraColor = VERDICT_COLORS[aurora.verdict] || VERDICT_COLORS.pass;
   const verificationState = physical.verification.state;
   const verificationFieldColor = VERIFICATION_FIELD_COLORS[verificationState] ?? '#ffb454';
-  const verificationFieldScale = verificationState === 'pass' ? 1.05 : verificationState === 'fail' ? 0.78 : 0.9;
-  const verificationFieldOpacity = verificationState === 'pass' ? 0.4 : verificationState === 'fail' ? 0.32 : 0.26;
+  const verificationFieldScale = verificationState === 'pass' ? 1.05 : verificationState === 'fail' ? 0.78 : verificationState === 'unverified' ? 0.82 : 0.9;
+  const verificationFieldOpacity = verificationState === 'pass' ? 0.4 : verificationState === 'fail' ? 0.32 : verificationState === 'unverified' ? 0.16 : 0.26;
   const membraneColors = {
     held: '#ffb454',
     refused: '#ff8c69',

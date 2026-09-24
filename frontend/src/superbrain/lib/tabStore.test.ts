@@ -143,6 +143,58 @@ describe('tabStore', () => {
     expect(getMaterializedTabByKind('content')?.phaseStartedAt).toBe(40);
   });
 
+  it('revives the same content surface when new output arrives during retraction', () => {
+    const original = showContentSurface({ code: 'old result', language: 'python', filepath: 'a.py' }, { seatIndex: 2 });
+    setMaterializedTabLifecycle(original.id, 'live', 25);
+    beginRetractingMaterializedTab(original.id, 40);
+
+    const revived = showContentSurface({ code: 'new result', language: 'python', filepath: 'a.py' });
+
+    expect(revived).toMatchObject({
+      id: original.id,
+      lifecycle: 'reaching',
+      seatIndex: 2,
+      content: { code: 'new result', filepath: 'a.py' },
+    });
+    expect(revived.phaseStartedAt).toBeGreaterThan(40);
+    expect(getTabStoreSnapshot().focusId).toBe(original.id);
+  });
+
+  it('revives a renewed approval request instead of letting its old retraction hide it', () => {
+    const original = showApprovalSurface({
+      requestRef: 'request-1',
+      summary: 'Original approval',
+      explanation: 'Original explanation',
+      diff: '+old',
+      command: 'write old',
+      kindLabel: 'write',
+      filepath: 'a.py',
+      content: 'old',
+    }, { seatIndex: 2 });
+    setMaterializedTabLifecycle(original.id, 'live', 25);
+    beginRetractingMaterializedTab(original.id, 40);
+
+    const revived = showApprovalSurface({
+      requestRef: 'request-2',
+      summary: 'Renewed approval',
+      explanation: 'Renewed explanation',
+      diff: '+new',
+      command: 'write new',
+      kindLabel: 'write',
+      filepath: 'a.py',
+      content: 'new',
+    });
+
+    expect(revived).toMatchObject({
+      id: original.id,
+      lifecycle: 'reaching',
+      seatIndex: 2,
+      approval: { requestRef: 'request-2', summary: 'Renewed approval', content: 'new' },
+    });
+    expect(revived.phaseStartedAt).toBeGreaterThan(40);
+    expect(getTabStoreSnapshot().focusId).toBe(original.id);
+  });
+
   it('clears only the requested tab', () => {
     const first = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' });
     const tab = showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' });

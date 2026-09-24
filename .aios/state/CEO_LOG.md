@@ -836,3 +836,66 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **What is not proven.** This developer-tooling ticket changes no visual surface. No operator visual judgment, real Android/iPhone model, or mobile/device performance is claimed. Target OS is Android 17 / iOS 27; physical models remain TBD. Do not publish an overall percentage until LB-02 fixes the weighted acceptance denominator.
 - **Highest-leverage next.** Commit and request hash-pinned independent review of LB-01. Once approved and the builder lease is available, continue to LB-02: current import/evidence and device-profile map plus frozen acceptance weights.
 - **Risk to watch.** A passing source mirror proves reproducibility and hash equality, not that the scene is alive, polished, or production-ready. Keep visual acceptance and device evidence pending until measured.
+## 2026-09-24 — CEO note (LB-05 canonical body truth)
+
+- **Shipped locally:** the official frontend now derives one memoized physical snapshot from the existing `BeingPresentation` and shares it with the 3D body and reactive effects. Completion is green only with explicit verifier `pass`; an unverified reply remains visibly distinct. Per-tab materialization behavior was left intact.
+- **Evidence:** focused regressions 7 files / 66 tests; full frontend 175 files / 959 tests; typecheck, production build, and 193-file source-port check passed. Changed-file lint had no errors and three warnings.
+- **Honest limit:** no current screenshot, operator visual approval, human session, or phone run. Android 17/iOS 27 are only OS targets; handset models remain TBD. Accepted goal score stays 3/100, and LB-04 art direction still needs review at `:5173`.
+- **Highest-leverage next move:** operator reviews LB-04 and LB-05 truth states at `:5173`; record accept/revise before broad redesign or LB-06.
+- **Risk to watch:** automated truth convergence does not prove the visual signal reads correctly or performs smoothly on real desktop/mobile hardware. Do not convert the 959-test result into visual or device acceptance.
+
+## 2026-09-24 — CEO note (LB-06 identity slice + portable mirror)
+
+- **Implemented locally:** workspace seats no longer collide on close/reopen, animated reabsorption or capacity overflow; the reabsorption tie-break no longer depends on tab arrival order.
+- **Source recovery:** fresh-worktree restore exposed mixed line endings in the byte-hash manifest. Migrated all 193 verified entries to v2 hashes that normalize only CRLF/LF; actual content drift remains a hard refusal.
+- **Evidence:** 4 new regressions were observed failing first; then full frontend 175 files / 963 tests, port 15/15, typecheck, build (4,316 modules), targeted ESLint and `port:check` passed.
+- **Honest limit:** LB-06 is partial; no keyboard/touch journey, operator visual review or independent review is claimed. Overall accepted completion remains 3/100; Android/iPhone models and desktop hardware are still TBD.
+- **Next:** operator review of LB-04/LB-05 at `:5173`; no broad visual redesign before that review.
+
+## 2026-09-24 — CEO note (LB-06 focus continuity)
+
+- **Implemented locally:** workspace launchers now preserve the initiating control, and dismissing a workspace selected from the rail restores to the stable Conversation control instead of a stale launcher. The MirrorConnectionNotice passes its real authority button through the focus path.
+- **Evidence:** the regression failed before the fix and passes after; livingMirror 42 files / 177 tests and full frontend 176 files / 964 tests passed. Typecheck, production build (4,316 modules), targeted ESLint and 193-file `port:check` passed.
+- **Honest limit:** this is one automated focus-return slice, not full keyboard/touch, assistive-technology, mobile, visual or human acceptance. No acceptance points added; accepted completion remains 3/100. Android 17 and iOS 27 are target OS versions, handset models TBD.
+- **Process correction:** the rail trigger is removed as the selected workspace closes; focusing it before React commits the removal leaves focus on the document body. Keep the safe Conversation fallback and test surviving focus targets, not transient DOM assumptions.
+- **Next:** commit this branch-local slice and evidence, then request a hash-pinned independent review; operator visual review remains open.
+
+## 2026-09-24 — CEO addendum (store-owned workspace closure)
+
+- **Implemented locally:** focus now returns to the saved, surviving workspace launcher if an embedded child or another store owner closes the active surface. Explicitly selecting Conversation makes Conversation the target, avoiding a stale launcher winning after React commits.
+- **Evidence:** the new store-close regression failed before the fix; focused continuity is 3/3, focus + narrow-layout is 2 files / 11 tests, full frontend is 176 files / 966 tests, TypeScript, production build, changed-file ESLint, and 193-file `port:check` pass. The fresh worktree's absent ignored authoring lab was restored by the guarded restore operation from accepted mirror bytes.
+- **Honest limit:** no physical touch/keyboard journey, device or human acceptance; no product 3D or visual change. No completion points added; accepted score remains 3/100. `npm ci` surfaced two moderate advisories; dependencies were left unchanged.
+- **Checkpoint:** source fix and evidence committed locally as `7bb85ddb` on `codex/gagos-living-being-execution`; not pushed or merged. Next is a hash-pinned read-only review; LB-04 art review is still an operator gate.
+
+## 2026-09-24 — CEO addendum (renewed work interrupts retraction)
+
+- **Implemented locally:** a same-path content update or renewed approval arriving during animated retraction now revives the existing surface at `reaching` with a fresh phase timestamp; ID and occupied seat remain stable.
+- **Evidence:** both test-first regressions failed before the fix; focused store/orchestration/conductor set 5 files / 36 tests, full frontend 176 files / 968 tests, TypeScript, build (4,316 modules), 15/15 port tests, 193-file no-drift check, CSS palette and protected-texture guards passed. Lint had zero errors and one pre-existing unused-variable warning.
+- **Checkpoint:** `f0d97ca7` on `codex/gagos-living-being-lb06-revival`, local only. Accepted completion remains 3/100; no browser/device/visual/human points are claimed.
+- **Operational note:** the new worktree did not include node_modules, so its first guarded restore could not resolve TypeScript and stopped without changes. `npm ci` followed by guarded restore resolved this; two moderate audit advisories were reported and no dependency was changed.
+- **Next:** hash-pin this committed tree for independent review. Preserve the separate earlier focus branch's pending review.
+
+## 2026-09-24 — CEO note (keyboard-safe composer slice)
+
+- **Shipped locally:** the official mobile composer now follows the VisualViewport only while a text-entry control inside chat is focused. The offset is measured from the app's actual bounds, cleaned up on blur/unmount, and ignores pinch zoom and non-text focus. Short visible heights contract the status reserve instead of assuming a portrait-sized keyboard area.
+- **The useful regression:** a short-landscape test reproduced an app-root minimum-height mismatch (210px computed versus 340px required); root-bound measurement corrected it. Focused app tests passed 7/7; full frontend passed 175 files / 962 tests; typecheck, 4,317-module build, and 14 port-tool tests passed. Lint had zero errors and 123 warnings. `port:check` could not compare because this worktree lacks the ignored authoring-lab `QualityTierProvider.tsx`.
+- **Honest limit:** this is jsdom/source evidence, not a real mobile keyboard or safe-area run. Physical Android 17 and iOS 27 models remain TBD, so UX-04 remains blocked at 0/5 and accepted completion remains 3/100. Committed locally as `8b71d7c7`; not pushed or opened as a PR.
+- **Highest-leverage next move:** operator reviews the local branch diff, then identifies available phone models before the physical UX-04 matrix.
+- **Risk to watch:** a green viewport unit test cannot reproduce browser-specific keyboard resize/pan policy; don't credit phone acceptance until both actual platforms and their composer/decision controls are observed.
+
+## 2026-09-24 — CEO note (canonical materialized focus fallback)
+
+- **Implemented locally:** the tab-store focus helper now agrees with the canonical conductor: it returns null while an open DOM workspace owns attention, ignores the transient intake as a workspace, and follows conductor seat order when focus is otherwise unset.
+- **Regression proof:** three assertions failed against the previous fallback and pass with the change. Focused group **4 files / 40 tests**; combined full frontend **176 files / 973 tests**; TypeScript, 4,317-module build, port tests **15/15**, `port:check` **193/no drift**, palette/texture guards and changed-file lint passed. Full lint: **0 errors / 123 warnings**.
+- **Combined branch:** includes the separate, committed keyboard-aware composer slice; its earlier 14-port-test evidence remains historical, while the combined branch now passes 15 port tests and the 193-file source check.
+- **Honest limit:** no live browser, physical keyboard/touch, device, assistive-technology or visual/human acceptance. Android 17 and iOS 27 are OS targets; phone models remain TBD. No points added; accepted completion remains **3/100**.
+- **Committed locally:** combined branch merge commit `62ef2629de70196309f0b9f47d61182a377934ff` on `codex/gagos-living-being-continuation-20260924`; not pushed.
+- **Next:** hash-pin this clean commit for independent review. Do not push, open a PR, or merge into master without a separate request.
+
+## 2026-09-24 — CEO checkpoint (LB-01 recovery + continuation integration)
+
+- **Integrated on the separate massive-goal worktree:** the LB-01 clean-source restore branch based on master #365 now carries the reviewed keyboard, focus, identity, and semantic-body continuation. The earlier source-review and continuation worktrees remain untouched.
+- **Conflict resolution:** unified v1 exact-byte and v2 CRLF/LF-normalized manifest handling with strict path, case-collision, Windows-reserved-name, file/directory-collision, and symlink/junction checks. Kept both sides' append-only CEO/experience/mistake records after verifying their common base prefixes.
+- **Evidence on the combined tree:** `test:port` **16/16**; guarded restore **193 files**, `port:check` **193 / no drift**, idempotent restore **0 restored / 193 unchanged**; full frontend **176 files / 973 tests**; typecheck and production build (**4,317 modules**) passed; lint **0 errors / 123 warnings**; CSS and protected-texture guards passed.
+- **Honest limit:** this is source and automated integration evidence. No new moving-visual review, human session, physical Android/iPhone run, or named desktop-class acceptance. Android 17/iOS 27 are targets; handset models are user-confirmed TBD. Accepted score remains **3/100** under the frozen ledger.
+- **Next:** record the resolved integration as a local commit on the isolated branch, then continue only on dependency-ready LB tickets. Keep push/PR/master landing separate from this goal checkpoint.

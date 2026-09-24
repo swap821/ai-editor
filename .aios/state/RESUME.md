@@ -1,42 +1,17 @@
 # AI-OS Builder Resume
 
-**Current goal:** Build the GAGOS frontend toward the user's 2030 living-being
-vision in bounded, evidence-gated tickets LB-01–LB-20, using the two attached
-blueprint/execution-pack documents as design context. Work is on the isolated
-branch `codex/gagos-living-being-lb01-source-restore`, based on master #365 at
-`1e29bae7`; the main checkout remains untouched.
+**Current goal:** Build the official GAGOS frontend toward the user's 2030 living-being vision in evidence-gated LB-01–LB-20 tickets. Desktop and mobile are equally important. The external GAG demo is visual reference/authoring lab; backend authority, palette, and protected textures remain authoritative.
 
-**Current ticket:** P0 LB-01 — make accepted, manifest-managed authoring source
-reproducible in a clean checkout without changing product bytes.
+**Worktree / branch:** C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-20260924 / codex/gagos-living-being-massive-20260924, isolated from the dirty main checkout and both hash-pinned review trees. Based on current origin/master #365 plus the LB-01 restore checkpoint.
 
-**Last completed + verified:** In a clean worktree with the ignored lab absent,
-added `npm run port:restore`. The real tracked 193-file manifest restored all
-193 files; `npm run port:check` then reported `files: 193, changed: []`; an
-idempotent rerun reported `restored: 0, unchanged: 193`. Port tests: 12/12;
-frontend tests: 175 files / 953 passed; typecheck and production build passed
-(4,316 modules); lint passed (0 errors, 123/124-warning ceiling); CSS palette,
-protected-texture, and diff checks passed. Product mirror and manifest remain
-unchanged. The scoped implementation/evidence is locally committed as
-`aedfac30`; independent hash-pinned review is still pending.
+**Current tickets:** LB-01 is integrated and automated-verified. LB-02's import/evidence map and fixed 100-point ledger are recorded but remain partial because no Android/iPhone handset or desktop-class target system is selected.
 
-**Single next action:** Hand off the current HEAD (including implementation
-commit `aedfac30`) for read-only, hash-pinned independent review; keep this tree
-unchanged until the verdict.
+**Last completed + verified:** Source restore regenerated 193 files; port:check reported 193/no drift; idempotent restore reported 0 restored / 193 unchanged. Port tests 16/16; full frontend 176 files / 973 tests; typecheck and production build (4,317 modules) passed; lint 0 errors / 123 warnings; palette and protected-texture guards passed. Append-only history conflicts were merged after confirming the shared base. This combined tree is not yet committed.
 
-**Open approvals / blockers:** No push or merge was authorized. Android 17 and
-iOS 27 are target OS versions; exact physical phone models are TBD. No operator
-visual sign-off, physical mobile validation, screen-reader validation, or
-overall goal percentage is claimed. Freeze the weighted acceptance denominator
-in LB-02 before publishing an overall completion percentage, as the blueprint
-requires.
+**Single next action:** Stage only the resolved integration files, check the staged diff, and create the requested local integration commit on this branch.
 
-**Active files:** `frontend/tools/sync-superbrain.mjs`,
-`frontend/tools/sync-superbrain.test.mjs`, `frontend/package.json`,
-`docs/frontend/LIVING_MIRROR_RENOVATION.md`,
-`docs/frontend/GAGOS_2030_IMPLEMENTATION.md`, `.aios/state/CEO_LOG.md`,
-`.aios/state/RESUME.md`, `.aios/memory/experiences.jsonl`.
+**Open approvals / blockers:** No new visual or human acceptance. Android 17/iOS 27 are target OS versions; exact physical models are TBD. The Dell G15 is only an inventory/lab profile; active GPU and desktop-class acceptance remain unverified. Frozen accepted score is 3/100 (INT-01 only); do not equate implementation/test volume with completion. No push, PR, or master landing in this checkpoint.
 
-**Notes not yet promoted:** This is a source-reproducibility ticket, not a
-visual pass. Do not use source/tooling tests as evidence that the being looks or
-feels alive. Next after review: LB-02 import/evidence and device/browser map,
-including named hardware where available and a fixed weighted acceptance list.
+**Active files:** resolved frontend/tools/sync-superbrain.mjs and sync-superbrain.test.mjs, docs/frontend/LIVING_MIRROR_RENOVATION.md, docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md, acceptance ledger, .aios/state/RESUME.md, .aios/state/CEO_LOG.md, and append-only memory logs.
+
+**Notes not yet promoted:** v1 manifests use exact-byte hashes; v2 normalizes CRLF to LF only. All 16 port tests and combined frontend checks now pass. Browser visual quality, actual mobile behavior, user comprehension, device performance, and human acceptance remain unproven.

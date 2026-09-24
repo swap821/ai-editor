@@ -40,7 +40,7 @@ import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
-import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
+import { deriveBodyPosture, lifecyclePhaseForPhysicalProjection, postureColor01, POSTURE_DIAL, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { intakeNerveDrive } from '@/lib/intakeNerveDrive';
 import { getConversationPhase, getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
@@ -104,6 +104,8 @@ export type BrainSurface = 'web' | 'organ';
 export interface SuperbrainSceneProps {
   mode: CognitiveMode;
   activity: number;
+  /** Single product-derived semantic snapshot; optional only for standalone lab previews. */
+  physical?: PhysicalBodyProjection;
   /** Effective quality tier — governs particle counts, shells, and the
    *  cortex shader's octave/animation budget. */
   tier?: QualityTier;
@@ -706,6 +708,7 @@ export function BrainModel({
   tier = 'high',
   surface = 'web',
   arrival,
+  physical,
 }: {
   activity: number;
   mode: CognitiveMode;
@@ -713,6 +716,7 @@ export function BrainModel({
   uniforms: CognitionUniforms;
   tier?: QualityTier;
   surface?: BrainSurface;
+  physical?: PhysicalBodyProjection;
   /** Shared coalescence scalar (1 = arriving, 0 = settled) for the aura shells. */
   arrival: MutableRefObject<number>;
 }) {
@@ -981,7 +985,8 @@ export function BrainModel({
           // materialized work surface), so this MUST read the same conversation-
           // priority override the body posture uses below — otherwise the nerve
           // never blazes for a chat turn and never resolves afterward either.
-          const nerveDrive = intakeNerveDrive(getEffectiveOrganismPhase());
+          const nervePhase = physical ? lifecyclePhaseForPhysicalProjection(physical) : getEffectiveOrganismPhase();
+          const nerveDrive = intakeNerveDrive(nervePhase);
           setFunnelAnchor({
             x: (FUNNEL_SCRATCH.x * 0.5 + 0.5) * state.size.width,
             y: (1 - (FUNNEL_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
@@ -1070,6 +1075,7 @@ export function BrainModel({
             kind="brain"
             source={brainAsset.object}
             uniforms={uniforms}
+            physical={physical}
             count={tier === 'high' ? 200000 : tier === 'medium' ? 60000 : 40000}
             spineScale={1 / BRAIN_SCALE}
             spineCount={tier === 'high' ? 56000 : tier === 'medium' ? 18000 : 11000}
@@ -1609,7 +1615,7 @@ function AutoOrbitMark({ reducedMotion }: { reducedMotion: boolean }) {
   );
 }
 
-export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web' }: SuperbrainSceneProps) {
+export default function SuperbrainScene({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web', physical }: SuperbrainSceneProps) {
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
@@ -1916,7 +1922,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     // REST EXHALE (#wow signature 5): on LANDING back to rest (from completion /
     // reabsorbing), the being lets out one slow breath — a brief exhale DIP then settle,
     // instead of snapping straight into idle breathing. Reduced motion: no dip.
-    const atRest = getOrganismPhase() === 'rest';
+    const atRest = physical ? physical.cortex.posture === 'rest' : getOrganismPhase() === 'rest';
     if (atRest && !wasRestRef.current) restLandedAtRef.current = time;
     wasRestRef.current = atRest;
     const sinceRest = restLandedAtRef.current >= 0 ? time - restLandedAtRef.current : 999;
@@ -1965,8 +1971,8 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     // An active CHAT turn (GagosChrome) drives the conversation posture with
     // PRIORITY so the being visibly comes alive — thinking purple → streaming
     // cyan → complete green — then falls back to the idle organism phase.
-    const livePhase = getEffectiveOrganismPhase();
-    const bodyPosture = deriveBodyPosture({ phase: livePhase });
+    const livePhase = physical ? lifecyclePhaseForPhysicalProjection(physical) : getEffectiveOrganismPhase();
+    const bodyPosture = deriveBodyPosture({ phase: livePhase, physical });
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
     uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
@@ -2129,7 +2135,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} />
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
           <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />

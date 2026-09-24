@@ -14,14 +14,14 @@ import type {
   WorkerPresentationState,
 } from './semanticKernel';
 
-export type PhysicalCortexPosture = 'rest' | 'arrive' | 'attention' | 'conduct' | 'verify' | 'recover' | 'stopped';
+export type PhysicalCortexPosture = 'rest' | 'arrive' | 'attention' | 'conduct' | 'verify' | 'unverified' | 'recover' | 'stopped';
 export type PhysicalConductorPosture = 'idle' | 'active' | 'held' | 'verifying' | 'reabsorbing' | 'stopped';
 export type PhysicalConductorTravel = 'none' | 'inbound' | 'outbound' | 'held' | 'retracting' | 'frozen';
 export type PhysicalMembraneState = 'clear' | 'held' | 'refused' | 'stopped';
 export type PhysicalActionTravel = 'open' | 'closed';
 export type PhysicalMemoryLayer = 'none' | 'recalled' | 'promoted' | 'reflex';
 export type PhysicalMemoryPulse = 'none' | 'inward' | 'settle' | 'conduct';
-export type PhysicalVerificationState = 'none' | 'pending' | 'pass' | 'fail';
+export type PhysicalVerificationState = 'none' | 'pending' | 'pass' | 'fail' | 'unverified';
 export type PhysicalVerificationSettlement = 'unsettled' | 'stable';
 
 export interface PhysicalBranch {
@@ -67,13 +67,18 @@ export interface PhysicalSnapshot {
 
 const MAX_BRANCHES = 8;
 
-function cortexPosture(phase: BeingPhase): PhysicalCortexPosture {
+function cortexPosture(presentation: BeingPresentation): PhysicalCortexPosture {
+  const { phase, taskState, coherence } = presentation;
+  if (phase === 'stopped' || coherence === 'stopped') return 'stopped';
+  if (phase === 'recovering' || phase === 'stale' || phase === 'degraded') return 'recover';
+  if (phase === 'awaiting-human') return 'attention';
+  if (taskState === 'done-unverified' && phase === 'resting') return 'unverified';
+
   switch (phase) {
     case 'arriving': return 'arrive';
     case 'listening':
     case 'understanding':
     case 'planning':
-    case 'awaiting-human':
     case 'learning':
       return 'attention';
     case 'acting':
@@ -81,12 +86,6 @@ function cortexPosture(phase: BeingPhase): PhysicalCortexPosture {
       return 'conduct';
     case 'verifying':
       return 'verify';
-    case 'recovering':
-    case 'stale':
-    case 'degraded':
-      return 'recover';
-    case 'stopped':
-      return 'stopped';
     default:
       return 'rest';
   }
@@ -205,6 +204,9 @@ function verificationFor(presentation: BeingPresentation): PhysicalSnapshot['ver
   if (presentation.phase === 'verifying') {
     return { state: 'pending', settlement: 'unsettled' };
   }
+  if (presentation.taskState === 'done-unverified') {
+    return { state: 'unverified', settlement: 'unsettled' };
+  }
   return { state: 'none', settlement: 'unsettled' };
 }
 
@@ -237,7 +239,7 @@ export function derivePhysicalSnapshot(presentation: BeingPresentation): Physica
     signals: [...presentation.signals],
     coherencePhysics: coherenceSemanticsFor(presentation.coherence),
     cortex: {
-      posture: cortexPosture(presentation.phase),
+      posture: cortexPosture(presentation),
       attention: attentionLevel(presentation.attention),
       activity: activityLevel(presentation.phase),
       convergence: convergenceLevel(presentation.phase),

@@ -5,7 +5,7 @@ import { startMirrorClient, stopMirrorClient } from '../superbrain/lib/aiosMirro
 
 type MirrorConnectionNoticeProps = {
   experienceMode?: ExperienceMode;
-  onOpenAuthority?: () => void;
+  onOpenAuthority?: (trigger: HTMLButtonElement) => void;
 };
 
 export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority }: MirrorConnectionNoticeProps) {
@@ -31,7 +31,7 @@ export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuth
       {mirror.compatibility ? <span>{mirror.compatibility}</span> : null}
       {copy.canRetry ? <button type="button" onClick={retry}>Try again</button> : null}
       {mirror.approvalRequired && onOpenAuthority && experienceMode === 'expert' ? (
-        <button type="button" onClick={onOpenAuthority}>Pending authority needs review</button>
+        <button type="button" onClick={(event) => onOpenAuthority(event.currentTarget)}>Pending authority needs review</button>
       ) : null}
     </div>
   );

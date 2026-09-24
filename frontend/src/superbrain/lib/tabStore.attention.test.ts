@@ -1,5 +1,19 @@
 import { beforeEach, expect, it } from 'vitest';
-import { __resetTabStoreForTests, closeWorkspace, focusWorkspace, getTabStoreSnapshot, openWorkspacePanel, pinWorkspace, showContentSurface } from './tabStore';
+import {
+  __resetTabStoreForTests,
+  beginRetractingMaterializedTab,
+  closeWorkspace,
+  focusWorkspace,
+  focusNextMaterializedTab,
+  focusPreviousMaterializedTab,
+  getFocusedMaterializedTab,
+  getOccupiedVertebraSeats,
+  getTabStoreSnapshot,
+  openWorkspacePanel,
+  pinWorkspace,
+  showContentSurface,
+  upsertInputSurface,
+} from './tabStore';
 import { useMirrorStore } from './mirrorStore';
 beforeEach(() => __resetTabStoreForTests());
 it('background output and a second surface preserve the operator-selected workspace', () => {
@@ -21,4 +35,59 @@ it('a materialized artifact cannot steal focus from an inspection panel', () => 
   openWorkspacePanel('missions', 'Missions');
   showContentSurface({ filepath: 'b.py', code: 'background', language: 'python' });
   expect(getTabStoreSnapshot().focusId).toBe('missions');
+  expect(getFocusedMaterializedTab()).toBeNull();
+});
+
+it('reopens an existing workspace on a free seat without changing its identity or draft', () => {
+  openWorkspacePanel('file:a.py', 'a.py', 'file', { path: 'a.py', content: 'draft' });
+  const original = getTabStoreSnapshot().panels![0];
+  closeWorkspace(original.id);
+  openWorkspacePanel('terminal', 'Terminal');
+  openWorkspacePanel(original.id, 'a.py', 'file', { path: 'a.py', content: 'new server text' });
+
+  const panels = getTabStoreSnapshot().panels!;
+  const reopened = panels.find((panel) => panel.id === original.id)!;
+  const openSeats = panels.filter((panel) => panel.open).map((panel) => panel.seatIndex);
+  expect(reopened).toMatchObject({ id: original.id, seatIndex: 3, open: true, file: { content: 'draft' } });
+  expect(new Set(openSeats).size).toBe(openSeats.length);
+});
+
+it('keeps a retracting surface seat reserved until that surface is cleared', () => {
+  const retiring = showContentSurface({ filepath: 'done.py', code: 'done', language: 'python' }, { seatIndex: 2 });
+  beginRetractingMaterializedTab(retiring.id);
+  openWorkspacePanel('terminal', 'Terminal');
+
+  expect(getOccupiedVertebraSeats()).toEqual([2, 3]);
+});
+
+it('does not alias a thirteenth open workspace onto an occupied seat', () => {
+  for (let index = 0; index < 12; index += 1) openWorkspacePanel(`panel-${index}`, `Panel ${index}`);
+  const before = getTabStoreSnapshot().panels!.map((panel) => panel.seatIndex);
+
+  openWorkspacePanel('overflow', 'Overflow');
+
+  const panels = getTabStoreSnapshot().panels!;
+  expect(panels).toHaveLength(12);
+  expect(panels.some((panel) => panel.id === 'overflow')).toBe(false);
+  expect(new Set(before).size).toBe(12);
+});
+
+it('does not treat transient intake as a focused workspace when no work surface exists', () => {
+  upsertInputSurface('Build the living workspace');
+
+  expect(getFocusedMaterializedTab()).toBeNull();
+  expect(focusNextMaterializedTab()).toBeNull();
+  expect(focusPreviousMaterializedTab()).toBeNull();
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+});
+
+it('uses the conductor seat order when resolving focus without an explicit selection', () => {
+  upsertInputSurface('Build the living workspace');
+  const first = showContentSurface({ filepath: 'first.py', code: 'first', language: 'python' }, { seatIndex: 2 });
+  const last = showContentSurface({ filepath: 'last.py', code: 'last', language: 'python' }, { seatIndex: 4 });
+  focusWorkspace(null);
+
+  expect(getFocusedMaterializedTab()?.id).toBe(last.id);
+  expect(focusNextMaterializedTab()?.id).toBe(first.id);
+  expect(focusPreviousMaterializedTab()?.id).toBe(last.id);
 });

@@ -9,6 +9,7 @@ import { samplePointField, type PointFieldSource, type PointFieldData } from '@/
 import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePointField';
 import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
+import { lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
@@ -81,6 +82,7 @@ export default function BrainPointField({
   baseSize = 2.0, // RTX-tuned crisp: smaller points resolve the dense cortex (folds + node lattice show; no white haze)
   spineScale = 1,
   spineCount = 0,
+  physical,
 }: {
   /** processed brain clone (region-colored) — required for kind='brain'. */
   source?: THREE.Object3D;
@@ -93,6 +95,8 @@ export default function BrainPointField({
   spineScale?: number;
   /** if >0 and kind='brain', fuse a spine cloud into the SAME geometry (rigid join). */
   spineCount?: number;
+  /** Product-derived truth posture; raw buses remain only a standalone-preview fallback. */
+  physical?: PhysicalBodyProjection;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   // HESITATION (B3): the bus event arrives off the render clock, so it is
@@ -241,7 +245,9 @@ export default function BrainPointField({
     // with priority over the idle organism phase.
     const organismPhase = getOrganismPhase();
     const convPhase = getConversationPhase();
-    const phase = conversationToOrganismPhase(convPhase) ?? organismPhase;
+    const phase = physical
+      ? lifecyclePhaseForPhysicalProjection(physical)
+      : conversationToOrganismPhase(convPhase) ?? organismPhase;
     const t = lifecycleTargets(phase);
     // A pure CHAT reply streams with conversation phase 'streaming' (work-intent
     // turns deliberately set conversation to 'idle' so the lifecycle drives the
@@ -253,8 +259,9 @@ export default function BrainPointField({
     // lifecycle phase only — NEVER on a conversation reply. Previously a chat reply
     // mapped 'streaming'->'working' and wrongly dimmed the being mid-speech, the
     // opposite of the poster law (the cortex BRIGHTENS as it speaks, it never fades).
-    const realWork =
-      organismPhase === 'working' || organismPhase === 'conducting' || organismPhase === 'materializing';
+    const realWork = physical
+      ? physical.cortex.posture === 'conduct' && !replyStreaming
+      : organismPhase === 'working' || organismPhase === 'conducting' || organismPhase === 'materializing';
     // WORK-ONSET CASCADE (#wow): entering work is a SEQUENCE, not a simultaneous
     // cross-dissolve — the spine articulates its vertebrae FIRST (fast), the nerves
     // begin carrying state ~150ms behind, and the body dims LAST (~250ms behind, slow)

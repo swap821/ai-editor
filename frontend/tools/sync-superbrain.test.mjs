@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { syncSuperbrain } from './sync-superbrain.mjs';
@@ -135,6 +136,8 @@ test('invalid manifest paths and digests block restore before any destination is
   for (const [path, digest, expected] of [
     ['../../outside.ts', 'a'.repeat(64), /Invalid managed path/],
     ['sub/./value.ts', 'a'.repeat(64), /Invalid managed path/],
+    ['sub/CON.ts', 'a'.repeat(64), /Invalid managed path/],
+    ['sub/trailing .ts ', 'a'.repeat(64), /Invalid managed path/],
     ['value.ts', 'not-a-sha256', /Invalid SHA-256 digest/],
   ]) {
     const f = fixture();
@@ -190,4 +193,93 @@ test('restore rejects symlink and junctions in every existing lab destination pr
     assert.throws(() => syncSuperbrain(f.root, 'restore'), /symlink or junction/);
     assert.equal(readFileSync(marker, 'utf8'), 'outside bytes stay untouched');
   }
+});
+
+test('restore accepts Git CRLF/LF checkout conversion for version 2 but still rejects source drift', () => {
+  const f = fixture();
+  writeFileSync(join(f.product, 'index.ts'), "import './value';\nexport const live = true;\n");
+  writeFileSync(join(f.product, 'value.ts'), 'export const value = 1;\n');
+  syncSuperbrain(f.root, 'bootstrap');
+  rmSync(join(f.root, 'GAG demo'), { recursive: true, force: true });
+
+  const checkedOutBytes = new Map(['index.ts', 'value.ts'].map((path) => {
+    const source = readFileSync(join(f.product, path), 'utf8');
+    const converted = Buffer.from(source.replace(/\n/g, '\r\n'));
+    writeFileSync(join(f.product, path), converted);
+    return [path, converted];
+  }));
+
+  const restored = syncSuperbrain(f.root, 'restore');
+  assert.deepEqual(restored.restored, ['index.ts', 'value.ts']);
+  for (const [path, bytes] of checkedOutBytes) assert.deepEqual(readFileSync(join(f.lab, path)), bytes);
+  assert.deepEqual(syncSuperbrain(f.root, 'check').changed, []);
+
+  writeFileSync(join(f.product, 'value.ts'), 'export const value = 2;\r\n');
+  assert.throws(() => syncSuperbrain(f.root, 'restore'), /Product drift/);
+});
+
+test('version 1 exact-byte manifests remain readable and are not newline-normalized', () => {
+  const f = fixture();
+  syncSuperbrain(f.root, 'bootstrap');
+  const manifestPath = join(f.root, 'frontend/superbrain-source.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.version = 1;
+  for (const path of Object.keys(manifest.files)) {
+    manifest.files[path] = createHash('sha256').update(readFileSync(join(f.product, path))).digest('hex');
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+  rmSync(join(f.root, 'GAG demo'), { recursive: true, force: true });
+
+  assert.deepEqual(syncSuperbrain(f.root, 'restore').restored, ['index.ts', 'value.ts']);
+  assert.deepEqual(syncSuperbrain(f.root, 'check').changed, []);
+  writeFileSync(join(f.product, 'value.ts'), 'export const value = 1;\n');
+  assert.throws(() => syncSuperbrain(f.root, 'restore'), /Product drift/);
+});
+
+test('restore rejects an escaping symlink in a manifest-owned nested destination path', (t) => {
+  const f = fixture();
+  mkdirSync(join(f.product, 'nested'));
+  writeFileSync(join(f.product, 'nested/extra.ts'), 'export const nested = true;');
+  syncSuperbrain(f.root, 'bootstrap');
+  rmSync(join(f.root, 'GAG demo'), { recursive: true, force: true });
+  mkdirSync(f.lab, { recursive: true });
+  const outside = join(f.root, 'outside-nested');
+  mkdirSync(outside);
+  try {
+    symlinkSync(outside, join(f.lab, 'nested'), 'junction');
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) {
+      t.skip('directory symlinks are unavailable: ' + error.code);
+      return;
+    }
+    throw error;
+  }
+
+  assert.throws(() => syncSuperbrain(f.root, 'restore'), /symlink or junction/);
+  assert.deepEqual(readdirSync(outside), []);
+});
+
+test('restore refuses a final-destination junction without changing its outside target', (t) => {
+  const f = fixture();
+  syncSuperbrain(f.root, 'bootstrap');
+  rmSync(join(f.root, 'GAG demo'), { recursive: true, force: true });
+  mkdirSync(f.lab, { recursive: true });
+  const outsideDirectory = join(f.root, 'outside-directory');
+  mkdirSync(outsideDirectory);
+  const outside = join(outsideDirectory, 'outside.ts');
+  const original = Buffer.from('outside data');
+  writeFileSync(outside, original);
+  try {
+    symlinkSync(outsideDirectory, join(f.lab, 'index.ts'), 'junction');
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) {
+      t.skip('directory junctions are unavailable: ' + error.code);
+      return;
+    }
+    throw error;
+  }
+
+  assert.throws(() => syncSuperbrain(f.root, 'restore'), /symlink or junction/);
+  assert.deepEqual(readFileSync(outside), original);
+  assert.equal(existsSync(join(f.lab, 'value.ts')), false);
 });
