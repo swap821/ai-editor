@@ -575,11 +575,15 @@ def _recall_skills(
 def lessons_prompt_block(lessons: list[dict[str, Any]]) -> Optional[str]:
     """The recalled lessons, in the exact shape the model is shown.
 
-    Lives here rather than inline in `generate_pipeline` so that anything
-    measuring what recall is WORTH shows the model the same bytes production
-    does. A benchmark whose prompt block has drifted from production is
-    measuring a prompt nobody ships -- the one-derivation-two-callers rule
-    this repository keeps relearning the hard way.
+    Exists so that anything measuring what recall is WORTH shows the model the
+    same bytes production does. A benchmark whose prompt block has drifted
+    from production is measuring a prompt nobody ships.
+
+    The live turn path (generate_pipeline.py) still builds this block inline:
+    switching it to call this function would re-open organ 32's attestation.
+    tests/test_recall_blocks_match_live_path.py EXECUTES the live path's own
+    expression against this function on the same inputs and fails on a
+    one-character difference -- the same guarantee, without that cost.
     """
     if not lessons:
         return None
