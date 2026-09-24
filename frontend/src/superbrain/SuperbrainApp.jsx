@@ -8,7 +8,7 @@ import { readExperienceMode, writeExperienceMode } from '../livingMirror/experie
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
-import { recordFrontendMetric, startFrameTimeSampler } from '../livingMirror/observability/frontendMetrics';
+import { createMirrorReconnectTracker, recordFrontendMetric, startFrameTimeSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
 import { RendererFailureBoundary } from '../livingMirror/RendererFailureBoundary';
 import {
@@ -79,10 +79,9 @@ export default function SuperbrainApp() {
     const organismReady = () => recordFrontendMetric('3d-initialization', performance.now() - startedAt);
     window.addEventListener('gagos:ready', organismReady, { once: true });
     const stopFrameSampler = startFrameTimeSampler();
+    const trackMirrorReconnect = createMirrorReconnectTracker();
     const unsubscribeMirror = useMirrorStore.subscribe((state, previous) => {
-      if (state.connection !== previous.connection) {
-        recordFrontendMetric('mirror-reconnect', state.connection === 'connected' ? 1 : 0);
-      }
+      trackMirrorReconnect(state, previous);
     });
     const contextTracker = createContextRecoveryTracker();
     let boundCanvas = null;

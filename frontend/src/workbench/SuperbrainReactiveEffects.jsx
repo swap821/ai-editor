@@ -8,7 +8,7 @@
  *   - semantic verification  → aurora bloom around the cortex
  *   - semantic worker posture → bounded motes at vertebra seats
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import * as THREE from 'three';
@@ -24,6 +24,10 @@ import {
   getCortexAnchor,
 } from '../superbrain/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '../superbrain/lib/spineAnatomy';
+import { deriveAnatomicalConductor } from '../superbrain/lib/anatomicalConductor';
+import { deriveLivingOrchestration } from '../superbrain/lib/livingOrchestrator';
+import { useTabStore } from '../superbrain/lib/tabStore';
+import { useQualityTier } from '../superbrain/components/QualityTierProvider';
 import {
   getAuroraState,
   setAuroraIntensity,
@@ -36,12 +40,13 @@ import {
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import {
   deriveSemanticEffectTransition,
-  isActionPresentationStopped,
   pruneExpiredWorkerMotes,
 } from '../livingMirror/being/semanticEffects';
-import { coherenceSemanticsFor } from '../livingMirror/being/coherenceSemantics';
+import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
+import { derivePhysicalMaterialization } from '../livingMirror/being/physicalMaterialization';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
 import { updateLineGeometryPoints } from './lineGeometry';
+import { recordFrontendSceneDiagnostic } from '../livingMirror/observability/frontendMetrics';
 
 const CLOUD_COLORS = {
   bedrock: new THREE.Color('#f5c542'),
@@ -85,6 +90,35 @@ const BEAD_HALF_ANCHORS = 2;
 const MAX_LIGHTNINGS = 4;
 const MAX_MOTES = 8;
 const SPINE_FLASH_DURATION_S = 1.6;
+
+const CONDUCTOR_COLORS = {
+  active: '#8dffd1',
+  waiting: '#6f9dff',
+  held: '#ffb06e',
+  reabsorbing: '#a9fff3',
+};
+
+const CORTEX_POSTURE_COLORS = {
+  rest: '#7bf5fb',
+  arrive: '#b06eff',
+  attention: '#7bf5fb',
+  conduct: '#54f0a0',
+  verify: '#54f0a0',
+  recover: '#ffb454',
+  stopped: '#ff5f6d',
+};
+
+const MEMORY_LAYER_COLORS = {
+  recalled: '#6f9dff',
+  promoted: '#a9fff3',
+  reflex: '#54f0a0',
+};
+
+const VERIFICATION_FIELD_COLORS = {
+  pending: '#ffb454',
+  pass: '#2fffa1',
+  fail: '#ff5f6d',
+};
 
 function anchorWorldPosition(i) {
   const clamped = Math.min(SEGMENT_ANCHORS.length - 1, Math.max(0, i));
@@ -168,10 +202,48 @@ function getStableRandom(seed) {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-export default function SuperbrainReactiveEffects() {
-  const being = useBeingPresentation();
-  const actionPresentationStopped = isActionPresentationStopped(being);
-  const coherenceSemantics = coherenceSemanticsFor(being.coherence);
+/**
+ * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null }} [props]
+ */
+export default function SuperbrainReactiveEffects({ presentationOverride = null } = {}) {
+  const liveBeing = useBeingPresentation();
+  // The override is a development/test inspection seam only. Production uses
+  // the live presentation projection; the gallery never mutates a store or
+  // claims that a fixture represents backend truth.
+  const being = presentationOverride ?? liveBeing;
+  const physical = derivePhysicalSnapshot(being);
+  const { tier } = useQualityTier();
+  const { tabs, focusId, attention } = useTabStore();
+  const orchestration = useMemo(
+    () => deriveLivingOrchestration({ tabs, focusId, attention }),
+    [tabs, focusId, attention],
+  );
+  const conductor = useMemo(
+    () => deriveAnatomicalConductor({ tabs, orchestration }),
+    [tabs, orchestration],
+  );
+  const conductorPathPoints = useMemo(
+    () => conductor.conductingSeatIndexes.map((seatIndex) => anchorWorldPosition(seatIndex)),
+    [conductor.conductingSeatIndexes],
+  );
+  const conductorSeatSignals = useMemo(
+    () => conductor.vertebrae.filter((signal) => signal.role !== 'idle'),
+    [conductor.vertebrae],
+  );
+  const physicalSurfaces = useMemo(
+    () => derivePhysicalMaterialization({ tabs, conductor, focusId }),
+    [tabs, conductor, focusId],
+  );
+  const physicalSurfaceBySeat = useMemo(
+    () => new Map(
+      physicalSurfaces
+        .filter((surface) => typeof surface.seatIndex === 'number')
+        .map((surface) => [surface.seatIndex, surface]),
+    ),
+    [physicalSurfaces],
+  );
+  const actionPresentationStopped = physical.membrane.state === 'stopped';
+  const coherenceSemantics = physical.coherencePhysics;
   const reducedMotion = useReducedMotion();
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
@@ -181,6 +253,8 @@ export default function SuperbrainReactiveEffects() {
   const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
   const lastCloudIndices = useRef(new Set());
   const moteNodesRef = useRef({});
+  const branchLineNodesRef = useRef({});
+  const branchScratchRef = useRef({});
   const moteAnglesRef = useRef({});
   // Keep a product-owned mutable animation snapshot. The bridge state is
   // replaced on event boundaries; the frame loop must not spread a new object
@@ -193,6 +267,7 @@ export default function SuperbrainReactiveEffects() {
   const spineFlashLineRef = useRef(null);
   const spineFlashBeadRef = useRef(null);
   const spineFlashScratchRef = useRef(null);
+  const sceneDiagnosticElapsedRef = useRef(0);
   if (spineFlashScratchRef.current === null) {
     spineFlashScratchRef.current = {
       points: Array.from({ length: FLASH_POINT_COUNT }, () => new THREE.Vector3()),
@@ -203,7 +278,6 @@ export default function SuperbrainReactiveEffects() {
   }
   const previousBeingRef = useRef(null);
   const terminalWorkerExpiryRef = useRef({});
-  const semanticEffectsRef = useRef({ enteredSignals: [], workerVisualStates: [], actionPulse: false });
   const semanticPulseRef = useRef(0);
   const semanticPulseMeshRef = useRef(null);
   const semanticPulseMaterialRef = useRef(null);
@@ -229,7 +303,6 @@ export default function SuperbrainReactiveEffects() {
   useEffect(() => {
     const transition = deriveSemanticEffectTransition(previousBeingRef.current, being);
     previousBeingRef.current = being;
-    semanticEffectsRef.current = transition;
     if (!actionPresentationStopped && !reducedMotion && transition.actionPulse) semanticPulseRef.current = Math.max(semanticPulseRef.current, 0.72);
     if (!actionPresentationStopped && !reducedMotion && transition.enteredSignals.includes('verification-pass')) setAuroraIntensity(1, 'pass');
     if (!actionPresentationStopped && !reducedMotion && transition.enteredSignals.includes('verification-fail')) setAuroraIntensity(1, 'fail');
@@ -341,14 +414,14 @@ export default function SuperbrainReactiveEffects() {
   // not worker IDs or caste event names. Terminal states get a short visual
   // reabsorption window and cannot remain mounted forever.
   useEffect(() => {
-    const workerVisualStates = deriveSemanticEffectTransition(null, being).workerVisualStates;
+    const branches = derivePhysicalSnapshot(being).branches;
     const now = performance.now();
     setMotes((prev) => {
       const next = {};
-      workerVisualStates.forEach((visualState, index) => {
+      branches.forEach((branch, index) => {
+        const { visual: visualState, terminal } = branch;
         const key = `worker-${index}`;
         const existing = prev[key];
-        const terminal = visualState === 'returning' || visualState === 'dissolved';
         if (!terminal) delete terminalWorkerExpiryRef.current[key];
         const rememberedTerminalAt = terminalWorkerExpiryRef.current[key] ?? null;
         const terminalAt = existing?.terminalAt ?? rememberedTerminalAt ?? (terminal ? now : null);
@@ -404,10 +477,49 @@ export default function SuperbrainReactiveEffects() {
     return () => window.clearInterval(timer);
   }, [hasTerminalWorkerMotes]);
 
-  useFrame((_, delta) => {
+  const coherenceOpacity = coherenceSemantics.opacity;
+  const cortexPostureOpacity = Math.min(
+    0.11,
+    (0.028 + physical.cortex.activity * 0.045 + physical.cortex.convergence * 0.025) * coherenceOpacity,
+  );
+  const conductorHeld = conductor.hold
+    || physical.membrane.state === 'held'
+    || physical.membrane.state === 'refused'
+    || physical.conductor.posture === 'held';
+  const conductorStopped = actionPresentationStopped || physical.conductor.posture === 'stopped';
+  const conductorLineOpacity = coherenceOpacity * (conductorStopped ? 0.18 : conductorHeld ? 0.4 : 0.58);
+  const conductorLineWidth = tier === 'high' ? 1.8 : tier === 'medium' ? 1.35 : 1;
+
+  useFrame((state, delta) => {
+    sceneDiagnosticElapsedRef.current += delta;
+    if (sceneDiagnosticElapsedRef.current >= 1) {
+      let sceneObjects = 0;
+      state?.scene?.traverse?.(() => {
+        sceneObjects += 1;
+      });
+      const info = state?.gl?.info;
+      const workerMoteCount = Object.keys(motesRef.current).length;
+      const lightningCount = lightnings.length;
+      const materializationSurfaceCount = physicalSurfaces.length;
+      const workerBranchCount = physical.branches.length;
+      recordFrontendSceneDiagnostic({
+        sceneObjects,
+        renderCalls: info?.render?.calls ?? 0,
+        geometries: info?.memory?.geometries ?? 0,
+        textures: info?.memory?.textures ?? 0,
+        transientPoolSize: workerMoteCount + lightningCount + (spineFlash.intensity > 0.01 ? 1 : 0) + (aurora.intensity > 0.01 ? 1 : 0),
+        workerBranchCount,
+        workerMoteCount,
+        materializationSurfaceCount,
+        lightningCount,
+      });
+      sceneDiagnosticElapsedRef.current = 0;
+    }
     if (actionPresentationStopped || reducedMotionRef.current) {
       semanticPulseRef.current = 0;
-      if (semanticPulseMaterialRef.current) semanticPulseMaterialRef.current.opacity = 0;
+      if (semanticPulseMaterialRef.current) {
+        semanticPulseMaterialRef.current.opacity = actionPresentationStopped ? 0 : cortexPostureOpacity;
+      }
       return;
     }
     const coherence = coherenceSemanticsRef.current;
@@ -474,13 +586,29 @@ export default function SuperbrainReactiveEffects() {
       );
       const visualScale = m.visualState === 'held' ? 0.82 : m.visualState === 'conduct' ? 1.2 : 1;
       node.scale.setScalar(visualScale);
+
+      const branchLine = branchLineNodesRef.current[caste];
+      if (branchLine?.geometry) {
+        const scratch = branchScratchRef.current[caste] ?? {
+          points: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+        };
+        branchScratchRef.current[caste] = scratch;
+        scratch.points[0].copy(m.origin).multiplyScalar(scale);
+        scratch.points[2].copy(node.position);
+        scratch.points[1].lerpVectors(scratch.points[0], scratch.points[2], 0.5);
+        updateLineGeometryPoints(branchLine.geometry, scratch.points);
+        branchLine.material.opacity = (m.visualState === 'dissolved' ? 0.14 : m.visualState === 'held' ? 0.4 : 0.58) * coherence.opacity;
+      }
     }
     semanticPulseRef.current = Math.max(0, semanticPulseRef.current - delta * 0.8);
     if (semanticPulseMeshRef.current) {
       semanticPulseMeshRef.current.scale.setScalar(0.24 + semanticPulseRef.current * 0.2);
     }
     if (semanticPulseMaterialRef.current) {
-      semanticPulseMaterialRef.current.opacity = semanticPulseRef.current * 0.12 * coherence.opacity;
+      semanticPulseMaterialRef.current.opacity = Math.min(
+        0.14,
+        cortexPostureOpacity + semanticPulseRef.current * 0.12 * coherence.opacity,
+      );
     }
   });
 
@@ -491,8 +619,61 @@ export default function SuperbrainReactiveEffects() {
 
   const [cx, cy, cz] = getCortexAnchor();
   const cortex = new THREE.Vector3(cx, cy, cz).multiplyScalar(getBrainDockScale());
+  const cortexPostureColor = CORTEX_POSTURE_COLORS[physical.cortex.posture];
+  const cortexCurrentPaths = useMemo(() => {
+    if (physical.cortex.posture === 'stopped') return [];
+    const pathCount = tier === 'high' ? 3 : tier === 'medium' ? 2 : 1;
+    const axes = [
+      [1, 0.38, 0.24],
+      [-0.72, 0.56, 0.18],
+      [0.18, -0.68, 0.52],
+    ];
+    const reach = 0.18 + physical.cortex.activity * 0.2;
+    const convergence = physical.cortex.convergence;
+    return axes.slice(0, pathCount).map((axis, index) => {
+      const start = cortex.clone().add(new THREE.Vector3(
+        axis[0] * 0.08,
+        axis[1] * 0.08,
+        axis[2] * 0.08,
+      ));
+      const mid = cortex.clone().add(new THREE.Vector3(
+        axis[0] * reach,
+        axis[1] * reach,
+        axis[2] * reach,
+      ));
+      const settle = reach * (1 - convergence) * (0.78 + index * 0.06);
+      const end = cortex.clone().add(new THREE.Vector3(
+        axis[0] * settle,
+        axis[1] * settle,
+        axis[2] * settle,
+      ));
+      return [start, mid, end];
+    });
+  }, [cortex.x, cortex.y, cortex.z, physical.cortex.activity, physical.cortex.convergence, physical.cortex.posture, tier]);
+  const councilDissent = physical.signals.includes('council-dissent');
+  const councilDissentPaths = useMemo(() => {
+    if (!councilDissent || physical.cortex.posture === 'stopped') return [];
+    const pathCount = tier === 'high' ? 3 : tier === 'medium' ? 2 : 1;
+    const axes = [
+      [0.84, 0.2, 0.34],
+      [-0.58, 0.46, 0.32],
+      [0.12, -0.58, 0.52],
+    ];
+    return axes.slice(0, pathCount).map((axis, index) => {
+      const origin = cortex.clone().add(new THREE.Vector3(axis[0] * 0.12, axis[1] * 0.12, axis[2] * 0.12));
+      const nucleus = cortex.clone().add(new THREE.Vector3(axis[0] * (0.28 + index * 0.025), axis[1] * (0.28 + index * 0.025), axis[2] * (0.28 + index * 0.025)));
+      const returnPath = cortex.clone().add(new THREE.Vector3(axis[0] * 0.17, axis[1] * 0.17, axis[2] * 0.17));
+      return [origin, nucleus, returnPath];
+    });
+  }, [cortex.x, cortex.y, cortex.z, councilDissent, physical.cortex.posture, tier]);
   const auroraScale = 0.22 + aurora.intensity * 0.18;
-  const coherenceOpacity = coherenceSemantics.opacity;
+  const memoryFieldColor = MEMORY_LAYER_COLORS[physical.memory.layer];
+  const memoryFieldScale = physical.memory.layer === 'promoted'
+    ? 1.08
+    : physical.memory.layer === 'reflex'
+      ? 0.9
+      : 0.78;
+  const memoryFieldPosition = [cortex.x - 0.16, cortex.y - 0.06, cortex.z + 0.035];
   
   const VERDICT_COLORS = {
     pass: '#2fffa1',
@@ -500,6 +681,17 @@ export default function SuperbrainReactiveEffects() {
     caution: '#ffb454',
   };
   const auroraColor = VERDICT_COLORS[aurora.verdict] || VERDICT_COLORS.pass;
+  const verificationState = physical.verification.state;
+  const verificationFieldColor = VERIFICATION_FIELD_COLORS[verificationState] ?? '#ffb454';
+  const verificationFieldScale = verificationState === 'pass' ? 1.05 : verificationState === 'fail' ? 0.78 : 0.9;
+  const verificationFieldOpacity = verificationState === 'pass' ? 0.4 : verificationState === 'fail' ? 0.32 : 0.26;
+  const membraneColors = {
+    held: '#ffb454',
+    refused: '#ff8c69',
+    stopped: '#ff5f6d',
+  };
+  const membraneColor = membraneColors[physical.membrane.state] ?? '#ffb454';
+  const membraneOpacity = physical.membrane.state === 'stopped' ? 0.46 : 0.34;
 
   return (
     <group name="superbrain-reactive-effects">
@@ -570,19 +762,139 @@ export default function SuperbrainReactiveEffects() {
         </mesh>
       )}
 
+      {!conductorStopped && conductorPathPoints.length > 1 && (
+        <Line
+          data-testid="physical-conductor-path"
+          points={conductorPathPoints}
+          color={conductorHeld ? CONDUCTOR_COLORS.held : conductor.trunkTint}
+          lineWidth={conductorLineWidth}
+          frustumCulled={false}
+          transparent
+          opacity={conductorLineOpacity}
+        />
+      )}
+
+      {cortexCurrentPaths.map((points, index) => (
+        <Line
+          key={`cortex-current-${index}`}
+          data-testid="cortex-current"
+          points={points}
+          color={cortexPostureColor}
+          lineWidth={tier === 'high' ? 1.3 : tier === 'medium' ? 1 : 0.8}
+          frustumCulled={false}
+          transparent
+          opacity={Math.min(0.32, (0.06 + physical.cortex.activity * 0.12) * coherenceOpacity)}
+        />
+      ))}
+
+      {councilDissentPaths.map((points, index) => (
+        <Line
+          key={`council-dissent-${index}`}
+          data-testid="council-dissent"
+          points={points}
+          color="#c9b6ff"
+          lineWidth={tier === 'high' ? 1.05 : tier === 'medium' ? 0.85 : 0.7}
+          frustumCulled={false}
+          transparent
+          opacity={0.16 * coherenceOpacity}
+        />
+      ))}
+
+      {conductorSeatSignals.map((signal) => {
+        const color = CONDUCTOR_COLORS[signal.role];
+        const seat = anchorWorldPosition(signal.seatIndex);
+        const isActive = signal.role === 'active';
+        const surface = physicalSurfaceBySeat.get(signal.seatIndex);
+        return (
+          <mesh
+            key={`physical-conductor-seat-${signal.seatIndex}`}
+            data-testid="physical-conductor-seat"
+            position={seat}
+            scale={(0.72 + signal.intensity * 0.38) * (surface?.focused ? 1.08 : 1)}
+          >
+            <sphereGeometry args={[isActive ? 0.035 : 0.025, tier === 'high' ? 12 : 8, tier === 'high' ? 10 : 6]} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={Math.min(0.72, signal.socketOpacity * (conductorStopped ? 0.48 : 1) * coherenceOpacity)}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        );
+      })}
+
       {/* Conduct pulse: a bounded semantic cue around the cortex. */}
-      {!actionPresentationStopped && <mesh ref={semanticPulseMeshRef} position={cortex} scale={[0.24, 0.24, 0.24]}>
+      {!conductorStopped && <mesh
+        ref={semanticPulseMeshRef}
+        data-testid="cortex-posture-field"
+        position={cortex}
+        scale={[0.24, 0.24, 0.24]}
+      >
         <sphereGeometry args={[1, 20, 20]} />
         <meshBasicMaterial
           ref={semanticPulseMaterialRef}
-          color="#7bf5fb"
+          color={cortexPostureColor}
           transparent
-          opacity={0}
+          opacity={cortexPostureOpacity}
           depthWrite={false}
           side={THREE.DoubleSide}
           blending={THREE.AdditiveBlending}
         />
       </mesh>}
+
+      {physical.memory.layer !== 'none' && (
+        <mesh
+          data-testid="memory-cerebellar-field"
+          position={memoryFieldPosition}
+          scale={[memoryFieldScale, memoryFieldScale, memoryFieldScale]}
+          rotation={physical.memory.pulse === 'inward' ? [0, Math.PI / 2, 0] : [Math.PI / 2, 0, 0]}
+        >
+          <torusGeometry args={[0.16, 0.012, tier === 'high' ? 8 : 6, tier === 'high' ? 24 : 14]} />
+          <meshBasicMaterial
+            color={memoryFieldColor}
+            transparent
+            opacity={Math.min(0.38, (physical.memory.layer === 'promoted' ? 0.34 : 0.26) * coherenceOpacity)}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+
+      {physical.membrane.state !== 'clear' && (
+        <mesh
+          data-testid="sovereign-membrane"
+          position={cortex}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <torusGeometry args={[0.42, 0.012, 8, 64]} />
+          <meshBasicMaterial
+            color={membraneColor}
+            transparent
+            opacity={membraneOpacity * coherenceOpacity}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+
+      {verificationState !== 'none' && (
+        <mesh
+          data-testid="verification-field"
+          position={[cortex.x, cortex.y, cortex.z + 0.02]}
+          rotation={[Math.PI / 2, 0, verificationState === 'fail' ? 0.22 : 0]}
+          scale={[verificationFieldScale, verificationFieldScale, verificationFieldScale]}
+        >
+          <torusGeometry args={[0.3, 0.014, tier === 'high' ? 8 : 6, tier === 'high' ? 32 : 20]} />
+          <meshBasicMaterial
+            color={verificationFieldColor}
+            transparent
+            opacity={verificationFieldOpacity * coherenceOpacity}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
 
       {/* Temporary worker postures derived from the semantic kernel. */}
       {Object.entries(motes).map(([caste, m]) => {
@@ -606,19 +918,36 @@ export default function SuperbrainReactiveEffects() {
         const opacity = (m.visualState === 'dissolved' ? 0.32 : m.visualState === 'held' ? 0.64 : 0.85)
           * coherenceOpacity;
         
+        const branchStart = m.origin.clone().multiplyScalar(scale);
+        const branchTip = new THREE.Vector3(...pos);
+        const branchMid = branchStart.clone().lerp(branchTip, 0.5);
         return (
-          <mesh
-            key={caste}
-            data-testid="worker-mote"
-            position={pos}
-            ref={(node) => {
-              if (node) moteNodesRef.current[caste] = node;
-              else delete moteNodesRef.current[caste];
-            }}
-          >
-            <sphereGeometry args={[0.04, 8, 8]} />
-            <meshBasicMaterial color={color} transparent opacity={opacity} />
-          </mesh>
+          <group key={caste}>
+            <Line
+              ref={(line) => {
+                if (line) branchLineNodesRef.current[caste] = line;
+                else delete branchLineNodesRef.current[caste];
+              }}
+              data-testid="worker-branch"
+              points={[branchStart, branchMid, branchTip]}
+              color={color}
+              lineWidth={1.5}
+              frustumCulled={false}
+              transparent
+              opacity={(m.visualState === 'dissolved' ? 0.14 : m.visualState === 'held' ? 0.4 : 0.58) * coherenceOpacity}
+            />
+            <mesh
+              data-testid="worker-mote"
+              position={pos}
+              ref={(node) => {
+                if (node) moteNodesRef.current[caste] = node;
+                else delete moteNodesRef.current[caste];
+              }}
+            >
+              <sphereGeometry args={[0.04, 8, 8]} />
+              <meshBasicMaterial color={color} transparent opacity={opacity} />
+            </mesh>
+          </group>
         );
       })}
 

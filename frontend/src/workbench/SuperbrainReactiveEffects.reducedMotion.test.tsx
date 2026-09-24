@@ -61,5 +61,7 @@ describe('SuperbrainReactiveEffects reduced-motion boundary', () => {
     expect(getAuroraState().intensity).toBe(0);
     expect(container.querySelector('[data-testid="line"]')).toBeNull();
     expect(container.querySelector('[data-testid="spine-flash"]')).toBeNull();
+    expect(container.querySelector('[data-testid="cortex-posture-field"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="cortex-current"]')).not.toBeNull();
   });
 });
