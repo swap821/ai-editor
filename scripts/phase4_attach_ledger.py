@@ -113,8 +113,13 @@ def main(argv: list[str] | None = None) -> int:
             "Do one of:\n"
             "  * re-gather at a commit already on master:\n"
             "      python scripts/phase4_live_evidence.py --tip $(git rev-parse origin/master)\n"
-            "  * or, if this PR will be merged with a MERGE COMMIT (not a squash),\n"
-            "    re-run with --allow-branch-tip.",
+            "  * or, if this PR CHANGES an organ's own code (so no master commit can\n"
+            "    vouch for it yet), re-run with --allow-branch-tip AND either merge\n"
+            "    with a MERGE COMMIT, or, if it is squashed, run this on master\n"
+            "    straight afterwards:\n"
+            "      python scripts/verify_evidence_lineage.py --update\n"
+            "    which re-points each orphaned row ONLY to the commit where its\n"
+            "    byte-identical code entered master, and refuses otherwise.",
             file=sys.stderr,
         )
         return 1
