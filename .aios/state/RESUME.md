@@ -16,10 +16,12 @@ idempotent rerun reported `restored: 0, unchanged: 193`. Port tests: 12/12;
 frontend tests: 175 files / 953 passed; typecheck and production build passed
 (4,316 modules); lint passed (0 errors, 123/124-warning ceiling); CSS palette,
 protected-texture, and diff checks passed. Product mirror and manifest remain
-unchanged. Independent hash-pinned review is still pending.
+unchanged. The scoped implementation/evidence is locally committed as
+`aedfac30`; independent hash-pinned review is still pending.
 
-**Single next action:** Commit the scoped LB-01 implementation and evidence on
-this branch, then hand off the exact commit for read-only hash-pinned review.
+**Single next action:** Hand off the current HEAD (including implementation
+commit `aedfac30`) for read-only, hash-pinned independent review; keep this tree
+unchanged until the verdict.
 
 **Open approvals / blockers:** No push or merge was authorized. Android 17 and
 iOS 27 are target OS versions; exact physical phone models are TBD. No operator
