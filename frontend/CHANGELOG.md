@@ -2,6 +2,25 @@
 
 All notable changes to the GAGOS Frontend will be documented in this file.
 
+## [v10.1.0] - 2026-09-24
+
+### Added
+- **Physical state projection**: The GAGOS surface now projects truthful cortex,
+  conductor, branch, membrane, memory, verification, recovery, and materialization
+  cues from the existing semantic presentation state.
+- **Physical state gallery**: A deterministic development gallery exposes bounded
+  resting, active, worker, verification, recovery, stale, stopped, and reduced-motion
+  fixtures for visual and accessibility inspection.
+- **Accessibility and renderer recovery seams**: Gallery state changes announce
+  their fixture and motion mode through a bounded live region, while renderer loss
+  remains explicit and recoverable without implying backend failure.
+
+### Changed
+- Added bounded physical resource metrics, worker lifecycle projection, reduced-motion
+  handling, and verification/council visual cues with tests and evidence artifacts.
+- Documented the physical-embodiment RFC, baseline, implementation report, validation
+  packet, deterministic soak results, and live backend evidence.
+
 ## [v10.0.0] - 2026-07-09
 
 ### Added

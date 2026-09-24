@@ -128,12 +128,15 @@ clean diff whitespace, CSS palette guard, texture/GLB protection guard, and
 valid experience/mistake JSONL notebooks. A malformed Windows search probe was
 recorded as tooling noise; no product evidence was changed. The complete
 checkpoint is committed as `caaeb430` on
-`codex/frontend-physical-embodiment`; no merge or PR was made.
+`codex/frontend-physical-embodiment`; release metadata is staged for `v10.1.0`.
+Fresh frontend verification passed 169 files / 929 tests. The full backend
+verification completed with 23 failures in unrelated backend/security/ledger
+tests; this is recorded explicitly and is not a green repository-wide claim.
 
-**Single next action:** Obtain screen-reader, operator visual, and three-person
-human validation; prepare the draft PR only after explicit operator
-authorization, and do not merge. The live backend worker/materialization cycle
-is currently blocked by the measured `strategy_unavailable` WorkerFoundry gate.
+**Single next action:** Push the isolated branch, open the PR, and merge only
+with the backend failures disclosed; do not claim the repository-wide suite is
+green. The live backend worker/materialization cycle is currently blocked by
+the measured `strategy_unavailable` WorkerFoundry gate.
 
 The operator-ready validation packet is now at
 `docs/frontend/evidence/gagos-physical-human-validation-packet.md`. It contains
@@ -150,8 +153,8 @@ fabricated results.
  live worker/materialization behavior. `npm run port:check` must continue to fail closed on
 the pre-existing missing lab source `components/QualityTierProvider.tsx`;
 never edit generated Superbrain files to bypass it. The implementation commit
-is complete; do not create a PR, merge, or touch the main checkout without
-explicit operator direction.
+is complete; PR creation and merge are now explicitly authorized by the
+operator. Do not touch the main checkout directly.
 
 **Active files:** `docs/frontend/GAGOS_PHYSICAL_EMBODIMENT_RFC.md`,
 `docs/frontend/GAGOS_PHYSICAL_BASELINE.md`,
