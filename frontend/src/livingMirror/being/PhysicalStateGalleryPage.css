@@ -1,0 +1,75 @@
+.physical-gallery {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 24px;
+  color: #d8f7f2;
+  background: #050709;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.physical-gallery__header,
+.physical-gallery__workspace {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  max-width: 1440px;
+  margin: 0 auto 20px;
+}
+
+.physical-gallery__announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.physical-gallery__header { justify-content: space-between; }
+.physical-gallery h1,
+.physical-gallery h2,
+.physical-gallery p { margin: 0; }
+.physical-gallery h1 { font-size: clamp(24px, 3vw, 42px); letter-spacing: -0.04em; }
+.physical-gallery h2 { font-size: 24px; letter-spacing: -0.03em; }
+.physical-gallery__lede { max-width: 640px; margin-top: 8px !important; color: #91aaa7; }
+.physical-gallery__eyebrow { margin-bottom: 8px !important; color: #63d8cb; font: 11px/1.2 JetBrains Mono, monospace; text-transform: uppercase; letter-spacing: 0.12em; }
+.physical-gallery__controls { display: flex; gap: 12px; align-items: end; }
+.physical-gallery__controls label { display: grid; gap: 6px; color: #91aaa7; font-size: 12px; }
+.physical-gallery__controls select,
+.physical-gallery__controls input { accent-color: #63d8cb; }
+.physical-gallery__controls select { min-height: 36px; padding: 0 10px; color: #d8f7f2; background: #101719; border: 1px solid #2a4c4b; border-radius: 8px; }
+.physical-gallery__toggle { display: flex !important; grid-template-columns: auto auto; align-items: center; min-height: 36px; }
+.physical-gallery__workspace { align-items: stretch; }
+.physical-gallery__canvas { flex: 1 1 auto; min-height: 520px; overflow: hidden; border: 1px solid #183735; border-radius: 14px; background: #000; }
+.physical-gallery__canvas canvas { display: block; width: 100% !important; height: 100% !important; min-height: 520px; }
+.physical-gallery__inspector { flex: 0 0 280px; padding: 20px; border: 1px solid #183735; border-radius: 14px; background: #0a1112; }
+.physical-gallery__code { margin-top: 8px !important; color: #63d8cb; font: 11px/1.5 JetBrains Mono, monospace; }
+.physical-gallery dl { display: grid; gap: 12px; margin: 26px 0 0; }
+.physical-gallery dl div { display: grid; gap: 3px; }
+.physical-gallery dt { color: #6b8582; font: 10px/1.2 JetBrains Mono, monospace; text-transform: uppercase; }
+.physical-gallery dd { margin: 0; color: #d8f7f2; font-size: 13px; }
+.physical-gallery__fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; max-width: 1440px; margin: 0 auto; }
+.physical-gallery__fixtures button { min-height: 64px; padding: 10px 12px; color: #9eb8b4; text-align: left; background: #0a1112; border: 1px solid #183735; border-radius: 9px; cursor: pointer; }
+.physical-gallery__fixtures button:hover,
+.physical-gallery__fixtures button.is-selected { color: #d8f7f2; border-color: #63d8cb; background: #102322; }
+.physical-gallery__fixtures span,
+.physical-gallery__fixtures small { display: block; }
+.physical-gallery__fixtures span { font-size: 12px; }
+.physical-gallery__fixtures small { margin-top: 5px; color: #63817c; font: 10px/1.2 JetBrains Mono, monospace; }
+
+@media (max-width: 760px) {
+  .physical-gallery { padding: 14px; }
+  .physical-gallery__header,
+  .physical-gallery__workspace { display: grid; }
+  .physical-gallery__controls { align-items: stretch; }
+  .physical-gallery__inspector { min-height: 0; }
+  .physical-gallery__canvas,
+  .physical-gallery__canvas canvas { min-height: 360px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .physical-gallery__fixtures button { transition: none; }
+}

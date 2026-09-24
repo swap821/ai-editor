@@ -5,8 +5,8 @@
  * shares the same R3F context as the being but lives outside the ported lab files.
  * It adds:
  *   - cloud_route  → jagged lightning arc up the spine
- *   - verify pass  → green aurora bloom around the cortex
- *   - caste_start/end → orbiting worker motes at vertebra seats
+ *   - semantic verification  → aurora bloom around the cortex
+ *   - semantic worker posture → bounded motes at vertebra seats
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -16,29 +16,37 @@ import {
   subscribeSwarmHUD,
 } from '../superbrain/lib/swarmHUDStore';
 import { subscribeCognition } from '../superbrain/lib/cognitionBus';
-import { getConversationPhase, subscribeConversationPhase } from '../superbrain/lib/conversationPhaseBus';
-import { getPendingApproval, subscribePendingApproval } from '../superbrain/lib/aiosAdapter';
-import { useMirrorStore } from '../superbrain/lib/mirrorStore';
-import { deriveSemanticSignals } from '../livingMirror/being/semanticSignals';
-import { deriveBeingPresentation } from '../livingMirror/being/beingPresentation';
-import { deriveBeingScenePresentation } from '../livingMirror/being/beingScenePresentation';
 import { getKnownTrails } from '../superbrain/lib/aiosAdapter';
 import {
   fuseSpinePoint,
+  getSpineFusion,
   getBrainDockScale,
   getCortexAnchor,
 } from '../superbrain/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '../superbrain/lib/spineAnatomy';
+import { deriveAnatomicalConductor } from '../superbrain/lib/anatomicalConductor';
+import { deriveLivingOrchestration } from '../superbrain/lib/livingOrchestrator';
+import { useTabStore } from '../superbrain/lib/tabStore';
+import { useQualityTier } from '../superbrain/components/QualityTierProvider';
 import {
   getAuroraState,
   setAuroraIntensity,
   subscribeAurora,
 } from './verifyAuroraBridge';
 import {
-  advanceSpineFlash,
   getSpineFlashState,
   subscribeSpineFlash,
 } from './spineFlashBridge';
+import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
+import {
+  deriveSemanticEffectTransition,
+  pruneExpiredWorkerMotes,
+} from '../livingMirror/being/semanticEffects';
+import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
+import { derivePhysicalMaterialization } from '../livingMirror/being/physicalMaterialization';
+import { useReducedMotion } from '../superbrain/lib/reducedMotion';
+import { updateLineGeometryPoints } from './lineGeometry';
+import { recordFrontendSceneDiagnostic } from '../livingMirror/observability/frontendMetrics';
 
 const CLOUD_COLORS = {
   bedrock: new THREE.Color('#f5c542'),
@@ -79,6 +87,38 @@ function seatForIndex(index) {
 }
 
 const BEAD_HALF_ANCHORS = 2;
+const MAX_LIGHTNINGS = 4;
+const MAX_MOTES = 8;
+const SPINE_FLASH_DURATION_S = 1.6;
+
+const CONDUCTOR_COLORS = {
+  active: '#8dffd1',
+  waiting: '#6f9dff',
+  held: '#ffb06e',
+  reabsorbing: '#a9fff3',
+};
+
+const CORTEX_POSTURE_COLORS = {
+  rest: '#7bf5fb',
+  arrive: '#b06eff',
+  attention: '#7bf5fb',
+  conduct: '#54f0a0',
+  verify: '#54f0a0',
+  recover: '#ffb454',
+  stopped: '#ff5f6d',
+};
+
+const MEMORY_LAYER_COLORS = {
+  recalled: '#6f9dff',
+  promoted: '#a9fff3',
+  reflex: '#54f0a0',
+};
+
+const VERIFICATION_FIELD_COLORS = {
+  pending: '#ffb454',
+  pass: '#2fffa1',
+  fail: '#ff5f6d',
+};
 
 function anchorWorldPosition(i) {
   const clamped = Math.min(SEGMENT_ANCHORS.length - 1, Math.max(0, i));
@@ -95,16 +135,62 @@ function sampleWorldPosition(t) {
   return a.clone().lerp(b, frac);
 }
 
+// Keep the initial Drei <Line> geometry at the same bounded size as the
+// ref-mutated frame-loop scratch pool. A shorter initial point list causes
+// BufferGeometry.setFromPoints to warn and reallocate when the flash reaches
+// the middle of the spine, even though the visual effect is capped.
+const FLASH_POINT_COUNT = BEAD_HALF_ANCHORS * 4 + 1;
+
 function beadPointsForProgress(progress) {
   const n = SEGMENT_ANCHORS.length;
   const center = progress * (n - 1);
   const start = Math.max(0, center - BEAD_HALF_ANCHORS);
   const end = Math.min(n - 1, center + BEAD_HALF_ANCHORS);
-  const steps = Math.max(2, Math.ceil(end - start) * 2 + 1);
   const points = [];
-  for (let s = 0; s < steps; s += 1) {
-    const t = start + (end - start) * (s / (steps - 1));
+  for (let s = 0; s < FLASH_POINT_COUNT; s += 1) {
+    const t = start + (end - start) * (s / (FLASH_POINT_COUNT - 1));
     points.push(sampleWorldPosition(t));
+  }
+  return points;
+}
+
+// The travelling spine bead is the one product-owned effect that can touch
+// the frame loop continuously. Keep its hot path on a fixed scratch pool so a
+// long cloud-route flash does not create short-lived Vector3/array garbage on
+// every frame. The existing allocating helpers remain for initial JSX props
+// and event-time construction, where they are not frame-bound.
+function anchorWorldPositionInto(index, target, dockScale) {
+  const clamped = Math.min(SEGMENT_ANCHORS.length - 1, Math.max(0, index));
+  const raw = SEGMENT_ANCHORS[clamped];
+  const fusion = getSpineFusion();
+  if (fusion.ready) {
+    target.set(
+      raw.x * fusion.spineScale + fusion.weld[0],
+      raw.y * fusion.spineScale + fusion.weld[1],
+      raw.z * fusion.spineScale + fusion.weld[2],
+    );
+  } else {
+    target.set(raw.x, raw.y, raw.z);
+  }
+  return target.multiplyScalar(dockScale);
+}
+
+function sampleWorldPositionInto(t, target, start, end, dockScale) {
+  const i0 = Math.floor(t);
+  const frac = t - i0;
+  anchorWorldPositionInto(i0, start, dockScale);
+  anchorWorldPositionInto(i0 + 1, end, dockScale);
+  return target.lerpVectors(start, end, frac);
+}
+
+function beadPointsForProgressInto(progress, points, start, end, dockScale) {
+  const n = SEGMENT_ANCHORS.length;
+  const center = progress * (n - 1);
+  const from = Math.max(0, center - BEAD_HALF_ANCHORS);
+  const to = Math.min(n - 1, center + BEAD_HALF_ANCHORS);
+  for (let s = 0; s < points.length; s += 1) {
+    const t = from + (to - from) * (s / (points.length - 1));
+    sampleWorldPositionInto(t, points[s], start, end, dockScale);
   }
   return points;
 }
@@ -116,129 +202,164 @@ function getStableRandom(seed) {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-function activeTurnForConversation(phase) {
-  switch (phase) {
-    case 'awakening':
-    case 'thinking':
-      return 'planning';
-    case 'streaming':
-      return 'acting';
-    case 'complete':
-      return 'checking';
-    case 'error':
-      return 'recovering';
-    default:
-      return 'idle';
-  }
-}
-
-function emergencyStopFromMirror(events) {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const type = events[index]?.type;
-    if (type === 'governance.emergency_stop.engaged') return true;
-    if (type === 'governance.emergency_stop.released' || type === 'governance.emergency_stop.disengaged') return false;
-  }
-  return false;
-}
-
-function SemanticBeingHalo({ presentation }) {
-  const ringRef = useRef(null);
-  const materialRef = useRef(null);
-  const targetColor = useMemo(() => new THREE.Color(presentation.color), [presentation.color]);
-  const [cx, cy, cz] = getCortexAnchor();
-  const position = useMemo(
-    () => new THREE.Vector3(cx, cy, cz).multiplyScalar(getBrainDockScale()),
-    [cx, cy, cz],
+/**
+ * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null }} [props]
+ */
+export default function SuperbrainReactiveEffects({ presentationOverride = null } = {}) {
+  const liveBeing = useBeingPresentation();
+  // The override is a development/test inspection seam only. Production uses
+  // the live presentation projection; the gallery never mutates a store or
+  // claims that a fixture represents backend truth.
+  const being = presentationOverride ?? liveBeing;
+  const physical = derivePhysicalSnapshot(being);
+  const { tier } = useQualityTier();
+  const { tabs, focusId, attention } = useTabStore();
+  const orchestration = useMemo(
+    () => deriveLivingOrchestration({ tabs, focusId, attention }),
+    [tabs, focusId, attention],
   );
-
-  useFrame((_, delta) => {
-    if (materialRef.current) {
-      materialRef.current.color.lerp(targetColor, Math.min(1, delta * 4));
-      materialRef.current.opacity = THREE.MathUtils.damp(
-        materialRef.current.opacity,
-        presentation.haloOpacity,
-        4,
-        delta,
-      );
-    }
-    if (!ringRef.current) return;
-    const targetScale = presentation.haloScale;
-    const scale = THREE.MathUtils.damp(ringRef.current.scale.x, targetScale, 3, delta);
-    ringRef.current.scale.setScalar(scale);
-    if (presentation.motionIntensity > 0) {
-      ringRef.current.rotation.z += delta * presentation.flow * presentation.motionIntensity * 0.18;
-    }
-  });
-
-  return (
-    <group name="semantic-being-halo" position={position}>
-      <mesh ref={ringRef} data-testid="semantic-being-halo" rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.48, 0.012, 8, 48]} />
-        <meshBasicMaterial
-          ref={materialRef}
-          color={presentation.color}
-          transparent
-          opacity={presentation.haloOpacity}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-    </group>
+  const conductor = useMemo(
+    () => deriveAnatomicalConductor({ tabs, orchestration }),
+    [tabs, orchestration],
   );
-}
-
-export default function SuperbrainReactiveEffects() {
+  const conductorPathPoints = useMemo(
+    () => conductor.conductingSeatIndexes.map((seatIndex) => anchorWorldPosition(seatIndex)),
+    [conductor.conductingSeatIndexes],
+  );
+  const conductorSeatSignals = useMemo(
+    () => conductor.vertebrae.filter((signal) => signal.role !== 'idle'),
+    [conductor.vertebrae],
+  );
+  const physicalSurfaces = useMemo(
+    () => derivePhysicalMaterialization({ tabs, conductor, focusId }),
+    [tabs, conductor, focusId],
+  );
+  const physicalSurfaceBySeat = useMemo(
+    () => new Map(
+      physicalSurfaces
+        .filter((surface) => typeof surface.seatIndex === 'number')
+        .map((surface) => [surface.seatIndex, surface]),
+    ),
+    [physicalSurfaces],
+  );
+  const actionPresentationStopped = physical.membrane.state === 'stopped';
+  const coherenceSemantics = physical.coherencePhysics;
+  const reducedMotion = useReducedMotion();
   const [lightnings, setLightnings] = useState([]);
   const [motes, setMotes] = useState({});
   const [stigmergyTrails, setStigmergyTrails] = useState(() => [...(getKnownTrails() || [])]);
   const motesRef = useRef({});
   const [aurora, setAurora] = useState(getAuroraState);
   const [spineFlash, setSpineFlash] = useState(getSpineFlashState);
-  const mirror = useMirrorStore();
-  const [conversationPhase, setConversationPhase] = useState(() => getConversationPhase());
-  const [pendingApproval, setPendingApproval] = useState(() => getPendingApproval());
   const lastCloudIndices = useRef(new Set());
-  const lastCastes = useRef(new Set());
+  const moteNodesRef = useRef({});
+  const branchLineNodesRef = useRef({});
+  const branchScratchRef = useRef({});
+  const moteAnglesRef = useRef({});
+  // Keep a product-owned mutable animation snapshot. The bridge state is
+  // replaced on event boundaries; the frame loop must not spread a new object
+  // on every tick just to decay intensity.
+  const auroraAnimationRef = useRef({ ...getAuroraState() });
+  const auroraMeshRef = useRef(null);
+  const auroraMaterialRef = useRef(null);
+  const spineFlashAnimationRef = useRef(getSpineFlashState());
+  const spineFlashElapsedRef = useRef(0);
+  const spineFlashLineRef = useRef(null);
+  const spineFlashBeadRef = useRef(null);
+  const spineFlashScratchRef = useRef(null);
+  const sceneDiagnosticElapsedRef = useRef(0);
+  if (spineFlashScratchRef.current === null) {
+    spineFlashScratchRef.current = {
+      points: Array.from({ length: FLASH_POINT_COUNT }, () => new THREE.Vector3()),
+      start: new THREE.Vector3(),
+      end: new THREE.Vector3(),
+      sample: new THREE.Vector3(),
+    };
+  }
+  const previousBeingRef = useRef(null);
+  const terminalWorkerExpiryRef = useRef({});
+  const semanticPulseRef = useRef(0);
+  const semanticPulseMeshRef = useRef(null);
+  const semanticPulseMaterialRef = useRef(null);
+  const actionPresentationStoppedRef = useRef(actionPresentationStopped);
+  const reducedMotionRef = useRef(reducedMotion);
+  const coherenceSemanticsRef = useRef(coherenceSemantics);
 
   useEffect(() => {
-    const sync = () => setConversationPhase(getConversationPhase());
-    const unsubscribe = subscribeConversationPhase(sync);
-    const timer = window.setInterval(sync, 500);
-    return () => {
-      unsubscribe();
-      window.clearInterval(timer);
-    };
-  }, []);
+    actionPresentationStoppedRef.current = actionPresentationStopped;
+  }, [actionPresentationStopped]);
 
-  useEffect(() => subscribePendingApproval(setPendingApproval), []);
+  useEffect(() => {
+    reducedMotionRef.current = reducedMotion;
+  }, [reducedMotion]);
 
-  const semanticSignals = deriveSemanticSignals(mirror.recentEvents);
-  const beingPresentation = useMemo(() => deriveBeingScenePresentation(deriveBeingPresentation({
-    mirrorSnapshot: mirror,
-    connectionState: mirror.connection,
-    activeTurn: activeTurnForConversation(conversationPhase),
-    pendingApproval: Boolean(pendingApproval) || mirror.approvalRequired,
-    emergencyStop: emergencyStopFromMirror(mirror.recentEvents),
-    recentSemanticSignals: semanticSignals,
-    reducedMotion: typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
-    qualityTier: 'high',
-    verificationState: semanticSignals.includes('verification-pass')
-      ? 'passed'
-      : semanticSignals.includes('verification-fail')
-        ? 'failed'
-        : 'none',
-  })), [conversationPhase, mirror, pendingApproval, semanticSignals]);
+  useEffect(() => {
+    coherenceSemanticsRef.current = coherenceSemantics;
+  }, [coherenceSemantics]);
+
+  // The presentation kernel is the source for semantic organism cues in this
+  // product-owned R3F seam. Raw buses remain available to evidence-specific
+  // projections, but posture transitions do not branch on event strings here.
+  useEffect(() => {
+    const transition = deriveSemanticEffectTransition(previousBeingRef.current, being);
+    previousBeingRef.current = being;
+    if (!actionPresentationStopped && !reducedMotion && transition.actionPulse) semanticPulseRef.current = Math.max(semanticPulseRef.current, 0.72);
+    if (!actionPresentationStopped && !reducedMotion && transition.enteredSignals.includes('verification-pass')) setAuroraIntensity(1, 'pass');
+    if (!actionPresentationStopped && !reducedMotion && transition.enteredSignals.includes('verification-fail')) setAuroraIntensity(1, 'fail');
+  }, [actionPresentationStopped, being, reducedMotion]);
+
+  useEffect(() => {
+    if (!actionPresentationStopped) return;
+    // Stop is a presentation boundary: remove transient action effects and
+    // freeze their local bridges while preserving workers and evidence trails.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the stop boundary must synchronously clear an already-mounted transient.
+    setLightnings([]);
+    setAuroraIntensity(0, 'caution');
+    setSpineFlash({ intensity: 0, progress: 1 });
+    spineFlashAnimationRef.current = { intensity: 0, progress: 1 };
+    spineFlashElapsedRef.current = SPINE_FLASH_DURATION_S;
+    semanticPulseRef.current = 0;
+  }, [actionPresentationStopped]);
+
+  useEffect(() => {
+    if (!reducedMotion) return;
+    // Reduced motion keeps the measured state and DOM explanation, but drops
+    // product-owned travel, bloom, and pulse effects. The underlying canvas
+    // receives the same preference through its existing shared store; this
+    // seam must not reintroduce motion around it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear already-mounted transient effects at the preference boundary.
+    setLightnings([]);
+    setAuroraIntensity(0, 'caution');
+    setSpineFlash({ intensity: 0, progress: 1 });
+    spineFlashAnimationRef.current = { intensity: 0, progress: 1 };
+    spineFlashElapsedRef.current = SPINE_FLASH_DURATION_S;
+    semanticPulseRef.current = 0;
+  }, [reducedMotion]);
 
   useEffect(() => {
     // Sync local React state with the product-only aurora bridge so the
     // sphere mounts/unmounts and animates correctly.
-    const unsub = subscribeAurora(setAurora);
+    const unsub = subscribeAurora((next) => {
+      auroraAnimationRef.current.intensity = next.intensity;
+      auroraAnimationRef.current.verdict = next.verdict;
+      setAurora(next);
+    });
     return unsub;
   }, []);
 
   useEffect(() => {
     // Sync local React state with the product-only spine-flash bridge.
-    const unsub = subscribeSpineFlash(setSpineFlash);
+    const unsub = subscribeSpineFlash((next) => {
+      spineFlashAnimationRef.current = next;
+      if (reducedMotionRef.current) {
+        setSpineFlash({ intensity: 0, progress: 1 });
+        spineFlashAnimationRef.current = { intensity: 0, progress: 1 };
+        spineFlashElapsedRef.current = SPINE_FLASH_DURATION_S;
+        return;
+      }
+      if (next.intensity > 0) spineFlashElapsedRef.current = 0;
+      setSpineFlash(next);
+    });
     return unsub;
   }, []);
 
@@ -246,6 +367,10 @@ export default function SuperbrainReactiveEffects() {
     // Cloud-route lightning.
     const unsubSwarm = subscribeSwarmHUD((state) => {
       const current = new Set(state.cloudIndices);
+      if (actionPresentationStoppedRef.current || reducedMotionRef.current) {
+        lastCloudIndices.current = current;
+        return;
+      }
       const added = [...current].filter((i) => !lastCloudIndices.current.has(i));
       if (added.length > 0) {
         setLightnings((prev) => {
@@ -265,7 +390,7 @@ export default function SuperbrainReactiveEffects() {
               born: performance.now(),
             });
           }
-          return next;
+          return next.slice(-MAX_LIGHTNINGS);
         });
       }
       lastCloudIndices.current = current;
@@ -274,9 +399,6 @@ export default function SuperbrainReactiveEffects() {
     // Verify-pass aurora and Stigmergy trails/scars updates.
     // getKnownTrails might return the same array reference so we spread.
     const unsubCognition = subscribeCognition((event) => {
-      if (event.type === 'verify' && event.data?.verdict) {
-        setAuroraIntensity(1, event.data.verdict);
-      }
       if (event.type === 'telemetry') {
         setStigmergyTrails([...(getKnownTrails() || [])]);
       }
@@ -288,68 +410,205 @@ export default function SuperbrainReactiveEffects() {
     };
   }, []);
 
-  // Caste start/end motes: compare activeCastes sets.
+  // Temporary worker motes are derived from bounded semantic worker posture,
+  // not worker IDs or caste event names. Terminal states get a short visual
+  // reabsorption window and cannot remain mounted forever.
   useEffect(() => {
-    const unsub = subscribeSwarmHUD((state) => {
-      const current = new Set(state.activeCastes);
-      const added = [...current].filter((c) => !lastCastes.current.has(c));
-      const removed = [...lastCastes.current].filter((c) => !current.has(c));
-      if (added.length === 0 && removed.length === 0) return;
-
-      setMotes((prev) => {
-        const next = { ...prev };
-        for (const caste of removed) delete next[caste];
-        for (let i = 0; i < added.length; i++) {
-          const caste = added[i];
-          const seat = seatForIndex(Object.keys(next).length + i);
-          const raw = SEGMENT_ANCHORS[seat];
-          const fused = new THREE.Vector3(...fuseSpinePoint([raw.x, raw.y, raw.z]));
-          next[caste] = {
-            seat,
-            origin: fused,
-            angle: Math.random() * Math.PI * 2,
-            speed: 0.5 + Math.random() * 0.4,
-            radius: 0.18 + Math.random() * 0.06,
-          };
-        }
-        return next;
+    const branches = derivePhysicalSnapshot(being).branches;
+    const now = performance.now();
+    setMotes((prev) => {
+      const next = {};
+      branches.forEach((branch, index) => {
+        const { visual: visualState, terminal } = branch;
+        const key = `worker-${index}`;
+        const existing = prev[key];
+        if (!terminal) delete terminalWorkerExpiryRef.current[key];
+        const rememberedTerminalAt = terminalWorkerExpiryRef.current[key] ?? null;
+        const terminalAt = existing?.terminalAt ?? rememberedTerminalAt ?? (terminal ? now : null);
+        if (terminal && terminalAt !== null) terminalWorkerExpiryRef.current[key] = terminalAt;
+        if (terminalAt !== null && now - terminalAt >= 1600) return;
+        const seat = existing?.seat ?? seatForIndex(index);
+        const raw = SEGMENT_ANCHORS[seat];
+        const fused = existing?.origin ?? new THREE.Vector3(...fuseSpinePoint([raw.x, raw.y, raw.z]));
+        const angle = existing?.angle ?? Math.random() * Math.PI * 2;
+        next[key] = {
+          seat,
+          origin: fused,
+          angle,
+          speed: existing?.speed ?? 0.5 + Math.random() * 0.4,
+          radius: existing?.radius ?? 0.18 + Math.random() * 0.06,
+          visualState,
+          terminalAt,
+        };
+        moteAnglesRef.current[key] = angle;
       });
-      lastCastes.current = current;
+      for (const key of Object.keys(moteAnglesRef.current)) {
+        if (!next[key]) delete moteAnglesRef.current[key];
+      }
+      return Object.fromEntries(Object.entries(next).slice(0, MAX_MOTES));
     });
-    return unsub;
-  }, []);
+  }, [being]);
 
-  useFrame((_, delta) => {
-    // Decay aurora intensity in the bridge; the subscriber updates React state.
-    const currentState = getAuroraState();
-    if (currentState.intensity > 0) {
-      const target = Math.max(0, currentState.intensity - delta * 0.9);
-      if (target !== currentState.intensity) {
-        setAuroraIntensity(target);
+  // Expire transient effects on a coarse timer. Their visual movement is
+  // handled by refs below; React only reconciles lifecycle changes, never each
+  // rendered frame.
+  useEffect(() => {
+    if (lightnings.length === 0) return undefined;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      setLightnings((prev) => {
+        const next = prev.filter((lightning) => now - lightning.born < 900);
+        return next.length === prev.length ? prev : next;
+      });
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [lightnings.length]);
+
+  // Terminal workers must reabsorb even when the mirror goes quiet after the
+  // return/dissolve event. This coarse lifecycle timer never drives motion;
+  // it only removes expired React entities from the bounded visual pool.
+  const hasTerminalWorkerMotes = Object.values(motes).some((mote) => mote.terminalAt !== null);
+  useEffect(() => {
+    if (!hasTerminalWorkerMotes) return undefined;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      setMotes((prev) => pruneExpiredWorkerMotes(prev, now));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [hasTerminalWorkerMotes]);
+
+  const coherenceOpacity = coherenceSemantics.opacity;
+  const cortexPostureOpacity = Math.min(
+    0.11,
+    (0.028 + physical.cortex.activity * 0.045 + physical.cortex.convergence * 0.025) * coherenceOpacity,
+  );
+  const conductorHeld = conductor.hold
+    || physical.membrane.state === 'held'
+    || physical.membrane.state === 'refused'
+    || physical.conductor.posture === 'held';
+  const conductorStopped = actionPresentationStopped || physical.conductor.posture === 'stopped';
+  const conductorLineOpacity = coherenceOpacity * (conductorStopped ? 0.18 : conductorHeld ? 0.4 : 0.58);
+  const conductorLineWidth = tier === 'high' ? 1.8 : tier === 'medium' ? 1.35 : 1;
+
+  useFrame((state, delta) => {
+    sceneDiagnosticElapsedRef.current += delta;
+    if (sceneDiagnosticElapsedRef.current >= 1) {
+      let sceneObjects = 0;
+      state?.scene?.traverse?.(() => {
+        sceneObjects += 1;
+      });
+      const info = state?.gl?.info;
+      const workerMoteCount = Object.keys(motesRef.current).length;
+      const lightningCount = lightnings.length;
+      const materializationSurfaceCount = physicalSurfaces.length;
+      const workerBranchCount = physical.branches.length;
+      recordFrontendSceneDiagnostic({
+        sceneObjects,
+        renderCalls: info?.render?.calls ?? 0,
+        geometries: info?.memory?.geometries ?? 0,
+        textures: info?.memory?.textures ?? 0,
+        transientPoolSize: workerMoteCount + lightningCount + (spineFlash.intensity > 0.01 ? 1 : 0) + (aurora.intensity > 0.01 ? 1 : 0),
+        workerBranchCount,
+        workerMoteCount,
+        materializationSurfaceCount,
+        lightningCount,
+      });
+      sceneDiagnosticElapsedRef.current = 0;
+    }
+    if (actionPresentationStopped || reducedMotionRef.current) {
+      semanticPulseRef.current = 0;
+      if (semanticPulseMaterialRef.current) {
+        semanticPulseMaterialRef.current.opacity = actionPresentationStopped ? 0 : cortexPostureOpacity;
+      }
+      return;
+    }
+    const coherence = coherenceSemanticsRef.current;
+    // Decay transient effects through refs and native scene objects. React
+    // state changes only when a real cognition event arrives, not per frame.
+    const currentAurora = auroraAnimationRef.current;
+    if (currentAurora.intensity > 0) {
+      const intensity = Math.max(0, currentAurora.intensity - delta * 0.9);
+      currentAurora.intensity = intensity;
+      if (auroraMeshRef.current) auroraMeshRef.current.scale.setScalar(0.22 + intensity * 0.18);
+      if (auroraMaterialRef.current) auroraMaterialRef.current.opacity = intensity * 0.14 * coherence.opacity;
+    }
+
+    const flash = spineFlashAnimationRef.current;
+    if (flash.intensity > 0 || flash.progress < 1) {
+      // Older/incomplete projections may retain a historical flash, but it
+      // must conduct more slowly and at lower opacity than fresh truth.
+      spineFlashElapsedRef.current += delta * Math.max(0.12, coherence.motionScale);
+      const progress = Math.min(1, spineFlashElapsedRef.current / SPINE_FLASH_DURATION_S);
+      const intensity = Math.max(0, 1 - spineFlashElapsedRef.current / (SPINE_FLASH_DURATION_S * 0.85));
+      spineFlashAnimationRef.current.intensity = intensity;
+      spineFlashAnimationRef.current.progress = progress;
+      if (spineFlashLineRef.current) {
+        const scratch = spineFlashScratchRef.current;
+        beadPointsForProgressInto(
+          progress,
+          scratch.points,
+          scratch.start,
+          scratch.end,
+          getBrainDockScale(),
+        );
+        updateLineGeometryPoints(spineFlashLineRef.current.geometry, scratch.points);
+        spineFlashLineRef.current.material.opacity = intensity * 0.85 * coherence.opacity;
+      }
+      if (spineFlashBeadRef.current) {
+        const scratch = spineFlashScratchRef.current;
+        sampleWorldPositionInto(
+          progress * (SEGMENT_ANCHORS.length - 1),
+          scratch.sample,
+          scratch.start,
+          scratch.end,
+          getBrainDockScale(),
+        );
+        spineFlashBeadRef.current.position.copy(scratch.sample);
+        spineFlashBeadRef.current.material.opacity = intensity * 0.45 * coherence.opacity;
       }
     }
 
-    // Advance the first-cloud-route spine flash; the subscriber updates React state.
-    advanceSpineFlash(delta);
+    // Orbit motes by mutating pooled mesh nodes. No React state update occurs
+    // in this frame path, and the bounded pool cannot grow with event history.
+    for (const [caste, m] of Object.entries(motesRef.current)) {
+      const node = moteNodesRef.current[caste];
+      if (!node) continue;
+      const motionScale = (m.visualState === 'held' ? 0 : m.visualState === 'conduct' ? 1 : 0.42)
+        * coherence.motionScale;
+      const angle = (moteAnglesRef.current[caste] ?? m.angle) + m.speed * delta * motionScale;
+      moteAnglesRef.current[caste] = angle;
+      const scale = getBrainDockScale();
+      const radiusScale = m.visualState === 'bud' ? 0.32 : m.visualState === 'branch' ? 0.68 : 1;
+      node.position.set(
+        (m.origin.x + Math.cos(angle) * m.radius * radiusScale) * scale,
+        m.origin.y * scale,
+        (m.origin.z + Math.sin(angle) * m.radius * radiusScale) * scale,
+      );
+      const visualScale = m.visualState === 'held' ? 0.82 : m.visualState === 'conduct' ? 1.2 : 1;
+      node.scale.setScalar(visualScale);
 
-    // Age-out lightnings only when there are any to avoid per-frame re-renders.
-    const now = performance.now();
-    setLightnings((prev) => {
-      if (prev.length === 0) return prev;
-      const next = prev.filter((l) => now - l.born < 900);
-      return next.length === prev.length ? prev : next;
-    });
-
-    // Orbit motes only when there are any.
-    if (Object.keys(motesRef.current).length > 0) {
-      setMotes((prev) => {
-        if (Object.keys(prev).length === 0) return prev;
-        const next = {};
-        for (const [caste, m] of Object.entries(prev)) {
-          next[caste] = { ...m, angle: m.angle + m.speed * delta };
-        }
-        return next;
-      });
+      const branchLine = branchLineNodesRef.current[caste];
+      if (branchLine?.geometry) {
+        const scratch = branchScratchRef.current[caste] ?? {
+          points: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+        };
+        branchScratchRef.current[caste] = scratch;
+        scratch.points[0].copy(m.origin).multiplyScalar(scale);
+        scratch.points[2].copy(node.position);
+        scratch.points[1].lerpVectors(scratch.points[0], scratch.points[2], 0.5);
+        updateLineGeometryPoints(branchLine.geometry, scratch.points);
+        branchLine.material.opacity = (m.visualState === 'dissolved' ? 0.14 : m.visualState === 'held' ? 0.4 : 0.58) * coherence.opacity;
+      }
+    }
+    semanticPulseRef.current = Math.max(0, semanticPulseRef.current - delta * 0.8);
+    if (semanticPulseMeshRef.current) {
+      semanticPulseMeshRef.current.scale.setScalar(0.24 + semanticPulseRef.current * 0.2);
+    }
+    if (semanticPulseMaterialRef.current) {
+      semanticPulseMaterialRef.current.opacity = Math.min(
+        0.14,
+        cortexPostureOpacity + semanticPulseRef.current * 0.12 * coherence.opacity,
+      );
     }
   });
 
@@ -360,7 +619,61 @@ export default function SuperbrainReactiveEffects() {
 
   const [cx, cy, cz] = getCortexAnchor();
   const cortex = new THREE.Vector3(cx, cy, cz).multiplyScalar(getBrainDockScale());
+  const cortexPostureColor = CORTEX_POSTURE_COLORS[physical.cortex.posture];
+  const cortexCurrentPaths = useMemo(() => {
+    if (physical.cortex.posture === 'stopped') return [];
+    const pathCount = tier === 'high' ? 3 : tier === 'medium' ? 2 : 1;
+    const axes = [
+      [1, 0.38, 0.24],
+      [-0.72, 0.56, 0.18],
+      [0.18, -0.68, 0.52],
+    ];
+    const reach = 0.18 + physical.cortex.activity * 0.2;
+    const convergence = physical.cortex.convergence;
+    return axes.slice(0, pathCount).map((axis, index) => {
+      const start = cortex.clone().add(new THREE.Vector3(
+        axis[0] * 0.08,
+        axis[1] * 0.08,
+        axis[2] * 0.08,
+      ));
+      const mid = cortex.clone().add(new THREE.Vector3(
+        axis[0] * reach,
+        axis[1] * reach,
+        axis[2] * reach,
+      ));
+      const settle = reach * (1 - convergence) * (0.78 + index * 0.06);
+      const end = cortex.clone().add(new THREE.Vector3(
+        axis[0] * settle,
+        axis[1] * settle,
+        axis[2] * settle,
+      ));
+      return [start, mid, end];
+    });
+  }, [cortex.x, cortex.y, cortex.z, physical.cortex.activity, physical.cortex.convergence, physical.cortex.posture, tier]);
+  const councilDissent = physical.signals.includes('council-dissent');
+  const councilDissentPaths = useMemo(() => {
+    if (!councilDissent || physical.cortex.posture === 'stopped') return [];
+    const pathCount = tier === 'high' ? 3 : tier === 'medium' ? 2 : 1;
+    const axes = [
+      [0.84, 0.2, 0.34],
+      [-0.58, 0.46, 0.32],
+      [0.12, -0.58, 0.52],
+    ];
+    return axes.slice(0, pathCount).map((axis, index) => {
+      const origin = cortex.clone().add(new THREE.Vector3(axis[0] * 0.12, axis[1] * 0.12, axis[2] * 0.12));
+      const nucleus = cortex.clone().add(new THREE.Vector3(axis[0] * (0.28 + index * 0.025), axis[1] * (0.28 + index * 0.025), axis[2] * (0.28 + index * 0.025)));
+      const returnPath = cortex.clone().add(new THREE.Vector3(axis[0] * 0.17, axis[1] * 0.17, axis[2] * 0.17));
+      return [origin, nucleus, returnPath];
+    });
+  }, [cortex.x, cortex.y, cortex.z, councilDissent, physical.cortex.posture, tier]);
   const auroraScale = 0.22 + aurora.intensity * 0.18;
+  const memoryFieldColor = MEMORY_LAYER_COLORS[physical.memory.layer];
+  const memoryFieldScale = physical.memory.layer === 'promoted'
+    ? 1.08
+    : physical.memory.layer === 'reflex'
+      ? 0.9
+      : 0.78;
+  const memoryFieldPosition = [cortex.x - 0.16, cortex.y - 0.06, cortex.z + 0.035];
   
   const VERDICT_COLORS = {
     pass: '#2fffa1',
@@ -368,33 +681,46 @@ export default function SuperbrainReactiveEffects() {
     caution: '#ffb454',
   };
   const auroraColor = VERDICT_COLORS[aurora.verdict] || VERDICT_COLORS.pass;
+  const verificationState = physical.verification.state;
+  const verificationFieldColor = VERIFICATION_FIELD_COLORS[verificationState] ?? '#ffb454';
+  const verificationFieldScale = verificationState === 'pass' ? 1.05 : verificationState === 'fail' ? 0.78 : 0.9;
+  const verificationFieldOpacity = verificationState === 'pass' ? 0.4 : verificationState === 'fail' ? 0.32 : 0.26;
+  const membraneColors = {
+    held: '#ffb454',
+    refused: '#ff8c69',
+    stopped: '#ff5f6d',
+  };
+  const membraneColor = membraneColors[physical.membrane.state] ?? '#ffb454';
+  const membraneOpacity = physical.membrane.state === 'stopped' ? 0.46 : 0.34;
 
   return (
     <group name="superbrain-reactive-effects">
-      <SemanticBeingHalo presentation={beingPresentation} />
-      {lightnings.map((l) => (
+      {!actionPresentationStopped && lightnings.map((l) => (
         <Line
           key={l.id}
           points={l.points}
           color={l.color}
           lineWidth={l.thickness}
           transparent
-          opacity={0.9}
+          opacity={0.9 * coherenceOpacity}
         />
       ))}
 
       {/* First-cloud-route spine flash: a bright bead travelling down the spine. */}
-      {spineFlash.intensity > 0.01 && (
+      {!actionPresentationStopped && spineFlash.intensity > 0.01 && (
         <group name="spine-flash">
           <Line
+            ref={spineFlashLineRef}
             data-testid="spine-flash"
             points={beadPointsForProgress(spineFlash.progress)}
             color="#e0ffff"
             lineWidth={5}
+            frustumCulled={false}
             transparent
-            opacity={spineFlash.intensity * 0.85}
+            opacity={spineFlash.intensity * 0.85 * coherenceOpacity}
           />
           <mesh
+            ref={spineFlashBeadRef}
             data-testid="spine-flash-bead"
             position={sampleWorldPosition(spineFlash.progress * (SEGMENT_ANCHORS.length - 1))}
             scale={[
@@ -407,7 +733,7 @@ export default function SuperbrainReactiveEffects() {
             <meshBasicMaterial
               color="#e0ffff"
               transparent
-              opacity={spineFlash.intensity * 0.45}
+              opacity={spineFlash.intensity * 0.45 * coherenceOpacity}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
             />
@@ -416,17 +742,19 @@ export default function SuperbrainReactiveEffects() {
       )}
 
       {/* Verify-pass aurora: a soft, transient bloom around the cortex. */}
-      {aurora.intensity > 0.01 && (
+      {!actionPresentationStopped && aurora.intensity > 0.01 && (
         <mesh
+          ref={auroraMeshRef}
           data-testid="verify-aurora"
           position={cortex}
           scale={[auroraScale, auroraScale, auroraScale]}
         >
           <sphereGeometry args={[1, 32, 32]} />
           <meshBasicMaterial
+            ref={auroraMaterialRef}
             color={auroraColor}
             transparent
-            opacity={aurora.intensity * 0.14}
+            opacity={aurora.intensity * 0.14 * coherenceOpacity}
             depthWrite={false}
             side={THREE.DoubleSide}
             blending={THREE.AdditiveBlending}
@@ -434,27 +762,192 @@ export default function SuperbrainReactiveEffects() {
         </mesh>
       )}
 
-      {/* Worker caste orbiters. */}
-      {Object.entries(motes).map(([caste, m]) => {
-        const pos = m.origin.clone();
-        pos.x += Math.cos(m.angle) * m.radius;
-        pos.z += Math.sin(m.angle) * m.radius;
-        pos.multiplyScalar(getBrainDockScale());
-        
-        const CASTE_COLORS = {
-          builder: '#ff8a00',
-          scout: '#00e5ff',
-          soldier: '#ff2a2a',
-          default: '#aefeff',
-        };
-        const c = caste.toLowerCase();
-        const color = CASTE_COLORS[c] || CASTE_COLORS.default;
-        
+      {!conductorStopped && conductorPathPoints.length > 1 && (
+        <Line
+          data-testid="physical-conductor-path"
+          points={conductorPathPoints}
+          color={conductorHeld ? CONDUCTOR_COLORS.held : conductor.trunkTint}
+          lineWidth={conductorLineWidth}
+          frustumCulled={false}
+          transparent
+          opacity={conductorLineOpacity}
+        />
+      )}
+
+      {cortexCurrentPaths.map((points, index) => (
+        <Line
+          key={`cortex-current-${index}`}
+          data-testid="cortex-current"
+          points={points}
+          color={cortexPostureColor}
+          lineWidth={tier === 'high' ? 1.3 : tier === 'medium' ? 1 : 0.8}
+          frustumCulled={false}
+          transparent
+          opacity={Math.min(0.32, (0.06 + physical.cortex.activity * 0.12) * coherenceOpacity)}
+        />
+      ))}
+
+      {councilDissentPaths.map((points, index) => (
+        <Line
+          key={`council-dissent-${index}`}
+          data-testid="council-dissent"
+          points={points}
+          color="#c9b6ff"
+          lineWidth={tier === 'high' ? 1.05 : tier === 'medium' ? 0.85 : 0.7}
+          frustumCulled={false}
+          transparent
+          opacity={0.16 * coherenceOpacity}
+        />
+      ))}
+
+      {conductorSeatSignals.map((signal) => {
+        const color = CONDUCTOR_COLORS[signal.role];
+        const seat = anchorWorldPosition(signal.seatIndex);
+        const isActive = signal.role === 'active';
+        const surface = physicalSurfaceBySeat.get(signal.seatIndex);
         return (
-          <mesh key={caste} position={pos}>
-            <sphereGeometry args={[0.04, 8, 8]} />
-            <meshBasicMaterial color={color} transparent opacity={0.85} />
+          <mesh
+            key={`physical-conductor-seat-${signal.seatIndex}`}
+            data-testid="physical-conductor-seat"
+            position={seat}
+            scale={(0.72 + signal.intensity * 0.38) * (surface?.focused ? 1.08 : 1)}
+          >
+            <sphereGeometry args={[isActive ? 0.035 : 0.025, tier === 'high' ? 12 : 8, tier === 'high' ? 10 : 6]} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={Math.min(0.72, signal.socketOpacity * (conductorStopped ? 0.48 : 1) * coherenceOpacity)}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
           </mesh>
+        );
+      })}
+
+      {/* Conduct pulse: a bounded semantic cue around the cortex. */}
+      {!conductorStopped && <mesh
+        ref={semanticPulseMeshRef}
+        data-testid="cortex-posture-field"
+        position={cortex}
+        scale={[0.24, 0.24, 0.24]}
+      >
+        <sphereGeometry args={[1, 20, 20]} />
+        <meshBasicMaterial
+          ref={semanticPulseMaterialRef}
+          color={cortexPostureColor}
+          transparent
+          opacity={cortexPostureOpacity}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>}
+
+      {physical.memory.layer !== 'none' && (
+        <mesh
+          data-testid="memory-cerebellar-field"
+          position={memoryFieldPosition}
+          scale={[memoryFieldScale, memoryFieldScale, memoryFieldScale]}
+          rotation={physical.memory.pulse === 'inward' ? [0, Math.PI / 2, 0] : [Math.PI / 2, 0, 0]}
+        >
+          <torusGeometry args={[0.16, 0.012, tier === 'high' ? 8 : 6, tier === 'high' ? 24 : 14]} />
+          <meshBasicMaterial
+            color={memoryFieldColor}
+            transparent
+            opacity={Math.min(0.38, (physical.memory.layer === 'promoted' ? 0.34 : 0.26) * coherenceOpacity)}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+
+      {physical.membrane.state !== 'clear' && (
+        <mesh
+          data-testid="sovereign-membrane"
+          position={cortex}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <torusGeometry args={[0.42, 0.012, 8, 64]} />
+          <meshBasicMaterial
+            color={membraneColor}
+            transparent
+            opacity={membraneOpacity * coherenceOpacity}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+
+      {verificationState !== 'none' && (
+        <mesh
+          data-testid="verification-field"
+          position={[cortex.x, cortex.y, cortex.z + 0.02]}
+          rotation={[Math.PI / 2, 0, verificationState === 'fail' ? 0.22 : 0]}
+          scale={[verificationFieldScale, verificationFieldScale, verificationFieldScale]}
+        >
+          <torusGeometry args={[0.3, 0.014, tier === 'high' ? 8 : 6, tier === 'high' ? 32 : 20]} />
+          <meshBasicMaterial
+            color={verificationFieldColor}
+            transparent
+            opacity={verificationFieldOpacity * coherenceOpacity}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      )}
+
+      {/* Temporary worker postures derived from the semantic kernel. */}
+      {Object.entries(motes).map(([caste, m]) => {
+        const angle = m.angle;
+        const scale = getBrainDockScale();
+        const pos = [
+          (m.origin.x + Math.cos(angle) * m.radius) * scale,
+          m.origin.y * scale,
+          (m.origin.z + Math.sin(angle) * m.radius) * scale,
+        ];
+        
+        const WORKER_COLORS = {
+          bud: '#b9a7ff',
+          branch: '#cf9cff',
+          conduct: '#50e8ff',
+          held: '#ffb36b',
+          returning: '#82f0b5',
+          dissolved: '#71809d',
+        };
+        const color = WORKER_COLORS[m.visualState] || WORKER_COLORS.bud;
+        const opacity = (m.visualState === 'dissolved' ? 0.32 : m.visualState === 'held' ? 0.64 : 0.85)
+          * coherenceOpacity;
+        
+        const branchStart = m.origin.clone().multiplyScalar(scale);
+        const branchTip = new THREE.Vector3(...pos);
+        const branchMid = branchStart.clone().lerp(branchTip, 0.5);
+        return (
+          <group key={caste}>
+            <Line
+              ref={(line) => {
+                if (line) branchLineNodesRef.current[caste] = line;
+                else delete branchLineNodesRef.current[caste];
+              }}
+              data-testid="worker-branch"
+              points={[branchStart, branchMid, branchTip]}
+              color={color}
+              lineWidth={1.5}
+              frustumCulled={false}
+              transparent
+              opacity={(m.visualState === 'dissolved' ? 0.14 : m.visualState === 'held' ? 0.4 : 0.58) * coherenceOpacity}
+            />
+            <mesh
+              data-testid="worker-mote"
+              position={pos}
+              ref={(node) => {
+                if (node) moteNodesRef.current[caste] = node;
+                else delete moteNodesRef.current[caste];
+              }}
+            >
+              <sphereGeometry args={[0.04, 8, 8]} />
+              <meshBasicMaterial color={color} transparent opacity={opacity} />
+            </mesh>
+          </group>
         );
       })}
 

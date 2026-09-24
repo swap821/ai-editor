@@ -30,7 +30,7 @@ export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuth
       ) : null}
       {mirror.compatibility ? <span>{mirror.compatibility}</span> : null}
       {copy.canRetry ? <button type="button" onClick={retry}>Try again</button> : null}
-      {mirror.approvalRequired && onOpenAuthority ? (
+      {mirror.approvalRequired && onOpenAuthority && experienceMode === 'expert' ? (
         <button type="button" onClick={onOpenAuthority}>Pending authority needs review</button>
       ) : null}
     </div>

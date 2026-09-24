@@ -344,6 +344,10 @@ export function useWorkMaterialization({
           publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
           return;
         }
+        // The conversational reply is a real user-facing result, not only a
+        // speech/3D event. Keep it in the DOM conversation log so Guided users
+        // and assistive technology can read the same answer that voice speaks.
+        pushMessage('gagos', cleanText(reply));
         setConversationPhase('complete');
         setOnline(true);
       }

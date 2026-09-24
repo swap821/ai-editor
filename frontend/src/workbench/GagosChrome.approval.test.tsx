@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
+import { useMirrorStore } from '../superbrain/lib/mirrorStore';
+import { setEmergencyStopPresentation } from '../livingMirror/emergencyStopPresentation';
 
 // The 3D being is not testable in jsdom; stub it so we exercise the 2D chrome —
 // specifically the DOM approval gate, the dependable supervised decision surface
@@ -27,7 +29,18 @@ vi.mock('../superbrain/lib/aiosAdapter', async () => {
   return {
     ...actual,
     approvePendingApproval: vi.fn(async () => {
-      (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
+      const host = window as unknown as {
+        __clearApproval?: () => void;
+        __injectApproval?: (over?: Record<string, unknown>) => void;
+      };
+      host.__clearApproval?.();
+      if (approveResult.paused) {
+        host.__injectApproval?.({
+          summary: 'Approval required to run the next bounded step',
+          kind: 'command',
+          command: 'npm test',
+        });
+      }
       return { ...approveResult };
     }),
     rejectPendingApproval: vi.fn(async () => {
@@ -58,16 +71,32 @@ describe('GagosChrome DOM approval gate', () => {
       })),
     });
     (window as unknown as ApprovalHost).__clearApproval?.();
+    setEmergencyStopPresentation('unknown');
+    useMirrorStore.setState({
+      recentEvents: [],
+      lastEventId: null,
+      approvalRequired: false,
+      approvals: {},
+      workers: {},
+      verifications: {},
+      lastVerification: null,
+      phase: 'unknown',
+      activeWorkers: [],
+      activeMissions: [],
+      activeCastes: [],
+      activeModels: [],
+      pendingEvents: 0,
+    });
     approveResult.ok = true;
     rejectResult.confirmed = true;
   });
 
-  it('surfaces an actionable AUTHORIZE/REJECT gate when the adapter has a pending approval', async () => {
+  it('surfaces an actionable Allow once/Don\'t allow gate when the adapter has a pending approval', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
 
     // No supervised pause yet -> no gate.
-    expect(screen.queryByRole('alertdialog', { name: /operator approval required/i })).toBeNull();
+    expect(screen.queryByRole('alertdialog', { name: 'GAGOS permission request' })).toBeNull();
 
     // The backend pauses on a real write intent -> the adapter captures the
     // pending approval (this is exactly what a live YELLOW turn produces).
@@ -83,14 +112,26 @@ describe('GagosChrome DOM approval gate', () => {
     // independent of whether the 3D scene renders.
     await waitFor(() => {
       expect(
-        screen.getByRole('alertdialog', { name: /operator approval required/i }),
+        screen.getByRole('alertdialog', { name: 'GAGOS permission request' }),
       ).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /authorize/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('alertdialog', { name: 'GAGOS permission request' }),
+    ).toHaveAttribute('aria-modal', 'true');
+    expect(screen.getByRole('button', { name: /allow once/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /don.t allow/i })).toBeInTheDocument();
     // The decision names the exact action — never a vague ask (the target file
     // appears in both the title and the plain-language summary).
     expect(screen.getAllByText(/hello_loop\.py/i).length).toBeGreaterThan(0);
+
+    // Keep the four human decision facts present in the integrated Guided DOM:
+    // the user must be able to decide from what will happen, where it happens,
+    // what the available evidence says it can affect, and what declining means.
+    expect(screen.getByText('What', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Where', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('It can affect', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('If you say no', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('GAGOS will not perform this action.')).toBeInTheDocument();
   });
 
   it('pushes a DOM confirmation into the thread after the operator authorizes', async () => {
@@ -105,18 +146,32 @@ describe('GagosChrome DOM approval gate', () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /authorize/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /allow once/i })).toBeInTheDocument();
     });
 
     await act(async () => {
-      screen.getByRole('button', { name: /authorize/i }).click();
+      screen.getByRole('button', { name: /allow once/i }).click();
     });
 
     // The thread now carries a plain-language done-confirmation naming the action.
     await waitFor(() => {
-      expect(screen.getByText(/hello_loop\.py/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/hello_loop\.py/i).length).toBeGreaterThan(0);
     });
     expect(screen.getByText(/created|approved/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run a check' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument();
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Run a check' }).click();
+    });
+    expect(screen.getByRole('textbox', { name: 'Talk to GAGOS' })).toHaveValue('Run a check for hello_loop.py.');
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Discard' }).click();
+    });
+    expect(screen.getByText('Finished, but not verified')).toBeInTheDocument();
+    expect(screen.getByText(/removed the unverified work surface/i)).toBeInTheDocument();
   });
 
   it('never narrates success when the authorize replay does not actually complete', async () => {
@@ -132,11 +187,11 @@ describe('GagosChrome DOM approval gate', () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /authorize/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /allow once/i })).toBeInTheDocument();
     });
 
     await act(async () => {
-      screen.getByRole('button', { name: /authorize/i }).click();
+      screen.getByRole('button', { name: /allow once/i }).click();
     });
 
     // Must narrate the real failure, never a false "Created"/"Approved".
@@ -145,6 +200,34 @@ describe('GagosChrome DOM approval gate', () => {
     });
     expect(screen.queryByText(/^↳ created/i)).toBeNull();
     expect(screen.queryByText(/^↳ approved/i)).toBeNull();
+  });
+
+  it('keeps a newly issued approval visible when an authorized replay pauses again', async () => {
+    approveResult.ok = true;
+    approveResult.paused = true;
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      (window as unknown as ApprovalHost).__injectApproval?.({
+        summary: 'Approval required to create hello_loop.py',
+        filepath: 'hello_loop.py',
+        kind: 'create',
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /allow once/i })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      screen.getByRole('button', { name: /allow once/i }).click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/run the next bounded step/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Finished, but not verified')).toBeNull();
+    expect(screen.queryByText(/^↳ created/i)).toBeNull();
   });
 
   it('narrates an unconfirmed decline distinctly from a confirmed one', async () => {
@@ -160,16 +243,18 @@ describe('GagosChrome DOM approval gate', () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /don.t allow/i })).toBeInTheDocument();
     });
 
     await act(async () => {
-      screen.getByRole('button', { name: /reject/i }).click();
+      screen.getByRole('button', { name: /don.t allow/i }).click();
     });
 
     await waitFor(() => {
       expect(screen.getByText(/unconfirmed by the server/i)).toBeInTheDocument();
     });
+    expect(screen.getByText(/decline was not confirmed by the server/i)).toBeInTheDocument();
+    expect(screen.getByText(/this interface did not authorize the action/i)).toBeInTheDocument();
   });
 
   it('clears the gate once the pending approval is resolved', async () => {
@@ -185,7 +270,7 @@ describe('GagosChrome DOM approval gate', () => {
     });
     await waitFor(() => {
       expect(
-        screen.getByRole('alertdialog', { name: /operator approval required/i }),
+        screen.getByRole('alertdialog', { name: 'GAGOS permission request' }),
       ).toBeInTheDocument();
     });
 
@@ -194,8 +279,50 @@ describe('GagosChrome DOM approval gate', () => {
     });
     await waitFor(() => {
       expect(
-        screen.queryByRole('alertdialog', { name: /operator approval required/i }),
+        screen.queryByRole('alertdialog', { name: 'GAGOS permission request' }),
       ).toBeNull();
     });
+  });
+
+  it('holds approval action presentation while an admitted emergency stop is engaged', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      (window as unknown as ApprovalHost).__injectApproval?.({
+        summary: 'Approval required to create hello_loop.py',
+        filepath: 'hello_loop.py',
+        kind: 'create',
+      });
+      useMirrorStore.getState().applyEvent(1, 'governance.emergency_stop.engaged', { reason: 'operator stop' });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/permission request is being held/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('alertdialog', { name: 'GAGOS permission request' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /allow once/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /don.t allow/i })).toBeNull();
+  });
+
+  it('holds approval presentation from a confirmed stop latch even before a mirror event arrives', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    act(() => {
+      setEmergencyStopPresentation('engaged');
+      (window as unknown as ApprovalHost).__injectApproval?.({
+        summary: 'Approval required to create hello_loop.py',
+        filepath: 'hello_loop.py',
+        kind: 'create',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/permission request is being held/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('alertdialog', { name: 'GAGOS permission request' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /allow once/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /don.t allow/i })).toBeNull();
   });
 });

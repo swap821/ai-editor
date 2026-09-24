@@ -8,15 +8,13 @@
     <meta name="theme-color" content="#050507" />
     <meta name="description" content="GAGOS — the voyaging mind: a local-first, supervised, memory-driven AI operating system." />
     <!-- ===== SECURITY HEADERS (C18) =====
-         The Content-Security-Policy is injected by the gagos-csp vite plugin
-         (vite.config.js) so it can be MODE-AWARE: the dev server must allow
-         script 'unsafe-inline' for vite's React-refresh preamble, but the
-         production build has no inline scripts (the boot loader is the external
-         /boot-loader.js), so the built CSP drops 'unsafe-inline' entirely.
-         A too-strict `script-src 'self'` previously blocked WASM + the troika
-         worker + inline scripts and silently killed the 3D scene. -->
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+         The complete response policy is supplied by vite.config.js for dev /
+         preview and must be preserved by the production gateway as HTTP
+         headers. The CSP meta below is only the browser-compatible static
+         fallback; frame-ancestors is intentionally not placed in meta because
+         browsers ignore it there. A too-strict `script-src 'self'` previously
+         blocked WASM + the troika worker + inline scripts and silently killed
+         the 3D scene. -->
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" />
     <!-- Anti-flash: paint the OLED canvas before the bundle loads -->

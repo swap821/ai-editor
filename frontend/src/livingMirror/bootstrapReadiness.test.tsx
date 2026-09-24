@@ -55,7 +55,8 @@ describe('BootstrapReadiness', () => {
 
     const view = render(<BootstrapReadiness apiBase="http://localhost:8000" />);
     await waitFor(() => expect(screen.getByText('Setup needs attention.')).toBeInTheDocument());
-    expect(screen.getByText(/Start Ollama or configure a permitted provider/)).toBeInTheDocument();
+    expect(screen.getByText('One local setup check needs attention.')).toBeInTheDocument();
+    expect(screen.queryByText(/Ollama|provider|model route/i)).not.toBeInTheDocument();
 
     view.rerender(<BootstrapReadiness apiBase="http://offline:8000" />);
     await waitFor(() => expect(screen.getByText('Setup status is unavailable.')).toBeInTheDocument());

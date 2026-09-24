@@ -52,4 +52,11 @@ describe('MirrorConnectionNotice', () => {
     expect(screen.getByText(/cursor 18/i)).toBeInTheDocument();
     expect(screen.getByText(/continuity is not yet confirmed/i)).toBeInTheDocument();
   });
+
+  it('does not expose the authority launcher in Guided mode', () => {
+    useMirrorStore.setState({ approvalRequired: true });
+    render(<MirrorConnectionNotice experienceMode="beginner" onOpenAuthority={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: 'Review permission request' })).not.toBeInTheDocument();
+  });
 });
