@@ -846,3 +846,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Evidence:** 4 new regressions were observed failing first; then full frontend 175 files / 963 tests, port 15/15, typecheck, build (4,316 modules), targeted ESLint and `port:check` passed.
 - **Honest limit:** LB-06 is partial; no keyboard/touch journey, operator visual review or independent review is claimed. Overall accepted completion remains 3/100; Android/iPhone models and desktop hardware are still TBD.
 - **Next:** operator review of LB-04/LB-05 at `:5173`; no broad visual redesign before that review.
+
+## 2026-09-24 — CEO note (LB-06 focus continuity)
+
+- **Implemented locally:** workspace launchers now preserve the initiating control, and dismissing a workspace selected from the rail restores to the stable Conversation control instead of a stale launcher. The MirrorConnectionNotice passes its real authority button through the focus path.
+- **Evidence:** the regression failed before the fix and passes after; livingMirror 42 files / 177 tests and full frontend 176 files / 964 tests passed. Typecheck, production build (4,316 modules), targeted ESLint and 193-file `port:check` passed.
+- **Honest limit:** this is one automated focus-return slice, not full keyboard/touch, assistive-technology, mobile, visual or human acceptance. No acceptance points added; accepted completion remains 3/100. Android 17 and iOS 27 are target OS versions, handset models TBD.
+- **Process correction:** the rail trigger is removed as the selected workspace closes; focusing it before React commits the removal leaves focus on the document body. Keep the safe Conversation fallback and test surviving focus targets, not transient DOM assumptions.
+- **Next:** commit this branch-local slice and evidence, then request a hash-pinned independent review; operator visual review remains open.
