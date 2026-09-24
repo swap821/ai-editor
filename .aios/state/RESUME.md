@@ -1,11 +1,22 @@
 # AI-OS Builder Resume
 
-**Current goal:** Continue the GAGOS physical-embodiment phase on the isolated
-`codex/frontend-physical-embodiment` branch, based on merged `origin/master`
-`ba5d433a` / PR #363. Preserve backend authority, Living Mirror truth,
+**Current goal:** Resolve PR #362 (`codex/v1-frontend-semantic-foundation`)
+against the merged physical-embodiment baseline `origin/master` at
+`c52f621f` / PR #364, preserving backend authority, Living Mirror truth,
 generated Superbrain ownership, and fail-closed evidence.
 
-**Last completed + verified:** The bounded physical projection now maps the
+**Last completed + verified:** The branch has been reconciled with the current
+master tip. Conflict resolution keeps master's newer physical/guided renderer
+and receipt paths in `GagosChrome.jsx` and `SuperbrainReactiveEffects.jsx`,
+while retaining PR #362's additive semantic modules and tests. Fresh
+verification now passes: the focused conflict-affected set passed 20 files /
+91 tests after updating one stale selector to master's
+`cortex-posture-field` contract; the full frontend suite passed 175 files /
+953 tests; typecheck passed; the production build transformed 4,316 modules;
+lint passed with 0 errors / 123 warnings. No backend or human-readiness claim
+is implied by these frontend gates.
+
+The bounded physical projection now maps the
 existing semantic presentation into cortex, conductor, branches, memory,
 verification, membrane, materialization, and measured council-dissent cues.
 The verification/council slice passed 3 files / 9 tests; the gallery/physical/
@@ -133,10 +144,11 @@ Fresh frontend verification passed 169 files / 929 tests. The full backend
 verification completed with 23 failures in unrelated backend/security/ledger
 tests; this is recorded explicitly and is not a green repository-wide claim.
 
-**Single next action:** Push the isolated branch, open the PR, and merge only
-with the backend failures disclosed; do not claim the repository-wide suite is
-green. The live backend worker/materialization cycle is currently blocked by
-the measured `strategy_unavailable` WorkerFoundry gate.
+**Single next action:** Commit and push the resolved PR #362 tree, then wait
+for GitHub to recompute its checks. Do not claim the PR is mergeable until
+those hosted checks pass. The live backend
+worker/materialization cycle is currently blocked by the measured
+`strategy_unavailable` WorkerFoundry gate.
 
 The operator-ready validation packet is now at
 `docs/frontend/evidence/gagos-physical-human-validation-packet.md`. It contains
@@ -153,8 +165,8 @@ fabricated results.
  live worker/materialization behavior. `npm run port:check` must continue to fail closed on
 the pre-existing missing lab source `components/QualityTierProvider.tsx`;
 never edit generated Superbrain files to bypass it. The implementation commit
-is complete; PR creation and merge are now explicitly authorized by the
-operator. Do not touch the main checkout directly.
+is complete; PR #362 conflict resolution is the active change. Do not touch
+the main checkout directly.
 
 **Active files:** `docs/frontend/GAGOS_PHYSICAL_EMBODIMENT_RFC.md`,
 `docs/frontend/GAGOS_PHYSICAL_BASELINE.md`,

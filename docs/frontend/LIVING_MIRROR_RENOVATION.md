@@ -94,3 +94,21 @@ Verification for this tranche: 43 focused backend tests passed; 134 frontend fil
 The canonical backend command was rerun from a detached short-root checkout at `C:\\w`, with both pytest's temporary root and `AIOS_TEST_TMP_ROOT` kept under that checkout. It reached `100%` without the historical child `MemoryError`, and coverage reported `88%`. The only failure was the existing `tests/test_organ_attestation_currency.py::test_no_green_organ_outside_the_spine_has_stale_evidence`, which identifies green organs `[17, 25, 47, 50]`. This tranche changes neither `.aios/state/ORGAN_GREEN_LEDGER.json` nor that test; the repository-wide backend gate therefore remains honestly red for an unrelated baseline evidence problem. The mirror-focused backend, frontend, format, type, build, port, and authenticated HTTP/browser evidence remain green as recorded above. The disposable runner was removed after capture; its test-generated `bandit_budget.json` mutation was not promoted.
 
 This closes the environment/path and child-memory uncertainty, not the organ-ledger blocker. The WebGL2 screenshot and authenticated ready/current browser state are engineering evidence; the operator still owns the final palette/texture approval.
+
+## 2026-09-22 semantic presentation foundation
+
+The next blueprint tranche adds one product-owned semantic projection over the
+existing mirror and cognition state. `semanticSignals.ts` maps admitted events
+to bounded signals without guessing from incomplete payloads;
+`beingPresentation.ts` derives presentation hints only (never permission or
+authority); and `humanTaskStory.ts` keeps understood, preparing, permission,
+working, checking, verified, unverified, refusal, failure, restore, stopped,
+and stale states distinct. Centralized copy and the Guided task story/receipt
+surfaces are mounted in `GagosChrome` while Expert mode continues to expose the
+existing operational surfaces.
+
+The Guided browser pass confirmed that starter paths prefill but do not submit,
+that the task remains present when switching to Expert, and that the being
+remains the visual hero. The complete implementation ledger, verification
+boundary, and remaining human-proof gaps are in
+`docs/frontend/GAGOS_2030_IMPLEMENTATION.md`.
