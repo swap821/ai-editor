@@ -25,6 +25,22 @@ Date: 2026-09-24. Status: LB-02 audit substantially recorded; physical-device se
 | `frontend/src/superbrain/components/canvas/BrainPointField.tsx:12,242`; `MaterializationLayer.tsx:22,402` | Additional phase/posture consumers; materialization derives posture from organism phase. | Include in the convergence audit; no broad deletion based on names. |
 | `frontend/src/workbench/GagosChrome.jsx:63-65,307,623,840`; `frontend/src/livingMirror/LivingWorkspaceShell.tsx:13,83` | Active DOM consumes the new presentation/status, `deriveReceipt`/`ReceiptCard`, and `presentHistoryEvent`. | Receipts/history are production behavior to preserve through any consolidation. |
 
+### LB-05 source divergence trace: conversation completion is not verification
+
+The current source graph permits one ordinary assistant reply to produce two different visual truths:
+
+| Boundary | Source behavior | Result for a completed reply without an explicit verifier pass |
+| --- | --- | --- |
+| Conversation event | `frontend/src/workbench/hooks/useWorkMaterialization.js:351` sets the shared conversation phase to `complete` after an assistant reply. | This event records that the reply ended; it does not itself carry verifier evidence. |
+| Legacy body phase | `frontend/src/superbrain/lib/conversationPhaseBus.ts:63-92` maps `complete` to `completion_settle` (documented there as green) and gives the conversation phase priority over the organism phase. `frontend/src/superbrain/lib/bodyPosture.ts:68` maps that lifecycle phase to the complete posture. | The body can take the green completion posture without consulting verification. `CortexEngine.tsx:430-441` uses this phase for the core-body tint and flow. |
+| Canonical semantic projection | `frontend/src/livingMirror/being/presentationFromStores.ts:112-161` treats a completed conversation as complete task activity, reads verification independently, and marks a reply without a result surface as understanding. `semanticKernel.ts:182-234` derives `unverified` coherence and `done-unverified` unless verification is explicitly `pass`. | The DOM/shared projection can correctly report “done-unverified” (and, for a reply with no result surface, an understanding phase) while the core body is green. |
+| Additive 3D effects | `frontend/src/workbench/SuperbrainReactiveEffects.jsx:208-217` consumes `useBeingPresentation` and derives a `PhysicalSnapshot`. | This is already a canonical consumer, but it does not own the base CortexEngine posture, so its presence does not close the split. |
+| Other phase consumers | `BrainPointField.tsx:12,242` reads the organism phase; `MaterializationLayer.tsx:22,402` derives its posture from that phase. | A convergence change must inventory these paths and preserve materialization behavior rather than changing only the core cortex. |
+
+The focused baseline on this branch passes **2 files / 21 tests** (`conversationPhaseBus.test.ts` and `presentationFromStores.test.ts`). Existing assertions verify each projection separately—including the legacy green mapping and canonical unverified state—but do not replay the same event through both projections and assert parity. This is a deterministic source/test gap, not a browser-observed reproduction. The narrow root cause is split body-state authority, not a color-token defect. Do not “fix” it only by deleting the green mapping: that would also hide a legitimate verified completion and would leave other legacy consumers. LB-05 implementation should add a same-event regression first, then route the bounded base-body state from the existing canonical presentation (explicit verifier pass required for success-green), while retaining a single derivation system and existing materialization semantics. Managed `superbrain/` source must continue to be changed through the authoring lab and `npm run port`, followed by the operator's required `:5173` visual check.
+
+This audit and its tests add **0 acceptance points**; accepted completion remains **3/100**. No product behavior changed in this checkpoint.
+
 ### Older #362 modules: runtime status, not a deletion list
 
 Import search over production source (excluding tests) at `c3181fd3` found:
