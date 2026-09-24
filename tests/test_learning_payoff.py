@@ -146,6 +146,13 @@ class TestAboutThisTarget:
         item = {"lesson_text": "from aios.agents.tool_agent import build_cmd failed"}
         assert payoff.about_this_target(item, _target())
 
+    def test_a_distinctive_function_name_alone_is_seen(self) -> None:
+        """Organic lessons rarely name the path. Over-marking SEEN is the safe
+        direction: it can only weaken the NOVEL claim, never inflate it."""
+        target = _target(function="build_auto_verify_command")
+        item = {"lesson_text": "build_auto_verify_command drops inherited addopts"}
+        assert payoff.about_this_target(item, target)
+
     def test_a_bare_function_name_alone_is_not_seen(self) -> None:
         """`main` or `run` would otherwise match unrelated work everywhere."""
         target = _target(function="run")
@@ -260,3 +267,223 @@ class TestTheStoreGuard:
         mtime = db.stat().st_mtime_ns
         payoff.store_fingerprint(db)
         assert db.stat().st_mtime_ns == mtime
+
+
+# --------------------------------------------------------------------------
+# Added after the adversarial review of 756dd34b. Each test below would have
+# FAILED against that commit -- they pin the flaws it found, not the fixes'
+# happy paths.
+# --------------------------------------------------------------------------
+
+
+class TestTheStoreGuardSeesUpdates:
+    """Four review lenses independently found the count-only guard blind to
+    the writes that matter: a promotion changes what recall returns and not
+    how many rows there are."""
+
+    def test_an_in_place_update_is_detected(self, tmp_path) -> None:
+        db = tmp_path / "memory.sqlite"
+        conn = sqlite3.connect(db)
+        for table in payoff.MEMORY_TABLES:
+            conn.execute(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, status TEXT)")
+        conn.execute("INSERT INTO procedural_skills (status) VALUES ('candidate')")
+        conn.commit()
+        before = payoff.store_fingerprint(db)
+        conn.execute("UPDATE procedural_skills SET status = 'verified'")
+        conn.commit()
+        conn.close()
+        after = payoff.store_fingerprint(db)
+        assert after != before, "a promotion slipped past the store guard"
+        assert after["procedural_skills"] != before["procedural_skills"]
+        assert after["mistake_pool"] == before["mistake_pool"], "says WHICH table moved"
+
+
+class TestSeenReadsTheFullLesson:
+    def _db(self, tmp_path, **row):
+        db = tmp_path / "memory.sqlite"
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE mistake_pool (id INTEGER PRIMARY KEY, root_cause TEXT, "
+            "fix_applied TEXT, task_id TEXT, lesson_text TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO mistake_pool (id, root_cause, fix_applied, task_id, lesson_text) "
+            "VALUES (7, ?, ?, ?, ?)",
+            (row.get("root_cause", ""), row.get("fix_applied", ""), "", "generic"),
+        )
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_a_target_named_only_in_root_cause_is_seen(self, tmp_path) -> None:
+        """The recalled dict has no root_cause. Without enrichment this repeat
+        was filed NOVEL -- the one mistake the split exists to prevent."""
+        target = _target()
+        db = self._db(tmp_path, root_cause=f"{target.label} returned the wrong list")
+        recalled = [
+            {"mistake_id": 7, "lesson_text": "check list order", "error_type": "x"}
+        ]
+        assert not payoff.about_this_target(recalled[0], target), "precondition"
+        enriched = payoff.enrich_lessons(db, recalled)
+        assert payoff.about_this_target(enriched[0], target)
+
+    def test_the_pin_test_filename_alone_is_seen(self) -> None:
+        target = _target()
+        item = {
+            "lesson_text": f"pytest {payoff._test_filename(target)} failed: 1 failed"
+        }
+        assert payoff.about_this_target(item, target)
+
+    def test_enrichment_changes_nothing_the_model_sees(self, tmp_path) -> None:
+        """Classification only. The ON prompt is built from the production
+        block, which never reads root_cause."""
+        from aios.api.turn_pipeline import lessons_prompt_block
+
+        db = self._db(tmp_path, root_cause="internal-only detail")
+        recalled = [
+            {
+                "mistake_id": 7,
+                "lesson_text": "check",
+                "error_type": "x",
+                "verification_status": "verified",
+            }
+        ]
+        before = lessons_prompt_block(recalled)
+        payoff.enrich_lessons(db, recalled)
+        assert lessons_prompt_block(recalled) == before
+        assert "internal-only" not in before
+
+
+class TestTargetSelectionReachesNovelWork:
+    def test_it_alternates_unpractised_and_practised(self) -> None:
+        targets = [_target(function=f"f{i}") for i in range(6)]
+        practised_names = {"f0", "f1", "f2"}
+        chosen, n_fresh, n_known = payoff.select_targets(
+            targets, 4, lambda t: t.function in practised_names
+        )
+        assert [t.function for t in chosen] == ["f3", "f0", "f4", "f1"]
+        assert (n_fresh, n_known) == (2, 2)
+
+    def test_history_blind_selection_would_have_been_all_practised(self) -> None:
+        """What collect_targets alone returns when its top-N is what earlier
+        runs practised: NOVEL is structurally empty."""
+        targets = [_target(function=f"f{i}") for i in range(6)]
+        practised_names = {"f0", "f1", "f2", "f3"}
+        assert all(t.function in practised_names for t in targets[:4])
+        _chosen, n_fresh, _known = payoff.select_targets(
+            targets, 4, lambda t: t.function in practised_names
+        )
+        assert n_fresh == 2
+
+    def test_unreadable_history_counts_as_practised(self) -> None:
+        """Unknown history must never inflate NOVEL."""
+        assert payoff.practised(None, _target())
+
+    def test_a_target_in_history_is_practised(self) -> None:
+        target = _target()
+        assert payoff.practised(f"pin the behaviour of {target.label} via x", target)
+        assert not payoff.practised("pin the behaviour of aios/other.py::g", target)
+
+
+class TestOneJudgedNumber:
+    def test_only_novel_carries_a_verdict(self) -> None:
+        """Three uncorrected tests would let the best one be quoted."""
+        pairs = [_pair(True, False, seen=True) for _ in range(6)] + [
+            _pair(True, False, seen=False) for _ in range(6)
+        ]
+        report = payoff.render(pairs)
+        judged, rest = report.split("context only -- SEEN", 1)
+        assert "MEMORY HELPED" in judged
+        for phrase in ("HELPED", "HURT", "NOISE", "NO MEASURABLE"):
+            assert phrase not in rest, f"context section carries a verdict: {phrase}"
+
+    def test_no_novel_pairs_means_no_judged_number(self) -> None:
+        report = payoff.render([_pair(True, False, seen=True) for _ in range(6)])
+        assert "NO JUDGED NUMBER" in report
+        assert "MEMORY HELPED" not in report, (
+            "a SEEN-only win was presented as the verdict"
+        )
+
+    def test_the_scope_travels_with_the_number(self) -> None:
+        report = payoff.render([_pair(False, False)])
+        assert "NOT exercised" in report and "PREPENDED" in report
+
+
+class TestTheInstrumentIsProvenBeforeUse:
+    """The docstring promised a green baseline; nothing ran one. A red guard
+    suite then failed every arm, they tied, and the report read 'no measurable
+    difference' -- a confident null from a broken instrument."""
+
+    def _wire(self, tmp_path, monkeypatch, *, control_ok: bool, captured: list):
+        from contextlib import contextmanager
+        from types import SimpleNamespace
+
+        db = tmp_path / "memory.sqlite"
+        conn = sqlite3.connect(db)
+        for table in payoff.MEMORY_TABLES:
+            conn.execute(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY)")
+        conn.commit()
+        conn.close()
+
+        @contextmanager
+        def _corpus(repo, dest, ref="HEAD"):
+            yield SimpleNamespace(root=tmp_path, sha="c" * 40)
+
+        monkeypatch.setattr(payoff, "DB", db)
+        monkeypatch.setattr(payoff, "init_memory_db", lambda db: None)
+        monkeypatch.setattr(payoff, "MistakeMemory", lambda db_path: object())
+        monkeypatch.setattr(payoff, "SkillMemory", lambda db_path: object())
+        monkeypatch.setattr(payoff, "ReflectionAgent", lambda *a, **k: object())
+        monkeypatch.setattr(
+            payoff, "resolve_client", lambda spec, timeout_s: (object(), spec)
+        )
+        monkeypatch.setattr(payoff, "self_corpus", _corpus)
+        monkeypatch.setattr(
+            payoff, "run_self_check", lambda corpus: (control_ok, "control detail")
+        )
+        monkeypatch.setattr(payoff, "collect_targets", lambda root: [_target()])
+        monkeypatch.setattr(payoff, "practice_history", lambda db: "")
+
+        def _recall(reflector, skills, query, session_id):
+            captured.append(query)
+            return "", [], []
+
+        monkeypatch.setattr(payoff, "recalled_context", _recall)
+
+    def test_a_failed_control_refuses_the_run(self, tmp_path, monkeypatch) -> None:
+        captured: list = []
+        self._wire(tmp_path, monkeypatch, control_ok=False, captured=captured)
+        with pytest.raises(CorpusError, match="positive control"):
+            payoff.run_benchmark(models="x", targets=1, model_timeout=1)
+        assert captured == [], (
+            "a model-facing step ran before the instrument was proven"
+        )
+
+    def test_a_passing_control_lets_the_run_proceed(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Negative control for the refusal above."""
+        captured: list = []
+        self._wire(tmp_path, monkeypatch, control_ok=True, captured=captured)
+        pairs, _run, _sha = payoff.run_benchmark(models="x", targets=1, model_timeout=1)
+        assert len(pairs) == 1
+
+    def test_recall_is_queried_with_the_task_itself(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """A live turn recalls against the user's text. The first version used
+        an invented 'pin the behaviour of' label whose boilerplate matched every
+        pin arc's goal_pattern."""
+        captured: list = []
+        self._wire(tmp_path, monkeypatch, control_ok=True, captured=captured)
+        payoff.run_benchmark(models="x", targets=1, model_timeout=1)
+        assert captured == [payoff.task_prompt(_target())]
+        assert "pin the behaviour of" not in captured[0]
+
+
+class TestTargetsMustBePositive:
+    def test_zero_is_refused(self) -> None:
+        """collect_targets(limit=0) means 'no cap' -- a --targets 0 dry run
+        would have asked the model about every function in aios/."""
+        with pytest.raises(SystemExit):
+            payoff.main(["--targets", "0"])

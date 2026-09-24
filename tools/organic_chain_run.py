@@ -104,6 +104,7 @@ from tools.reverse_engineer_gagos import (  # noqa: E402
     _last_digest,
     _test_filename,
     resolve_client,
+    run_self_check,
     tier_verdict,
 )
 from aios.agents import tool_loop_helpers  # noqa: E402
@@ -223,6 +224,16 @@ def run_chain(
     with self_corpus(REPO_ROOT, WORKTREE) as corpus:
         print(f"corpus  : {corpus.root} @ {corpus.sha[:12]}\n")
         corpus_sha = corpus.sha
+        # THE POSITIVE CONTROL. Found missing by the payoff benchmark's review:
+        # this harness's docstring claimed "a green baseline required" and
+        # nothing ran one. A red guard suite would fail every attempt, and a
+        # run of pure rejections would read as the model failing -- exactly
+        # the evidence L1 cites. A known-correct test must EARN through the
+        # full grader before any model is asked anything.
+        ok, control = run_self_check(corpus)
+        if not ok:
+            raise CorpusError(f"positive control failed, instrument invalid: {control}")
+        print("control : grader earns a known-correct test\n")
         chosen = collect_targets(corpus.root, limit=targets)
 
         for target in chosen:

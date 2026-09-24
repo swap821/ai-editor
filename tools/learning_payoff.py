@@ -100,6 +100,7 @@ from tools.reverse_engineer_gagos import (  # noqa: E402
     _test_filename,
     complete_via,
     resolve_client,
+    run_self_check,
 )
 
 # The PRODUCTION recall path and the PRODUCTION prompt blocks, imported
@@ -212,6 +213,10 @@ def about_this_target(item: dict, target) -> bool:
     text = " ".join(str(v) for v in item.values() if isinstance(v, (str, list)))
     if target.label in text:
         return True
+    # The pin test's own filename is in every verify command a lesson about
+    # this target records, and it names BOTH module and function.
+    if _test_filename(target) in text:
+        return True
     # `Target.module` is a repo-relative PATH ("aios/agents/tool_agent.py"),
     # not a dotted module. Match it as written, and ALSO as the dotted import
     # path, because a lesson about a failed import names it that way.
@@ -220,13 +225,136 @@ def about_this_target(item: dict, target) -> bool:
     # "aios/agents/tool_agent/py" -- a string that can never match. It was
     # masked by the raw-path check beside it, which is how a helper can be
     # wrong and still pass.)
+    function = str(target.function)
+    names_function = bool(re.search(rf"\b{re.escape(function)}\b", text))
     names_module = str(target.module) in text or _import_path(target.module) in text
-    return names_module and bool(
-        re.search(rf"\b{re.escape(str(target.function))}\b", text)
+    if names_module and names_function:
+        return True
+    # An ORGANIC lesson often names neither path nor label -- "the auto-verify
+    # command builder dropped addopts" -- but does name the function. A
+    # DISTINCTIVE function name alone therefore counts. This is the safe
+    # direction to be wrong in: a false SEEN only weakens the NOVEL claim. A
+    # short generic name (`run`, `main`, `parse`) would match unrelated work
+    # everywhere, so it still requires the module.
+    return names_function and (len(function) >= 12 or function.count("_") >= 2)
+
+
+def enrich_lessons(db: Path, lessons: list[dict]) -> list[dict]:
+    """Add the fields that say WHICH work a recalled lesson came from.
+
+    A recalled lesson carries `lesson_text` and `error_type` -- the part shown
+    to the model -- but not `root_cause`, `fix_applied` or `task_id`, which is
+    where the target's identity usually lives. SEEN detection that reads only
+    the display dict files a genuine repeat as NOVEL, and that is the one
+    mistake this split exists to prevent. Looked up read-only by `mistake_id`.
+
+    Used ONLY to classify. The model is shown exactly what production shows.
+    """
+    import sqlite3
+
+    ids = [int(item["mistake_id"]) for item in lessons if "mistake_id" in item]
+    if not ids:
+        return lessons
+    conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        placeholders = ",".join("?" * len(ids))
+        extra = {
+            int(row["id"]): {
+                "root_cause": str(row["root_cause"] or ""),
+                "fix_applied": str(row["fix_applied"] or ""),
+                "task_id": str(row["task_id"] or ""),
+            }
+            for row in conn.execute(
+                f"SELECT id, root_cause, fix_applied, task_id FROM mistake_pool "  # noqa: S608 - placeholders only
+                f"WHERE id IN ({placeholders})",
+                ids,
+            )
+        }
+    finally:
+        conn.close()
+    return [
+        {**item, **extra.get(int(item.get("mistake_id", -1)), {})} for item in lessons
+    ]
+
+
+def practice_history(db: Path) -> Optional[str]:
+    """Every text this system has recorded about work it has done, once.
+
+    Returns None when the history cannot be read, and callers must then treat
+    EVERY target as practised: unknown history must never inflate NOVEL.
+    """
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        parts = [
+            str(row[0] or "")
+            for row in conn.execute("SELECT goal_pattern FROM procedural_skills")
+        ]
+        for row in conn.execute(
+            "SELECT root_cause, fix_applied, lesson_text, task_id FROM mistake_pool"
+        ):
+            parts.extend(str(value or "") for value in row)
+        return "\n".join(parts)
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+
+
+def practised(history: Optional[str], target) -> bool:
+    """Has this system recorded ANY learning on this target before?
+
+    Used to choose targets, not to classify pairs: `collect_targets` is a
+    deterministic, history-blind ranking, so its top N are exactly the targets
+    earlier runs already practised, and the NOVEL bucket -- the headline claim
+    -- came out structurally empty. Selection now draws from both sides.
+    """
+    if history is None:
+        return True
+    return target.label in history or _test_filename(target) in history
+
+
+def task_prompt(target) -> str:
+    """The task exactly as the model is asked it -- and, for the ON arm, the
+    text recall is queried with, because in a live turn recall runs against the
+    user's own words. One derivation, so the two can never drift apart."""
+    return PROMPT.format(
+        module=target.module,
+        import_path=_import_path(target.module),
+        function=target.function,
+        source=target.source.rstrip(),
     )
 
 
-#: Tables whose contents ARE the animal's memory. If any row count moves
+def select_targets(candidates: list, n: int, is_practised) -> tuple[list, int, int]:
+    """Up to *n* targets, alternating unpractised and practised.
+
+    Alternating keeps BOTH questions answerable in one run: SEEN needs targets
+    the animal has worked on, NOVEL needs ones it has not. Order within each
+    side is `collect_targets`' own reproducible ranking, so the choice depends
+    on history and never on outcomes.
+    """
+    flags = [(t, bool(is_practised(t))) for t in candidates]
+    fresh = [t for t, seen in flags if not seen]
+    known = [t for t, seen in flags if seen]
+    chosen: list = []
+    n_fresh = n_known = 0
+    while len(chosen) < n and (fresh or known):
+        if fresh and len(chosen) < n:
+            chosen.append(fresh.pop(0))
+            n_fresh += 1
+        if known and len(chosen) < n:
+            chosen.append(known.pop(0))
+            n_known += 1
+    return chosen, n_fresh, n_known
+
+
+#: Tables whose contents ARE the animal's memory. If any of them changes
 #: during a run, later ON arms were shown different memory than earlier ones
 #: and the pairs are no longer measuring the same thing.
 MEMORY_TABLES = (
@@ -237,20 +365,34 @@ MEMORY_TABLES = (
 )
 
 
-def store_fingerprint(db: Path) -> dict[str, int]:
-    """Row counts of every memory table, read-only."""
+def store_fingerprint(db: Path) -> dict[str, str]:
+    """A digest of every row of every memory table, read-only.
+
+    CONTENT, not counts. The first version fingerprinted `COUNT(*)`, which
+    catches an INSERT and misses every write that matters most here: a lesson
+    flipped to verified, a skill promoted, a playbook decompiled -- UPDATEs,
+    which change what recall returns without changing how many rows there are.
+    Four independent review lenses found that; a guard blind to the writes
+    that change its subject is not a guard.
+
+    Hashed per table so a refusal can say WHICH memory moved.
+    """
+    import hashlib
     import sqlite3
 
-    out: dict[str, int] = {}
+    out: dict[str, str] = {}
     conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
     try:
         for table in MEMORY_TABLES:
+            digest = hashlib.sha256()
             try:
-                out[table] = int(
-                    conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608 - fixed allowlist above
-                )
+                # `table` comes only from the fixed tuple above.
+                rows = conn.execute(f"SELECT * FROM {table} ORDER BY rowid")  # noqa: S608
+                for row in rows:
+                    digest.update(repr(tuple(row)).encode("utf-8"))
+                out[table] = digest.hexdigest()
             except sqlite3.OperationalError:
-                out[table] = -1
+                out[table] = "absent"
     finally:
         conn.close()
     return out
@@ -299,12 +441,7 @@ def run_arm(
     started = time.monotonic()
     result = ArmResult(arm=arm, recalled_lessons=lessons, recalled_skills=skills_count)
 
-    prompt = PROMPT.format(
-        module=target.module,
-        import_path=_import_path(target.module),
-        function=target.function,
-        source=target.source.rstrip(),
-    )
+    prompt = task_prompt(target)
     if extra_context:
         prompt = f"{extra_context}\n\n{prompt}"
     result.prompt_chars = len(prompt)
@@ -392,24 +529,51 @@ def run_benchmark(
     # branch this harness happens to live on -- the lesson of #359 and #363.
     with self_corpus(REPO_ROOT, WORKTREE, ref=ref) as corpus:
         corpus_sha = corpus.sha
-        print(f"corpus  : {corpus.root} @ {corpus.sha[:12]}\n")
+        print(f"corpus  : {corpus.root} @ {corpus.sha[:12]}")
 
-        for index, target in enumerate(collect_targets(corpus.root, limit=targets)):
+        # THE POSITIVE CONTROL, before any model is asked anything. A
+        # known-correct pin test must EARN through the full grader, which also
+        # proves the guard suite is green at this ref. Without it a red guard
+        # suite fails every arm of every pair, they tie, and the report reads
+        # "no measurable difference" -- a confident null from a broken
+        # instrument. The docstring claimed a green baseline; nothing ran one.
+        ok, detail = run_self_check(corpus)
+        if not ok:
+            raise CorpusError(f"positive control failed, instrument invalid: {detail}")
+        print(f"control : grader earns a known-correct test ({detail[:60]})\n")
+
+        candidates = collect_targets(corpus.root)
+        history = practice_history(DB)
+        chosen, n_fresh, n_known = select_targets(
+            candidates, targets, lambda t: practised(history, t)
+        )
+        print(
+            f"targets : {len(chosen)} chosen -- {n_fresh} never practised, {n_known} practised\n"
+        )
+
+        for index, target in enumerate(chosen):
             # Alternate which arm goes first. A fixed order would let "the
             # second attempt runs against a warmer cache" look like payoff.
             first = "on" if index % 2 == 0 else "off"
             pair = Pair(target=target.label, first=first)
             print(f"  {target.label}   (first: {first.upper()})")
 
-            query = f"pin the behaviour of {target.module}::{target.function}"
+            # THE QUERY IS THE TASK. A live turn recalls against the user's own
+            # text, and for this task the user's text is the task prompt. The
+            # first version queried an invented "pin the behaviour of X" label
+            # that shares its boilerplate with every pin arc's goal_pattern --
+            # manufacturing lexical matches no real turn would get.
+            query = task_prompt(target)
             context, lessons, verified = recalled_context(
                 reflector, skills, query, f"payoff-{run_id}-{index}"
             )
             n_lessons, n_skills = len(lessons), len(verified)
-            # SEEN if ANY recalled item was recorded on this very target. A win
-            # there is memory helping on a repeat, not transferring to new work.
+            # SEEN if ANY recalled item was recorded on this very target, read
+            # against the lesson's FULL row. A win there is memory helping on a
+            # repeat, not transferring to new work.
             pair.seen = any(
-                about_this_target(item, target) for item in lessons + verified
+                about_this_target(item, target)
+                for item in enrich_lessons(DB, lessons) + verified
             )
 
             if not context:
@@ -552,17 +716,30 @@ def render(pairs: list[Pair]) -> str:
             out.append(f"    - {row['target'][:60]}: {row['reason']}")
         return "\n".join(out)
 
-    # NOVEL first and loudest: it is the only claim that says memory helps on
-    # work the animal has not already seen.
-    for key, title in (
-        ("novel", "NOVEL targets -- transfer to work it has not practised"),
-        ("seen", "SEEN targets -- recall included this very target"),
-        ("all", "ALL comparable pairs"),
+    # ONE judged number, ONE significance test. Three McNemar tests at
+    # uncorrected alpha over overlapping data would let whichever came out best
+    # be quoted -- so NOVEL, the only claim that memory helps on work the animal
+    # has not already done, carries the verdict. SEEN and ALL are printed as
+    # context and deliberately carry no significance language at all.
+    for key, title, judged in (
+        (
+            "novel",
+            "THE JUDGED NUMBER -- NOVEL targets (transfer to unpractised work)",
+            True,
+        ),
+        (
+            "seen",
+            "context only -- SEEN targets (recall included this very target)",
+            False,
+        ),
+        ("all", "context only -- ALL comparable pairs", False),
     ):
         stats = summary[key]
         out.append(f"  {title}")
         if not stats["pairs"]:
-            out.append("    (none)")
+            out.append(
+                "    (none) -- NO JUDGED NUMBER this run" if judged else "    (none)"
+            )
             out.append("")
             continue
         out.append(
@@ -573,8 +750,27 @@ def render(pairs: list[Pair]) -> str:
         out.append(
             f"    discordant: ON-only {stats['on_only']}, OFF-only {stats['off_only']}"
         )
-        out.append(f"    {_verdict(stats)}")
+        if judged:
+            out.append(f"    {_verdict(stats)}")
         out.append("")
+
+    # WHAT THIS MEASURED, AND WHAT IT DID NOT. Printed with every number so the
+    # scope of the claim travels with it.
+    out.append("  scope:")
+    out.append(
+        "    channels exercised: recalled lessons + verified skills. NOT exercised: "
+        "semantic memory, facts/graph recall, self-model."
+    )
+    out.append(
+        "    recall is PREPENDED to the task, so a content effect is not separated "
+        "from a prompt-length/position effect by this design."
+    )
+    out.append(
+        "    SEEN is detected from text (label, pin-test filename, module + "
+        "function, or a distinctive function name). A lesson that names none of "
+        "those is filed NOVEL -- so NOVEL is an upper bound on transfer."
+    )
+    out.append("")
 
     if summary["not_comparable"]:
         out.append(f"  {len(summary['not_comparable'])} pair(s) not comparable:")
@@ -585,9 +781,21 @@ def render(pairs: list[Pair]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--targets", type=int, default=6)
+
+    def _at_least_one(value: str) -> int:
+        # `collect_targets(limit=0)` means "no cap", so a --targets 0 dry run
+        # would have silently asked the model about EVERY function in aios/.
+        number = int(value)
+        if number < 1:
+            raise argparse.ArgumentTypeError("--targets must be at least 1")
+        return number
+
+    parser.add_argument("--targets", type=_at_least_one, default=10)
     parser.add_argument("--models", default="ollama.qwen2.5-coder:7b")
-    parser.add_argument("--model-timeout", type=int, default=240)
+    # 240s lost 2 of 6 preview pairs to timeouts. A timeout makes a pair NOT
+    # COMPARABLE rather than a loss, so it costs data, not honesty -- but the
+    # ON prompt is longer, so a tight budget would thin ON's pairs first.
+    parser.add_argument("--model-timeout", type=int, default=420)
     parser.add_argument(
         "--ref",
         default="origin/master",
@@ -598,6 +806,23 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+
+    # A remote-tracking ref resolves against whatever this clone last FETCHED,
+    # so an unfetched clone would measure days-old code and cite it correctly.
+    # Fetch first; offline is reported, not fatal -- the corpus sha printed
+    # below is still exact, it just may not be current.
+    if args.ref.startswith("origin/"):
+        fetched = subprocess.run(
+            ["git", "fetch", "--quiet", "origin", args.ref.split("/", 1)[1]],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if fetched.returncode != 0:
+            print(
+                f"WARNING: could not fetch {args.ref}; measuring the last fetched "
+                f"copy. {fetched.stderr.strip()[:120]}"
+            )
 
     # The harness is recorded separately from the measured code: a reader must
     # be able to tell "the code under test" from "the tool that tested it",
