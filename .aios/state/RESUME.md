@@ -2,7 +2,7 @@
 
 **Current goal:** Implement the GAGOS living-being frontend blueprint in official `frontend/`, with desktop and mobile treated equally.
 
-**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8` (PRs #362, #363 and #364 merged). Current isolated branch/worktree: `codex/gagos-living-being-execution` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-execution/ai-editor`, commit `7bb85ddb` (parent `64f3e4fb`). Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
+**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8` (PRs #362, #363 and #364 merged). Current isolated branch/worktree: `codex/gagos-living-being-execution` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-execution/ai-editor`; focus fix commit `7bb85ddb`, documentation checkpoint `14cba12a`, both based on `64f3e4fb`. Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
 
 **Last completed + verified:** Prior LB-01–LB-05 and LB-06 seat identity work are recorded in the ledger; visual/operator and device acceptance remain open. This branch's LB-06 addition restores focus after any focused-workspace-to-Conversation transition, including a store-owned child close, and records Conversation as the target when explicitly selected. Regression coverage passed **3/3**; focus + narrow-layout tests **2 files / 11 tests**; changed-file ESLint passed. Full checks are recorded below. Code and evidence are committed locally as `7bb85ddb`.
 
@@ -20,7 +20,7 @@
 
 **Accepted completion:** **3/100** (INT-01 only); this code checkpoint adds no acceptance points. Android 17 and iOS 27 are OS targets; both physical phone models remain TBD. Desktop hardware, named browser/GPU, human usability evidence and live WorkerFoundry integration remain unverified.
 
-**Next single action:** Hand off clean commit `7bb85ddb` for Claude's read-only, hash-pinned independent review; await verdict before any edits to this tree.
+**Next single action:** Submit this clean committed branch for Claude's read-only, hash-pinned independent review; after handoff, await the verdict before any edits to this tree.
 
 **Open approvals / blockers:** Independent code review of `7bb85ddb` is pending. LB-04/LB-05 operator visual review remains pending. No phone run (Android/iPhone models TBD), named browser/GPU baseline, human comprehension evidence or live WorkerFoundry integration. Full LB-06 rapid-interaction and keyboard/touch parity are not proven. `npm ci` reported two moderate audit advisories; dependency versions were not changed.
 
