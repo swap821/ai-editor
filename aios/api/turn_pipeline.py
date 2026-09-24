@@ -572,6 +572,38 @@ def _recall_skills(
         return []
 
 
+def lessons_prompt_block(lessons: list[dict[str, Any]]) -> Optional[str]:
+    """The recalled lessons, in the exact shape the model is shown.
+
+    Lives here rather than inline in `generate_pipeline` so that anything
+    measuring what recall is WORTH shows the model the same bytes production
+    does. A benchmark whose prompt block has drifted from production is
+    measuring a prompt nobody ships -- the one-derivation-two-callers rule
+    this repository keeps relearning the hard way.
+    """
+    if not lessons:
+        return None
+    return (
+        "RELEVANT LESSONS (verified cross-task or pending from this task):\n"
+        + "\n".join(
+            f"- [{le.get('verification_status', 'pending')}; {le['error_type']}] "
+            f"{le['lesson_text']}"
+            for le in lessons
+        )
+    )
+
+
+def skills_prompt_block(skills: list[dict[str, Any]]) -> Optional[str]:
+    """The recalled verified workflows, in the exact shape the model is shown."""
+    if not skills:
+        return None
+    return "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
+        f"- For {skill['goal_pattern']}: {' -> '.join(skill['steps'])} "
+        f"(verified success rate {skill['success_rate']:.0%})"
+        for skill in skills
+    )
+
+
 def _verify_target_keys(command: str) -> list[str]:
     """Classification keys for one verification command.
 
