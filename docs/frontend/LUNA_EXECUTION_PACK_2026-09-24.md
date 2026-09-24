@@ -101,6 +101,10 @@ Capture idle, typing, materialization, streaming, eight-worker fixtures, verific
 
 Obtain a repeatable desktop baseline and physical-phone baseline before increasing visual load. If a phone is unavailable, continue independent projection work with that gate open. Validate accounting using a countable scene/pass chain and focused tests.
 
+**Implementation checkpoint (partial, 2026-09-24):** `SuperbrainReactiveEffects.jsx` now disables Three.js `renderer.info.autoReset` before the priority-1 `EffectComposer` runs, samples its accumulated draw calls at R3F priority 2 after the composer, then resets once for the next frame. The local bounded scene sample calls this counter `drawCalls` (not composer passes); draw-call, geometry and texture counters preserve `null` as `unavailable`. Unit coverage simulates multiple internal passes and verifies per-frame reset and restoration. Focused metrics: 12/12 tests; 3D effects regression set: 19/19; full frontend: 175 files / 955 tests passed; typecheck and production build passed (4,316 modules transformed). Lint exited 0 with two hook-dependency warnings in unchanged memo blocks.
+
+This does **not** close LB-03: no browser-run countable scene/pass capture, named desktop baseline, CPU/GPU timing, input-latency distribution or physical-phone run has been recorded. No acceptance points are earned by this implementation checkpoint.
+
 ## Review and verification cadence
 
 After LB-05 independently review semantic precedence, replay, task identity and stale/stop/permission behavior. After LB-12 the operator reviews the moving journey, and an independent reviewer inspects authority/fallback. After LB-16 review actual device traces and material/tier equivalence. Before release use the repository's non-builder hash-pinned handoff.

@@ -46,7 +46,10 @@ import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
 import { derivePhysicalMaterialization } from '../livingMirror/being/physicalMaterialization';
 import { useReducedMotion } from '../superbrain/lib/reducedMotion';
 import { updateLineGeometryPoints } from './lineGeometry';
-import { recordFrontendSceneDiagnostic } from '../livingMirror/observability/frontendMetrics';
+import {
+  createComposerFrameDrawCallSampler,
+  recordFrontendSceneDiagnostic,
+} from '../livingMirror/observability/frontendMetrics';
 
 const CLOUD_COLORS = {
   bedrock: new THREE.Color('#f5c542'),
@@ -268,6 +271,8 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const spineFlashBeadRef = useRef(null);
   const spineFlashScratchRef = useRef(null);
   const sceneDiagnosticElapsedRef = useRef(0);
+  const rendererInfoRef = useRef(null);
+  const composerDrawCallSamplerRef = useRef(null);
   if (spineFlashScratchRef.current === null) {
     spineFlashScratchRef.current = {
       points: Array.from({ length: FLASH_POINT_COUNT }, () => new THREE.Vector3()),
@@ -284,6 +289,12 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const actionPresentationStoppedRef = useRef(actionPresentationStopped);
   const reducedMotionRef = useRef(reducedMotion);
   const coherenceSemanticsRef = useRef(coherenceSemantics);
+
+  useEffect(() => () => {
+    composerDrawCallSamplerRef.current?.dispose();
+    composerDrawCallSamplerRef.current = null;
+    rendererInfoRef.current = null;
+  }, []);
 
   useEffect(() => {
     actionPresentationStoppedRef.current = actionPresentationStopped;
@@ -491,29 +502,11 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const conductorLineWidth = tier === 'high' ? 1.8 : tier === 'medium' ? 1.35 : 1;
 
   useFrame((state, delta) => {
-    sceneDiagnosticElapsedRef.current += delta;
-    if (sceneDiagnosticElapsedRef.current >= 1) {
-      let sceneObjects = 0;
-      state?.scene?.traverse?.(() => {
-        sceneObjects += 1;
-      });
-      const info = state?.gl?.info;
-      const workerMoteCount = Object.keys(motesRef.current).length;
-      const lightningCount = lightnings.length;
-      const materializationSurfaceCount = physicalSurfaces.length;
-      const workerBranchCount = physical.branches.length;
-      recordFrontendSceneDiagnostic({
-        sceneObjects,
-        renderCalls: info?.render?.calls ?? 0,
-        geometries: info?.memory?.geometries ?? 0,
-        textures: info?.memory?.textures ?? 0,
-        transientPoolSize: workerMoteCount + lightningCount + (spineFlash.intensity > 0.01 ? 1 : 0) + (aurora.intensity > 0.01 ? 1 : 0),
-        workerBranchCount,
-        workerMoteCount,
-        materializationSurfaceCount,
-        lightningCount,
-      });
-      sceneDiagnosticElapsedRef.current = 0;
+    const info = state?.gl?.info ?? null;
+    if (info !== rendererInfoRef.current) {
+      composerDrawCallSamplerRef.current?.dispose();
+      rendererInfoRef.current = info ?? null;
+      composerDrawCallSamplerRef.current = createComposerFrameDrawCallSampler(info);
     }
     if (actionPresentationStopped || reducedMotionRef.current) {
       semanticPulseRef.current = 0;
@@ -611,6 +604,37 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
       );
     }
   });
+
+  // EffectComposer takes render priority 1 and performs multiple WebGL draws.
+  // Sample at priority 2 so this frame's aggregate is captured after its final
+  // pass; renderer.info is reset once here, not once per internal pass.
+  useFrame((state, delta) => {
+    const drawCalls = composerDrawCallSamplerRef.current?.capture() ?? null;
+    sceneDiagnosticElapsedRef.current += delta;
+    if (sceneDiagnosticElapsedRef.current < 1) return;
+
+    let sceneObjects = 0;
+    state?.scene?.traverse?.(() => {
+      sceneObjects += 1;
+    });
+    const info = state?.gl?.info;
+    const workerMoteCount = Object.keys(motesRef.current).length;
+    const lightningCount = lightnings.length;
+    const materializationSurfaceCount = physicalSurfaces.length;
+    const workerBranchCount = physical.branches.length;
+    recordFrontendSceneDiagnostic({
+      sceneObjects,
+      drawCalls,
+      geometries: info?.memory?.geometries ?? null,
+      textures: info?.memory?.textures ?? null,
+      transientPoolSize: workerMoteCount + lightningCount + (spineFlash.intensity > 0.01 ? 1 : 0) + (aurora.intensity > 0.01 ? 1 : 0),
+      workerBranchCount,
+      workerMoteCount,
+      materializationSurfaceCount,
+      lightningCount,
+    });
+    sceneDiagnosticElapsedRef.current = 0;
+  }, 2);
 
   // Keep a ref in sync so useFrame can guard against empty-object churn.
   useEffect(() => {
