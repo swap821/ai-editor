@@ -861,3 +861,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Evidence:** the new store-close regression failed before the fix; focused continuity is 3/3, focus + narrow-layout is 2 files / 11 tests, full frontend is 176 files / 966 tests, TypeScript, production build, changed-file ESLint, and 193-file `port:check` pass. The fresh worktree's absent ignored authoring lab was restored by the guarded restore operation from accepted mirror bytes.
 - **Honest limit:** no physical touch/keyboard journey, device or human acceptance; no product 3D or visual change. No completion points added; accepted score remains 3/100. `npm ci` surfaced two moderate advisories; dependencies were left unchanged.
 - **Checkpoint:** source fix and evidence committed locally as `7bb85ddb` on `codex/gagos-living-being-execution`; not pushed or merged. Next is a hash-pinned read-only review; LB-04 art review is still an operator gate.
+
+## 2026-09-24 — CEO addendum (renewed work interrupts retraction)
+
+- **Implemented locally:** a same-path content update or renewed approval arriving during animated retraction now revives the existing surface at `reaching` with a fresh phase timestamp; ID and occupied seat remain stable.
+- **Evidence:** both test-first regressions failed before the fix; focused store/orchestration/conductor set 5 files / 36 tests, full frontend 176 files / 968 tests, TypeScript, build (4,316 modules), 15/15 port tests, 193-file no-drift check, CSS palette and protected-texture guards passed. Lint had zero errors and one pre-existing unused-variable warning.
+- **Checkpoint:** `f0d97ca7` on `codex/gagos-living-being-lb06-revival`, local only. Accepted completion remains 3/100; no browser/device/visual/human points are claimed.
+- **Operational note:** the new worktree did not include node_modules, so its first guarded restore could not resolve TypeScript and stopped without changes. `npm ci` followed by guarded restore resolved this; two moderate audit advisories were reported and no dependency was changed.
+- **Next:** commit the evidence/continuity checkpoint and hash-pin this clean branch for independent review. Preserve the separate earlier focus branch's pending review.

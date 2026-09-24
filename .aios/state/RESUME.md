@@ -2,28 +2,18 @@
 
 **Current goal:** Implement the GAGOS living-being frontend blueprint in official `frontend/`, with desktop and mobile treated equally.
 
-**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8` (PRs #362, #363 and #364 merged). Current isolated branch/worktree: `codex/gagos-living-being-execution` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-execution/ai-editor`; focus fix commit `7bb85ddb`, documentation checkpoint `14cba12a`, both based on `64f3e4fb`. Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
+**Branch / baseline:** `codex/gagos-living-being-lb06-revival` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-lb06-revival/ai-editor`; based on `10194b4d` from the isolated focus branch, whose review tree remains frozen. New code commit: `f0d97ca7`; Codex holds lease `gagos-2030-living-ai-os-20260922-lb06-revival`.
 
-**Last completed + verified:** Prior LB-01–LB-05 and LB-06 seat identity work are recorded in the ledger; visual/operator and device acceptance remain open. This branch's LB-06 addition restores focus after any focused-workspace-to-Conversation transition, including a store-owned child close, and records Conversation as the target when explicitly selected. Regression coverage passed **3/3**; focus + narrow-layout tests **2 files / 11 tests**; changed-file ESLint passed. Full checks are recorded below. Code and evidence are committed locally as `7bb85ddb`.
+**Last completed + verified:** Renewed same-path content and renewed approval now revive their existing materialized surface from `retracting` to `reaching`, refresh the phase clock, and preserve identity/seat. Both new tests failed before the change. Full frontend: **176 files / 968 tests**; focused store/orchestration/conductor: **5 files / 36 tests**; typecheck/build (**4,316 modules**), port tests (**15/15**), `port:check` (**193/no drift**) and palette/texture guards passed. Lint had zero errors and one existing warning.
 
-**Current ticket:** LB-06 remains partial. New regression first failed as expected: when a selected workspace was closed by another store owner, focus remained on the heading in the now-hidden surface. The shell now restores the viable saved target after that state transition; explicit Conversation navigation replaces the saved target. No shader, geometry, palette or texture change was made.
+**Current ticket:** LB-06 remains partial. This fixes one retraction/re-emission race only. No live browser choreography, complete keyboard/touch journey, assistive-technology, human, visual or physical-device acceptance was performed. No palette, texture, shader or geometry changed.
 
-**Focused verification:** The focus-continuity test file passes **3/3**; focus + narrow-layout test files pass **11/11**; changed-file ESLint exits 0. Automated pointer/DOM checks are not physical touch or human usability evidence.
+**Accepted completion:** **3/100** (INT-01 only). Android 17 and iOS 27 are OS targets; physical models remain TBD. Desktop hardware/GPU, human comprehension, visual sign-off and live WorkerFoundry integration remain unverified.
 
-**Full frontend verification:** Current branch full Vitest passed **176 files / 966 tests** (84.70s); typecheck passed; production build passed (4,316 modules); changed-file ESLint passed; guarded `port:restore` restored the absent ignored lab from accepted bytes and `port:check` passed **193 files / no drift**. Vite's configLoader/`__dirname` and Three.js CommonJS deprecation notices appeared. Prior branch evidence is separate.
+**Next single action:** Commit this evidence/continuity checkpoint, confirm the branch is clean, then submit the exact tree for hash-pinned independent review.
 
-**Test-design correction:** Exploratory panel-local-close tests were discarded: under `WorkspaceHostContext`, both Files and Memory render embedded surfaces without their own Close controls. A temporary expectation to refocus a rail button after closing its selected workspace was also rejected: dismissal removes that trigger during the update, and focusing it before React commits leaves focus on the document body. The verified behavior is the stable Conversation fallback, not a product failure.
+**Open approvals / blockers:** The prior focus branch's independent review remains pending in its separate tree; do not edit it. LB-04/LB-05 operator review remains open. The new source commit is not yet independently reviewed. Two moderate npm advisories were reported by the lockfile install; no dependency changed.
 
-**Regression rerun:** After removing those invalid exploratory cases, `LivingWorkspaceShell.focus.test.tsx` passes **1/1** against the retained source-aware focus restoration.
+**Active files:** `frontend/src/superbrain/lib/tabStore.ts` and `tabStore.test.ts` (managed through `GAG demo/gag-orchestrator` and `npm run port`); the LB-06 ledger and execution-pack checkpoint; this resume, CEO log, experiences and mistakes. No other product files changed.
 
-**LivingMirror gate:** The final livingMirror source/test state passes **42 files / 177 tests**.
-
-**Accepted completion:** **3/100** (INT-01 only); this code checkpoint adds no acceptance points. Android 17 and iOS 27 are OS targets; both physical phone models remain TBD. Desktop hardware, named browser/GPU, human usability evidence and live WorkerFoundry integration remain unverified.
-
-**Next single action:** Submit this clean committed branch for Claude's read-only, hash-pinned independent review; after handoff, await the verdict before any edits to this tree.
-
-**Open approvals / blockers:** Independent code review of `7bb85ddb` is pending. LB-04/LB-05 operator visual review remains pending. No phone run (Android/iPhone models TBD), named browser/GPU baseline, human comprehension evidence or live WorkerFoundry integration. Full LB-06 rapid-interaction and keyboard/touch parity are not proven. `npm ci` reported two moderate audit advisories; dependency versions were not changed.
-
-**Active files:** `frontend/src/livingMirror/LivingWorkspaceShell.focus.test.tsx`, `frontend/src/livingMirror/LivingWorkspaceShell.tsx`, this resume, `docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md`, `.aios/state/CEO_LOG.md`, and builder experience memory. Managed `frontend/src/superbrain/` remains unchanged.
-
-**Do not repeat:** Never edit the main checkout or previous vertical-slice worktree; preserve their pending review state. Change managed source only in the lab then `npm run port`. Do not infer visual/device acceptance from tests/build. Keep palette/textures unchanged pending operator review; do not push/PR/merge without a fresh request.
+**Do not repeat:** Do not edit the main checkout or the previous hash-pinned tree. Do not bypass guarded source restore/port. Automated tests are not browser/device/human acceptance. No push, PR or merge was requested for this checkpoint.

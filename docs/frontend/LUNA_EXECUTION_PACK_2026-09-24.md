@@ -148,3 +148,9 @@ Do not repeat: [completed checks; failed hypothesis]
 At low context/usage, finish a safe checkpoint and leave this handoff. Resume through the product/operator's supported mechanism; never claim the model can wake itself or guarantee available quota.
 
 Each delivery reports the visible change, actual verification, accepted percentage if a fixed denominator exists, and next gate. A proposed design, implemented code, fixture demonstration and production proof are different achievements.
+
+## LB-06 renewed-materialization checkpoint (2026-09-24)
+
+If fresh content for the same filepath or a renewed approval request arrives during retraction, reuse the stable surface identity and seat but restart its lifecycle at `reaching` with a fresh phase timestamp. The lab owns `tabStore.ts` and its regressions; `npm run port` updates the managed product mirror and manifest. Regression proof: both cases failed before the change and pass after it. Focused store/orchestration/conductor: **5 files / 36 tests**; full frontend: **176 files / 968 tests**; typecheck, build (**4,316 modules**), port safety (**15/15**), `port:check` (**193 / no drift**) and current palette/texture guards pass. ESLint reports zero errors and one existing unused-variable warning. Commit: `f0d97ca7` on `codex/gagos-living-being-lb06-revival`.
+
+This advances implementation only. It does not prove live browser choreography, touch/keyboard parity, human comprehension, operator visuals or device performance; no acceptance points are added and the accepted score remains **3/100**. Android/iPhone models and desktop hardware remain unselected. Next: hash-pin this clean branch for independent review; keep the earlier focus branch's review snapshot untouched.
