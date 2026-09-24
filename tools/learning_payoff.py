@@ -212,8 +212,16 @@ def about_this_target(item: dict, target) -> bool:
     text = " ".join(str(v) for v in item.values() if isinstance(v, (str, list)))
     if target.label in text:
         return True
-    module_path = str(target.module).replace(".", "/")
-    return (module_path in text or str(target.module) in text) and bool(
+    # `Target.module` is a repo-relative PATH ("aios/agents/tool_agent.py"),
+    # not a dotted module. Match it as written, and ALSO as the dotted import
+    # path, because a lesson about a failed import names it that way.
+    #
+    # (An earlier version did `.replace(".", "/")` on the path, producing
+    # "aios/agents/tool_agent/py" -- a string that can never match. It was
+    # masked by the raw-path check beside it, which is how a helper can be
+    # wrong and still pass.)
+    names_module = str(target.module) in text or _import_path(target.module) in text
+    return names_module and bool(
         re.search(rf"\b{re.escape(str(target.function))}\b", text)
     )
 
