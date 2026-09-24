@@ -120,6 +120,14 @@ function nowMs(): number {
   return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
 }
 
+function reviveRetraction(
+  tab: MaterializedTabRecord,
+): Pick<MaterializedTabRecord, 'lifecycle' | 'phaseStartedAt'> | null {
+  return tab.lifecycle === 'retracting'
+    ? { lifecycle: 'reaching', phaseStartedAt: nowMs() }
+    : null;
+}
+
 function keepAttentionForTabs(
   attention: AttentionTransfer | null,
   tabs: readonly MaterializedTabRecord[],
@@ -317,6 +325,7 @@ export function showContentSurface(
   if (current) {
     const next = {
       ...current,
+      ...(reviveRetraction(current) ?? {}),
       content,
       originLocal: options.originLocal ?? current.originLocal,
       targetLocal: options.targetLocal ?? current.targetLocal,
@@ -404,6 +413,7 @@ export function showApprovalSurface(
   if (current?.kind === 'approval') {
     const next = {
       ...current,
+      ...(reviveRetraction(current) ?? {}),
       approval,
       originLocal: options.originLocal ?? current.originLocal,
       targetLocal: options.targetLocal ?? current.targetLocal,
