@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,10 +42,44 @@ def _spine_attested_organ_ids() -> set[int]:
     return {int(x) for x in (data.get("organ_ids") or [])}
 
 
+def _tip_is_on_master(tip: str) -> bool:
+    """Is *tip* already a commit on master, and therefore squash-proof?
+
+    Checked against `origin/master` first and plain `master` second. When
+    NEITHER resolves -- a shallow clone, a detached CI checkout, a fresh mirror
+    -- the question is unanswerable and this returns True so the tool still
+    works. That is a deliberate fail-open on the CHECK and not on the data: it
+    guards an authoring decision made by a human at a keyboard, and the
+    reachability of what actually gets written is enforced separately, by
+    `is_reachable` here and by tests/test_unreachable_evidence_is_dropped.py in
+    CI. A guard that bricks the tool in every clone without a master ref would
+    simply be disabled by whoever hit it first.
+    """
+    for ref in ("origin/master", "master"):
+        resolved = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if resolved.returncode == 0:
+            return is_reachable(tip, resolved.stdout.strip())
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact", type=Path, default=DEFAULT_ARTIFACT)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--allow-branch-tip",
+        action="store_true",
+        help=(
+            "attach evidence gathered at a commit that is not yet on master. "
+            "Only correct when this PR will be merged with a MERGE COMMIT; a "
+            "squash merge will discard the commit and orphan every row."
+        ),
+    )
     args = parser.parse_args(argv)
 
     report = json.loads(args.artifact.read_text(encoding="utf-8"))
@@ -54,6 +89,39 @@ def main(argv: list[str] | None = None) -> int:
     tip = report["tip_sha"]
     if len(tip) != 40:
         print(f"tip_sha not 40 chars: {tip!r}", file=sys.stderr)
+        return 1
+    if not args.allow_branch_tip and not _tip_is_on_master(tip):
+        # THE THIRD TIME IS A DESIGN PROBLEM, NOT AN ACCIDENT.
+        #
+        # Evidence gathered at a BRANCH tip is discarded by a squash merge, and
+        # the rows that cite it become claims nobody can resolve. It has now
+        # happened twice in 48 hours -- #359's own tip, then #363's PR head --
+        # and both times master went red AFTER the merge, where it is most
+        # expensive to notice.
+        #
+        # The refusal lands here, at the moment somebody chooses which commit
+        # to attest, because that is the only moment the choice is still free.
+        # `--allow-branch-tip` exists for the one case where it is correct: a
+        # PR that will be merged with a real merge commit, which preserves the
+        # sha.
+        print(
+            f"REFUSING: {tip[:12]} is not on master.\n\n"
+            "Evidence attached at a branch tip is orphaned the moment this PR is\n"
+            "SQUASH-merged -- the commit it cites stops existing, every row\n"
+            "becomes uncheckable, and master goes red after the merge. That has\n"
+            "already happened twice.\n\n"
+            "Do one of:\n"
+            "  * re-gather at a commit already on master:\n"
+            "      python scripts/phase4_live_evidence.py --tip $(git rev-parse origin/master)\n"
+            "  * or, if this PR CHANGES an organ's own code (so no master commit can\n"
+            "    vouch for it yet), re-run with --allow-branch-tip AND either merge\n"
+            "    with a MERGE COMMIT, or, if it is squashed, run this on master\n"
+            "    straight afterwards:\n"
+            "      python scripts/verify_evidence_lineage.py --update\n"
+            "    which re-points each orphaned row ONLY to the commit where its\n"
+            "    byte-identical code entered master, and refuses otherwise.",
+            file=sys.stderr,
+        )
         return 1
     command = report["command"]
     artifact_rel = str(Path(args.artifact).resolve().relative_to(REPO_ROOT)).replace(
