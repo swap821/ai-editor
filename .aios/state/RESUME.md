@@ -123,16 +123,17 @@ lightning. One same-tab observation timeout was re-polled successfully; no
 samples were inferred. This closes the deterministic-gallery 30-minute active
 resource gate, but not live backend/materialization or product-hardware claims.
 
-The latest read-only handoff checkpoint confirms the Codex lease, isolated dirty
-worktree, clean diff whitespace, CSS palette guard, texture/GLB protection guard,
-and valid experience/mistake JSONL notebooks. A malformed Windows search probe
-was recorded as tooling noise; no product evidence was changed. No commit,
-merge, or PR was made.
+The latest handoff checkpoint confirmed the Codex lease, isolated worktree,
+clean diff whitespace, CSS palette guard, texture/GLB protection guard, and
+valid experience/mistake JSONL notebooks. A malformed Windows search probe was
+recorded as tooling noise; no product evidence was changed. The complete
+checkpoint is committed as `caaeb430` on
+`codex/frontend-physical-embodiment`; no merge or PR was made.
 
 **Single next action:** Obtain screen-reader, operator visual, and three-person
-human validation; prepare the draft PR only after operator authorization, and do
-not merge. The live backend worker/materialization cycle is currently blocked
-by the measured `strategy_unavailable` WorkerFoundry gate.
+human validation; prepare the draft PR only after explicit operator
+authorization, and do not merge. The live backend worker/materialization cycle
+is currently blocked by the measured `strategy_unavailable` WorkerFoundry gate.
 
 The operator-ready validation packet is now at
 `docs/frontend/evidence/gagos-physical-human-validation-packet.md`. It contains
@@ -148,8 +149,9 @@ fabricated results.
  The persistent idle soak is now valid but does not certify product hardware or
  live worker/materialization behavior. `npm run port:check` must continue to fail closed on
 the pre-existing missing lab source `components/QualityTierProvider.tsx`;
-never edit generated Superbrain files to bypass it. Do not commit, merge, or
-touch the main checkout without explicit operator direction.
+never edit generated Superbrain files to bypass it. The implementation commit
+is complete; do not create a PR, merge, or touch the main checkout without
+explicit operator direction.
 
 **Active files:** `docs/frontend/GAGOS_PHYSICAL_EMBODIMENT_RFC.md`,
 `docs/frontend/GAGOS_PHYSICAL_BASELINE.md`,
