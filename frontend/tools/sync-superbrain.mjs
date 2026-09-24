@@ -1,6 +1,6 @@
 /** Lab authoring -> product mirror. All validation precedes writes; assets and shell are excluded. */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -8,9 +8,153 @@ import ts from 'typescript';
 const extensions = ['.ts', '.tsx', '.js', '.jsx', '.css', '.json'];
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const portable = (path) => path.split(sep).join('/');
-const inside = (root, path) => path === root || path.startsWith(root + sep);
+const inside = (root, path) => {
+  const fromRoot = relative(root, path);
+  return fromRoot === '' || (!isAbsolute(fromRoot) && fromRoot !== '..' && !fromRoot.startsWith(`..${sep}`));
+};
 const managed = (path) => !isAbsolute(path) && !path.includes('\\') && !path.split('/').includes('..')
   && path !== 'SuperbrainApp.jsx' && extensions.includes(extname(path));
+
+const lstatOrMissing = (path) => {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+};
+
+function inspectUnderRoot(root, segments, label, expectedType) {
+  const base = realpathSync(root);
+  let current = base;
+  for (let index = 0; index < segments.length; index += 1) {
+    current = join(current, segments[index]);
+    const info = lstatOrMissing(current);
+    if (!info) return { path: resolve(current, ...segments.slice(index + 1)), exists: false };
+    const display = portable(relative(base, current));
+    if (info.isSymbolicLink()) throw new Error(`${label} path contains a symlink or junction: ${display}`);
+    const canonical = realpathSync(current);
+    if (!inside(base, canonical)) throw new Error(`${label} path escapes its root: ${display}`);
+    const final = index === segments.length - 1;
+    if (!final && !info.isDirectory()) throw new Error(`${label} parent is not a directory: ${display}`);
+    if (final && expectedType === 'file' && !info.isFile()) throw new Error(`${label} is not a regular file: ${display}`);
+    if (final && expectedType === 'directory' && !info.isDirectory()) throw new Error(`${label} is not a directory: ${display}`);
+  }
+  return { path: current, exists: true };
+}
+
+function ensureDirectoriesUnderRoot(root, segments, label) {
+  const base = realpathSync(root);
+  let current = base;
+  for (const segment of segments) {
+    current = join(current, segment);
+    let info = lstatOrMissing(current);
+    if (!info) {
+      mkdirSync(current);
+      info = lstatOrMissing(current);
+    }
+    const display = portable(relative(base, current));
+    if (!info || info.isSymbolicLink()) throw new Error(`${label} path contains a symlink or junction: ${display}`);
+    if (!info.isDirectory()) throw new Error(`${label} parent is not a directory: ${display}`);
+    const canonical = realpathSync(current);
+    if (!inside(base, canonical)) throw new Error(`${label} path escapes its root: ${display}`);
+  }
+  return current;
+}
+
+function isSafeManifestPath(path) {
+  if (typeof path !== 'string' || !managed(path) || path.includes(':') || /[<>"|?*\u0000-\u001f]/.test(path)) return false;
+  return path.split('/').every((segment) => segment && segment !== '.' && segment !== '..'
+    && !/[. ]$/.test(segment)
+    && !/^(con|prn|aux|nul|conin\$|conout\$|com[1-9]|lpt[1-9])(?:\.|$)/i.test(segment));
+}
+
+function validateRestoreManifest(manifest) {
+  if (!manifest || Array.isArray(manifest) || typeof manifest !== 'object'
+    || manifest.version !== 1 || !manifest.files || Array.isArray(manifest.files)
+    || typeof manifest.files !== 'object') {
+    throw new Error('Unsupported source manifest');
+  }
+
+  const paths = Object.keys(manifest.files).sort();
+  const canonicalPaths = paths.map((path) => path.split('/').map((segment) => segment.normalize('NFC').toLowerCase()).join('/'));
+  const pathSet = new Set(canonicalPaths);
+  if (pathSet.size !== canonicalPaths.length) {
+    const firstPathByCanonical = new Map();
+    for (let index = 0; index < canonicalPaths.length; index += 1) {
+      const canonical = canonicalPaths[index];
+      if (firstPathByCanonical.has(canonical)) {
+        throw new Error(`Case-insensitive manifest path collision: ${paths[index]}`);
+      }
+      firstPathByCanonical.set(canonical, paths[index]);
+    }
+  }
+  for (let index = 0; index < paths.length; index += 1) {
+    const path = paths[index];
+    const canonical = canonicalPaths[index];
+    if (!isSafeManifestPath(path)) throw new Error(`Invalid managed path: ${path}`);
+    const parts = canonical.split('/');
+    for (let end = 1; end < parts.length; end += 1) {
+      if (pathSet.has(parts.slice(0, end).join('/'))) throw new Error(`Manifest file/directory path collision: ${path}`);
+    }
+    const digest = manifest.files[path];
+    if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest)) {
+      throw new Error(`Invalid SHA-256 digest in source manifest: ${path}`);
+    }
+  }
+  return paths;
+}
+
+function restoreAcceptedSource(root) {
+  const manifestFile = inspectUnderRoot(root, ['frontend', 'superbrain-source.json'], 'Manifest', 'file');
+  if (!manifestFile.exists) throw new Error('Source manifest missing; accepted product source cannot be restored.');
+
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestFile.path, 'utf8'));
+  } catch (error) {
+    throw new Error(`Invalid source manifest: ${error.message}`);
+  }
+  const paths = validateRestoreManifest(manifest);
+
+  const productBytes = new Map();
+  for (const path of paths) {
+    const source = inspectUnderRoot(root, ['frontend', 'src', 'superbrain', ...path.split('/')], 'Product source', 'file');
+    if (!source.exists) throw new Error(`Product source missing: ${path}`);
+    const bytes = readFileSync(source.path);
+    if (hash(bytes) !== manifest.files[path]) throw new Error(`Product drift: ${path}. Reconcile the outside edit in the lab before restoring.`);
+    productBytes.set(path, bytes);
+  }
+
+  const destinationRoot = ['GAG demo', 'gag-orchestrator', 'src'];
+  const restored = [];
+  const unchanged = [];
+  for (const path of paths) {
+    const destination = inspectUnderRoot(root, [...destinationRoot, ...path.split('/')], 'Lab destination', 'file');
+    if (!destination.exists) {
+      restored.push(path);
+      continue;
+    }
+    if (!readFileSync(destination.path).equals(productBytes.get(path))) {
+      throw new Error(`Lab source conflict: ${path}; existing bytes differ. No files were restored.`);
+    }
+    unchanged.push(path);
+  }
+
+  for (const path of restored) {
+    const pathSegments = [...destinationRoot, ...path.split('/')];
+    const parent = ensureDirectoriesUnderRoot(root, pathSegments.slice(0, -1), 'Lab destination');
+    const destination = join(parent, pathSegments.at(-1));
+    try {
+      writeFileSync(destination, productBytes.get(path), { flag: 'wx' });
+    } catch (error) {
+      if (error.code === 'EEXIST') throw new Error(`Lab source conflict: ${path}; destination appeared during restore.`);
+      throw error;
+    }
+  }
+
+  return { mode: 'restore', files: paths.length, restored, unchanged, changed: [] };
+}
 
 function list(root, current = root) {
   if (!existsSync(current)) return [];
@@ -22,11 +166,12 @@ function list(root, current = root) {
 }
 
 export function syncSuperbrain(root, mode) {
-  if (!['bootstrap', 'port', 'check'].includes(mode)) throw new Error('Use bootstrap, check, or port.');
+  if (!['bootstrap', 'port', 'check', 'restore'].includes(mode)) throw new Error('Use bootstrap, check, port, or restore.');
   root = resolve(root);
   const product = join(root, 'frontend/src/superbrain');
   const lab = join(root, 'GAG demo/gag-orchestrator/src');
   const manifestPath = join(root, 'frontend/superbrain-source.json');
+  if (mode === 'restore') return restoreAcceptedSource(root);
   if (mode === 'bootstrap') {
     if (existsSync(manifestPath)) throw new Error('Already bootstrapped. Use check or port.');
     if (list(lab).length) throw new Error('Lab already contains source; reconcile it explicitly before bootstrap.');

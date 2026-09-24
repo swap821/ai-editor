@@ -1416,3 +1416,44 @@ frozen-core, JSONL, and whitespace checks. The authoritative `npm run
 port:check` invocation from `frontend/` remains the known fail-closed ownership
 diagnostic for the missing lab source `components/QualityTierProvider.tsx`;
 the lab and generated Superbrain sources were not modified to bypass it.
+
+## P0 LB-01 — reproducible accepted managed source — 2026-09-24
+
+**Outcome:** A clean checkout with the tracked source manifest and accepted
+product bytes can now safely recreate its ignored authoring lab. This is
+source-workflow infrastructure, not a visual/UI completion claim.
+
+**Baseline:** isolated branch `codex/gagos-living-being-lb01-source-restore`
+started from `origin/master` `1e29bae7` (#365). The lab tree was absent;
+`npm run test:port` passed 5/5, while `npm run port:check` correctly failed on
+`components/QualityTierProvider.tsx`. The tracked manifest declares 193 files.
+
+**Changed ownership surface:** `frontend/tools/sync-superbrain.mjs`, its port
+tests, `frontend/package.json`, and this document's source-workflow note. No
+product mirror, manifest, protected asset, backend, or external GAG demo source
+was changed.
+
+**Behavior and invariants:** `npm run port:restore` validates the manifest and
+all 193 product hashes, rejects unsafe/colliding manifest names, symlink or
+junction path segments, product drift, and divergent existing lab files before
+copying. It creates only missing files with exclusive writes, preserves
+identical bytes and the manifest, reports restored/unchanged paths, and can be
+rerun after interruption. `npm run port:check` then verifies byte identity.
+
+**Evidence:** Before code, port tests were 5/5 and check failed as above. After
+implementation, `npm run test:port` passed 12/12. On this clean worktree,
+restore copied 193/193, `port:check` reported `files: 193, changed: []`, and a
+second restore reported `restored: 0, unchanged: 193`. Adversarial unit tests
+cover product drift, destination conflict, invalid/case-colliding and
+file/directory-colliding paths, and symlink/junctions at every destination
+prefix. Full frontend evidence: 175 Vitest files / 953 tests passed;
+typecheck passed; production build transformed 4,316 modules; lint exited 0
+with 123 warnings (limit 124); CSS palette, protected-texture, and diff checks
+passed. No browser/device run is applicable to this tooling-only ticket.
+
+**Open limitations / next ticket:** Independent hash-pinned review is pending;
+no overall completion percentage is claimed until LB-02 freezes the weighted
+acceptance denominator, as the blueprint requires. Physical Android/iPhone
+models remain TBD; Android 17 and iOS 27 are the target OS versions. Next:
+LB-02 current import/evidence map, device/browser profiles, and fixed weighted
+acceptance list. Keep human visual and real-device evidence open.
