@@ -838,3 +838,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Honest limit:** no current screenshot, operator visual approval, human session, or phone run. Android 17/iOS 27 are only OS targets; handset models remain TBD. Accepted goal score stays 3/100, and LB-04 art direction still needs review at `:5173`.
 - **Highest-leverage next move:** operator reviews LB-04 and LB-05 truth states at `:5173`; record accept/revise before broad redesign or LB-06.
 - **Risk to watch:** automated truth convergence does not prove the visual signal reads correctly or performs smoothly on real desktop/mobile hardware. Do not convert the 959-test result into visual or device acceptance.
+
+## 2026-09-24 — CEO note (keyboard-safe composer slice)
+
+- **Shipped locally:** the official mobile composer now follows the VisualViewport only while a text-entry control inside chat is focused. The offset is measured from the app's actual bounds, cleaned up on blur/unmount, and ignores pinch zoom and non-text focus. Short visible heights contract the status reserve instead of assuming a portrait-sized keyboard area.
+- **The useful regression:** a short-landscape test reproduced an app-root minimum-height mismatch (210px computed versus 340px required); root-bound measurement corrected it. Focused app tests passed 7/7; full frontend passed 175 files / 962 tests; typecheck, 4,317-module build, and 14 port-tool tests passed. Lint had zero errors and 123 warnings. `port:check` could not compare because this worktree lacks the ignored authoring-lab `QualityTierProvider.tsx`.
+- **Honest limit:** this is jsdom/source evidence, not a real mobile keyboard or safe-area run. Physical Android 17 and iOS 27 models remain TBD, so UX-04 remains blocked at 0/5 and accepted completion remains 3/100. No visual acceptance or branch publication is claimed.
+- **Highest-leverage next move:** operator reviews the local branch diff, then identifies available phone models before the physical UX-04 matrix.
+- **Risk to watch:** a green viewport unit test cannot reproduce browser-specific keyboard resize/pan policy; don't credit phone acceptance until both actual platforms and their composer/decision controls are observed.

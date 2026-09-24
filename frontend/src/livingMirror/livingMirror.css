@@ -311,6 +311,24 @@
 
   .lm-app .gagos-bar { flex: 0 0 auto; }
 }
+@media (max-width: 767px) {
+  .lm-app[data-keyboard-open="true"] {
+    --lm-keyboard-clearance: min(132px, max(0px, calc(var(--lm-visible-viewport-height, 100dvh) - 68px)));
+  }
+  .lm-app[data-experience-mode="expert"][data-keyboard-open="true"] {
+    --lm-keyboard-clearance: min(168px, max(0px, calc(var(--lm-visible-viewport-height, 100dvh) - 68px)));
+  }
+  .lm-app[data-keyboard-open="true"] .gagos-chat {
+    bottom: calc(var(--lm-keyboard-clearance) + var(--lm-keyboard-inset, 0px));
+    height: max(44px, min(42dvh, calc(var(--lm-visible-viewport-height, 100dvh) - var(--lm-keyboard-clearance) - 24px)));
+    max-height: max(44px, min(42dvh, calc(var(--lm-visible-viewport-height, 100dvh) - var(--lm-keyboard-clearance) - 24px)));
+  }
+  .lm-app[data-keyboard-open="true"] .lm-connection {
+    bottom: calc(8px + var(--lm-keyboard-inset, 0px));
+    max-height: max(0px, calc(var(--lm-keyboard-clearance) - 16px));
+    overflow-y: auto;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .lm-shell *, .lm-shell *::before, .lm-shell *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

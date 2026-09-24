@@ -113,6 +113,12 @@ Provide reviewers the ticket, bounded diff, invariants, evidence and limitations
 
 Run focused meaningful checks after a behavioral change, then required full gates at stable code checkpoints. Do not repeat an unchanged full suite just to add another evidence row. Observe actual browser behavior after user-visible changes. Preserve failed measurements and explain why they cannot support a claim.
 
+## UX-04 implementation slice: keyboard-aware composer (2026-09-24)
+
+On `codex/gagos-living-being-keyboard-safe` (base `975b9fb9`), the official app now adjusts its mobile conversation composer to the visual viewport only while a text-entry control inside that composer is focused. It clears the adjustment on blur/unmount and does not respond to button focus or pinch zoom. The occlusion calculation uses the app's measured bottom edge, covering the existing 520px minimum-height case; short visible heights contract the reserved gap and bound the connection notice's scroll area. No palette, texture, body motion or backend authority changed.
+
+Verification: focused app tests **7/7**; serial frontend suite **175 files / 962 tests passed**; TypeScript passed; production build passed (**4,317 modules**); `test:port` **14/14**; full lint **0 errors / 123 warnings**; changed-file lint and `git diff --check` passed. `port:check` stops before comparing the product mirror because this isolated worktree lacks the ignored authoring-lab file `components/QualityTierProvider.tsx`; no port-check pass is claimed. No physical browser/device evidence was produced. UX-04 remains **0/5** and total accepted evidence remains **3/100** until named Android 17 and iOS 27 devices pass 320px, safe-area, keyboard, decision, touch and related checks.
+
 ## Starter acceptance ledger
 
 This seven-row table is the original seed only. For progress scoring it is superseded by the frozen, weighted [LB-02 acceptance ledger](LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md); do not report completion against this smaller list.
