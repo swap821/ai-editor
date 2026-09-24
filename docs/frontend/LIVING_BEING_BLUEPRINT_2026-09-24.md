@@ -306,6 +306,8 @@ Do not publish a new overall completion percentage until P0 maps the remaining c
 
 For future updates, freeze a weighted acceptance list: truth/integration 20%, body/motion/visual coherence 25%, workspaces/task UX 20%, desktop/mobile accessibility 15%, performance/recovery 15%, release evidence 5%. Within each category weight named criteria before implementation, and count a criterion only when its required evidence passes. Report implemented progress separately from accepted progress; blocked criteria remain in the denominator. Record scope changes rather than quietly removing hard work.
 
+The active [acceptance/evidence ledger](LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md) now supplies that fixed 100-point denominator and reports 3% accepted evidence (INT-01 only). LB-02 remains partial because the physical Android/iPhone models are still TBD; that uncertainty stays in the denominator.
+
 The percentage is a planning indicator. Release still requires every critical permission/stop/truth/fallback/mobile gate and the operator's visual approval. A high average cannot offset a failed critical gate. “Blueprint delivered” also does not mean “frontend complete.”
 
 ## 16. Risks and decisions to avoid
@@ -345,6 +347,6 @@ The sources below inform choices; the architecture and tuning targets are recomm
 
 ## 18. Immediate next action
 
-Execute **LB-01 in the companion pack: accepted-source reproducibility and canonical import map**. Follow with the baseline/device contract and one-body presentation bridge. Do not begin by appending new decorative effects to `SuperbrainReactiveEffects` or asking Luna to implement this entire document in one pass.
+LB-01 accepted-source restoration is complete on `codex/gagos-living-being-v2` at `c3181fd3`; its focused and full frontend evidence is recorded in the branch handoff. The current audit is **LB-02**, tracked in the [execution pack](LUNA_EXECUTION_PACK_2026-09-24.md) and [acceptance/evidence ledger](LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md). The ledger fixes the progress denominator, but LB-02 remains partial until exact physical Android and iPhone models are selected. Do not count emulation as mobile acceptance or begin visual-load expansion before the baseline/device gates. Do not append decorative effects to `SuperbrainReactiveEffects` as a substitute for reconciling the presentation paths, or ask Luna to implement this entire document in one pass.
 
 The delivery objective is concrete: **on desktop and mobile, a person can ask, watch meaningful work grow from the being, make a clear permission decision, inspect an honest result, and continue without losing focus, state or performance.** The organism's appeal must survive that ordinary daily use.

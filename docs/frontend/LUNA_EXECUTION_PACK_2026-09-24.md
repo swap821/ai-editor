@@ -91,6 +91,8 @@ Create a concise living ledger covering:
 
 Do not rerun full application suites for a documentation-only inventory. Cite existing results with exact commits/limitations. Unknown hardware is unmeasured, never passing by inference.
 
+**Current audit:** [LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md](LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md) records the source/runtime map, historical evidence limits, target OS versions, phone gateway/session/voice constraints and frozen 100-point acceptance list. Exact Android and iPhone models are still TBD per the operator; therefore LB-02 is partial and not accepted. Do not substitute emulation for handset selection or physical proof.
+
 ## LB-03: measurement packet
 
 Use existing `livingMirror/observability/frontendMetrics.ts` and the scene diagnostic caller. Confirm composer counter reset/sampling before changing instrumentation. Aggregate complete rendered frames where needed. Missing counters explicitly report unavailable, not zero-cost rendering.
@@ -108,6 +110,8 @@ Provide reviewers the ticket, bounded diff, invariants, evidence and limitations
 Run focused meaningful checks after a behavioral change, then required full gates at stable code checkpoints. Do not repeat an unchanged full suite just to add another evidence row. Observe actual browser behavior after user-visible changes. Preserve failed measurements and explain why they cannot support a claim.
 
 ## Starter acceptance ledger
+
+This seven-row table is the original seed only. For progress scoring it is superseded by the frozen, weighted [LB-02 acceptance ledger](LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md); do not report completion against this smaller list.
 
 | ID | Criterion | Required proof | Status |
 | --- | --- | --- | --- |
