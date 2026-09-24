@@ -1,19 +1,19 @@
 # AI-OS Builder Resume
 
-**Current goal:** Implement the GAGOS living-being frontend blueprint in official `frontend/`, with desktop and mobile treated equally.
+**Current goal:** Implement the official GAGOS living-being frontend from the approved blueprint, with desktop and mobile equally important and backend truth preserved.
 
-**Branch / baseline:** `codex/gagos-living-being-lb06-revival` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-lb06-revival/ai-editor`; based on `10194b4d` from the isolated focus branch, whose review tree remains frozen. New code commit: `f0d97ca7`; Codex holds lease `gagos-2030-living-ai-os-20260922-lb06-revival`.
+**Branch / worktree:** `codex/gagos-living-being-continuation-20260924` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-continuation-20260924`. Isolated from the dirty main checkout and the original LB06 / keyboard review trees. Builder lease: `gagos-living-being-focus-fallback-20260924`.
 
-**Last completed + verified:** Renewed same-path content and renewed approval now revive their existing materialized surface from `retracting` to `reaching`, refresh the phase clock, and preserve identity/seat. Both new tests failed before the change. Full frontend: **176 files / 968 tests**; focused store/orchestration/conductor: **5 files / 36 tests**; typecheck/build (**4,316 modules**), port tests (**15/15**), `port:check` (**193/no drift**) and palette/texture guards passed. Lint had zero errors and one existing warning.
+**Last completed + verified:** The focused-materialized-tab helper now defers to the existing conductor, returns null when a DOM workspace owns focus, and never reports transient input as a workspace. Three regressions failed first, then passed. Focused store/orchestration/conductor: **4 files / 40 tests**; full frontend: **176 files / 973 tests**; typecheck and production build (**4,317 modules**), port tests (**15/15**), `port:check` (**193 / no drift**), palette/texture guards, changed-file lint and whitespace check passed. Full lint: **0 errors / 123 warnings**.
 
-**Current ticket:** LB-06 remains partial. This fixes one retraction/re-emission race only. No live browser choreography, complete keyboard/touch journey, assistive-technology, human, visual or physical-device acceptance was performed. No palette, texture, shader or geometry changed.
+**Current ticket:** LB-06 attention/focus automation only. The mobile VisualViewport composer slice is integrated from the sibling keyboard branch. Neither code nor jsdom proves the full live journey, physical touch/keyboard parity, screen-reader use, visuals, or device performance.
 
-**Accepted completion:** **3/100** (INT-01 only). Android 17 and iOS 27 are OS targets; physical models remain TBD. Desktop hardware/GPU, human comprehension, visual sign-off and live WorkerFoundry integration remain unverified.
+**Accepted completion:** **3/100**. Android 17 and iOS 27 are OS targets; exact handset models remain TBD. Desktop host/GPU, operator visual review and human evidence remain unverified. This checkpoint earns no new acceptance points.
 
-**Next single action:** Confirm the committed tree is clean, submit this exact source-and-evidence state for hash-pinned independent review, then wait for verdict before editing this tree.
+**Next single action:** Commit the verified combined branch locally, then submit that exact tree for hash-pinned independent review.
 
-**Open approvals / blockers:** The prior focus branch's independent review remains pending in its separate tree; do not edit it. LB-04/LB-05 operator review remains open. The new source commit is not yet independently reviewed. Two moderate npm advisories were reported by the lockfile install; no dependency changed.
+**Open gates:** LB-04/LB-05 operator review, independent LB06/keyboard review, exact phone models, named desktop hardware/browser/GPU, visual and human acceptance. Do not infer a pass from automated tests.
 
-**Active files:** `frontend/src/superbrain/lib/tabStore.ts` and `tabStore.test.ts` (managed through `GAG demo/gag-orchestrator` and `npm run port`); the LB-06 ledger and execution-pack checkpoint; this resume, CEO log, experiences and mistakes. No other product files changed.
+**Active files:** Managed source `GAG demo/gag-orchestrator/src/lib/tabStore.ts` and `tabStore.attention.test.ts` (port into `frontend/src/superbrain/lib/`); keyboard shell files `frontend/src/livingMirror/keyboardViewport.ts`, `livingMirror.css`, and `frontend/src/superbrain/SuperbrainApp.jsx`; acceptance ledger, execution pack, CEO log and experiences.
 
-**Do not repeat:** Do not edit the main checkout or the previous hash-pinned tree. Do not bypass guarded source restore/port. Automated tests are not browser/device/human acceptance. No push, PR or merge was requested for this checkpoint.
+**Do not repeat:** Do not edit the main checkout or either hash-pinned review tree. Keep managed source lab-first and use `npm run port`; no push, PR or merge was requested for this checkpoint.

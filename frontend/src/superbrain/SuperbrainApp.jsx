@@ -4,6 +4,7 @@ import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
+import { installKeyboardViewportTracking } from '../livingMirror/keyboardViewport';
 import { readExperienceMode, writeExperienceMode } from '../livingMirror/experienceMode';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
@@ -35,6 +36,7 @@ export default function SuperbrainApp() {
   const rendererFallback = useRendererFallbackPresentation();
   const measuredAttentionRef = useRef(null);
   const canvasContextLostRef = useRef(false);
+  const appRootRef = useRef(null);
   const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open)
     || snapshot.tabs.some((t) => t.id === snapshot.focusId && t.kind === 'content' && t.lifecycle !== 'retracting');
   const handleBootComplete = useCallback(() => setBooted(true), []);
@@ -62,6 +64,10 @@ export default function SuperbrainApp() {
     // a reload is the only honest retry boundary after the user restores
     // graphics support or changes the browser environment.
     window.location.reload();
+  }, []);
+  useEffect(() => {
+    const root = appRootRef.current;
+    return root ? installKeyboardViewportTracking(root) : undefined;
   }, []);
   useEffect(() => {
     const startedAt = performance.now();
@@ -144,6 +150,7 @@ export default function SuperbrainApp() {
   }, [snapshot.attention, working]);
   useEffect(() => { void startMirrorClient(); return stopMirrorClient; }, []);
   return <div
+    ref={appRootRef}
     className="lm-app"
     data-working={working ? 'true' : 'false'}
     data-experience-mode={experienceMode}

@@ -164,7 +164,11 @@ export function getFirstMaterializedTab(): MaterializedTabRecord | null {
 }
 
 export function getFocusedMaterializedTab(): MaterializedTabRecord | null {
-  return snapshot.tabs.find((tab) => tab.id === snapshot.focusId) ?? snapshot.tabs[0] ?? null;
+  const focusedPanel = snapshot.panels?.some((panel) => panel.open && panel.id === snapshot.focusId);
+  if (focusedPanel) return null;
+
+  const focusId = deriveLivingOrchestration(snapshot).focusId;
+  return focusId ? snapshot.tabs.find((tab) => tab.id === focusId) ?? null : null;
 }
 
 export function getMaterializedTabByKind(kind: MaterializedTabKind): MaterializedTabRecord | null {

@@ -4,11 +4,15 @@ import {
   beginRetractingMaterializedTab,
   closeWorkspace,
   focusWorkspace,
+  focusNextMaterializedTab,
+  focusPreviousMaterializedTab,
+  getFocusedMaterializedTab,
   getOccupiedVertebraSeats,
   getTabStoreSnapshot,
   openWorkspacePanel,
   pinWorkspace,
   showContentSurface,
+  upsertInputSurface,
 } from './tabStore';
 import { useMirrorStore } from './mirrorStore';
 beforeEach(() => __resetTabStoreForTests());
@@ -31,6 +35,7 @@ it('a materialized artifact cannot steal focus from an inspection panel', () => 
   openWorkspacePanel('missions', 'Missions');
   showContentSurface({ filepath: 'b.py', code: 'background', language: 'python' });
   expect(getTabStoreSnapshot().focusId).toBe('missions');
+  expect(getFocusedMaterializedTab()).toBeNull();
 });
 
 it('reopens an existing workspace on a free seat without changing its identity or draft', () => {
@@ -65,4 +70,24 @@ it('does not alias a thirteenth open workspace onto an occupied seat', () => {
   expect(panels).toHaveLength(12);
   expect(panels.some((panel) => panel.id === 'overflow')).toBe(false);
   expect(new Set(before).size).toBe(12);
+});
+
+it('does not treat transient intake as a focused workspace when no work surface exists', () => {
+  upsertInputSurface('Build the living workspace');
+
+  expect(getFocusedMaterializedTab()).toBeNull();
+  expect(focusNextMaterializedTab()).toBeNull();
+  expect(focusPreviousMaterializedTab()).toBeNull();
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+});
+
+it('uses the conductor seat order when resolving focus without an explicit selection', () => {
+  upsertInputSurface('Build the living workspace');
+  const first = showContentSurface({ filepath: 'first.py', code: 'first', language: 'python' }, { seatIndex: 2 });
+  const last = showContentSurface({ filepath: 'last.py', code: 'last', language: 'python' }, { seatIndex: 4 });
+  focusWorkspace(null);
+
+  expect(getFocusedMaterializedTab()?.id).toBe(last.id);
+  expect(focusNextMaterializedTab()?.id).toBe(first.id);
+  expect(focusPreviousMaterializedTab()?.id).toBe(last.id);
 });

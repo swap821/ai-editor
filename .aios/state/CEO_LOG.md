@@ -869,3 +869,19 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Checkpoint:** `f0d97ca7` on `codex/gagos-living-being-lb06-revival`, local only. Accepted completion remains 3/100; no browser/device/visual/human points are claimed.
 - **Operational note:** the new worktree did not include node_modules, so its first guarded restore could not resolve TypeScript and stopped without changes. `npm ci` followed by guarded restore resolved this; two moderate audit advisories were reported and no dependency was changed.
 - **Next:** hash-pin this committed tree for independent review. Preserve the separate earlier focus branch's pending review.
+
+## 2026-09-24 — CEO note (keyboard-safe composer slice)
+
+- **Shipped locally:** the official mobile composer now follows the VisualViewport only while a text-entry control inside chat is focused. The offset is measured from the app's actual bounds, cleaned up on blur/unmount, and ignores pinch zoom and non-text focus. Short visible heights contract the status reserve instead of assuming a portrait-sized keyboard area.
+- **The useful regression:** a short-landscape test reproduced an app-root minimum-height mismatch (210px computed versus 340px required); root-bound measurement corrected it. Focused app tests passed 7/7; full frontend passed 175 files / 962 tests; typecheck, 4,317-module build, and 14 port-tool tests passed. Lint had zero errors and 123 warnings. `port:check` could not compare because this worktree lacks the ignored authoring-lab `QualityTierProvider.tsx`.
+- **Honest limit:** this is jsdom/source evidence, not a real mobile keyboard or safe-area run. Physical Android 17 and iOS 27 models remain TBD, so UX-04 remains blocked at 0/5 and accepted completion remains 3/100. Committed locally as `8b71d7c7`; not pushed or opened as a PR.
+- **Highest-leverage next move:** operator reviews the local branch diff, then identifies available phone models before the physical UX-04 matrix.
+- **Risk to watch:** a green viewport unit test cannot reproduce browser-specific keyboard resize/pan policy; don't credit phone acceptance until both actual platforms and their composer/decision controls are observed.
+
+## 2026-09-24 — CEO note (canonical materialized focus fallback)
+
+- **Implemented locally:** the tab-store focus helper now agrees with the canonical conductor: it returns null while an open DOM workspace owns attention, ignores the transient intake as a workspace, and follows conductor seat order when focus is otherwise unset.
+- **Regression proof:** three assertions failed against the previous fallback and pass with the change. Focused group **4 files / 40 tests**; combined full frontend **176 files / 973 tests**; TypeScript, 4,317-module build, port tests **15/15**, `port:check` **193/no drift**, palette/texture guards and changed-file lint passed. Full lint: **0 errors / 123 warnings**.
+- **Combined branch:** includes the separate, committed keyboard-aware composer slice; its earlier 14-port-test evidence remains historical, while the combined branch now passes 15 port tests and the 193-file source check.
+- **Honest limit:** no live browser, physical keyboard/touch, device, assistive-technology or visual/human acceptance. Android 17 and iOS 27 are OS targets; phone models remain TBD. No points added; accepted completion remains **3/100**.
+- **Next:** commit the combined local branch, then hash-pin it for independent review. No push, PR or merge was requested.
