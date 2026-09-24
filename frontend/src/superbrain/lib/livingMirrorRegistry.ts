@@ -240,13 +240,17 @@ const core: Record<string, ReactionSpec> = {
     announcement: (p) => `Emergency stop: ${text(p, 'reason') || 'authority revoked'}`.slice(0, 160),
     react: ({ payload }) => publish({ type: 'error', label: 'EMERGENCY STOP', detail: text(payload, 'reason') || 'authority revoked', intensity: 1, source: 'mirror' }),
   },
-  // The restoration. Required, not decorative: dispatch() drops any event type
-  // with no entry here BEFORE mirrorStore.applyEvent() runs, so without this
-  // the cleared event never reaches recentEvents and the being's stopState()
-  // keeps finding the old 'engaged' one and stays frozen for the session.
+  // The restoration. The ENTRY is required, not decorative: dispatch() drops
+  // any event type with no entry here BEFORE mirrorStore.applyEvent() runs, so
+  // without it the cleared event never reaches recentEvents and the being's
+  // stopState() keeps finding the old 'engaged' one and stays frozen.
+  //
+  // Deliberately NO `react`. There is no CognitionEventType for "restored",
+  // and inventing one would be the exact defect this entry fixes -- a name the
+  // consumer never handles. The being's own phase change out of 'stopped' is
+  // the visible reaction.
   'governance.emergency_stop.cleared': {
     announcement: () => 'Emergency stop cleared: authority restored',
-    react: () => publish({ type: 'state', label: 'STOP CLEARED', detail: 'authority restored', intensity: 0.5, source: 'mirror' }),
   },
   'worker.work_incomplete': {
     announcement: (p) => `Work left incomplete: ${text(p, 'disposition') || 'stopped mid-flight'}`.slice(0, 160),
