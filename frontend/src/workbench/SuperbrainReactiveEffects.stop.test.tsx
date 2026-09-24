@@ -51,5 +51,6 @@ describe('SuperbrainReactiveEffects Emergency Stop boundary', () => {
     });
     expect(getSwarmHUDState().cloudIndices).toEqual([0]);
     expect(container.querySelector('[data-testid="line"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sovereign-membrane"]')).not.toBeNull();
   });
 });

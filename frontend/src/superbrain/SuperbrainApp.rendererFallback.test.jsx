@@ -56,6 +56,7 @@ vi.mock('../livingMirror/observability/contextRecovery', () => ({
 }));
 
 vi.mock('../livingMirror/observability/frontendMetrics', () => ({
+  createMirrorReconnectTracker: () => () => {},
   recordFrontendMetric: vi.fn(),
   startFrameTimeSampler: () => () => {},
 }));

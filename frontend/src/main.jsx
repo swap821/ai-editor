@@ -14,12 +14,19 @@ import './superbrain/lib/troikaConfig' // main-thread text (no blob worker / eva
 // subtree — catching a render fault anywhere in the superbrain subtree without
 // editing any generated file.
 const SuperbrainApp = lazy(() => import('./superbrain/SuperbrainApp.jsx'))
+const PhysicalStateGalleryPage = lazy(() => import('./livingMirror/being/PhysicalStateGalleryPage'))
+
+// The gallery is a development-only acceptance surface for the physical
+// projection. It remains at the root entry and never creates a production
+// route or a second semantic source of truth.
+const isPhysicalGallery = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get('physical-gallery') === '1'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary name="App">
       <Suspense fallback={null}>
-        <SuperbrainApp />
+        {isPhysicalGallery ? <PhysicalStateGalleryPage /> : <SuperbrainApp />}
       </Suspense>
     </ErrorBoundary>
   </StrictMode>,

@@ -27,7 +27,7 @@ vi.mock('@react-three/fiber', () => ({
 }));
 
 vi.mock('@react-three/drei', () => ({
-  Line: () => <div data-testid="line" />,
+  Line: ({ 'data-testid': testId }: { 'data-testid'?: string }) => <div data-testid={testId ?? 'line'} />,
 }));
 
 describe('SuperbrainReactiveEffects worker lifecycle', () => {
@@ -60,5 +60,45 @@ describe('SuperbrainReactiveEffects worker lifecycle', () => {
       view.rerender(<SuperbrainReactiveEffects />);
     });
     expect(view.container.querySelector('[data-testid="worker-mote"]')).toBeNull();
+  });
+
+  it('renders a bounded physical branch alongside the temporary worker marker', async () => {
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects />);
+
+    expect(view.container.querySelectorAll('[data-testid="worker-mote"]')).toHaveLength(1);
+    expect(view.container.querySelectorAll('[data-testid="worker-branch"]')).toHaveLength(1);
+  });
+
+  it('caps a worker burst at eight branches and releases them when the posture clears', async () => {
+    mockBeing.current = {
+      phase: 'acting',
+      taskState: 'working',
+      coherence: 'fresh',
+      motion: 'conduct',
+      attention: 'workspace',
+      signals: ['worker-active'],
+      workers: Array.from({ length: 12 }, () => 'active'),
+    };
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects />);
+
+    expect(view.container.querySelectorAll('[data-testid="worker-branch"]')).toHaveLength(8);
+    expect(view.container.querySelectorAll('[data-testid="worker-mote"]')).toHaveLength(8);
+
+    mockBeing.current = {
+      phase: 'resting',
+      taskState: 'idle',
+      coherence: 'fresh',
+      motion: 'calm',
+      attention: 'none',
+      signals: [],
+      workers: [],
+    };
+    act(() => {
+      view.rerender(<SuperbrainReactiveEffects />);
+    });
+    expect(view.container.querySelectorAll('[data-testid="worker-branch"]')).toHaveLength(0);
+    expect(view.container.querySelectorAll('[data-testid="worker-mote"]')).toHaveLength(0);
   });
 });
