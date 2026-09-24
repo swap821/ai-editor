@@ -57,9 +57,12 @@ describe('derivePhysicalSnapshot', () => {
     }));
 
     expect(held.membrane).toEqual({ state: 'held', actionTravel: 'closed' });
+    expect(held.cortex.posture).toBe('attention');
     expect(held.branches.map((branch) => branch.visual)).toEqual(['held', 'held']);
     expect(stopped.membrane).toEqual({ state: 'stopped', actionTravel: 'closed' });
+    expect(stopped.cortex.posture).toBe('stopped');
     expect(stopped.conductor).toMatchObject({ posture: 'stopped', travel: 'frozen' });
+    expect(derivePhysicalSnapshot(base({ phase: 'stale', taskState: 'stale', coherence: 'stale' })).cortex.posture).toBe('recover');
   });
 
   it('keeps memory and reflex evidence distinct from transient action posture', () => {
@@ -82,6 +85,26 @@ describe('derivePhysicalSnapshot', () => {
       state: 'fail',
       settlement: 'unsettled',
     });
+  });
+
+  it('keeps a completed but unverified task distinct from verified completion', () => {
+    const unverified = derivePhysicalSnapshot(base({
+      phase: 'resting',
+      taskState: 'done-unverified',
+      coherence: 'unverified',
+    }));
+    const verified = derivePhysicalSnapshot(base({
+      phase: 'resting',
+      taskState: 'done-verified',
+      coherence: 'fresh',
+      signals: ['verification-pass'],
+    }));
+
+    expect(unverified.cortex.posture).toBe('unverified');
+    expect(unverified.verification).toEqual({ state: 'unverified', settlement: 'unsettled' });
+    expect(unverified.coherencePhysics.cadence).toBe('soft');
+    expect(verified.cortex.posture).toBe('rest');
+    expect(verified.verification).toEqual({ state: 'pass', settlement: 'stable' });
   });
 
   it('caps branch presentation and contains no authority fields', () => {

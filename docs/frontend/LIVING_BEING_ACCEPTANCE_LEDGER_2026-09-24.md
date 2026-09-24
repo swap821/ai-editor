@@ -41,6 +41,16 @@ The focused baseline on this branch passes **2 files / 21 tests** (`conversation
 
 This audit and its tests add **0 acceptance points**; accepted completion remains **3/100**. No product behavior changed in this checkpoint.
 
+### LB-05 implementation checkpoint (2026-09-24)
+
+The bounded source convergence is now implemented in the official product mirror. `SuperbrainApp.jsx` derives one memoized `PhysicalSnapshot` from the existing `BeingPresentation` and passes that same snapshot to both `WorkspaceCanvas` and `SuperbrainReactiveEffects`. The managed authoring source types the new canvas prop and routes the projection through `CortexEngine`, `BrainModel`, and `BrainPointField`; the branch review diff is the ported product mirror and its source manifest.
+
+The shared posture mapping selects success-green only when task state is `done-verified` **and** the verification state is explicit `pass`. A completed but unverified reply has its own subdued violet posture; stop, approval hold, stale/degraded, and recovery states keep their distinct higher-priority handling. `MaterializationLayer` and per-tab materialization semantics were not changed. The conversation-phase bus remains only a fallback/speaking accent, not authority for completion.
+
+Evidence: focused semantic/effect group **7 files / 66 tests passed**; full frontend **175 files / 959 tests passed**; TypeScript and production build passed (4,316 modules); `port:check` found **193 files / no drift**; changed-file lint had **0 errors / 3 warnings**. The initial effects run exposed a render/effect loop from a non-memoized fallback snapshot; memoizing the fallback resolved it and the isolated and grouped tests then passed. A test command run from the source-only lab was invalid because that ignored copy has no npm scripts; verification was rerun through the official frontend.
+
+This is code and automated-regression evidence only. No screenshot, current browser visual review, human sign-off, or phone run was performed. Android 17 and iOS 27 remain OS targets; both physical handset models are TBD. This checkpoint adds **0 acceptance points**; overall accepted completion remains **3/100** pending operator visual review and the ledger's independent runtime/device gates.
+
 ### Older #362 modules: runtime status, not a deletion list
 
 Import search over production source (excluding tests) at `c3181fd3` found:

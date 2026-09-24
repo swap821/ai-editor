@@ -24,7 +24,7 @@ import { subscribeLifecycle, LifecycleState, ArrivalMode } from '@/lib/lifecycle
 import { coalescenceEnvelope, ignitionPulse, awakenNotice } from '@/lib/openingMotion';
 import { useReducedMotion } from '@/lib/reducedMotion';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
-import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
+import { deriveBodyPosture, lifecyclePhaseForPhysicalProjection, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
 import { FeatureGate } from './Performance/FeatureGate';
@@ -69,7 +69,7 @@ function isTextEntryFocused(): boolean {
 }
 
 
-export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web' }: SuperbrainSceneProps) {
+export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web', physical }: SuperbrainSceneProps) {
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
@@ -378,7 +378,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     // REST EXHALE (#wow signature 5): on LANDING back to rest (from completion /
     // reabsorbing), the being lets out one slow breath — a brief exhale DIP then settle,
     // instead of snapping straight into idle breathing. Reduced motion: no dip.
-    const atRest = getOrganismPhase() === 'rest';
+    const atRest = physical ? physical.cortex.posture === 'rest' : getOrganismPhase() === 'rest';
     if (atRest && !wasRestRef.current) restLandedAtRef.current = time;
     wasRestRef.current = atRest;
     const sinceRest = restLandedAtRef.current >= 0 ? time - restLandedAtRef.current : 999;
@@ -427,8 +427,8 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     // An active CHAT turn (GagosChrome) drives the conversation posture with
     // PRIORITY so the being visibly comes alive — thinking purple → streaming
     // cyan → complete green — then falls back to the idle organism phase.
-    const livePhase = getEffectiveOrganismPhase();
-    const bodyPosture = deriveBodyPosture({ phase: livePhase });
+    const livePhase = physical ? lifecyclePhaseForPhysicalProjection(physical) : getEffectiveOrganismPhase();
+    const bodyPosture = deriveBodyPosture({ phase: livePhase, physical });
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
     uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
@@ -585,7 +585,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} />
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
           <SubsystemErrorBoundary name="AccretionCore">

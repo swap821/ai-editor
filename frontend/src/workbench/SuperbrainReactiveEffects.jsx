@@ -107,6 +107,7 @@ const CORTEX_POSTURE_COLORS = {
   attention: '#7bf5fb',
   conduct: '#54f0a0',
   verify: '#54f0a0',
+  unverified: '#9e78f5',
   recover: '#ffb454',
   stopped: '#ff5f6d',
 };
@@ -121,6 +122,7 @@ const VERIFICATION_FIELD_COLORS = {
   pending: '#ffb454',
   pass: '#2fffa1',
   fail: '#ff5f6d',
+  unverified: '#9e78f5',
 };
 
 function anchorWorldPosition(i) {
@@ -206,15 +208,19 @@ function getStableRandom(seed) {
 }
 
 /**
- * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null }} [props]
+ * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null,
+ *   physicalOverride?: import('../livingMirror/being/physicalSnapshot').PhysicalSnapshot | null }} [props]
  */
-export default function SuperbrainReactiveEffects({ presentationOverride = null } = {}) {
+export default function SuperbrainReactiveEffects({ presentationOverride = null, physicalOverride = null } = {}) {
   const liveBeing = useBeingPresentation();
   // The override is a development/test inspection seam only. Production uses
   // the live presentation projection; the gallery never mutates a store or
   // claims that a fixture represents backend truth.
   const being = presentationOverride ?? liveBeing;
-  const physical = derivePhysicalSnapshot(being);
+  const physical = useMemo(
+    () => physicalOverride ?? derivePhysicalSnapshot(being),
+    [being, physicalOverride],
+  );
   const { tier } = useQualityTier();
   const { tabs, focusId, attention } = useTabStore();
   const orchestration = useMemo(
@@ -425,7 +431,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   // not worker IDs or caste event names. Terminal states get a short visual
   // reabsorption window and cannot remain mounted forever.
   useEffect(() => {
-    const branches = derivePhysicalSnapshot(being).branches;
+    const branches = physical.branches;
     const now = performance.now();
     setMotes((prev) => {
       const next = {};
@@ -458,7 +464,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
       }
       return Object.fromEntries(Object.entries(next).slice(0, MAX_MOTES));
     });
-  }, [being]);
+  }, [physical]);
 
   // Expire transient effects on a coarse timer. Their visual movement is
   // handled by refs below; React only reconciles lifecycle changes, never each
@@ -707,8 +713,8 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null 
   const auroraColor = VERDICT_COLORS[aurora.verdict] || VERDICT_COLORS.pass;
   const verificationState = physical.verification.state;
   const verificationFieldColor = VERIFICATION_FIELD_COLORS[verificationState] ?? '#ffb454';
-  const verificationFieldScale = verificationState === 'pass' ? 1.05 : verificationState === 'fail' ? 0.78 : 0.9;
-  const verificationFieldOpacity = verificationState === 'pass' ? 0.4 : verificationState === 'fail' ? 0.32 : 0.26;
+  const verificationFieldScale = verificationState === 'pass' ? 1.05 : verificationState === 'fail' ? 0.78 : verificationState === 'unverified' ? 0.82 : 0.9;
+  const verificationFieldOpacity = verificationState === 'pass' ? 0.4 : verificationState === 'fail' ? 0.32 : verificationState === 'unverified' ? 0.16 : 0.26;
   const membraneColors = {
     held: '#ffb454',
     refused: '#ff8c69',

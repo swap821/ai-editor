@@ -6,8 +6,21 @@ import {
   postureColor01,
   postureHex,
   postureKeyForPhase,
+  lifecyclePhaseForPhysicalProjection,
   type BodyPostureKey,
+  type PhysicalBodyProjection,
 } from './bodyPosture';
+
+const physical = (overrides: Partial<PhysicalBodyProjection> = {}): PhysicalBodyProjection => ({
+  phase: 'resting',
+  taskState: 'idle',
+  coherence: 'fresh',
+  motion: 'calm',
+  cortex: { posture: 'rest' },
+  verification: { state: 'none' },
+  membrane: { state: 'clear' },
+  ...overrides,
+});
 
 describe('postureHex — single source of truth for status hues (P2.4)', () => {
   it('renders each posture as the sacred tetrad hex', () => {
@@ -16,7 +29,9 @@ describe('postureHex — single source of truth for status hues (P2.4)', () => {
     expect(postureHex('stream')).toBe('#7bf5fb');
     expect(postureHex('hold')).toBe('#ff7e40');
     expect(postureHex('complete')).toBe('#54f0a0');
+    expect(postureHex('unverified')).toBe(postureHex('rest'));
     expect(postureHex('error')).toBe('#ff5c48');
+    expect(postureHex('stopped')).toBe(postureHex('rest'));
   });
   it('always emits a 7-char #rrggbb (2-digit, zero-padded channels)', () => {
     for (const key of Object.keys(BODY_POSTURES) as BodyPostureKey[]) {
@@ -77,6 +92,52 @@ describe('deriveBodyPosture + postureColor01', () => {
   it('derives the posture object for a phase', () => {
     expect(deriveBodyPosture({ phase: 'conducting' })).toBe(BODY_POSTURES.stream);
     expect(deriveBodyPosture({ phase: 'rest' })).toBe(BODY_POSTURES.rest);
+  });
+
+  it('does not use the completion-green posture without explicit verified completion', () => {
+    const unverified = deriveBodyPosture({
+      phase: 'rest',
+      physical: physical({
+        taskState: 'done-unverified',
+        coherence: 'unverified',
+        cortex: { posture: 'unverified' },
+        verification: { state: 'unverified' },
+      }),
+    });
+    const verified = deriveBodyPosture({
+      phase: 'rest',
+      physical: physical({
+        taskState: 'done-verified',
+        verification: { state: 'pass' },
+      }),
+    });
+
+    expect(unverified.key).toBe('unverified');
+    expect(unverified.color).toEqual(BODY_POSTURES.rest.color);
+    expect(unverified.tint).toBe(0.08);
+    expect(verified).toBe(BODY_POSTURES.complete);
+  });
+
+  it('keeps permission, recovery, stop, and arrival mapped to their existing lifecycle gestures', () => {
+    expect(lifecyclePhaseForPhysicalProjection(physical({
+      taskState: 'needs-permission',
+      cortex: { posture: 'attention' },
+      membrane: { state: 'held' },
+    }))).toBe('approval_hold');
+    expect(lifecyclePhaseForPhysicalProjection(physical({
+      phase: 'stale',
+      taskState: 'stale',
+      coherence: 'stale',
+      cortex: { posture: 'recover' },
+    }))).toBe('error_repair');
+    expect(lifecyclePhaseForPhysicalProjection(physical({
+      phase: 'stopped',
+      taskState: 'stopped',
+      coherence: 'stopped',
+      cortex: { posture: 'stopped' },
+      membrane: { state: 'stopped' },
+    }))).toBe('rest');
+    expect(lifecyclePhaseForPhysicalProjection(physical({ phase: 'arriving', cortex: { posture: 'arrive' } }))).toBe('arrival');
   });
 
   it('normalizes an sRGB triple to 0..1 for Three uniforms', () => {

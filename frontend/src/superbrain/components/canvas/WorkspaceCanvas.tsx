@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary, WebGLFallback } from './WebGLErrorBoundary';
 import CortexEngine from '../../core/CortexEngine';
+import type { PhysicalBodyProjection } from '../../lib/bodyPosture';
 import { type BrainSurface, type SkyMode } from './SuperbrainScene.LEGACY';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
@@ -40,10 +41,14 @@ function ReadySignal() {
   return null;
 }
 
-export default function WorkspaceCanvas({ children, booted = false }: { children?: ReactNode; booted?: boolean }) {
+export default function WorkspaceCanvas({ children, booted = false, physical }: {
+  children?: ReactNode;
+  booted?: boolean;
+  physical?: PhysicalBodyProjection;
+}) {
   return (
     <QualityTierProvider>
-      <WorkspaceInner booted={booted}>{children}</WorkspaceInner>
+      <WorkspaceInner booted={booted} physical={physical}>{children}</WorkspaceInner>
     </QualityTierProvider>
   );
 }
@@ -89,7 +94,11 @@ function isWebGLAvailable(): boolean {
   }
 }
 
-function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: boolean }) {
+function WorkspaceInner({ children, booted, physical }: {
+  children?: ReactNode;
+  booted: boolean;
+  physical?: PhysicalBodyProjection;
+}) {
   const [webglAvailable] = useState(() => isWebGLAvailable());
   const { tier, perfTier } = useQualityTier();
   const mode: CognitiveMode = 'orchestrate';
@@ -218,7 +227,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
               <fog attach="fog" args={['#000000', 50, 150]} />
               <TierGovernor />
               <Suspense fallback={null}>
-                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
+                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} physical={physical} />
                 <ReadySignal />
                 {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                     one canvas, so the canon nerves plug into them. Renders nothing

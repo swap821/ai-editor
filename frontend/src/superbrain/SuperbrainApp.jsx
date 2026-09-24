@@ -1,5 +1,5 @@
 /** One operational shell, one conversation owner, and the preserved connected organism. */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
@@ -7,6 +7,7 @@ import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
 import { readExperienceMode, writeExperienceMode } from '../livingMirror/experienceMode';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
+import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
 import { createMirrorReconnectTracker, recordFrontendMetric, startFrameTimeSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
@@ -30,6 +31,7 @@ export default function SuperbrainApp() {
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
   const snapshot = useTabStore();
   const being = useBeingPresentation();
+  const physical = useMemo(() => derivePhysicalSnapshot(being), [being]);
   const rendererFallback = useRendererFallbackPresentation();
   const measuredAttentionRef = useRef(null);
   const canvasContextLostRef = useRef(false);
@@ -157,7 +159,9 @@ export default function SuperbrainApp() {
     <div className="lm-scene">{canvasContextLost ? null : (
       <RendererFailureBoundary onRetry={handleRendererRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
-          <WorkspaceCanvas key={rendererRestartKey} booted={booted}><SuperbrainReactiveEffects /></WorkspaceCanvas>
+          <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical}>
+            <SuperbrainReactiveEffects presentationOverride={being} physicalOverride={physical} />
+          </WorkspaceCanvas>
         </Suspense>
       </RendererFailureBoundary>
     )}</div>

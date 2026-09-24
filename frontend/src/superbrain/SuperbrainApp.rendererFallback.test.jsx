@@ -41,6 +41,8 @@ vi.mock('../livingMirror/being/useBeingPresentation', () => ({
     coherence: 'fresh',
     motion: 'calm',
     attention: 'none',
+    signals: [],
+    workers: [],
   }),
 }));
 
