@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +75,85 @@ class TestDriftCannotSeeIt:
         """
         head = _head()
         assert _currency.changed_since(head, ["aios/config.py"], head) == []
+
+
+class TestAttachRefusesABranchTip:
+    """Catch it while the choice is still free, not after the merge.
+
+    Dropping unreachable rows fixes the damage. It does not stop it happening,
+    and it happened twice in 48 hours -- #359's own tip, then #363's PR head,
+    each time turning master red AFTER the merge where it costs the most to
+    notice. The refusal belongs at the moment somebody picks which commit to
+    attest.
+    """
+
+    def _artifact(self, tip: str) -> Path:
+        """Written inside the repo because the tool requires that (it records a
+        repo-relative artifact path in the ledger)."""
+        import json
+
+        real = json.loads(
+            (REPO_ROOT / "release/phase4/live-evidence-latest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        real["tip_sha"] = tip
+        path = REPO_ROOT / "release/phase4/.branch-tip-guard-test.json"
+        path.write_text(json.dumps(real), encoding="utf-8")
+        return path
+
+    def test_a_commit_not_on_master_is_refused(self) -> None:
+        path = self._artifact("164c7d572fc6" + "0" * 28)
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/phase4_attach_ledger.py"),
+                    "--artifact",
+                    str(path),
+                    "--dry-run",
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+        finally:
+            path.unlink(missing_ok=True)
+        assert result.returncode == 1, "a branch tip was accepted"
+        assert "not on master" in result.stderr
+        # The refusal has to say WHY, or the next person just deletes the check.
+        assert "SQUASH" in result.stderr.upper()
+
+    def test_the_current_master_tip_is_accepted(self) -> None:
+        """The negative control. Without it, a guard that refused EVERYTHING
+        would pass the test above and nobody could ever attach evidence."""
+        head = subprocess.run(
+            ["git", "rev-parse", "origin/master"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if head.returncode != 0:
+            import pytest
+
+            pytest.skip("no origin/master ref in this clone")
+        path = self._artifact(head.stdout.strip())
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/phase4_attach_ledger.py"),
+                    "--artifact",
+                    str(path),
+                    "--dry-run",
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+        finally:
+            path.unlink(missing_ok=True)
+        assert result.returncode == 0, result.stderr[-400:]
 
 
 class TestEveryCitedCommitIsReachableRightNow:
