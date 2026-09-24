@@ -2,9 +2,9 @@
 
 **Current goal:** Implement the GAGOS living-being frontend blueprint in official `frontend/`, with desktop and mobile treated equally.
 
-**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8` (PRs #362, #363 and #364 merged). Continuation parent: `64f3e4fb`. Current isolated branch/worktree: `codex/gagos-living-being-execution` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-execution/ai-editor`. Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
+**Baseline:** `origin/master` = `4782cfa356ad23015bf090f7a671b74967a373f8` (PRs #362, #363 and #364 merged). Current isolated branch/worktree: `codex/gagos-living-being-execution` at `C:/Users/kumar/.codex/worktrees/gagos-living-being-execution/ai-editor`, commit `7bb85ddb` (parent `64f3e4fb`). Codex holds the builder lease for `gagos-2030-living-ai-os-20260922`.
 
-**Last completed + verified:** Prior LB-01–LB-05 and LB-06 seat identity work are recorded in the ledger; visual/operator and device acceptance remain open. On this branch, LB-06 additionally restores focus after any focused-workspace-to-Conversation transition, including a store-owned child close, and records Conversation as the target when explicitly selected. Regression coverage passed **3/3**; focus + narrow-layout tests **2 files / 11 tests**; changed-file ESLint passed. These are automated checks only. Work is uncommitted on top of `64f3e4fb`.
+**Last completed + verified:** Prior LB-01–LB-05 and LB-06 seat identity work are recorded in the ledger; visual/operator and device acceptance remain open. This branch's LB-06 addition restores focus after any focused-workspace-to-Conversation transition, including a store-owned child close, and records Conversation as the target when explicitly selected. Regression coverage passed **3/3**; focus + narrow-layout tests **2 files / 11 tests**; changed-file ESLint passed. Full checks are recorded below. Code and evidence are committed locally as `7bb85ddb`.
 
 **Current ticket:** LB-06 remains partial. New regression first failed as expected: when a selected workspace was closed by another store owner, focus remained on the heading in the now-hidden surface. The shell now restores the viable saved target after that state transition; explicit Conversation navigation replaces the saved target. No shader, geometry, palette or texture change was made.
 
@@ -20,9 +20,9 @@
 
 **Accepted completion:** **3/100** (INT-01 only); this code checkpoint adds no acceptance points. Android 17 and iOS 27 are OS targets; both physical phone models remain TBD. Desktop hardware, named browser/GPU, human usability evidence and live WorkerFoundry integration remain unverified.
 
-**Next single action:** Review exact tracked diff, stage only the shell/test/continuity evidence, commit the verified slice, then request hash-pinned independent review.
+**Next single action:** Hand off clean commit `7bb85ddb` for Claude's read-only, hash-pinned independent review; await verdict before any edits to this tree.
 
-**Open approvals / blockers:** LB-04/LB-05 operator visual review remains pending. No phone run (Android/iPhone models TBD), named browser/GPU baseline, human comprehension evidence or live WorkerFoundry integration. Full LB-06 rapid-interaction and keyboard/touch parity are not proven. `npm ci` reported two moderate audit advisories; dependency versions were not changed.
+**Open approvals / blockers:** Independent code review of `7bb85ddb` is pending. LB-04/LB-05 operator visual review remains pending. No phone run (Android/iPhone models TBD), named browser/GPU baseline, human comprehension evidence or live WorkerFoundry integration. Full LB-06 rapid-interaction and keyboard/touch parity are not proven. `npm ci` reported two moderate audit advisories; dependency versions were not changed.
 
 **Active files:** `frontend/src/livingMirror/LivingWorkspaceShell.focus.test.tsx`, `frontend/src/livingMirror/LivingWorkspaceShell.tsx`, this resume, `docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md`, `.aios/state/CEO_LOG.md`, and builder experience memory. Managed `frontend/src/superbrain/` remains unchanged.
 
