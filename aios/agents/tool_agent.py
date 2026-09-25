@@ -91,7 +91,7 @@ from typing import Callable, Iterator, Optional, Protocol, Any, cast
 from aios import config
 from aios.agents import tool_handlers, tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
-from aios.core.cerebellum import Cerebellum
+from aios.core.cerebellum import REFLEX_AUTHORITY_WITHHELD, Cerebellum
 from aios.core import replay_writes
 from aios.core.executor import Executor
 from aios.core.injection_scan import detect_injection
@@ -1923,43 +1923,41 @@ class ToolAgent:
     def _dispatch_approved(
         self, name: str, args: dict[str, Any]
     ) -> tuple[str, str, bool]:
-        """Dispatch a step as PRE-APPROVED. Used ONLY by cerebellum replay.
+        """Dispatch one replayed step. Used ONLY by cerebellum replay.
 
-        A compiled playbook is built exclusively from a skill that already
-        earned >=3 STRONG verified successes and was promoted (see
-        ``cerebellum.py``'s compilation guards) BEFORE it was ever compiled --
-        the human-in-the-loop trust was already established while the skill
-        was learned, not granted here. Replaying it should not re-pause for a
-        YELLOW approval the organism has already earned.
+        A replayed step is pre-approved only by a recorded HUMAN approval of
+        exactly that step. Writes have always worked this way (see
+        ``_replay_create_file``). Commands did not: they were granted on the
+        grounds that trust "was already established while the skill was
+        learned". That was not true of what actually reaches this method. Live
+        playbooks 9, 10 and 14 were compiled from harness arcs whose tests ran
+        with no human anywhere, and they would have auto-approved a YELLOW
+        ``pytest`` in a live turn. The learning red-team reel measured both
+        halves (RT-05, RT-06: ``docs/security/LEARNING_THREAT_MODEL.md``).
 
-        RED IS STILL REFUSED: both paths below route through
-        ``execute_approved`` / ``verify(approved=True)``, which the gateway
-        blocks for RED regardless of the approved flag (see
-        ``Executor.execute_approved``: "RED commands are still refused").
-        Only ``execute_terminal`` and ``verify`` are compilable (see
-        ``cerebellum._COMPILABLE_TOOLS``), so those are the only two tools
-        that need an approved variant here; reads have no approval gate and
-        fall through to the normal dispatcher unchanged.
+        So, until approval provenance for commands exists (plan Phase 5), no
+        replayed command is pre-approved. A GREEN command still runs, and a
+        reflex made only of GREEN steps still serves a whole turn with no model
+        call. A step that needs approval is WITHHELD: the replay aborts naming
+        ``reflex_authority``, the turn falls through to the model, and whatever
+        the model proposes pauses for a human like any turn. Operator decision
+        2026-09-25: "a reflex may auto-approve only a step a human approved, in
+        a compatible scope".
 
-        This method is used by NOTHING else. Every LLM-proposed tool call in
-        run()'s normal loop still goes through ``self._dispatch`` with
-        approved=False and still pauses for YELLOW human approval.
+        RED is refused exactly as before; nothing here approves anything.
         """
         if self.allowed_tools is not None and name not in self.allowed_tools:
             return self._dispatch(name, args)
-        if name == "verify":
-            return self._verify(str(args.get("command", "")), approved=True)
-        if name == "execute_terminal":
-            command = str(args.get("command", ""))
-            # A one-off approval set scoped to THIS call only -- never touches
-            # self.approved_commands, so nothing here leaks into the LLM loop
-            # that runs afterwards if the replay aborts partway through.
-            return tool_handlers.execute_terminal(
-                command,
-                approved_commands={command},
-                executor=self.executor,
-                session_id=self.session_id,
-            )
+        if name in ("verify", "execute_terminal"):
+            output, status, failed = self._dispatch(name, args)
+            if status == "approval":
+                return (
+                    f"{REFLEX_AUTHORITY_WITHHELD} no human approved this command "
+                    f"for replay, so it pauses like any turn. {output}",
+                    "approval",
+                    False,
+                )
+            return output, status, failed
         if name == "create_file":
             return self._replay_create_file(args)
         if name == "edit_file":
