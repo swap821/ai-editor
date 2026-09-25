@@ -37,7 +37,11 @@ from aios.domain.learning.applicability import (
     ApplicabilityError,
     SkillApplicabilityEngine,
 )
-from aios.domain.learning.repository import SkillRecord, SkillRepository
+from aios.domain.learning.repository import (
+    _EVIDENCE_FIELDS,
+    SkillRecord,
+    SkillRepository,
+)
 from aios.domain.learning.reuse_outcome_repository import ReuseOutcomeRepository
 from aios.domain.learning.skill_contracts import (
     BIRTH_STATE,
@@ -47,6 +51,7 @@ from aios.domain.learning.skill_contracts import (
     check_transition,
 )
 from aios.domain.learning.trajectory_repository import TrajectoryRepository
+from aios.domain.verification import SkillVerifierSpec
 from aios.memory import learning_freeze
 from tests.helpers import reuse_outcome_reference, save_minimal_trajectory, seed_skill
 
@@ -185,6 +190,72 @@ class TestSaveNeverWritesAState:
             "legacy_id": "17",
         }
         assert repo.get("skill-2", 1).provenance == {}
+
+
+#: A changed value for every field a reviewer approved. Identity (skill_id,
+#: version) picks the record; state moves only by transition; evidence is what
+#: `save` may still update. A test below fails if a field is added to the record
+#: without being classified here or as evidence.
+_CONTRACT_CHANGES: dict[str, object] = {
+    "problem_signature": "a different problem",
+    "applicability_conditions": {"k": "v"},
+    "known_exclusions": ["x"],
+    "required_inputs": ["y"],
+    "required_project_state": {"a": "b"},
+    "procedure": "do something else",
+    "allowed_tools": ["execute_terminal"],
+    "allowed_scope_pattern": "**",
+    "expected_observations": ["o"],
+    "verification_plan": SkillVerifierSpec(
+        target_pattern="*", required_observations=("x",), minimum_strength=1
+    ),
+    "escalation_conditions": ["e"],
+    "source_trajectory_ids": ["another-trajectory"],
+    "last_validated_versions": ["9.9"],
+    "provenance": {"source": "forged"},
+    "created_at": "2000-01-01T00:00:00",
+}
+
+
+class TestAReviewedContractIsNeverRewritten:
+    """Legacy `record_attempt` refreshes a skill's steps in place. On this
+    store that would run something the operator never approved under an
+    approval given for something else."""
+
+    def test_every_field_is_classified(self) -> None:
+        classified = (
+            set(_CONTRACT_CHANGES) | set(_EVIDENCE_FIELDS) | {"skill_id", "version", "state"}
+        )
+        assert classified == set(SkillRecord.model_fields)
+
+    def test_evidence_is_only_counts_confidence_and_time(self) -> None:
+        assert _EVIDENCE_FIELDS == {
+            "confidence",
+            "success_count",
+            "failure_count",
+            "updated_at",
+        }
+
+    @pytest.mark.parametrize("field", sorted(_CONTRACT_CHANGES))
+    @pytest.mark.parametrize("state", ["human_reviewed", "active", "suspended"])
+    def test_a_reviewed_skill_keeps_its_contract(
+        self, tmp_path: Path, field: str, state: str
+    ) -> None:
+        repo = SkillRepository(tmp_path / "skills.db")
+        stored = seed_skill(repo, _record(state=state))
+        with pytest.raises(ValueError, match="rewrite the contract"):
+            repo.save(stored.model_copy(update={field: _CONTRACT_CHANGES[field]}))
+        assert repo.get("skill-1", 1) == stored
+
+    @pytest.mark.parametrize("field", sorted(_CONTRACT_CHANGES))
+    def test_positive_control_a_candidate_may_still_be_refined(
+        self, tmp_path: Path, field: str
+    ) -> None:
+        repo = SkillRepository(tmp_path / "skills.db")
+        repo.save(_record())
+        refined = _record(**{field: _CONTRACT_CHANGES[field]})
+        repo.save(refined)
+        assert repo.get("skill-1", 1) == refined
 
 
 class TestWithdrawalStatesTakeASkillOutOfUse:

@@ -23,6 +23,15 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+#: All `save` may change on a skill that has left ``candidate``: its evidence.
+#: Everything else is the contract its reviewer approved -- the procedure, its
+#: tools and scope, where it applies, the versions it was validated against,
+#: and the provenance the reviewer was shown. Rewriting any of it in place
+#: would run something nobody approved under an approval given for something
+#: else; a changed contract is a new version, born a candidate.
+_EVIDENCE_FIELDS = frozenset({"confidence", "success_count", "failure_count", "updated_at"})
+
+
 class SkillRecord(SkillContract):
     """A skill contract with durable lifecycle timestamps."""
 
@@ -42,8 +51,10 @@ class SkillRepository:
     a skill's evidence and never its state, and ``transition_state`` is the one
     way a state changes. Before Phase 2, ``save`` wrote whatever state it was
     handed, so the transition graph bound only the callers that chose to use
-    it. Every write also asks the emergency stop first (``learning_freeze``),
-    except a transition that withdraws a skill from use.
+    it. Once a skill leaves ``candidate``, ``save`` changes only its evidence
+    (``_EVIDENCE_FIELDS``); its contract is what was reviewed. Every write also
+    asks the emergency stop first (``learning_freeze``), except a transition
+    that withdraws a skill from use.
     """
 
     def __init__(self, database: Path | str) -> None:
@@ -62,7 +73,8 @@ class SkillRepository:
             )
 
     def save(self, skill: SkillRecord) -> None:
-        """Write a skill's evidence: born ``candidate``, state never changed here."""
+        """Write a skill's evidence: born ``candidate``, state never changed
+        here, and a reviewed contract never rewritten."""
         assert_learning_permitted("institutional_skills.save")
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -76,6 +88,20 @@ class SkillRepository:
                     f"{BIRTH_STATE!r} and changes state only through "
                     "transition_state"
                 )
+            if current is not None and current.state != BIRTH_STATE:
+                new, old = skill.model_dump(mode="json"), current.model_dump(mode="json")
+                rewritten = sorted(
+                    name
+                    for name in new.keys() | old.keys()
+                    if new.get(name) != old.get(name) and name not in _EVIDENCE_FIELDS
+                )
+                if rewritten:
+                    raise ValueError(
+                        f"save cannot rewrite the contract of skill "
+                        f"{skill.skill_id!r} v{skill.version}, which is "
+                        f"{current.state!r}: {rewritten}. A changed contract is "
+                        f"a new version, born {BIRTH_STATE!r}."
+                    )
             self._write(connection, skill)
 
     def get(self, skill_id: str, version: int) -> SkillRecord | None:

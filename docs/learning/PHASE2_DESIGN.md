@@ -133,6 +133,15 @@ its rules had to hold at the store itself, whoever calls it.
   "activation is a human, capability-backed act" held only for callers that
   chose to call `transition_state`. Read, check and write happen in one
   `BEGIN IMMEDIATE` transaction.
+- **A reviewed contract is never rewritten.** Once a skill leaves `candidate`,
+  `save` may change only its evidence: `confidence`, `success_count`,
+  `failure_count` and `updated_at`. The procedure, tools, scope,
+  applicability, validated versions and the provenance the reviewer saw are
+  the approved contract. The legacy store refreshes a skill's steps in place
+  ("better recipe"). On this store that would run something the operator
+  never approved, under an approval given for something else. A changed
+  contract is a new version, born a candidate. A candidate can still be
+  refined before review. Found while mapping slice 2.4.
 - **The stop reaches the whole institutional stack.** It covers skill saves,
   every transition toward use, trajectory saves and reuse outcomes. These are
   checked at the stores, so `capture_trajectory`, `create_skill_candidate` and
