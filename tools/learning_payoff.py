@@ -71,6 +71,7 @@ the live tree fingerprinted before and after.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -123,6 +124,7 @@ from tools.self_corpus_grading import grade_pin_test  # noqa: E402
 from tools.self_corpus_targets import collect_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-payoff.jsonl"
+PREREGISTRATION = REPO_ROOT / "docs" / "learning" / "PAYOFF_PREREGISTRATION.md"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
 DB = REPO_ROOT / "data" / "aios_memory.db"
 GUARD_SELECTION = ["tests/test_code_chunking.py"]
@@ -498,7 +500,12 @@ def run_arm(
 
 
 def run_benchmark(
-    *, models: str, targets: int, model_timeout: int, ref: str = "HEAD"
+    *,
+    models: str,
+    targets: int,
+    model_timeout: int,
+    ref: str = "HEAD",
+    target_labels: Optional[list[str]] = None,
 ) -> tuple[list[Pair], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
@@ -544,9 +551,27 @@ def run_benchmark(
 
         candidates = collect_targets(corpus.root)
         history = practice_history(DB)
-        chosen, n_fresh, n_known = select_targets(
-            candidates, targets, lambda t: practised(history, t)
-        )
+        if target_labels is not None:
+            # A FROZEN list. A paired before/after comparison means nothing if
+            # the second run picks different targets -- and the selection rule
+            # reads practice history, which the intervening learning changes.
+            # Every registered label must still exist; a silently shorter list
+            # would change the experiment without saying so.
+            by_label = {t.label: t for t in candidates}
+            missing = [label for label in target_labels if label not in by_label]
+            if missing:
+                raise CorpusError(
+                    f"{len(missing)} registered target(s) no longer exist at this "
+                    f"ref: {missing[:3]}. The frozen list cannot be honoured, so "
+                    "the paired comparison is refused rather than quietly shrunk."
+                )
+            chosen = [by_label[label] for label in target_labels]
+            n_fresh = sum(1 for t in chosen if not practised(history, t))
+            n_known = len(chosen) - n_fresh
+        else:
+            chosen, n_fresh, n_known = select_targets(
+                candidates, targets, lambda t: practised(history, t)
+            )
         print(
             f"targets : {len(chosen)} chosen -- {n_fresh} never practised, {n_known} practised\n"
         )
@@ -805,7 +830,41 @@ def main(argv: list[str] | None = None) -> int:
             "this harness happens to be on."
         ),
     )
+    parser.add_argument(
+        "--target-labels",
+        type=Path,
+        default=None,
+        help=(
+            "a file of target labels (one `module::function` per line) to run "
+            "INSTEAD of selecting. Used to re-run a pre-registered, frozen list "
+            "so a before/after comparison measures the same work."
+        ),
+    )
+    parser.add_argument(
+        "--preregistration",
+        type=Path,
+        default=PREREGISTRATION,
+        help="the pre-registration this run is bound to; its sha256 is recorded.",
+    )
     args = parser.parse_args(argv)
+
+    labels: Optional[list[str]] = None
+    if args.target_labels is not None:
+        labels = [
+            line.strip()
+            for line in args.target_labels.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        if not labels:
+            parser.error(f"{args.target_labels} lists no targets")
+
+    # Bind the result to the hypothesis it was run under. A number whose
+    # registration can be edited after the fact is not pre-registered.
+    prereg_sha = (
+        hashlib.sha256(args.preregistration.read_bytes()).hexdigest()
+        if args.preregistration.is_file()
+        else None
+    )
 
     # A remote-tracking ref resolves against whatever this clone last FETCHED,
     # so an unfetched clone would measure days-old code and cite it correctly.
@@ -840,6 +899,7 @@ def main(argv: list[str] | None = None) -> int:
             targets=args.targets,
             model_timeout=args.model_timeout,
             ref=args.ref,
+            target_labels=labels,
         )
     except CorpusError as exc:
         print(f"\nREFUSED — {exc}")
@@ -862,6 +922,11 @@ def main(argv: list[str] | None = None) -> int:
             "outcome": "completed",
             "corpus_sha": corpus_sha,
             "harness_sha": harness_sha,
+            "preregistration_sha256": prereg_sha,
+            # Always recorded, in run order: this is how a run's list is frozen
+            # for the paired re-run (`--target-labels`).
+            "target_labels": [p.target for p in pairs],
+            "target_list_frozen": labels is not None,
             "models": args.models,
             "summary": summarise(pairs),
             "pairs": [asdict(p) for p in pairs],

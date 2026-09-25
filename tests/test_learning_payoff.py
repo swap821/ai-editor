@@ -487,3 +487,99 @@ class TestTargetsMustBePositive:
         would have asked the model about every function in aios/."""
         with pytest.raises(SystemExit):
             payoff.main(["--targets", "0"])
+
+
+class TestThePreregistrationBindsTheRun:
+    """A judged number whose targets or hypothesis can move after the results
+    are visible is a narrative, not a measurement."""
+
+    def _wire_many(self, tmp_path, monkeypatch, targets):
+        TestTheInstrumentIsProvenBeforeUse()._wire(
+            tmp_path, monkeypatch, control_ok=True, captured=[]
+        )
+        monkeypatch.setattr(payoff, "collect_targets", lambda root: list(targets))
+
+    def test_a_frozen_list_is_run_exactly_in_order(self, tmp_path, monkeypatch) -> None:
+        targets = [_target(function=f"f{i}") for i in range(5)]
+        self._wire_many(tmp_path, monkeypatch, targets)
+        frozen = [targets[3].label, targets[0].label]
+        pairs, _run, _sha = payoff.run_benchmark(
+            models="x", targets=10, model_timeout=1, target_labels=frozen
+        )
+        assert [p.target for p in pairs] == frozen
+
+    def test_a_missing_registered_target_is_refused_not_dropped(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """A silently shorter list would change the experiment without saying so."""
+        targets = [_target(function="f0")]
+        self._wire_many(tmp_path, monkeypatch, targets)
+        with pytest.raises(CorpusError, match="no longer exist"):
+            payoff.run_benchmark(
+                models="x",
+                targets=10,
+                model_timeout=1,
+                target_labels=[targets[0].label, "aios/gone.py::vanished"],
+            )
+
+    def test_every_run_records_the_registration_hash_and_its_list(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        import hashlib
+
+        prereg = tmp_path / "PREREG.md"
+        prereg.write_text("H1: ON beats OFF on NOVEL at p<0.05\n", encoding="utf-8")
+        rows: list = []
+        monkeypatch.setattr(payoff, "_append", rows.append)
+        monkeypatch.setattr(
+            payoff,
+            "run_benchmark",
+            lambda **kw: ([_pair(True, False)], "run-1", "c" * 40),
+        )
+        monkeypatch.setattr(payoff.subprocess, "run", _NoGit())
+        payoff.main(
+            ["--targets", "1", "--ref", "HEAD", "--preregistration", str(prereg)]
+        )
+        row = rows[-1]
+        assert (
+            row["preregistration_sha256"]
+            == hashlib.sha256(prereg.read_bytes()).hexdigest()
+        )
+        assert row["target_labels"] == ["t"], "the chosen list is recorded on every run"
+        assert row["target_list_frozen"] is False
+
+    def test_editing_the_registration_changes_the_recorded_hash(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """The negative control: the hash must actually depend on the text."""
+        rows: list = []
+        monkeypatch.setattr(payoff, "_append", rows.append)
+        monkeypatch.setattr(
+            payoff, "run_benchmark", lambda **kw: ([_pair(True, False)], "r", "c" * 40)
+        )
+        monkeypatch.setattr(payoff.subprocess, "run", _NoGit())
+        prereg = tmp_path / "PREREG.md"
+        prereg.write_text("threshold p<0.05\n", encoding="utf-8")
+        payoff.main(
+            ["--targets", "1", "--ref", "HEAD", "--preregistration", str(prereg)]
+        )
+        prereg.write_text("threshold p<0.10\n", encoding="utf-8")
+        payoff.main(
+            ["--targets", "1", "--ref", "HEAD", "--preregistration", str(prereg)]
+        )
+        assert rows[0]["preregistration_sha256"] != rows[1]["preregistration_sha256"]
+
+    def test_the_shipped_registration_exists(self) -> None:
+        assert payoff.PREREGISTRATION.is_file(), (
+            "the payoff benchmark is judged against a pre-registration that "
+            "must be committed before any official run"
+        )
+
+
+class _NoGit:
+    """Stands in for `subprocess.run` in main(): no fetch, a fixed HEAD."""
+
+    def __call__(self, *args, **kwargs):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(returncode=0, stdout="h" * 40 + "\n", stderr="")
