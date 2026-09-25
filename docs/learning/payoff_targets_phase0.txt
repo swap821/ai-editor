@@ -1,0 +1,37 @@
+# The Phase 0 payoff targets, frozen. Registered in PAYOFF_PREREGISTRATION.md.
+#
+# Selected by `select_targets` in run 20260925T045128-40a08711 (corpus 53eb1f0c566f),
+# before any arm was graded -- selection reads practice history, never outcomes.
+# Every later comparison (the Phase 0 re-run and Phase 8) runs exactly these,
+# in this order: python tools/learning_payoff.py --target-labels <this file>
+
+aios/application/executor/service.py::execute_registered_repair_operation
+aios/agents/tool_agent.py::build_auto_verify_command
+aios/application/governance/adversarial_simulations.py::run_adversarial_simulations
+aios/agents/tool_handlers.py::next_step_after_blocked_read
+aios/application/governance/governance_observation.py::normalise_bus_event
+aios/agents/tool_handlers.py::next_step_after_noop
+aios/application/governance/na_cite_validator.py::na_cite_sources
+aios/agents/tool_loop_helpers.py::normalize_command
+aios/application/governance/na_cite_validator.py::validate_shipped_na_cites
+aios/application/agent_bridge.py::looks_secret_bearing
+aios/application/governance/organ_ledger.py::current_commit_sha
+aios/application/governance/organ_ledger.py::load_ledger
+aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs
+aios/application/governance/runtime_proof.py::run_runtime_proofs
+aios/application/governance/spine_release.py::key_continuity_findings
+aios/application/governance/spine_release.py::load_attestation
+aios/application/governance/spine_release.py::load_key_history
+aios/application/governance/spine_release.py::load_public_key
+aios/application/governance/text_screening.py::obfuscated_tokens
+aios/application/intelligence/context_compiler.py::context_digest_from_record
+aios/application/intelligence/deliberation.py::blocks_promotion
+aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback
+aios/application/intelligence/transport_target.py::is_loopback_http_url
+aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles
+aios/application/memory/human_representation.py::classify_human_state
+aios/application/models/passport.py::can_drive_tools
+aios/application/models/passport_authority.py::passport_from_registry_row
+aios/application/read_models/governance_projections.py::project_capability_approval
+aios/application/read_models/governance_projections.py::project_constitution
+aios/application/read_models/governance_projections.py::project_emergency_stop
