@@ -942,3 +942,9 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Fresh evidence:** the regression failed first on the old behavior, then passed. Full frontend **177 files / 978 tests**; typecheck; production build (**4,318 modules**); port tests **16/16**; CSS palette and protected-texture guards passed; full lint **0 errors / 123 warnings**; changed-file lint **0 errors / 8 warnings**; diff check passed. `port:check` unavailable because ignored lab source `components/QualityTierProvider.tsx` is absent.
 - **Honest boundary:** this is a small workflow reliability fix, not progress demonstrated toward the alive 3D visual. No browser/device/live-service/human visual evidence, renderer/material change or acceptance points; total remains **3/100**. Current isolated branch's 978 test count does not establish the count on the eight-commits-ahead `origin/master` ref.
 - **Next:** commit only this bounded verified tree, then prioritize a visible, canonical-state-driven body response; B's unapproved board still gates anatomy/material changes.
+
+## 2026-09-25 — CEO addendum (C checkpoint committed; goal reprioritized)
+
+- **Commit:** C source/test/evidence is local at `e734b74e` on `codex/gagos-living-being-c-identity-20260925`; no push, PR or master merge.
+- **Operator feedback:** 3/100 after substantial elapsed effort felt unacceptable because work emphasized safe plumbing and evidence over the 2030 visual. The score is the accepted-evidence ledger, not a defensible measure of implementation progress. Do not present it as such.
+- **Pivot:** first inspect the existing physical baseline, gallery and canonical state→body route. The next candidate must produce an observable, truth-bound organism/workspace reaction. Preserve the user gate on new anatomy/material work and the baseline's measured performance limits; avoid another docs/test-only ticket.
