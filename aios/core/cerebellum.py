@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
+from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.learning_journal import record as journal
@@ -406,6 +407,7 @@ class Cerebellum:
 
         Returns the number of newly compiled playbooks.
         """
+        assert_learning_permitted("cerebellum.compile")
         init_memory_db(self.db_path)
         compiled = 0
         with get_connection(self.db_path) as conn:
@@ -468,6 +470,7 @@ class Cerebellum:
     def try_compile_skill(self, skill_id: int) -> Optional[CompiledPlaybook]:
         """Attempt to compile a single skill by id.  Returns the playbook
         if compilation succeeds, else ``None``."""
+        assert_learning_permitted("cerebellum.compile")
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             row = conn.execute(

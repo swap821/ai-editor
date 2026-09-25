@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Sequence, TYPE_CHECKING
 
+from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.core.verification_strength import (
     VerificationStrength,
@@ -198,6 +199,7 @@ class SkillMemory:
         more freely than it grants STRONG. AUTHORITY is unaffected: whether an
         action may run unattended still asks ``meets_promotion_floor``.
         """
+        assert_learning_permitted("skills.record_attempt")
         clean_steps = [
             scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
         ]
