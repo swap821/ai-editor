@@ -66,9 +66,10 @@ SEEN-pair results are reported as context and carry no test.
 - A pair is **not comparable** — excluded from every test, and counted — when
   recall returned nothing (identical prompts) or either arm never reached the
   model. Not-comparable pairs are never scored as losses.
-- A run refused by containment, the positive control, the hollow-suite guard or
-  the memory-store guard produces **no number**. It is re-run in full; the
-  refusal is kept in the trail. There is no partial result.
+- A run refused by containment, the positive control, the hollow-suite guard,
+  the memory-store guard or the corpus-restore guard (added by D1) produces
+  **no number**. It is re-run in full; the refusal is kept in the trail. There
+  is no partial result.
 
 ## Stopping rule
 
@@ -144,3 +145,44 @@ out at 420 s. Both ran while the same machine was running a large test suite,
 which very likely caused it. The re-run runs with no concurrent heavy load.
 Like run 1, it executes from a detached worktree of the harness commit, with a
 copy of `data/aios_memory.db` whose `store_fingerprint` equals the live store's.
+
+### D2 — 2026-09-25 — restore removes ignored paths too; D1's timeout attribution was wrong
+
+**Applies to:** every run after the Phase 0 baseline, Phase 8 included.
+Recorded after the baseline finished and before any other run.
+
+**The Phase 0 baseline** is run `20260925T085914-44216455` (harness `0feaf5f9`,
+corpus `53eb1f0c`, this file's sha256 `bca5d2fd…`, the 30 frozen targets). Trail:
+`docs/learning/payoff_phase0_baseline_trail.json`. Result:
+`docs/learning/PAYOFF_PHASE0_RESULT.md`.
+
+**What changed.** An adversarial review found that D1's `restore_pristine` ran
+`git clean -fd`, which never removes a gitignored path, and `git status`, which
+never reports one. The grader excuses only `__pycache__`, `.pytest_cache`,
+`*.pyc` and `.coverage`, while `.gitignore` hides `data/`, `.aios/`,
+`node_modules/` and more. A model's test writing under an ignored path would
+therefore have carried into later arms invisibly to both checks. From this
+entry on, restore runs `git clean -fdx` and verifies with `--ignored`.
+
+**Audit of the baseline, which ran with `clean -fd`.** Could ignored-path
+litter have touched it? Its per-arm reasons, in execution order:
+
+- "Source outside tests/ was modified" appears on exactly three arms (23, 24,
+  32). Each names a file that arm's own test wrote (`temp_ledger.json`, then a
+  different `test_ledger.json`, then `test_data/attestation.json`). None
+  recurs, so D1's restore worked.
+- No arm failed the guard suite. Every one of the 50 rejections includes
+  "clean run not green", meaning the model's own test failed against correct
+  code, which litter cannot cause.
+- The arm run 1 rejected solely for leftovers
+  (`hostname_resolves_only_to_loopback`, OFF) earned.
+
+Nothing in the baseline is explained by leftovers, so it stands. Phase 8's
+stricter restore can remove contamination but cannot add any.
+
+**Correction to D1's operational note.** D1 attributed run 1's two
+non-comparable pairs to concurrent load. The baseline ran with no concurrent
+heavy load, and **the same two targets** (`normalize_command`,
+`is_loopback_http_url`) timed out at 420 s again: three arms across the two.
+The timeouts belong to those targets under this model, not to the machine.
+They remain excluded as not comparable, exactly as the exclusions rule says.
