@@ -36,6 +36,25 @@ def _noop(*_args: Any, **_kwargs: Any) -> None:
     return None
 
 
+def _latch_path() -> Path:
+    """The file the operator's latch lives in -- derived, not restated.
+
+    Production builds its controller with NO ``db_path`` (``aios/api/deps.py``
+    ``get_emergency_stop``), so the latch is wherever the controller's own
+    default points. Reading that default rather than rebuilding the path from
+    ``config.DATA_DIR`` makes the two a single derivation: an adversarial
+    review found the rebuilt form could diverge whenever ``DATA_DIR`` moved
+    after import, freezing a latch nobody engages.
+    """
+    import inspect
+
+    from aios.application.governance.emergency_stop import EmergencyStopController
+
+    return Path(
+        inspect.signature(EmergencyStopController).parameters["db_path"].default
+    )
+
+
 def _latch() -> Any:
     """The canonical controller over the durable latch, read-only in use.
 
@@ -43,13 +62,12 @@ def _latch() -> Any:
     hooks run when the stop is ENGAGED, which happens through the operator's
     authenticated route and its own fully-hooked controller, never here.
     """
-    from aios import config
     from aios.application.governance.emergency_stop import (
         EmergencyStopController,
         EmergencyStopHooks,
     )
 
-    path = Path(config.DATA_DIR) / "emergency_stop.db"
+    path = _latch_path()
     with _lock:
         controller = _controllers.get(path)
         if controller is None:
@@ -65,6 +83,21 @@ def _latch() -> Any:
             )
             _controllers[path] = controller
     return controller
+
+
+def learning_permitted() -> bool:
+    """Non-raising form for BOOKKEEPING inside a replay.
+
+    A replay the stop refused must not be counted against its playbook (two
+    such refusals would decompile a reflex for a reason that is not about it),
+    and raising mid-replay would crash the turn instead of refusing cleanly.
+    Engaged or unreadable both answer False: "could not tell" is not "clear".
+    """
+    try:
+        _latch().assert_operational()
+    except Exception:  # noqa: BLE001 - engaged OR unreadable: both mean frozen
+        return False
+    return True
 
 
 def assert_learning_permitted(boundary: str) -> None:

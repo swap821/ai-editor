@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-from aios import config
 from aios.application.governance.emergency_stop import (
     EmergencyStopController,
     EmergencyStopError,
@@ -53,7 +52,9 @@ def world(tmp_path, monkeypatch):
     """A throwaway DATA_DIR with its own latch and memory store."""
     data = tmp_path / "data"
     data.mkdir()
-    monkeypatch.setattr(config, "DATA_DIR", data)
+    monkeypatch.setattr(
+        learning_freeze, "_latch_path", lambda: data / "emergency_stop.db"
+    )
     monkeypatch.setattr(learning_freeze, "_controllers", {})
     db = data / "memory.db"
     init_memory_db(db)
@@ -203,6 +204,157 @@ class TestLearningWritesAreRefusedWhileTheStopIsEngaged:
         )
         assert not stop.is_engaged()
         lessons.record("t", "e", "c", "f", "thawed", -0.1)
+
+
+class TestThePositiveControlsTheReviewFoundMissing:
+    """An adversarial review found four guarded writes with a refusal test and
+    no proof the same call writes when the latch is clear."""
+
+    def test_promotion_and_recurrence_land_when_clear(self, world) -> None:
+        _data, db = world
+        lessons = MistakeMemory(db_path=db)
+        lid = lessons.record("t", "e", "c", "f", "a lesson", -0.1)
+        lessons.promote(lid, strength=VerificationStrength.STRONG)
+        lessons.increment_occurrence(lid)
+        with sqlite3.connect(db) as conn:
+            status, count = conn.execute(
+                "SELECT verification_status, occurrence_count FROM mistake_pool WHERE id = ?",
+                (lid,),
+            ).fetchone()
+        assert (status, count) == ("verified", 2)
+
+    def test_compilation_lands_when_clear(self, world) -> None:
+        _data, db = world
+        skills = SkillMemory(db_path=db)
+        for _ in range(3):
+            skills.record_attempt(
+                "run the pin tests",
+                ["verify: command=pytest x -q"],
+                success=True,
+                strength=VerificationStrength.STRONG,
+            )
+        assert Cerebellum(db).try_compile_all() == 1
+        assert _count(db, "compiled_playbooks") == 1
+
+
+class TestFactsAndCurriculumAreFrozenToo:
+    """The review's critical finding: fact auto-extraction runs on every chat
+    turn by default, and it wrote straight past the freeze."""
+
+    def _fact_writes(self, db: Path):
+        from aios.memory.facts import SemanticFacts
+
+        facts = SemanticFacts(db)
+        return [
+            (
+                "facts.strengthen_or_propose",
+                "fact_proposals",
+                lambda: facts.strengthen_or_propose("user", "prefers", "tea"),
+            ),
+            (
+                "facts.propose",
+                "fact_proposals",
+                lambda: facts.propose("user", "prefers", "coffee"),
+            ),
+            (
+                "facts.add_fact",
+                "semantic_facts",
+                lambda: facts.add_fact(
+                    "user", "lives_in", "Pune", approved_by="operator"
+                ),
+            ),
+        ]
+
+    @pytest.mark.parametrize("index", range(3))
+    def test_fact_writes_are_refused_while_engaged(self, world, index) -> None:
+        data, db = world
+        name, table, write = self._fact_writes(db)[index]
+        _engage(data)
+        before = _count(db, table)
+        with pytest.raises(EmergencyStopError, match=name.replace(".", r"\.")):
+            write()
+        assert _count(db, table) == before
+
+    @pytest.mark.parametrize("index", range(3))
+    def test_fact_writes_land_when_clear(self, world, index) -> None:
+        _data, db = world
+        name, table, write = self._fact_writes(db)[index]
+        before = _count(db, table)
+        write()
+        assert _count(db, table) > before, name
+
+    def test_curriculum_writes_are_refused_while_engaged_and_land_when_clear(
+        self, world
+    ) -> None:
+        from aios.memory.curriculum import CurriculumManager
+
+        data, db = world
+        curriculum = CurriculumManager(db)
+        curriculum.add_task("pinning", 1, "pin the relevance function")
+        before = _count(db, "curriculum_tasks")
+        _engage(data)
+        with pytest.raises(EmergencyStopError, match=r"curriculum\.add_task"):
+            curriculum.add_task("pinning", 1, "pin another function")
+        with pytest.raises(EmergencyStopError, match=r"curriculum\.record_matching"):
+            curriculum.record_matching(
+                "pin the relevance function", passed=True, evidence="1 passed"
+            )
+        assert _count(db, "curriculum_tasks") == before
+
+
+class TestReplayBookkeepingFreezesInsteadOfCounting:
+    """A replay the stop refused is not evidence about the playbook. Counting
+    it would decompile a reflex after two refused turns; raising mid-replay
+    would crash the turn. Frozen bookkeeping neither counts nor forgives."""
+
+    def _compiled(self, db: Path):
+        skills = SkillMemory(db_path=db)
+        for _ in range(3):
+            skills.record_attempt(
+                "run the pin tests",
+                ["verify: command=pytest x -q"],
+                success=True,
+                strength=VerificationStrength.STRONG,
+            )
+        cerebellum = Cerebellum(db)
+        assert cerebellum.try_compile_all() == 1
+        return cerebellum
+
+    def _row(self, db: Path):
+        with sqlite3.connect(db) as conn:
+            return conn.execute(
+                "SELECT status, consecutive_failures, replay_count FROM compiled_playbooks"
+            ).fetchone()
+
+    def test_nothing_about_a_reflex_moves_while_engaged(self, world) -> None:
+        data, db = world
+        cerebellum = self._compiled(db)
+        before = self._row(db)
+        _engage(data)
+        for _ in range(cerebellum.max_consecutive_failures + 1):
+            cerebellum._record_replay_failure(1)
+        cerebellum._record_replay_success(1)
+        cerebellum.decompile(1)
+        assert cerebellum.invalidate_for_skill(1) is False
+        assert self._row(db) == before, "the stop moved a reflex's state"
+
+    def test_the_same_bookkeeping_moves_when_clear(self, world) -> None:
+        _data, db = world
+        cerebellum = self._compiled(db)
+        cerebellum._record_replay_failure(1)
+        assert self._row(db)[1] == 1
+        cerebellum.decompile(1)
+        assert self._row(db)[0] == "decompiled"
+
+
+class TestOneLatch:
+    def test_the_freeze_reads_the_latch_production_engages(self) -> None:
+        """One derivation: the path is the controller's own default, which is
+        what `get_emergency_stop` builds with. Rebuilding it from DATA_DIR
+        could diverge (adversarial review, 2026-09-25)."""
+        from aios.api import deps
+
+        assert Path(deps.get_emergency_stop().db_path) == learning_freeze._latch_path()
 
 
 class TestTheFreezeFailsClosed:

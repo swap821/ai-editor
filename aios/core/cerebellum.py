@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
-from aios.memory.learning_freeze import assert_learning_permitted
+from aios.memory.learning_freeze import assert_learning_permitted, learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.learning_journal import record as journal
@@ -985,6 +985,14 @@ class Cerebellum:
         is bad, only that it does not fit the current state, so it is retired
         rather than accumulated against.
         """
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.decompile skipped"
+            )
+            return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
@@ -1014,6 +1022,14 @@ class Cerebellum:
     # ------------------------------------------------------------------
 
     def _record_replay_success(self, playbook_id: int) -> None:
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.record_replay_success skipped"
+            )
+            return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
@@ -1031,6 +1047,14 @@ class Cerebellum:
             pb.consecutive_failures = 0
 
     def _record_replay_failure(self, playbook_id: int) -> None:
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.record_replay_failure skipped"
+            )
+            return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
@@ -1083,6 +1107,14 @@ class Cerebellum:
         Called when the source skill is demoted from 'verified' back to
         'candidate'. Returns True if a playbook was decompiled.
         """
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.invalidate_for_skill skipped"
+            )
+            return False
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             cur = conn.execute(
