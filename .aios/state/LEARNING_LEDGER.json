@@ -240,7 +240,9 @@
         "referent": "tests/test_learning_conformance.py::test_m4_fails_when_there_is_no_reflex_to_serve_the_turn",
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
-      "known_blockers": [],
+      "known_blockers": [
+        "PHASE 0b CONTAINMENT (2026-09-25). A replayed command is no longer pre-approved without a recorded human approval of that command (ToolAgent._dispatch_approved; operator decision 2026-09-25: a reflex may auto-approve only a step a human approved). This faculty's organic evidence is playbook 15, whose step is a YELLOW `pytest` verify: on master the same replay is now withheld by `reflex_authority` and falls through to the model. The evidence is true history and is kept; it no longer describes master. Re-earn organically with a reflex whose steps need no approval, or under approval provenance for commands (plan Phase 5)."
+      ],
       "live_evidence": [
         {
           "description": "ORGANIC. Run 20260922T044658-557cc9a6 at 00dbf6f38956: playbook 15 -- compiled from an arc earned on real code -- served the request for its goal with the LLM client rigged to raise if consulted. llm_calls=0, events ended cerebellum_done. The playbook cited is one whose skill this run re-earned; `_organic_playbook` refuses to count any other.",

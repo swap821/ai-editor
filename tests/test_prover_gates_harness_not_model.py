@@ -92,7 +92,9 @@ def test_cerebellum_checks_are_gated_on_promotion() -> None:
     gated = src.split("if promoted:", 1)[1]
     hard_block = gated.split("else:", 1)[0]
     assert "reflex.cerebellum-match" in hard_block
-    assert "reflex.cerebellum-done" in hard_block
+    # Was `reflex.cerebellum-done` until the Phase 0b containment (2026-09-25):
+    # the prover's reflex step is YELLOW, so a correct replay is now withheld.
+    assert "reflex.withheld-without-human-approval" in hard_block
     assert "check.hard(" in hard_block, "when a playbook exists the check must be hard"
 
 

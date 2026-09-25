@@ -1,0 +1,1106 @@
+{
+  "ts": "2026-09-25T05:55:36+00:00",
+  "kind": "run",
+  "run_id": "20260925T045128-40a08711",
+  "outcome": "completed",
+  "corpus_sha": "53eb1f0c566f1b7763af381210ee54fe316110e0",
+  "harness_sha": "53eb1f0c566f1b7763af381210ee54fe316110e0",
+  "preregistration_sha256": "8a432651833fca46081654a921b1ed8d6cc12e0b3065dc6ca20f0178527c1949",
+  "target_labels": [
+    "aios/application/executor/service.py::execute_registered_repair_operation",
+    "aios/agents/tool_agent.py::build_auto_verify_command",
+    "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+    "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+    "aios/application/governance/governance_observation.py::normalise_bus_event",
+    "aios/agents/tool_handlers.py::next_step_after_noop",
+    "aios/application/governance/na_cite_validator.py::na_cite_sources",
+    "aios/agents/tool_loop_helpers.py::normalize_command",
+    "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+    "aios/application/agent_bridge.py::looks_secret_bearing",
+    "aios/application/governance/organ_ledger.py::current_commit_sha",
+    "aios/application/governance/organ_ledger.py::load_ledger",
+    "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+    "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+    "aios/application/governance/spine_release.py::key_continuity_findings",
+    "aios/application/governance/spine_release.py::load_attestation",
+    "aios/application/governance/spine_release.py::load_key_history",
+    "aios/application/governance/spine_release.py::load_public_key",
+    "aios/application/governance/text_screening.py::obfuscated_tokens",
+    "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+    "aios/application/intelligence/deliberation.py::blocks_promotion",
+    "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+    "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+    "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+    "aios/application/memory/human_representation.py::classify_human_state",
+    "aios/application/models/passport.py::can_drive_tools",
+    "aios/application/models/passport_authority.py::passport_from_registry_row",
+    "aios/application/read_models/governance_projections.py::project_capability_approval",
+    "aios/application/read_models/governance_projections.py::project_constitution",
+    "aios/application/read_models/governance_projections.py::project_emergency_stop"
+  ],
+  "target_list_frozen": false,
+  "models": "ollama.qwen2.5-coder:7b",
+  "summary": {
+    "attempted": 30,
+    "comparable": 28,
+    "not_comparable": [
+      {
+        "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+        "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one"
+      },
+      {
+        "target": "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+        "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one"
+      }
+    ],
+    "all": {
+      "pairs": 28,
+      "on_earned": 2,
+      "off_earned": 1,
+      "payoff": 0.03571428571428571,
+      "on_only": 2,
+      "off_only": 1,
+      "p_value": 1.0
+    },
+    "novel": {
+      "pairs": 26,
+      "on_earned": 2,
+      "off_earned": 1,
+      "payoff": 0.038461538461538464,
+      "on_only": 2,
+      "off_only": 1,
+      "p_value": 1.0
+    },
+    "seen": {
+      "pairs": 2,
+      "on_earned": 0,
+      "off_earned": 0,
+      "payoff": 0.0,
+      "on_only": 0,
+      "off_only": 0,
+      "p_value": 1.0
+    }
+  },
+  "pairs": [
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 5719,
+        "seconds": 136.70300000000043,
+        "notes": [
+          "clean run not green: >       job = ExecutorJob(\nE       pydantic_core._pydantic_core.ValidationError: 3 validation errors for ExecutorJob\nE       mission_contract_digest\nE         Field required [type"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 4004,
+        "seconds": 52.875,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.job'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/agents/tool_agent.py::build_auto_verify_command",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3734,
+        "seconds": 25.29700000000048,
+        "notes": []
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2019,
+        "seconds": 23.592999999999847,
+        "notes": [
+          "clean run not green: >       assert build_auto_verify_command(test_arg) == expected_command\nE       assert 'python -m py...t_file.py\" -q' == \"python -m py...t_file.py' -q\"\nE         \nE         - pytho"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3306,
+        "seconds": 49.26599999999962,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.proposals'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulatio"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1591,
+        "seconds": 28.561999999999898,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.proposals'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulatio"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 6056,
+        "seconds": 70.67100000000028,
+        "notes": [
+          "clean run not green: >       assert next_step_after_blocked_read(\"ls\") == \"\"\nE       AssertionError: assert ' To list a d... not blocked.' == ''\nE         \nE         +  To list a directory, call the r"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 4341,
+        "seconds": 53.98499999999967,
+        "notes": [
+          "clean run not green: >       assert next_step_after_blocked_read(\"ls\") == \"\"\nE       AssertionError: assert ' To list a d... not blocked.' == ''\nE         \nE         +  To list a directory, call the r"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": true
+    },
+    {
+      "target": "aios/application/governance/governance_observation.py::normalise_bus_event",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3764,
+        "seconds": 32.59400000000005,
+        "notes": [
+          "clean run not green: >       assert result == expected\nE       AssertionError: assert {'event': 'ev...y2': 'value2'} == {'event': 'ev...y2': 'value2'}\nE         \nE         Omitting 3 identical items, "
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2049,
+        "seconds": 28.60899999999947,
+        "notes": [
+          "clean run not green: >       assert result == expected\nE       AssertionError: assert {'event': ''} == {'event': 'te...'value1', ...}\nE         \nE         Differing items:\nE         {'event': ''} != {"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_noop",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3107,
+        "seconds": 17.81300000000101,
+        "notes": [
+          "clean run not green: >       assert result == _next_step_after_noop(target)\nE       NameError: name '_next_step_after_noop' is not defined\nFAILED tests/test_pin_aios_agents_tool_handlers_next_step_aft"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1172,
+        "seconds": 29.907000000000153,
+        "notes": [
+          "clean run not green: >       original_next_step_after_noop = next_step_after_noop._next_step_after_noop\nE       AttributeError: 'function' object has no attribute '_next_step_after_noop'\nFAILED tests/"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": true
+    },
+    {
+      "target": "aios/application/governance/na_cite_validator.py::na_cite_sources",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 4360,
+        "seconds": 35.07799999999952,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2645,
+        "seconds": 33.23400000000038,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": false,
+        "earned": false,
+        "outcome": "model_error",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 4350,
+        "seconds": 420.0,
+        "notes": [
+          "Ollama request to http://127.0.0.1:11434 failed: timed out"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": false,
+        "earned": false,
+        "outcome": "model_error",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2635,
+        "seconds": 420.0149999999994,
+        "notes": [
+          "Ollama request to http://127.0.0.1:11434 failed: timed out"
+        ]
+      },
+      "comparable": false,
+      "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3116,
+        "seconds": 32.57799999999952,
+        "notes": [
+          "clean run not green: >       result = validate_shipped_na_cites(repo_root)\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError: [Errno 2] No such file or"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1401,
+        "seconds": 26.01599999999962,
+        "notes": [
+          "clean run not green: >       result = validate_shipped_na_cites(repo_root)\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError: [Errno 2] No such file or"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/agent_bridge.py::looks_secret_bearing",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3177,
+        "seconds": 23.34400000000096,
+        "notes": [
+          "clean run not green: >       assert looks_secret_bearing(\"/path/to/credential\") == True\nE       AssertionError: assert False == True\nE        +  where False = looks_secret_bearing('/path/to/credential"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1462,
+        "seconds": 27.65599999999904,
+        "notes": []
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/organ_ledger.py::current_commit_sha",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3307,
+        "seconds": 43.26599999999962,
+        "notes": []
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1592,
+        "seconds": 61.9369999999999,
+        "notes": [
+          "clean run not green: >       assert result is None\nE       AssertionError: assert 'abc123def456' is None\nFAILED tests/test_pin_aios_application_governance_organ_ledger_current_commit_sha.py::test_curr"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/organ_ledger.py::load_ledger",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3142,
+        "seconds": 45.375,
+        "notes": [
+          "clean run not green: >       result = load_ledger(ledger_path)\n>   return tuple(OrganRecord.model_validate(entry) for entry in raw)\nE   pydantic_core._pydantic_core.ValidationError: 4 validation error",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1427,
+        "seconds": 47.57799999999952,
+        "notes": [
+          "clean run not green: >       result = load_ledger(\"temp_ledger.json\")\n>   return tuple(OrganRecord.model_validate(entry) for entry in raw)\nE   pydantic_core._pydantic_core.ValidationError: 5 validatio",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 5321,
+        "seconds": 128.28100000000086,
+        "notes": [
+          "clean run not green: >           \"local_workforce_registry\": RuntimeProof(\"local_workforce_registry\", lambda: \"local_workforce_registry_result\"),\nE       TypeError: RuntimeProof.__init__() missing 1 r",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 3606,
+        "seconds": 158.15699999999924,
+        "notes": [
+          "clean run not green: >           \"local_workforce_registry\": RuntimeProof(\"local_workforce_registry\", \"mocked_result\"),\nE       TypeError: RuntimeProof.__init__() missing 1 required positional argumen",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 6642,
+        "seconds": 135.75,
+        "notes": [
+          "clean run not green: >       assert len(result.results) == 16\nE       AttributeError: 'RuntimeProofReport' object has no attribute 'results'\nFAILED tests/test_pin_aios_application_governance_runtime_p",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 4927,
+        "seconds": 74.1880000000001,
+        "notes": [
+          "clean run not green: >       assert len(result.results) == 16\nE       AttributeError: 'RuntimeProofReport' object has no attribute 'results'\nFAILED tests/test_pin_aios_application_governance_runtime_p",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::key_continuity_findings",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 5505,
+        "seconds": 64.625,
+        "notes": [
+          "clean run not green: >       with pytest.raises(FileNotFoundError):\nE       Failed: DID NOT RAISE FileNotFoundError\n>       with pytest.raises(FileNotFoundError):\nE       Failed: DID NOT RAISE FileNot",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 3790,
+        "seconds": 95.26599999999962,
+        "notes": [
+          "clean run not green: >       with open(root / \"aios/state/spine_key_history.jsonl\", \"w\") as f:\nE       FileNotFoundError: [Errno 2] No such file or directory: '\\\\fake\\\\root\\\\aios\\\\state\\\\spine_key_his",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::load_attestation",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 4627,
+        "seconds": 54.07799999999952,
+        "notes": [
+          "clean run not green: >       assert isinstance(result, SpineAttestation)\nE       assert False\nE        +  where False = isinstance(None, SpineAttestation)\nFAILED tests/test_pin_aios_application_govern",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestation.json"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2912,
+        "seconds": 96.21800000000076,
+        "notes": [
+          "clean run not green: >       with pytest.raises(SpineReleaseError) as exc_info:\nE       NameError: name 'pytest' is not defined\n>       with pytest.raises(SpineReleaseError) as exc_info:\nE       NameE",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_ledger.json\n?? test_ledger.json"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::load_key_history",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3470,
+        "seconds": 45.1880000000001,
+        "notes": [
+          "clean run not green: >       assert result == expected_result\nE       AssertionError: assert [{'note': 'Fi...5cd902f958b'}] == [{'key': 'old...1T00:00:00Z'}]\nE         \nE         At index 0 diff: {'no",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1755,
+        "seconds": 38.03099999999904,
+        "notes": [
+          "clean run not green: >       (root / KEY_HISTORY_RELPATH).touch()\n>       fd = os.open(self, flags, mode)\nE       FileNotFoundError: [Errno 2] No such file or directory: '\\\\tmp\\\\test\\\\path\\\\to\\\\key_hi",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::load_public_key",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3042,
+        "seconds": 28.48399999999856,
+        "notes": [
+          "clean run not green: >       public_key_path.write_text(\"\", encoding=\"utf-8\")\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError: [Errno 2] No such file",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1327,
+        "seconds": 20.78099999999904,
+        "notes": [
+          "clean run not green: >       assert result == \"public_key_content\"\nE       AssertionError: assert None == 'public_key_content'\nFAILED tests/test_pin_aios_application_governance_spine_release_load_publ",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/governance/text_screening.py::obfuscated_tokens",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 7391,
+        "seconds": 54.78199999999924,
+        "notes": [
+          "clean run not green: >       assert result == (\"\u043a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439\",), \"Test case 2 failed\"\nE       AssertionError: Test case 2 failed\nE       assert () == ('\u043a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439',)\nE         \nE         Right contain",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 5676,
+        "seconds": 39.09300000000076,
+        "notes": [
+          "clean run not green: >       assert result == (\"\u043a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439\",), \"Test case 2 failed\"\nE       AssertionError: Test case 2 failed\nE       assert () == ('\u043a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439',)\nE         \nE         Right contain",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3663,
+        "seconds": 21.063000000000102,
+        "notes": [
+          "clean run not green: >       assert context_digest_from_record(context) == expected_digest\nE       AssertionError: assert 'be92a53988c0...65b8c6341a46e' == '9da23192c1ad...a4facad0d8c34'\nE         \nE ",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1948,
+        "seconds": 21.90600000000086,
+        "notes": [
+          "clean run not green: >       assert context_digest_from_record(context) == expected_digest\nE       AssertionError: assert 'be92a53988c0...65b8c6341a46e' == '9da23192c1ad...a4facad0d8c34'\nE         \nE ",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/intelligence/deliberation.py::blocks_promotion",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3089,
+        "seconds": 21.453999999999724,
+        "notes": [
+          "clean run not green: >       record_with_unresolved_concerns = DeliberationRecord(unresolved_minority_concerns=True)\nE       pydantic_core._pydantic_core.ValidationError: 7 validation errors for Delib",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1374,
+        "seconds": 18.07799999999952,
+        "notes": [
+          "clean run not green: >       record1 = DeliberationRecord(unresolved_minority_concerns=True)\nE       pydantic_core._pydantic_core.ValidationError: 7 validation errors for DeliberationRecord\nE       de",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3791,
+        "seconds": 35.10999999999876,
+        "notes": [
+          "clean run not green: >       assert hostname_resolves_only_to_loopback(\"127.0.0.1,::1\") == True\nE       AssertionError: assert False == True\nE        +  where False = hostname_resolves_only_to_loopbac",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2076,
+        "seconds": 21.813000000000102,
+        "notes": [
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3777,
+        "seconds": 60.59399999999914,
+        "notes": [
+          "clean run not green: >       assert is_loopback_http_url(\"http://non-loopback-hostname\") == True\nE       AssertionError: assert False == True\nE        +  where False = is_loopback_http_url('http://non",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": false,
+        "earned": false,
+        "outcome": "model_error",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2062,
+        "seconds": 420.0149999999994,
+        "notes": [
+          "Ollama request to http://127.0.0.1:11434 failed: timed out"
+        ]
+      },
+      "comparable": false,
+      "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one",
+      "seen": false
+    },
+    {
+      "target": "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3760,
+        "seconds": 28.89100000000144,
+        "notes": [
+          "clean run not green: >       expected_result = frozenset([TEST_ID_TO_JOB_PROFILE[\"test1\"]])\nE       KeyError: 'test1'\nFAILED tests/test_pin_aios_application_local_workforce_qualification_evidence_evid",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2045,
+        "seconds": 29.84399999999914,
+        "notes": [
+          "clean run not green: >       expected_result = frozenset([TEST_ID_TO_JOB_PROFILE[\"test1\"]])\nE       KeyError: 'test1'\nFAILED tests/test_pin_aios_application_local_workforce_qualification_evidence_evid",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/memory/human_representation.py::classify_human_state",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 2965,
+        "seconds": 17.46899999999914,
+        "notes": [
+          "clean run not green: >       assert result.state == \"happy\"\nE       AssertionError: assert 'neutral' == 'happy'\nE         \nE         - happy\nE         + neutral\nFAILED tests/test_pin_aios_application_",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1250,
+        "seconds": 15.734000000000378,
+        "notes": [
+          "clean run not green: >       expected_result = HumanStateHypothesis.HUMAN\n>       raise AttributeError(item)\nE       AttributeError: HUMAN\nFAILED tests/test_pin_aios_application_memory_human_represent",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/models/passport.py::can_drive_tools",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 2977,
+        "seconds": 22.110000000000582,
+        "notes": [
+          "clean run not green: >       verified_passport = ModelPassportV1(tool_protocol_status=\"verified\")\nE       pydantic_core._pydantic_core.ValidationError: 7 validation errors for ModelPassportV1\nE       ",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1262,
+        "seconds": 22.25,
+        "notes": [
+          "clean run not green: >       verified_passport = ModelPassportV1(tool_protocol_status=\"verified\")\nE       pydantic_core._pydantic_core.ValidationError: 7 validation errors for ModelPassportV1\nE       ",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/models/passport_authority.py::passport_from_registry_row",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 5730,
+        "seconds": 49.0619999999999,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.models.local_worker_model'\nERROR tests/test_pin_aios_application_models_passport_authority_passport_from_registry_row.py",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 4015,
+        "seconds": 48.17200000000048,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.models.local_worker_model'\nERROR tests/test_pin_aios_application_models_passport_authority_passport_from_registry_row.py",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/read_models/governance_projections.py::project_capability_approval",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 4450,
+        "seconds": 24.656999999999243,
+        "notes": [
+          "clean run not green: E   ImportError: cannot import name 'Capability' from 'aios.application.capabilities' (C:\\w\\ai-editor-selfcorpus\\aios\\application\\capabilities\\__init__.py)\nERROR tests/test_pin_ai",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2735,
+        "seconds": 24.70300000000134,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.capabilities.binding'\nERROR tests/test_pin_aios_application_read_models_governance_projections_project_capability_approv",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/read_models/governance_projections.py::project_constitution",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3896,
+        "seconds": 32.17200000000048,
+        "notes": [
+          "clean run not green: >       snapshot = ConstitutionSnapshotV1(\nE       pydantic_core._pydantic_core.ValidationError: 8 validation errors for ConstitutionSnapshotV1\nE       foundation_laws\nE         V",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2181,
+        "seconds": 31.48400000000038,
+        "notes": [
+          "clean run not green: >       snapshot = ConstitutionSnapshotV1(\nE       pydantic_core._pydantic_core.ValidationError: 8 validation errors for ConstitutionSnapshotV1\nE       foundation_laws\nE         V",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    },
+    {
+      "target": "aios/application/read_models/governance_projections.py::project_emergency_stop",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 3,
+        "prompt_chars": 3719,
+        "seconds": 28.48400000000038,
+        "notes": [
+          "clean run not green: >       expected_projection = EmergencyStopProjection(\nE       pydantic_core._pydantic_core.ValidationError: 4 validation errors for EmergencyStopProjection\nE       engaged\nE     ",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2004,
+        "seconds": 33.92200000000048,
+        "notes": [
+          "clean run not green: >       state = EmergencyStopState(\nE       pydantic_core._pydantic_core.ValidationError: 1 validation error for EmergencyStopState\nE       reason\nE         Input should be a vali",
+          "source outside tests/ was modified \u2014 a pin test is graded against the code as it stands, not code bent to fit it:\n?? temp_key_history.txt\n?? temp_ledger.json\n?? test_ledger.json\n?? test_root/attestati"
+        ]
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 3 verified skill(s) the OFF arm did not",
+      "seen": false
+    }
+  ]
+}

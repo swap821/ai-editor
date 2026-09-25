@@ -120,7 +120,7 @@ from aios.memory.mistake import MistakeMemory  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
 from aios.core.llm import LLMError  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
-from tools.self_corpus_grading import grade_pin_test  # noqa: E402
+from tools.self_corpus_grading import _is_build_artefact, grade_pin_test  # noqa: E402
 from tools.self_corpus_targets import collect_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-payoff.jsonl"
@@ -429,6 +429,57 @@ def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str
     return (chr(10) * 2).join(blocks), lessons, verified
 
 
+def restore_pristine(corpus) -> None:
+    """Return the corpus to its committed state, and prove it did.
+
+    Every arm is graded by `git status` over the whole corpus, so anything an
+    earlier arm left behind is charged to every later one. Removing only the
+    test file was not enough: the FIRST official Phase 0 run
+    (20260925T045128-40a08711) had a model-written test for `load_ledger`
+    create `temp_ledger.json` in the corpus root at arm 23, and from there to
+    arm 60 every arm was rejected as "source outside tests/ was modified" --
+    a dead instrument manufacturing failures, including for an arm whose own
+    test passed clean. The rule itself is unchanged: an arm whose OWN test
+    litters the tree is still rejected. What changes is that it cannot be
+    rejected for someone else's.
+
+    IGNORED paths are removed too (`clean -fdx`), and the check lists them
+    (`--ignored`). The first version kept them, reasoning that the grader
+    excuses build artefacts -- but the grader excuses only `__pycache__`,
+    `.pytest_cache`, `*.pyc` and `.coverage`, while the corpus's `.gitignore`
+    hides far more (`data/`, `.aios/`, `node_modules/`, ...). `clean -fd` never
+    removes an ignored path and `git status` never reports one, so a model's
+    test writing under `data/` would have carried into every later arm
+    invisibly to both checks: the same contamination, relocated (adversarial
+    review, 2026-09-25; Deviation D2). Everything a clean corpus needs is
+    committed, and everything ignored is regenerated. A corpus that still is
+    not pristine afterwards refuses the run rather than grading on it.
+    """
+    root = str(corpus.root)
+    for args in (["checkout", "--", "."], ["clean", "-fdx", "--", "."]):
+        subprocess.run(
+            ["git", "-C", root, *args], capture_output=True, text=True, check=False
+        )
+    status = subprocess.run(
+        ["git", "-C", root, "status", "--porcelain=v1", "-uall", "--ignored"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    leftovers = [
+        line
+        for line in status.stdout.splitlines()
+        if line[3:].strip().strip('"')
+        and not _is_build_artefact(line[3:].strip().strip('"'))
+    ]
+    if status.returncode != 0 or leftovers:
+        raise CorpusError(
+            "the corpus could not be restored to its committed state before an "
+            "arm; grading on it would charge one arm for another's leftovers: "
+            + ("; ".join(leftovers[:5]) or status.stderr.strip()[:200])
+        )
+
+
 def run_arm(
     corpus,
     client,
@@ -440,6 +491,7 @@ def run_arm(
     skills_count: int,
 ) -> ArmResult:
     """One graded attempt. Identical to the other arm but for *extra_context*."""
+    restore_pristine(corpus)
     started = time.monotonic()
     result = ArmResult(arm=arm, recalled_lessons=lessons, recalled_skills=skills_count)
 
