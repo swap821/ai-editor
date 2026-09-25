@@ -29,6 +29,29 @@ from tools.self_corpus import CorpusError
 from tools.self_corpus_targets import Target
 
 
+def _git_corpus(root: Path):
+    """A real, committed git worktree at *root*: `restore_pristine` runs git."""
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.email", "t@example.invalid")
+    git("config", "user.name", "t")
+    (root / "aios").mkdir(exist_ok=True)
+    (root / "aios" / "mod.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    (root / ".gitignore").write_text("__pycache__/\ndata/\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "corpus")
+
+    class _Corpus:
+        pass
+
+    _Corpus.root = root
+    return _Corpus
+
+
 def _target(module: str = "aios/agents/tool_agent.py", function: str = "build_cmd"):
     return Target(
         module=module,
@@ -176,8 +199,7 @@ class TestTheArmsDifferOnlyByThePrefix:
             lambda client, prompt, system: seen_prompts.append(prompt) or "",
         )
 
-        class _Corpus:
-            root = tmp_path
+        _Corpus = _git_corpus(tmp_path)
 
         target = _target()
         payoff.run_arm(
@@ -219,8 +241,7 @@ class TestAHollowGraderCannotContaminateTheOtherArm:
 
         monkeypatch.setattr(payoff, "grade_pin_test", _hollow)
 
-        class _Corpus:
-            root = tmp_path
+        _Corpus = _git_corpus(tmp_path)
 
         target = _target()
         with pytest.raises(CorpusError):
@@ -583,3 +604,106 @@ class _NoGit:
         from types import SimpleNamespace
 
         return SimpleNamespace(returncode=0, stdout="h" * 40 + "\n", stderr="")
+
+
+class TestOneArmCannotBeChargedForAnothersLeftovers:
+    """The first official Phase 0 run: a model-written test created
+    `temp_ledger.json` in the corpus root at arm 23, and every arm after it was
+    rejected for it -- including one whose own test passed clean."""
+
+    @staticmethod
+    def _grader(litter: dict):
+        from tools.self_corpus_grading import PinVerdict, source_is_untouched
+
+        def grade(corpus, **kwargs):
+            # The arm's test, when run, may litter the corpus root -- as the
+            # model's `load_ledger` test did.
+            for name in litter.pop("next", []):
+                (Path(corpus.root) / name).write_text("{}", encoding="utf-8")
+            untouched, offenders = source_is_untouched(corpus)
+            verdict = PinVerdict(
+                passes_clean=True,
+                fails_when_mutated=True,
+                source_untouched=untouched,
+                suite_still_green=True,
+            )
+            if not untouched:
+                verdict.notes.append(
+                    f"source outside tests/ was modified:\n{offenders}"
+                )
+            return verdict
+
+        return grade
+
+    def _arm(self, corpus, arm: str):
+        return payoff.run_arm(
+            corpus(),
+            None,
+            _target(),
+            arm=arm,
+            extra_context="",
+            lessons=0,
+            skills_count=0,
+        )
+
+    def test_the_arm_that_littered_is_still_rejected(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """The rule is unchanged: an arm's OWN litter is its own fault."""
+        corpus = _git_corpus(tmp_path)
+        monkeypatch.setattr(
+            payoff,
+            "complete_via",
+            lambda *a, **k: "```python\ndef test_x():\n    pass\n```",
+        )
+        litter = {"next": ["temp_ledger.json"]}
+        monkeypatch.setattr(payoff, "grade_pin_test", self._grader(litter))
+        assert not self._arm(corpus, "off").earned
+
+    def test_the_next_arm_is_not_charged_for_it(self, tmp_path, monkeypatch) -> None:
+        corpus = _git_corpus(tmp_path)
+        monkeypatch.setattr(
+            payoff,
+            "complete_via",
+            lambda *a, **k: "```python\ndef test_x():\n    pass\n```",
+        )
+        litter = {"next": ["temp_ledger.json"]}
+        monkeypatch.setattr(payoff, "grade_pin_test", self._grader(litter))
+        first = self._arm(corpus, "off")
+        second = self._arm(corpus, "on")
+        assert not first.earned
+        assert second.earned, (
+            "the second arm wrote nothing outside tests/ and was rejected for the "
+            f"first arm's leftovers: {second.notes}"
+        )
+
+    def test_litter_under_an_ignored_path_is_removed_too(self, tmp_path) -> None:
+        """Adversarial review, 2026-09-25 (Deviation D2): `clean -fd` never
+        touches a gitignored path and `git status` never reports one, so a
+        model's test writing under `data/` would carry into every later arm
+        invisibly. Restore removes ignored paths as well."""
+        corpus = _git_corpus(tmp_path)
+        litter = tmp_path / "data" / "temp_ledger.json"
+        litter.parent.mkdir()
+        litter.write_text("{}", encoding="utf-8")
+        cache = tmp_path / "__pycache__" / "x.pyc"
+        cache.parent.mkdir()
+        cache.write_bytes(b"\0")
+        payoff.restore_pristine(corpus())
+        assert not litter.exists(), "ignored litter survived into the next arm"
+        assert not cache.exists(), "everything ignored is regenerated"
+
+    def test_a_tracked_file_an_arm_modified_is_restored(self, tmp_path) -> None:
+        corpus = _git_corpus(tmp_path)
+        (tmp_path / "aios" / "mod.py").write_text(
+            "def f():\n    return 2\n", encoding="utf-8"
+        )
+        payoff.restore_pristine(corpus())
+        assert "return 1" in (tmp_path / "aios" / "mod.py").read_text(encoding="utf-8")
+
+    def test_a_corpus_that_cannot_be_restored_refuses_the_run(self, tmp_path) -> None:
+        class _NotARepo:
+            root = tmp_path
+
+        with pytest.raises(CorpusError, match="could not be restored"):
+            payoff.restore_pristine(_NotARepo())
