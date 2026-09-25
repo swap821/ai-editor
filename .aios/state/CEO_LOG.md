@@ -913,3 +913,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Documentation checkpoint:** blueprint, acceptance ledger and builder resume now record integration commit `421471b8`; the docs/ledger checkpoint is committed as `e3b83c1b655be60fad98349ed287059a138217e4`.
 - **Current state:** source code verification remains attributable to `421471b8`; no product files changed in the documentation follow-up. Android 17/iOS 27 remain targets only, physical models TBD, and accepted completion remains **3/100**.
 - **Next:** hand off the current clean branch tip for the required read-only, hash-pinned independent review. Keep the builder tree unchanged until that review completes.
+
+## 2026-09-25 — CEO checkpoint (LB-04 A: measured mobile work-plane dock)
+
+- **Implemented and committed locally:** the focused mobile workspace now measures the live composer edge and leaves a 12px gap; source/test commit `63881d882f822d579f2a3dde26ade0dd9452f28b` on `codex/gagos-lb04-a-docked-plane-20260925`.
+- **Evidence:** dock/app tests 11/11; full frontend 177 files / 977 tests; typecheck; final production build (4,318 modules); lint 0 errors / 123 warnings; palette and protected-texture guards; port tooling tests 16/16. The isolated lab copy is absent, so `port:check` is unavailable and no restore was attempted.
+- **Honest limit:** preview inspection was 1280 × 720 only, with the backend offline; no mobile capture/device, named desktop/GPU, admitted-work journey, independent review or operator visual sign-off. A adds 0 acceptance points; score stays **3/100**.
+- **Process note:** a five-second suite run had two load timeouts and a non-isolated retry leaked globals. Preserve normal test isolation; use the verified 10-second/four-worker pass, not the failed experiment.
+- **Next:** create B's six-cell desktop/mobile board for resting, working and awaiting permission, plus truth/event/motion mapping. Get operator visual approval before renderer anatomy/material changes, while advancing C only through safe non-renderer integration work.
