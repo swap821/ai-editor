@@ -628,27 +628,45 @@ class TestOneArmCannotBeChargedForAnothersLeftovers:
                 suite_still_green=True,
             )
             if not untouched:
-                verdict.notes.append(f"source outside tests/ was modified:\n{offenders}")
+                verdict.notes.append(
+                    f"source outside tests/ was modified:\n{offenders}"
+                )
             return verdict
 
         return grade
 
     def _arm(self, corpus, arm: str):
         return payoff.run_arm(
-            corpus(), None, _target(), arm=arm, extra_context="", lessons=0, skills_count=0
+            corpus(),
+            None,
+            _target(),
+            arm=arm,
+            extra_context="",
+            lessons=0,
+            skills_count=0,
         )
 
-    def test_the_arm_that_littered_is_still_rejected(self, tmp_path, monkeypatch) -> None:
+    def test_the_arm_that_littered_is_still_rejected(
+        self, tmp_path, monkeypatch
+    ) -> None:
         """The rule is unchanged: an arm's OWN litter is its own fault."""
         corpus = _git_corpus(tmp_path)
-        monkeypatch.setattr(payoff, "complete_via", lambda *a, **k: "```python\ndef test_x():\n    pass\n```")
+        monkeypatch.setattr(
+            payoff,
+            "complete_via",
+            lambda *a, **k: "```python\ndef test_x():\n    pass\n```",
+        )
         litter = {"next": ["temp_ledger.json"]}
         monkeypatch.setattr(payoff, "grade_pin_test", self._grader(litter))
         assert not self._arm(corpus, "off").earned
 
     def test_the_next_arm_is_not_charged_for_it(self, tmp_path, monkeypatch) -> None:
         corpus = _git_corpus(tmp_path)
-        monkeypatch.setattr(payoff, "complete_via", lambda *a, **k: "```python\ndef test_x():\n    pass\n```")
+        monkeypatch.setattr(
+            payoff,
+            "complete_via",
+            lambda *a, **k: "```python\ndef test_x():\n    pass\n```",
+        )
         litter = {"next": ["temp_ledger.json"]}
         monkeypatch.setattr(payoff, "grade_pin_test", self._grader(litter))
         first = self._arm(corpus, "off")
@@ -665,11 +683,15 @@ class TestOneArmCannotBeChargedForAnothersLeftovers:
         cache.parent.mkdir()
         cache.write_bytes(b"\0")
         payoff.restore_pristine(corpus())
-        assert cache.exists(), "ignored artefacts are regenerated, not the grader's business"
+        assert cache.exists(), (
+            "ignored artefacts are regenerated, not the grader's business"
+        )
 
     def test_a_tracked_file_an_arm_modified_is_restored(self, tmp_path) -> None:
         corpus = _git_corpus(tmp_path)
-        (tmp_path / "aios" / "mod.py").write_text("def f():\n    return 2\n", encoding="utf-8")
+        (tmp_path / "aios" / "mod.py").write_text(
+            "def f():\n    return 2\n", encoding="utf-8"
+        )
         payoff.restore_pristine(corpus())
         assert "return 1" in (tmp_path / "aios" / "mod.py").read_text(encoding="utf-8")
 

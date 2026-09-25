@@ -461,7 +461,8 @@ def restore_pristine(corpus) -> None:
     leftovers = [
         line
         for line in status.stdout.splitlines()
-        if line[3:].strip().strip('"') and not _is_build_artefact(line[3:].strip().strip('"'))
+        if line[3:].strip().strip('"')
+        and not _is_build_artefact(line[3:].strip().strip('"'))
     ]
     if status.returncode != 0 or leftovers:
         raise CorpusError(
