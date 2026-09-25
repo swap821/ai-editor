@@ -353,8 +353,14 @@ The regression observed 236px clearance from synthetic root/composer rectangles,
 
 **Operator decision:** the user chose to proceed A, then B, then C. This confirms sequencing, not final visual sign-off. Continue to B next; complete the three keyframes and get operator review before any renderer-anatomy/material changes. Keep Android 17 / iOS 27 targets and TBD handset models, and the 3/100 accepted score, unchanged.
 
+## LB-04 B — six-cell state board (2026-09-25)
+
+Drafted a review proposal for the three canonical states—resting, working, awaiting permission—at 1440 × 900 and 390 × 844 CSS-pixel compositions. The board follows current product geometry and semantic/authority sources; the organism drawing is only a schematic cue, not new canon art. See [keyframe board SVG](LIVING_BEING_KEYFRAMES_B_2026-09-25.svg) and its [state/event/motion contract](LIVING_BEING_KEYFRAMES_B_2026-09-25.md).
+
+The user has not reviewed or approved this specific visual board. No product code or renderer assets changed; accepted completion remains 3/100. C can continue only in semantic/integration surfaces while visual approval remains open.
+
 ## 18. Immediate next action
 
-LB-01 source restoration and the reviewed continuation remain integrated at `421471b880d7111dcd6040df6be5ff3c395a4ada` on their earlier isolated branch. The current A layout slice is on `codex/gagos-lb04-a-docked-plane-20260925`; it adds responsive dock measurement but does not change the 3D renderer or accepted-product source mirror. The user's A → B → C sequencing is recorded above. Continue with B in an isolated ticket/worktree; keep visual/device acceptance open and do not treat CSS geometry as physical-device evidence. Before renderer anatomy/material work, complete the desktop/mobile keyframe board and obtain operator review. Do not append decorative effects to `SuperbrainReactiveEffects` as a substitute for reconciling the presentation paths, or ask Luna to implement this entire document in one pass.
+LB-01 source restoration and the reviewed continuation remain integrated at `421471b880d7111dcd6040df6be5ff3c395a4ada` on their earlier isolated branch. A's measured mobile dock source is at `63881d882f822d579f2a3dde26ade0dd9452f28b` on `codex/gagos-lb04-a-docked-plane-20260925`. B's reviewable six-cell keyframe proposal is in the documents above; it is not operator-approved. Next, inspect the already-present C vertical journey and select the smallest real semantic/integration gap for a failing regression before touching code. Keep visual/device acceptance open; do not treat CSS geometry or this schematic as device evidence. No renderer anatomy/material edits until operator review. Do not append decorative effects to `SuperbrainReactiveEffects` as a substitute for reconciling presentation paths, or ask Luna to implement this entire document in one pass.
 
 The delivery objective is concrete: **on desktop and mobile, a person can ask, watch meaningful work grow from the being, make a clear permission decision, inspect an honest result, and continue without losing focus, state or performance.** The organism's appeal must survive that ordinary daily use.

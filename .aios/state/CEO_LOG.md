@@ -921,3 +921,10 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Honest limit:** preview inspection was 1280 × 720 only, with the backend offline; no mobile capture/device, named desktop/GPU, admitted-work journey, independent review or operator visual sign-off. A adds 0 acceptance points; score stays **3/100**.
 - **Process note:** a five-second suite run had two load timeouts and a non-isolated retry leaked globals. Preserve normal test isolation; use the verified 10-second/four-worker pass, not the failed experiment.
 - **Next:** create B's six-cell desktop/mobile board for resting, working and awaiting permission, plus truth/event/motion mapping. Get operator visual approval before renderer anatomy/material changes, while advancing C only through safe non-renderer integration work.
+
+## 2026-09-25 — CEO checkpoint (LB-04 B: keyframe proposal)
+
+- **Drafted:** a six-cell resting/working/awaiting-permission board for desktop and mobile, plus the event-to-body/surface/authority contract. It is grounded in the current semantic kernel, actual approval dialog, and existing CSS geometry; no new palette, asset, anatomy, product code or tests were added.
+- **Structural check:** XML parser passed; board frame aspect ratios match the 1440×900 and 390×844 CSS-pixel references; diff whitespace check passed.
+- **Honest limit:** local browser rendering was blocked by URL policy, so no visual screenshot or layout review is claimed. Operator review of this specific board is still open. B adds 0 points; accepted completion remains **3/100**.
+- **Next:** inspect C's existing request→work→receipt path read-only; identify a concrete integration gap, then present a small test-first design before changing code. Renderer anatomy/materials stay gated on operator approval.
