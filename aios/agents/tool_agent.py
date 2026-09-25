@@ -91,7 +91,11 @@ from typing import Callable, Iterator, Optional, Protocol, Any, cast
 from aios import config
 from aios.agents import tool_handlers, tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
-from aios.core.cerebellum import REFLEX_AUTHORITY_WITHHELD, Cerebellum
+from aios.core.cerebellum import (
+    REFLEX_AUTHORITY_CONTROL,
+    REFLEX_AUTHORITY_WITHHELD,
+    Cerebellum,
+)
 from aios.core import replay_writes
 from aios.core.executor import Executor
 from aios.core.injection_scan import detect_injection
@@ -107,7 +111,7 @@ from aios.core.verification_strength import (
 )
 from aios.core.verifier import Verifier
 from aios.security.audit_logger import log_action
-from aios.security.gateway import Zone
+from aios.security.gateway import Zone, classify
 
 logger = logging.getLogger(__name__)
 
@@ -1055,6 +1059,13 @@ class ToolAgent:
             except Exception:
                 _playbook = None
             if _playbook is not None:
+                _withheld = self._withheld_reflex_step(_playbook)
+                if _withheld is not None:
+                    # Nothing ran. Fall through to the model, whose proposal
+                    # pauses for a human like any turn.
+                    yield _withheld
+                    _playbook = None
+            if _playbook is not None:
                 _replay_ok = True
                 for _ev in self.cerebellum.replay(
                     _playbook,
@@ -1919,6 +1930,43 @@ class ToolAgent:
         if name == "propose_fixes":
             return self._propose_fixes(args.get("limit", 25))
         return (f"Unknown tool '{name}'.", "blocked", False)
+
+    def _withheld_reflex_step(self, playbook: Any) -> Optional[dict[str, Any]]:
+        """Withhold a reflex BEFORE any step runs if one of its commands needs a
+        human.
+
+        `_dispatch_approved` withholds such a step when replay reaches it, but
+        by then every earlier step has already run. An adversarial review found
+        the consequence: a playbook gated on a never-approved YELLOW step
+        re-ran its GREEN steps for real on every matching turn, forever, and
+        never served one. The check is the gateway's own `classify` -- the
+        classifier the executor's decision is built on -- called without the
+        rate limiter, so a dry check spends no rate-limit tokens. Dispatch-time
+        withholding stays as defence in depth.
+
+        The playbook stays compiled: withholding says nothing about whether it
+        is right, and approval provenance (plan Phase 5) is what can
+        re-authorise it.
+        """
+        for index, step in enumerate(getattr(playbook, "steps", []) or []):
+            if step.tool_name not in ("execute_terminal", "verify"):
+                continue
+            command = str(step.args.get("command", ""))
+            if classify(command).zone is Zone.YELLOW:
+                return {
+                    "type": "cerebellum_abort",
+                    "step_index": index,
+                    "reason": "approval",
+                    "tool": step.tool_name,
+                    "control": REFLEX_AUTHORITY_CONTROL,
+                    "command": command,
+                    "preflight": True,
+                    "output": (
+                        f"{REFLEX_AUTHORITY_WITHHELD} no human approved this command "
+                        "for replay; nothing in the playbook was run."
+                    ),
+                }
+        return None
 
     def _dispatch_approved(
         self, name: str, args: dict[str, Any]
