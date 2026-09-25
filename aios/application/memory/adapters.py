@@ -19,7 +19,9 @@ from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 
 if TYPE_CHECKING:
+    from aios.core.cerebellum import Cerebellum
     from aios.council.council_memory import CouncilMemory
+    from aios.memory.curriculum import CurriculumManager
 
 
 class LegacySemanticMemoryAdapter:
@@ -353,6 +355,42 @@ class SkillMemoryAdapter:
             )
             for row in rows
         )
+
+    def rebuild_derived_indexes(self) -> None:
+        return None
+
+
+class CerebellumAdapter:
+    """Authority adapter for compiled reflexes (`compiled_playbooks`).
+
+    Phase 2 slice 1: the cerebellum was built per request outside the
+    authority. It is now one process-wide store owned here. Reflexes are not
+    recalled into prompts, so recall is empty; replay stays on the cerebellum,
+    which callers obtain from the authority rather than build.
+    """
+
+    memory_types = ("reflex",)
+
+    def __init__(self, store: "Cerebellum") -> None:
+        self.store = store
+
+    def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
+        return ()
+
+    def rebuild_derived_indexes(self) -> None:
+        self.store._refresh_cache()
+
+
+class CurriculumAdapter:
+    """Authority adapter for curriculum evidence (`curriculum_tasks`)."""
+
+    memory_types = ("curriculum",)
+
+    def __init__(self, store: "CurriculumManager") -> None:
+        self.store = store
+
+    def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
+        return ()
 
     def rebuild_derived_indexes(self) -> None:
         return None

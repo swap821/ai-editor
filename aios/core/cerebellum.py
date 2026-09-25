@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
+from aios.memory.construction_ledger import record_construction
 from aios.memory.learning_freeze import learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
@@ -399,6 +400,11 @@ class Cerebellum:
         max_consecutive_failures: int = 2,
         bus: Any = None,
     ) -> None:
+        # R11: a physical store, so it records who built it. Production builds
+        # exactly one, in `aios/application/memory/bootstrap.py`; before Phase 2
+        # `aios/api/deps.py` built a fresh one on every request, invisible to
+        # both R11 checks because the cerebellum was never a tracked type.
+        record_construction("Cerebellum")
         self.db_path = db_path
         self.match_threshold = match_threshold
         self.max_consecutive_failures = max_consecutive_failures
@@ -406,6 +412,16 @@ class Cerebellum:
         #: Optional observation bus. Absent everywhere it is not wired, exactly
         #: like WorkerFoundry's -- a missing bus must never change behaviour.
         self._bus = bus
+
+    def attach_bus(self, bus: Any) -> None:
+        """Attach the observation bus once.
+
+        The process-wide instance is built in the memory composition root,
+        which cannot reach the API layer's bus provider; the API attaches it on
+        first use. Never replaces a bus already attached.
+        """
+        if self._bus is None and bus is not None:
+            self._bus = bus
 
     # ------------------------------------------------------------------
     # Compilation
@@ -604,7 +620,7 @@ class Cerebellum:
         best: Optional[CompiledPlaybook] = None
         best_score = 0.0
 
-        for pb in self._cache.values():
+        for pb in list(self._cache.values()):
             if pb.status != "compiled":
                 continue
             score = relevance(user_message, pb.goal_pattern)
@@ -1196,14 +1212,19 @@ class Cerebellum:
                    FROM compiled_playbooks
                    WHERE status = 'compiled'"""
             ).fetchall()
-        self._cache.clear()
+        # Built aside and swapped in whole. The cerebellum is one process-wide
+        # instance shared by concurrent requests; clearing and refilling in
+        # place let a concurrent `match` iterate a dict that was changing size,
+        # which raises -- and every caller treats a raising match as "no
+        # reflex", so the failure would have been silent.
+        cache: dict[int, CompiledPlaybook] = {}
         for row in rows:
             try:
                 steps_data = json.loads(row["steps_json"])
                 steps = [PlaybookStep.from_dict(s) for s in steps_data]
             except (json.JSONDecodeError, KeyError, TypeError):
                 continue
-            self._cache[row["id"]] = CompiledPlaybook(
+            cache[row["id"]] = CompiledPlaybook(
                 id=row["id"],
                 skill_id=row["skill_id"],
                 goal_pattern=row["goal_pattern"],
@@ -1214,6 +1235,7 @@ class Cerebellum:
                 consecutive_failures=row["consecutive_failures"],
                 status=row["status"],
             )
+        self._cache = cache
 
     # ------------------------------------------------------------------
     # Observability
@@ -1238,5 +1260,5 @@ class Cerebellum:
                 "consecutive_failures": pb.consecutive_failures,
                 "status": pb.status,
             }
-            for pb in self._cache.values()
+            for pb in list(self._cache.values())
         ]

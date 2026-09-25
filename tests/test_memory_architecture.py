@@ -15,6 +15,10 @@ _LEGACY_TYPES = frozenset(
         "WorkingMemory",
         "CouncilMemory",
         "DevelopmentTracker",
+        # Phase 2 slice 1: until then both were built per request in
+        # aios/api/deps.py, invisible to this scan because neither was listed.
+        "Cerebellum",
+        "CurriculumManager",
     }
 )
 

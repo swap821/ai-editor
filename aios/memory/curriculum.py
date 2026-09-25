@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from aios.memory.construction_ledger import record_construction
 from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.core.verification_strength import (
@@ -34,6 +35,8 @@ class CurriculumManager:
         fuzzy_matching: bool | None = None,
         fuzzy_threshold: float | None = None,
     ) -> None:
+        # R11: a physical store; production builds exactly one, in bootstrap.py.
+        record_construction("CurriculumManager")
         self.db_path = db_path
         self.training_passes_required = max(training_passes_required, 1)
         self.fuzzy_matching = (
