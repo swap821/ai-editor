@@ -223,6 +223,45 @@ databases are byte-identical before and after.
 **Tests:** `tests/test_phase2_skill_migration.py` has 15 tests. A mutation
 check killed 12 of 12 reverted safety properties.
 
+## Slice 2.4: the real blast radius (mapped 2026-09-26, before any code)
+
+The slices table says 2.4 touches `authority.py` and adapters (organ 18). The
+code says more. `procedural_skills` is read in 31 files. Outside the store
+and its tests:
+
+| Reader | Uses | Organ |
+|---|---|---|
+| `aios/core/cerebellum.py` | compiles from it; `compiled_playbooks.skill_id` is an **integer** key into it, but institutional identity is `(skill_id str, version int)` | none |
+| `aios/memory/skills.py` | the live store itself: `record_attempt` (auto-promotes on 3 floor-meeting successes, refreshes steps in place, keeps weak-success, streak and pheromone counters the institutional record does not have), `record_reuse`, `relevant_verified`, `trail_map`, `list` | none |
+| `aios/operations/doctor.py` | status counts | **53, 54** |
+| `aios/application/governance/governance_observation.py` | verification strength per skill | none |
+| `tools/governance_conformance_runner.py` | organ 55's benchmark, which reads strength | (the judged number) |
+| `tools/learning_conformance_runner.py`, `scripts/learning_scoreboard.py` | Learning Ledger L1–L8 | ledger |
+| `tools/learning_payoff.py`, `tools/learning_redteam_runner.py` | the pre-registered payoff and the reel judge | instruments |
+| `tools/prove_cerebellum.py`, `scripts/repair_playbooks.py` | tooling | none |
+| `frontend/src/superbrain/lib/aiosAdapter.ts` | the trail map's shape | Codex's |
+
+**What this means:**
+- The live record carries bookkeeping the institutional contract has no
+  place for: weak successes, a failure streak for the compile guard, reuse
+  pheromone and last-reused time. That is ranking mechanics, not contract. It
+  belongs in its own table beside the library, owned by the 2.4 adapter, not
+  in organ 43's record.
+- Auto-promotion becomes review-readiness. Nothing becomes `active` without
+  the operator.
+- The "better recipe" refresh becomes a new candidate version. Slice 2.2's
+  contract freeze already refuses the in-place form.
+- Two instruments read the store they measure: the payoff and the organ-55
+  benchmark. Switching the store under a pre-registered measurement changes
+  what it measures. That must be a recorded deviation, not a silent swap.
+- **Apply the migration at the switch, not before.** Applied now, candidates
+  would stop tracking the live counts until 2.4 lands; a re-run skips
+  records it already wrote.
+
+2.4 is therefore several PRs: the adapter and trail table (unowned), the
+cerebellum's identity, then the readers. Each touches organs 53, 54 or 18
+once.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the
