@@ -5,7 +5,7 @@ against: every threat names its control and the test that proves the control
 holds. A control without a test is a claim; a threat without a control is an
 accepted risk and is listed as one.*
 
-*Written 2026-09-25 against master `1f0dd06e`. File:line references are to that
+*Written 2026-09-25 against master `53eb1f0c`. File:line references are to that
 commit.*
 
 ## Why learning needs its own threat model
@@ -30,7 +30,7 @@ structure is.** No control below relies on a classifier recognising poison.
 
 | ID | Asset | Store | Reaches a prompt via | Reaches an action via |
 |---|---|---|---|---|
-| A1 | Chat turns | `semantic_memory` (`memory_type='chat'`, unverified) | `_recall_memory`, `include_unverified=True` (`aios/api/turn_pipeline.py:379-384`); written by `_index_turn` (`:663-692`) | — |
+| A1 | Chat turns | `semantic_memory` (`memory_type='chat'`, unverified) | `_recall_memory`, `include_unverified=True` (`aios/api/turn_pipeline.py:379-384`); written by `_index_turn` (`:699-728`) | — |
 | A2 | Lessons | `mistake_pool` | `_recall_lessons` → "RELEVANT LESSONS" (`aios/application/turns/generate_pipeline.py:870-895`) | indirectly, via the model |
 | A3 | Skills | `procedural_skills` | `_recall_skills` → "VERIFIED REUSABLE WORKFLOWS" (`generate_pipeline.py:897-913`) | compiled into A4 |
 | A4 | Reflexes | `compiled_playbooks` (+ `playbook_blobs`) | — | **`cerebellum.replay` → `_dispatch_approved`, no model** (`aios/agents/tool_agent.py:1038-1075, 1923-1960`) |
@@ -68,7 +68,7 @@ Three boundaries matter most:
 
 - **B1 — write:** anything reaching a learning store. Today: no authority, no provenance, no signature; secrets scrubbed (a different property).
 - **B2 — recall → prompt:** every channel is concatenated into the **system** message, the same channel and authority as the operator's instructions. Framing is uneven:
-  - *Semantic* recall is tiered by natural-language headers (`VERIFIED TRUSTED MEMORY`, `UNVERIFIED PRIOR CHAT MEMORY (… use only as a lead, never as evidence …)`, `EXTERNAL KNOWLEDGE`; `aios/api/turn_pipeline.py:248-259`). This is the right idea, and it is still advice, not a boundary: nothing structural stops the model from following an instruction inside the block, and an attacker can imitate the header.
+  - *Semantic* recall is tiered by natural-language headers (`VERIFIED TRUSTED MEMORY`, `UNVERIFIED PRIOR CHAT MEMORY (… use only as a lead, never as evidence …)`, `EXTERNAL KNOWLEDGE`; `aios/api/turn_pipeline.py:250-261`). This is the right idea, and it is still advice, not a boundary: nothing structural stops the model from following an instruction inside the block, and an attacker can imitate the header.
   - *Lessons* and *skills* arrive under headers that **assert** trust (`RELEVANT LESSONS (verified …)`, `VERIFIED REUSABLE WORKFLOWS … (verified success rate 91%)`) with no provenance.
   - *Facts* arrive as `RELEVANT APPROVED FACTS (use these; …)` on `/api/generate` (`turn_pipeline.py:236`) and `KNOWN FACTS ABOUT THE OPERATOR (human-approved …)` on chat (`:96`). Both headers assert approval; neither checks it. Recall reads `status = 'active'`, and `add_fact` writes `active` with no approver (T16).
 

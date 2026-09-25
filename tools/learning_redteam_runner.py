@@ -1223,6 +1223,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "verdicts": [asdict(v) for v in verdicts],
     }
     if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
     print(json.dumps(counts))
     return 0
