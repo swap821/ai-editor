@@ -76,7 +76,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "attach evidence gathered at a commit that is not yet on master. "
-            "Only correct when this PR will be merged with a MERGE COMMIT; a "
+            "Correct when this PR will be merged with a MERGE COMMIT, or when it "
+            "will be squashed and evidence is re-gathered on master afterwards; a "
             "squash merge will discard the commit and orphan every row."
         ),
     )
@@ -115,11 +116,13 @@ def main(argv: list[str] | None = None) -> int:
             "      python scripts/phase4_live_evidence.py --tip $(git rev-parse origin/master)\n"
             "  * or, if this PR CHANGES an organ's own code (so no master commit can\n"
             "    vouch for it yet), re-run with --allow-branch-tip AND either merge\n"
-            "    with a MERGE COMMIT, or, if it is squashed, run this on master\n"
-            "    straight afterwards:\n"
-            "      python scripts/verify_evidence_lineage.py --update\n"
-            "    which re-points each orphaned row ONLY to the commit where its\n"
-            "    byte-identical code entered master, and refuses otherwise.",
+            "    with a MERGE COMMIT, or, if it is squashed, RE-GATHER on master\n"
+            "    straight afterwards -- the squash commit now carries the code:\n"
+            "      python scripts/phase4_live_evidence.py --tip $(git rev-parse origin/master)\n"
+            "      python scripts/phase4_attach_ledger.py\n"
+            "    Do NOT use verify_evidence_lineage.py --update for live rows: it\n"
+            "    re-points the row's commit but the row's ARTIFACT still records the\n"
+            "    orphaned sha, and C10 checks that the two agree (observed: #368).",
             file=sys.stderr,
         )
         return 1
