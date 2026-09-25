@@ -443,17 +443,25 @@ def restore_pristine(corpus) -> None:
     litters the tree is still rejected. What changes is that it cannot be
     rejected for someone else's.
 
-    Ignored build artefacts are kept (`clean -fd`, not `-fdx`): they are
-    regenerated, and the grader already excuses them. A corpus that still is
+    IGNORED paths are removed too (`clean -fdx`), and the check lists them
+    (`--ignored`). The first version kept them, reasoning that the grader
+    excuses build artefacts -- but the grader excuses only `__pycache__`,
+    `.pytest_cache`, `*.pyc` and `.coverage`, while the corpus's `.gitignore`
+    hides far more (`data/`, `.aios/`, `node_modules/`, ...). `clean -fd` never
+    removes an ignored path and `git status` never reports one, so a model's
+    test writing under `data/` would have carried into every later arm
+    invisibly to both checks: the same contamination, relocated (adversarial
+    review, 2026-09-25; Deviation D2). Everything a clean corpus needs is
+    committed, and everything ignored is regenerated. A corpus that still is
     not pristine afterwards refuses the run rather than grading on it.
     """
     root = str(corpus.root)
-    for args in (["checkout", "--", "."], ["clean", "-fd", "--", "."]):
+    for args in (["checkout", "--", "."], ["clean", "-fdx", "--", "."]):
         subprocess.run(
             ["git", "-C", root, *args], capture_output=True, text=True, check=False
         )
     status = subprocess.run(
-        ["git", "-C", root, "status", "--porcelain=v1", "-uall"],
+        ["git", "-C", root, "status", "--porcelain=v1", "-uall", "--ignored"],
         capture_output=True,
         text=True,
         check=False,

@@ -41,7 +41,7 @@ def _git_corpus(root: Path):
     git("config", "user.name", "t")
     (root / "aios").mkdir(exist_ok=True)
     (root / "aios" / "mod.py").write_text("def f():\n    return 1\n", encoding="utf-8")
-    (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+    (root / ".gitignore").write_text("__pycache__/\ndata/\n", encoding="utf-8")
     git("add", "-A")
     git("commit", "-q", "-m", "corpus")
 
@@ -677,15 +677,21 @@ class TestOneArmCannotBeChargedForAnothersLeftovers:
             f"first arm's leftovers: {second.notes}"
         )
 
-    def test_ignored_build_artefacts_survive_the_restore(self, tmp_path) -> None:
+    def test_litter_under_an_ignored_path_is_removed_too(self, tmp_path) -> None:
+        """Adversarial review, 2026-09-25 (Deviation D2): `clean -fd` never
+        touches a gitignored path and `git status` never reports one, so a
+        model's test writing under `data/` would carry into every later arm
+        invisibly. Restore removes ignored paths as well."""
         corpus = _git_corpus(tmp_path)
+        litter = tmp_path / "data" / "temp_ledger.json"
+        litter.parent.mkdir()
+        litter.write_text("{}", encoding="utf-8")
         cache = tmp_path / "__pycache__" / "x.pyc"
         cache.parent.mkdir()
         cache.write_bytes(b"\0")
         payoff.restore_pristine(corpus())
-        assert cache.exists(), (
-            "ignored artefacts are regenerated, not the grader's business"
-        )
+        assert not litter.exists(), "ignored litter survived into the next arm"
+        assert not cache.exists(), "everything ignored is regenerated"
 
     def test_a_tracked_file_an_arm_modified_is_restored(self, tmp_path) -> None:
         corpus = _git_corpus(tmp_path)
