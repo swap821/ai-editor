@@ -168,6 +168,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
     step_ids: list[str] = []
     step_tools: list[str] = []
     cerebellum_events: list[str] = []
+    cerebellum_controls: list[str] = []
 
     for _replay in range(MAX_REPLAYS):
         body = {
@@ -192,6 +193,8 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                     evidence.append(output)
             elif event.startswith("cerebellum_"):
                 cerebellum_events.append(event)
+                if event == "cerebellum_abort" and data.get("control"):
+                    cerebellum_controls.append(str(data["control"]))
             elif event == "human_required":
                 paused = data
                 break
@@ -203,6 +206,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                     "step_ids": step_ids,
                     "step_tools": step_tools,
                     "cerebellum_events": cerebellum_events,
+                    "cerebellum_controls": cerebellum_controls,
                 }
             elif event == "done":
                 finished = True
@@ -224,6 +228,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 "step_ids": step_ids,
                 "step_tools": step_tools,
                 "cerebellum_events": cerebellum_events,
+                "cerebellum_controls": cerebellum_controls,
             }
 
         if paused is None:
@@ -233,6 +238,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 "step_ids": step_ids,
                 "step_tools": step_tools,
                 "cerebellum_events": cerebellum_events,
+                "cerebellum_controls": cerebellum_controls,
             }
 
         ok, why = check_allowlist(paused)
@@ -245,6 +251,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 "step_ids": step_ids,
                 "step_tools": step_tools,
                 "cerebellum_events": cerebellum_events,
+                "cerebellum_controls": cerebellum_controls,
             }
         approvals_granted.append(why)
         tokens = [token]
@@ -255,6 +262,7 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
         "step_ids": step_ids,
         "step_tools": step_tools,
         "cerebellum_events": cerebellum_events,
+        "cerebellum_controls": cerebellum_controls,
     }
 
 
@@ -704,10 +712,19 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             "cerebellum_match" in replay["cerebellum_events"],
             f"events={replay['cerebellum_events'] or 'none'}",
         )
+        # This reflex's step is a YELLOW `pytest` verify, and since the Phase 0b
+        # containment (2026-09-25) a replayed command is pre-approved only on a
+        # recorded HUMAN approval -- which a harness-earned arc never has. So
+        # the correct replay is NOT "ran to completion": it is "matched, then
+        # withheld by the reflex authority". This check is the live regression
+        # test of that containment; `cerebellum_done` here would mean a reflex
+        # ran a command no human approved.
         check.hard(
-            "reflex.cerebellum-done",
-            "cerebellum_done" in replay["cerebellum_events"],
-            "the compiled playbook replayed to completion",
+            "reflex.withheld-without-human-approval",
+            "reflex_authority" in replay.get("cerebellum_controls", [])
+            and "cerebellum_done" not in replay["cerebellum_events"],
+            "the playbook matched and its approval-needing step was withheld, "
+            f"not auto-run (controls={replay.get('cerebellum_controls') or 'none'})",
         )
     else:
         check.soft(
@@ -717,8 +734,8 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             f"(events={replay['cerebellum_events'] or 'none'})",
         )
         check.soft(
-            "reflex.cerebellum-done",
-            "cerebellum_done" in replay["cerebellum_events"],
+            "reflex.withheld-without-human-approval",
+            "reflex_authority" in replay.get("cerebellum_controls", []),
             "no skill was promoted, so no playbook exists to replay",
         )
 

@@ -40,7 +40,12 @@ from aios.agents.tool_agent import (
     _validated_from_structured_payload,
 )
 from aios.core.autonomy import AutonomyLedger
-from aios.core.cerebellum import CompiledPlaybook, PlaybookStep
+from aios.core.cerebellum import (
+    REFLEX_AUTHORITY_CONTROL,
+    REFLEX_AUTHORITY_WITHHELD,
+    CompiledPlaybook,
+    PlaybookStep,
+)
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
 from aios.core.planner import Planner
@@ -474,12 +479,16 @@ class TestCerebellumShortCircuit:
 
 
 class TestCerebellumApprovedReplay:
-    """FIX 3: cerebellum replay dispatches steps as PRE-APPROVED (a compiled
-    playbook only ever comes from a skill already promoted at >=3 STRONG
-    verified successes), so a YELLOW step runs directly instead of pausing.
+    """Replay pre-approves a step only on a recorded HUMAN approval.
 
-    The hard security invariant this must NOT weaken: RED is still refused
-    even on replay -- approval (earned or human) can never authorise RED.
+    This class used to pin the opposite ("FIX 3"): a replayed YELLOW step ran
+    because the skill had earned >=3 STRONG successes. Those successes were
+    not a human's -- live playbooks 9, 10 and 14 were compiled from harness
+    arcs -- and the learning red-team reel showed such a reflex running a
+    command that pauses for a human when a model proposes it (RT-06). Contained
+    2026-09-25 per the operator's decision; see `ToolAgent._dispatch_approved`.
+
+    The invariant that never moved: RED is refused on replay.
     """
 
     @staticmethod
@@ -499,10 +508,27 @@ class TestCerebellumApprovedReplay:
 
         return ReplayingCerebellum()
 
-    def test_replay_runs_yellow_execute_step_without_pausing_for_approval(self) -> None:
-        # "git commit" is a YELLOW caution operation that normally pauses for a
-        # human. A compiled playbook step is pre-approved evidence, so replay
-        # must run it directly -- pausing (status=="approval") would abort.
+    @staticmethod
+    def _recording_executor() -> tuple[Executor, list[str]]:
+        calls: list[str] = []
+
+        def runner(command, *, cwd, env, timeout_s):
+            calls.append(command)
+            return f"ran: {command}", "", 0
+
+        return (
+            Executor(
+                runner=runner,
+                rate_limiter=RateLimiter(),
+                audit_log=lambda *a, **k: None,
+                emergency_stop=UNGOVERNED_FIXTURE,
+            ),
+            calls,
+        )
+
+    def test_a_replayed_yellow_command_is_withheld_not_run(self) -> None:
+        # "git commit" is YELLOW: it pauses for a human when a model proposes
+        # it. No human approved it for replay, so replay must not run it.
         playbook = CompiledPlaybook(
             id=101,
             skill_id=101,
@@ -519,27 +545,28 @@ class TestCerebellumApprovedReplay:
             status="compiled",
         )
         captured: list[tuple[str, str, bool]] = []
-        chat = ScriptedChat([])  # must not be consulted on a clean replay
+        # The turn falls through to the model, which is what a human then sees.
+        chat = ScriptedChat([{"role": "assistant", "content": "shall I commit?"}])
+        executor, runner_calls = self._recording_executor()
 
         events = list(
             ToolAgent(
                 chat,
-                _executor(),
+                executor,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
             ).run([{"role": "user", "content": "commit the change"}])
         )
 
-        assert captured, "dispatch_fn must have been called"
-        output, status, failed = captured[0]
-        assert status == "ok", (
-            f"a replayed YELLOW step must RUN, not pause (status={status!r})"
+        assert captured == [], "withheld BEFORE replay: no step may be dispatched"
+        [abort] = [e for e in events if e["type"] == "cerebellum_abort"]
+        assert (
+            abort["control"] == REFLEX_AUTHORITY_CONTROL and abort["preflight"] is True
         )
-        assert output.startswith("ran:"), "the command must have actually executed"
-        assert "cerebellum_done" in [e["type"] for e in events]
-        assert len(chat.calls) == 0, (
-            "a clean pre-approved replay must never consult the LLM"
-        )
+        assert abort["command"] == "git commit -m done"
+        assert runner_calls == [], "a withheld command must never reach the runner"
+        assert "cerebellum_done" not in [e["type"] for e in events]
+        assert len(chat.calls) == 1, "the turn falls through to the model"
 
     def test_replay_still_refuses_red_step_despite_pre_approval(self) -> None:
         # A RED step (destructive) is refused EVEN when replayed from a
@@ -596,9 +623,42 @@ class TestCerebellumApprovedReplay:
         assert "cerebellum_done" not in [e["type"] for e in events]
         assert events[-1]["type"] == "done"
 
-    def test_replay_runs_yellow_verify_step_without_pausing_for_approval(self) -> None:
-        # verify is also a compilable tool; a YELLOW pytest verify command must
-        # likewise run directly on replay instead of pausing for approval.
+    def test_a_replayed_green_command_still_serves_the_turn_with_no_model(self) -> None:
+        """What containment keeps: a step needing no approval still runs."""
+        playbook = CompiledPlaybook(
+            id=105,
+            skill_id=105,
+            goal_pattern="say hello",
+            signature_v2="sig-green-exec",
+            compiled_at="",
+            steps=[
+                PlaybookStep(tool_name="execute_terminal", args={"command": "echo hi"})
+            ],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
+        )
+        captured: list[tuple[str, str, bool]] = []
+        chat = ScriptedChat([])
+        executor, runner_calls = self._recording_executor()
+
+        events = list(
+            ToolAgent(
+                chat,
+                executor,
+                max_iters=2,
+                cerebellum=self._replaying_cerebellum(playbook, captured),
+            ).run([{"role": "user", "content": "say hello"}])
+        )
+
+        output, status, failed = captured[0]
+        assert status == "ok", (status, output)
+        assert runner_calls == ["echo hi"]
+        assert "cerebellum_done" in [e["type"] for e in events]
+        assert len(chat.calls) == 0, "a GREEN reflex still saves the model call"
+
+    def test_a_replayed_yellow_verify_is_withheld_not_run(self) -> None:
+        # verify is also compilable; a YELLOW pytest verify is withheld too.
         cmd = "python -m pytest -o addopts= tests -q"
         playbook = CompiledPlaybook(
             id=103,
@@ -612,23 +672,107 @@ class TestCerebellumApprovedReplay:
             status="compiled",
         )
         captured: list[tuple[str, str, bool]] = []
-        chat = ScriptedChat([])
+        chat = ScriptedChat([{"role": "assistant", "content": "shall I run them?"}])
+        executor, runner_calls = self._recording_executor()
 
         events = list(
             ToolAgent(
                 chat,
-                _passing_executor(),
+                executor,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
             ).run([{"role": "user", "content": "run the tests"}])
         )
 
-        assert captured
-        output, status, failed = captured[0]
-        assert status != "approval", (
-            f"a replayed YELLOW verify step must not pause (status={status!r})"
+        assert captured == [], "withheld BEFORE replay: no step may be dispatched"
+        [abort] = [e for e in events if e["type"] == "cerebellum_abort"]
+        assert (
+            abort["control"] == REFLEX_AUTHORITY_CONTROL and abort["tool"] == "verify"
         )
-        assert "cerebellum_done" in [e["type"] for e in events]
+        assert runner_calls == []
+        assert "cerebellum_done" not in [e["type"] for e in events]
+
+    def test_an_earlier_green_step_does_not_run_when_a_later_one_is_withheld(
+        self,
+    ) -> None:
+        """Adversarial review, 2026-09-25: withholding at dispatch let every
+        earlier GREEN step run for real, on every matching turn, forever."""
+        playbook = CompiledPlaybook(
+            id=106,
+            skill_id=106,
+            goal_pattern="say hello then commit",
+            signature_v2="sig-green-yellow",
+            compiled_at="",
+            steps=[
+                PlaybookStep(tool_name="execute_terminal", args={"command": "echo hi"}),
+                PlaybookStep(
+                    tool_name="execute_terminal", args={"command": "git commit -m done"}
+                ),
+            ],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
+        )
+        captured: list[tuple[str, str, bool]] = []
+        chat = ScriptedChat([{"role": "assistant", "content": "shall I?"}])
+        executor, runner_calls = self._recording_executor()
+
+        events = list(
+            ToolAgent(
+                chat,
+                executor,
+                max_iters=2,
+                cerebellum=self._replaying_cerebellum(playbook, captured),
+            ).run([{"role": "user", "content": "say hello then commit"}])
+        )
+
+        assert runner_calls == [], f"a partial replay ran: {runner_calls}"
+        assert captured == []
+        [abort] = [e for e in events if e["type"] == "cerebellum_abort"]
+        assert abort["step_index"] == 1
+
+    def test_dispatch_still_withholds_if_the_preflight_is_ever_bypassed(self) -> None:
+        """Defence in depth: the dispatcher withholds on its own."""
+        executor, runner_calls = self._recording_executor()
+        agent = ToolAgent(ScriptedChat([]), executor, max_iters=1)
+        output, status, failed = agent._dispatch_approved(
+            "execute_terminal", {"command": "git commit -m done"}
+        )
+        assert (status, failed) == ("approval", False)
+        assert output.startswith(REFLEX_AUTHORITY_WITHHELD)
+        assert runner_calls == []
+
+    @pytest.mark.parametrize(
+        "tool, command",
+        [
+            ("execute_terminal", "git commit -m done"),
+            ("execute_terminal", "echo hi"),
+            ("verify", "python -m pytest -o addopts= tests -q"),
+            ("execute_terminal", "git push origin main"),
+            ("execute_terminal", "rm -rf /"),
+            ("verify", "echo ok"),
+        ],
+    )
+    def test_the_preflight_and_the_dispatcher_agree(self, tool, command) -> None:
+        """Two layers deciding the same question must not disagree. The
+        pre-flight withholds a step exactly when dispatching it would answer
+        `approval` -- otherwise it could miss the very steps it exists for."""
+        executor, _runner_calls = self._recording_executor()
+        agent = ToolAgent(ScriptedChat([]), executor, max_iters=1)
+        playbook = CompiledPlaybook(
+            id=107,
+            skill_id=107,
+            goal_pattern="x",
+            signature_v2="sig-agree",
+            compiled_at="",
+            steps=[PlaybookStep(tool_name=tool, args={"command": command})],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
+        )
+        withheld = agent._withheld_reflex_step(playbook) is not None
+        _output, status, _failed = agent._dispatch(tool, {"command": command})
+        assert withheld == (status == "approval"), (tool, command, status)
 
     def test_replay_still_refuses_red_verify_step_despite_pre_approval(self) -> None:
         # A RED command routed through the verify tool must ALSO still be
