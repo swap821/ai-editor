@@ -5,6 +5,7 @@ import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
 import { installKeyboardViewportTracking } from '../livingMirror/keyboardViewport';
+import { installWorkspaceDockTracking } from '../livingMirror/workspaceDock';
 import { readExperienceMode, writeExperienceMode } from '../livingMirror/experienceMode';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
@@ -67,7 +68,13 @@ export default function SuperbrainApp() {
   }, []);
   useEffect(() => {
     const root = appRootRef.current;
-    return root ? installKeyboardViewportTracking(root) : undefined;
+    if (!root) return undefined;
+    const stopKeyboardTracking = installKeyboardViewportTracking(root);
+    const stopWorkspaceDockTracking = installWorkspaceDockTracking(root);
+    return () => {
+      stopKeyboardTracking();
+      stopWorkspaceDockTracking();
+    };
   }, []);
   useEffect(() => {
     const startedAt = performance.now();

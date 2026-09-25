@@ -252,6 +252,7 @@
   .lm-app[data-working="false"] .lm-scene { left: 0; }
   .lm-app[data-working="true"] .lm-scene { bottom: calc(100% - 290px); }
   .lm-surface { top: 286px; left: 12px; right: 12px; width: auto; bottom: 164px; }
+  .lm-app[data-working="true"] .lm-surface { bottom: var(--lm-workspace-dock-clearance, 164px); }
   .lm-surface__header { padding: 10px 12px; }
   .lm-surface__header h2 { font-size: 20px; }
   .lm-surface__body { padding: 16px; }

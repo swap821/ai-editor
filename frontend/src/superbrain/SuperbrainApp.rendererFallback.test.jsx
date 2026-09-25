@@ -156,6 +156,26 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     expect(viewport.height).toBe(180);
   });
 
+  it('tracks the composer\'s measured dock edge as it moves', async () => {
+    render(<SuperbrainApp />);
+    const app = document.querySelector('.lm-app');
+    if (!app) throw new Error('Expected the GAGOS app root to mount.');
+
+    const chat = document.createElement('section');
+    chat.className = 'gagos-chat';
+    app.append(chat);
+    app.getBoundingClientRect = () => ({ bottom: 844, height: 844 });
+    let chatTop = 620;
+    chat.getBoundingClientRect = () => ({ top: chatTop, height: 92 });
+
+    window.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app.style.getPropertyValue('--lm-workspace-dock-clearance')).toBe('236px'));
+
+    chatTop = 510;
+    window.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app.style.getPropertyValue('--lm-workspace-dock-clearance')).toBe('346px'));
+  });
+
   it('does not move the composer for non-text focus or pinch zoom', async () => {
     const viewport = installVisualViewport({ height: 300 });
     render(<SuperbrainApp />);
