@@ -1934,7 +1934,11 @@ def test_the_withholding_announcement_names_its_control(monkeypatch) -> None:
     turn_pipeline._announce_recall_withheld(2, 3)
     [event] = appended
     assert event.event_type == "memory.recalled"
-    assert event.payload["control"] == turn_pipeline.RECALL_ISOLATION_CONTROL == "recall_isolation"
+    assert (
+        event.payload["control"]
+        == turn_pipeline.RECALL_ISOLATION_CONTROL
+        == "recall_isolation"
+    )
     assert (event.payload["hits"], event.payload["withheld"]) == (2, 3)
 
 

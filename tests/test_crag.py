@@ -294,7 +294,13 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
 def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
     # Verified: since the Phase 0b containment (2026-09-25) unverified memory
     # never reaches CRAG at all, so relevance is exercised on trusted memory.
-    hits = [_Hit("totally unrelated banana note here", faiss=0.05, verification_status="verified")]
+    hits = [
+        _Hit(
+            "totally unrelated banana note here",
+            faiss=0.05,
+            verification_status="verified",
+        )
+    ]
     sources = [
         lambda _q: ["The quantum entanglement phenomenon links particle states."]
     ]
@@ -345,7 +351,8 @@ def test_an_unverified_hit_never_reaches_crag_or_the_prompt(monkeypatch) -> None
 
     announced: list = []
     monkeypatch.setattr(
-        turn_pipeline, "_announce_recall_withheld",
+        turn_pipeline,
+        "_announce_recall_withheld",
         lambda recalled, withheld: announced.append((recalled, withheld)),
     )
     assert main._recall_memory("alpha topic") is None

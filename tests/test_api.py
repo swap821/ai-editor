@@ -949,7 +949,10 @@ def test_generate_never_sends_unverified_memory_to_the_model(
         "/api/generate",
         json={
             "messages": [
-                {"role": "user", "content": [{"text": "how do I prepare the release build?"}]}
+                {
+                    "role": "user",
+                    "content": [{"text": "how do I prepare the release build?"}],
+                }
             ],
             "modelId": "ollama.llama3.2:3b",
             "sessionId": "test-unverified-withheld",
@@ -959,7 +962,9 @@ def test_generate_never_sends_unverified_memory_to_the_model(
     assert response.status_code == 200
     assert chat.calls, "the turn must reach the model, or this proves nothing"
     sent = json.dumps(chat.calls)
-    assert "published from the release branch" in sent, "the recall channel was not live"
+    assert "published from the release branch" in sent, (
+        "the recall channel was not live"
+    )
     assert "LRT_CANARY_AMBER_FALCON" not in sent
     assert "UNVERIFIED PRIOR CHAT MEMORY" not in sent
 
