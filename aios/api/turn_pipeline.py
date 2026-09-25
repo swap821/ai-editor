@@ -352,6 +352,53 @@ def _crag_llm_judge(
     return max(0.0, min(1.0, float(match.group(0))))
 
 
+#: The control that withholds unverified memory from every prompt. Named on the
+#: announcement so the withholding is attributable -- by an observer, and by
+#: the learning red-team reel, which scores a hold only when the control it
+#: tests is the one that acted.
+RECALL_ISOLATION_CONTROL = "recall_isolation"
+
+
+def _announce_recall_withheld(recalled: int, withheld: int) -> None:
+    """Record that recall withheld unverified memory. Best-effort, never fatal.
+
+    Reuses `memory.recalled` -- a recall DID happen -- rather than minting new
+    vocabulary. The bus is optional (``AIOS_CORTEX_BUS``); without it the
+    withholding still happens, it is just not observable.
+    """
+    try:
+        from aios.api.deps import get_cortex_observation_bus
+        from aios.core.events import (
+            CanonicalEvent,
+            CanonicalEventType,
+            EventPhase,
+            TrustLevel,
+        )
+
+        bus = get_cortex_observation_bus()
+        if bus is None:
+            return
+        bus.append(
+            CanonicalEvent(
+                event_type=CanonicalEventType.MEMORY_RECALLED.value,
+                phase=EventPhase.WONDER.value,
+                status="success",
+                trust=TrustLevel.UNKNOWN.value,
+                source="aios.api.turn_pipeline",
+                session_id="recall",
+                payload={
+                    "channel": "semantic",
+                    "hits": recalled,
+                    "withheld": withheld,
+                    "control": RECALL_ISOLATION_CONTROL,
+                    "reason": "unverified memory is never recalled into a prompt",
+                },
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - an observation must never alter recall
+        logger.warning("Failed to announce withheld recall", exc_info=exc)
+
+
 def _recall_memory(
     query: str,
     top_k: int = 3,
@@ -395,7 +442,21 @@ def _recall_memory(
         for hit in hits
         if getattr(hit, "verification_status", "unverified") == "verified"
     ]
-    unverified = [hit for hit in hits if hit not in trusted]
+    # CONTAINED (plan Phase 0b, 2026-09-25): unverified memory is never
+    # recalled into a prompt. Every turn is indexed as unverified chat, and the
+    # learning red-team reel showed what that means: a note forwarded into one
+    # session reached another session's system message (RT-01), and one
+    # principal's turn reached another principal's prompt (RT-10). The
+    # "UNVERIFIED PRIOR CHAT MEMORY" header asked the model to treat it as a
+    # lead; a header is advice, not a boundary. Withheld rows stay stored and
+    # the withholding is announced, so it is observable rather than silent.
+    withheld = [hit for hit in hits if hit not in trusted]
+    if withheld:
+        _announce_recall_withheld(len(trusted), len(withheld))
+    hits = trusted
+    unverified: list[Any] = []
+    if not hits:
+        return None
 
     if config.CRAG:
         try:

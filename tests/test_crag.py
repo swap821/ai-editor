@@ -292,7 +292,9 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
 
 
 def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
-    hits = [_Hit("totally unrelated banana note here", faiss=0.05)]
+    # Verified: since the Phase 0b containment (2026-09-25) unverified memory
+    # never reaches CRAG at all, so relevance is exercised on trusted memory.
+    hits = [_Hit("totally unrelated banana note here", faiss=0.05, verification_status="verified")]
     sources = [
         lambda _q: ["The quantum entanglement phenomenon links particle states."]
     ]
@@ -317,14 +319,37 @@ def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
         _Hit(
             "the alpha section discusses several unrelated longer concepts here",
             faiss=0.4,
+            verification_status="verified",
         )
     ]
     sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
     main = _patch_recall_external(monkeypatch, hits, sources=sources)
     out = main._recall_memory("alpha topic")
     assert out is not None
-    assert "UNVERIFIED PRIOR CHAT MEMORY" in out  # local kept (ambiguous, not dropped)
+    assert "VERIFIED TRUSTED MEMORY" in out  # local kept (ambiguous, not dropped)
     assert "EXTERNAL KNOWLEDGE" in out  # external appended
+
+
+def test_an_unverified_hit_never_reaches_crag_or_the_prompt(monkeypatch) -> None:
+    """Relevance is not trust: an ambiguous-but-relevant unverified hit that
+    CRAG used to keep is withheld before CRAG sees it (Phase 0b, RT-01)."""
+    hits = [
+        _Hit(
+            "the alpha section discusses several unrelated longer concepts here",
+            faiss=0.4,
+        )
+    ]
+    sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
+    main = _patch_recall_external(monkeypatch, hits, sources=sources)
+    from aios.api import turn_pipeline
+
+    announced: list = []
+    monkeypatch.setattr(
+        turn_pipeline, "_announce_recall_withheld",
+        lambda recalled, withheld: announced.append((recalled, withheld)),
+    )
+    assert main._recall_memory("alpha topic") is None
+    assert announced == [(0, 1)]
 
 
 # ── Local-LLM judge (opt-in, AIOS_CRAG_LLM_JUDGE) ───────────────────────────
