@@ -371,9 +371,10 @@ class TestTheFreezeFailsClosed:
 
     def test_it_reads_the_canonical_controller_not_its_own_copy(self) -> None:
         """This codebase paid for three spellings of the stop rule drifting
-        apart; the freeze must defer to the controller's own check."""
-        import inspect
+        apart; the freeze must defer to the controller's own check. Executable
+        source only, so a comment mentioning the check cannot satisfy it."""
+        from tests.source_rules import executable_source
 
-        source = inspect.getsource(learning_freeze)
+        source = executable_source(learning_freeze)
         assert "assert_operational()" in source
         assert "emergency_stop_state" not in source, "the latch table is read directly"
