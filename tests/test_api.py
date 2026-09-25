@@ -899,7 +899,7 @@ def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> Non
         )
     ]
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3: recalled
+        "aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3, **_: recalled
     )
 
     response = client.post(
@@ -942,7 +942,7 @@ def test_generate_never_sends_unverified_memory_to_the_model(
         ),
     ]
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3: recalled
+        "aios.api.turn_pipeline.hybrid_search", lambda q, top_k=3, **_: recalled
     )
 
     response = client.post(

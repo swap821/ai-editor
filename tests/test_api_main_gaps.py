@@ -1832,7 +1832,7 @@ def test_crag_external_sources_respects_config_flags(monkeypatch) -> None:
 # _recall_memory exception + CRAG branches (2666-2746)
 # --------------------------------------------------------------------------- #
 def test_recall_memory_swallows_hybrid_search_exception(monkeypatch) -> None:
-    def boom(query, top_k=3):
+    def boom(query, top_k=3, **_):
         raise RuntimeError("index corrupted")
 
     monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", boom)
@@ -1841,7 +1841,7 @@ def test_recall_memory_swallows_hybrid_search_exception(monkeypatch) -> None:
 
 def test_recall_memory_returns_none_when_no_hits(monkeypatch) -> None:
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: []
+        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: []
     )
     assert _recall_memory("query") is None
 
@@ -1885,12 +1885,12 @@ def test_recall_memory_without_crag_recalls_trusted_and_withholds_unverified(
 
     hits = [Hit("trusted fact", "verified"), Hit("unverified fact", "unverified")]
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: hits
+        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: hits
     )
     announced: list[tuple[int, int]] = []
     monkeypatch.setattr(
         "aios.api.turn_pipeline._announce_recall_withheld",
-        lambda recalled, withheld: announced.append((recalled, withheld)),
+        lambda recalled, withheld, **_: announced.append((recalled, withheld)),
     )
     result = _recall_memory("query")
     assert result is not None
@@ -1908,15 +1908,99 @@ def test_recall_memory_of_only_unverified_hits_recalls_nothing(monkeypatch) -> N
         verification_status = "unverified"
 
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [Hit()]
+        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: [Hit()]
     )
     announced: list[tuple[int, int]] = []
     monkeypatch.setattr(
         "aios.api.turn_pipeline._announce_recall_withheld",
-        lambda recalled, withheld: announced.append((recalled, withheld)),
+        lambda recalled, withheld, **_: announced.append((recalled, withheld)),
     )
     assert _recall_memory("query") is None
     assert announced == [(0, 1)]
+
+
+def test_verified_memory_is_not_starved_by_better_scoring_unverified_rows(
+    tmp_path,
+) -> None:
+    """Adversarial review, 2026-09-25: filtering AFTER the top-k cut let three
+    better-scoring unverified chat rows fill a top-3, so the verified memory
+    ranked fourth was never fetched. The filter now runs inside retrieval."""
+    import sqlite3
+
+    from aios.memory.db import init_memory_db
+    from aios.memory.retrieval import hybrid_search
+
+    db = tmp_path / "m.db"
+    init_memory_db(db)
+    with sqlite3.connect(db) as conn:
+        for i in range(3):
+            conn.execute(
+                "INSERT INTO semantic_memory (id, text_content, content_hash, memory_type, "
+                "verification_status) VALUES (?, ?, ?, 'chat', 'unverified')",
+                (i + 1, f"release build note {i}", f"h{i}"),
+            )
+        conn.execute(
+            "INSERT INTO semantic_memory (id, text_content, content_hash, memory_type, "
+            "verification_status) VALUES (4, 'the release build is cut from main', 'hv', "
+            "'fact', 'verified')"
+        )
+
+    class _Index:
+        size = 4
+
+        def search(self, vector, k):
+            return [(1, 0.99), (2, 0.98), (3, 0.97), (4, 0.50)][:k]
+
+    class _Embedder:
+        def encode(self, text):
+            return [[0.0, 1.0]]
+
+    common = dict(top_k=3, db_path=db, index=_Index(), embedder=_Embedder())
+    mixed = hybrid_search("release build", **common)
+    assert {r.verification_status for r in mixed} == {"unverified"}, (
+        "the starvation this guards against did not reproduce -- the test proves nothing"
+    )
+    verified = hybrid_search(
+        "release build", verification_statuses=("verified",), **common
+    )
+    assert [r.text for r in verified] == ["the release build is cut from main"]
+
+
+def test_recall_asks_retrieval_for_verified_rows_only(monkeypatch) -> None:
+    monkeypatch.setattr(config, "CRAG", False)
+    calls: list[dict] = []
+
+    def _spy(query, top_k=3, **kwargs):
+        calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", _spy)
+    _recall_memory("query")
+    assert calls[0] == {"verification_statuses": ("verified",)}, (
+        "the prompt-bound retrieval must filter by status inside retrieval"
+    )
+
+
+def test_the_announcement_is_bound_to_its_query(monkeypatch) -> None:
+    import hashlib
+
+    import aios.api.deps as deps
+    from aios.api import turn_pipeline
+
+    appended: list = []
+
+    class _Bus:
+        def append(self, event):
+            appended.append(event)
+
+    monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: _Bus())
+    turn_pipeline._announce_recall_withheld(0, 1, query="how do I release?")
+    [event] = appended
+    assert (
+        event.payload["query_sha256"]
+        == hashlib.sha256(b"how do I release?").hexdigest()
+    )
+    assert "how do I release?" not in str(event.payload), "a digest, never the text"
 
 
 def test_the_withholding_announcement_names_its_control(monkeypatch) -> None:
@@ -1969,7 +2053,7 @@ def test_recall_memory_crag_incorrect_verdict_drops_local_retrieval(
         action = CragAction.INCORRECT
 
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [Hit()]
+        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: [Hit()]
     )
     monkeypatch.setattr(
         "aios.api.turn_pipeline.evaluate_retrieval", lambda *a, **k: Verdict()
@@ -1990,7 +2074,7 @@ def test_recall_memory_crag_evaluation_exception_falls_back_to_unrefined(
         raise RuntimeError("crag evaluator down")
 
     monkeypatch.setattr(
-        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3: [Hit()]
+        "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: [Hit()]
     )
     monkeypatch.setattr("aios.api.turn_pipeline.evaluate_retrieval", boom_evaluate)
     result = _recall_memory("query")

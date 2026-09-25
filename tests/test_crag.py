@@ -189,7 +189,7 @@ def _patch_recall(monkeypatch, hits, *, crag: bool):
     from aios import config
     from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
     monkeypatch.setattr(config, "CRAG", crag)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
@@ -282,7 +282,7 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
     from aios import config
     from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
@@ -353,7 +353,7 @@ def test_an_unverified_hit_never_reaches_crag_or_the_prompt(monkeypatch) -> None
     monkeypatch.setattr(
         turn_pipeline,
         "_announce_recall_withheld",
-        lambda recalled, withheld: announced.append((recalled, withheld)),
+        lambda recalled, withheld, **_: announced.append((recalled, withheld)),
     )
     assert main._recall_memory("alpha topic") is None
     assert announced == [(0, 1)]
@@ -405,7 +405,7 @@ def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
     from aios.api import main, turn_pipeline
 
     hits = [_Hit("strongly worded but actually off-topic note here", faiss=0.95)]
-    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
     monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("0.0"))
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
