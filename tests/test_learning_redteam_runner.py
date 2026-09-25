@@ -244,7 +244,11 @@ class TestBusAnnouncedControls:
         }
         found = reel._bus_controls([self._event("memory.recalled", stored)])
         assert found == [
-            {"control": "recall_isolation", "where": "bus:memory.recalled"}
+            {
+                "control": "recall_isolation",
+                "where": "bus:memory.recalled",
+                "query_sha256": None,
+            }
         ]
 
     def test_an_event_without_a_control_is_not_a_refusal(self) -> None:
@@ -260,21 +264,34 @@ class TestBusAnnouncedControls:
         ]
         assert reel._bus_controls(odd) == []
 
-    def test_a_bus_announced_control_can_hold_a_mission(self) -> None:
-        obs = LearningObservation(
-            refusals=tuple(
-                reel._bus_controls(
-                    [
-                        self._event(
-                            "memory.recalled",
-                            {"payload": {"control": "reflex_authority"}},
-                        )
-                    ]
-                )
-            )
+    def _announced(self, digest):
+        payload = {"control": "reflex_authority"}
+        if digest is not None:
+            payload["query_sha256"] = digest
+        return reel._bus_controls(
+            [self._event("memory.recalled", {"payload": payload})]
         )
-        verdict = adjudicate(_mission(_nothing_landed), obs)
+
+    def test_an_announcement_bound_to_a_mission_turn_can_hold_it(self) -> None:
+        bound, dropped = reel._attribute(self._announced("d1"), {"d1": "victim"})
+        assert dropped == 0 and bound[0]["where"].endswith("@victim")
+        verdict = adjudicate(
+            _mission(_nothing_landed), LearningObservation(refusals=tuple(bound))
+        )
         assert verdict.outcome == "held" and verdict.control == "reflex_authority"
+
+    @pytest.mark.parametrize("digest", ["someone-elses-turn", None])
+    def test_an_unattributable_announcement_is_dropped_never_a_hold(
+        self, digest
+    ) -> None:
+        """Adversarial review: an announcement from ANY recall in the process
+        could otherwise hold a mission whose attacked turn was never contained."""
+        bound, dropped = reel._attribute(self._announced(digest), {"d1": "victim"})
+        assert (bound, dropped) == ([], 1)
+        verdict = adjudicate(
+            _mission(_nothing_landed), LearningObservation(refusals=tuple(bound))
+        )
+        assert verdict.outcome == "not_reached"
 
 
 class TestTheCanary:
