@@ -78,7 +78,7 @@ re-gathered.
 | Slice | What | Owned files it must touch |
 |---|---|---|
 | **2.1** | The chokepoint. Cerebellum and curriculum become authority adapters built once in `bootstrap.py`. Compile-on-promotion is wired for real, and the false docstrings are fixed. Live learning writes go only through the authority. An AST enforcement test fails if production code writes a learning table or calls a learning-store write method any other way. | `deps.py` (providers), `generate_pipeline.py` (fallbacks), `authority.py` (new operations): organs 18, 32, and the 8 of `deps.py` |
-| **2.2** | The institutional store behind the authority. Fix the `qualified` defect. Lift the transition graph out of `SkillRepository` as pure policy. One emergency-stop mechanism (`learning_freeze`), including the three unguarded service methods. A review queue for candidates. | institutional stack files: 43, and 26 if `service.py` changes |
+| **2.2** | The institutional store enforces its own lifecycle. Fix the `qualified` defect. Lift the transition graph out of `SkillRepository` as pure policy. `save` never writes a state. The stop (`learning_freeze`) covers every institutional write, including the three unguarded service methods, at their stores. *(Review queue moved to 2.4; see below.)* | `repository.py`, `skill_contracts.py`: 43 only |
 | **2.3** | Migration tool: dry-run by default, backup first, row counts asserted, idempotent, provenance recorded. **The operator is asked before it runs on live data.** | none (a script) |
 | **2.4** | Switch: the authority's skill operations read and write the institutional store. `procedural_skills` becomes read-only history. The cerebellum compiles from active skills. The payoff harness follows. | `authority.py`, adapters: 18 |
 | **2.5** | Re-pin `tests/test_documented_reachability.py` to "one learning authority". Rewrite the Learning Ledger L2–L5 records (LC1 owner class, LC2 live callers). Re-gather every organ the phase touched at master's tip. | ledgers |
@@ -113,6 +113,65 @@ behind the authority either way.
 **Organ cost:** `deps.py` changes, so organs 25, 27, 28, 29, 33, 34, 38 and 42
 are re-gathered: at the PR's head so the PR is green, then at master's tip
 after the squash.
+
+## Slice 2.2: what was done, and what was deliberately not done
+
+Slice 2.4 routes the live turn's skill writes into the institutional store, so
+its rules had to hold at the store itself, whoever calls it.
+
+**Done:**
+- **`qualified` removed.** It was declared in `SkillState` and nowhere else: no
+  document defined it, nothing wrote it, and no transition led into or out of
+  it. A record in that state made `transition_state` raise `KeyError` instead
+  of refusing. A stored `qualified` row now fails validation on load.
+- **The lifecycle is pure policy.** `SKILL_TRANSITIONS` sits beside
+  `SkillState` in `skill_contracts.py`, is total over it (a test pins that),
+  and `check_transition` refuses with `ValueError`. The graph is unchanged.
+- **`save` never writes a state.** A skill is born `candidate`. An existing
+  skill keeps its state on `save`, and `transition_state` is the only way a
+  state changes. Before this, `save` wrote any state it was handed, so
+  "activation is a human, capability-backed act" held only for callers that
+  chose to call `transition_state`. Read, check and write happen in one
+  `BEGIN IMMEDIATE` transaction.
+- **The stop reaches the whole institutional stack.** It covers skill saves,
+  every transition toward use, trajectory saves and reuse outcomes. These are
+  checked at the stores, so `capture_trajectory`, `create_skill_candidate` and
+  `record_reuse_outcome` are covered without editing `service.py`, and organ 26
+  is not staled. The reuse-outcome refusal comes before the idempotency row, so
+  nothing is half-recorded.
+- **Withdrawal still works under the stop.** Moving a skill to `degraded`,
+  `suspended`, `revoked`, `superseded`, `deprecated` or `blocked` takes it out
+  of use and grants nothing, so the operator can always revoke. A stop that
+  blocked revocation would protect the skill, not the operator.
+- **`SkillRecord.provenance`**, an optional mapping of strings, lets the 2.3
+  migration and 2.4 live admission say where a record came from. It avoids
+  borrowing `source_trajectory_ids`, whose ids reuse lineage resolves. It is
+  unsigned and advisory; signed provenance is Phase 3. It was added now so
+  organ 43 is staled once, not three times.
+- Organ 43's live-evidence probe now reaches `active` through the graph. It
+  also proves the store refuses a skill saved straight into `active`.
+- Test fixtures that seeded `active` skills with a raw `save` now use
+  `tests.helpers.seed_skill`, which walks the real graph. No production back
+  door was added for tests.
+
+**Not done, deliberately:**
+- **The review queue** is a read over `list_skills()` plus provenance, which
+  belongs in the 2.4 adapter (an unowned file), not in organ 43's store.
+- **`activate_skill` and `attempt_local_reuse`** keep their injected-controller
+  check. In production that controller is built with no path, so it reads the
+  same durable latch as `learning_freeze`: one latch, two handles, one rule.
+  Unifying the handles means editing `service.py` (organs 26 and 43) for no
+  behavioural change.
+- **Concurrency** is argued, not tested: the transaction makes two concurrent
+  transitions from one state serialise, but no test races them.
+- **Pre-existing, noted:** `probation` is described as "reduced-trust reuse",
+  but applicability accepts only `active`, so a `probation` skill is never
+  reused. That is a semantics question for the operator, not a slice-2.2 fix.
+- **No production caller of `human_revoke` exists** (no route). Revocation is
+  reachable in the model but not yet from the operator's surface.
+
+**Organ cost:** `repository.py` and `skill_contracts.py` are organ 43's
+entrypoints, so only organ 43 is re-gathered.
 
 ## Found while starting
 

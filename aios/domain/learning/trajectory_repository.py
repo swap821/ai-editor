@@ -12,6 +12,7 @@ from typing import Iterator
 from pydantic import ConfigDict
 
 from aios.domain.learning.contracts import ExpertTrajectory
+from aios.memory.learning_freeze import assert_learning_permitted
 
 
 def _utc_now() -> str:
@@ -44,6 +45,9 @@ class TrajectoryRepository:
             )
 
     def save(self, trajectory: TrajectoryRecord) -> None:
+        # A trajectory is the raw material a skill is made from, so the stop
+        # freezes it like every other learning write (plan Phase 2).
+        assert_learning_permitted("expert_trajectories.save")
         payload = json.dumps(trajectory.model_dump(mode="json"), sort_keys=True)
         with self._connection() as connection:
             connection.execute(

@@ -47,6 +47,7 @@ from tests.helpers import (
     executor_repair_result,
     reuse_outcome_reference,
     save_minimal_trajectory,
+    seed_skill,
 )
 from tests.test_maintenance_convergence import (
     _WorkerFoundry as _MaintenanceWorker,
@@ -726,7 +727,7 @@ def _learning_reuse_fixture(tmp_path, *, reuse_db=None):
         updated_at="2026-07-20T00:00:00Z",
     )
     if skill_repo.get(skill.skill_id, skill.version) is None:
-        skill_repo.save(skill)
+        seed_skill(skill_repo, skill)
     save_minimal_trajectory(trajectory_repo, "trajectory-final")
     try:
         mission = mission_repo.get("reuse-final")
