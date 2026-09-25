@@ -40,7 +40,11 @@ from aios.agents.tool_agent import (
     _validated_from_structured_payload,
 )
 from aios.core.autonomy import AutonomyLedger
-from aios.core.cerebellum import REFLEX_AUTHORITY_WITHHELD, CompiledPlaybook, PlaybookStep
+from aios.core.cerebellum import (
+    REFLEX_AUTHORITY_WITHHELD,
+    CompiledPlaybook,
+    PlaybookStep,
+)
 from aios.core.executor import Executor
 from aios.core.llm import LLMError
 from aios.core.planner import Planner
@@ -555,7 +559,9 @@ class TestCerebellumApprovedReplay:
 
         assert captured, "dispatch_fn must have been called"
         output, status, failed = captured[0]
-        assert status == "approval", f"a YELLOW replay step must be withheld ({status!r})"
+        assert status == "approval", (
+            f"a YELLOW replay step must be withheld ({status!r})"
+        )
         assert output.startswith(REFLEX_AUTHORITY_WITHHELD), output
         assert runner_calls == [], "a withheld command must never reach the runner"
         assert "cerebellum_done" not in [e["type"] for e in events]
@@ -624,7 +630,9 @@ class TestCerebellumApprovedReplay:
             goal_pattern="say hello",
             signature_v2="sig-green-exec",
             compiled_at="",
-            steps=[PlaybookStep(tool_name="execute_terminal", args={"command": "echo hi"})],
+            steps=[
+                PlaybookStep(tool_name="execute_terminal", args={"command": "echo hi"})
+            ],
             replay_count=0,
             consecutive_failures=0,
             status="compiled",
@@ -677,7 +685,9 @@ class TestCerebellumApprovedReplay:
 
         assert captured
         output, status, failed = captured[0]
-        assert status == "approval", f"a YELLOW verify replay must be withheld ({status!r})"
+        assert status == "approval", (
+            f"a YELLOW verify replay must be withheld ({status!r})"
+        )
         assert output.startswith(REFLEX_AUTHORITY_WITHHELD), output
         assert runner_calls == []
         assert "cerebellum_done" not in [e["type"] for e in events]

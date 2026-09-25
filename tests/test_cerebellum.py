@@ -667,11 +667,15 @@ def test_replay_aborts_on_approval_required_step(db_path: Path) -> None:
     assert events[-1]["reason"] == "approval"
 
 
-def test_an_ordinary_approval_abort_still_counts_against_the_playbook(db_path: Path) -> None:
+def test_an_ordinary_approval_abort_still_counts_against_the_playbook(
+    db_path: Path,
+) -> None:
     cerebellum, pb = _compile_two_step_playbook(db_path)
 
     events = list(
-        cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([("needs approval", "approval", False)]))
+        cerebellum.replay(
+            pb, dispatch_fn=_scripted_dispatch([("needs approval", "approval", False)])
+        )
     )
 
     assert "control" not in events[-1], "only the reflex authority names itself"
@@ -683,7 +687,11 @@ def test_a_step_withheld_by_the_reflex_authority_names_it(db_path: Path) -> None
     from aios.core.cerebellum import REFLEX_AUTHORITY_CONTROL, REFLEX_AUTHORITY_WITHHELD
 
     cerebellum, pb = _compile_two_step_playbook(db_path)
-    withheld = (f"{REFLEX_AUTHORITY_WITHHELD} no human approved this", "approval", False)
+    withheld = (
+        f"{REFLEX_AUTHORITY_WITHHELD} no human approved this",
+        "approval",
+        False,
+    )
 
     events = list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([withheld])))
 
@@ -698,7 +706,11 @@ def test_a_withheld_step_never_decompiles_the_reflex(db_path: Path) -> None:
     from aios.core.cerebellum import REFLEX_AUTHORITY_WITHHELD
 
     cerebellum, pb = _compile_two_step_playbook(db_path)
-    withheld = (f"{REFLEX_AUTHORITY_WITHHELD} no human approved this", "approval", False)
+    withheld = (
+        f"{REFLEX_AUTHORITY_WITHHELD} no human approved this",
+        "approval",
+        False,
+    )
     for _ in range(cerebellum.max_consecutive_failures + 1):
         list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([withheld])))
 
