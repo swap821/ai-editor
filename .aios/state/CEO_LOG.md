@@ -928,3 +928,10 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Structural check:** XML parser passed; board frame aspect ratios match the 1440×900 and 390×844 CSS-pixel references; diff whitespace check passed.
 - **Honest limit:** local browser rendering was blocked by URL policy, so no visual screenshot or layout review is claimed. Operator review of this specific board is still open. B adds 0 points; accepted completion remains **3/100**.
 - **Next:** inspect C's existing request→work→receipt path read-only; identify a concrete integration gap, then present a small test-first design before changing code. Renderer anatomy/materials stay gated on operator approval.
+
+## 2026-09-25 — CEO checkpoint (LB-04 C: repeated-approval identity finding)
+
+- **Read-only finding:** GagosChrome appears to clear the only pending work-tab ID before returning when an authorized replay raises another server approval; the replay path inspected does not appear to restore it. Existing tests do not cover final output identity after repeated approvals. This is a hypothesis, not a reproduced defect.
+- **Proposed bounded change:** preserve that tab ID across the renewed-approval pause, and add a component regression for two approval decisions, final code on the original tab, and an unverified receipt association. Candidate scope: GagosChrome.jsx and GagosChrome.approval.test.tsx.
+- **Gate:** no product test or source change until the operator approves this specific short design. No backend authority or renderer/canon change is proposed. B board review and device/human acceptance remain open; accepted score stays **3/100**.
+- **Next:** wait for explicit approval or revision of the C design; if approved, follow test-first implementation and verify only the bounded surface before broader checks.

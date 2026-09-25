@@ -215,3 +215,11 @@ Drafted a 3×2 static board for resting, active work, and awaiting permission, p
 Structural evidence: the SVG parsed as XML; all three desktop views use **832×520** (1.6 ratio, scaled 1440×900 target), and all three mobile views use **238×516** (0.461 ratio, scaled 390×844 target). `git diff --check` passed. A browser attempt to preview the local file was blocked by URL policy; it was not retried through another viewer. This is not rendered visual evidence.
 
 No product code, tests, palette, texture, or renderer changed. The operator has not reviewed/approved the specific board; approval remains required before anatomy/material work. B adds **0** acceptance points, overall accepted completion remains **3/100**. C may continue only in the semantic/integration boundary.
+
+## LB-04 C — repeated-approval work identity inspection (2026-09-25)
+
+Read-only inspection found a likely identity-loss path in the existing supervised write journey. GagosChrome reads and clears the pending writing-tab ID before it returns for a newly issued approval; the replay is started through streamTurn rather than submit, and the inspected path does not appear to restore that ID. Thus a second real approval may remain visible while a later final result no longer has the original tab pointer. Existing approval coverage checks that the renewed prompt remains visible, while ordinary writing coverage checks same-slab output separately; neither currently proves stable output identity across repeated approvals.
+
+This is a source-level hypothesis only: no regression was added or run, and no fix is implemented. Proposed bounded change, pending operator approval: preserve the work-tab ID only when an authorized replay pauses at another pending server approval; otherwise retain current cleanup behavior. Add one component regression that materializes partial output, passes through two real approval decisions, then proves final code and its still-unverified receipt target the original tab. Candidate scope is GagosChrome.jsx and GagosChrome.approval.test.tsx only; no backend authority, renderer, palette, texture, or visual canon changes.
+
+This inspection adds **0 acceptance points**; total accepted completion remains **3/100**. The fix design has not been approved. Keep the B board's visual approval and desktop/mobile runtime acceptance open.
