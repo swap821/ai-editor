@@ -98,13 +98,17 @@ def _writes(db: Path):
     """Every learning write this containment covers, as (name, table, call)."""
     skills = SkillMemory(db_path=db)
     lessons = MistakeMemory(db_path=db)
-    semantic = SemanticMemory(db, index=_Index(db.with_suffix(".faiss")), embedder=_Embedder())
+    semantic = SemanticMemory(
+        db, index=_Index(db.with_suffix(".faiss")), embedder=_Embedder()
+    )
     return [
         (
             "skills.record_attempt",
             "procedural_skills",
             lambda: skills.record_attempt(
-                "run the pin tests", ["verify: command=pytest x -q"], success=True,
+                "run the pin tests",
+                ["verify: command=pytest x -q"],
+                success=True,
                 strength=VerificationStrength.STRONG,
             ),
         ),
@@ -116,7 +120,9 @@ def _writes(db: Path):
         (
             "lessons.record_or_increment",
             "mistake_pool",
-            lambda: lessons.record_or_increment("t2", "e2", "c", "f", "another lesson", -0.1),
+            lambda: lessons.record_or_increment(
+                "t2", "e2", "c", "f", "another lesson", -0.1
+            ),
         ),
         ("semantic.add", "semantic_memory", lambda: semantic.add("a note")),
     ]
@@ -164,7 +170,9 @@ class TestLearningWritesAreRefusedWhileTheStopIsEngaged:
         skills = SkillMemory(db_path=db)
         for _ in range(3):
             skills.record_attempt(
-                "run the pin tests", ["verify: command=pytest x -q"], success=True,
+                "run the pin tests",
+                ["verify: command=pytest x -q"],
+                success=True,
                 strength=VerificationStrength.STRONG,
             )
         cerebellum = Cerebellum(db)
