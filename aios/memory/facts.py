@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
@@ -98,6 +99,7 @@ class SemanticFacts:
           returns the existing id.
         - Otherwise -> inserted.
         """
+        assert_learning_permitted("facts.add_fact")
         subject = scan_and_redact(subject.strip()).scrubbed
         predicate = scan_and_redact(predicate.strip()).scrubbed
         obj = scan_and_redact(obj.strip()).scrubbed
@@ -161,6 +163,7 @@ class SemanticFacts:
     ) -> FactWriteResult:
         """Resolve a contradiction: supersede every active fact on this
         subject+predicate and commit *new_obj* as the active fact."""
+        assert_learning_permitted("facts.reconcile")
         subject = scan_and_redact(subject.strip()).scrubbed
         predicate = scan_and_redact(predicate.strip()).scrubbed
         new_obj = scan_and_redact(new_obj.strip()).scrubbed
@@ -415,6 +418,7 @@ class SemanticFacts:
         Idempotent: an identical active fact ('already known') or identical
         pending proposal ('already proposed') creates no new row.
         """
+        assert_learning_permitted("facts.propose")
         subject = scan_and_redact(subject.strip()).scrubbed
         predicate = scan_and_redact(predicate.strip()).scrubbed
         obj = scan_and_redact(obj.strip()).scrubbed
@@ -464,6 +468,7 @@ class SemanticFacts:
         pending for an explicit human ``reconcile``. Idempotent under retries:
         if the fact already landed, the proposal is still marked approved.
         """
+        assert_learning_permitted("facts.approve_proposal")
         approver = (approved_by or "").strip()
         if not approver:
             return FactWriteResult(False, None, "approver required")
@@ -491,6 +496,7 @@ class SemanticFacts:
 
     def reject_proposal(self, proposal_id: int, *, rejected_by: str) -> bool:
         """Resolve a pending proposal as rejected; ``False`` if not pending."""
+        assert_learning_permitted("facts.reject_proposal")
         resolver = (rejected_by or "").strip()
         if not resolver:
             return False
@@ -513,6 +519,7 @@ class SemanticFacts:
         - Already pending: no-op, return 'already proposed'.
         - Novel: insert a new proposal for human review.
         """
+        assert_learning_permitted("facts.strengthen_or_propose")
         subject_clean = scan_and_redact(subject.strip()).scrubbed
         predicate_clean = scan_and_redact(predicate.strip()).scrubbed
         obj_clean = scan_and_redact(obj.strip()).scrubbed
