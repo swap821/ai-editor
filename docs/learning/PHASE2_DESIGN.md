@@ -79,7 +79,7 @@ re-gathered.
 |---|---|---|
 | **2.1** | The chokepoint. Cerebellum and curriculum become authority adapters built once in `bootstrap.py`. Compile-on-promotion is wired for real, and the false docstrings are fixed. Live learning writes go only through the authority. An AST enforcement test fails if production code writes a learning table or calls a learning-store write method any other way. | `deps.py` (providers), `generate_pipeline.py` (fallbacks), `authority.py` (new operations): organs 18, 32, and the 8 of `deps.py` |
 | **2.2** | The institutional store enforces its own lifecycle. Fix the `qualified` defect. Lift the transition graph out of `SkillRepository` as pure policy. `save` never writes a state. The stop (`learning_freeze`) covers every institutional write, including the three unguarded service methods, at their stores. *(Review queue moved to 2.4; see below.)* | `repository.py`, `skill_contracts.py`: 43 only |
-| **2.3** | Migration tool: dry-run by default, backup first, row counts asserted, idempotent, provenance recorded. **The operator is asked before it runs on live data.** | none (a script) |
+| **2.3** | Migration tool: dry-run by default, backup first, row counts asserted, idempotent, provenance recorded. **The operator is asked before it runs on live data.** *(Built and dry-run; see below.)* | none (a script) |
 | **2.4** | Switch: the authority's skill operations read and write the institutional store. `procedural_skills` becomes read-only history. The cerebellum compiles from active skills. The payoff harness follows. | `authority.py`, adapters: 18 |
 | **2.5** | Re-pin `tests/test_documented_reachability.py` to "one learning authority". Rewrite the Learning Ledger L2–L5 records (LC1 owner class, LC2 live callers). Re-gather every organ the phase touched at master's tip. | ledgers |
 
@@ -172,6 +172,47 @@ its rules had to hold at the store itself, whoever calls it.
 
 **Organ cost:** `repository.py` and `skill_contracts.py` are organ 43's
 entrypoints, so only organ 43 is re-gathered.
+
+## Slice 2.3: the migration tool
+
+`tools/migrate_skills_to_institutional.py` is built and tested. It has **not
+been applied to live data**; that waits for the operator.
+
+**Found in the live data (read-only, 2026-09-26):** `signature_v2` is not
+unique. Six pairs share one: a superseded arc and the arc that replaced it.
+That is what the library's `version` means, so each pair becomes one skill
+with two versions, in legacy-id order.
+
+**Mapping:**
+
+| Legacy | Institutional |
+|---|---|
+| identity | `skill_id = arc-<signature_v2>`, version by legacy-id order within the signature. This is the identity the live path computes, so slice 2.4 can find a migrated skill from a turn. |
+| `candidate` (65) | `candidate` |
+| `verified` (8) | `candidate`, `provenance.review_ready = "true"`. **Not active:** activation needs the operator's capability proof. |
+| `superseded` (7) | born `candidate`, then `candidate -> deprecated` |
+| `steps_json` | `procedure`, verbatim, so a playbook can be recompiled byte for byte |
+| step tools | `allowed_tools` |
+| — | `allowed_scope_pattern = ""`, no source trajectory, no structured verifier. A migrated skill can never pass mission-reuse applicability, even when active. It fails closed. |
+| success / failure | carried. `confidence` is the success ratio capped at 0.8, the prior a trajectory-born candidate gets. |
+| everything else | `provenance`: legacy id, status, verification strength, reuse counts, `signature_v2`, migration id, timestamp |
+
+**Safety:** dry run by default. The source is opened read-only. The whole plan
+is checked before any write, and a `(skill_id, version)` held by anything this
+migration did not write aborts the run with nothing written. The target is
+backed up (SQLite online backup) before the first write. A re-run writes
+nothing. An interrupted run is finished by the next one. A skill the operator
+has moved on since (say, activated) is left alone. Every write goes through
+`SkillRepository`, so the lifecycle and the stop apply. Counts are asserted
+afterwards.
+
+**Dry run on live data:** 80 rows become 74 skills: 73 `candidate` and 7
+`deprecated`. Legacy ids 41, 49, 53, 66, 68, 70, 75 and 79 are review-ready,
+and 6 skills have two versions. Nothing to finish, no conflicts, and both
+databases are byte-identical before and after.
+
+**Tests:** `tests/test_phase2_skill_migration.py` has 15 tests. A mutation
+check killed 12 of 12 reverted safety properties.
 
 ## Found while starting
 
