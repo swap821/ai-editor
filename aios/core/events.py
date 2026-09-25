@@ -257,6 +257,12 @@ class CanonicalEventType(str, Enum):
     # `governance.` is outside _AUTHORITY_EVENT_PREFIXES: this records that the
     # latch was engaged, it does not carry the authority to engage it.
     GOVERNANCE_EMERGENCY_STOP_ENGAGED = "governance.emergency_stop.engaged"
+    # And the RESTORATION, which was missing. Recording only the engagement
+    # answers half of the question above: the timeline said authority was
+    # revoked and never said it came back, so "for how long was GAGOS halted?"
+    # could not be answered by ordering the record either. A halt with no
+    # recorded end is not a timeline, it is a cliff.
+    GOVERNANCE_EMERGENCY_STOP_CLEARED = "governance.emergency_stop.cleared"
     # What the cerebellum DID with a compiled playbook: replayed it, or declined
     # to. Organ 55's M5 turns on exactly that distinction -- a skill that
     # abstains on a materially different task versus one that replays blindly --

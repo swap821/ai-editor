@@ -15,6 +15,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
+from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.core.verification_strength import (
     VerificationStrength,
@@ -83,6 +84,7 @@ class MistakeMemory:
         *reduce* confidence, never inflate it — an unverified lesson must never
         make the Planner more sure of itself.
         """
+        assert_learning_permitted("lessons.record")
         clamped_delta = max(-1.0, min(0.0, float(confidence_delta)))
         task_id = scan_and_redact(task_id).scrubbed
         error_type = scan_and_redact(error_type).scrubbed
@@ -235,6 +237,7 @@ class MistakeMemory:
         byte-match against the live command still holds; a secret-bearing command
         simply won't confirm across a boundary (safe — no false promotion).
         """
+        assert_learning_permitted("lessons.record_or_increment")
         clamped_delta = max(-1.0, min(0.0, float(confidence_delta)))
         task_id = scan_and_redact(task_id).scrubbed
         error_type = scan_and_redact(error_type).scrubbed
@@ -282,6 +285,7 @@ class MistakeMemory:
 
     def increment_occurrence(self, mistake_id: int) -> None:
         """Bump the occurrence counter for a repeated mistake."""
+        assert_learning_permitted("lessons.increment_occurrence")
         with get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE mistake_pool SET occurrence_count = occurrence_count + 1 "
@@ -328,6 +332,7 @@ class MistakeMemory:
         checker evidence, so under the authority floor it could never be
         confirmed at all. WEAK still cannot promote anything.
         """
+        assert_learning_permitted("lessons.promote")
         if not meets_learning_floor(strength):
             return
         with get_connection(self.db_path) as conn:

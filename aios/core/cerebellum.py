@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
+from aios.memory.learning_freeze import assert_learning_permitted, learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.learning_journal import record as journal
@@ -69,6 +70,15 @@ _COMPILABLE_TOOLS = frozenset(
 #: replayed step to the filesystem. A future stage that wants real writes has to
 #: delete this set, which is a visible change rather than a silent one.
 _CONFIRM_ONLY_TOOLS = frozenset({"create_file", "edit_file"})
+
+#: The control that withholds pre-approval from a replayed command no human
+#: approved (`ToolAgent._dispatch_approved`). Named on the abort event so a
+#: withheld step is distinguishable from a blocked or failed one -- by the UI,
+#: and by the learning red-team reel, which scores a hold only when the control
+#: it tests is the one that refused.
+REFLEX_AUTHORITY_CONTROL = "reflex_authority"
+#: Prefix the dispatcher puts on a withheld step's output.
+REFLEX_AUTHORITY_WITHHELD = "[REFLEX AUTHORITY]"
 
 #: A recorded content digest: `_workflow_step` writes fixed-width lowercase hex.
 _CONTENT_DIGEST = re.compile(r",\s*content_sha256=([0-9a-f]{64})\s*$")
@@ -406,6 +416,7 @@ class Cerebellum:
 
         Returns the number of newly compiled playbooks.
         """
+        assert_learning_permitted("cerebellum.compile")
         init_memory_db(self.db_path)
         compiled = 0
         with get_connection(self.db_path) as conn:
@@ -468,6 +479,7 @@ class Cerebellum:
     def try_compile_skill(self, skill_id: int) -> Optional[CompiledPlaybook]:
         """Attempt to compile a single skill by id.  Returns the playbook
         if compilation succeeds, else ``None``."""
+        assert_learning_permitted("cerebellum.compile")
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             row = conn.execute(
@@ -745,13 +757,27 @@ class Cerebellum:
             output, status, failed = dispatch_fn(step.tool_name, step.args)
 
             if status in ("blocked", "approval"):
-                self._record_replay_failure(playbook.id)
-                yield {
+                withheld = status == "approval" and str(output or "").startswith(
+                    REFLEX_AUTHORITY_WITHHELD
+                )
+                # A step withheld for want of a human approval says nothing
+                # about the playbook. Counting it as a failure would decompile
+                # every reflex with a YELLOW step the second time it matched,
+                # destroying exactly the reflexes approval provenance is meant
+                # to re-authorise.
+                if not withheld:
+                    self._record_replay_failure(playbook.id)
+                abort: dict[str, Any] = {
                     "type": "cerebellum_abort",
                     "step_index": i,
                     "reason": status,
                     "tool": step.tool_name,
                 }
+                if withheld:
+                    abort["control"] = REFLEX_AUTHORITY_CONTROL
+                    abort["command"] = str(step.args.get("command", ""))
+                    abort["output"] = str(output)[:200]
+                yield abort
                 return
 
             if failed:
@@ -982,6 +1008,14 @@ class Cerebellum:
         is bad, only that it does not fit the current state, so it is retired
         rather than accumulated against.
         """
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.decompile skipped"
+            )
+            return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
@@ -1011,6 +1045,14 @@ class Cerebellum:
     # ------------------------------------------------------------------
 
     def _record_replay_success(self, playbook_id: int) -> None:
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.record_replay_success skipped"
+            )
+            return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
@@ -1028,6 +1070,14 @@ class Cerebellum:
             pb.consecutive_failures = 0
 
     def _record_replay_failure(self, playbook_id: int) -> None:
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.record_replay_failure skipped"
+            )
+            return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
@@ -1080,6 +1130,14 @@ class Cerebellum:
         Called when the source skill is demoted from 'verified' back to
         'candidate'. Returns True if a playbook was decompiled.
         """
+        if not learning_permitted():
+            # The stop freezes learned state: a replay the stop refused is not
+            # evidence about the playbook, and nothing about it moves until
+            # the operator clears the latch.
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.invalidate_for_skill skipped"
+            )
+            return False
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             cur = conn.execute(

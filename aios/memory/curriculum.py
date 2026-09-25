@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.core.verification_strength import (
     VerificationStrength,
@@ -49,6 +50,7 @@ class CurriculumManager:
         self, skill_name: str, level: int, prompt: str, *, held_out: bool = False
     ) -> int:
         """Add a curriculum task; higher levels stay locked until prior mastery."""
+        assert_learning_permitted("curriculum.add_task")
         skill_name = scan_and_redact(skill_name.strip()).scrubbed
         prompt = scan_and_redact(prompt.strip()).scrubbed
         if not skill_name or not prompt or level < 1:
@@ -110,6 +112,7 @@ class CurriculumManager:
         later advisory verify embedding a stronger token in *evidence*. When omitted
         (direct callers/tests) the strength is derived from *evidence*.
         """
+        assert_learning_permitted("curriculum.record_matching")
         if not evidence.startswith("[VERIFY PASS]") and not evidence.startswith(
             "[VERIFY FAIL]"
         ):

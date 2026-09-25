@@ -352,6 +352,93 @@ def _crag_llm_judge(
     return max(0.0, min(1.0, float(match.group(0))))
 
 
+#: The control that withholds unverified memory from every prompt. Named on the
+#: announcement so the withholding is attributable -- by an observer, and by
+#: the learning red-team reel, which scores a hold only when the control it
+#: tests is the one that acted.
+RECALL_ISOLATION_CONTROL = "recall_isolation"
+
+
+def _verified_retrieval(query: str, top_k: int = 3) -> list[Any]:
+    """The only semantic retrieval whose results may reach a prompt."""
+    return hybrid_search(query, top_k=top_k, verification_statuses=("verified",))
+
+
+def _unverified_probe(query: str, top_k: int = 3) -> list[Any]:
+    """Relevant unverified rows -- counted for the announcement, never recalled."""
+    return hybrid_search(query, top_k=top_k, verification_statuses=("unverified",))
+
+
+def _unverified_matches(query: str, top_k: int, memory_authority: Any) -> set[str]:
+    """Texts of the unverified rows this query would have recalled. Best-effort:
+    the count is observation, and must never make recall itself fail."""
+    try:
+        probe = memory_authority.recall(
+            query,
+            MemoryRecallContext(
+                memory_types=("semantic",), limit=top_k, include_unverified=True
+            ),
+            retrieval_fn=_unverified_probe,
+        )
+    except Exception:  # noqa: BLE001 - observation only
+        logger.warning(
+            "Unverified-recall probe failed; count may be low", exc_info=True
+        )
+        return set()
+    return {
+        str(getattr(hit, "text", ""))
+        for hit in probe
+        if getattr(hit, "verification_status", "unverified") != "verified"
+    }
+
+
+def _announce_recall_withheld(recalled: int, withheld: int, *, query: str = "") -> None:
+    """Record that recall withheld unverified memory. Best-effort, never fatal.
+
+    Reuses `memory.recalled` -- a recall DID happen -- rather than minting new
+    vocabulary. The bus is optional (``AIOS_CORTEX_BUS``); without it the
+    withholding still happens, it is just not observable.
+
+    ``query_sha256`` binds the announcement to the turn whose recall it was:
+    `_recall_memory` has no session or turn id to carry (its caller is organ
+    31's file), and without a binding an observer could only tell that SOME
+    recall in the process withheld something (adversarial review, 2026-09-25).
+    It is a digest, not the text.
+    """
+    try:
+        from aios.api.deps import get_cortex_observation_bus
+        from aios.core.events import (
+            CanonicalEvent,
+            CanonicalEventType,
+            EventPhase,
+            TrustLevel,
+        )
+
+        bus = get_cortex_observation_bus()
+        if bus is None:
+            return
+        bus.append(
+            CanonicalEvent(
+                event_type=CanonicalEventType.MEMORY_RECALLED.value,
+                phase=EventPhase.WONDER.value,
+                status="success",
+                trust=TrustLevel.UNKNOWN.value,
+                source="aios.api.turn_pipeline",
+                session_id="recall",
+                payload={
+                    "channel": "semantic",
+                    "hits": recalled,
+                    "withheld": withheld,
+                    "query_sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
+                    "control": RECALL_ISOLATION_CONTROL,
+                    "reason": "unverified memory is never recalled into a prompt",
+                },
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - an observation must never alter recall
+        logger.warning("Failed to announce withheld recall", exc_info=exc)
+
+
 def _recall_memory(
     query: str,
     top_k: int = 3,
@@ -374,6 +461,18 @@ def _recall_memory(
     Trust labels are preserved (CRAG judges *relevance*; verified/unverified judges
     *trust*). CRAG fails soft to the unrefined block on any error.
     """
+    # CONTAINED (plan Phase 0b, 2026-09-25): unverified memory is never
+    # recalled into a prompt. Every turn is indexed as unverified chat, and the
+    # learning red-team reel showed what that means: a note forwarded into one
+    # session reached another session's system message (RT-01), and one
+    # principal's turn reached another principal's prompt (RT-10). The
+    # "UNVERIFIED PRIOR CHAT MEMORY" header asked the model to treat it as a
+    # lead; a header is advice, not a boundary. Withheld rows stay stored and
+    # the withholding is announced, so it is observable rather than silent.
+    #
+    # The filter runs INSIDE retrieval, not after it: filtering a mixed top-k
+    # would let better-scoring unverified rows crowd verified memory out of the
+    # cut entirely (adversarial review, 2026-09-25).
     try:
         memory_authority = authority or get_memory_authority()
         hits = memory_authority.recall(
@@ -383,19 +482,26 @@ def _recall_memory(
                 limit=top_k,
                 include_unverified=True,
             ),
-            retrieval_fn=hybrid_search,
+            retrieval_fn=_verified_retrieval,
         )
     except Exception as exc:  # noqa: BLE001 - recall is an enhancement, never fatal
         logger.warning("Memory recall failed; continuing without context", exc_info=exc)
-        return None
-    if not hits:
         return None
     trusted = [
         hit
         for hit in hits
         if getattr(hit, "verification_status", "unverified") == "verified"
     ]
-    unverified = [hit for hit in hits if hit not in trusted]
+    # Defence in depth: retrieval already filtered, but anything unverified
+    # that still arrives is dropped here and counted as withheld.
+    withheld = {str(getattr(hit, "text", "")) for hit in hits if hit not in trusted}
+    withheld |= _unverified_matches(query, top_k, memory_authority)
+    if withheld:
+        _announce_recall_withheld(len(trusted), len(withheld), query=query)
+    hits = trusted
+    unverified: list[Any] = []
+    if not hits:
+        return None
 
     if config.CRAG:
         try:
@@ -570,6 +676,42 @@ def _recall_skills(
     except Exception as exc:  # noqa: BLE001 - skill recall is an enhancement, never fatal
         logger.warning("Failed to recall verified skills", exc_info=exc)
         return []
+
+
+def lessons_prompt_block(lessons: list[dict[str, Any]]) -> Optional[str]:
+    """The recalled lessons, in the exact shape the model is shown.
+
+    Exists so that anything measuring what recall is WORTH shows the model the
+    same bytes production does. A benchmark whose prompt block has drifted
+    from production is measuring a prompt nobody ships.
+
+    The live turn path (generate_pipeline.py) still builds this block inline:
+    switching it to call this function would re-open organ 32's attestation.
+    tests/test_recall_blocks_match_live_path.py EXECUTES the live path's own
+    expression against this function on the same inputs and fails on a
+    one-character difference -- the same guarantee, without that cost.
+    """
+    if not lessons:
+        return None
+    return (
+        "RELEVANT LESSONS (verified cross-task or pending from this task):\n"
+        + "\n".join(
+            f"- [{le.get('verification_status', 'pending')}; {le['error_type']}] "
+            f"{le['lesson_text']}"
+            for le in lessons
+        )
+    )
+
+
+def skills_prompt_block(skills: list[dict[str, Any]]) -> Optional[str]:
+    """The recalled verified workflows, in the exact shape the model is shown."""
+    if not skills:
+        return None
+    return "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
+        f"- For {skill['goal_pattern']}: {' -> '.join(skill['steps'])} "
+        f"(verified success rate {skill['success_rate']:.0%})"
+        for skill in skills
+    )
 
 
 def _verify_target_keys(command: str) -> list[str]:

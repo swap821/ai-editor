@@ -1,10 +1,17 @@
 # The Learning Ledger
 
-*Status as of 2026-09-22: **8 green / 8 faculties**, computed by
-`scripts/verify_learning_conditions.py` and enforced by the `learning-ledger`
-job in CI. This document describes the apparatus; the ledger itself is
-`.aios/state/LEARNING_LEDGER.json` and it is the authority. Where they
-disagree, the ledger is right and this file is stale.*
+*Status as of 2026-09-24: **6 green / 8 faculties** (L2 and L4 yellow),
+computed by `scripts/verify_learning_conditions.py` and enforced by the
+`learning-ledger` job in CI. This document describes the apparatus; the ledger
+itself is `.aios/state/LEARNING_LEDGER.json` and it is the authority. Where
+they disagree, the ledger is right and this file is stale.*
+
+*History, kept rather than rewritten: it reached 8/8 on 2026-09-22 in #359.
+Squash-merging #359 discarded every commit the evidence cited and master fell
+to 0/8; #360 re-earned the evidence at a commit already on master, and L2 and
+L4 did not re-fire in three runs there. They are yellow with the reason stated
+in the ledger — see "Why L2 and L4 are yellow" below — rather than re-pointed
+at a run that did not produce them.*
 
 ## Why it exists
 
@@ -86,6 +93,32 @@ These are not aspirations; each one has a test.
   proposes (`.aios/audit/curriculum-proposals.jsonl`, `accepted=false`);
   accepting is a human act, and a training harness doing it on the miner's
   behalf would be the same act wearing a different hat.
+
+## Why L2 and L4 are yellow
+
+Both lost their organic evidence when #359 was squash-merged, and neither
+re-fired in three runs of `tools/organic_chain_run.py` at `00dbf6f3`.
+
+- **L2 (lesson transfer)** needs a lesson recorded from a real failure to be
+  confirmed by the *identical* command later succeeding. The local model
+  (`qwen2.5-coder:7b`) failed 12 of 14 real attempts and never recovered on the
+  same command. That is its success rate on this corpus, not a broken link —
+  conformance mission M2 still proves the mechanism. Re-earning it organically
+  needs either more attempts per target or a stronger model tier in the ladder,
+  which requires the operator's cloud credentials.
+- **L4 (reflex compilation)** needs a *new* arc to reach three STRONG runs.
+  `try_compile_all` is idempotent, so while the one organic playbook exists a
+  re-run compiles nothing new and there is no fresh compile to witness.
+
+A seeded failure would satisfy L2 and prove nothing; re-pointing a sha at a run
+that compiled nothing would satisfy L4 and prove nothing. Both are refused.
+
+## The ledger is not the judged number
+
+The ledger proves the parts are real and honestly measured. It does **not**
+claim any of it helps: no condition in LC1..LC12 asks whether learning improved
+an outcome. That question belongs to the payoff benchmark
+(`tools/learning_payoff.py`), the animal's equivalent of organ 55.
 
 ## Running it
 

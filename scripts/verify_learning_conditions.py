@@ -416,9 +416,21 @@ def _collect_suites(faculties: list[dict]) -> list[str]:
 
 
 def render(results: list[FacultyResult]) -> str:
-    lines = ["LEARNING LEDGER — LC1..LC12", ""]
+    # The header used to read "LC1..LC12" directly above "N green / 8
+    # faculties", and a reader reasonably took that to mean twelve faculties
+    # with only eight counted. It is a GRID: each faculty (L1..L8) is judged
+    # against all twelve conditions (LC1..LC12), and is green only when every
+    # one passes or is declared N/A with a reason. Say the shape, not the range.
+    lines = [
+        f"LEARNING LEDGER — {len(results)} faculties (L1..L{len(results)}), "
+        "each judged against 12 conditions (LC1..LC12)",
+        "",
+    ]
     green = [r for r in results if r.status == "green"]
-    lines.append(f"  {len(green)} green / {len(results)} faculties")
+    lines.append(
+        f"  {len(green)} green / {len(results)} faculties "
+        "(green = all 12 conditions pass or are N/A with a stated reason)"
+    )
     lines.append("")
     for r in results:
         mark = "GREEN " if r.status == "green" else "yellow"

@@ -16,6 +16,7 @@ from typing import Optional
 
 from filelock import FileLock
 
+from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.embeddings import EmbeddingModel, VectorIndex
@@ -82,6 +83,7 @@ class SemanticMemory:
         relational store never claims a semantic memory that cannot be retrieved.
         Returns the new row/vector id.
         """
+        assert_learning_permitted("semantic.add")
         if memory_type not in {"chat", "lesson", "fact", "preference", "procedure"}:
             raise ValueError(f"unsupported semantic memory type: {memory_type}")
         if verification_status not in {"unverified", "verified", "superseded"}:

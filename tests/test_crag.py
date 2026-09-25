@@ -189,7 +189,7 @@ def _patch_recall(monkeypatch, hits, *, crag: bool):
     from aios import config
     from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
     monkeypatch.setattr(config, "CRAG", crag)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
@@ -282,7 +282,7 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
     from aios import config
     from aios.api import main, turn_pipeline
 
-    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
@@ -292,7 +292,15 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
 
 
 def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
-    hits = [_Hit("totally unrelated banana note here", faiss=0.05)]
+    # Verified: since the Phase 0b containment (2026-09-25) unverified memory
+    # never reaches CRAG at all, so relevance is exercised on trusted memory.
+    hits = [
+        _Hit(
+            "totally unrelated banana note here",
+            faiss=0.05,
+            verification_status="verified",
+        )
+    ]
     sources = [
         lambda _q: ["The quantum entanglement phenomenon links particle states."]
     ]
@@ -317,14 +325,38 @@ def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
         _Hit(
             "the alpha section discusses several unrelated longer concepts here",
             faiss=0.4,
+            verification_status="verified",
         )
     ]
     sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
     main = _patch_recall_external(monkeypatch, hits, sources=sources)
     out = main._recall_memory("alpha topic")
     assert out is not None
-    assert "UNVERIFIED PRIOR CHAT MEMORY" in out  # local kept (ambiguous, not dropped)
+    assert "VERIFIED TRUSTED MEMORY" in out  # local kept (ambiguous, not dropped)
     assert "EXTERNAL KNOWLEDGE" in out  # external appended
+
+
+def test_an_unverified_hit_never_reaches_crag_or_the_prompt(monkeypatch) -> None:
+    """Relevance is not trust: an ambiguous-but-relevant unverified hit that
+    CRAG used to keep is withheld before CRAG sees it (Phase 0b, RT-01)."""
+    hits = [
+        _Hit(
+            "the alpha section discusses several unrelated longer concepts here",
+            faiss=0.4,
+        )
+    ]
+    sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
+    main = _patch_recall_external(monkeypatch, hits, sources=sources)
+    from aios.api import turn_pipeline
+
+    announced: list = []
+    monkeypatch.setattr(
+        turn_pipeline,
+        "_announce_recall_withheld",
+        lambda recalled, withheld, **_: announced.append((recalled, withheld)),
+    )
+    assert main._recall_memory("alpha topic") is None
+    assert announced == [(0, 1)]
 
 
 # ── Local-LLM judge (opt-in, AIOS_CRAG_LLM_JUDGE) ───────────────────────────
@@ -373,7 +405,7 @@ def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
     from aios.api import main, turn_pipeline
 
     hits = [_Hit("strongly worded but actually off-topic note here", faiss=0.95)]
-    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3: hits)
+    monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
     monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("0.0"))
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)

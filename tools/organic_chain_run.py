@@ -104,6 +104,7 @@ from tools.reverse_engineer_gagos import (  # noqa: E402
     _last_digest,
     _test_filename,
     resolve_client,
+    run_self_check,
     tier_verdict,
 )
 from aios.agents import tool_loop_helpers  # noqa: E402
@@ -223,6 +224,16 @@ def run_chain(
     with self_corpus(REPO_ROOT, WORKTREE) as corpus:
         print(f"corpus  : {corpus.root} @ {corpus.sha[:12]}\n")
         corpus_sha = corpus.sha
+        # THE POSITIVE CONTROL. Found missing by the payoff benchmark's review:
+        # this harness's docstring claimed "a green baseline required" and
+        # nothing ran one. A red guard suite would fail every attempt, and a
+        # run of pure rejections would read as the model failing -- exactly
+        # the evidence L1 cites. A known-correct test must EARN through the
+        # full grader before any model is asked anything.
+        ok, control = run_self_check(corpus)
+        if not ok:
+            raise CorpusError(f"positive control failed, instrument invalid: {control}")
+        print("control : grader earns a known-correct test\n")
         chosen = collect_targets(corpus.root, limit=targets)
 
         for target in chosen:
@@ -315,13 +326,26 @@ def run_chain(
         # the corpus is a real checkout of this repository -- so this is a real
         # module being really tested, just without a write in the workflow.
         print("\n  verify-only arc (read + verify, no writes)")
-        verify_skill_id, verify_detail = _verify_only_cycle(
-            corpus,
-            ladder[0][1],
-            skills,
-            target_test="tests/test_code_chunking.py",
-            repeats=3,
-        )
+        # A suite that has NEVER been a reflex. Hardcoding one meant every run
+        # after the first re-earned an arc whose playbook already existed, and
+        # `try_compile_all` is idempotent -- so L4 could only ever be witnessed
+        # once, and #359's squash erased that once. A fresh real suite per run
+        # makes a genuinely new compile possible without inventing anything.
+        target_test = _fresh_verify_target(corpus, DB)
+        if target_test is None:
+            verify_skill_id, verify_detail = (
+                None,
+                "no real corpus suite left that has never been a reflex",
+            )
+        else:
+            print(f"    target: {target_test}")
+            verify_skill_id, verify_detail = _verify_only_cycle(
+                corpus,
+                ladder[0][1],
+                skills,
+                target_test=target_test,
+                repeats=3,
+            )
         if verify_skill_id is not None:
             organic_skill_ids.add(verify_skill_id)
         print(f"    {verify_detail}")
@@ -561,6 +585,47 @@ def _verify_only_cycle(
             said = " ".join(verify_output.split())[:300] or "<no verify tool call>"
             print(f"      why: {said}")
     return skill_id, detail
+
+
+def _fresh_verify_target(corpus, db: Path, *, limit: int = 40) -> Optional[str]:
+    """The smallest real corpus suite whose verify-only arc was never a reflex.
+
+    "Never" includes DECOMPILED playbooks: recompiling a retired reflex is
+    recovery (conformance mission M5), a different claim from compiling a new
+    one, and counting it here would let L4 re-fire on something it already
+    proved once.
+
+    Checked cheaply against the playbook table FIRST, and only then run, so a
+    suite is executed only when it would actually be used. The one returned is
+    proven green in the corpus: an arc on a red suite can never verify, and
+    that would read as the loop failing to learn.
+    """
+    import sqlite3
+
+    from tools.self_corpus import run_suite
+
+    conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    try:
+        goals = [
+            str(row[0])
+            for row in conn.execute("SELECT goal_pattern FROM compiled_playbooks")
+        ]
+    finally:
+        conn.close()
+
+    candidates = sorted(
+        (corpus.root / "tests").glob("test_*.py"),
+        key=lambda path: (path.stat().st_size, path.name),
+    )
+    for path in candidates[:limit]:
+        rel = f"tests/{path.name}"
+        command = verify_command(corpus.root, rel)
+        if any(command in goal for goal in goals):
+            continue
+        result = run_suite(corpus, [rel], timeout=300)
+        if result.green and result.passed > 0:
+            return rel
+    return None
 
 
 def _green_corpus_tests(corpus, wanted: int = 2) -> list[str]:
