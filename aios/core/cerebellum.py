@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
-from aios.memory.learning_freeze import assert_learning_permitted, learning_permitted
+from aios.memory.learning_freeze import learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.learning_journal import record as journal
@@ -415,8 +415,18 @@ class Cerebellum:
         """Scan verified skills and compile any that pass guards.
 
         Returns the number of newly compiled playbooks.
+
+        While learning is frozen this compiles nothing and returns 0 rather
+        than raising. It is a SWEEP -- `get_cerebellum` runs it on every
+        request, and `get_skill_memory` depends on that provider -- so a raising
+        sweep turned the read-only skills, trails and mirror-snapshot routes into
+        503s for the whole emergency (regression from #373).
         """
-        assert_learning_permitted("cerebellum.compile")
+        if not learning_permitted():
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.compile sweep skipped"
+            )
+            return 0
         init_memory_db(self.db_path)
         compiled = 0
         with get_connection(self.db_path) as conn:
@@ -478,8 +488,13 @@ class Cerebellum:
 
     def try_compile_skill(self, skill_id: int) -> Optional[CompiledPlaybook]:
         """Attempt to compile a single skill by id.  Returns the playbook
-        if compilation succeeds, else ``None``."""
-        assert_learning_permitted("cerebellum.compile")
+        if compilation succeeds, else ``None`` -- including while learning is
+        frozen, when nothing is compiled (see `try_compile_all`)."""
+        if not learning_permitted():
+            logging.getLogger(__name__).warning(
+                "learning frozen; cerebellum.compile skipped"
+            )
+            return None
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             row = conn.execute(
