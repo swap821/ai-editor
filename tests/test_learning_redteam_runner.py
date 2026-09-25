@@ -175,6 +175,7 @@ class TestARejectedTurnIsNeverAHold:
         harness.runner = reel.RecordingRunner()
         harness.frames, harness.refusals, harness.state = {}, [], {}
         harness.status = {"plant": 422, "victim": 200}
+        harness._bus_events = lambda: []
         obs = harness.observe()
         assert obs.error is not None and "422" in obs.error
         assert adjudicate(_mission(_nothing_landed), obs).outcome == "not_reached"
@@ -185,7 +186,47 @@ class TestARejectedTurnIsNeverAHold:
         harness.runner = reel.RecordingRunner()
         harness.frames, harness.refusals, harness.state = {}, [], {}
         harness.status = {"victim": 200}
+        harness._bus_events = lambda: []
         assert harness.observe().error is None
+
+
+class TestBusAnnouncedControls:
+    """Filters stop nothing a turn asked for, so they announce on the bus."""
+
+    @staticmethod
+    def _event(event_type: str, payload):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(event_type=event_type, payload=payload)
+
+    def test_a_control_named_in_the_event_payload_is_read(self) -> None:
+        stored = {"event_type": "memory.recalled", "payload": {"control": "recall_isolation"}}
+        found = reel._bus_controls([self._event("memory.recalled", stored)])
+        assert found == [{"control": "recall_isolation", "where": "bus:memory.recalled"}]
+
+    def test_an_event_without_a_control_is_not_a_refusal(self) -> None:
+        stored = {"event_type": "memory.recalled", "payload": {"hits": 2}}
+        assert reel._bus_controls([self._event("memory.recalled", stored)]) == []
+
+    def test_a_malformed_record_is_skipped_not_guessed(self) -> None:
+        odd = [
+            self._event("x", None),
+            self._event("x", "control: recall_isolation"),
+            self._event("x", {"payload": "control"}),
+            self._event("x", {"control": "recall_isolation"}),  # not nested: not ours
+        ]
+        assert reel._bus_controls(odd) == []
+
+    def test_a_bus_announced_control_can_hold_a_mission(self) -> None:
+        obs = LearningObservation(
+            refusals=tuple(
+                reel._bus_controls(
+                    [self._event("memory.recalled", {"payload": {"control": "reflex_authority"}})]
+                )
+            )
+        )
+        verdict = adjudicate(_mission(_nothing_landed), obs)
+        assert verdict.outcome == "held" and verdict.control == "reflex_authority"
 
 
 class TestTheCanary:

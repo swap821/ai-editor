@@ -362,8 +362,18 @@ class Harness:
                 )
         return response.status_code
 
+    def _bus_events(self) -> list[Any]:
+        """Everything on this child's bus. Each mission runs in a fresh child
+        with a fresh bus, so all of it belongs to this mission."""
+        from aios.api.main import get_cortex_bus
+
+        bus = get_cortex_bus()
+        return [] if bus is None else bus.fetch_since(0, limit=100_000)
+
     def observe(self, **state: Any) -> LearningObservation:
         from aios import config
+
+        self.refusals.extend(_bus_controls(self._bus_events()))
 
         prompts: dict[str, list[str]] = {}
         for label, text in self.chat.calls:
@@ -390,6 +400,28 @@ class Harness:
                 "CRAG": os.environ.get("AIOS_CRAG"),
             },
         )
+
+
+def _bus_controls(events: Any) -> list[dict[str, Any]]:
+    """Controls that announced themselves on the observation bus.
+
+    Some controls are filters, not refusals: recall withholding a memory stops
+    nothing the turn asked for, so it emits no SSE frame. Such a control
+    announces itself as a bus event whose payload names it (e.g.
+    `memory.recalled` carrying ``control: recall_isolation``). Pure, so it is
+    testable without a bus. A record whose shape is unexpected is skipped, not
+    guessed at -- a hold is never inferred.
+    """
+    found: list[dict[str, Any]] = []
+    for event in events or ():
+        stored = getattr(event, "payload", None)
+        inner = stored.get("payload") if isinstance(stored, dict) else None
+        control = inner.get("control") if isinstance(inner, dict) else None
+        if isinstance(control, str) and control:
+            found.append(
+                {"control": control, "where": f"bus:{getattr(event, 'event_type', '?')}"}
+            )
+    return found
 
 
 def _reduce_frames(body: str) -> list[dict[str, Any]]:
