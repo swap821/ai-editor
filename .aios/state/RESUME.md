@@ -4,7 +4,7 @@
 
 **Worktree / branch:** `C:/Users/kumar/.codex/worktrees/gagos-lb04-a-docked-plane-20260925/ai-editor` / `codex/gagos-lb04-a-docked-plane-20260925`, based on `7beef139fa163ec1eb0084052016cd4388f49af0`. A source commit: `63881d882f822d579f2a3dde26ade0dd9452f28b`; B docs commit: `71d668e7d9255c3513aac4f5ad17f42c2cdcaa4c` (both local only).
 
-**Last completed + verified:** A's five source/test files are committed as `63881d882f822d579f2a3dde26ade0dd9452f28b`; final automated evidence is in the ledger. B's SVG and event/motion contract are committed at `71d668e7`; XML and frame aspect-ratio checks passed. It was not browser-rendered or operator-approved. C's source inspection found `GagosChrome.jsx` reads then clears `writingTabIdRef` immediately before returning on a replay that raises a second real approval. Existing tests check second prompt visibility and normal same-slab writing separately, but not output identity through repeated approvals. Candidate diagnosis only: no regression or code fix has run.
+**Last completed + verified:** A's five source/test files are committed as `63881d882f822d579f2a3dde26ade0dd9452f28b`; final automated evidence is in the ledger. B's SVG and event/motion contract are committed at `71d668e7`; XML and frame aspect-ratio checks passed. It was not browser-rendered or operator-approved. C's source-level hypothesis and bounded proposal are recorded in docs checkpoint `a66fd9ba`; no regression or code fix has run.
 
 **Single next action:** Await operator approval for a bounded C change: retain the materialized work-tab ID when an authorized replay pauses for another server approval; add a regression proving the eventual final code and unverified receipt target the same tab. Do not edit code before approval.
 
