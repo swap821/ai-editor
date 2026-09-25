@@ -23,7 +23,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Collection, Optional
 
 from rank_bm25 import BM25Okapi
 
@@ -77,6 +77,7 @@ def hybrid_search(
     db_path: Path = config.MEMORY_DB_PATH,
     index: Optional[VectorIndex] = None,
     embedder: Optional[EmbeddingModel] = None,
+    verification_statuses: Optional[Collection[str]] = None,
 ) -> list[RetrievalResult]:
     """Return the top-*k* semantic memories for *query*, hybrid-ranked.
 
@@ -88,6 +89,13 @@ def hybrid_search(
         db_path: Memory database to read ``semantic_memory`` rows from.
         index: Vector index to search (constructed lazily if omitted).
         embedder: Embedding model to encode the query (singleton if omitted).
+        verification_statuses: When given, only rows in these statuses are
+            candidates. Applied in the SQL, INSIDE the candidate-widening loop,
+            so the pool keeps growing until *top_k* rows of the wanted status
+            are found. Filtering after the cut instead starves them: three
+            better-scoring unverified chat rows would fill a top-3 and the
+            verified memory ranked fourth would never be fetched (adversarial
+            review of the Phase 0b recall containment, 2026-09-25).
 
     Returns:
         Up to *top_k* :class:`RetrievalResult` objects, highest score first.
@@ -114,12 +122,21 @@ def hybrid_search(
         faiss_by_id = {cid: score for cid, score in candidates}
         candidate_ids = list(faiss_by_id.keys())
         placeholders = ",".join("?" for _ in candidate_ids)
+        status_sql, status_args = "", []
+        if verification_statuses is not None:
+            wanted = sorted(set(verification_statuses))
+            if not wanted:
+                return []
+            status_sql = (
+                " AND verification_status IN (" + ",".join("?" for _ in wanted) + ")"
+            )
+            status_args = wanted
         with get_connection(db_path) as conn:
             rows = conn.execute(
                 "SELECT id, text_content, timestamp, memory_type, verification_status "
                 "FROM semantic_memory WHERE id IN (" + placeholders + ") "
-                "AND verification_status != 'superseded'",
-                candidate_ids,
+                "AND verification_status != 'superseded'" + status_sql,
+                [*candidate_ids, *status_args],
             ).fetchall()
         if len(rows) >= top_k or candidate_count >= index.size:
             break

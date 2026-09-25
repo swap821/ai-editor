@@ -667,6 +667,58 @@ def test_replay_aborts_on_approval_required_step(db_path: Path) -> None:
     assert events[-1]["reason"] == "approval"
 
 
+def test_an_ordinary_approval_abort_still_counts_against_the_playbook(
+    db_path: Path,
+) -> None:
+    cerebellum, pb = _compile_two_step_playbook(db_path)
+
+    events = list(
+        cerebellum.replay(
+            pb, dispatch_fn=_scripted_dispatch([("needs approval", "approval", False)])
+        )
+    )
+
+    assert "control" not in events[-1], "only the reflex authority names itself"
+    [pb_after] = cerebellum.playbook_map()
+    assert pb_after["consecutive_failures"] == 1
+
+
+def test_a_step_withheld_by_the_reflex_authority_names_it(db_path: Path) -> None:
+    from aios.core.cerebellum import REFLEX_AUTHORITY_CONTROL, REFLEX_AUTHORITY_WITHHELD
+
+    cerebellum, pb = _compile_two_step_playbook(db_path)
+    withheld = (
+        f"{REFLEX_AUTHORITY_WITHHELD} no human approved this",
+        "approval",
+        False,
+    )
+
+    events = list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([withheld])))
+
+    assert events[-1]["type"] == "cerebellum_abort"
+    assert events[-1]["control"] == REFLEX_AUTHORITY_CONTROL
+
+
+def test_a_withheld_step_never_decompiles_the_reflex(db_path: Path) -> None:
+    """Withholding says nothing about the playbook. Counted as a failure, it
+    would retire every reflex with a YELLOW step the second time it matched --
+    the reflexes approval provenance exists to re-authorise."""
+    from aios.core.cerebellum import REFLEX_AUTHORITY_WITHHELD
+
+    cerebellum, pb = _compile_two_step_playbook(db_path)
+    withheld = (
+        f"{REFLEX_AUTHORITY_WITHHELD} no human approved this",
+        "approval",
+        False,
+    )
+    for _ in range(cerebellum.max_consecutive_failures + 1):
+        list(cerebellum.replay(pb, dispatch_fn=_scripted_dispatch([withheld])))
+
+    [pb_after] = cerebellum.playbook_map()
+    assert pb_after["consecutive_failures"] == 0
+    assert cerebellum.compiled_count() == 1
+
+
 def test_replay_aborts_on_execution_failure(db_path: Path) -> None:
     cerebellum, pb = _compile_two_step_playbook(db_path)
     dispatch = _scripted_dispatch([("boom: file not found", "ok", True)])

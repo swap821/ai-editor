@@ -71,6 +71,15 @@ _COMPILABLE_TOOLS = frozenset(
 #: delete this set, which is a visible change rather than a silent one.
 _CONFIRM_ONLY_TOOLS = frozenset({"create_file", "edit_file"})
 
+#: The control that withholds pre-approval from a replayed command no human
+#: approved (`ToolAgent._dispatch_approved`). Named on the abort event so a
+#: withheld step is distinguishable from a blocked or failed one -- by the UI,
+#: and by the learning red-team reel, which scores a hold only when the control
+#: it tests is the one that refused.
+REFLEX_AUTHORITY_CONTROL = "reflex_authority"
+#: Prefix the dispatcher puts on a withheld step's output.
+REFLEX_AUTHORITY_WITHHELD = "[REFLEX AUTHORITY]"
+
 #: A recorded content digest: `_workflow_step` writes fixed-width lowercase hex.
 _CONTENT_DIGEST = re.compile(r",\s*content_sha256=([0-9a-f]{64})\s*$")
 
@@ -748,13 +757,27 @@ class Cerebellum:
             output, status, failed = dispatch_fn(step.tool_name, step.args)
 
             if status in ("blocked", "approval"):
-                self._record_replay_failure(playbook.id)
-                yield {
+                withheld = status == "approval" and str(output or "").startswith(
+                    REFLEX_AUTHORITY_WITHHELD
+                )
+                # A step withheld for want of a human approval says nothing
+                # about the playbook. Counting it as a failure would decompile
+                # every reflex with a YELLOW step the second time it matched,
+                # destroying exactly the reflexes approval provenance is meant
+                # to re-authorise.
+                if not withheld:
+                    self._record_replay_failure(playbook.id)
+                abort: dict[str, Any] = {
                     "type": "cerebellum_abort",
                     "step_index": i,
                     "reason": status,
                     "tool": step.tool_name,
                 }
+                if withheld:
+                    abort["control"] = REFLEX_AUTHORITY_CONTROL
+                    abort["command"] = str(step.args.get("command", ""))
+                    abort["output"] = str(output)[:200]
+                yield abort
                 return
 
             if failed:
