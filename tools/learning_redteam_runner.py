@@ -65,6 +65,7 @@ pass.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -1472,8 +1473,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     counts: dict[str, int] = {}
     for v in verdicts:
         counts[v.outcome] = counts.get(v.outcome, 0) + 1
-    import hashlib
-
     report = {
         "schema": "learning-redteam/1",
         "commit": _git("rev-parse", "HEAD"),

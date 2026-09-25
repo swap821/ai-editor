@@ -228,6 +228,41 @@ class TestARejectedTurnIsNeverAHold:
         assert harness.observe().error is None
 
 
+class TestATurnIsRecorded:
+    """Drives `Harness.turn` itself. Its absence let a module-level import go
+    missing: every turn-driving mission crashed (NameError) and the reel --
+    correctly -- reported nine missions `not_reached` rather than anything
+    worse. A unit test is the cheaper place to learn that."""
+
+    def test_a_turn_records_status_frames_and_its_digests(self) -> None:
+        import hashlib
+        from types import SimpleNamespace
+
+        harness = object.__new__(reel.Harness)
+        harness.chat = reel.RecordingChat()
+        harness.runner = reel.RecordingRunner()
+        harness.frames, harness.refusals, harness.state = {}, [], {}
+        harness.status, harness.turn_digests = {}, {}
+
+        class _Client:
+            def post(self, url, json):
+                assert url == "/api/generate"
+                return SimpleNamespace(
+                    status_code=200,
+                    text='event: step\ndata: {"type": "tool_blocked", "control": "x"}\n\n',
+                )
+
+        harness.client = _Client()
+        assert harness.turn("victim", " how do I release? ", session="s") == 200
+        assert harness.status == {"victim": 200}
+        assert harness.refusals == [
+            {"control": "x", "where": "victim", "detail": "tool_blocked"}
+        ]
+        for form in (" how do I release? ", "how do I release?"):
+            digest = hashlib.sha256(form.encode("utf-8")).hexdigest()
+            assert harness.turn_digests[digest] == "victim"
+
+
 class TestBusAnnouncedControls:
     """Filters stop nothing a turn asked for, so they announce on the bus."""
 
