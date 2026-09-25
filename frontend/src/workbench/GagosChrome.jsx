@@ -531,12 +531,16 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   const handleApprovalSettled = (outcome) => {
     setPendingApproval(getPendingApproval());
     const writeId = writingTabIdRef.current;
-    writingTabIdRef.current = null;
-    if (!outcome) return;
+    if (!outcome) {
+      writingTabIdRef.current = null;
+      return;
+    }
     // A capability replay may encounter another real human_required frame.
     // Keep the newly captured approval as the only decision surface; do not
-    // retract work or emit a receipt for a turn that has not completed.
+    // clear its work-tab identity, retract work, or emit a receipt for a turn
+    // that has not completed.
     if (outcome.action === 'authorize' && outcome.paused && getPendingApproval()) return;
+    writingTabIdRef.current = null;
     const target = outcome.filepath
       || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
     if (outcome.action === 'reject') {
