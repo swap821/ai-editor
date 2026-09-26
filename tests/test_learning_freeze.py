@@ -179,10 +179,11 @@ class TestLearningWritesAreRefusedWhileTheStopIsEngaged:
         cerebellum = Cerebellum(db)
         _engage(data)
         before = _count(db, "compiled_playbooks")
-        with pytest.raises(EmergencyStopError):
-            cerebellum.try_compile_all()
-        with pytest.raises(EmergencyStopError):
-            cerebellum.try_compile_skill(1)
+        # Compilation is a sweep run on every request: frozen, it compiles
+        # nothing and returns quietly instead of raising (a raising sweep made
+        # read-only routes answer 503 -- tests/test_stop_does_not_blind_read_routes.py).
+        assert cerebellum.try_compile_all() == 0
+        assert cerebellum.try_compile_skill(1) is None
         assert _count(db, "compiled_playbooks") == before
 
     def test_clearing_the_stop_thaws_learning(self, world) -> None:

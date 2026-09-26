@@ -55,3 +55,11 @@ easier task. Each changes the experiment, so each needs a Deviation recorded
 **before** Phase 8 runs. None is taken here, and choosing one is the operator's
 call. Choosing after seeing Phase 8 would be exactly what the stopping rule
 forbids.
+
+## Anchoring
+
+Master requires linear history, so #371 landed by squash and the harness
+commit this run cites, `0feaf5f9`, is not on master. It stays fetchable with
+`git fetch origin refs/pull/371/head`. The measured corpus, `53eb1f0c`, is on
+master. The harness on master is not byte-identical to `0feaf5f9`: it carries
+D2's later `clean -fdx` change, which applies to runs after this one.
