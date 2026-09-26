@@ -45,16 +45,19 @@ interface PresentationOverrides {
   workers?: WorkerPresentationState[];
 }
 
-const presentation = (overrides: PresentationOverrides = {}): BeingPresentation => ({
-  phase: 'resting',
-  taskState: 'idle',
-  coherence: 'fresh',
-  motion: 'calm',
-  attention: 'none',
-  signals: [],
-  workers: [],
-  ...overrides,
-});
+const presentation = (overrides: PresentationOverrides = {}): BeingPresentation => {
+  const { workers = [], ...rest } = overrides;
+  return {
+    phase: 'resting',
+    taskState: 'idle',
+    coherence: 'fresh',
+    motion: 'calm',
+    attention: 'none',
+    signals: [],
+    workers: workers.map((state, cursor) => ({ workerId: `gallery-worker-${cursor}`, state, cursor })),
+    ...rest,
+  };
+};
 
 const entry = (
   id: string,

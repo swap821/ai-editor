@@ -45,7 +45,7 @@ const stop = () => beingFactsFromStores(useMirrorStore.getState(), NO_TABS, 'idl
 describe('emergency stop: engage then clear, through dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useMirrorStore.setState({ recentEvents: [], lastEventId: null, lastAnnouncement: null });
+    useMirrorStore.setState({ recentEvents: [], lastEventId: null, lastTurnStartedEventId: null, lastVerificationEventId: null, lastAnnouncement: null });
   });
 
   it('reads engaged after the engagement', () => {

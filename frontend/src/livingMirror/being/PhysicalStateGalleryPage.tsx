@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import CortexEngine from '../../superbrain/core/CortexEngine';
 import { QualityTierProvider, type QualityTier } from '../../superbrain/components/QualityTierProvider';
+import type { TabSnapshot } from '../../superbrain/lib/tabStore';
 import { getReducedMotionSnapshot, setAmbientMotionPaused } from '../../superbrain/lib/reducedMotion';
 import SuperbrainReactiveEffects from '../../workbench/SuperbrainReactiveEffects';
 import { derivePhysicalSnapshot } from './physicalSnapshot';
@@ -13,8 +14,33 @@ import {
 import './PhysicalStateGalleryPage.css';
 
 const QUALITY_TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
+function createFocusedWorkspaceFixture(seatIndex: number): TabSnapshot {
+  return {
+    tabs: [{
+      id: 'gallery-focused-workspace',
+      kind: 'content',
+      lifecycle: 'live',
+      originLocal: [0, 0.26, 0.48],
+      targetLocal: [1.18, 0.22, 0.58],
+      seatIndex,
+      content: { code: '// deterministic visual fixture; no backend task', language: 'text', filepath: 'visual-fixture.txt' },
+      input: null,
+      approval: null,
+      bornAt: 0,
+      phaseStartedAt: 0,
+    }],
+    focusId: 'gallery-focused-workspace',
+    attention: null,
+    panels: [],
+  };
+}
 
-function GalleryScene({ entry, tier }: { entry: PhysicalStateGalleryEntry; tier: QualityTier }) {
+function GalleryScene({ entry, tier, focusSeatIndex }: { entry: PhysicalStateGalleryEntry; tier: QualityTier; focusSeatIndex: number }) {
+  const physical = useMemo(() => derivePhysicalSnapshot(entry.presentation), [entry]);
+  const tabSnapshotOverride = useMemo(
+    () => entry.id === 'acting' ? createFocusedWorkspaceFixture(focusSeatIndex) : undefined,
+    [entry.id, focusSeatIndex],
+  );
   return (
     <QualityTierProvider key={tier} defaultTier={tier}>
       <Canvas
@@ -25,8 +51,12 @@ function GalleryScene({ entry, tier }: { entry: PhysicalStateGalleryEntry; tier:
         <color attach="background" args={['#000000']} />
         <fog attach="fog" args={['#000000', 50, 150]} />
         <Suspense fallback={null}>
-          <CortexEngine mode="orchestrate" activity={0.72} tier={tier} sky="voyage" surface="web" />
-          <SuperbrainReactiveEffects presentationOverride={entry.presentation} />
+          <CortexEngine mode="orchestrate" activity={0.72} tier={tier} sky="voyage" surface="web" physical={physical} />
+          <SuperbrainReactiveEffects
+            presentationOverride={entry.presentation}
+            physicalOverride={physical}
+            tabSnapshotOverride={tabSnapshotOverride}
+          />
         </Suspense>
       </Canvas>
     </QualityTierProvider>
@@ -53,11 +83,15 @@ export default function PhysicalStateGalleryPage() {
     [selectedId],
   );
   const [tier, setTier] = useState<QualityTier>(selected.qualityTier);
+  const [focusSeatIndex, setFocusSeatIndex] = useState(3);
   const [reducedMotion, setReducedMotion] = useState(() => getReducedMotionSnapshot());
   const physical = useMemo(() => derivePhysicalSnapshot(selected.presentation), [selected]);
   const announcement = useMemo(
-    () => formatPhysicalStateGalleryAnnouncement(selected, tier, reducedMotion),
-    [reducedMotion, selected, tier],
+    () => {
+      const base = formatPhysicalStateGalleryAnnouncement(selected, tier, reducedMotion);
+      return selected.id === 'acting' ? `${base} Focused workspace on anatomical seat ${focusSeatIndex}.` : base;
+    },
+    [focusSeatIndex, reducedMotion, selected, tier],
   );
 
   useEffect(() => {
@@ -75,12 +109,17 @@ export default function PhysicalStateGalleryPage() {
   }, []);
 
   return (
-    <main className="physical-gallery" data-testid="physical-gallery" data-state={selected.id}>
+    <main
+      className="physical-gallery"
+      data-testid="physical-gallery"
+      data-state={selected.id}
+      data-attention-seat={selected.id === 'acting' ? focusSeatIndex : undefined}
+    >
       <header className="physical-gallery__header">
         <div>
           <p className="physical-gallery__eyebrow">Development inspection · physical projection only</p>
           <h1>GAGOS physical state gallery</h1>
-          <p className="physical-gallery__lede">Deterministic fixtures rendered through the live CortexEngine and product-owned reactive seam.</p>
+          <p className="physical-gallery__lede">Deterministic fixtures rendered through the live CortexEngine and product-owned reactive seam. “Conducting admitted work” includes a visual-only focused workspace retargetable between seats 3 and 4; it does not run or imply backend work.</p>
         </div>
         <div className="physical-gallery__controls" aria-label="Gallery controls">
           <label>
@@ -100,7 +139,7 @@ export default function PhysicalStateGalleryPage() {
       </p>
 
       <section className="physical-gallery__workspace" aria-label="Selected physical state">
-        <div className="physical-gallery__canvas"><GalleryScene entry={selected} tier={tier} /></div>
+        <div className="physical-gallery__canvas"><GalleryScene entry={selected} tier={tier} focusSeatIndex={focusSeatIndex} /></div>
         <aside className="physical-gallery__inspector">
           <p className="physical-gallery__eyebrow">Selected fixture</p>
           <h2>{selected.label}</h2>
@@ -115,6 +154,19 @@ export default function PhysicalStateGalleryPage() {
           </dl>
         </aside>
       </section>
+
+      {selected.id === 'acting' && (
+        <div className="physical-gallery__focus-control">
+          <span>Focused workspace · anatomical seat {focusSeatIndex}</span>
+          <button
+            type="button"
+            aria-label={`Move focused workspace to seat ${focusSeatIndex === 3 ? 4 : 3}`}
+            onClick={() => setFocusSeatIndex((seat) => seat === 3 ? 4 : 3)}
+          >
+            Retarget to seat {focusSeatIndex === 3 ? 4 : 3}
+          </button>
+        </div>
+      )}
 
       <nav className="physical-gallery__fixtures" aria-label="Physical state fixtures">
         {PHYSICAL_STATE_GALLERY.map((entry) => (

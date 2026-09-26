@@ -96,8 +96,9 @@ function targetSeatFromRoles(rolesBySeat: ReadonlyMap<number, AnatomicalVertebra
   if (typeof activeSeatIndex === 'number' && isValidSeat(activeSeatIndex)) return activeSeatIndex;
 
   const preferred: AnatomicalVertebraRole[] = ['held', 'active', 'reabsorbing', 'waiting'];
+  const orderedSeats = [...rolesBySeat.entries()].sort(([left], [right]) => left - right);
   for (const role of preferred) {
-    const match = [...rolesBySeat.entries()].find(([, candidateRole]) => candidateRole === role);
+    const match = orderedSeats.find(([, candidateRole]) => candidateRole === role);
     if (match) return match[0];
   }
   return null;

@@ -12,6 +12,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { approvePendingApproval, rejectPendingApproval } from '@/lib/aiosAdapter';
 import { deriveMaterializedSurfacePose } from '@/lib/materializedSurfacePose';
+import {
+  buildFocusedHudUmbilicalCurve,
+  FOCUSED_HUD_NERVE_GAP,
+  shouldUseFocusedHudUmbilical,
+} from '@/lib/materializedSurfaceAnchors';
 import { fuseSpinePoint, getBrainDockScale } from '@/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/lib/materializedSurfaceSkin';
@@ -68,8 +73,13 @@ const _camFwd = new THREE.Vector3();
 const _camRight = new THREE.Vector3();
 const _camUp = new THREE.Vector3();
 const _hudPos = new THREE.Vector3();
+const _hudCenterWorld = new THREE.Vector3();
 const _hudOrigin = new THREE.Vector3();
 const _hudMid = new THREE.Vector3();
+const _hudPanelRim = new THREE.Vector3();
+const _hudUpPoint = new THREE.Vector3();
+const _hudPanelUp = new THREE.Vector3();
+const _hudEndpoint = new THREE.Vector3();
 const BEAD_COUNT = 4;
 const CONDUCTOR_BEAD_COUNT = 4;
 const CONDUCTOR_PUNCTA_PER_ROOT = 6;
@@ -1302,23 +1312,36 @@ export default function MaterializedTab({
             : Math.sin(state.clock.elapsedTime * 1.5 + (waitingIndex ?? 0) * 1.3) * 0.08;
           _hudPos.addScaledVector(_camUp, bob);
         }
-        orientationRef.current.parent?.worldToLocal(_hudPos); // -> the tab group's local space
+        const useFocusedHudNerve = shouldUseFocusedHudUmbilical(tab.kind, focused);
+        const hudParent = orientationRef.current.parent;
+        if (useFocusedHudNerve) _hudCenterWorld.copy(_hudPos);
+        hudParent?.worldToLocal(_hudPos); // -> the tab group's local space
         orientationRef.current.position.copy(_hudPos);
         orientationRef.current.lookAt(camera.position);
-        // SOUL: the FOCUS owns dead-center and the SPINE plunges straight into it
-        // (P3 data-flow-down) — a separate curved umbilical would arc back out and
-        // re-enter the slab as an errant pipe. So the focus carries NO umbilical;
-        // only WAITING tabs are nerve-tethered to their nearest vertebra. (The chat
-        // input keeps its cord via the non-HUD else branch below.)
-        if (isFocused) {
+        if (useFocusedHudNerve) {
+          _hudPanelRim
+            .copy(_hudCenterWorld)
+            .addScaledVector(_camUp, -(dimensions.height * pose.scale * POINTS_SLAB_SCALE) / 2);
+          hudParent?.worldToLocal(_hudPanelRim);
+          _hudUpPoint.copy(_hudCenterWorld).add(_camUp);
+          hudParent?.worldToLocal(_hudUpPoint);
+          _hudPanelUp.copy(_hudUpPoint).sub(_hudPos).normalize();
+          _hudEndpoint.copy(_hudPanelRim).addScaledVector(_hudPanelUp, -FOCUSED_HUD_NERVE_GAP);
+        } else {
+          _hudEndpoint.copy(_hudPos);
+        }
+        // An attended content surface keeps one thin nerve, docked just outside its
+        // lower rim. Approval and intake retain their existing authority/cord paths.
+        if (isFocused && !useFocusedHudNerve) {
           if (tubeRef.current) tubeRef.current.visible = false;
           curveRef.current = null;
+          lastHudLocalRef.current = null;
         } else {
           if (tubeRef.current) tubeRef.current.visible = true;
           // Redraw the nerve from the spine origin to the (moving) HUD tab — sparsely
           // (only once it has shifted enough) so the umbilical stays plugged in without
           // rebuilding the tube every frame.
-          if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudPos) > HUD_REBUILD_EPS) {
+          if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudEndpoint) > HUD_REBUILD_EPS) {
             // SOUL P2: root the nerve at the VISIBLE vertebra nearest this tab — upper
             // vertebra for the top corners, lower for the bottom corners — scaled by
             // the brain's current dock scale (the visible spine shrank in P1).
@@ -1329,19 +1352,32 @@ export default function MaterializedTab({
               const vf = fuseSpinePoint([va.x, va.y, va.z]);
               _hudOrigin.set(vf[0] * ds, vf[1] * ds, vf[2] * ds);
             }
-            _hudMid.copy(_hudOrigin).lerp(_hudPos, 0.5);
-            _hudMid.y += HUD_BOW;
-            const c = new THREE.CatmullRomCurve3([_hudOrigin.clone(), _hudMid.clone(), _hudPos.clone()]);
+            let c: THREE.CatmullRomCurve3;
+            if (useFocusedHudNerve) {
+              c = buildFocusedHudUmbilicalCurve(_hudOrigin, _hudPanelRim, _hudPanelUp);
+            } else {
+              _hudMid.copy(_hudOrigin).lerp(_hudPos, 0.5);
+              _hudMid.y += HUD_BOW;
+              c = new THREE.CatmullRomCurve3([_hudOrigin.clone(), _hudMid.clone(), _hudPos.clone()]);
+            }
             curveRef.current = c;
             if (tubeRef.current) {
               tubeRef.current.geometry.dispose();
               tubeRef.current.geometry = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
             }
-            lastHudLocalRef.current = _hudPos.clone();
+            lastHudLocalRef.current = _hudEndpoint.clone();
           }
         }
       } else {
         curveRef.current = null;
+        lastHudLocalRef.current = null;
+        if (tubeRef.current) {
+          tubeRef.current.visible = true;
+          if (tubeRef.current.geometry !== tubeGeometry) {
+            tubeRef.current.geometry.dispose();
+            tubeRef.current.geometry = tubeGeometry;
+          }
+        }
         orientationRef.current.position.copy(curve.getPointAt(slabT));
         if (facesCamera) orientationRef.current.lookAt(camera.position);
       }

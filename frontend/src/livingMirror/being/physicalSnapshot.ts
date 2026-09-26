@@ -14,18 +14,18 @@ import type {
   WorkerPresentationState,
 } from './semanticKernel';
 
-export type PhysicalCortexPosture = 'rest' | 'arrive' | 'attention' | 'conduct' | 'verify' | 'recover' | 'stopped';
+export type PhysicalCortexPosture = 'rest' | 'arrive' | 'attention' | 'conduct' | 'verify' | 'unverified' | 'recover' | 'stopped';
 export type PhysicalConductorPosture = 'idle' | 'active' | 'held' | 'verifying' | 'reabsorbing' | 'stopped';
 export type PhysicalConductorTravel = 'none' | 'inbound' | 'outbound' | 'held' | 'retracting' | 'frozen';
 export type PhysicalMembraneState = 'clear' | 'held' | 'refused' | 'stopped';
 export type PhysicalActionTravel = 'open' | 'closed';
 export type PhysicalMemoryLayer = 'none' | 'recalled' | 'promoted' | 'reflex';
 export type PhysicalMemoryPulse = 'none' | 'inward' | 'settle' | 'conduct';
-export type PhysicalVerificationState = 'none' | 'pending' | 'pass' | 'fail';
+export type PhysicalVerificationState = 'none' | 'pending' | 'pass' | 'fail' | 'unverified';
 export type PhysicalVerificationSettlement = 'unsettled' | 'stable';
 
 export interface PhysicalBranch {
-  slot: number;
+  workerId: string;
   state: WorkerPresentationState;
   visual: SemanticWorkerVisualState;
   terminal: boolean;
@@ -67,13 +67,18 @@ export interface PhysicalSnapshot {
 
 const MAX_BRANCHES = 8;
 
-function cortexPosture(phase: BeingPhase): PhysicalCortexPosture {
+function cortexPosture(presentation: BeingPresentation): PhysicalCortexPosture {
+  const { phase, taskState, coherence } = presentation;
+  if (phase === 'stopped' || coherence === 'stopped') return 'stopped';
+  if (phase === 'recovering' || phase === 'stale' || phase === 'degraded') return 'recover';
+  if (phase === 'awaiting-human') return 'attention';
+  if (taskState === 'done-unverified' && phase === 'resting') return 'unverified';
+
   switch (phase) {
     case 'arriving': return 'arrive';
     case 'listening':
     case 'understanding':
     case 'planning':
-    case 'awaiting-human':
     case 'learning':
       return 'attention';
     case 'acting':
@@ -81,12 +86,6 @@ function cortexPosture(phase: BeingPhase): PhysicalCortexPosture {
       return 'conduct';
     case 'verifying':
       return 'verify';
-    case 'recovering':
-    case 'stale':
-    case 'degraded':
-      return 'recover';
-    case 'stopped':
-      return 'stopped';
     default:
       return 'rest';
   }
@@ -148,7 +147,7 @@ function convergenceLevel(phase: BeingPhase): number {
 
 function conductorFor(presentation: BeingPresentation, branchCount: number): PhysicalSnapshot['conductor'] {
   if (presentation.phase === 'stopped') return { posture: 'stopped', travel: 'frozen', activeSeat: null };
-  const capabilityHeld = presentation.workers.includes('awaiting-capability');
+  const capabilityHeld = presentation.workers.some((worker) => worker.state === 'awaiting-capability');
   if (presentation.phase === 'awaiting-human' || presentation.taskState === 'needs-permission' || capabilityHeld) {
     return { posture: 'held', travel: 'held', activeSeat: branchCount > 0 ? 0 : null };
   }
@@ -171,7 +170,7 @@ function membraneFor(presentation: BeingPresentation): PhysicalSnapshot['membran
   const refusal = presentation.taskState === 'refused'
     || presentation.signals.includes('refusal')
     || presentation.signals.includes('injection-blocked');
-  const capabilityHeld = presentation.workers.includes('awaiting-capability');
+  const capabilityHeld = presentation.workers.some((worker) => worker.state === 'awaiting-capability');
   const state: PhysicalMembraneState = presentation.phase === 'stopped'
     ? 'stopped'
     : presentation.taskState === 'needs-permission' || capabilityHeld
@@ -205,19 +204,22 @@ function verificationFor(presentation: BeingPresentation): PhysicalSnapshot['ver
   if (presentation.phase === 'verifying') {
     return { state: 'pending', settlement: 'unsettled' };
   }
+  if (presentation.taskState === 'done-unverified') {
+    return { state: 'unverified', settlement: 'unsettled' };
+  }
   return { state: 'none', settlement: 'unsettled' };
 }
 
 function branchesFor(presentation: BeingPresentation): PhysicalBranch[] {
   const workerVisualStates = deriveSemanticEffectTransition(null, presentation).workerVisualStates;
   const actionHeld = presentation.taskState === 'needs-permission' || presentation.taskState === 'refused';
-  return presentation.workers.slice(0, MAX_BRANCHES).map((state, slot) => ({
-    slot,
-    state,
-    visual: actionHeld && !['returned', 'dissolved', 'failed', 'killed'].includes(state)
+  return presentation.workers.slice(0, MAX_BRANCHES).map((worker, index) => ({
+    workerId: worker.workerId,
+    state: worker.state,
+    visual: actionHeld && !['returned', 'dissolved', 'failed', 'killed'].includes(worker.state)
       ? 'held'
-      : workerVisualStates[slot],
-    terminal: state === 'returned' || state === 'dissolved' || state === 'failed' || state === 'killed',
+      : workerVisualStates[index],
+    terminal: worker.state === 'returned' || worker.state === 'dissolved' || worker.state === 'failed' || worker.state === 'killed',
   }));
 }
 
@@ -237,7 +239,7 @@ export function derivePhysicalSnapshot(presentation: BeingPresentation): Physica
     signals: [...presentation.signals],
     coherencePhysics: coherenceSemanticsFor(presentation.coherence),
     cortex: {
-      posture: cortexPosture(presentation.phase),
+      posture: cortexPosture(presentation),
       attention: attentionLevel(presentation.attention),
       activity: activityLevel(presentation.phase),
       convergence: convergenceLevel(presentation.phase),

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import * as THREE from 'three';
 import {
   setSpineFusion,
   getSpineFusion,
@@ -7,6 +8,8 @@ import {
   getCortexAnchor,
   setBrainDockScale,
   getBrainDockScale,
+  setBodyGroupWorldMatrix,
+  copyBodyGroupWorldMatrix,
   __resetSpineFusionForTests,
 } from './spineFusionBus';
 
@@ -44,11 +47,29 @@ describe('spineFusionBus', () => {
     expect([a[0] * ds, a[1] * ds, a[2] * ds]).toEqual([0.03 * 0.6, 0.42 * 0.6, -0.05 * 0.6]);
   });
 
+  it('publishes the complete moving body frame for sibling scene effects', () => {
+    const target = new THREE.Matrix4().makeTranslation(7, 8, 9);
+    expect(copyBodyGroupWorldMatrix(target)).toBe(false);
+
+    const source = new THREE.Matrix4().compose(
+      new THREE.Vector3(1.2, -0.4, 2.1),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0.18, -0.7, 0.09)),
+      new THREE.Vector3(0.82, 0.82, 0.82),
+    );
+    const expected = source.elements.slice();
+    setBodyGroupWorldMatrix(source);
+    source.identity();
+
+    expect(copyBodyGroupWorldMatrix(target)).toBe(true);
+    expect(target.elements).toEqual(expected);
+  });
+
   it('reset restores the cortex anchor + dock scale', () => {
     setCortexAnchor([9, 9, 9]);
     setBrainDockScale(0.1);
     __resetSpineFusionForTests();
     expect(getCortexAnchor()).toEqual([0, 0.1, 0]);
     expect(getBrainDockScale()).toBe(1);
+    expect(copyBodyGroupWorldMatrix(new THREE.Matrix4())).toBe(false);
   });
 });

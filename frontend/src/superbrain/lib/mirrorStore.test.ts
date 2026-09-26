@@ -24,6 +24,9 @@ describe('mirrorStore setSnapshot resync behavior', () => {
       snapshotRequired: false,
       recentEvents: [],
       lastEventId: null,
+      lastTurnStartedEventId: null,
+      lastVerificationEventId: null,
+      turnAttributionInvalidated: false,
       bootFacts: null,
     });
   });
@@ -57,6 +60,20 @@ describe('mirrorStore setSnapshot resync behavior', () => {
     expect(state.activeMissions).toEqual([]);
   });
 
+  it('drops pre-snapshot worker event details so replay cannot rematerialize old motes', () => {
+    useMirrorStore.getState().applyEvent(4, 'worker.completed', { payload: { workerId: 'worker-old' } });
+    expect(useMirrorStore.getState().workers['worker-old']?.state).toBe('completed');
+
+    useMirrorStore.getState().setSnapshot({
+      status: 'online',
+      state: 'measured',
+      last_event_id: 4,
+      active_workers: [],
+    });
+
+    expect(useMirrorStore.getState().workers).toEqual({});
+  });
+
   it('keeps the prior state for a field the snapshot omits entirely, rather than wiping it', () => {
     useMirrorStore.getState().setSnapshot({
       status: 'online',
@@ -75,5 +92,39 @@ describe('mirrorStore setSnapshot resync behavior', () => {
     const state = useMirrorStore.getState();
     expect(state.activeWorkers).toEqual(['worker-2']);
     expect(state.activeMissions).toEqual(['mission-1']);
+  });
+
+  it('retains turn and verifier event cursors after the bounded event history rolls over', () => {
+    const store = useMirrorStore.getState();
+    expect(store.applyEvent(10, 'turn.started', {})).toBe(true);
+    expect(useMirrorStore.getState().applyEvent(11, 'verification.passed', { verdict: 'pass' })).toBe(true);
+    for (let id = 12; id <= 311; id += 1) {
+      expect(useMirrorStore.getState().applyEvent(id, 'observation.recorded', {})).toBe(true);
+    }
+
+    const state = useMirrorStore.getState();
+    expect(state.recentEvents).toHaveLength(256);
+    expect(state.recentEvents[0].id).toBe(56);
+    expect(state.lastTurnStartedEventId).toBe(10);
+    expect(state.lastVerificationEventId).toBe(11);
+  });
+
+  it('keeps turn attribution invalid after a required snapshot until a new turn boundary arrives', () => {
+    const store = useMirrorStore.getState();
+    store.applyEvent(1, 'turn.started', {});
+    useMirrorStore.getState().applyEvent(2, 'verification.passed', { verdict: 'pass' });
+    useMirrorStore.getState().applyEvent(3, 'turn.completed', {});
+    useMirrorStore.getState().setSnapshotRequired('replay_gap');
+    useMirrorStore.getState().setSnapshot({ status: 'online', state: 'measured', snapshot_required: false, last_event_id: 9, phase: 'idle' });
+
+    expect(useMirrorStore.getState()).toMatchObject({
+      turnAttributionInvalidated: true,
+      lastTurnStartedEventId: 1,
+      lastVerificationEventId: 2,
+    });
+    useMirrorStore.getState().applyEvent(10, 'verification.passed', { verdict: 'pass' });
+    expect(useMirrorStore.getState().turnAttributionInvalidated).toBe(true);
+    useMirrorStore.getState().applyEvent(11, 'turn.started', {});
+    expect(useMirrorStore.getState().turnAttributionInvalidated).toBe(false);
   });
 });

@@ -77,6 +77,12 @@ export type WorkerPresentationState =
   | 'failed'
   | 'killed';
 
+export interface WorkerPresentationRecord {
+  workerId: string;
+  state: WorkerPresentationState;
+  cursor: number;
+}
+
 export type MirrorTransport = 'disconnected' | 'connecting' | 'connected';
 export type MirrorProjection = 'unknown' | 'synchronizing' | 'snapshot' | 'fresh' | 'stale' | 'unavailable';
 export type MirrorStatus = 'offline' | 'online' | 'stale';
@@ -113,7 +119,7 @@ export interface BeingFacts {
   councilDissent?: boolean;
   curriculumMastered?: boolean;
   rollback?: boolean;
-  workers?: readonly WorkerPresentationState[];
+  workers?: readonly WorkerPresentationRecord[];
   signals?: readonly BeingSignal[];
 }
 
@@ -125,7 +131,7 @@ export interface BeingPresentation {
   attention: BeingAttention;
   signals: BeingSignal[];
   /** Bounded worker posture for product-owned visual projection. */
-  workers: WorkerPresentationState[];
+  workers: WorkerPresentationRecord[];
 }
 
 const SIGNAL_ORDER: BeingSignal[] = [
@@ -149,8 +155,8 @@ const SIGNAL_ORDER: BeingSignal[] = [
   'curriculum-mastered',
 ];
 
-function hasWorker(workers: readonly WorkerPresentationState[], ...states: WorkerPresentationState[]): boolean {
-  return workers.some((worker) => states.includes(worker));
+function hasWorker(workers: readonly WorkerPresentationRecord[], ...states: WorkerPresentationState[]): boolean {
+  return workers.some((worker) => states.includes(worker.state));
 }
 
 function deriveSignals(facts: BeingFacts): BeingSignal[] {
@@ -198,7 +204,7 @@ function deriveTaskState(facts: BeingFacts, coherence: BeingCoherence): HumanTas
   if (facts.approvalPending) return 'needs-permission';
   if (coherence === 'stale') return 'stale';
   if (facts.taskActivity === 'refused') return 'refused';
-  if (facts.taskActivity === 'failed') return 'failed';
+  if (facts.taskActivity === 'failed' || facts.verification === 'fail') return 'failed';
   if (facts.taskActivity === 'restored' || facts.rollback) return 'restored';
   if (facts.taskActivity === 'complete') return facts.verification === 'pass' ? 'done-verified' : 'done-unverified';
   if (facts.taskActivity === 'checking' || facts.verification === 'pending') return 'checking';

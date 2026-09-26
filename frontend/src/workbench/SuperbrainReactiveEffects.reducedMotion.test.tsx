@@ -14,7 +14,7 @@ const mockBeing = vi.hoisted(() => ({
     motion: 'conduct',
     attention: 'workspace',
     signals: ['worker-active'],
-    workers: ['active'],
+    workers: [{ workerId: 'worker-active', state: 'active', cursor: 1 }],
   },
 }));
 

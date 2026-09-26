@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearFrontendMetricSamples,
   createMirrorReconnectTracker,
+  createComposerFrameDrawCallSampler,
   getFrontendMetricSamples,
   getFrontendSceneDiagnostics,
   recordFrontendSceneDiagnostic,
@@ -47,7 +48,7 @@ describe('frontend metrics', () => {
     recordFrontendMetric('frame-time-p95', 18.5);
     recordFrontendSceneDiagnostic({
       sceneObjects: 58,
-      renderCalls: 1,
+      drawCalls: 1,
       geometries: 22,
       textures: 20,
       transientPoolSize: 0,
@@ -72,7 +73,7 @@ describe('frontend metrics', () => {
     for (let i = 0; i < 140; i += 1) {
       recordFrontendSceneDiagnostic({
         sceneObjects: i,
-        renderCalls: i + 1,
+        drawCalls: i + 1,
         geometries: 4,
         textures: 2,
         transientPoolSize: i % 8,
@@ -91,7 +92,7 @@ describe('frontend metrics', () => {
   it('rejects invalid scene diagnostics without poisoning the bounded buffer', () => {
     recordFrontendSceneDiagnostic({
       sceneObjects: Number.NaN,
-      renderCalls: 1,
+      drawCalls: 1,
       geometries: 1,
       textures: 1,
       transientPoolSize: 0,
@@ -101,6 +102,58 @@ describe('frontend metrics', () => {
       lightningCount: 0,
     });
     expect(getFrontendSceneDiagnostics()).toEqual([]);
+  });
+
+  it('aggregates draw calls across composer passes and resets once per completed frame', () => {
+    const counters = { calls: 0 };
+    const info = {
+      autoReset: true,
+      render: counters,
+      reset: vi.fn(() => { counters.calls = 0; }),
+    };
+    const sampler = createComposerFrameDrawCallSampler(info);
+    expect(sampler).not.toBeNull();
+
+    const renderPass = (drawCalls: number) => {
+      if (info.autoReset) info.reset();
+      counters.calls += drawCalls;
+    };
+
+    renderPass(12);
+    renderPass(4);
+    expect(info.autoReset).toBe(false);
+    expect(sampler?.capture()).toBe(16);
+
+    renderPass(3);
+    expect(sampler?.capture()).toBe(3);
+    sampler?.dispose();
+    expect(info.autoReset).toBe(true);
+    expect(counters.calls).toBe(0);
+  });
+
+  it('reports unavailable instead of zero when composer draw counters are missing', () => {
+    const reset = vi.fn();
+    const sampler = createComposerFrameDrawCallSampler({ autoReset: true, render: {}, reset });
+    expect(sampler?.capture()).toBeNull();
+    expect(reset).toHaveBeenCalledOnce();
+
+    recordFrontendSceneDiagnostic({
+      sceneObjects: 1,
+      drawCalls: null,
+      geometries: null,
+      textures: null,
+      transientPoolSize: 0,
+      workerBranchCount: 0,
+      workerMoteCount: 0,
+      materializationSurfaceCount: 0,
+      lightningCount: 0,
+    });
+    expect(getFrontendSceneDiagnostics()[0]?.drawCalls).toBeNull();
+    expect(getFrontendSceneDiagnostics()[0]?.geometries).toBeNull();
+    expect(getFrontendSceneDiagnostics()[0]?.textures).toBeNull();
+    expect(document.documentElement.getAttribute('data-gagos-scene-draw-calls')).toBe('unavailable');
+    expect(document.documentElement.getAttribute('data-gagos-scene-geometries')).toBe('unavailable');
+    expect(document.documentElement.getAttribute('data-gagos-scene-textures')).toBe('unavailable');
   });
 
   it('measures recovery from an established mirror to a fresh projection', () => {

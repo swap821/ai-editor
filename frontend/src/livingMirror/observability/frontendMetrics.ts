@@ -21,14 +21,25 @@ export interface FrontendMetricSample {
 export interface FrontendSceneDiagnosticSample {
   at: number;
   sceneObjects: number;
-  renderCalls: number;
-  geometries: number;
-  textures: number;
+  drawCalls: number | null;
+  geometries: number | null;
+  textures: number | null;
   transientPoolSize: number;
   workerBranchCount: number;
   workerMoteCount: number;
   materializationSurfaceCount: number;
   lightningCount: number;
+}
+
+interface RendererInfoDrawCounters {
+  autoReset?: boolean;
+  render?: { calls?: number };
+  reset?: () => void;
+}
+
+export interface ComposerFrameDrawCallSampler {
+  capture(): number | null;
+  dispose(): void;
 }
 
 export interface MirrorContinuitySnapshot {
@@ -60,11 +71,12 @@ function publishLocalMetricProbe(name: FrontendMetricName, value: number): void 
 function publishLocalSceneProbe(sample: FrontendSceneDiagnosticSample): void {
   const root = localEvidenceRoot();
   if (!root) return;
+  const counterText = (value: number | null) => value === null ? 'unavailable' : String(value);
   root.setAttribute('data-gagos-scene-at', String(sample.at));
   root.setAttribute('data-gagos-scene-objects', String(sample.sceneObjects));
-  root.setAttribute('data-gagos-scene-render-calls', String(sample.renderCalls));
-  root.setAttribute('data-gagos-scene-geometries', String(sample.geometries));
-  root.setAttribute('data-gagos-scene-textures', String(sample.textures));
+  root.setAttribute('data-gagos-scene-draw-calls', counterText(sample.drawCalls));
+  root.setAttribute('data-gagos-scene-geometries', counterText(sample.geometries));
+  root.setAttribute('data-gagos-scene-textures', counterText(sample.textures));
   root.setAttribute('data-gagos-scene-transient-pool', String(sample.transientPoolSize));
   root.setAttribute('data-gagos-scene-worker-branches', String(sample.workerBranchCount));
   root.setAttribute('data-gagos-scene-worker-motes', String(sample.workerMoteCount));
@@ -104,16 +116,25 @@ export function getFrontendMetricSamples(): readonly FrontendMetricSample[] {
  * boundary.
  */
 export function recordFrontendSceneDiagnostic(
-  snapshot: Omit<FrontendSceneDiagnosticSample, 'at'> & { at?: number },
+  snapshot: Omit<FrontendSceneDiagnosticSample, 'at' | 'drawCalls' | 'geometries' | 'textures'> & {
+    at?: number;
+    drawCalls: number | null;
+    geometries: number | null;
+    textures: number | null;
+  },
 ): void {
-  const values = Object.entries(snapshot).filter(([key]) => key !== 'at');
-  if (values.some(([, value]) => !Number.isFinite(value) || value < 0)) return;
+  const counters = [snapshot.drawCalls, snapshot.geometries, snapshot.textures];
+  const values = Object.entries(snapshot).filter(([key]) => !['at', 'drawCalls', 'geometries', 'textures'].includes(key));
+  if (
+    values.some(([, value]) => typeof value !== 'number' || !Number.isFinite(value) || value < 0) ||
+    counters.some((value) => value !== null && (!Number.isFinite(value) || value < 0))
+  ) return;
   const sample: FrontendSceneDiagnosticSample = {
     at: snapshot.at ?? Date.now(),
     sceneObjects: Math.round(snapshot.sceneObjects),
-    renderCalls: Math.round(snapshot.renderCalls),
-    geometries: Math.round(snapshot.geometries),
-    textures: Math.round(snapshot.textures),
+    drawCalls: snapshot.drawCalls === null ? null : Math.round(snapshot.drawCalls),
+    geometries: snapshot.geometries === null ? null : Math.round(snapshot.geometries),
+    textures: snapshot.textures === null ? null : Math.round(snapshot.textures),
     transientPoolSize: Math.round(snapshot.transientPoolSize),
     workerBranchCount: Math.round(snapshot.workerBranchCount),
     workerMoteCount: Math.round(snapshot.workerMoteCount),
@@ -125,6 +146,40 @@ export function recordFrontendSceneDiagnostic(
     sceneDiagnostics.splice(0, sceneDiagnostics.length - MAX_SCENE_DIAGNOSTICS);
   }
   publishLocalSceneProbe(sample);
+}
+
+/**
+ * Three resets renderer.info after each WebGLRenderer.render() by default.
+ * Post-processing uses several render() calls per displayed frame, so this
+ * sampler disables that reset until the caller captures the complete frame.
+ * Missing counters stay unavailable; they are never presented as zero work.
+ */
+export function createComposerFrameDrawCallSampler(
+  info: RendererInfoDrawCounters | null | undefined,
+): ComposerFrameDrawCallSampler | null {
+  if (!info || typeof info.autoReset !== 'boolean' || typeof info.reset !== 'function') return null;
+
+  const previousAutoReset = info.autoReset;
+  const reset = info.reset.bind(info);
+  let active = true;
+  info.autoReset = false;
+
+  return {
+    capture() {
+      if (!active) return null;
+      const drawCalls = info.render?.calls;
+      reset();
+      return typeof drawCalls === 'number' && Number.isFinite(drawCalls) && drawCalls >= 0
+        ? Math.round(drawCalls)
+        : null;
+    },
+    dispose() {
+      if (!active) return;
+      active = false;
+      reset();
+      info.autoReset = previousAutoReset;
+    },
+  };
 }
 
 export function getFrontendSceneDiagnostics(): readonly FrontendSceneDiagnosticSample[] {

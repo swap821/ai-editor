@@ -37,6 +37,8 @@ describe('SuperbrainReactiveEffects', () => {
     resetSwarmHUD();
     useMirrorStore.setState({
       lastEventId: null,
+      lastTurnStartedEventId: null,
+      lastVerificationEventId: null,
       lastVerification: null,
       recentEvents: [],
       workers: {},

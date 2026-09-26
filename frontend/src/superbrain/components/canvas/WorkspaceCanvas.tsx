@@ -2,19 +2,20 @@
 import { subscribeCognition } from '@/lib/cognitionBus';
 
 import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary, WebGLFallback } from './WebGLErrorBoundary';
 import CortexEngine from '../../core/CortexEngine';
+import type { PhysicalBodyProjection } from '../../lib/bodyPosture';
 import { type BrainSurface, type SkyMode } from './SuperbrainScene.LEGACY';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
   QualityTierProvider,
   useQualityTier,
-  type QualityTier,
 } from '@/components/QualityTierProvider';
 import TierGovernor from './TierGovernor';
+import { useFeatureGate } from '../../core/Performance/FeatureGate';
 import { TIER_DPR } from '@/lib/perfBudget';
 import { startAiosPolling } from '@/lib/aiosAdapter';
 
@@ -40,10 +41,47 @@ function ReadySignal() {
   return null;
 }
 
-export default function WorkspaceCanvas({ children, booted = false }: { children?: ReactNode; booted?: boolean }) {
+/** Pause the continuous R3F loop while the tab is backgrounded without
+ *  resetting the scene's accumulated animation time when it wakes. */
+function VisibilityFrameLoop({ sleeping }: { sleeping: boolean }) {
+  const clock = useThree((state) => state.clock);
+  const frameLoop = useThree((state) => state.frameloop);
+  const setFrameLoop = useThree((state) => state.setFrameloop);
+  const elapsedTimeBeforeSleep = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (sleeping) {
+      if (frameLoop === 'never') return;
+      elapsedTimeBeforeSleep.current = clock.elapsedTime;
+      setFrameLoop('never');
+      // R3F resets Clock.elapsedTime in setFrameloop. Preserve the last visible
+      // scene time so sleep neither rewinds the being nor accumulates hidden time.
+      clock.elapsedTime = elapsedTimeBeforeSleep.current;
+      return;
+    }
+
+    if (frameLoop === 'always') {
+      elapsedTimeBeforeSleep.current = null;
+      return;
+    }
+
+    const elapsedTime = elapsedTimeBeforeSleep.current ?? clock.elapsedTime;
+    setFrameLoop('always');
+    clock.elapsedTime = elapsedTime;
+    elapsedTimeBeforeSleep.current = null;
+  }, [clock, elapsedTimeBeforeSleep, frameLoop, setFrameLoop, sleeping]);
+
+  return null;
+}
+
+export default function WorkspaceCanvas({ children, booted = false, physical }: {
+  children?: ReactNode;
+  booted?: boolean;
+  physical?: PhysicalBodyProjection;
+}) {
   return (
     <QualityTierProvider>
-      <WorkspaceInner booted={booted}>{children}</WorkspaceInner>
+      <WorkspaceInner booted={booted} physical={physical}>{children}</WorkspaceInner>
     </QualityTierProvider>
   );
 }
@@ -89,9 +127,14 @@ function isWebGLAvailable(): boolean {
   }
 }
 
-function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: boolean }) {
+function WorkspaceInner({ children, booted, physical }: {
+  children?: ReactNode;
+  booted: boolean;
+  physical?: PhysicalBodyProjection;
+}) {
   const [webglAvailable] = useState(() => isWebGLAvailable());
   const { tier, perfTier } = useQualityTier();
+  const sleeping = useFeatureGate();
   const mode: CognitiveMode = 'orchestrate';
   const activity = 0.72;
   // GPU context-loss resilience: a lost context first gets a grace window to
@@ -211,6 +254,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
                 toneMappingExposure: POST_FX.toneMappingExposure,
               }}
             >
+              <VisibilityFrameLoop sleeping={sleeping} />
               {/* operator call (2026-06-23): pure-black void — was the blue-black
                   #010307; the brain's own bloom/aura is additive WebGL light and
                   is unaffected, only the empty space goes true black. */}
@@ -218,7 +262,7 @@ function WorkspaceInner({ children, booted }: { children?: ReactNode; booted: bo
               <fog attach="fog" args={['#000000', 50, 150]} />
               <TierGovernor />
               <Suspense fallback={null}>
-                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} />
+                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} physical={physical} />
                 <ReadySignal />
                 {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                     one canvas, so the canon nerves plug into them. Renders nothing

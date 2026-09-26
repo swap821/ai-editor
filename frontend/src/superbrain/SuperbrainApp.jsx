@@ -1,12 +1,15 @@
 /** One operational shell, one conversation owner, and the preserved connected organism. */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
+import { installKeyboardViewportTracking } from '../livingMirror/keyboardViewport';
+import { installWorkspaceDockTracking } from '../livingMirror/workspaceDock';
 import { readExperienceMode, writeExperienceMode } from '../livingMirror/experienceMode';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
+import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
 import { createMirrorReconnectTracker, recordFrontendMetric, startFrameTimeSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
@@ -26,19 +29,25 @@ const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas')
 export default function SuperbrainApp() {
   const [booted, setBooted] = useState(false);
   const [experienceMode, setExperienceMode] = useState(() => readExperienceMode());
+  const [inputDraftPresent, setInputDraftPresent] = useState(false);
   const [canvasContextLost, setCanvasContextLost] = useState(false);
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
   const snapshot = useTabStore();
   const being = useBeingPresentation();
+  const physical = useMemo(() => derivePhysicalSnapshot(being), [being]);
   const rendererFallback = useRendererFallbackPresentation();
   const measuredAttentionRef = useRef(null);
   const canvasContextLostRef = useRef(false);
+  const appRootRef = useRef(null);
   const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open)
     || snapshot.tabs.some((t) => t.id === snapshot.focusId && t.kind === 'content' && t.lifecycle !== 'retracting');
   const handleBootComplete = useCallback(() => setBooted(true), []);
   const handleExperienceModeChange = useCallback((nextMode) => {
     writeExperienceMode(nextMode);
     setExperienceMode(nextMode);
+  }, []);
+  const handleDraftPresenceChange = useCallback((present) => {
+    setInputDraftPresent(present === true);
   }, []);
   const handleRendererRetry = useCallback(() => {
     if (canvasContextLostRef.current) {
@@ -60,6 +69,16 @@ export default function SuperbrainApp() {
     // a reload is the only honest retry boundary after the user restores
     // graphics support or changes the browser environment.
     window.location.reload();
+  }, []);
+  useEffect(() => {
+    const root = appRootRef.current;
+    if (!root) return undefined;
+    const stopKeyboardTracking = installKeyboardViewportTracking(root);
+    const stopWorkspaceDockTracking = installWorkspaceDockTracking(root);
+    return () => {
+      stopKeyboardTracking();
+      stopWorkspaceDockTracking();
+    };
   }, []);
   useEffect(() => {
     const startedAt = performance.now();
@@ -142,6 +161,7 @@ export default function SuperbrainApp() {
   }, [snapshot.attention, working]);
   useEffect(() => { void startMirrorClient(); return stopMirrorClient; }, []);
   return <div
+    ref={appRootRef}
     className="lm-app"
     data-working={working ? 'true' : 'false'}
     data-experience-mode={experienceMode}
@@ -157,11 +177,17 @@ export default function SuperbrainApp() {
     <div className="lm-scene">{canvasContextLost ? null : (
       <RendererFailureBoundary onRetry={handleRendererRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
-          <WorkspaceCanvas key={rendererRestartKey} booted={booted}><SuperbrainReactiveEffects /></WorkspaceCanvas>
+          <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical}>
+          <SuperbrainReactiveEffects
+            presentationOverride={being}
+            physicalOverride={physical}
+            inputDraftPresent={inputDraftPresent}
+          />
+          </WorkspaceCanvas>
         </Suspense>
       </RendererFailureBoundary>
     )}</div>
-    <main aria-label="GAGOS conversation"><GagosChrome integrated experienceMode={experienceMode} onExperienceModeChange={handleExperienceModeChange} /></main>
+    <main aria-label="GAGOS conversation"><GagosChrome integrated experienceMode={experienceMode} onExperienceModeChange={handleExperienceModeChange} onDraftPresenceChange={handleDraftPresenceChange} /></main>
     <LivingWorkspaceShell experienceMode={experienceMode} />
   </div>;
 }

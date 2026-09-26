@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2080" role="img" aria-labelledby="title desc">
+  <title id="title">GAGOS living work state keyframes</title>
+  <desc id="desc">A proposal showing resting, working, and awaiting-permission states on desktop and mobile. It is a layout schematic; it does not change the existing organism renderer, textures, or palette.</desc>
+  <defs>
+    <style>
+      text { font-family: Inter, Arial, sans-serif; fill: #e8e6ee; }
+      .display { font-family: Outfit, Inter, sans-serif; }
+      .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+      .muted { fill: #aaa5b8; }
+      .cyan { fill: #7bf5fb; }
+      .purple { fill: #b06eff; }
+      .orange { fill: #ff7e40; }
+      .green { fill: #54f0a0; }
+      .hair { stroke: rgba(232,230,238,.2); }
+      .scene { fill: #030108; }
+      .surface { fill: #0c0916; }
+      .small { font-size: 13px; }
+      .copy { font-size: 16px; }
+      .label { font-size: 14px; letter-spacing: 1.2px; }
+      .frame { fill: #030108; stroke: rgba(232,230,238,.35); stroke-width: 1.5; }
+      .button { fill: #0c0916; stroke: rgba(232,230,238,.38); stroke-width: 1.2; }
+    </style>
+    <g id="spine">
+      <path d="M0,-84 C-6,-54 7,-39 0,-18 C-8,5 8,24 0,47 C-4,63 2,74 0,90" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+      <path d="M0,-32 C-23,-43 -34,-58 -47,-70 M0,-13 C20,-28 34,-43 48,-55 M0,13 C-27,18 -43,33 -61,49 M0,34 C27,39 45,52 60,69 M0,58 C-19,65 -28,80 -34,95 M0,67 C17,72 27,86 34,99" fill="none" stroke="currentColor" stroke-opacity=".72" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="0" cy="-88" r="16" fill="#0c0916" stroke="currentColor" stroke-width="2"/>
+      <circle cx="0" cy="-88" r="5" fill="currentColor"/>
+      <circle cx="0" cy="-18" r="4" fill="currentColor"/>
+      <circle cx="0" cy="31" r="4" fill="currentColor"/>
+      <circle cx="0" cy="76" r="4" fill="currentColor"/>
+      <circle cx="-47" cy="-70" r="3" fill="currentColor"/>
+      <circle cx="48" cy="-55" r="3" fill="currentColor"/>
+      <circle cx="-61" cy="49" r="3" fill="currentColor"/>
+      <circle cx="60" cy="69" r="3" fill="currentColor"/>
+    </g>
+    <g id="approval-card">
+      <rect x="0" y="0" width="400" height="212" rx="12" class="surface" stroke="#ff7e40" stroke-opacity=".8"/>
+      <circle cx="25" cy="27" r="5" fill="#ff7e40"/>
+      <text x="42" y="32" class="orange label">PERMISSION REQUEST</text>
+      <text x="22" y="70" class="display" font-size="20">GAGOS wants your permission.</text>
+      <text x="22" y="101" class="muted copy">Review what, where, and what happens if you say no.</text>
+      <rect x="22" y="133" width="171" height="50" rx="8" class="button" stroke="#ff7e40"/>
+      <rect x="204" y="133" width="171" height="50" rx="8" class="button"/>
+      <text x="107" y="164" text-anchor="middle" font-size="15">Allow once</text>
+      <text x="289" y="164" text-anchor="middle" font-size="15">Don't allow</text>
+    </g>
+  </defs>
+
+  <rect width="2000" height="2080" fill="#030108"/>
+  <text x="64" y="66" class="display cyan" font-size="18" letter-spacing="3">GAGOS / LIVING WORK</text>
+  <text x="64" y="122" class="display" font-size="42">One being. Three truthful postures.</text>
+  <text x="64" y="160" class="muted" font-size="18">B state board · desktop and mobile · composition schematic, not final organism art</text>
+  <text x="64" y="192" class="muted small">Desktop reference: 1440 × 900 · Mobile reference: 390 × 844 · Existing palette, type roles, scene and authority controls retained</text>
+
+  <!-- RESTING -->
+  <g transform="translate(0 220)">
+    <rect x="40" y="0" width="1920" height="590" rx="16" fill="#0c0916" stroke="rgba(232,230,238,.18)"/>
+    <text x="70" y="42" class="purple label">01 / RESTING</text>
+    <text x="268" y="42" class="muted small">No task + fresh continuity → rest; stale/offline stays explicit</text>
+
+  <g transform="translate(70 55)">
+      <rect width="832" height="520" rx="12" class="frame"/>
+      <path d="M0 42H832" class="hair"/>
+      <text x="20" y="28" class="display cyan" font-size="16" letter-spacing="2">GAGOS</text>
+      <text x="810" y="28" text-anchor="end" class="purple small">GAGOS is resting.</text>
+      <rect x="1" y="43" width="266" height="476" fill="#030108"/>
+      <path d="M267 43V520" class="hair"/>
+      <text x="22" y="76" class="muted small">Conversation</text>
+      <rect x="20" y="424" width="229" height="68" rx="10" class="surface" stroke="rgba(232,230,238,.2)"/>
+      <text x="34" y="451" class="muted small">Talk to GAGOS</text>
+      <text x="34" y="475" class="cyan small">Type a request…</text>
+      <text x="288" y="76" class="muted small">The living field has room to rest.</text>
+      <g transform="translate(610 310)" style="color:#b06eff">
+        <use href="#spine"/>
+      </g>
+      <text x="610" y="448" text-anchor="middle" class="purple small">rest · still</text>
+    </g>
+
+    <g transform="translate(1000 55)">
+      <rect width="238" height="516" rx="22" class="frame"/>
+      <rect x="8" y="8" width="222" height="500" rx="16" class="scene"/>
+      <path d="M8 42H230" class="hair"/>
+      <text x="20" y="30" class="display cyan" font-size="12">GAGOS</text>
+      <text x="218" y="30" text-anchor="end" class="purple" font-size="10">Resting</text>
+      <g transform="translate(122 203) scale(.72)" style="color:#b06eff"><use href="#spine"/></g>
+      <text x="119" y="303" text-anchor="middle" class="purple" font-size="11">GAGOS is resting.</text>
+      <rect x="18" y="378" width="202" height="112" rx="12" class="surface" stroke="rgba(232,230,238,.2)"/>
+      <text x="30" y="405" class="muted" font-size="10">Conversation</text>
+      <text x="30" y="433" class="cyan" font-size="11">Type a request…</text>
+      <text x="30" y="470" class="muted" font-size="9">Connection truth stays visible</text>
+    </g>
+
+    <g transform="translate(1280 105)">
+      <text x="0" y="0" class="display" font-size="22">Quiet is a real state</text>
+      <text x="0" y="38" class="copy">No fake activity or implied reasoning.</text>
+      <text x="0" y="68" class="copy">Keep the real request control within reach.</text>
+      <text x="0" y="98" class="copy">An offline or stale mirror says so separately.</text>
+      <path d="M0 125H610" class="hair"/>
+      <text x="0" y="160" class="cyan label">SOURCE</text>
+      <text x="100" y="160" class="mono small">taskState = idle · coherence = fresh</text>
+      <text x="0" y="192" class="cyan label">BODY</text>
+      <text x="100" y="192" class="copy">Rest posture · no ambient pulse</text>
+      <text x="0" y="224" class="cyan label">SURFACE</text>
+      <text x="100" y="224" class="copy">No task plane unless one is actually selected</text>
+      <text x="0" y="256" class="muted small">A resting pose never means connected, ready, or verified by itself.</text>
+    </g>
+  </g>
+
+  <!-- WORKING -->
+  <g transform="translate(0 825)">
+    <rect x="40" y="0" width="1920" height="590" rx="16" fill="#0c0916" stroke="rgba(232,230,238,.18)"/>
+    <text x="70" y="42" class="cyan label">02 / WORKING</text>
+    <text x="268" y="42" class="muted small">Admitted work or actual stream → conduct posture and the same readable surface</text>
+
+    <g transform="translate(70 55)">
+      <rect width="832" height="520" rx="12" class="frame"/>
+      <path d="M0 42H832" class="hair"/>
+      <text x="20" y="28" class="display cyan" font-size="16" letter-spacing="2">GAGOS</text>
+      <text x="810" y="28" text-anchor="end" class="cyan small">GAGOS is working.</text>
+      <rect x="1" y="43" width="266" height="476" fill="#030108"/>
+      <path d="M267 43V520" class="hair"/>
+      <text x="18" y="74" class="muted small">Attended body + controls</text>
+      <g transform="translate(134 245) scale(.74)" style="color:#7bf5fb"><use href="#spine"/></g>
+      <path d="M36 336H234" stroke="#7bf5fb" stroke-opacity=".4"/>
+      <text x="18" y="363" class="cyan small">GAGOS is working.</text>
+      <rect x="18" y="390" width="230" height="70" rx="8" class="surface" stroke="rgba(232,230,238,.2)"/>
+      <text x="32" y="418" class="muted small">Talk to GAGOS</text>
+      <text x="32" y="442" class="cyan small">Request control remains live</text>
+      <rect x="268" y="43" width="564" height="476" fill="#0c0916"/>
+      <text x="292" y="78" class="display" font-size="18">Current work</text>
+      <text x="292" y="108" class="muted small">One attended surface · actual output, not a progress illusion</text>
+      <path d="M292 128H808" class="hair"/>
+      <text x="292" y="165" class="cyan mono small">› Live result appears here as the backend emits it</text>
+      <path d="M292 191H780 M292 218H730 M292 245H790 M292 272H690 M292 299H750" stroke="rgba(232,230,238,.24)" stroke-width="5" stroke-linecap="round"/>
+      <text x="292" y="355" class="muted small">No percent complete unless the system measures one.</text>
+    </g>
+
+    <g transform="translate(1000 55)">
+      <rect width="238" height="516" rx="22" class="frame"/>
+      <rect x="8" y="8" width="222" height="500" rx="16" class="scene"/>
+      <path d="M8 42H230" class="hair"/>
+      <text x="20" y="30" class="display cyan" font-size="12">GAGOS</text>
+      <text x="218" y="30" text-anchor="end" class="cyan" font-size="10">Working</text>
+      <g transform="translate(122 134) scale(.44)" style="color:#7bf5fb"><use href="#spine"/></g>
+      <text x="119" y="195" text-anchor="middle" class="cyan" font-size="10">GAGOS is working.</text>
+      <rect x="18" y="218" width="202" height="137" rx="10" class="surface" stroke="rgba(232,230,238,.25)"/>
+      <text x="30" y="242" font-size="11">Current work</text>
+      <text x="30" y="265" class="muted" font-size="9">Actual stream appears here</text>
+      <path d="M30 284H195 M30 301H176 M30 318H202" stroke="rgba(232,230,238,.25)" stroke-width="3" stroke-linecap="round"/>
+      <rect x="18" y="366" width="202" height="100" rx="10" class="surface" stroke="rgba(232,230,238,.2)"/>
+      <text x="30" y="393" class="muted" font-size="10">Talk to GAGOS</text>
+      <text x="30" y="420" class="cyan" font-size="10">Request stays available</text>
+      <text x="30" y="448" class="muted" font-size="9">Composer edge is measured</text>
+    </g>
+
+    <g transform="translate(1280 105)">
+      <text x="0" y="0" class="display" font-size="22">The body conducts; the work stays readable</text>
+      <text x="0" y="38" class="copy">A real active/admitted event selects this posture.</text>
+      <text x="0" y="68" class="copy">Stream into the same stable task surface.</text>
+      <text x="0" y="98" class="copy">Keep Stop, request, and workspace controls reachable.</text>
+      <path d="M0 125H610" class="hair"/>
+      <text x="0" y="160" class="cyan label">SOURCE</text>
+      <text x="100" y="160" class="mono small">taskState = working · phase = acting</text>
+      <text x="0" y="192" class="cyan label">BODY</text>
+      <text x="100" y="192" class="copy">Conduct toward the attended workspace</text>
+      <text x="0" y="224" class="cyan label">SURFACE</text>
+      <text x="100" y="224" class="copy">Keep task identity as chunks arrive</text>
+      <text x="0" y="256" class="muted small">Worker count, route, or progress appears only when measured.</text>
+    </g>
+  </g>
+
+  <!-- AWAITING PERMISSION -->
+  <g transform="translate(0 1430)">
+    <rect x="40" y="0" width="1920" height="590" rx="16" fill="#0c0916" stroke="rgba(232,230,238,.18)"/>
+    <text x="70" y="42" class="orange label">03 / AWAITING PERMISSION</text>
+    <text x="350" y="42" class="muted small">Real pending approval → hold posture; the person—not the body—owns the decision</text>
+
+    <g transform="translate(70 55)">
+      <rect width="832" height="520" rx="12" class="frame"/>
+      <path d="M0 42H832" class="hair"/>
+      <text x="20" y="28" class="display cyan" font-size="16" letter-spacing="2">GAGOS</text>
+      <text x="810" y="28" text-anchor="end" class="orange small">GAGOS is waiting for your decision.</text>
+      <rect x="1" y="43" width="266" height="476" fill="#030108"/>
+      <path d="M267 43V520" class="hair"/>
+      <text x="18" y="74" class="muted small">Attention returns to the person</text>
+      <g transform="translate(134 245) scale(.74)" style="color:#ff7e40"><use href="#spine"/></g>
+      <text x="18" y="380" class="orange small">The action is held.</text>
+      <rect x="268" y="43" width="564" height="476" fill="#0c0916"/>
+      <text x="292" y="78" class="display" font-size="18">Current work stays in view</text>
+      <path d="M292 100H808" class="hair"/>
+      <path d="M292 133H750 M292 157H720 M292 181H770" stroke="rgba(232,230,238,.2)" stroke-width="5" stroke-linecap="round"/>
+      <g transform="translate(360 193) scale(.96)">
+        <use href="#approval-card"/>
+      </g>
+      <text x="292" y="445" class="muted small">No approval is inferred from focus, motion, or silence.</text>
+    </g>
+
+    <g transform="translate(1000 55)">
+      <rect width="238" height="516" rx="22" class="frame"/>
+      <rect x="8" y="8" width="222" height="500" rx="16" class="scene"/>
+      <path d="M8 42H230" class="hair"/>
+      <text x="20" y="30" class="display cyan" font-size="12">GAGOS</text>
+      <text x="218" y="30" text-anchor="end" class="orange" font-size="10">Decision needed</text>
+      <g transform="translate(122 108) scale(.35)" style="color:#ff7e40"><use href="#spine"/></g>
+      <text x="119" y="157" text-anchor="middle" class="orange" font-size="9">Waiting for your decision</text>
+      <rect x="18" y="179" width="202" height="173" rx="10" class="surface" stroke="#ff7e40" stroke-opacity=".8"/>
+      <text x="30" y="202" class="orange" font-size="9">GAGOS WANTS YOUR PERMISSION</text>
+      <text x="30" y="225" font-size="10">Specific action and target</text>
+      <text x="30" y="244" class="muted" font-size="8">What · where · effect · if you say no</text>
+      <text x="30" y="262" class="cyan" font-size="8">Explain available before deciding</text>
+      <rect x="28" y="276" width="87" height="36" rx="6" class="button" stroke="#ff7e40"/>
+      <text x="71" y="299" text-anchor="middle" font-size="8">Allow once</text>
+      <rect x="122" y="276" width="88" height="36" rx="6" class="button"/>
+      <text x="166" y="299" text-anchor="middle" font-size="8">Don't allow</text>
+      <text x="119" y="382" text-anchor="middle" class="muted" font-size="8">Keyboard focus remains in the decision.</text>
+      <text x="119" y="447" text-anchor="middle" class="muted" font-size="8">Body holds until the real decision resolves.</text>
+    </g>
+
+    <g transform="translate(1280 105)">
+      <text x="0" y="0" class="display" font-size="22">A boundary is not a celebration</text>
+      <text x="0" y="38" class="copy">The actual approval surface states the action and scope.</text>
+      <text x="0" y="68" class="copy">Approve and decline are distinct, explicit choices.</text>
+      <text x="0" y="98" class="copy">Emergency stop or stale transport stays plainly visible.</text>
+      <path d="M0 125H610" class="hair"/>
+      <text x="0" y="160" class="orange label">SOURCE</text>
+      <text x="100" y="160" class="mono small">approvalPending = true · phase = awaiting-human</text>
+      <text x="0" y="192" class="orange label">BODY</text>
+      <text x="100" y="192" class="copy">Hold · attention toward the human</text>
+      <text x="0" y="224" class="orange label">AUTHORITY</text>
+      <text x="100" y="224" class="copy">Only the existing audited decision control acts</text>
+      <text x="0" y="256" class="muted small">Stop overrides activity; it never silently approves or rejects.</text>
+    </g>
+  </g>
+
+  <path d="M64 2040H1936" class="hair"/>
+  <text x="64" y="2064" class="muted small">Motion contract: event-driven · interruptible · no ambient loops · keyboard changes are immediate · reduced motion preserves the exact same content, focus, decisions and truth.</text>
+</svg>

@@ -142,6 +142,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   const motionPaused = reducedMotion || manualMotionPaused;
   const systemReducedMotion = detectSystemReducedMotion();
   const heading = useRef<HTMLHeadingElement>(null);
+  const conversationButton = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const panels = snapshot.panels ?? [];
   const focusedPanel = panels.find((panel) => panel.id === snapshot.focusId && panel.open);
@@ -152,6 +153,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     ...snapshot.tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').map((t) => ({ id: t.id, title: t.content?.filepath ?? 'Approval review', seat: t.seatIndex, pinned: t.pinned })),
   ];
   const working = !!focused || !!artifact;
+  const wasWorking = useRef(working);
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
     const media = window.matchMedia(NARROW_VIEWPORT_QUERY);
@@ -164,20 +166,51 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     media.addListener?.(sync);
     return () => media.removeListener?.(sync);
   }, []);
+  const rememberReturnFocus = (trigger?: HTMLElement | null) => {
+    const active = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    returnFocus.current = active === document.body ? null : active;
+  };
+  const restoreWorkspaceFocus = () => {
+    const target = returnFocus.current;
+    returnFocus.current = null;
+    const removedOnDismiss = target?.closest('.lm-workspace-rail, .lm-workspace-list, .lm-surface');
+    const unavailable = target?.closest('[hidden], [inert], [aria-hidden="true"], details:not([open])');
+    if (target?.isConnected && !removedOnDismiss && !unavailable && !target.matches(':disabled')) {
+      target.focus({ preventScroll: true });
+      return;
+    }
+    conversationButton.current?.focus({ preventScroll: true });
+  };
+  const open = (id: string, title: string, trigger?: HTMLElement | null) => {
+    rememberReturnFocus(trigger);
+    openWorkspacePanel(id, title);
+  };
+  const focusFromControl = (id: string, trigger: HTMLElement) => {
+    returnFocus.current = trigger;
+    focusWorkspace(id);
+  };
+  const dismiss = () => {
+    if (snapshot.focusId) closeWorkspace(snapshot.focusId);
+  };
   useEffect(() => {
-    if (working) heading.current?.focus({ preventScroll: true });
+    if (working) {
+      heading.current?.focus({ preventScroll: true });
+    } else if (wasWorking.current) {
+      restoreWorkspaceFocus();
+    }
+    wasWorking.current = working;
   }, [snapshot.focusId, working]);
-  const open = (id: string, title: string) => { returnFocus.current = document.activeElement as HTMLElement; openWorkspacePanel(id, title); };
-  const dismiss = () => { if (snapshot.focusId) closeWorkspace(snapshot.focusId); returnFocus.current?.focus(); };
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (experienceMode !== 'expert' || event.defaultPrevented || event.key !== '`' || !event.ctrlKey) return;
-      event.preventDefault(); openWorkspacePanel('terminal', 'Terminal');
+      event.preventDefault();
+      rememberReturnFocus();
+      openWorkspacePanel('terminal', 'Terminal');
     };
     window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle);
   }, [experienceMode]);
   const renderExpertButtons = (group: typeof expertSurfaceGroups[number]) => group.surfaces.map(([id, title]: readonly [string, string]) => (
-    <button key={id} type="button" aria-current={focused?.id === id ? 'page' : undefined} onClick={() => open(id, title)}>{title}</button>
+    <button key={id} type="button" aria-current={focused?.id === id ? 'page' : undefined} onClick={(event) => open(id, title, event.currentTarget)}>{title}</button>
   ));
   const renderDesktopExpertGroups = () => expertSurfaceGroups.map((group, index) => {
     const buttons = renderExpertButtons(group);
@@ -204,10 +237,13 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       <EmergencyControl guided={experienceMode === 'beginner'} />
     </header>
     <nav className="lm-navigation" aria-label="Workspaces">
-      <button type="button" aria-current={!working ? 'page' : undefined} onClick={() => focusWorkspace(null)}>Conversation</button>
+      <button ref={conversationButton} type="button" aria-current={!working ? 'page' : undefined} onClick={(event) => {
+        returnFocus.current = event.currentTarget;
+        focusWorkspace(null);
+      }}>Conversation</button>
       {experienceMode === 'expert'
         ? narrowViewport ? renderMobileExpertGroups() : renderDesktopExpertGroups()
-        : guidedSurfaces.map(([id, title]) => <button key={id} type="button" aria-current={focused?.id === id ? 'page' : undefined} onClick={() => open(id, title)}>{title}</button>)}
+        : guidedSurfaces.map(([id, title]) => <button key={id} type="button" aria-current={focused?.id === id ? 'page' : undefined} onClick={(event) => open(id, title, event.currentTarget)}>{title}</button>)}
       <button
         type="button"
         disabled={systemReducedMotion}
@@ -221,13 +257,13 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
         {systemReducedMotion ? 'Motion reduced by system' : motionPaused ? 'Resume ambient motion' : 'Pause ambient motion'}
       </button>
     </nav>
-    <MirrorConnectionNotice experienceMode={experienceMode} onOpenAuthority={experienceMode === 'expert' ? () => open('governance', 'Governance') : undefined} />
+    <MirrorConnectionNotice experienceMode={experienceMode} onOpenAuthority={experienceMode === 'expert' ? (trigger) => open('governance', 'Governance', trigger) : undefined} />
     <aside className="lm-workspace-rail" aria-label="Spinal workspace anchors">
-      {handles.slice(0, 4).map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'true' : undefined} onClick={() => focusWorkspace(handle.id)}>
+      {handles.slice(0, 4).map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'true' : undefined} onClick={(event) => focusFromControl(handle.id, event.currentTarget)}>
         <span className="lm-vertebra" aria-hidden="true" />{handle.title}{handle.pinned ? ' · pinned' : ''}
       </button>)}
       {handles.length > 0 && <button type="button" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>All {handles.length} workspaces</button>}
-      {listOpen && <div className="lm-workspace-list">{handles.map((handle) => <button key={handle.id} type="button" onClick={() => { focusWorkspace(handle.id); setListOpen(false); }}>{handle.title} · Anchor {handle.seat ?? 'unassigned'}</button>)}</div>}
+      {listOpen && <div className="lm-workspace-list">{handles.map((handle) => <button key={handle.id} type="button" onClick={(event) => { focusFromControl(handle.id, event.currentTarget); setListOpen(false); }}>{handle.title} · Anchor {handle.seat ?? 'unassigned'}</button>)}</div>}
     </aside>
     <section className="lm-surface" hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
       if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('.monaco-editor')) { event.stopPropagation(); dismiss(); }

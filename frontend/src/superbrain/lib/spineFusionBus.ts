@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 /**
  * spineFusionBus — publishes the EXACT transform that BrainPointField uses to
  * weld the spine point-cloud into the brain cloud, so other systems (the
@@ -55,6 +57,24 @@ export function getBrainDockScale(): number {
   return brainDockScale;
 }
 
+// ── Body scene frame ────────────────────────────────────────────────────────
+// Product-owned scene effects are siblings of the animated brain group. Publish
+// its complete world matrix so their group-local paths inherit the same voyage,
+// orbit and scale instead of drifting away from the visible body.
+let bodyGroupWorldMatrix: THREE.Matrix4 | null = null;
+
+export function setBodyGroupWorldMatrix(matrix: THREE.Matrix4): void {
+  if (!bodyGroupWorldMatrix) bodyGroupWorldMatrix = new THREE.Matrix4();
+  bodyGroupWorldMatrix.copy(matrix);
+}
+
+/** Copy the latest body transform into caller-owned scratch storage. */
+export function copyBodyGroupWorldMatrix(target: THREE.Matrix4): boolean {
+  if (!bodyGroupWorldMatrix) return false;
+  target.copy(bodyGroupWorldMatrix);
+  return true;
+}
+
 // ── Cortex anchor ────────────────────────────────────────────────────────────
 // The brain-HEAD centroid in cloud-local space (where the point cloud is sampled).
 // BrainPointField publishes it once the geometry is built. Reabsorption motes
@@ -77,4 +97,5 @@ export function __resetSpineFusionForTests(): void {
   fusion = IDENTITY;
   brainDockScale = 1;
   cortexAnchor = [0, 0.1, 0];
+  bodyGroupWorldMatrix = null;
 }

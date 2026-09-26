@@ -5,6 +5,21 @@ import { setRendererFallbackPresentation } from '../livingMirror/rendererFallbac
 
 const rendererFailureState = vi.hoisted(() => ({ value: false }));
 const contextTrackerState = vi.hoisted(() => ({ lost: vi.fn(), restored: vi.fn() }));
+const originalVisualViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+const originalInnerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+
+function restoreWindowDescriptor(name, descriptor) {
+  if (descriptor) Object.defineProperty(window, name, descriptor);
+  else delete window[name];
+}
+
+function installVisualViewport({ height, offsetTop = 0, scale = 1 }) {
+  const viewport = new EventTarget();
+  Object.assign(viewport, { height, offsetTop, scale });
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+  return viewport;
+}
 
 vi.mock('@/components/ui/BootSequence', () => ({
   default: () => null,
@@ -41,6 +56,8 @@ vi.mock('../livingMirror/being/useBeingPresentation', () => ({
     coherence: 'fresh',
     motion: 'calm',
     attention: 'none',
+    signals: [],
+    workers: [],
   }),
 }));
 
@@ -85,6 +102,102 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     vi.restoreAllMocks();
     setRendererFallbackPresentation(false);
     document.body.innerHTML = '';
+    restoreWindowDescriptor('visualViewport', originalVisualViewport);
+    restoreWindowDescriptor('innerHeight', originalInnerHeight);
+  });
+
+  it('keeps the app composer within the visible viewport while a text field is focused', async () => {
+    const viewport = installVisualViewport({ height: 300 });
+    render(<SuperbrainApp />);
+    const app = document.querySelector('.lm-app');
+    if (!app) throw new Error('Expected the GAGOS app root to mount.');
+
+    const chat = document.createElement('section');
+    chat.className = 'gagos-chat';
+    const input = document.createElement('input');
+    input.type = 'text';
+    chat.append(input);
+    app.append(chat);
+    input.focus();
+
+    await waitFor(() => expect(app).toHaveAttribute('data-keyboard-open', 'true'));
+    expect(app.style.getPropertyValue('--lm-keyboard-inset')).toBe('500px');
+    expect(app.style.getPropertyValue('--lm-visible-viewport-height')).toBe('300px');
+
+    viewport.height = 420;
+    viewport.offsetTop = 10;
+    viewport.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app.style.getPropertyValue('--lm-keyboard-inset')).toBe('370px'));
+
+    input.blur();
+    await waitFor(() => expect(app).not.toHaveAttribute('data-keyboard-open', 'true'));
+    expect(app.style.getPropertyValue('--lm-keyboard-inset')).toBe('');
+    expect(app.style.getPropertyValue('--lm-visible-viewport-height')).toBe('');
+  });
+
+  it('measures keyboard occlusion from the app bounds when its minimum height exceeds the viewport', async () => {
+    const viewport = installVisualViewport({ height: 180 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 390 });
+    render(<SuperbrainApp />);
+    const app = document.querySelector('.lm-app');
+    if (!app) throw new Error('Expected the GAGOS app root to mount.');
+    app.getBoundingClientRect = () => ({ bottom: 520, height: 520 });
+
+    const chat = document.createElement('section');
+    chat.className = 'gagos-chat';
+    const input = document.createElement('input');
+    input.type = 'text';
+    chat.append(input);
+    app.append(chat);
+    input.focus();
+
+    await waitFor(() => expect(app).toHaveAttribute('data-keyboard-open', 'true'));
+    expect(app.style.getPropertyValue('--lm-keyboard-inset')).toBe('340px');
+    expect(viewport.height).toBe(180);
+  });
+
+  it('tracks the composer\'s measured dock edge as it moves', async () => {
+    render(<SuperbrainApp />);
+    const app = document.querySelector('.lm-app');
+    if (!app) throw new Error('Expected the GAGOS app root to mount.');
+
+    const chat = document.createElement('section');
+    chat.className = 'gagos-chat';
+    app.append(chat);
+    app.getBoundingClientRect = () => ({ bottom: 844, height: 844 });
+    let chatTop = 620;
+    chat.getBoundingClientRect = () => ({ top: chatTop, height: 92 });
+
+    window.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app.style.getPropertyValue('--lm-workspace-dock-clearance')).toBe('236px'));
+
+    chatTop = 510;
+    window.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app.style.getPropertyValue('--lm-workspace-dock-clearance')).toBe('346px'));
+  });
+
+  it('does not move the composer for non-text focus or pinch zoom', async () => {
+    const viewport = installVisualViewport({ height: 300 });
+    render(<SuperbrainApp />);
+    const app = document.querySelector('.lm-app');
+    if (!app) throw new Error('Expected the GAGOS app root to mount.');
+
+    const chat = document.createElement('section');
+    chat.className = 'gagos-chat';
+    const button = document.createElement('button');
+    chat.append(button);
+    app.append(chat);
+    button.focus();
+    viewport.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app).not.toHaveAttribute('data-keyboard-open', 'true'));
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    button.replaceWith(input);
+    input.focus();
+    viewport.scale = 1.5;
+    viewport.dispatchEvent(new Event('resize'));
+    await waitFor(() => expect(app).not.toHaveAttribute('data-keyboard-open', 'true'));
   });
 
   it('projects the managed fallback into the human-facing shell and clears after recovery', async () => {

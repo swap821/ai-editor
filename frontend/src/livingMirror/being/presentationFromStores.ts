@@ -11,6 +11,7 @@ import {
   type BeingPresentation,
   type RouteClass,
   type VerificationState,
+  type WorkerPresentationRecord,
   type WorkerPresentationState,
 } from './semanticKernel';
 
@@ -38,12 +39,32 @@ function lastEventOf(
   return event ?? null;
 }
 
+function mirrorVerification(mirror: CortexMirrorState): VerificationState {
+  const envelope = mirror.lastVerification;
+  const payload = envelope ? eventPayload(envelope) : null;
+  const verdict = payload && typeof payload.verdict === 'string' ? payload.verdict.toLowerCase() : '';
+  if (verdict === 'pass' || verdict === 'passed' || verdict === 'green') return 'pass';
+  if (verdict === 'fail' || verdict === 'failed' || verdict === 'red') return 'fail';
+  if (mirror.phase === 'active' && (mirror.pendingEvents > 0 || mirror.approvalRequired)) return 'pending';
+  return 'unknown';
+}
+
 function verificationFromStores(
   mirror: CortexMirrorState,
   tabs: TabSnapshot,
-  currentTurnEvents: CortexMirrorState['recentEvents'],
+  currentTurnStarted: boolean,
+  currentTurnHasVerification: boolean,
 ): VerificationState {
   const focused = tabs.tabs.find((tab) => tab.id === tabs.focusId);
+
+  // A surface verdict remains valid for its artifact, but cannot stand in for
+  // the current turn's result once a newer turn boundary has been observed.
+  // Prefer that turn's measured mirror verdict before consulting an older tab.
+  if (currentTurnStarted) {
+    if (currentTurnHasVerification) return mirrorVerification(mirror);
+    return focused?.kind === 'content' && focused.content?.streaming ? 'pending' : 'unknown';
+  }
+
   if (focused?.kind === 'content') {
     if (focused.content?.streaming) return 'pending';
     if (focused.content?.verifyVerdict === 'pass') return 'pass';
@@ -58,30 +79,54 @@ function verificationFromStores(
   // the current measured turn can promote this fallback path. A content tab
   // with its own explicit verdict is handled above because that evidence is
   // bound to the surface being presented.
-  if (!currentTurnEvents.some((event) => VERIFICATION_EVENT_TYPES.has(event.type))) return 'unknown';
-  const envelope = mirror.lastVerification;
-  const payload = envelope ? eventPayload(envelope) : null;
-  const verdict = payload && typeof payload.verdict === 'string' ? payload.verdict.toLowerCase() : '';
-  if (verdict === 'pass' || verdict === 'passed' || verdict === 'green') return 'pass';
-  if (verdict === 'fail' || verdict === 'failed' || verdict === 'red') return 'fail';
-  if (mirror.phase === 'active' && (mirror.pendingEvents > 0 || mirror.approvalRequired)) return 'pending';
-  return 'unknown';
+  if (!currentTurnHasVerification) return 'unknown';
+  return mirrorVerification(mirror);
 }
 
-function workerStates(mirror: CortexMirrorState): WorkerPresentationState[] {
-  return Object.values(mirror.workers)
-    .map((worker) => {
+function workerStates(mirror: CortexMirrorState): WorkerPresentationRecord[] {
+  if (mirror.projection === 'stale' || mirror.projection === 'unavailable') return [];
+
+  const eventWorkers = Object.entries(mirror.workers)
+    .map(([workerId, worker]) => {
       const state = worker.state.replace(/_/g, '-');
       const presentationState = state === 'started' ? 'active' : state === 'completed' ? 'returned' : state;
-      return { state: presentationState as WorkerPresentationState, cursor: worker.cursor };
+      return { workerId, state: presentationState as WorkerPresentationState, cursor: worker.cursor };
     })
-    .filter(({ state }) => WORKER_STATES.has(state))
+    .filter(({ state }) => WORKER_STATES.has(state));
+  const observation = mirror.observations?.activeWorkers;
+  const rosterCursor = observation
+    && (observation.status === 'measured' || observation.status === 'derived')
+    && typeof observation.cursor === 'number'
+    && Number.isSafeInteger(observation.cursor)
+    && observation.cursor >= 0
+    ? observation.cursor
+    : null;
+
+  let projectedWorkers: WorkerPresentationRecord[] = eventWorkers;
+  if (rosterCursor !== null) {
+    const currentIds = new Set(mirror.activeWorkers);
+    const byId = new Map<string, WorkerPresentationRecord>();
+
+    for (const worker of eventWorkers) {
+      if (worker.cursor > rosterCursor || (worker.cursor === rosterCursor
+        && TERMINAL_WORKER_STATES.has(worker.state) && !currentIds.has(worker.workerId))) {
+        byId.set(worker.workerId, worker);
+      }
+    }
+    for (const workerId of currentIds) {
+      const newerEvent = byId.get(workerId);
+      byId.set(workerId, newerEvent ?? { workerId, state: 'active', cursor: rosterCursor });
+    }
+    projectedWorkers = [...byId.values()];
+  }
+
+  return projectedWorkers
     .sort((a, b) => {
       const terminalOrder = Number(TERMINAL_WORKER_STATES.has(a.state)) - Number(TERMINAL_WORKER_STATES.has(b.state));
-      return terminalOrder || b.cursor - a.cursor;
+      if (terminalOrder || b.cursor !== a.cursor) return terminalOrder || b.cursor - a.cursor;
+      return a.workerId < b.workerId ? -1 : a.workerId > b.workerId ? 1 : 0;
     })
-    .slice(0, MAX_PRESENTATION_WORKERS)
-    .map(({ state }) => state);
+    .slice(0, MAX_PRESENTATION_WORKERS);
 }
 
 function routeClass(events: CortexMirrorState['recentEvents']): RouteClass {
@@ -110,16 +155,28 @@ export function beingFactsFromStores(
   const contentTabs = tabs.tabs.filter((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting');
   const hasStreamingSurface = contentTabs.some((tab) => tab.content?.streaming === true);
   const hasResultSurface = contentTabs.some((tab) => tab.content?.streaming === false);
-  // Recent events are bounded history, not current-task state. If a later
-  // turn.started marker exists, terminal outcome signals before it belong to
-  // the prior turn and must not keep the organism in refusal/recovery forever.
-  const latestTurnStartedIndex = [...mirror.recentEvents]
-    .map((event, index) => ({ event, index }))
-    .reverse()
-    .find(({ event }) => event.type === 'turn.started')?.index;
-  const currentTurnEvents = latestTurnStartedIndex === undefined
-    ? mirror.recentEvents.slice(-32)
-    : mirror.recentEvents.slice(latestTurnStartedIndex + 1);
+  // Recent events are bounded history, not current-task state. Keep the
+  // monotonic turn cursor separately so a long turn remains attributable after
+  // its `turn.started` entry rolls out of the 256-event display buffer.
+  const attributionInvalidated = mirror.turnAttributionInvalidated;
+  const recentTurnStartedId = attributionInvalidated
+    ? null
+    : [...mirror.recentEvents].reverse().find((event) => event.type === 'turn.started')?.id ?? null;
+  const latestTurnStartedId = attributionInvalidated ? null : mirror.lastTurnStartedEventId ?? recentTurnStartedId;
+  // Treat the unresolved boundary as a current-but-unattributed turn. This
+  // prevents a focused artifact or retained verifier receipt from supplying
+  // success until a new turn.started event establishes ownership.
+  const currentTurnStarted = attributionInvalidated || latestTurnStartedId !== null;
+  const currentTurnEvents = attributionInvalidated
+    ? []
+    : latestTurnStartedId === null
+      ? mirror.recentEvents.slice(-32)
+      : mirror.recentEvents.filter((event) => event.id > latestTurnStartedId);
+  // The latest structured verification receipt and its cursor outlive the
+  // bounded event history. It belongs to this turn only when newer than the
+  // persistent turn boundary.
+  const currentTurnHasVerification = !attributionInvalidated && (currentTurnEvents.some((event) => VERIFICATION_EVENT_TYPES.has(event.type))
+    || (latestTurnStartedId !== null && mirror.lastVerificationEventId !== null && mirror.lastVerificationEventId > latestTurnStartedId));
   const currentTurnTypes = new Set(currentTurnEvents.map((event) => event.type));
   const refusalObserved = currentTurnTypes.has('security.refusal.recorded');
   const failureObserved = currentTurnTypes.has('mission.failed')
@@ -140,7 +197,12 @@ export function beingFactsFromStores(
       : hasResultSurface || conversation === 'complete'
         ? 'complete'
         : 'idle';
-  const verification = verificationFromStores(mirror, tabs, currentTurnEvents);
+  const verification = verificationFromStores(
+    mirror,
+    tabs,
+    currentTurnStarted,
+    currentTurnHasVerification,
+  );
   const organismLifecycle = materializingSurface
     ? 'materializing'
     : reabsorbingSurface
@@ -204,7 +266,7 @@ export function beingStatusText(presentation: BeingPresentation): string {
     case 'reflex': return 'GAGOS is reusing a verified routine.';
     case 'recovering': return 'GAGOS is recovering from an interrupted or refused action.';
     case 'stale': return 'GAGOS is showing a last-known picture; current state is not confirmed.';
-    case 'degraded': return 'GAGOS controls remain available, but the organism picture is incomplete.';
+    case 'degraded': return 'GAGOS has no live state to show; the organism is in its resting view.';
     case 'stopped': return 'GAGOS is stopped.';
     case 'listening': return 'GAGOS is listening.';
     case 'understanding': return 'GAGOS is understanding your request.';
