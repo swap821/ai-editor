@@ -201,6 +201,30 @@
 .lm-app .gagos-chat input, .lm-app .gagos-chat textarea { font-size: 16px; }
 .lm-app .gagos-chat button { min-width: 44px; min-height: 44px; }
 @media (min-width: 1200px) {
+  .lm-app {
+    --lm-desktop-connection-slot: 148px;
+  }
+
+  /* Connection truth belongs to the same left rail as the conversation. Keep
+     the right-hand organism and its root field free of full-width status copy. */
+  .lm-app[data-working="false"] .lm-connection {
+    right: calc(100% - var(--lm-conversation-rail) + 28px);
+  }
+  .lm-app[data-working="true"] .lm-connection {
+    right: calc(68% + 28px);
+  }
+  .lm-app .lm-connection {
+    max-height: var(--lm-desktop-connection-slot);
+    overflow-y: auto;
+  }
+  .lm-app .gagos-status {
+    bottom: calc(18px + var(--lm-desktop-connection-slot) + 12px);
+  }
+  .lm-app .gagos-chat {
+    bottom: calc(18px + var(--lm-desktop-connection-slot) + 12px + 40px + 12px);
+    height: min(62dvh, calc(100dvh - 356px));
+  }
+
   /* The integrated rail is a bounded composition: keep the request control
      visible while the longer welcome/starter content scrolls inside it. */
   .lm-app .gagos-chat {
