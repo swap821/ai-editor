@@ -302,26 +302,23 @@ def test_get_cerebellum_wires_the_bus(monkeypatch) -> None:
 
     This asserts the WIRING, not the class: `test_the_cerebellum_reports_...`
     below passes a bus explicitly and so cannot catch a provider that forgets.
+
+    Since Phase 2 slice 1 the provider no longer CONSTRUCTS a cerebellum -- it
+    serves the memory authority's one instance, which the composition root
+    builds without a bus -- so the property is asserted on what it serves.
     """
     from aios.api import deps
 
     sentinel = object()
-    captured: dict[str, object] = {}
-
-    class _CapturingCerebellum:
-        def __init__(self, **kwargs: object) -> None:
-            captured.update(kwargs)
-
-        def try_compile_all(self) -> None:
-            pass
-
+    cerebellum = deps.get_memory_authority().adapters["cerebellum"].store
     monkeypatch.setattr(deps, "get_cortex_observation_bus", lambda: sentinel)
-    monkeypatch.setattr(deps, "Cerebellum", _CapturingCerebellum)
+    monkeypatch.setattr(cerebellum, "_bus", None)
+    monkeypatch.setattr(cerebellum, "try_compile_all", lambda: 0)
 
-    deps.get_cerebellum()
+    served = deps.get_cerebellum()
 
-    assert captured.get("bus") is sentinel, (
-        "get_cerebellum() built a cerebellum with no bus -- every replay and "
+    assert served._bus is sentinel, (
+        "get_cerebellum() served a cerebellum with no bus -- every replay and "
         "every abstention it records is silently dropped"
     )
 

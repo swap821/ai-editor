@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 from aios import config
 from aios.application.memory.adapters import (
     AdvisoryPheromoneAdapter,
+    CerebellumAdapter,
+    CurriculumAdapter,
     DevelopmentHistoryAdapter,
     EpisodicMemoryAdapter,
     LegacySemanticMemoryAdapter,
@@ -32,8 +34,10 @@ from aios.application.memory.adapters import (
     WorkingMemoryAdapter,
 )
 from aios.application.memory.authority import MemoryAuthority
+from aios.core.cerebellum import Cerebellum
 from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.memory.consolidation import MemoryConsolidator
+from aios.memory.curriculum import CurriculumManager
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
@@ -54,14 +58,27 @@ def build_memory_authority() -> MemoryAuthority:
     behind an authority adapter; the consolidator reuses the registered
     stores so no second physical store exists for the same data.
     """
+    # One cerebellum for the process, and the skill store is wired to it, so a
+    # skill promoted to 'verified' compiles its reflex in the SAME request.
+    # Before Phase 2 the skill store had no cerebellum at all, and compilation
+    # happened a request later through the API layer's per-request sweep --
+    # while `get_skill_memory`'s docstring claimed the opposite.
+    #
+    # `facts=` is deliberately NOT wired into the skill or lesson stores: their
+    # graph-ingestion hook writes `semantic_facts` rows as ACTIVE with no
+    # approver, laundering learned text into the channel recall presents as
+    # "RELEVANT APPROVED FACTS" (threat T16, red-team RT-18).
+    cerebellum = Cerebellum(config.MEMORY_DB_PATH)
     adapters = {
         "working": WorkingMemoryAdapter(WorkingMemory()),
         "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
         "semantic": LegacySemanticMemoryAdapter(SemanticMemory(config.MEMORY_DB_PATH)),
         "facts": SemanticFactsAdapter(SemanticFacts()),
-        "skills": SkillMemoryAdapter(SkillMemory()),
+        "skills": SkillMemoryAdapter(SkillMemory(cerebellum=cerebellum)),
         "lessons": MistakeMemoryAdapter(MistakeMemory()),
         "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
+        "cerebellum": CerebellumAdapter(cerebellum),
+        "curriculum": CurriculumAdapter(CurriculumManager(config.MEMORY_DB_PATH)),
     }
     authority = MemoryAuthority(
         store=MemoryAuthorityStore(config.MEMORY_DB_PATH),

@@ -481,8 +481,16 @@ def get_cerebellum() -> Cerebellum:
     just never says so. Nothing downstream can then audit what compiled
     experience did on a turn, which is the same defect class the
     `WorkerFoundry` wiring below already carries a note about.
+
+    Phase 2 slice 1: the ONE cerebellum the memory authority owns, not a fresh
+    one per request. It was the only learning store built outside the
+    composition root, invisible to both R11 checks because it was never a
+    tracked type. The sweep still runs per request -- it is what recompiles a
+    reflex whose skill re-earned trust after a decompile -- and it freezes on
+    its own while the emergency stop is engaged.
     """
-    cb = Cerebellum(bus=get_cortex_observation_bus())
+    cb = _authority_store("cerebellum", Cerebellum)
+    cb.attach_bus(get_cortex_observation_bus())
     cb.try_compile_all()
     return cb
 
@@ -494,11 +502,16 @@ def get_skill_memory(
 ) -> SkillMemory:
     """Provide verification-backed procedural skill memory.
 
-    Wired to the same request-scoped cerebellum instance so that a skill's
-    promotion to 'verified' (or demotion back to 'candidate') during this
-    request immediately compiles (or decompiles) the matching playbook —
-    the sovereignty engine stays in sync with skill trust status. The facts
-    store enables S2 cross-store ingestion on skill promotion.
+    The authority-owned store. It is wired to the authority's one cerebellum
+    in `bootstrap.py`, so a promotion to 'verified' (or a demotion back to
+    'candidate') compiles (or decompiles) the matching reflex in the same
+    request. Until Phase 2 this docstring said so while it was false: the store
+    had no cerebellum at all.
+
+    It is deliberately NOT wired to the facts store. The S2 graph-ingestion
+    hook would write learned text into `semantic_facts` as active with no
+    approver (threat T16). The `cerebellum` and `facts` parameters remain only
+    so existing dependency overrides keep resolving.
     """
     if not isinstance(authority, MemoryAuthority):
         raise RuntimeError("MemoryAuthority is required")
@@ -509,7 +522,12 @@ def get_mistake_memory(
     facts: SemanticFacts = Depends(get_semantic_facts),
     authority: MemoryAuthority = Depends(get_memory_authority),
 ) -> MistakeMemory:
-    """Provide mistake memory with knowledge graph ingestion wiring."""
+    """Provide the authority-owned mistake (lesson) memory.
+
+    Deliberately NOT wired to the facts store: graph ingestion on promotion
+    would launder lesson text into facts presented as human-approved (T16).
+    The `facts` parameter remains only so existing overrides keep resolving.
+    """
     if not isinstance(authority, MemoryAuthority):
         raise RuntimeError("MemoryAuthority is required")
     return _authority_store("lessons", MistakeMemory)
@@ -530,8 +548,12 @@ def get_native_planner(
 
 
 def get_curriculum_manager() -> CurriculumManager:
-    """Provide the non-autonomous curriculum evidence store."""
-    return CurriculumManager()
+    """Provide the authority-owned, non-autonomous curriculum evidence store.
+
+    One instance, built in the composition root (Phase 2 slice 1); it used to
+    be constructed fresh on every call, outside the memory authority.
+    """
+    return _authority_store("curriculum", CurriculumManager)
 
 
 def get_memory_consolidator() -> MemoryConsolidator:
