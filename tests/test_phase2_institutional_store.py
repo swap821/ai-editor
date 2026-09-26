@@ -224,7 +224,9 @@ class TestAReviewedContractIsNeverRewritten:
 
     def test_every_field_is_classified(self) -> None:
         classified = (
-            set(_CONTRACT_CHANGES) | set(_EVIDENCE_FIELDS) | {"skill_id", "version", "state"}
+            set(_CONTRACT_CHANGES)
+            | set(_EVIDENCE_FIELDS)
+            | {"skill_id", "version", "state"}
         )
         assert classified == set(SkillRecord.model_fields)
 

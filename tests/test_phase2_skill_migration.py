@@ -33,8 +33,22 @@ NOW = datetime(2026, 9, 26, 12, 0, 0, tzinfo=timezone.utc)
 LEGACY = [
     ("s1", "sigA", "candidate", ["read_file: filepath=a.py"], 1, 0),
     ("s2", "sigB", "verified", ["verify: command=pytest t.py -q"], 4, 1),
-    ("s3", "sigC", "superseded", ["create_file: path=x.py", "verify: command=pytest"], 2, 2),
-    ("s4", "sigC", "verified", ["create_file: path=x.py", "edit_file: path=x.py"], 5, 0),
+    (
+        "s3",
+        "sigC",
+        "superseded",
+        ["create_file: path=x.py", "verify: command=pytest"],
+        2,
+        2,
+    ),
+    (
+        "s4",
+        "sigC",
+        "verified",
+        ["create_file: path=x.py", "edit_file: path=x.py"],
+        5,
+        0,
+    ),
     ("s5", "sigD", "superseded", ["execute_terminal: command=ls"], 0, 3),
     ("s6", "sigE", "candidate", ["read_directory: path=."], 0, 0),
 ]
@@ -57,7 +71,15 @@ def dbs(tmp_path: Path, monkeypatch):
                         failure_count, signature_v2, reuse_success_count,
                         reuse_failure_count, verification_strength)
                        VALUES (?, ?, ?, ?, ?, ?, ?, 3, 1, 'STRONG')""",
-                    (signature, f"goal for {signature}", json.dumps(steps), status, ok, bad, sig2),
+                    (
+                        signature,
+                        f"goal for {signature}",
+                        json.dumps(steps),
+                        status,
+                        ok,
+                        bad,
+                        sig2,
+                    ),
                 )
         # Fold the WAL into the main file and close now: a connection left to
         # the garbage collector checkpoints whenever it is collected, which
@@ -70,7 +92,9 @@ def dbs(tmp_path: Path, monkeypatch):
 
 def _run(dbs, *, apply: bool) -> dict:
     source, target, backups, _ = dbs
-    return mig.run(source=source, target=target, backup_dir=backups, do_apply=apply, now=NOW)
+    return mig.run(
+        source=source, target=target, backup_dir=backups, do_apply=apply, now=NOW
+    )
 
 
 def _digest(path: Path) -> str:
@@ -84,7 +108,16 @@ def _by_legacy_id(target: Path) -> dict[str, object]:
 class TestDryRunByDefault:
     def test_the_cli_writes_nothing_without_apply(self, dbs, capsys) -> None:
         source, target, backups, _ = dbs
-        code = mig.main(["--source", str(source), "--target", str(target), "--backup-dir", str(backups)])
+        code = mig.main(
+            [
+                "--source",
+                str(source),
+                "--target",
+                str(target),
+                "--backup-dir",
+                str(backups),
+            ]
+        )
         report = json.loads(capsys.readouterr().out)
         assert code == 0 and report["mode"] == "dry-run"
         assert report["to_create"] == len(LEGACY)
@@ -107,7 +140,9 @@ class TestWhatMoves:
         assert len(got) == len(LEGACY)
         assert (got["3"].skill_id, got["3"].version) == ("arc-sigC", 1)
         assert (got["4"].skill_id, got["4"].version) == ("arc-sigC", 2)
-        assert all(r.skill_id == f"arc-{r.provenance['signature_v2']}" for r in got.values())
+        assert all(
+            r.skill_id == f"arc-{r.provenance['signature_v2']}" for r in got.values()
+        )
 
     def test_states_follow_the_design_and_nothing_is_activated(self, dbs) -> None:
         _run(dbs, apply=True)
@@ -126,17 +161,23 @@ class TestWhatMoves:
     def test_only_legacy_verified_arcs_are_review_ready(self, dbs) -> None:
         report = _run(dbs, apply=True)
         got = _by_legacy_id(dbs[1])
-        ready = {lid for lid, r in got.items() if r.provenance["review_ready"] == "true"}
+        ready = {
+            lid for lid, r in got.items() if r.provenance["review_ready"] == "true"
+        }
         assert ready == {"2", "4"}
         assert report["review_ready_legacy_ids"] == [2, 4]
 
     def test_the_procedure_is_the_exact_steps(self, dbs) -> None:
         _run(dbs, apply=True)
         got = _by_legacy_id(dbs[1])
-        for index, (_sig, _sig2, _status, steps, _ok, _bad) in enumerate(LEGACY, start=1):
+        for index, (_sig, _sig2, _status, steps, _ok, _bad) in enumerate(
+            LEGACY, start=1
+        ):
             record = got[str(index)]
             assert json.loads(record.procedure) == steps
-            assert list(record.allowed_tools) == sorted({s.split(":")[0] for s in steps})
+            assert list(record.allowed_tools) == sorted(
+                {s.split(":")[0] for s in steps}
+            )
 
     def test_confidence_is_the_success_ratio_capped_at_the_prior(self, dbs) -> None:
         _run(dbs, apply=True)
@@ -162,7 +203,11 @@ class TestSafety:
         target = dbs[1]
         before = _digest(target)
         report = _run(dbs, apply=True)
-        assert (report["created"], report["finished"], report["already_done"]) == (0, 0, len(LEGACY))
+        assert (report["created"], report["finished"], report["already_done"]) == (
+            0,
+            0,
+            len(LEGACY),
+        )
         assert report["backup"] is None
         assert _digest(target) == before
 
@@ -186,7 +231,9 @@ class TestSafety:
 
     def test_a_foreign_record_aborts_before_any_write(self, dbs) -> None:
         planned = mig.plan(mig.load_legacy(dbs[0]), migrated_at=NOW.isoformat())
-        squatter = planned[-1].record.model_copy(update={"provenance": {"source": "live"}})
+        squatter = planned[-1].record.model_copy(
+            update={"provenance": {"source": "live"}}
+        )
         SkillRepository(dbs[1]).save(squatter)
         before = _digest(dbs[1])
         with pytest.raises(mig.MigrationError, match="refusing to write anything"):
@@ -202,7 +249,10 @@ class TestSafety:
         backup = Path(report["backup"])
         assert backup.parent == dbs[2] and backup.exists()
         with sqlite3.connect(backup) as conn:
-            assert conn.execute("SELECT COUNT(*) FROM institutional_skills").fetchone()[0] == 0
+            assert (
+                conn.execute("SELECT COUNT(*) FROM institutional_skills").fetchone()[0]
+                == 0
+            )
         assert _digest(target) != before
 
     def test_an_engaged_stop_refuses_the_migration(self, dbs) -> None:

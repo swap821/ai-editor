@@ -29,7 +29,9 @@ def _utc_now() -> str:
 #: and the provenance the reviewer was shown. Rewriting any of it in place
 #: would run something nobody approved under an approval given for something
 #: else; a changed contract is a new version, born a candidate.
-_EVIDENCE_FIELDS = frozenset({"confidence", "success_count", "failure_count", "updated_at"})
+_EVIDENCE_FIELDS = frozenset(
+    {"confidence", "success_count", "failure_count", "updated_at"}
+)
 
 
 class SkillRecord(SkillContract):
@@ -89,7 +91,10 @@ class SkillRepository:
                     "transition_state"
                 )
             if current is not None and current.state != BIRTH_STATE:
-                new, old = skill.model_dump(mode="json"), current.model_dump(mode="json")
+                new, old = (
+                    skill.model_dump(mode="json"),
+                    current.model_dump(mode="json"),
+                )
                 rewritten = sorted(
                     name
                     for name in new.keys() | old.keys()

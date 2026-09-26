@@ -640,7 +640,7 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
             state="active",
             created_at="2026-07-18T00:00:00Z",
             updated_at="2026-07-18T00:00:00Z",
-        )
+        ),
     )
     app.dependency_overrides[get_learning_service] = lambda: service
     try:

@@ -66,7 +66,11 @@ from aios.domain.learning.skill_contracts import BIRTH_STATE  # noqa: E402
 
 MIGRATION = "procedural_skills->institutional_skills/v1"
 CONFIDENCE_CAP = 0.8
-_LEGACY_TO_FINAL = {"candidate": "candidate", "verified": "candidate", "superseded": "deprecated"}
+_LEGACY_TO_FINAL = {
+    "candidate": "candidate",
+    "verified": "candidate",
+    "superseded": "deprecated",
+}
 _REQUIRED_COLUMNS = frozenset(
     {
         "id",
@@ -132,7 +136,9 @@ def load_legacy(source: Path) -> list[LegacySkill]:
     connection = sqlite3.connect(f"file:{source.as_posix()}?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     try:
-        columns = {row[1] for row in connection.execute("PRAGMA table_info(procedural_skills)")}
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(procedural_skills)")
+        }
         missing = _REQUIRED_COLUMNS - columns
         if missing:
             raise MigrationError(f"procedural_skills lacks columns: {sorted(missing)}")
@@ -146,7 +152,9 @@ def load_legacy(source: Path) -> list[LegacySkill]:
     if unknown:
         raise MigrationError(f"unmapped legacy statuses: {unknown}")
     if any(not s.signature_v2 for s in skills):
-        raise MigrationError("a legacy skill has no signature_v2; its identity is undefined")
+        raise MigrationError(
+            "a legacy skill has no signature_v2; its identity is undefined"
+        )
     return skills
 
 
@@ -171,7 +179,9 @@ def plan(skills: Iterable[LegacySkill], *, migrated_at: str) -> list[Planned]:
         for version, skill in enumerate(group, start=1):
             steps = json.loads(skill.steps_json)
             if not isinstance(steps, list):
-                raise MigrationError(f"legacy skill {skill.id}: steps_json is not a list")
+                raise MigrationError(
+                    f"legacy skill {skill.id}: steps_json is not a list"
+                )
             record = SkillRecord(
                 skill_id=f"arc-{signature}",
                 version=version,
@@ -200,7 +210,9 @@ def plan(skills: Iterable[LegacySkill], *, migrated_at: str) -> list[Planned]:
                     "legacy_table": "procedural_skills",
                     "legacy_id": str(skill.id),
                     "legacy_status": skill.status,
-                    "legacy_verification_strength": str(skill.verification_strength or ""),
+                    "legacy_verification_strength": str(
+                        skill.verification_strength or ""
+                    ),
                     "legacy_reuse": f"{skill.reuse_success_count}/{skill.reuse_failure_count}",
                     "signature_v2": signature,
                     "procedure_format": "legacy_steps_json",
@@ -223,7 +235,9 @@ def _existing(target: Path) -> dict[tuple[str, int], SkillRecord]:
         ).fetchone()
         if not has_table:
             return {}
-        rows = connection.execute("SELECT payload_json FROM institutional_skills").fetchall()
+        rows = connection.execute(
+            "SELECT payload_json FROM institutional_skills"
+        ).fetchall()
     finally:
         connection.close()
     records = (SkillRecord.model_validate(json.loads(row[0])) for row in rows)
@@ -252,12 +266,13 @@ def preflight(planned: Sequence[Planned], target: Path) -> Preflight:
         if held is None:
             create.append(item)
             continue
-        ours = (
-            held.provenance.get("migration") == MIGRATION
-            and held.provenance.get("legacy_id") == str(item.legacy.id)
-        )
+        ours = held.provenance.get("migration") == MIGRATION and held.provenance.get(
+            "legacy_id"
+        ) == str(item.legacy.id)
         if not ours:
-            conflicts.append(f"{item.key} is held by a record this migration did not write")
+            conflicts.append(
+                f"{item.key} is held by a record this migration did not write"
+            )
         elif held.state == item.final_state:
             done.append(item)
         elif held.state == BIRTH_STATE:
@@ -315,20 +330,26 @@ def verify(planned: Sequence[Planned], checked: Preflight, target: Path) -> None
         or (item.key not in moved_on and existing[item.key].state != item.final_state)
     ]
     if wrong:
-        raise MigrationError(f"post-write check failed for {len(wrong)} record(s): {wrong[:5]}")
+        raise MigrationError(
+            f"post-write check failed for {len(wrong)} record(s): {wrong[:5]}"
+        )
 
 
 def summarize(planned: Sequence[Planned]) -> dict[str, object]:
     by_final: dict[str, int] = {}
     for item in planned:
         by_final[item.final_state] = by_final.get(item.final_state, 0) + 1
-    versioned = sorted({item.record.skill_id for item in planned if item.record.version > 1})
+    versioned = sorted(
+        {item.record.skill_id for item in planned if item.record.version > 1}
+    )
     return {
         "legacy_rows": len(planned),
         "skills": len({item.record.skill_id for item in planned}),
         "by_final_state": by_final,
         "review_ready_legacy_ids": [
-            item.legacy.id for item in planned if item.record.provenance["review_ready"] == "true"
+            item.legacy.id
+            for item in planned
+            if item.record.provenance["review_ready"] == "true"
         ],
         "skills_with_several_versions": len(versioned),
     }
@@ -375,8 +396,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--source", type=Path, default=Path(config.MEMORY_DB_PATH))
-    parser.add_argument("--target", type=Path, default=Path(config.OPERATIONAL_STATE_DB_PATH))
-    parser.add_argument("--backup-dir", type=Path, default=Path(config.DATA_DIR) / "backups")
+    parser.add_argument(
+        "--target", type=Path, default=Path(config.OPERATIONAL_STATE_DB_PATH)
+    )
+    parser.add_argument(
+        "--backup-dir", type=Path, default=Path(config.DATA_DIR) / "backups"
+    )
     parser.add_argument("--apply", action="store_true", help="write (default: dry run)")
     args = parser.parse_args(argv)
     try:
