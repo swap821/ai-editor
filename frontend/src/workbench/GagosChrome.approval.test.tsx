@@ -113,6 +113,8 @@ describe('GagosChrome DOM approval gate', () => {
     useMirrorStore.setState({
       recentEvents: [],
       lastEventId: null,
+      lastTurnStartedEventId: null,
+      lastVerificationEventId: null,
       approvalRequired: false,
       approvals: {},
       workers: {},

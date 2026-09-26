@@ -10,7 +10,7 @@ const mockBeing = vi.hoisted(() => ({
     motion: 'reabsorb',
     attention: 'none',
     signals: ['worker-returned'],
-    workers: ['returned'],
+    workers: [{ workerId: 'worker-returned', state: 'returned', cursor: 1 }],
   },
 }));
 
@@ -78,7 +78,11 @@ describe('SuperbrainReactiveEffects worker lifecycle', () => {
       motion: 'conduct',
       attention: 'workspace',
       signals: ['worker-active'],
-      workers: Array.from({ length: 12 }, () => 'active'),
+      workers: Array.from({ length: 12 }, (_, index) => ({
+        workerId: `worker-${index}`,
+        state: 'active' as const,
+        cursor: index,
+      })),
     };
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
     const view = render(<SuperbrainReactiveEffects />);
@@ -100,5 +104,35 @@ describe('SuperbrainReactiveEffects worker lifecycle', () => {
     });
     expect(view.container.querySelectorAll('[data-testid="worker-branch"]')).toHaveLength(0);
     expect(view.container.querySelectorAll('[data-testid="worker-mote"]')).toHaveLength(0);
+  });
+
+  it('keeps each worker in its assigned scene seat when the roster reorders and grows', async () => {
+    const presentation = (workers: Array<{ workerId: string; state: 'active'; cursor: number }>) => ({
+      phase: 'acting' as const,
+      taskState: 'working' as const,
+      coherence: 'fresh' as const,
+      motion: 'conduct' as const,
+      attention: 'workspace' as const,
+      signals: ['worker-active' as const],
+      workers,
+    });
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects presentationOverride={presentation([
+      { workerId: 'worker-alpha', state: 'active', cursor: 1 },
+      { workerId: 'worker-beta', state: 'active', cursor: 2 },
+    ])} />);
+
+    expect(view.container.querySelector('group[name="worker-seat-0"]')).not.toBeNull();
+    expect(view.container.querySelector('group[name="worker-seat-1"]')).not.toBeNull();
+
+    view.rerender(<SuperbrainReactiveEffects presentationOverride={presentation([
+      { workerId: 'worker-gamma', state: 'active', cursor: 3 },
+      { workerId: 'worker-beta', state: 'active', cursor: 2 },
+      { workerId: 'worker-alpha', state: 'active', cursor: 1 },
+    ])} />);
+
+    expect(view.container.querySelector('group[name="worker-seat-0"]')).not.toBeNull();
+    expect(view.container.querySelector('group[name="worker-seat-1"]')).not.toBeNull();
+    expect(view.container.querySelector('group[name="worker-seat-2"]')).not.toBeNull();
   });
 });

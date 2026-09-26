@@ -25,7 +25,7 @@ export type PhysicalVerificationState = 'none' | 'pending' | 'pass' | 'fail' | '
 export type PhysicalVerificationSettlement = 'unsettled' | 'stable';
 
 export interface PhysicalBranch {
-  slot: number;
+  workerId: string;
   state: WorkerPresentationState;
   visual: SemanticWorkerVisualState;
   terminal: boolean;
@@ -147,7 +147,7 @@ function convergenceLevel(phase: BeingPhase): number {
 
 function conductorFor(presentation: BeingPresentation, branchCount: number): PhysicalSnapshot['conductor'] {
   if (presentation.phase === 'stopped') return { posture: 'stopped', travel: 'frozen', activeSeat: null };
-  const capabilityHeld = presentation.workers.includes('awaiting-capability');
+  const capabilityHeld = presentation.workers.some((worker) => worker.state === 'awaiting-capability');
   if (presentation.phase === 'awaiting-human' || presentation.taskState === 'needs-permission' || capabilityHeld) {
     return { posture: 'held', travel: 'held', activeSeat: branchCount > 0 ? 0 : null };
   }
@@ -170,7 +170,7 @@ function membraneFor(presentation: BeingPresentation): PhysicalSnapshot['membran
   const refusal = presentation.taskState === 'refused'
     || presentation.signals.includes('refusal')
     || presentation.signals.includes('injection-blocked');
-  const capabilityHeld = presentation.workers.includes('awaiting-capability');
+  const capabilityHeld = presentation.workers.some((worker) => worker.state === 'awaiting-capability');
   const state: PhysicalMembraneState = presentation.phase === 'stopped'
     ? 'stopped'
     : presentation.taskState === 'needs-permission' || capabilityHeld
@@ -213,13 +213,13 @@ function verificationFor(presentation: BeingPresentation): PhysicalSnapshot['ver
 function branchesFor(presentation: BeingPresentation): PhysicalBranch[] {
   const workerVisualStates = deriveSemanticEffectTransition(null, presentation).workerVisualStates;
   const actionHeld = presentation.taskState === 'needs-permission' || presentation.taskState === 'refused';
-  return presentation.workers.slice(0, MAX_BRANCHES).map((state, slot) => ({
-    slot,
-    state,
-    visual: actionHeld && !['returned', 'dissolved', 'failed', 'killed'].includes(state)
+  return presentation.workers.slice(0, MAX_BRANCHES).map((worker, index) => ({
+    workerId: worker.workerId,
+    state: worker.state,
+    visual: actionHeld && !['returned', 'dissolved', 'failed', 'killed'].includes(worker.state)
       ? 'held'
-      : workerVisualStates[slot],
-    terminal: state === 'returned' || state === 'dissolved' || state === 'failed' || state === 'killed',
+      : workerVisualStates[index],
+    terminal: worker.state === 'returned' || worker.state === 'dissolved' || worker.state === 'failed' || worker.state === 'killed',
   }));
 }
 

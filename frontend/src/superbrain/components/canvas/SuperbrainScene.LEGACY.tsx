@@ -46,7 +46,7 @@ import { intakeNerveDrive } from '@/lib/intakeNerveDrive';
 import { getConversationPhase, getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
-import { setBrainDockScale } from '@/lib/spineFusionBus';
+import { setBodyGroupWorldMatrix, setBrainDockScale } from '@/lib/spineFusionBus';
 import BrainPointField from './BrainPointField';
 import MemoryHalo from './MemoryHalo';
 import {
@@ -1045,6 +1045,14 @@ export function BrainModel({
       // SOUL P2: publish the eased dock scale so the work-tab nerves anchor on the
       // *visible* (shrunken) vertebrae (they render as a sibling of this scaled group).
       setBrainDockScale(scale);
+    }
+
+    // Product-owned reactive effects render as scene-root siblings. Give them
+    // the same live world frame as this body group so paths stay attached during
+    // voyage, orbit, and posture transforms.
+    if (groupRef.current) {
+      groupRef.current.updateWorldMatrix(true, false);
+      setBodyGroupWorldMatrix(groupRef.current.matrixWorld);
     }
   });
 

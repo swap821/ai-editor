@@ -230,16 +230,47 @@
   .lm-app .gagos-thread { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 }
 @media (max-width: 767px) {
+  /* The root opts into edge-to-edge rendering. Keep the mobile control stack
+     and touch surfaces inside hardware cutouts without changing desktop. */
+  .lm-app {
+    --lm-safe-area-top: env(safe-area-inset-top, 0px);
+    --lm-safe-area-right: env(safe-area-inset-right, 0px);
+    --lm-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --lm-safe-area-left: env(safe-area-inset-left, 0px);
+  }
+  .lm-app .gagos-experience-switch { top: calc(10px + var(--lm-safe-area-top)); }
+  .lm-app .gagos-account-panel {
+    top: calc(64px + var(--lm-safe-area-top));
+    left: max(14px, var(--lm-safe-area-left));
+    right: max(14px, var(--lm-safe-area-right));
+  }
   /* The fixed Guided/Expert switch shares the narrow top band with the
      human-control header. Stack the header below it instead of allowing the
      Emergency stop to collide with the mode choices at 320–375px. */
-  .lm-header { top: 62px; left: 16px; right: 16px; }
-  .lm-renderer-fallback-notice { top: 116px; right: 12px; left: 12px; max-width: none; }
+  .lm-header {
+    top: calc(62px + var(--lm-safe-area-top));
+    left: max(16px, var(--lm-safe-area-left));
+    right: max(16px, var(--lm-safe-area-right));
+  }
+  .lm-renderer-fallback-notice {
+    top: calc(116px + var(--lm-safe-area-top));
+    right: max(12px, var(--lm-safe-area-right));
+    left: max(12px, var(--lm-safe-area-left));
+    max-width: none;
+  }
   .lm-header h1 { font-size: 23px; }
   .lm-subtitle { display: none; }
   .lm-stop > button { font-size: 12px; padding: 8px; }
-  .lm-navigation { top: 72px; left: 12px; right: 12px; overflow: visible; align-items: stretch; padding-bottom: 8px; flex-wrap: wrap; }
-  .lm-shell[data-experience-mode="expert"] .lm-navigation { top: 122px; }
+  .lm-navigation {
+    top: calc(72px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    overflow: visible;
+    align-items: stretch;
+    padding-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation { top: calc(122px + var(--lm-safe-area-top)); }
   .lm-navigation > * { flex-shrink: 0; }
   .lm-expert-group { align-items: stretch; }
   .lm-expert-group__label, .lm-expert-group > summary { font-size: 11px; }
@@ -248,28 +279,48 @@
   .lm-expert-mobile-surfaces[open] > summary { border-color: var(--lm-cyan); color: var(--lm-cyan); }
   .lm-expert-mobile-surfaces__groups { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; min-width: min(280px, calc(100vw - 24px)); max-height: min(60dvh, 420px); overflow-y: auto; padding: 8px 10px; border: 1px solid var(--lm-line); border-radius: 12px; background: rgba(3, 1, 8, .97); box-shadow: 0 18px 44px rgba(0, 0, 0, .42); }
   .lm-expert-mobile-surface-group > summary { padding-inline: 4px; }
+  /* Leave the body canvas full-sized beneath chrome; only interactive DOM
+     surfaces move clear of the cutout. */
   .lm-scene, .lm-app[data-working="true"] .lm-scene { top: 110px; right: 0; bottom: 45%; }
   .lm-app[data-working="false"] .lm-scene { left: 0; }
   .lm-app[data-working="true"] .lm-scene { bottom: calc(100% - 290px); }
-  .lm-surface { top: 286px; left: 12px; right: 12px; width: auto; bottom: 164px; }
+  .lm-surface {
+    top: calc(286px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    width: auto;
+    bottom: 164px;
+  }
   .lm-app[data-working="true"] .lm-surface { bottom: var(--lm-workspace-dock-clearance, 164px); }
   .lm-surface__header { padding: 10px 12px; }
   .lm-surface__header h2 { font-size: 20px; }
   .lm-surface__body { padding: 16px; }
   .lm-surface__body dl { grid-template-columns: 1fr; gap: 4px; }
   .lm-surface__body dd { margin-bottom: 12px; }
-  .lm-workspace-rail, .lm-app[data-working="true"] .lm-workspace-rail { top: 130px; right: 12px; left: auto; width: auto; max-width: 45%; }
+  .lm-workspace-rail, .lm-app[data-working="true"] .lm-workspace-rail {
+    top: calc(130px + var(--lm-safe-area-top));
+    right: max(12px, var(--lm-safe-area-right));
+    left: auto;
+    width: auto;
+    max-width: 45%;
+  }
   .lm-workspace-rail > button:not(:last-of-type) { display: none; }
-  .lm-connection { left: 16px; bottom: 8px; right: 16px; font-size: 11px; gap: 4px 10px; }
+  .lm-connection {
+    left: max(16px, var(--lm-safe-area-left));
+    bottom: calc(8px + var(--lm-safe-area-bottom));
+    right: max(16px, var(--lm-safe-area-right));
+    font-size: 11px;
+    gap: 4px 10px;
+  }
   .lm-connection__technical, .lm-connection__snapshot { font-size: 10px; }
   .lm-app .gagos-chat {
-    left: 16px;
-    right: 16px;
+    left: max(16px, var(--lm-safe-area-left));
+    right: max(16px, var(--lm-safe-area-right));
     width: auto;
     /* Reserve a stable mobile band for the variable-height connection notice.
        Without this gap, long unavailable/stale explanations can cover the
        composer actions while remaining visually readable themselves. */
-    bottom: 132px;
+    bottom: calc(132px + var(--lm-safe-area-bottom));
     height: 42dvh;
     max-height: 42dvh;
     overflow: hidden;
@@ -283,7 +334,7 @@
   /* Expert keeps technical transport/projection details in the connection
      notice, so its measured copy is taller than Guided copy. Reserve the
      larger band without hiding the technical evidence. */
-  .lm-app[data-experience-mode="expert"] .gagos-chat { bottom: 168px; }
+  .lm-app[data-experience-mode="expert"] .gagos-chat { bottom: calc(168px + var(--lm-safe-area-bottom)); }
   .lm-app .gagos-bar { flex-wrap: wrap; gap: 6px; }
   .lm-app .gagos-bar .gagos-input { flex: 1 1 90px; }
   .lm-app .gagos-welcome { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
@@ -296,18 +347,24 @@
   .lm-app .gagos-pill--bond { display: inline-flex; }
   .lm-embedded-panel { min-height: 360px; }
 }
+@media (max-width: 640px) {
+  .lm-app .gagos-lockup {
+    top: calc(18px + var(--lm-safe-area-top));
+    left: max(18px, var(--lm-safe-area-left));
+  }
+}
 /* At the narrowest supported width, voice guidance and the multi-line
    request bar must share a bounded zone without letting action controls slip
    behind the connection notice. */
 @media (max-width: 360px) {
   .lm-app .gagos-chat {
-    bottom: 132px;
-    height: calc(100dvh - 300px);
+    bottom: calc(132px + var(--lm-safe-area-bottom));
+    height: calc(100dvh - 300px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
     max-height: none;
   }
   .lm-app[data-experience-mode="expert"] .gagos-chat {
-    bottom: 168px;
-    height: calc(100dvh - 360px);
+    bottom: calc(168px + var(--lm-safe-area-bottom));
+    height: calc(100dvh - 360px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
   }
 
   .lm-app .gagos-bar { flex: 0 0 auto; }

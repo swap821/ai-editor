@@ -237,7 +237,12 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
   );
 }
 
-export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {} }) {
+/**
+ * @param {{ integrated?: boolean, experienceMode?: string,
+ *   onExperienceModeChange?: (mode: string) => void,
+ *   onDraftPresenceChange?: (present: boolean) => void }} props
+ */
+export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {}, onDraftPresenceChange }) {
   const guided = experienceMode === 'beginner';
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
@@ -325,6 +330,14 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
     setMilestones,
     chatModelId,
   });
+
+  const lastReportedDraftPresenceRef = useRef(false);
+  useEffect(() => {
+    const nextPresence = draft.trim().length > 0;
+    if (lastReportedDraftPresenceRef.current === nextPresence) return;
+    lastReportedDraftPresenceRef.current = nextPresence;
+    onDraftPresenceChange?.(nextPresence);
+  }, [draft, onDraftPresenceChange]);
 
   const inputRef = useRef(null);
   const threadRef = useRef(null);

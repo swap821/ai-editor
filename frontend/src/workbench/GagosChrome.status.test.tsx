@@ -125,6 +125,26 @@ describe('GagosChrome W3 status chrome', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it('shares only draft presence with the organism scene and clears it with the draft', async () => {
+    const reportDraftPresence = vi.fn();
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome onDraftPresenceChange={reportDraftPresence} />);
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'a local draft' } });
+    });
+
+    expect(reportDraftPresence).toHaveBeenLastCalledWith(true);
+    expect(reportDraftPresence).not.toHaveBeenCalledWith('a local draft');
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: '' } });
+    });
+
+    expect(reportDraftPresence.mock.calls).toEqual([[true], [false]]);
+  });
+
   it('describes a measured health response as reachable rather than current', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);

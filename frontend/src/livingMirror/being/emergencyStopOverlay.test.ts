@@ -9,7 +9,7 @@ const active: BeingPresentation = {
   motion: 'conduct',
   attention: 'workspace',
   signals: ['worker-active'],
-  workers: ['active'],
+  workers: [{ workerId: 'worker-0', state: 'active', cursor: 0 }],
 };
 
 describe('emergency stop presentation overlay', () => {
@@ -21,7 +21,7 @@ describe('emergency stop presentation overlay', () => {
       motion: 'stop',
       attention: 'none',
       signals: ['emergency-stop', 'worker-active'],
-      workers: ['active'],
+      workers: [{ workerId: 'worker-0', state: 'active', cursor: 0 }],
     });
   });
 

@@ -43,6 +43,32 @@
 .physical-gallery__controls select { min-height: 36px; padding: 0 10px; color: #d8f7f2; background: #101719; border: 1px solid #2a4c4b; border-radius: 8px; }
 .physical-gallery__toggle { display: flex !important; grid-template-columns: auto auto; align-items: center; min-height: 36px; }
 .physical-gallery__workspace { align-items: stretch; }
+.physical-gallery__focus-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1440px;
+  margin: -8px auto 16px;
+  padding: 10px 12px;
+  color: #9eb8b4;
+  font: 11px/1.4 JetBrains Mono, monospace;
+  border: 1px solid #183735;
+  border-radius: 9px;
+  background: #0a1112;
+}
+.physical-gallery__focus-control button {
+  min-height: 40px;
+  padding: 0 14px;
+  color: #d8f7f2;
+  font: inherit;
+  border: 1px solid #2a7771;
+  border-radius: 8px;
+  background: #102322;
+  cursor: pointer;
+}
+.physical-gallery__focus-control button:hover { border-color: #63d8cb; }
+.physical-gallery__focus-control button:focus-visible { outline: 2px solid #63d8cb; outline-offset: 3px; }
 .physical-gallery__canvas { flex: 1 1 auto; min-height: 520px; overflow: hidden; border: 1px solid #183735; border-radius: 14px; background: #000; }
 .physical-gallery__canvas canvas { display: block; width: 100% !important; height: 100% !important; min-height: 520px; }
 .physical-gallery__inspector { flex: 0 0 280px; padding: 20px; border: 1px solid #183735; border-radius: 14px; background: #0a1112; }
@@ -65,6 +91,8 @@
   .physical-gallery__header,
   .physical-gallery__workspace { display: grid; }
   .physical-gallery__controls { align-items: stretch; }
+  .physical-gallery__focus-control { align-items: stretch; flex-direction: column; margin-top: -8px; }
+  .physical-gallery__focus-control button { width: 100%; }
   .physical-gallery__inspector { min-height: 0; }
   .physical-gallery__canvas,
   .physical-gallery__canvas canvas { min-height: 360px; }

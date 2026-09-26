@@ -12,7 +12,7 @@
  */
 import type { OrganismLifecyclePhase } from './organismLifecycle';
 
-export type BodyPostureKey = 'rest' | 'think' | 'stream' | 'hold' | 'complete' | 'unverified' | 'error' | 'stopped';
+export type BodyPostureKey = 'rest' | 'think' | 'stream' | 'hold' | 'complete' | 'unverified' | 'unconfirmed' | 'error' | 'stopped';
 
 /** Narrow, presentation-only view of the official frontend's physical snapshot.
  * The product computes this once; this structural contract lets the managed
@@ -52,9 +52,42 @@ export const BODY_POSTURES: Record<BodyPostureKey, BodyPosture> = {
   hold: { key: 'hold', color: [255, 126, 64], flow: 0.34, tint: 0.5, label: 'Holding' },
   complete: { key: 'complete', color: [84, 240, 160], flow: 0.3, tint: 0.55, label: 'Complete' },
   unverified: { key: 'unverified', color: [158, 120, 245], flow: 0.1, tint: 0.08, label: 'Unverified' },
+  unconfirmed: { key: 'unconfirmed', color: [158, 120, 245], flow: 0.1, tint: 0.08, label: 'Unconfirmed' },
   error: { key: 'error', color: [255, 92, 72], flow: 0.22, tint: 0.8, label: 'Error' },
   stopped: { key: 'stopped', color: [158, 120, 245], flow: 0, tint: 0, label: 'Stopped' },
 };
+
+export interface BodyMotionProfile {
+  pulseRate: number;
+  breathGain: number;
+  rootExcitation: number;
+}
+
+const QUIET_BODY_MOTION: BodyMotionProfile = { pulseRate: 1.8, breathGain: 0, rootExcitation: 0 };
+const BODY_MOTION_PROFILES: Record<BodyPostureKey, BodyMotionProfile> = {
+  rest: QUIET_BODY_MOTION,
+  think: { pulseRate: 2.8, breathGain: 0.048, rootExcitation: 0.08 },
+  stream: { pulseRate: 4.4, breathGain: 0.256, rootExcitation: 0.56 },
+  hold: { pulseRate: 1.2, breathGain: -0.18, rootExcitation: 0.78 },
+  complete: { pulseRate: 1.8, breathGain: 0.024, rootExcitation: 0.048 },
+  unverified: QUIET_BODY_MOTION,
+  unconfirmed: QUIET_BODY_MOTION,
+  error: { pulseRate: 7.2, breathGain: 0.198, rootExcitation: 0.504 },
+  stopped: QUIET_BODY_MOTION,
+};
+
+/** Resolve secondary body motion from the same posture that owns its visible state. */
+export function bodyMotionProfileForPosture(posture: Pick<BodyPosture, 'key'>): BodyMotionProfile {
+  return BODY_MOTION_PROFILES[posture.key];
+}
+
+/** Replay-safe physical state outranks the non-replayed legacy hold event. */
+export function bodyHoldForProjection(
+  physical: PhysicalBodyProjection | null | undefined,
+  legacyHeld: boolean,
+): boolean {
+  return physical ? physical.membrane.state === 'held' : legacyHeld;
+}
 
 /** Gold signal motes + snow dust accents (spectral-v1), not lifecycle states. */
 export const POSTURE_GOLD: readonly [number, number, number] = [255, 210, 122];
@@ -91,7 +124,15 @@ export function postureKeyForPhase(phase: OrganismLifecyclePhase): BodyPostureKe
 function postureKeyForPhysicalProjection(physical: PhysicalBodyProjection): BodyPostureKey {
   if (physical.phase === 'stopped' || physical.cortex.posture === 'stopped') return 'stopped';
   if (physical.membrane.state === 'held') return 'hold';
-  if (physical.cortex.posture === 'recover' || physical.verification.state === 'fail' || physical.membrane.state === 'refused') {
+  // A stale or unavailable projection cannot safely assert that the last
+  // observed recovery/failure is still current. Keep the live being quiet and
+  // uncertain; a current recovery or refusal remains an explicit error below.
+  if (physical.phase === 'stale' || physical.phase === 'degraded'
+    || physical.taskState === 'stale' || physical.coherence === 'stale') {
+    return 'unconfirmed';
+  }
+  if (physical.phase === 'recovering' || physical.taskState === 'failed' || physical.cortex.posture === 'recover'
+    || physical.verification.state === 'fail' || physical.membrane.state === 'refused') {
     return 'error';
   }
   if (physical.taskState === 'done-verified' && physical.verification.state === 'pass') return 'complete';
@@ -117,6 +158,7 @@ export function lifecyclePhaseForPhysicalProjection(physical: PhysicalBodyProjec
     case 'error': return 'error_repair';
     case 'rest':
     case 'unverified':
+    case 'unconfirmed':
     case 'stopped':
     default: return 'rest';
   }

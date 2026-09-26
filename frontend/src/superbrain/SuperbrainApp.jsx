@@ -29,6 +29,7 @@ const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas')
 export default function SuperbrainApp() {
   const [booted, setBooted] = useState(false);
   const [experienceMode, setExperienceMode] = useState(() => readExperienceMode());
+  const [inputDraftPresent, setInputDraftPresent] = useState(false);
   const [canvasContextLost, setCanvasContextLost] = useState(false);
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
   const snapshot = useTabStore();
@@ -44,6 +45,9 @@ export default function SuperbrainApp() {
   const handleExperienceModeChange = useCallback((nextMode) => {
     writeExperienceMode(nextMode);
     setExperienceMode(nextMode);
+  }, []);
+  const handleDraftPresenceChange = useCallback((present) => {
+    setInputDraftPresent(present === true);
   }, []);
   const handleRendererRetry = useCallback(() => {
     if (canvasContextLostRef.current) {
@@ -174,12 +178,16 @@ export default function SuperbrainApp() {
       <RendererFailureBoundary onRetry={handleRendererRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
           <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical}>
-            <SuperbrainReactiveEffects presentationOverride={being} physicalOverride={physical} />
+          <SuperbrainReactiveEffects
+            presentationOverride={being}
+            physicalOverride={physical}
+            inputDraftPresent={inputDraftPresent}
+          />
           </WorkspaceCanvas>
         </Suspense>
       </RendererFailureBoundary>
     )}</div>
-    <main aria-label="GAGOS conversation"><GagosChrome integrated experienceMode={experienceMode} onExperienceModeChange={handleExperienceModeChange} /></main>
+    <main aria-label="GAGOS conversation"><GagosChrome integrated experienceMode={experienceMode} onExperienceModeChange={handleExperienceModeChange} onDraftPresenceChange={handleDraftPresenceChange} /></main>
     <LivingWorkspaceShell experienceMode={experienceMode} />
   </div>;
 }

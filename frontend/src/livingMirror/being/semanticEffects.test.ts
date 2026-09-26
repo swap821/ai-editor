@@ -5,7 +5,13 @@ import {
   pruneExpiredWorkerMotes,
   type SemanticWorkerVisualState,
 } from './semanticEffects';
-import type { BeingPresentation } from './semanticKernel';
+import type { BeingPresentation, WorkerPresentationState } from './semanticKernel';
+
+const workerRecords = (...states: WorkerPresentationState[]) => states.map((state, cursor) => ({
+  workerId: `worker-${cursor}`,
+  state,
+  cursor,
+}));
 
 const base = (overrides: Partial<BeingPresentation> = {}): BeingPresentation => ({
   phase: 'resting',
@@ -29,7 +35,7 @@ describe('semantic organism effect transitions', () => {
 
   it('maps bounded worker lifecycle states to temporary visual postures', () => {
     const current = base({
-      workers: ['requested', 'admitted', 'active', 'awaiting-capability', 'returned', 'dissolved', 'failed', 'killed'],
+      workers: workerRecords('requested', 'admitted', 'active', 'awaiting-capability', 'returned', 'dissolved', 'failed', 'killed'),
     });
 
     const result = deriveSemanticEffectTransition(null, current);
@@ -49,7 +55,7 @@ describe('semantic organism effect transitions', () => {
       motion: 'stop',
       coherence: 'stopped',
       signals: ['emergency-stop', 'worker-active'],
-      workers: ['requested', 'admitted', 'active', 'awaiting-capability'],
+      workers: workerRecords('requested', 'admitted', 'active', 'awaiting-capability'),
     });
 
     expect(deriveSemanticEffectTransition(null, current).workerVisualStates).toEqual([
