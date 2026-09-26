@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `dbe303d9e792cccb5031db730046b28208c01d8c4d28d5b35a7e3d4397e4ae5a`
+- **Source ledger sha256:** `ac2cdf6574b68a54183fe1b257d82d8fd2be7e7a81762d2719cd4324601fe882`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -861,7 +861,7 @@ re-audits recorded above.
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `cb19e19ef2c7` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `cb19e19ef2c7` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `cb19e19ef2c7` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `cb19e19ef2c7` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `327c1f6313f8` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `cb19e19ef2c7` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `cb19e19ef2c7` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `cb19e19ef2c7` | live |
