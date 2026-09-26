@@ -1,0 +1,462 @@
+# GAGOS living-being frontend: production blueprint
+
+Date: 2026-09-24. Status: researched proposal, ready for staged implementation; not a production-readiness certificate.
+
+Product baseline: `4782cfa356ad23015bf090f7a671b74967a373f8`, current `origin/master` when inspected, containing PRs #363, #364 and #362. Planning branch: `codex/living-being-blueprint`. No application or backend implementation changed for this proposal.
+
+Operator clarification: **the official `frontend/` is the product; the external GAG demo repository supplies visual reference. Desktop and mobile are equally important.** The north star is `GAG demo/reference/demoplan.png`: one point-field organism, cortex and spine continuous, attention visible in its posture, work surfaces growing along nerves, results returning into the body.
+
+Start execution with [LUNA_EXECUTION_PACK_2026-09-24.md](LUNA_EXECUTION_PACK_2026-09-24.md). The current proposal extends the existing [physical embodiment RFC](GAGOS_PHYSICAL_EMBODIMENT_RFC.md) and [Living Mirror contract](LIVING_MIRROR_RENOVATION.md). It does not restart either implementation.
+
+## 1. The honest assessment
+
+The vision is achievable as a distinctive, useful real-time interface. No plan can guarantee that everyone will perceive it as alive, or guarantee performance on unspecified hardware. We can make those ambitions testable and reduce the largest risks early.
+
+The central problem is **coherence**. A convincing being needs one recognizable body, one readable direction of attention, and consistent reactions to cause and consequence. A beautiful brain beside ordinary application panels can be an excellent visualizer while still missing this vision. More particles, more panels, more events, or more code do not repair that gap by themselves.
+
+There is no justified requirement for 80,000 additional lines. At the inspected baseline, tracked TS/TSX/JS/JSX/CSS under `frontend/src` already contains 250 non-test files with 44,681 nonblank lines, plus 175 test files with 15,110 nonblank lines. This count includes comments and excludes blank lines, assets, generated build output and dependencies; it is not a complexity score. The right outcome may involve deleting duplicated code while adding substantial behavior.
+
+Nor should this frontend plan assume the backend is universally production-ready. Existing evidence proves useful slices of the animal/cage boundary, but the recorded experimental swarm request returns `strategy_unavailable`, and a recorded verifier pass required an explicitly declared development runner. Those are integration dependencies, not reasons to invent convincing activity.
+
+Treat the desired sense of life as a design effect. The product must remain candid about actual activity, memory, connectivity, permission, failure and uncertainty. Ambient breath must never claim that a model is reasoning or that memory was learned.
+
+## 2. What the inspection actually establishes
+
+### Reuse and gaps
+
+| Area | Existing evidence / code | Required next step |
+| --- | --- | --- |
+| Product composition | `SuperbrainApp.jsx` composes one scene, `GagosChrome` and `LivingWorkspaceShell` | Unite the visual composition without breaking the DOM control plane |
+| Semantic truth | `semanticKernel.ts`, `presentationFromStores.ts`, `useBeingPresentation.ts` | Keep this canonical projection; audit every renderer consumer |
+| Physical projection | `physicalSnapshot.ts`, `physicalMaterialization.ts`, `SuperbrainReactiveEffects.jsx` | Drive the actual substrate and workspace choreography, beyond added cue geometry |
+| Core body | `CortexEngine.tsx`, `BrainPointField.tsx`, `bodyPosture.ts`, `turnMetabolism.ts` | Reconcile its older lifecycle/conversation control with the canonical semantic projection |
+| Work surfaces | `tabStore.ts`, `anatomicalConductor.ts`, `MaterializedTab.tsx`, `useWorkMaterialization.js` | Preserve identity and content while making birth/focus/retraction one continuous spatial event |
+| Approval and outcomes | Guided approval, emergency controls, `experience/receipts.ts`, `ReceiptCard.tsx` | Preserve immediate truthful controls through every motion and responsive state |
+| Validation tools | 21-fixture physical gallery; bounded frontend metrics; recorded idle and worker-fixture soaks | Extend these existing tools to measure the whole renderer and real devices |
+| Live integration | Recorded authenticated chat, approval hold, approved write, declared development verification | Add correlated browser evidence for complete journeys; resolve supported worker route with its backend owner |
+| Source ownership | Product mirror hashes in `superbrain-source.json`; port guard requires ignored lab source | Make a clean checkout reproducible before changing managed anatomy |
+| Older additive modules | #362 leaves `beingPresentation.ts`, `beingScenePresentation.ts`, `BeingStatus`, `GuidedTaskStory`, `OutcomeReceipt` alongside newer modules | Confirm imports and feature parity, then consolidate; do not wire a second semantic kernel |
+
+The older scene still schedules timed bursts/thought waves and idle cascades in `CortexEngine`. These are source-observed presentation mechanisms, not evidence of background inference. Distinguish ambient life from task activity in the new motion contract.
+
+`PhysicalSnapshot.branches` now carry bounded worker identity and state; the renderer keeps each admitted identity attached to a stable anatomical seat through roster reorder and insertion, and releases seats when identities leave. This source slice does not prove live worker support or user-visible acceptance. Keep raw identifiers out of Guided copy, and preserve P5's truthful overflow aggregation requirement when the visible worker budget is reached.
+
+Quality ownership also needs cleanup: `QualityTierProvider` contains earlier descriptions of automatic demotion, while its current returned structural and performance tiers both equal the selected base tier. Do not implement from comments alone.
+
+### Fresh visual inspection
+
+A production preview of the already-built PR #362 worktree was inspected at `127.0.0.1:5190`. Its tracked frontend has no diff against the inspected `master`. This was a visual inspection of the existing build, not a fresh test run or an authenticated backend journey.
+
+At the desktop capture, the brain/spine is visibly present and distinctive. Conversation occupies the left, mode controls sit above, status controls sit below, and Emergency Stop is separate. My visual judgment: these still read as adjacent interface pieces. Bright internal forms and broad bloom soften the point-field detail compared with the supplied poster. The starter content is in a constrained scrolling region. These are design observations, not measured GPU diagnoses.
+
+A 390×844 CSS viewport check reported document width 390 and a 44px-high request input. The canvas layout was approximately 390.4×354.2 CSS pixels. The narrow screenshot was scaled by the capture surface and is not credited as detailed mobile visual acceptance. No physical phone, mobile keyboard, touch, thermal behavior, screen reader or field performance was tested in this planning session.
+
+### Existing evidence must retain its limits
+
+The prior branch verification reported 175 files / 953 tests passing. Existing records also include a persistent idle soak and a 30-minute worker-gallery soak. Credit those exact tests and environments. Do not translate them into a percentage of visual completion or certification for all phones.
+
+The current metrics read `renderer.info` from a frame callback. With post-processing, a reported single render call needs validation against the complete pass chain: Three.js resets statistics per render by default. This is a measurement concern requiring an instrumented check, not proof that the recorded samples were fabricated. [Three.js renderer statistics](https://threejs.org/docs/pages/WebGLRenderer.html).
+
+## 3. Art direction: what “2030” means here
+
+The visual proposition is **luminous neural matter operating in deep black space**. Preserve the supplied palette and protected textures. The being, its nerves and its work should share one visual grammar. Sophistication comes from precision, hierarchy, materials, timing and restraint.
+
+Use the existing canonical cyan `#7bf5fb`, purple `#b06eff`, green `#54f0a0`, and orange `#ff7e40` anchors through the project's tokens/materials, with approved neutral text and backgrounds. Do not recolor the organism to make a benchmark easier. Semantic states require shape, posture, readable labels and patterns as well as color.
+
+Specific direction:
+
+- Preserve a recognizable cortical silhouette, negative spaces and a clearly attached spinal axis. Internal activity should follow visible structure instead of becoming disconnected bright blobs.
+- Give point matter three readable scales: coarse silhouette, mid-scale fiber/region structure, and fine particles. At reduced density retain the first two; uniform thinning that destroys the silhouette is unacceptable.
+- Keep the spatial background quieter and darker than the organism. A sense of travel can come from distant motion; the camera and reading plane need not drift continually.
+- Keep bloom local to high-energy edges and paths. Judge the field first without bloom, then add it. Bloom cannot substitute for structure.
+- Make work surfaces look related to the body through their origin, connection, edge treatment and transition. Their text remains crisp, stable and selectable.
+- Retain the existing typography unless actual legibility tests justify changing it. Use ordinary sentence case for product controls, restrained technical typography in Expert, and no tiny glowing paragraphs.
+- Limit simultaneous focal events. During typing, permission review, error recovery and reading, the body quiets and points toward the relevant surface.
+- Keep sound optional, muted by default until a deliberate opt-in. No essential meaning depends on sound or voice.
+
+The poster's seven panels are a storyboard, not seven screens. Its tiny tilted windows are suitable for demonstrating relationships; the active production workspace must become a comfortable reading/editing plane. Its illustrative model labels, latency numbers and status legend are not operational data.
+
+Approve a short art-direction sheet with three keyframes—resting, working, awaiting permission—at desktop and mobile compositions before broad shader work. Approve a moving slice next; a static image cannot certify aliveness.
+
+## 4. The seven-phase behavior contract
+
+These are overlapping product postures, not a forced linear wizard. A user can interrupt, revisit, switch work or lose connectivity at any point.
+
+| Reference phase | Intended behavior | Required invariant |
+| --- | --- | --- |
+| Arrival | Field assembles into the familiar body; first input becomes available promptly | Optional/shortened on return; assets or animation never gate control access |
+| Rest / first contact | Calm low-amplitude breath; invitation anchored near the intake/spine | Idle motion does not represent backend work; typing is always discoverable |
+| Awakening / conversation | Attention turns toward input; measured speech/response changes local energy | Local input acknowledgment is immediate; reasoning/streaming claims require admitted evidence |
+| Materialization | A nerve reaches from a stable seat; a surface opens at its endpoint | Content and surface identity survive motion interruption, resize and reconnect |
+| Orchestration | One attended surface comes forward; others stay related to named tasks/seats | Stable identities; bounded visible branches; all work remains reachable |
+| Working / showing work | The attended surface updates; directional activity connects source and destination | No fake progress, invented worker or terminal success from an animation timer |
+| Reabsorption | Connection retracts and surface settles into a recoverable history/receipt | Do not remove content the user is reading or editing; visual disappearance is not data deletion |
+
+Overlay states have priority across all seven: stop, permission, stale/unavailable, failure, verification, then ordinary work. Preserve distinctions when they coexist: for example, show a pending permission request with stale connection information, while the server remains responsible for validating any attempted decision.
+
+## 5. One presentation contract, several consumers
+
+Keep existing backend authority and transport admission. Extend current seams rather than introducing a new global state bus.
+
+```mermaid
+flowchart TD
+  A[Backend: execution, authority, evidence] --> B[Existing adapters and mirror admission]
+  B --> C[Canonical stores: mirror, tabs, conversation]
+  C --> D[Existing semantic kernel]
+  D --> E[Existing physical snapshot + materialization projection]
+  E --> F[Presentation director: attention, pose, transition targets]
+  F --> G[One R3F scene: cortex, spine, nerves, fields]
+  F --> H[DOM surfaces: readable work and stable controls]
+  D --> I[Accessible state, approval and receipts]
+  H --> J[Existing explicit action commands]
+  I --> J
+  J --> A
+```
+
+“Presentation director” is a responsibility, not a mandated new framework or giant class. It resolves competing visual demands, consumes immutable semantic targets, and exposes mutable render targets through refs. It cannot authorize actions, assign backend work, manufacture memory, or decide verification. Existing buses may remain transport adapters during migration; they must not independently redefine the same posture.
+
+The target contract needs the following concepts, extending existing types only where absent:
+
+- connection/freshness and the current session/turn boundary;
+- backend facts with provenance, entity identity and ordering/cursor where supplied;
+- task activity, approval state, verification and recovery as separate dimensions;
+- stable task/surface/worker identity and focused anatomical seat;
+- interaction attention from pointer, keyboard, touch and active reading/editing;
+- render capability and user motion/quality preference;
+- current visual pose, target pose, interruption policy and presentation timestamp.
+
+Use three time domains deliberately: authoritative event ordering, measured local arrival time, and visual interpolation time. Never subtract unsynchronized server/client clocks to claim network latency. Replay must restore state without replaying old “success” celebrations or duplicating workers. A missing terminal event remains incomplete. A new turn cannot inherit a previous turn's verification or privacy claim.
+
+Body status updates and critical DOM messages happen as soon as evidence is admitted. Easing follows; it never holds up Stop, Deny, failure information, result access or keyboard focus.
+
+## 6. What should make the being feel alive
+
+My design hypothesis is that **contingency, attention and continuity** will contribute more than decorative complexity. Validate this with users rather than treating it as a universal law.
+
+1. **Contingency:** the body acknowledges what the user just did, in the appropriate place. Typing, selecting a result and stopping work produce distinct reactions.
+2. **Attention:** orientation, local convergence and connection emphasis agree about the same target. A competing idle orbit must not pull the body away during a decision.
+3. **Continuity:** work grows from a known origin, retains identity, and returns through a related path. Repeatedly rebuilding a surface at a new random position breaks that continuity.
+4. **Secondary motion:** a restrained delayed response in fibers/spine follows the main movement. It should suggest a material rather than independent sine waves everywhere.
+5. **Memory of interaction:** a reopened artifact returns to its stable identity and focus context. Durable “learning” marks require actual recorded promotion.
+6. **Meaningful restraint:** the body holds at a permission boundary, becomes uncertain with stale information, and settles differently for verified and unverified work.
+
+Staging, anticipation, timing and follow-through are established animation principles; their application here is an interaction-design proposal, not evidence of consciousness. [Original 3D animation paper](https://www.cs.cmu.edu/afs/cs/academic/class/15462-f13/www/lec_slides/Lesseter.pdf).
+
+Initial tuning ranges, to test rather than hard-code as universal rules:
+
+| Motion | Starting range | Interaction rule |
+| --- | --- | --- |
+| Press/input acknowledgment | next paint; target under 100ms | Never wait for the model |
+| Attention redirect | 120–220ms | Retarget from current pose; avoid queued movements |
+| Ordinary surface focus | 160–260ms | Content actionable immediately; minimal travel for keyboard use |
+| First surface formation | 250–450ms | Nerve, rim and readable content share one timeline |
+| Reabsorption | 200–400ms | Only on safe dismissal/settlement; receipt persists |
+| Optional first arrival | roughly 0.8–1.5s after assets are available | Controls appear independently; skip or shorten subsequent visits |
+| Ambient breath | slow, small, non-semantic | Pausable; absent in reduced motion |
+
+The motion-design skill informs the fast frequent controls, interruption behavior and restrained secondary effects. The organism's expressive movement is intentional; generic UI motion limits are not applied blindly to a character performance.
+
+## 7. Spatial workspaces that are useful
+
+Keep one persistent DOM instance for each active surface where practical. Moving between overview and focused presentation must preserve editor selection, composition input, scroll, unsaved text and focus. Avoid remounting heavy editors to achieve a visual transition.
+
+Define three presentation depths: attended, available, and resting. Only the attended surface needs full readability and interaction. Others can be compact identity/status representations, with a plain task switcher as an equivalent route. Start with one primary and up to two secondary desktop representations; visible counts are limits, not quotas.
+
+A shared anchor solver maps body-local seat positions into camera/world coordinates and then screen coordinates. It includes safe areas for input, Stop, notices and focused work. It must avoid occlusion, overlapping controls and unstable repositioning. Touch/focus targets use stable screen bounds while decorative geometry can move behind them.
+
+When content comes forward, reduce perspective enough for reading. For long documents, code, tables and receipts use a stable DOM work plane with an anatomical connection still visible. Do not turn editors into WebGL textures, duplicate every editor in both DOM and 3D, or require precise raycasting to press critical buttons.
+
+Reabsorption is explicit dismissal or a safe lifecycle settlement—not “erase after N seconds.” Unreviewed errors, permission requests and unsaved artifacts stay reachable. A user examining a result can keep it open even when the backend task ends.
+
+## 8. Desktop and mobile are first-class compositions
+
+Equal capability does not imply equal particle count or identical placement.
+
+| Concern | Desktop | Mobile |
+| --- | --- | --- |
+| Rest | Body has room and clear negative space; intake near its base | Compact recognizable body; one obvious thumb-reachable intake |
+| Active work | Body shifts aside; stable readable work plane occupies the main area | One full-width focused work sheet; body remains in a compact presence region |
+| Multiple tasks | Spine/seat overview plus switcher | Task switcher/list with the same identities and state; no tiny orbiting windows |
+| Permission | Stable decision plane, body holds | Stable full-width decision sheet with visible safe actions and Stop access |
+| Keyboard | Focus order and shortcuts do not depend on camera position | Software keyboard and browser bars cannot cover input, actions or current decision |
+| Inspection | Progressive Expert detail | Same information through progressive sections; no desktop-only authority |
+| Fallback | Complete operational DOM | Complete operational DOM, including on unsupported or memory-constrained devices |
+
+Use responsive layout derived from available space and content, plus explicit safe-area insets. Handle visual viewport changes, keyboard opening, landscape and text enlargement. `dvh` alone is not a complete mobile keyboard solution. The VirtualKeyboard API has limited availability; use it only as an enhancement, with tested conventional/VisualViewport behavior. [MDN viewport concepts](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/CSSOM_view/Viewport_concepts), [VirtualKeyboard API](https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API).
+
+Never make hover necessary. Swipes may be shortcuts, with visible button equivalents. Disable scene orbit/drag while interacting with text or controls. Preserve native browser zoom and native scrolling in work content.
+
+**Mobile connectivity is a product dependency.** A phone's localhost is the phone, not the desktop running the backend. The current frontend already supports a production same-origin gateway through `config.js`/Vite. Validate a supported authenticated HTTPS deployment or companion connection through that existing boundary before claiming mobile end-to-end parity. Do not solve this by embedding API tokens or casually exposing the local API to a network. Offline/unpaired mobile must explain what is available and retain safe local drafts under the existing privacy policy; it must not queue privileged approvals for later execution.
+
+Voice needs its own capability matrix. Inspect both actual gateway headers and browser permissions: the inspected Vite policy currently includes `microphone=()`. A missing voice capability must never obstruct typing, and a visual waveform must represent admitted input/playback rather than an invented recording.
+
+## 9. Rendering strategy and technology decisions
+
+Keep React, TypeScript, React Three Fiber, Three.js and the current motion stack for the first release. One canvas, one approved post-processing chain, one palette/material contract. A framework rewrite would add uncertainty without proving the desired experience.
+
+### Body and nerve implementation
+
+- Extend the existing point-field body and fused spine. Author stable seeded sample positions with region/anchor metadata; avoid regenerating random anatomy during normal renders.
+- Express posture through a bounded set of uniforms and local deformation/convergence. Structural identity should remain stable across transitions and tiers.
+- Use one geometric path definition for the visible nerve, its travelling cue and the screen anchor. Disagreement between three independently computed paths is a common source of visual detachment.
+- Start with analytic curves for nerves and bounded shader movement, not general soft-body/fluid simulation. Add simulation only when a measured visual need justifies it.
+- Instance repeated branch/pulse geometry; reuse typed buffers and materials. Maintain a deterministic pool/seat allocator, lifecycle expiry and disposal ownership.
+- Keep transient effects bounded. Aggregate additional workers into a truthful count/overview when the visible budget is exhausted; never silently imply that omitted workers do not exist.
+
+React handles component lifecycles and lower-frequency semantic changes; render callbacks mutate refs, transforms and uniforms using elapsed time. Avoid per-frame React state updates and recurring object allocation in hot loops. The official R3F guidance supports this division. [R3F performance pitfalls](https://github.com/pmndrs/react-three-fiber/blob/master/docs/advanced/pitfalls.mdx).
+
+### WebGPU is an optional measured experiment
+
+Do not make WebGPU migration the prerequisite for looking futuristic. Three.js documents a WebGL2 fallback, but existing custom ShaderMaterial/onBeforeCompile material code and the current composer require migration to the newer material/post-processing approach. That is not a renderer toggle. First establish the visual slice and profile the current renderer; accept a later spike only if representative hardware shows a worthwhile benefit with matching appearance and fallback behavior. [Three.js migration guidance](https://threejs.org/manual/pages/webgpurenderer).
+
+Likewise, do not introduce an ECS, a physics engine, OffscreenCanvas, a worker renderer or an animation framework merely because the scene is complex. Use a worker for expensive deterministic preprocessing if profiling identifies main-thread stalls; preserve simple ownership and fallback first.
+
+## 10. Performance contract
+
+Performance is a release requirement from the first slice. The following are **proposed acceptance targets**, not measurements already achieved. Lock exact devices and supported browsers during P0; revise budgets only with recorded evidence and operator-visible tradeoffs.
+
+| Measurement | Proposed target and scope |
+| --- | --- |
+| DOM readiness | Request/Stop/fallback usable independently of 3D load; local feedback under 100ms in the selected test profile |
+| Smooth standard tier | Target 60fps; foreground p95 frame interval ≤20ms after warmup on agreed desktop and mainstream phones |
+| Economy tier | Sustained approximately 30fps, p95 interval ≤35ms on agreed constrained devices; DOM controls still meet responsiveness targets |
+| Critical response | Stop/permission/failure text and local feedback next available paint; backend confirmation separately measured |
+| Web Vitals | LCP ≤2.5s, INP ≤200ms, CLS ≤0.1 at p75, split by desktop/mobile where field samples exist |
+| Resources | Bounded pools; no sustained growth in post-settle geometry/texture/listener counts over 100 workspace cycles and a 30-minute active soak |
+| Cold start | Record initial compressed bytes and parse/compile costs; editor workers and specialist panels stay out of the initial interaction path |
+| Mobile endurance | Repeat the actual work journey for 20–30 minutes on physical devices; record frame and interaction degradation, orientation and background/resume recovery |
+
+The Web Vitals thresholds come from [web.dev](https://web.dev/articles/vitals). They do not measure when a WebGL being is visually ready, so retain separate input-ready and first-useful-3D-frame metrics. A lab p75 over repeated local runs is not field p75.
+
+Instrumentation must report device/browser/OS, viewport, DPR, tier, commit, build mode, warmup, sample window, foreground state and scenario. Distinguish RAF pacing from CPU frame cost, GPU time, and end-to-end input latency. Use asynchronous GPU timing only where available and reject disjoint/invalid samples. Measure all render passes; missing counters are unavailable, never zero-cost proof. Object counts are not VRAM bytes.
+
+Use before/after recordings and distributions, not average FPS alone. The 16.67ms budget at 60Hz includes the browser's work too; the application cannot spend all of it on the scene. Test while a local model is working, since the product may share GPU and memory resources with it.
+
+Adapt optional detail using measured load and hysteresis: reduce expensive post-processing and distant decorative work, adjust render resolution, then use a silhouette-preserving lower density. Keep palette, protected textures, meaning, critical controls and readable DOM unchanged. Default to an explicit Auto quality preference with an understandable manual override; record this decision because old comments describe a stricter structural-tier rule. Never persist a one-time boot hitch as a permanent low-quality verdict.
+
+An always-moving scene cannot simultaneously be idle in the renderer. Use demand rendering when motion is paused or the scene is settled by policy, and ensure all animations invalidate frames while running. Stop nonessential visual work when hidden. [R3F scaling guidance](https://github.com/pmndrs/react-three-fiber/blob/master/docs/advanced/scaling-performance.mdx).
+
+Budget draw calls, fill rate, buffer/texture allocation and shader complexity after baseline profiling. Do not promise a universal particle count. MDN recommends batching, careful memory budgeting and avoiding synchronous GPU queries; use those as engineering constraints rather than optimizing only the point count. [WebGL best practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices).
+
+## 11. Accessibility, truth and recovery
+
+Target WCAG 2.2 AA for the application and explicitly test the interaction patterns. Use 44×44 CSS-pixel targets as this product's preferred control size; WCAG's AA target-size minimum is 24×24 with exceptions, so do not mislabel the product target as the standard itself. [W3C target-size guidance](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum).
+
+All essential actions, outcomes and evidence remain available in DOM. Make focus visible, reading order logical, dialogs correctly labeled and focus-restoring, and announcements concise. Do not announce every token, frame or particle. Test NVDA on Windows and VoiceOver on iOS; add TalkBack for the selected Android tier. An accessibility-tree assertion is not a human screen-reader test.
+
+Reduced motion removes travel, orbit, large zoom, camera sway and rhythmic decorative pulses. Keep static anatomy, focus emphasis and explicit state labels. Offer an ambient-motion pause that does not pause backend work. Automatically moving parallel content may require a pause/stop/hide mechanism; respect that requirement rather than calling every decoration essential. [W3C motion guidance](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide).
+
+Approval is an explicit server-owned command. Neither touch focus, spoken “yes,” gaze, drag, elapsed time nor a completed animation can authorize it. Stop request delivery, stop latch state and worker termination results remain separate. Refusal should feel calm and understandable, not like the being is punishing the user.
+
+Context loss, shader failure, asset failure and unsupported graphics preserve input, approval, Stop, accessible results and draft state. Reuse existing boundaries; reconcile nested retry ownership so only one retry flow owns recovery. Never automatically resubmit a task when restoring the canvas. Restore presentation from current admitted state and stable work identities.
+
+Keep generated/remote content sanitized and artifact previews sandboxed according to existing policies. Presentation text, SVG, HTML and models cannot become executable instructions or authority. Session changes/logout invalidate private projections and inappropriate cached data. Metrics remain bounded and content-free by default.
+
+## 12. The decisive first vertical slice
+
+Build and review one complete single-task journey before broadening into all organs/workers:
+
+1. Resting being and immediately usable intake.
+2. Type a request; observe local acknowledgment and directional attention.
+3. Receive admitted planning/work evidence; grow one connected readable surface.
+4. Hold at a real permission request where required; deny and allow paths remain distinct.
+5. Stream actual content into the same surface.
+6. Show verified, unverified and failed outcomes with different explicit receipts.
+7. Dismiss/reopen the result; reabsorption preserves evidence and identity.
+8. Repeat with reduced motion, a narrow screen, reconnect and renderer fallback.
+
+Begin choreography in the existing clearly labeled development gallery, then replay the supported real backend journey with correlated timestamps/IDs. Fixtures accelerate development; they do not close the live integration gate.
+
+**Stop broad feature expansion if this slice still feels like a dashboard plus a brain.** Fix origin, focus, material and motion continuity first. The operator's reaction to a 30–60-second recording of this journey is a required visual gate, alongside correctness and usability evidence.
+
+## 13. Phases and exit gates
+
+Each phase can contain several small commits/PRs. Mobile, reduced motion and resource constraints apply throughout, not only near release. Estimates are ordered scope, not promises of elapsed time or Plus usage.
+
+| Phase | Deliverable | Exit gate |
+| --- | --- | --- |
+| P0: reproducibility and audit | Accepted-source restoration, provenance map, current evidence matrix, device/browser profile, instrumented baseline | Clean checkout can validate managed source without changing accepted bytes; known failures named; no unexplained source drift |
+| P1: visual contract | Three keyframes × desktop/mobile; posture/attention/motion rules; event-to-visual table | Operator approves direction; critical states comprehensible without color/motion alone |
+| P2: presentation convergence | Canonical snapshot consumed through an adapter by core body/effects; stable entity identity; supported replay behavior | Same event sequence produces matching DOM/body states; duplicate authorities removed or demonstrably quarantined |
+| P3: complete single-task slice | Input, attention, one grown workspace, permission, content, receipt, reabsorption | Moving visual acceptance plus real supported journey, mobile layout and fallback proof |
+| P4: material and workspace refinement | Substrate detail, stable anchors, camera policy, readable work plane, task switching | Fast typing/reading preserved; no overlap/focus loss in interruption and resize matrix |
+| P5: multiple tasks, workers, memory | Bounded stable branches, truthful aggregation, measured recall/promotion/reflex, recovery | Fixture stress and supported real lifecycle coverage; unsupported worker route explicitly blocked |
+| P6: hardware and accessibility qualification | Calibrated tiers, startup/lazy-load optimization, active soaks, phone keyboard/touch, assistive technology | Targets pass on named devices; all critical controls work without graphics/motion |
+| P7: pilot and release | Human sessions, resolved critical findings, independent review, reproducible evidence and rollback | Operator visual acceptance, safety comprehension, supported end-to-end journeys and release gates all satisfied |
+
+Dependency path: P0 → P1/P2 → P3 → P4/P5 → P6 → P7. Profiling and accessibility start at P0. If backend worker integration is unavailable, continue source/body/workspace/performance work that does not need it; keep P5's live-worker gate open.
+
+The first milestone is a convincing vertical slice, not a rebuilt full frontend. Use the first three completed tickets to estimate observed throughput, then forecast remaining work with a range and uncertainty. Art direction, device access and human review can dominate elapsed time. No credible date or subscription quota estimate follows from the desired line count.
+
+## 14. Proof, not checkbox inflation
+
+Maintain one evidence row per acceptance criterion with: criterion ID, source commit/tree, scenario, device/browser, proof type, artifact path, result and limitation. Use statuses `not-started`, `implemented`, `automated-verified`, `browser-observed`, `device-verified`, `human-accepted`, `blocked`. Do not convert one kind of evidence into another.
+
+Reuse the existing gallery, metrics and human-validation packet. Extend missing cases, especially duplicate/out-of-order events, simultaneous tasks, focus preserved through reabsorption, permission during reconnect, stop during materialization, large artifact streaming, language/text scaling, missing assets and GPU loss. Screenshot comparisons need seeded anatomy, controlled presentation time and a declared viewport; review motion through video or direct observation as well.
+
+Test meaningful contracts rather than mirroring implementation details. For each behavior change, use focused regressions. At a stable code checkpoint run the required frontend suite, typecheck, lint, build, port tests/check and canon/frozen guards; run backend checks when a real backend seam changes and required CI before merging. Do not repeatedly run an unchanged full suite merely to accumulate evidence rows.
+
+Human validation should reuse the existing minimum of three non-builders for an initial diagnostic round, then broaden beyond that before a general-release usability claim. Observe desktop and physical mobile users performing ordinary tasks without explanations of internal organs. Require each participant to distinguish permission, execution and verification, find Stop, recover from failure and retrieve a result. A single dangerous misunderstanding is a release blocker, not a low score to average away.
+
+Test visual appeal separately: show equal-length baseline/new journeys in counterbalanced order; ask which feels more responsive, coherent and alive, and what the system seemed to be doing. Record participant counts and exact observations without claiming statistical certainty from a small sample. Do not lead with “doesn't this look alive?”
+
+## 15. Honest progress accounting
+
+Do not publish a new overall completion percentage until P0 maps the remaining criteria to current evidence. Historical test totals cannot supply that denominator.
+
+For future updates, freeze a weighted acceptance list: truth/integration 20%, body/motion/visual coherence 25%, workspaces/task UX 20%, desktop/mobile accessibility 15%, performance/recovery 15%, release evidence 5%. Within each category weight named criteria before implementation, and count a criterion only when its required evidence passes. Report implemented progress separately from accepted progress; blocked criteria remain in the denominator. Record scope changes rather than quietly removing hard work.
+
+The active [acceptance/evidence ledger](LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md) now supplies that fixed 100-point denominator and reports 3% accepted evidence (INT-01 only). LB-02 remains partial because the physical Android/iPhone models are still TBD; that uncertainty stays in the denominator.
+
+The percentage is a planning indicator. Release still requires every critical permission/stop/truth/fallback/mobile gate and the operator's visual approval. A high average cannot offset a failed critical gate. “Blueprint delivered” also does not mean “frontend complete.”
+
+## 16. Risks and decisions to avoid
+
+| Risk | Concrete response |
+| --- | --- |
+| A second semantic system grows beside the first | Audit imports; extend `semanticKernel` and current projections; add regression before deleting verified duplicates |
+| Shell gets prettier but being remains a visualizer | Require the P3 end-to-end moving visual gate before broad feature expansion |
+| Mobile becomes a shrunk desktop | Build its focused work plane and keyboard behavior in the first slice |
+| More bloom destroys point texture | Review unbloomed anatomy and exposure first; preserve canon |
+| Animation fakes backend work | Separate ambient from operational motion; use admitted evidence for every named work cue |
+| Source gate blocks core improvements indefinitely | Deliver reversible accepted-product restoration first; never overwrite with the older external demo |
+| Backend capability is missing | Name the exact missing contract/route; keep fixture and live status separate; obtain a backend-owned implementation when authorized |
+| Metrics are misleading | Validate sampling scope, foreground state and render passes; label hardware and proof type |
+| Work grows until context/Plus budget is exhausted | One bounded ticket and compact handoff; escalate repeat failures, not repeated full rewrites |
+| Plans multiply without visible progress | One canonical blueprint, execution pack and concise evidence ledger; a visible slice by P3 |
+
+Avoid a new general rendering engine, full WebGPU conversion, general physics, complete design-system replacement, new humanoid/face, hand-coded 3D editors, fake workers, fake thinking, constant camera orbit and sweeping backend refactors in the first milestone. Add a dependency only for a demonstrated gap with a bounded integration test.
+
+## 17. Research decisions and their practical effect
+
+The sources below inform choices; the architecture and tuning targets are recommendations for this repository, not prescriptions quoted from those sources. Versions and browser behavior must be rechecked before a later migration.
+
+| Primary source | Decision supported |
+| --- | --- |
+| [R3F pitfalls](https://github.com/pmndrs/react-three-fiber/blob/master/docs/advanced/pitfalls.mdx) | Keep fast interpolation outside React state; reuse render resources |
+| [R3F scaling](https://github.com/pmndrs/react-three-fiber/blob/master/docs/advanced/scaling-performance.mdx) | Use instancing and deliberate render scheduling; motion has battery cost |
+| [Three WebGPU migration](https://threejs.org/manual/pages/webgpurenderer) | A later measured spike, not a drop-in requirement for the first slice |
+| [Three renderer statistics](https://threejs.org/docs/pages/WebGLRenderer.html) | Verify complete-frame counters with the composer, not one pass |
+| [MDN WebGL practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices) | Budget memory and draw work, avoid blocking queries, handle capability differences |
+| [web.dev Web Vitals](https://web.dev/articles/vitals) | Distinguish page-level responsiveness from scene readiness and frame pacing |
+| [W3C motion](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide) | User control of ambient movement is part of the product |
+| [W3C target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum) | Explicit touch targets; accurately distinguish product targets from AA minima |
+| [MDN viewport](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/CSSOM_view/Viewport_concepts) | Validate actual keyboard and zoom behavior on phones |
+| [MDN VirtualKeyboard](https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API) | Feature detection and fallback; no reliance on a limited-availability API |
+| [Animation principles paper](https://www.cs.cmu.edu/afs/cs/academic/class/15462-f13/www/lec_slides/Lesseter.pdf) | Deliberate staging and follow-through for a readable performance |
+
+## LB-04 A — measured docked work plane (2026-09-25)
+
+The first A → B → C implementation slice keeps the existing focused workspace and conversation composer separate on mobile: `workspaceDock.ts` measures the actual composer top and sets a CSS clearance consumed by `.lm-surface` only in the narrow, focused-workspace posture. ResizeObserver, window resize, and visual-viewport resize/scroll refresh the measurement. This adds no semantic focus state, renderer anatomy, shader, palette, texture, or animation. The design contract and limits are in [keyframe A — docked work plane](LIVING_BEING_KEYFRAME_A_DOCKED_PLANE_2026-09-25.md).
+
+The regression observed 236px clearance from synthetic root/composer rectangles, then 346px after the composer moved upward. Focused dock/app tests pass **11/11**; `npm run typecheck` passes; `npm test -- --pool=forks --maxWorkers=4 --testTimeout=10000` passes **177 files / 977 tests**. The final production build passed (**4,318 modules**) after a type-only observer-constructor correction. Full lint had **0 errors / 123 warnings**; changed-file ESLint, palette and protected-texture guards and 16/16 port tooling tests passed. `port:check` is unavailable in this checkout because the ignored lab source `components/QualityTierProvider.tsx` is missing; it was not restored. Source/test commit `63881d882f822d579f2a3dde26ade0dd9452f28b` is local only. The local visual inspection was 1280 × 720; service offline / operational picture unavailable. No mobile viewport capture, physical-device test, human sign-off or acceptance points are claimed.
+
+**Operator decision:** the user chose to proceed A, then B, then C. This confirms sequencing, not final visual sign-off. Continue to B next; complete the three keyframes and get operator review before any renderer-anatomy/material changes. Keep Android 17 / iOS 27 targets and TBD handset models, and the 3/100 accepted score, unchanged.
+
+## LB-04 B — six-cell state board (2026-09-25)
+
+Drafted a review proposal for the three canonical states—resting, working, awaiting permission—at 1440 × 900 and 390 × 844 CSS-pixel compositions. The board follows current product geometry and semantic/authority sources; the organism drawing is only a schematic cue, not new canon art. See [keyframe board SVG](LIVING_BEING_KEYFRAMES_B_2026-09-25.svg) and its [state/event/motion contract](LIVING_BEING_KEYFRAMES_B_2026-09-25.md).
+
+The user has not reviewed or approved this specific visual board. No product code or renderer assets changed; accepted completion remains 3/100. C can continue only in semantic/integration surfaces while visual approval remains open.
+
+## LB-04 C — repeated-approval identity finding (2026-09-25)
+
+Read-only tracing suggests that when an authorized replay is paused by a second server approval, GagosChrome clears its only pending work-tab ID before returning. The replay enters through streamTurn, not submit, and the traced path does not appear to reassign the pointer. That could detach final streamed content and its unverified receipt from the original workspace tab. Existing tests cover renewed-prompt visibility and ordinary output identity separately, not the combined repeated-approval journey.
+
+This remains a hypothesis until a red component regression proves it. Proposed bounded design: retain the pending work-tab ID only across an authorized replay that encounters another real pending approval; preserve existing cleanup for cancellation, no outcome and terminal outcomes. Add a component regression for partial output → first approval → second approval → final output, asserting the original tab ID and receipt association, and that the receipt remains unverified absent verifier evidence. Likely source scope is GagosChrome.jsx plus GagosChrome.approval.test.tsx. This does not alter backend policy or authority, visual/body rendering, palette, texture or motion.
+
+The short in-chat design is awaiting operator approval before any product test or code change. It is a semantic/integration slice and does not depend on B visual approval. B still requires visual review before renderer anatomy or material changes.
+
+### C implementation update (2026-09-25; supersedes the pending-design status above)
+
+The operator approved this bounded test-first change. The new component regression reproduced the defect: after an authorized replay paused for a second real approval, the eventual `print("final")` output did not replace the partial code in the original materialized tab. The fix now retains `writingTabIdRef` only across that renewed-approval pause; no outcome and terminal outcomes still clear it. The regression exercises both approval decisions, asserts the original tab ID remains the sole matching-file tab, checks the final result is not falsely verified, and checks Review returns focus to that same tab.
+
+Automated evidence on `codex/gagos-living-being-c-identity-20260925`: focused approval/write tests **2 files / 16 tests**; full frontend **177 files / 978 tests**; typecheck; production build (**4,318 modules**); `test:port` **16/16**; CSS palette and protected-texture guards; full lint **0 errors / 123 warnings**; `git diff --check`. `port:check` remains unavailable because the ignored lab source `components/QualityTierProvider.tsx` is missing; it was not restored. The regression uses actual DOM controls but simulates the backend adapter; this is source/automation evidence, not a live service journey, browser-visual, human, device or hardware result. No backend authority, renderer, palette, texture or motion changed. It adds **0 acceptance points**; total accepted completion remains **3/100**.
+
+### LB-07 — focused-seat cortical attention (2026-09-25)
+
+The product-owned cortical current now derives a stable bearing from the existing focused workspace seat. With no focused seat it preserves the prior untargeted geometry; higher semantic convergence tightens the fan rather than adding particles or changing the body's palette, texture, silhouette or authority. The focus target comes from the canonical tab/conductor projection, including an open focused DOM workspace panel.
+
+The development gallery gained a render-only focused workspace fixture and now passes the same derived physical posture to `CortexEngine`; it does not write to the live mirror or tab stores. A real isolated browser render showed the resting and working fixtures and the conducting seat. The first render attempt exposed an R3F prop error from test-only `data-*` instrumentation; that prop was removed, the integration test now checks the actual path direction, and the browser render recovered.
+
+Final verification on the isolated feature worktree: **180 files / 988 tests**; TypeScript; production build (**4,319 modules**); `port:check` (**194 files / no drift**); `test:port` (**16/16**); CSS palette and protected-texture guards; changed-file lint (0 errors/warnings); `git diff --check`. This proves the bounded code/build/fixture slice only. No operator visual sign-off, authenticated ask-to-result run, physical-phone, named desktop/GPU or independent review evidence was collected. It adds **0 points**; accepted evidence remains **3/100**. The 3/100 is an evidence ledger score, not overall implementation percentage.
+
+### Isolated preview safety note (2026-09-25)
+
+An isolated work-intent preview reached `/api/intent/preview` but `/api/generate` returned **401** because no operator principal was authenticated. No auth bypass or credential was attempted. Backend startup also made unauthenticated Hugging Face metadata/model requests for `sentence-transformers/all-MiniLM-L6-v2`; the observed chat call routed locally to Ollama, and no prompt content egress was observed. The backend and frontend preview processes have been stopped. The isolated temporary AIOS directory and model cache remain untouched. Do not start the backend for a visual-only renderer check; authenticate through the ordinary operator UI before claiming a live journey.
+
+### LB-08 — local composer presence and cortical intake (2026-09-25)
+
+The official composer now sends the organism only an ephemeral boolean on empty↔non-empty draft transitions; request text remains inside the composer. The product-owned cortical current redirects toward `BRAINSTEM_INTAKE_LOCAL`; its center path uses a brighter, wider foreground treatment while a draft exists. The behavior is render-only and does not claim thinking, backend work, or task authority. Automated tests assert the boolean-only edge, actual 3D path bearing/reach, and foreground visibility properties.
+
+The isolated preview rendered the organism at 1440×900 and the default narrow viewport; one unsent `x` was entered and cleared, never submitted. The 3D attention response remained visually ambiguous in the captured frame, so this is not visual acceptance and must be refined before expanding the choreography. Final automated evidence: focused behavior tests **3 files / 25 tests**; full frontend **180 files / 993 tests**; TypeScript; production build (**4,319 modules**); `port:check` (**194 files / no drift**); `test:port` (**16/16**); palette/protected-texture guards; changed-file lint **0 errors / 8 warnings**. No phone, authenticated backend journey, human review or operator visual acceptance. No acceptance points are added; accepted evidence remains **3/100**.
+
+The repository-wide Python gate is not green: `pytest -x -q` fails in untouched `tests/test_agent_bridge.py::test_a_write_inside_the_sandbox_is_allowed` because `training_ground/x.py` is refused as credential-shaped. Do not weaken or change security behavior as part of this frontend task. The requested branch commit is withheld until the project gate is resolved or the operator changes that rule.
+
+### LB-08 — one-shot composer return current (2026-09-25)
+
+The intake current now has a matching clear-edge response: the same bead reverses along the captured cortex-to-intake path, then dissolves after a bounded 0.72-second trip. It does not loop or claim that the backend is working; reduced motion hides it immediately, and a rapid new draft reverses from the current point. Body-sibling effects follow the body's live position and rotation while retaining their authored effect-space scale, because their anchors already include the calibrated body/dock scale.
+
+Observed in the isolated official renderer at 1280×720 with one unsent character: forward current met the visible stem center; clearing it started the return and restored the quiet posture. This is a limited desktop render check, not operator acceptance. Full frontend is **181 files / 1,000 tests**; typecheck, production build (**4,320 modules**), `port:check` (**194/no drift**), `test:port` (**16/16**), palette/protected-texture guards, changed-file lint and `git diff --check` passed. The focused Python bridge test was rerun and remains red; no Python/security code changed, so no commit. No new accepted points; ledger remains **3/100**.
+
+## 18. Immediate next action
+
+The current scene projection distinguishes stale/unavailable from current failure, targets focused DOM workspaces, and routes a held membrane's cortical current and conductor toward the active approval seat in amber without changing workspace focus. The code-level replay/retraction regression passes, but the operator has not reviewed the active/held/rest sequence at `127.0.0.1:5194`. The next action is that focused operator review, including whether approval attention is unmistakable while workspace focus stays put. Hold further anatomy/material/umbilical expansion behind the LB-04 visual gate. Physical devices, human review, live-service and named-hardware acceptance remain open. Accepted evidence is still 3/100; do not turn tests, source volume, or that evidence score into a whole-goal completion percentage.
+
+The delivery objective is concrete: **on desktop and mobile, a person can ask, watch meaningful work grow from the being, make a clear permission decision, inspect an honest result, and continue without losing focus, state or performance.** The organism's appeal must survive that ordinary daily use.
+
+## LB-09 preparation — edge-to-edge safe-area layout (2026-09-26)
+
+The official document already opts into `viewport-fit=cover`, but the integrated mobile shell had no CSS `safe-area-inset-*` handling. The product-owned `livingMirror.css` now keeps its mobile top control stack and interactive work surfaces clear of top/side cutouts, and lifts the resting composer plus connection notice above the bottom gesture area. The narrowest composer height reserves both vertical insets. The renderer itself stays full-sized beneath the chrome so safe-area handling does not reduce the being's already limited mobile scene.
+
+The existing keyboard-open rules still use measured visual-viewport occlusion and override the resting bottom offsets; safe-bottom is not added a second time while the keyboard is open. No palette, texture, backend state, body motion, or authority changed. Desktop rules are outside the mobile media queries.
+
+Verification: full frontend suite **181 files / 1,001 tests** (322.13s); TypeScript; production build (**4,320 modules**); `git diff --check`. These are compatibility/compilation checks, not proof that real device cutouts, the software keyboard, or 320px layouts are visually correct. The in-app browser has no viewport override; a separate Playwright runner failed during kernel initialization before opening the page. No actual 390×844/320 capture or physical Android 17/iOS 27 run was available; handset models remain TBD. This preparation adds **0 acceptance points** and accepted evidence remains **3/100**.
+
+**Next:** inspect this exact layout in a supported mobile viewport or physical handset at 390×844 and the 320px floor, with the keyboard both closed and open; correct any observed clipping before claiming LB-09 evidence.
+
+## Stale/unavailable body posture correction (2026-09-26)
+
+The canonical `physicalSnapshot` labels stale and disconnected-degraded states as `recover` for its cortex projection. The managed body posture resolver previously treated that shared label as a current red failure, despite the semantic distinction and accessible copy saying the operational picture was unconfirmed. The resolver now prioritizes Stop, pending permission, then stale/unavailable projection, before current failure and ordinary work. Stale/unavailable uses a distinct `unconfirmed` key with the existing restrained violet hue and low-flow/tint values; current recovery, verification failure and refusal remain red. No palette, texture, anatomy, shader or new motion was introduced.
+
+The regressions first failed on the old mapping, then passed after editing the authoring lab and using the supported port. The full frontend passed **181 files / 1,012 tests**; TypeScript, production build (**4,320 modules**), changed-file ESLint, `port:check` (**194/no drift**), `test:port` (**16/16**), palette/protected-texture guards and `git diff --check` passed. The isolated `:5194/?physical-gallery=1` render showed stale state in the quiet violet posture and a current verification-failure fixture in red recovery. This was an agent-observed desktop render, not operator or device acceptance; the slice adds **0 points**, accepted evidence remains **3/100**, and no whole-goal implementation percentage is asserted. The known Python bridge-test failure still blocks committing.
+
+### Replay-gap verifier attribution follow-up (2026-09-26)
+
+A recovered event stream is now treated as transport-fresh but semantically unattributed after `snapshot_required`. A snapshot closes the event cursor; it does not prove which turn owns a retained verifier receipt. The UI withholds pass/verified state until an actual new `turn.started` event is observed. This is a correctness slice only: it earns no visual/mobile acceptance points and does not advance the pending operator review of active/clear motion.
+
+Source was reconciled through the fresh worktree authoring lab and ported to the official frontend copy; all 194 managed sources pass `port:check`, the port workflow tests pass 16/16, and the focused reconnect/presentation tests pass 34/34 after porting. This test/build evidence does not replace the required full Python gate for the user-requested commit, nor operator review at the isolated `:5194` preview.
+
+### Focused DOM panel attention targeting (2026-09-26)
+
+The cortical current intended to orient toward the selected workspace seat, but its selector looked for `panels` on the materialized-tabs array. `TabSnapshot` stores DOM panels separately, so a focused DOM panel could be ignored and attention could fall back to another conductor seat. A component regression with a background materialized workspace at seat 3 and a focused DOM panel at seat 6 failed on the old behavior. The product now reads the open focused panel from the snapshot and uses its seat before falling back to the conductor seat. No new visual motif, anatomy, material, shader, palette, texture, backend or authority behavior was introduced.
+
+The focused component suite passed **6/6**; full frontend **181 files / 1,013 tests**; TypeScript; production build (**4,320 modules**); changed-file ESLint; `port:check` (**194/no drift**); `test:port` (**16/16**); palette/protected-texture guards; and `git diff --check`. In the isolated `:5194` product page, an offline Expert-mode Missions panel and organism both remained rendered while operational state was still announced unavailable. No prompt was submitted and no backend was started. This browser observation is not operator acceptance and does not prove the attention path's visual quality. **0 points**; accepted evidence remains **3/100**. Mobile/device and human review remain open; the known Python bridge test blocks commit.
+
+### Background renderer sleep (2026-09-26; implementation, not acceptance)
+
+The existing `FeatureGate` already observes `document.hidden` and some `useFrame` callbacks skip simulation work while asleep, but `WorkspaceCanvas` still used R3F's default continuous frame loop. The managed canvas now consumes the existing visibility hook and switches to `frameloop="never"` while backgrounded, returning to `always` when visible. The installed R3F implementation resets `Clock.elapsedTime` during `setFrameloop`; the transition therefore saves/restores the last visible scene time so hiding does not restart the being or let hidden wall time jump its animation clock. This pauses renderer frames only; it does not pause backend work or discard admitted state.
+
+The component regression first failed because hiding never changed the frame loop; it now verifies hidden/visible transitions and preservation of scene time even if a queued hidden update advances the clock. The full frontend passed **182 files / 1,014 tests** (84.19s); after strengthening the hidden-time assertion, the focused regression passed **1/1**. Final TypeScript and production build (**4,320 modules**) passed; changed-file ESLint had 0 errors/warnings; `port:check` reports **195 managed files / no drift**; `test:port` is **16/16**; palette and protected-texture guards pass. These are source/build/automation checks: there is no real hidden-tab frame trace, battery measurement, named-hardware or physical-phone result. **0 accepted points**; evidence score stays **3/100**.
+
+**Next:** keep the operator's pending `:5194` comparison of stale/unavailable, current-failure and focused-workspace attention as the gate before further visible choreography. Do not treat this hidden-renderer scheduling change as visual or mobile acceptance.
+
+### LB-06 worker identity to seat continuity (2026-09-26; source slice, not gate closure)
+
+The worker projection now retains identity and event cursor from the mirror, reconstructs active identities from a measured/derived snapshot roster, and lets that current roster replace pre-snapshot event history. A valid snapshot drops older worker event details so replay cannot rematerialize stale motes. `PhysicalSnapshot.branches` carries identity rather than an ordinal slot. The renderer reconciles the previous identity-to-seat map across insertions/reorders, frees seats on removal, keeps the eight-mote cap, and retains terminal reabsorption for 1.6 seconds with a 256-entry tombstone bound. R3F scene names contain seat numbers only; raw worker IDs are not exposed as UI copy.
+
+Test-first identity, cold-snapshot, roster-replacement, replay-reset, seat allocator and renderer-reorder regressions pass. Full frontend: **183 files / 1,023 tests**; affected post-port suite: **5 files / 41 tests**; typecheck and production build (**4,321 modules**) pass; full ESLint exits 0 with **120 warnings**; managed port check **195 files / no drift**; port-tool tests **16/16**. This code-level continuity evidence does not establish the supported live worker route, overflow aggregation, visual quality, mobile/device behavior, accessibility or operator acceptance. **0 points; accepted evidence remains 3/100.**
+
+### P2 core-body motion authority (2026-09-26; implementation, not acceptance)
+
+The official `CortexEngine` already accepted `PhysicalSnapshot` for its named posture, but its secondary pulse rate, breath excitation, root excitation, extra tint and approval hold still came from separate mirror-phase/cognition-event paths. A stale or replayed state could therefore look active, and a cold snapshot could restore a permission posture without restoring its hold behavior. The managed authoring source now derives those secondary body effects from the same resolved `BodyPosture` whenever a physical snapshot exists. The older metabolism and cognition hold remain compatibility fallbacks only when no physical projection is supplied; snapshot holds capture the current breath locally at the hold edge. Palette, protected textures, anatomy and shader materials were unchanged.
+
+The new posture-drive and hold-priority tests failed before the adapter was added. A store-backed parity regression covers a cold worker snapshot, roster reorder/insertion, then a stale replay-gap state while the retained mirror phase remains `active`: DOM semantic projection and physical branches agree, while body motion returns to the quiet unconfirmed profile. Full frontend: **183 files / 1,035 tests**; after one assertion-only strengthening, focused final suite **2 files / 37 tests**; typecheck; production build (**4,321 modules**); changed-file ESLint; managed port check **195/no drift**; port tests **16/16**; palette and protected-texture guards; `git diff --check`. The isolated `:5194` page's accessibility tree showed the offline resting state only; no WebGL-pixel comparison of active/held motion, authenticated journey, phone, human accessibility review or operator acceptance was collected. **0 points; accepted evidence remains 3/100.** The previously reproduced Python bridge-test failure still blocks a commit.
+
+### Held approval attention follow-up (2026-09-26; implementation, not acceptance)
+
+When the canonical physical membrane is held for operator approval, the official scene now directs the cortical current and conductor to the active approval surface's seat in amber (#ffb06e). It does not change tabStore focus: the work surface remains the keyboard/workspace focus. Clearing or replaying the approval returns attention through the existing scene projection; this is behavior continuity, not proof of visual clarity.
+
+A component regression pins work seat 3 and approval seat 6, checks the measured current/conductor endpoint and amber state, covers approval replay and retraction, and asserts workspace focus is unchanged. Full frontend: 183 files / 1,036 tests; typecheck; production build (4,321 modules); changed-file ESLint; port:check 195/no drift; test:port 16/16; palette/protected-texture guards and diff check. The full Python gate exited 0 at 88.49% coverage with the 85% floor enforced. The run emitted executor drain-thread warnings in its timeout test; this slice changed no backend code.
+
+No active/held WebGL-pixel comparison, operator review, live journey, device test or accessibility acceptance was collected. This adds 0 accepted points; evidence remains 3/100. Next, the operator should review active/held/rest at the isolated preview and confirm the amber approval cue is legible without stealing workspace focus.

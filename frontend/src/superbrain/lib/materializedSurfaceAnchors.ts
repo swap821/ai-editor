@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 import { readBeingMode } from '@/lib/beingMode';
 import { fuseSpinePoint } from '@/lib/spineFusionBus';
+import type { MaterializedTabKind } from '@/lib/tabStore';
 
 export interface MaterializedSurfacePlacement {
   originLocal: [number, number, number];
@@ -75,4 +76,23 @@ export function getContentSurfacePlacement(seatIndex?: number | null): Materiali
 
 export function getApprovalSurfacePlacement(seatIndex?: number | null): MaterializedSurfacePlacement {
   return getSeatedVertebraPlacement(APPROVAL_TARGET_OFFSET, seatIndex);
+}
+
+export const FOCUSED_HUD_NERVE_GAP = 0.022;
+const FOCUSED_HUD_NERVE_APPROACH = 0.14;
+
+export function shouldUseFocusedHudUmbilical(kind: MaterializedTabKind, focused: boolean): boolean {
+  return kind === 'content' && focused;
+}
+
+export function buildFocusedHudUmbilicalCurve(
+  origin: THREE.Vector3,
+  panelRim: THREE.Vector3,
+  panelUp: THREE.Vector3,
+): THREE.CatmullRomCurve3 {
+  const up = panelUp.clone().normalize();
+  const endpoint = panelRim.clone().addScaledVector(up, -FOCUSED_HUD_NERVE_GAP);
+  const approach = endpoint.clone().addScaledVector(up, -FOCUSED_HUD_NERVE_APPROACH);
+  const mid = origin.clone().lerp(approach, 0.68);
+  return new THREE.CatmullRomCurve3([origin.clone(), mid, approach, endpoint]);
 }

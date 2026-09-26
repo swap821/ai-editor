@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { deriveBeingPresentation, type BeingFacts } from './semanticKernel';
+import { deriveBeingPresentation, type BeingFacts, type WorkerPresentationState } from './semanticKernel';
+
+const workerRecords = (...states: WorkerPresentationState[]) => states.map((state, cursor) => ({
+  workerId: `worker-${cursor}`,
+  state,
+  cursor,
+}));
 
 const base = (overrides: Partial<BeingFacts> = {}): BeingFacts => ({
   lifecycle: 'rest',
@@ -47,14 +53,14 @@ describe('deriveBeingPresentation', () => {
   it('maps planning, approval hold, acting, and verification to distinct postures', () => {
     expect(deriveBeingPresentation(base({ hasPlan: true }))).toMatchObject({ phase: 'planning', motion: 'attention', taskState: 'preparing' });
     expect(deriveBeingPresentation(base({ approvalPending: true, hasPlan: true }))).toMatchObject({ phase: 'awaiting-human', motion: 'attention', taskState: 'needs-permission' });
-    expect(deriveBeingPresentation(base({ taskActivity: 'streaming', workers: ['active'] }))).toMatchObject({ phase: 'acting', motion: 'conduct', taskState: 'working' });
+    expect(deriveBeingPresentation(base({ taskActivity: 'streaming', workers: workerRecords('active') }))).toMatchObject({ phase: 'acting', motion: 'conduct', taskState: 'working' });
     expect(deriveBeingPresentation(base({ taskActivity: 'checking', verification: 'pending' }))).toMatchObject({ phase: 'verifying', motion: 'verify', taskState: 'checking' });
   });
 
   it('never collapses completion and verification', () => {
     expect(deriveBeingPresentation(base({ taskActivity: 'complete', verification: 'pass' }))).toMatchObject({ phase: 'resting', taskState: 'done-verified', coherence: 'fresh' });
     expect(deriveBeingPresentation(base({ taskActivity: 'complete', verification: 'unknown' }))).toMatchObject({ phase: 'resting', taskState: 'done-unverified', coherence: 'unverified' });
-    expect(deriveBeingPresentation(base({ taskActivity: 'complete', verification: 'fail' }))).toMatchObject({ phase: 'recovering', taskState: 'done-unverified', coherence: 'degraded', motion: 'reabsorb' });
+    expect(deriveBeingPresentation(base({ taskActivity: 'complete', verification: 'fail' }))).toMatchObject({ phase: 'recovering', taskState: 'failed', coherence: 'degraded', motion: 'reabsorb' });
   });
 
   it('keeps stale and degraded distinct from failure', () => {
@@ -96,25 +102,25 @@ describe('deriveBeingPresentation', () => {
   });
 
   it('makes emergency stop dominant and freezes the action posture', () => {
-    expect(deriveBeingPresentation(base({ stop: 'engaged', taskActivity: 'streaming', workers: ['active'] }))).toEqual({
+    expect(deriveBeingPresentation(base({ stop: 'engaged', taskActivity: 'streaming', workers: workerRecords('active') }))).toEqual({
       phase: 'stopped',
       taskState: 'stopped',
       coherence: 'stopped',
       motion: 'stop',
       attention: 'none',
       signals: ['emergency-stop', 'worker-active'],
-      workers: ['active'],
+      workers: workerRecords('active'),
     });
   });
 
   it('derives bounded worker lifecycle signals without exposing identities', () => {
-    expect(deriveBeingPresentation(base({ workers: ['requested', 'admitted', 'active', 'returned', 'dissolved'] })).signals).toEqual([
+    expect(deriveBeingPresentation(base({ workers: workerRecords('requested', 'admitted', 'active', 'returned', 'dissolved') })).signals).toEqual([
       'worker-requested', 'worker-born', 'worker-active', 'worker-returned', 'worker-dissolved',
     ]);
   });
 
   it('keeps a worker held at the capability boundary rather than calling it returned', () => {
-    const presentation = deriveBeingPresentation(base({ workers: ['awaiting-capability'] }));
+    const presentation = deriveBeingPresentation(base({ workers: workerRecords('awaiting-capability') }));
     expect(presentation).toMatchObject({ phase: 'acting', taskState: 'working' });
     expect(presentation.signals).toEqual(['worker-active']);
   });

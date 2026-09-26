@@ -70,7 +70,8 @@ describe('physical state gallery fixtures', () => {
     expect(derivePhysicalSnapshot(byId.get('verification-fail')!.presentation).verification.settlement).toBe('unsettled');
     expect(derivePhysicalSnapshot(byId.get('unverified')!.presentation)).toMatchObject({
       coherence: 'unverified',
-      verification: { state: 'none', settlement: 'unsettled' },
+      cortex: { posture: 'unverified' },
+      verification: { state: 'unverified', settlement: 'unsettled' },
     });
     expect(derivePhysicalSnapshot(byId.get('worker-burst')!.presentation).branches).toHaveLength(8);
     expect(derivePhysicalSnapshot(byId.get('memory-recall')!.presentation).memory).toEqual({

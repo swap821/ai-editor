@@ -237,7 +237,12 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
   );
 }
 
-export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {} }) {
+/**
+ * @param {{ integrated?: boolean, experienceMode?: string,
+ *   onExperienceModeChange?: (mode: string) => void,
+ *   onDraftPresenceChange?: (present: boolean) => void }} props
+ */
+export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {}, onDraftPresenceChange }) {
   const guided = experienceMode === 'beginner';
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
@@ -325,6 +330,14 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
     setMilestones,
     chatModelId,
   });
+
+  const lastReportedDraftPresenceRef = useRef(false);
+  useEffect(() => {
+    const nextPresence = draft.trim().length > 0;
+    if (lastReportedDraftPresenceRef.current === nextPresence) return;
+    lastReportedDraftPresenceRef.current = nextPresence;
+    onDraftPresenceChange?.(nextPresence);
+  }, [draft, onDraftPresenceChange]);
 
   const inputRef = useRef(null);
   const threadRef = useRef(null);
@@ -531,12 +544,16 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   const handleApprovalSettled = (outcome) => {
     setPendingApproval(getPendingApproval());
     const writeId = writingTabIdRef.current;
-    writingTabIdRef.current = null;
-    if (!outcome) return;
+    if (!outcome) {
+      writingTabIdRef.current = null;
+      return;
+    }
     // A capability replay may encounter another real human_required frame.
     // Keep the newly captured approval as the only decision surface; do not
-    // retract work or emit a receipt for a turn that has not completed.
+    // clear its work-tab identity, retract work, or emit a receipt for a turn
+    // that has not completed.
     if (outcome.action === 'authorize' && outcome.paused && getPendingApproval()) return;
+    writingTabIdRef.current = null;
     const target = outcome.filepath
       || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
     if (outcome.action === 'reject') {

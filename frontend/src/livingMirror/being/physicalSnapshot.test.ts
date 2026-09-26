@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { derivePhysicalSnapshot } from './physicalSnapshot';
-import type { BeingPresentation } from './semanticKernel';
+import type { BeingPresentation, WorkerPresentationState } from './semanticKernel';
+
+const workerRecords = (...states: WorkerPresentationState[]) => states.map((state, cursor) => ({
+  workerId: `worker-${cursor}`,
+  state,
+  cursor,
+}));
 
 const base = (overrides: Partial<BeingPresentation> = {}): BeingPresentation => ({
   phase: 'resting',
@@ -14,13 +20,27 @@ const base = (overrides: Partial<BeingPresentation> = {}): BeingPresentation => 
 });
 
 describe('derivePhysicalSnapshot', () => {
+  it('carries each worker identity into its physical branch without using ordinal slots as identity', () => {
+    const snapshot = derivePhysicalSnapshot(base({
+      phase: 'acting',
+      taskState: 'working',
+      motion: 'conduct',
+      signals: ['worker-active'],
+      workers: [{ workerId: 'worker-alpha', state: 'active', cursor: 4 }],
+    }));
+
+    expect(snapshot.branches).toEqual([
+      { workerId: 'worker-alpha', state: 'active', visual: 'conduct', terminal: false },
+    ]);
+  });
+
   it('maps an active semantic posture into a bounded cortex and conductor snapshot', () => {
     const snapshot = derivePhysicalSnapshot(base({
       phase: 'acting',
       motion: 'conduct',
       attention: 'workspace',
       signals: ['worker-active'],
-      workers: ['active'],
+      workers: workerRecords('active'),
     }));
 
     expect(snapshot.cortex).toEqual({
@@ -35,7 +55,7 @@ describe('derivePhysicalSnapshot', () => {
       activeSeat: 0,
     });
     expect(snapshot.branches).toEqual([
-      { slot: 0, state: 'active', visual: 'conduct', terminal: false },
+      { workerId: 'worker-0', state: 'active', visual: 'conduct', terminal: false },
     ]);
   });
 
@@ -45,7 +65,7 @@ describe('derivePhysicalSnapshot', () => {
       taskState: 'needs-permission',
       motion: 'attention',
       attention: 'approval',
-      workers: ['active', 'awaiting-capability'],
+      workers: workerRecords('active', 'awaiting-capability'),
     }));
     const stopped = derivePhysicalSnapshot(base({
       phase: 'stopped',
@@ -53,13 +73,16 @@ describe('derivePhysicalSnapshot', () => {
       coherence: 'stopped',
       motion: 'stop',
       signals: ['emergency-stop'],
-      workers: ['active'],
+      workers: workerRecords('active'),
     }));
 
     expect(held.membrane).toEqual({ state: 'held', actionTravel: 'closed' });
+    expect(held.cortex.posture).toBe('attention');
     expect(held.branches.map((branch) => branch.visual)).toEqual(['held', 'held']);
     expect(stopped.membrane).toEqual({ state: 'stopped', actionTravel: 'closed' });
+    expect(stopped.cortex.posture).toBe('stopped');
     expect(stopped.conductor).toMatchObject({ posture: 'stopped', travel: 'frozen' });
+    expect(derivePhysicalSnapshot(base({ phase: 'stale', taskState: 'stale', coherence: 'stale' })).cortex.posture).toBe('recover');
   });
 
   it('keeps memory and reflex evidence distinct from transient action posture', () => {
@@ -84,9 +107,29 @@ describe('derivePhysicalSnapshot', () => {
     });
   });
 
+  it('keeps a completed but unverified task distinct from verified completion', () => {
+    const unverified = derivePhysicalSnapshot(base({
+      phase: 'resting',
+      taskState: 'done-unverified',
+      coherence: 'unverified',
+    }));
+    const verified = derivePhysicalSnapshot(base({
+      phase: 'resting',
+      taskState: 'done-verified',
+      coherence: 'fresh',
+      signals: ['verification-pass'],
+    }));
+
+    expect(unverified.cortex.posture).toBe('unverified');
+    expect(unverified.verification).toEqual({ state: 'unverified', settlement: 'unsettled' });
+    expect(unverified.coherencePhysics.cadence).toBe('soft');
+    expect(verified.cortex.posture).toBe('rest');
+    expect(verified.verification).toEqual({ state: 'pass', settlement: 'stable' });
+  });
+
   it('caps branch presentation and contains no authority fields', () => {
     const snapshot = derivePhysicalSnapshot(base({
-      workers: ['requested', 'admitted', 'active', 'awaiting-capability', 'returned', 'dissolved', 'failed', 'killed'],
+      workers: workerRecords('requested', 'admitted', 'active', 'awaiting-capability', 'returned', 'dissolved', 'failed', 'killed'),
     }));
 
     expect(snapshot.branches).toHaveLength(8);

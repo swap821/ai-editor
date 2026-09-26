@@ -38,6 +38,8 @@ const resetMirror = () => {
     snapshotRequired: false,
     recentEvents: [],
     lastEventId: null,
+    lastTurnStartedEventId: null,
+    lastVerificationEventId: null,
     bootFacts: null,
   });
 };

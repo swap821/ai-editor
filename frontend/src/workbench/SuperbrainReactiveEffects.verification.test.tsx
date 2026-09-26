@@ -29,8 +29,8 @@ vi.mock('@react-three/fiber', () => ({
 }));
 
 vi.mock('@react-three/drei', () => ({
-  Line: ({ 'data-testid': testId, points }: { 'data-testid'?: string; points?: unknown[] }) => (
-    <div data-testid={testId ?? 'line'} data-points={points?.length} />
+  Line: ({ 'data-testid': testId, points, color }: { 'data-testid'?: string; points?: unknown[]; color?: string }) => (
+    <div data-testid={testId ?? 'line'} data-points={points?.length} data-color={color} />
   ),
 }));
 
@@ -86,6 +86,26 @@ describe('SuperbrainReactiveEffects verification and council projections', () =>
     view.rerender(<SuperbrainReactiveEffects />);
     expect(view.container.querySelector('[data-testid="verification-field"]')).not.toBeNull();
     expect(derivePhysicalSnapshot(mockBeing.current).verification).toEqual({ state: 'fail', settlement: 'unsettled' });
+  });
+
+  it('renders unverified completion with a non-green, explicit physical posture', async () => {
+    const unverified: BeingPresentation = {
+      phase: 'resting',
+      taskState: 'done-unverified',
+      coherence: 'unverified',
+      motion: 'calm',
+      attention: 'none',
+      signals: [],
+      workers: [],
+    };
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects presentationOverride={unverified} />);
+
+    expect(view.container.querySelector('[data-testid="cortex-current"]')).toHaveAttribute('data-color', '#9e78f5');
+    expect(derivePhysicalSnapshot(unverified)).toMatchObject({
+      cortex: { posture: 'unverified' },
+      verification: { state: 'unverified', settlement: 'unsettled' },
+    });
   });
 
   it('renders measured council dissent as a bounded internal topology', async () => {

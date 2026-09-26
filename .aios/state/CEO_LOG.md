@@ -830,3 +830,260 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **What that hand pass found — three defects, two of them older than this change.** (1) `_tokens()` lowercases, which collapses `-V` (print version, inspects nothing) into `-v` (verbose, a real check); one frozenset matched against lowercased tokens would either mint MEDIUM for `ruff -V` or silently refuse `ruff check -v aios/`. (2) `GovernanceObservation._earned` audits skills for rows "promoted without earning it" using the AUTHORITY floor — after the split it would have flagged every legitimate checker-backed skill as a violation, the two-layers-must-agree defect that has bitten this repo twice. (3) That same control was **fail-open**: `_earned("banana")` returned True, because `strength_from_name` defaults to STRONG, so a corrupted label read as the strongest evidence there is — in a monitor whose entire job is catching unearned promotions. `king_report.py` passes the explicit NONE default and says why; this did not.
 - **Highest-leverage next.** Unchanged and now sharper: the chain still has not ingested anything since 2026-07-07, and no floor change fixes that. Phase D is the work — a capable model driving the loop, and the self-corpus (your call: reverse-engineer itself first) now has proven containment plus a grader whose negative control refuses `assert True`. What remains before a real run is task selection and wiring the grader's verdict into `record_attempt` so an earned pin actually moves the scoreboard.
 - **Risk to watch.** Every floor change activates latent holes that did not matter while the gate was shut — `ruff --version` minting MEDIUM was harmless until MEDIUM could promote. Assume the same of any future widening: the question is never only "is the new gate right", it is "what was already sitting behind it". And the scoreboard's own labels are part of the honesty surface; `success_count` was being printed as "STRONG successes" and had to be relabelled the moment MEDIUM could enter it.
+
+## 2026-09-24 — CEO note (LB-01: clean-checkout source recovery is reproducible)
+- **Where we are.** The 2030 living-being frontend goal is proceeding in its isolated `codex/gagos-living-being-lb01-source-restore` worktree from master #365. LB-01 adds a fail-closed, non-destructive restore for the 193 manifest-managed authoring files. A clean restore followed by `port:check` and an idempotent second restore now passes; the full frontend suite is 953/953.
+- **What is not proven.** This developer-tooling ticket changes no visual surface. No operator visual judgment, real Android/iPhone model, or mobile/device performance is claimed. Target OS is Android 17 / iOS 27; physical models remain TBD. Do not publish an overall percentage until LB-02 fixes the weighted acceptance denominator.
+- **Highest-leverage next.** Commit and request hash-pinned independent review of LB-01. Once approved and the builder lease is available, continue to LB-02: current import/evidence and device-profile map plus frozen acceptance weights.
+- **Risk to watch.** A passing source mirror proves reproducibility and hash equality, not that the scene is alive, polished, or production-ready. Keep visual acceptance and device evidence pending until measured.
+## 2026-09-24 — CEO note (LB-05 canonical body truth)
+
+- **Shipped locally:** the official frontend now derives one memoized physical snapshot from the existing `BeingPresentation` and shares it with the 3D body and reactive effects. Completion is green only with explicit verifier `pass`; an unverified reply remains visibly distinct. Per-tab materialization behavior was left intact.
+- **Evidence:** focused regressions 7 files / 66 tests; full frontend 175 files / 959 tests; typecheck, production build, and 193-file source-port check passed. Changed-file lint had no errors and three warnings.
+- **Honest limit:** no current screenshot, operator visual approval, human session, or phone run. Android 17/iOS 27 are only OS targets; handset models remain TBD. Accepted goal score stays 3/100, and LB-04 art direction still needs review at `:5173`.
+- **Highest-leverage next move:** operator reviews LB-04 and LB-05 truth states at `:5173`; record accept/revise before broad redesign or LB-06.
+- **Risk to watch:** automated truth convergence does not prove the visual signal reads correctly or performs smoothly on real desktop/mobile hardware. Do not convert the 959-test result into visual or device acceptance.
+
+## 2026-09-24 — CEO note (LB-06 identity slice + portable mirror)
+
+- **Implemented locally:** workspace seats no longer collide on close/reopen, animated reabsorption or capacity overflow; the reabsorption tie-break no longer depends on tab arrival order.
+- **Source recovery:** fresh-worktree restore exposed mixed line endings in the byte-hash manifest. Migrated all 193 verified entries to v2 hashes that normalize only CRLF/LF; actual content drift remains a hard refusal.
+- **Evidence:** 4 new regressions were observed failing first; then full frontend 175 files / 963 tests, port 15/15, typecheck, build (4,316 modules), targeted ESLint and `port:check` passed.
+- **Honest limit:** LB-06 is partial; no keyboard/touch journey, operator visual review or independent review is claimed. Overall accepted completion remains 3/100; Android/iPhone models and desktop hardware are still TBD.
+- **Next:** operator review of LB-04/LB-05 at `:5173`; no broad visual redesign before that review.
+
+## 2026-09-24 — CEO note (LB-06 focus continuity)
+
+- **Implemented locally:** workspace launchers now preserve the initiating control, and dismissing a workspace selected from the rail restores to the stable Conversation control instead of a stale launcher. The MirrorConnectionNotice passes its real authority button through the focus path.
+- **Evidence:** the regression failed before the fix and passes after; livingMirror 42 files / 177 tests and full frontend 176 files / 964 tests passed. Typecheck, production build (4,316 modules), targeted ESLint and 193-file `port:check` passed.
+- **Honest limit:** this is one automated focus-return slice, not full keyboard/touch, assistive-technology, mobile, visual or human acceptance. No acceptance points added; accepted completion remains 3/100. Android 17 and iOS 27 are target OS versions, handset models TBD.
+- **Process correction:** the rail trigger is removed as the selected workspace closes; focusing it before React commits the removal leaves focus on the document body. Keep the safe Conversation fallback and test surviving focus targets, not transient DOM assumptions.
+- **Next:** commit this branch-local slice and evidence, then request a hash-pinned independent review; operator visual review remains open.
+
+## 2026-09-24 — CEO addendum (store-owned workspace closure)
+
+- **Implemented locally:** focus now returns to the saved, surviving workspace launcher if an embedded child or another store owner closes the active surface. Explicitly selecting Conversation makes Conversation the target, avoiding a stale launcher winning after React commits.
+- **Evidence:** the new store-close regression failed before the fix; focused continuity is 3/3, focus + narrow-layout is 2 files / 11 tests, full frontend is 176 files / 966 tests, TypeScript, production build, changed-file ESLint, and 193-file `port:check` pass. The fresh worktree's absent ignored authoring lab was restored by the guarded restore operation from accepted mirror bytes.
+- **Honest limit:** no physical touch/keyboard journey, device or human acceptance; no product 3D or visual change. No completion points added; accepted score remains 3/100. `npm ci` surfaced two moderate advisories; dependencies were left unchanged.
+- **Checkpoint:** source fix and evidence committed locally as `7bb85ddb` on `codex/gagos-living-being-execution`; not pushed or merged. Next is a hash-pinned read-only review; LB-04 art review is still an operator gate.
+
+## 2026-09-24 — CEO addendum (renewed work interrupts retraction)
+
+- **Implemented locally:** a same-path content update or renewed approval arriving during animated retraction now revives the existing surface at `reaching` with a fresh phase timestamp; ID and occupied seat remain stable.
+- **Evidence:** both test-first regressions failed before the fix; focused store/orchestration/conductor set 5 files / 36 tests, full frontend 176 files / 968 tests, TypeScript, build (4,316 modules), 15/15 port tests, 193-file no-drift check, CSS palette and protected-texture guards passed. Lint had zero errors and one pre-existing unused-variable warning.
+- **Checkpoint:** `f0d97ca7` on `codex/gagos-living-being-lb06-revival`, local only. Accepted completion remains 3/100; no browser/device/visual/human points are claimed.
+- **Operational note:** the new worktree did not include node_modules, so its first guarded restore could not resolve TypeScript and stopped without changes. `npm ci` followed by guarded restore resolved this; two moderate audit advisories were reported and no dependency was changed.
+- **Next:** hash-pin this committed tree for independent review. Preserve the separate earlier focus branch's pending review.
+
+## 2026-09-24 — CEO note (keyboard-safe composer slice)
+
+- **Shipped locally:** the official mobile composer now follows the VisualViewport only while a text-entry control inside chat is focused. The offset is measured from the app's actual bounds, cleaned up on blur/unmount, and ignores pinch zoom and non-text focus. Short visible heights contract the status reserve instead of assuming a portrait-sized keyboard area.
+- **The useful regression:** a short-landscape test reproduced an app-root minimum-height mismatch (210px computed versus 340px required); root-bound measurement corrected it. Focused app tests passed 7/7; full frontend passed 175 files / 962 tests; typecheck, 4,317-module build, and 14 port-tool tests passed. Lint had zero errors and 123 warnings. `port:check` could not compare because this worktree lacks the ignored authoring-lab `QualityTierProvider.tsx`.
+- **Honest limit:** this is jsdom/source evidence, not a real mobile keyboard or safe-area run. Physical Android 17 and iOS 27 models remain TBD, so UX-04 remains blocked at 0/5 and accepted completion remains 3/100. Committed locally as `8b71d7c7`; not pushed or opened as a PR.
+- **Highest-leverage next move:** operator reviews the local branch diff, then identifies available phone models before the physical UX-04 matrix.
+- **Risk to watch:** a green viewport unit test cannot reproduce browser-specific keyboard resize/pan policy; don't credit phone acceptance until both actual platforms and their composer/decision controls are observed.
+
+## 2026-09-24 — CEO note (canonical materialized focus fallback)
+
+- **Implemented locally:** the tab-store focus helper now agrees with the canonical conductor: it returns null while an open DOM workspace owns attention, ignores the transient intake as a workspace, and follows conductor seat order when focus is otherwise unset.
+- **Regression proof:** three assertions failed against the previous fallback and pass with the change. Focused group **4 files / 40 tests**; combined full frontend **176 files / 973 tests**; TypeScript, 4,317-module build, port tests **15/15**, `port:check` **193/no drift**, palette/texture guards and changed-file lint passed. Full lint: **0 errors / 123 warnings**.
+- **Combined branch:** includes the separate, committed keyboard-aware composer slice; its earlier 14-port-test evidence remains historical, while the combined branch now passes 15 port tests and the 193-file source check.
+- **Honest limit:** no live browser, physical keyboard/touch, device, assistive-technology or visual/human acceptance. Android 17 and iOS 27 are OS targets; phone models remain TBD. No points added; accepted completion remains **3/100**.
+- **Committed locally:** combined branch merge commit `62ef2629de70196309f0b9f47d61182a377934ff` on `codex/gagos-living-being-continuation-20260924`; not pushed.
+- **Next:** hash-pin this clean commit for independent review. Do not push, open a PR, or merge into master without a separate request.
+
+## 2026-09-24 — CEO checkpoint (LB-01 recovery + continuation integration)
+
+- **Integrated on the separate massive-goal worktree:** the LB-01 clean-source restore branch based on master #365 now carries the reviewed keyboard, focus, identity, and semantic-body continuation. The earlier source-review and continuation worktrees remain untouched.
+- **Conflict resolution:** unified v1 exact-byte and v2 CRLF/LF-normalized manifest handling with strict path, case-collision, Windows-reserved-name, file/directory-collision, and symlink/junction checks. Kept both sides' append-only CEO/experience/mistake records after verifying their common base prefixes.
+- **Evidence on the combined tree:** `test:port` **16/16**; guarded restore **193 files**, `port:check` **193 / no drift**, idempotent restore **0 restored / 193 unchanged**; full frontend **176 files / 973 tests**; typecheck and production build (**4,317 modules**) passed; lint **0 errors / 123 warnings**; CSS and protected-texture guards passed.
+- **Honest limit:** this is source and automated integration evidence. No new moving-visual review, human session, physical Android/iPhone run, or named desktop-class acceptance. Android 17/iOS 27 are targets; handset models are user-confirmed TBD. Accepted score remains **3/100** under the frozen ledger.
+- **Next:** record the resolved integration as a local commit on the isolated branch, then continue only on dependency-ready LB tickets. Keep push/PR/master landing separate from this goal checkpoint.
+
+
+## 2026-09-24 — CEO addendum (massive-goal integration committed)
+
+- **Commit:** resolved LB-01 + reviewed continuation merge is now local commit 421471b880d7111dcd6040df6be5ff3c395a4ada on codex/gagos-living-being-massive-20260924. Two parents: the #365-based source-restore checkpoint and the reviewed continuation. The earlier worktrees remain untouched.
+- **Verification:** combined full frontend 176 files / 973 tests, source-port 16/16, restore 193 + no-drift check + idempotent rerun, typecheck, 4,317-module build, lint 0 errors / 123 warnings, palette and protected-texture guards. The tracked commit is clean.
+- **Honest status:** accepted completion remains 3/100. The 2030 living visual, user/human acceptance, Android/iPhone physical runs and desktop-class baseline are not established. Android/iOS OS targets remain 17/27; handset models are TBD.
+- **Next:** update continuity documents for the integrated hash, then hand off the final clean tree for independent hash-pinned review. No push or master landing is included.
+
+## 2026-09-24 — CEO addendum (continuity checkpoint committed)
+
+- **Documentation checkpoint:** blueprint, acceptance ledger and builder resume now record integration commit `421471b8`; the docs/ledger checkpoint is committed as `e3b83c1b655be60fad98349ed287059a138217e4`.
+- **Current state:** source code verification remains attributable to `421471b8`; no product files changed in the documentation follow-up. Android 17/iOS 27 remain targets only, physical models TBD, and accepted completion remains **3/100**.
+- **Next:** hand off the current clean branch tip for the required read-only, hash-pinned independent review. Keep the builder tree unchanged until that review completes.
+
+## 2026-09-25 — CEO checkpoint (LB-04 A: measured mobile work-plane dock)
+
+- **Implemented and committed locally:** the focused mobile workspace now measures the live composer edge and leaves a 12px gap; source/test commit `63881d882f822d579f2a3dde26ade0dd9452f28b` on `codex/gagos-lb04-a-docked-plane-20260925`.
+- **Evidence:** dock/app tests 11/11; full frontend 177 files / 977 tests; typecheck; final production build (4,318 modules); lint 0 errors / 123 warnings; palette and protected-texture guards; port tooling tests 16/16. The isolated lab copy is absent, so `port:check` is unavailable and no restore was attempted.
+- **Honest limit:** preview inspection was 1280 × 720 only, with the backend offline; no mobile capture/device, named desktop/GPU, admitted-work journey, independent review or operator visual sign-off. A adds 0 acceptance points; score stays **3/100**.
+- **Process note:** a five-second suite run had two load timeouts and a non-isolated retry leaked globals. Preserve normal test isolation; use the verified 10-second/four-worker pass, not the failed experiment.
+- **Next:** create B's six-cell desktop/mobile board for resting, working and awaiting permission, plus truth/event/motion mapping. Get operator visual approval before renderer anatomy/material changes, while advancing C only through safe non-renderer integration work.
+
+## 2026-09-25 — CEO checkpoint (LB-04 B: keyframe proposal)
+
+- **Drafted:** a six-cell resting/working/awaiting-permission board for desktop and mobile, plus the event-to-body/surface/authority contract. It is grounded in the current semantic kernel, actual approval dialog, and existing CSS geometry; no new palette, asset, anatomy, product code or tests were added.
+- **Structural check:** XML parser passed; board frame aspect ratios match the 1440×900 and 390×844 CSS-pixel references; diff whitespace check passed.
+- **Honest limit:** local browser rendering was blocked by URL policy, so no visual screenshot or layout review is claimed. Operator review of this specific board is still open. B adds 0 points; accepted completion remains **3/100**.
+- **Next:** inspect C's existing request→work→receipt path read-only; identify a concrete integration gap, then present a small test-first design before changing code. Renderer anatomy/materials stay gated on operator approval.
+
+## 2026-09-25 — CEO checkpoint (LB-04 C: repeated-approval identity finding)
+
+- **Read-only finding:** GagosChrome appears to clear the only pending work-tab ID before returning when an authorized replay raises another server approval; the replay path inspected does not appear to restore it. Existing tests do not cover final output identity after repeated approvals. This is a hypothesis, not a reproduced defect.
+- **Proposed bounded change:** preserve that tab ID across the renewed-approval pause, and add a component regression for two approval decisions, final code on the original tab, and an unverified receipt association. Candidate scope: GagosChrome.jsx and GagosChrome.approval.test.tsx.
+- **Gate:** no product test or source change until the operator approves this specific short design. No backend authority or renderer/canon change is proposed. B board review and device/human acceptance remain open; accepted score stays **3/100**.
+- **Next:** wait for explicit approval or revision of the C design; if approved, follow test-first implementation and verify only the bounded surface before broader checks.
+
+## 2026-09-25 — CEO checkpoint (LB-04 C: repeated-approval identity fixed)
+
+- **Implemented:** after an authorized replay pauses for another server approval, GagosChrome now retains the pending work-tab ID; no-outcome and terminal paths still clear it. A component regression exercises two approval decisions and proves final code plus the still-unverified receipt remain attached to the same original tab.
+- **Fresh evidence:** the regression failed first on the old behavior, then passed. Full frontend **177 files / 978 tests**; typecheck; production build (**4,318 modules**); port tests **16/16**; CSS palette and protected-texture guards passed; full lint **0 errors / 123 warnings**; changed-file lint **0 errors / 8 warnings**; diff check passed. `port:check` unavailable because ignored lab source `components/QualityTierProvider.tsx` is absent.
+- **Honest boundary:** this is a small workflow reliability fix, not progress demonstrated toward the alive 3D visual. No browser/device/live-service/human visual evidence, renderer/material change or acceptance points; total remains **3/100**. Current isolated branch's 978 test count does not establish the count on the eight-commits-ahead `origin/master` ref.
+- **Next:** commit only this bounded verified tree, then prioritize a visible, canonical-state-driven body response; B's unapproved board still gates anatomy/material changes.
+
+## 2026-09-25 — CEO addendum (C checkpoint committed; goal reprioritized)
+
+- **Commit:** C source/test/evidence is local at `e734b74e` on `codex/gagos-living-being-c-identity-20260925`; no push, PR or master merge.
+- **Operator feedback:** 3/100 after substantial elapsed effort felt unacceptable because work emphasized safe plumbing and evidence over the 2030 visual. The score is the accepted-evidence ledger, not a defensible measure of implementation progress. Do not present it as such.
+- **Pivot:** first inspect the existing physical baseline, gallery and canonical state→body route. The next candidate must produce an observable, truth-bound organism/workspace reaction. Preserve the user gate on new anatomy/material work and the baseline's measured performance limits; avoid another docs/test-only ticket.
+
+## 2026-09-25 — CEO checkpoint (visible active-work gap audit)
+
+- **Rendered finding:** the official product capture is offline/resting and does not show the signature active-work composition. Settled resting and verification-pass gallery captures look nearly alike. The physical-state gallery's active-runtime matrix records zero materialization surfaces in every fixture, so it does not demonstrate the reference's being-grown work planes.
+- **Source finding:** in multi-workspace camera-anchored HUD mode, `MaterializedTab.tsx` intentionally hides the focused tab's spinal umbilical because the previous center-directed curve crossed/re-entered the slab; waiting surfaces keep vertebral tethers. This makes the most-attended plane the exception to the user's “work grows from the being” composition.
+- **Proposed bounded design, not yet approved:** preserve the existing centered focused panel and canonical tab/seat identity, but route one thin umbilical from its actual vertebral seat to a safe panel-edge socket, behind/outside the slab. Reuse the existing tether and reduced-motion conventions; no new state bus, backend event, palette or texture change. Verify a real renderer state with one focused plus waiting work surfaces.
+- **Honest limits:** source/screenshot inspection only; no renderer change, test run, live-service journey, operator visual acceptance or new acceptance point. Score remains **3/100**. Feature branch is eight commits behind `origin/master`; merge-tree preflight produced a clean tree hash, but no merge or push occurred.
+- **Next:** await explicit approval/revision of this exact renderer design. If approved, merge latest `origin/master` into this feature branch, then implement the bounded visible connection and capture before/after browser renders; leave master and the user's `:5173` tab untouched.
+
+## 2026-09-25 — CEO checkpoint (LB-07: focused-seat cortical attention)
+
+- **Implemented:** the official product's cortical current now aims at the actual selected workspace seat; the unseated resting field keeps its previous path geometry, while semantic convergence narrows the focus fan. This extends the existing canonical conductor projection and adds no new state bus, task state, authority, palette, protected texture or anatomy asset.
+- **Visible check:** added a development-gallery-only focused workspace fixture that is passed through props and does not write to the live mirror/tab stores. In an isolated local browser, resting and working postures rendered and the active conducting seat was visible. This is a deterministic renderer check, not human approval or an authenticated task.
+- **Verification:** 180 frontend files / 988 tests, TypeScript, production build (4,319 modules), `port:check` (194/no drift), `test:port` (16/16), palette and protected-texture guards, changed-file lint (0/0), and diff check passed. A first render caught an unsupported R3F data attribute accepted by the test double; removing it and asserting actual geometry restored the browser render.
+- **Integration boundary:** `/api/generate` returned 401 in the isolated worktree because no operator principal was present. Startup made public Hugging Face metadata/model requests for `sentence-transformers/all-MiniLM-L6-v2`; the observed chat route ran through local Ollama and no prompt egress was observed. Stopped preview processes; left temp data and model cache untouched. No credentials or auth bypass.
+- **Honesty:** no authenticated end-to-end journey, operator visual sign-off, device/hardware run or new points. Accepted-evidence score stays 3/100; that is not an overall source-implementation percentage. The B board remains unapproved.
+- **Next:** implement an interruptible reduced-motion-aware focus-seat retarget and inspect it in the gallery before broadening scene work; pursue live journey evidence only through normal operator authentication.
+
+## 2026-09-25 — CEO checkpoint (LB-08: composer attention response)
+
+- **Implemented:** the official composer passes only empty/non-empty draft presence to the body. The central cortical current redirects to the brainstem intake and is rendered in the foreground with a stronger line treatment; no prompt text or backend authority crosses the seam.
+- **Product check:** the isolated app rendered the body at desktop and default narrow viewports, offline. A single unsent `x` was typed and cleared. The attention cue was still visually ambiguous in the screenshot, so this is not accepted visual progress and the next product action is to make that exact response legible in the real scene.
+- **Verification:** full frontend **180 files / 993 tests**; TypeScript; production build (**4,319 modules**); `port:check` (**194/no drift**); port tests **16/16**; palette/protected-texture guards; changed-file lint **0 errors / 8 warnings**.
+- **Gate:** `pytest -x -q` fails in untouched `tests/test_agent_bridge.py::test_a_write_inside_the_sandbox_is_allowed`: `training_ground/x.py` is refused as credential-shaped despite the test expecting it allowed. No security code was touched. No commit while the required Python suite gate is red. Accepted evidence remains **3/100**; that is not a total implementation percentage.
+- **Next:** make the composer-to-body attention response unmistakable at desktop and narrow viewport sizes; then inspect/review it. Keep B's board approval, live backend journey, named hardware and human sign-off open.
+
+## 2026-09-25 — CEO checkpoint (composer current reaches the intake)
+
+- **Implemented:** the active draft current is now a single, high-contrast cyan path that physically reaches the canonical brainstem intake. Empty composer state restores the prior focused-seat current. Only a boolean draft-presence edge crosses from DOM to scene; no prompt is submitted or exposed to the renderer.
+- **Root cause / TDD:** the previous endpoint stopped 0.706 world units short in the canonical intake fixture. A regression failed against that geometry, then passed when the active draft path was allowed to contact its target. No per-keystroke React animation or looped attention pulse was added; reduced-motion still snaps to target.
+- **Visual proof:** isolated official-product R3F preview at 1280×720 showed the route from cortex to intake while one unsent `x` was present; clearing it removed that route. This was offline (operational picture unavailable), no backend journey or authenticated action, and no phone viewport/device. The scene screenshot is not operator acceptance.
+- **Verification:** 180 frontend files / **994 tests**; typecheck; production build (4,319 modules); port check (194/no drift); port tests (16/16); palette and protected-texture guards; changed-file lint (0 errors / 8 warnings); `git diff --check`.
+- **Honesty / gate:** no acceptance points; ledger remains 3/100 and no defensible whole-goal implementation percentage exists. Python gate's last observed failure remains `tests/test_agent_bridge.py::test_a_write_inside_the_sandbox_is_allowed`; no backend/security file changed. No commit. The in-app-browser tooling offers no viewport override; preview is on the isolated worktree at `127.0.0.1:5194`, with the user's `:5173` untouched.
+- **Next:** obtain the operator's review of this renderer cue and explicit approval/revision of the proposed focused-workspace umbilical before implementing that next active-work composition change.
+
+## 2026-09-25 — CEO checkpoint (composer current returns and dissolves)
+
+- **Product behavior:** the draft-presence current now reaches the visible brainstem centerline; on clear, the same bead reverses toward the cortex and dissolves. The 0.72-second one-shot uses no prompt text and has an immediate reduced-motion path. Rapid re-entry reverses at the current progress rather than restarting from an endpoint.
+- **Transform correction:** the body's full matrix visibly magnified authored local effects because their anchors already include calibrated scale. Effects now inherit live translation/rotation but keep their authored scale; the path remains attached without growing offscreen.
+- **Observed evidence:** isolated R3F preview at 1280×720, one unsent `x`, forward contact and clear-edge return observed. No prompt submitted; no operator acceptance, phone/device, authenticated journey, or backend-status evidence. Desktop capture is not mobile proof.
+- **Verification:** full frontend **181 files / 1,000 tests**; typecheck; build (**4,320 modules**); `port:check` **194/no drift**; `test:port` **16/16**; palette/protected-texture guards; changed-file lint; diff check. Focused Python gate still fails at `test_a_write_inside_the_sandbox_is_allowed`; no security files touched and no commit.
+- **Honesty:** acceptance ledger remains **3/100**. This is accepted evidence, not overall code completion. No defensible whole-project implementation percentage is available. The six-cell B board / next umbilical approval remains open; ask the operator to review the current active/clear motion before counting points.
+
+## 2026-09-26 — CEO checkpoint (offline organism announcement)
+
+- **Product correction:** When no live snapshot is connected, the accessible degraded-state announcement no longer says the organism picture is incomplete. It now says there is no live state and the organism is in its resting view. The separate operational-picture notice remains authoritative for backend connectivity.
+- **TDD / preview:** The no-snapshot/disconnected regression failed on the old message, then passed after the copy correction. The isolated official app at 1280×720 rendered its resting body; an unsent x showed the cortex-to-intake current and clearing returned it. No request was submitted. The updated announcement was confirmed in the browser accessibility tree.
+- **Verification:** Full frontend 181 files / 1,001 tests (344.68s), typecheck, two-file ESLint, and git diff --check passed. Vite/React/Three/session warnings remain; production build and port/canon checks were not rerun for this copy-only change.
+- **Honesty / gate:** This adds 0 acceptance points; ledger stays 3/100, which is accepted evidence rather than overall implementation percentage. Full Python suite remains incomplete, so no commit. No mobile viewport, physical devices, authenticated journey, operator visual acceptance, or independent review.
+- **Next:** obtain a genuine narrow viewport capture (390×844 and 320px floor) before choosing another visual change; the current CUA surface has no viewport override. Preserve pending B-board and active/clear operator review.
+
+## 2026-09-26 — CEO checkpoint (LB-09 safe-area preparation)
+
+- **Implemented:** integrated mobile shell now respects safe-area insets for the top control stack, side edges and resting bottom composer/connection notice. At ≤360px the composer height reserves top and bottom insets. Keyboard-open placement continues to use the measured visual viewport and does not double-add the safe bottom. The 3D scene remains full-sized behind the chrome.
+- **Verification:** full frontend **181 files / 1,001 tests** (322.13s); typecheck; production build (**4,320 modules**); `git diff --check`. The first test command used unsupported `--minWorkers`; it started no tests. The corrected supported single-worker run completed successfully.
+- **Limit:** no 390×844/320 screenshot or physical phone keyboard/cutout inspection. Models remain TBD. The in-app browser has no viewport override; the separate Playwright runner failed during kernel initialization before opening the page. This is implementation/build evidence, not mobile acceptance; LB-09 remains open, adds 0 points, total remains **3/100**. Python suite is still incomplete/red from the previously recorded unrelated bridge-test failure; no commit.
+- **Next:** restore a usable responsive-browser runner or use physical handsets to inspect safe areas at 390×844 and 320px with keyboard closed/open before claiming LB-09 evidence. Preserve the open B-board and active/clear visual reviews.
+
+## 2026-09-26 — CEO checkpoint (turn-local verifier receipts survive bounded history)
+
+- **Product truth:** the mirror's visible recent-event buffer is capped at 256, so using its `turn.started` event as the only boundary let old focused artifacts qualify a later turn after rollover. The mirror now stores monotonic turn-start and verifier-event cursors separately; current-turn pass/fail remains attributable after the corresponding list items age out. The semantic kernel maps an explicit current-turn verifier failure to `failed`, not `done-unverified`.
+- **TDD / verification:** rollover and stale-artifact regressions were observed failing, then passed. The affected area passed 8 files / 71 tests; the final full frontend passed **181 files / 1,007 tests** in 203.72s with two workers; typecheck, production build (4,320 modules), changed-file ESLint, and `git diff --check` passed. An earlier single-worker attempt had no output and was stopped; the later full run completed, so the frontend gate is green.
+- **Scope / honesty:** this is a semantic task-truth fix, not new 3D art or visual acceptance. No authenticated journey, device, operator or accessibility review was performed. 0 new acceptance points; ledger stays **3/100** and no overall completion percentage is claimed. The previous Python gate failure in the untouched sandbox bridge test still blocks a commit; no commit was made.
+- **Next:** issue the hash-pinned read-only handoff for independent review; keep renderer/art-direction changes behind the operator's pending LB-04 B-board and active/clear-motion review on `:5194`.
+
+## 2026-09-26 — CEO checkpoint (replay-gap receipt attribution)
+
+- **Product behavior:** A verifier pass from before a detected replay gap can no longer make the recovered task look verified. The state stays explicitly unattributed through snapshot recovery and arbitrary verifier events; only a newly observed `turn.started` opens a fresh attribution window.
+- **Implementation:** Preserved the four changed managed sources, restored the fresh worktree's lab from accepted bytes, and routed all four files back through `npm run port`. Product and lab bytes match; `port:check` reports 194 files with no drift.
+- **Verification:** The bug reproduced before the fix. The focused mirror/presentation/reconnect suite passed **34/34** both before and after porting; full frontend passed **181 files / 1,010 tests** before the byte-identical source port; TypeScript passed after it; `test:port` passed **16/16**; `git diff --check` passed.
+- **Honesty / gate:** This is task-truth reliability, not a renderer change or visual acceptance; **0 new points**, accepted evidence remains **3/100**. No overall implementation percentage is claimed. The prior Python failure still blocks a commit until the required full gate is rerun; no commit made. Android/iOS models, authenticated end-to-end, human review and operator visual sign-off remain open.
+- **Next:** Run the required Python gate to resolve commit eligibility. Then ask the operator to inspect active/clear motion on isolated `:5194`; do not treat an agent screenshot as their acceptance or widen visual scope before that review.
+
+## 2026-09-26 — CEO checkpoint (commit gate remains red)
+
+- **Evidence:** The repository-wide Python run reached ~13%; one failure appeared at 9%. It was stopped rather than spending the remaining long run after the red gate was already established. The isolated test failed: `tests/test_agent_bridge.py::test_a_write_inside_the_sandbox_is_allowed`; `authorize("Write", {"file_path": "training_ground/x.py"})` returns false because the path is classified credential-shaped.
+- **Disposition:** No Python/security files changed. The frontend worktree remains uncommitted per the green-suite rule. This is not a frontend regression and is not permission to loosen the frozen security spine.
+- **Visual gate:** The design-review workflow requires a clean working tree. Since commit is blocked and the active work is dirty, formal visual audit pauses for operator direction; `:5194` remains isolated and the B-board/active-clear review remains open.
+- **Honesty:** Frontend **181 files / 1,010 tests** passed in the completed run before the byte-identical source port; focused post-port tests **34/34**, typecheck, source port checks **194/no drift + 16/16** pass. The full Python suite is **incomplete and known red**, not a clean pass.
+
+## 2026-09-26 — CEO checkpoint (stale/unavailable posture truth)
+
+- **Implemented:** the official body's physical projection now has a separate quiet-violet `unconfirmed` posture for stale or unavailable state. Stop and permission hold retain priority; a current recovery, refusal or verifier failure remains red. The authoring lab remains source-of-truth; the official renderer files were updated only via the managed port.
+- **TDD / renderer:** new body-posture regressions failed against the old mapping, then passed. The real isolated `:5194/?physical-gallery=1` scene was inspected: stale remained quiet/violet; the explicit verification-failure fixture remained red and retracting. This is a render observation, not operator acceptance.
+- **Verification:** full frontend **181 files / 1,012 tests**; TypeScript, production build (**4,320 modules**), changed-file ESLint, `port:check` **194/no drift**, `test:port` **16/16**, CSS palette guard, protected-texture guard and `git diff --check` passed.
+- **Honesty / next:** 0 acceptance points; total remains **3/100** and no whole-goal implementation percentage is claimed. The Python bridge test failure is still known and blocks commit; no security/backend changes. Ask the operator to compare stale versus current-failure postures in the isolated gallery, and keep the broader anatomy/active-clear visual gate open.
+
+## 2026-09-26 — CEO checkpoint (focused DOM panel attention target)
+
+- **Product defect:** `SuperbrainReactiveEffects` looked for selected DOM panels on the materialized-tabs array, although `TabSnapshot.panels` is a separate field. When a DOM workspace was focused, the cortical current could therefore follow a background conductor seat instead of that panel.
+- **Fix:** read `panels` from the snapshot and prioritize the open panel whose ID owns `focusId`; otherwise retain the existing conductor-seat fallback. No anatomy, shader, material, palette, texture, authority or backend behavior changed.
+- **TDD / verification:** a regression with a background materialized tab at seat 3 and selected DOM panel at seat 6 failed before the fix and passed after. Focused component suite **6/6**; full frontend **181 files / 1,013 tests**; TypeScript; production build (**4,320 modules**); changed-file ESLint; managed source check (**194/no drift**); port workflow tests (**16/16**); palette and protected-texture guards; `git diff --check`.
+- **Renderer observation / limits:** the isolated `:5194` product page opened an Expert-mode Missions workspace while offline; the selected panel and organism stayed rendered and the operational status remained unavailable. No prompt was submitted and no backend was started. The temporary tab was closed and the preview mode restored. This is agent-observed UI behavior, not operator or mobile acceptance.
+- **Honesty / next:** 0 acceptance points; total remains **3/100**, with no defensible whole-goal implementation percentage. The Python bridge-test failure remains a commit blocker. Ask the operator to compare stale/current-failure states and the focused-workspace attention cue in the isolated preview before expanding visual choreography; physical handset, human and live-service evidence remain open.
+
+## 2026-09-26 — CEO checkpoint (fresh full frontend verification)
+
+- **Frontend:** fresh `npm test -- --reporter=dot` passed **182 files / 1,014 tests** in 77.10s. Typecheck, production build (**4,320 modules**), changed-file ESLint, managed-source check (**195/no drift**), port tests (**16/16**), palette/protected-texture guards, JSONL parsing (**750/190 rows**) and `git diff --check` passed.
+- **Repository gate:** `tests/test_agent_bridge.py::test_a_write_inside_the_sandbox_is_allowed` still fails because the unchanged bridge classifies `training_ground/x.py` as credential-shaped. No backend/security files changed; no commit or PR.
+- **Product truth:** hidden-tab frame/power savings were not measured on a real browser/device. No new acceptance points; total remains **3/100**. Operator visual acceptance, handset models and authenticated journey remain open.
+- **Next:** preserve the user's comparison of stale/unavailable versus current failure and focused attention at isolated `:5194` before widening visible choreography.
+
+## 2026-09-26 — CEO checkpoint (stop continuous rendering while hidden)
+
+- **Product change:** `WorkspaceCanvas` now consumes the existing `FeatureGate` visibility signal. A hidden tab switches R3F to `frameloop="never"`; visibility restores `always`. Renderer scheduling alone changes—backend requests, mirror state and admitted work are not paused.
+- **Continuity safeguard:** the installed R3F `setFrameloop` resets `Clock.elapsedTime`. The transition preserves the last foreground time through both mode changes so the being neither restarts nor advances by hidden wall time.
+- **TDD / verification:** the hide/resume regression failed before the wiring and now passes, including a queued hidden-time advance. Full frontend **182 files / 1,014 tests**; after a test-only assertion strengthening, focused visibility test **1/1**; final TypeScript; production build (**4,320 modules**); changed-file ESLint (0 errors/warnings); `port:check` **195/no drift**; `test:port` **16/16**; palette/protected-texture guards.
+- **Evidence limits:** no hidden-tab frame trace, power measurement, physical device, named hardware or operator visual acceptance. No points added; accepted evidence remains **3/100**, not an overall completion percentage. The focused Python gate was rerun and still fails at `test_a_write_inside_the_sandbox_is_allowed`; no backend/security code changed and no commit was made.
+- **Next:** retain the operator's pending `:5194` stale-vs-failure and focused-attention review before widening visible choreography. Keep the branch isolated and do not touch `:5173`.
+
+## 2026-09-26 — CEO checkpoint (worker identity to stable seat)
+
+- **Product behavior:** Worker IDs and cursors now survive mirror/store → semantic presentation → physical branch projection. A current measured roster reconstructs active identities after cold load and replaces old worker history; valid snapshots drop pre-snapshot worker entities so replay cannot rematerialize them. The renderer preserves identity-to-seat mapping across reorder/insertion and releases removed seats. Eight motes remain the visual cap; terminal reabsorption remains 1.6s with a bounded 256-identity expiry map. Raw IDs do not enter Guided copy or scene names.
+- **TDD / verification:** regressions failed before changes, then passed. Full frontend **183 files / 1,023 tests**; affected post-port suite **5 files / 41 tests**; typecheck; production build (**4,321 modules**); ESLint **0 errors / 120 warnings**; `port:check` **195/no drift**; `test:port` **16/16**.
+- **Source ownership:** the port initially found worker-reset drift in both managed mirror files. Exact implementation and regression were reconciled to the GAG lab, ported, and rechecked clean. No unrelated lab files changed.
+- **Honesty / next:** no live-worker endpoint, browser visual, authenticated journey, physical handset, accessibility or operator acceptance was collected. **0 points; accepted evidence remains 3/100**, and no whole-goal percentage is asserted. The focused Python gate was rerun and still fails because the unchanged bridge classifies `training_ground/x.py` as credential-shaped; no security changes or commit. Next continue P2 parity through cold snapshot/reorder while holding additional anatomy/material behind the operator's pending `:5194` review.
+
+## 2026-09-26 — CEO checkpoint (canonical core-body motion authority)
+
+- **Product defect:** `CortexEngine` used the canonical physical snapshot for posture color/flow, but separate mirror-phase metabolism still owned secondary pulses, breath/root excitation and extra tint; a cognition-event hold also failed to restore from a cold snapshot. Thus retained `active` could keep the stale body looking active, or a replayed permission hold could lose its pause behavior.
+- **Fix:** the official body now derives those effects from the same resolved `BodyPosture` whenever `PhysicalSnapshot` exists. Snapshot membrane state owns hold; the scene captures breath at its physical hold edge. Legacy buses remain only as fallback for callers without a physical projection. Managed GAG source was changed in the lab and ported; no palette, texture, anatomy or shader change.
+- **TDD / verification:** new posture-drive and hold-priority tests failed before implementation. A store-backed cold snapshot/reorder/stale regression passes while the retained mirror phase remains active and DOM/physical worker projections match. Full frontend **183 files / 1,035 tests**; after final assertion-only strengthening, focused **2 files / 37 tests**; typecheck; production build (**4,321 modules**); changed-file ESLint; port check **195/no drift**; port tests **16/16**; palette/protected-texture guards; `git diff --check`.
+- **Evidence limits:** the isolated `:5194` accessibility tree showed offline/resting copy only; no active/held WebGL pixel review, live authenticated journey, named hardware, mobile handset, human accessibility review or operator sign-off. **0 points; accepted evidence stays 3/100.** The previously reproduced Python bridge test remains red; no commit or backend/security change.
+- **Next:** add a replay-backed permission-hold transition through the scene-facing projection, then inspect active/held/rest in the isolated preview without treating agent observation as operator acceptance. Keep anatomy/material expansion behind the user's pending comparison and leave `:5173` untouched.
+
+## 2026-09-26 — CEO checkpoint (held approval attention)
+
+- **Behavior:** A canonical held membrane now redirects the cortical current and conductor toward the active approval surface's seat in amber (#ffb06e); workspace/tab focus is unchanged. Permission retraction and authorized replay remain identity-stable.
+- **Regression:** Work seat 3 and approval seat 6 are asserted by path endpoint, color, replay/retraction, and unchanged workspace focus.
+- **Verification:** Full frontend **183 files / 1,036 tests**; typecheck; production build (**4,321 modules**); changed-file ESLint; port check **195/no drift**; port tests **16/16**; palette/protected-texture guards; diff check. Full Python suite exited **0**, coverage **88.49%** with the **85%** floor enforced.
+- **Caveat:** Python reported executor drain-thread warnings in the timeout test. Its initial moved-checkout run failed source lookup due stale bytecode with a dead old path; isolated and full clean-cache reruns passed. No backend/security code changed.
+- **Evidence / next:** No operator active/held visual review, live journey, mobile device, named GPU or accessibility acceptance. **0 points; accepted evidence remains 3/100**, not an overall completion percentage. Next publish the accumulated branch as a PR to master; do not merge without review.
+
+## 2026-09-26 — CEO checkpoint (publication)
+
+- **Commit:** 55bbe11b2873992aa28436e8a4d507a435afce0e contains the accumulated frontend and continuity work: 49 changed files, 2,635 insertions, 218 deletions.
+- **Remote:** pushed branch codex/gagos-living-being-vision-continuation-20260926 and opened PR #377 against master: https://github.com/swap821/ai-editor/pull/377. GitHub reported it open and mergeable; CI and CodeQL were still running at the last check.
+- **Next:** re-check remote statuses on the latest PR tip and keep the merge decision with the operator/review process. Do not equate a mergeable PR with passing CI or visual acceptance.
+- **Evidence:** local frontend and Python gates passed; Python coverage 88.49% with 85% required. No active/held WebGL review, device test, live journey, or operator acceptance. 0 points; accepted evidence remains 3/100.

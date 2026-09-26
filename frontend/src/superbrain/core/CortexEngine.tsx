@@ -24,7 +24,7 @@ import { subscribeLifecycle, LifecycleState, ArrivalMode } from '@/lib/lifecycle
 import { coalescenceEnvelope, ignitionPulse, awakenNotice } from '@/lib/openingMotion';
 import { useReducedMotion } from '@/lib/reducedMotion';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
-import { deriveBodyPosture, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
+import { bodyHoldForProjection, bodyMotionProfileForPosture, deriveBodyPosture, lifecyclePhaseForPhysicalProjection, postureColor01, POSTURE_DIAL } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
 import { FeatureGate } from './Performance/FeatureGate';
@@ -69,7 +69,7 @@ function isTextEntryFocused(): boolean {
 }
 
 
-export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web' }: SuperbrainSceneProps) {
+export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web', physical }: SuperbrainSceneProps) {
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
@@ -102,6 +102,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
   // breath is frozen, the organism turns amber, and the hold releases on the
   // operator's decision (approval-resolved) or when the conversation moves on.
   const holdRef = useRef({ active: false, breathAtHold: 0.5 });
+  const projectedHoldRef = useRef({ active: false, breathAtHold: 0.5 });
 
   // The being's posture, mirrored into a ref so the frame loop reads it without
   // re-rendering. Reduced-motion is now REACTIVE (useReducedMotion): the value is
@@ -279,8 +280,21 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     const current = burstRef.current;
     const hold = holdRef.current;
     const metabolism = metabolismRef.current;
+    const livePhase = physical ? lifecyclePhaseForPhysicalProjection(physical) : getEffectiveOrganismPhase();
+    const bodyPosture = deriveBodyPosture({ phase: livePhase, physical });
+    const bodyMotion = physical ? bodyMotionProfileForPosture(bodyPosture) : null;
+    const bodyHoldActive = bodyHoldForProjection(physical, hold.active);
+    if (physical) {
+      if (bodyHoldActive && !projectedHoldRef.current.active) {
+        projectedHoldRef.current.breathAtHold = uniforms.uBreath.value;
+      }
+      projectedHoldRef.current.active = bodyHoldActive;
+    } else {
+      projectedHoldRef.current.active = false;
+    }
+    const breathAtHold = physical ? projectedHoldRef.current.breathAtHold : hold.breathAtHold;
     const metabolismMotionScale = reducedMotionRef.current ? 0.35 : 1;
-    const metabolismRate =
+    const metabolismRate = bodyMotion?.pulseRate ?? (
       metabolism.phase === 'error'
         ? 7.2
         : metabolism.phase === 'working'
@@ -289,7 +303,8 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
             ? 2.8
             : metabolism.phase === 'approval'
               ? 1.2
-              : 1.8;
+              : 1.8
+    );
     const metabolismPulse = reducedMotionRef.current
       ? 0.5
       : 0.5 + 0.5 * Math.sin(time * metabolismRate + metabolism.changedAt * 0.001);
@@ -301,12 +316,12 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     // free-associates, nor drifts into the idle attract mode.
     uniforms.uHold.value = THREE.MathUtils.damp(
       uniforms.uHold.value,
-      hold.active ? 1 : 0,
+      bodyHoldActive ? 1 : 0,
       2.5,
       delta,
     );
     const holding = uniforms.uHold.value;
-    if (hold.active) idleRef.current.lastInputMs = performance.now();
+    if (bodyHoldActive) idleRef.current.lastInputMs = performance.now();
 
     if (holding < 0.5 &&
         (directivePendingRef.current || time - current.lastBurst > 8 + Math.sin(time * 0.13) * 2)) {
@@ -371,14 +386,14 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     const tide = 0.5 + 0.5 * Math.sin(time * TAU * 0.017 + 4.2);
     const breath = systole * 0.62 + swell * 0.26 + tide * 0.12;
     const metabolicBreath = THREE.MathUtils.clamp(
-      breath + metabolism.breathGain * metabolismMotionScale * (0.55 + metabolismPulse * 0.45),
+      breath + (bodyMotion?.breathGain ?? metabolism.breathGain) * metabolismMotionScale * (0.55 + metabolismPulse * 0.45),
       0,
       1.35,
     );
     // REST EXHALE (#wow signature 5): on LANDING back to rest (from completion /
     // reabsorbing), the being lets out one slow breath — a brief exhale DIP then settle,
     // instead of snapping straight into idle breathing. Reduced motion: no dip.
-    const atRest = getOrganismPhase() === 'rest';
+    const atRest = physical ? physical.cortex.posture === 'rest' : getOrganismPhase() === 'rest';
     if (atRest && !wasRestRef.current) restLandedAtRef.current = time;
     wasRestRef.current = atRest;
     const sinceRest = restLandedAtRef.current >= 0 ? time - restLandedAtRef.current : 999;
@@ -389,13 +404,13 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     // The approval hold freezes the breath exactly where it was caught.
     uniforms.uBreath.value = Math.max(
       0,
-      THREE.MathUtils.lerp(metabolicBreath, hold.breathAtHold, holding) + restExhale,
+      THREE.MathUtils.lerp(metabolicBreath, breathAtHold, holding) + restExhale,
     );
     uniforms.uRimGain.value = 1.4 * (0.85 + 0.3 * uniforms.uBreath.value);
     uniforms.uSssScale.value = 0.9 * (0.8 + 0.4 * uniforms.uBreath.value);
     uniforms.uBurst.value = Math.max(
       current.intensity,
-      metabolism.rootExcitation * metabolismMotionScale * (0.35 + metabolismPulse * 0.65),
+      (bodyMotion?.rootExcitation ?? metabolism.rootExcitation) * metabolismMotionScale * (0.35 + metabolismPulse * 0.65),
     );
 
     // Virtual rose backlight BEHIND the brain (view space, ~opposite the
@@ -410,7 +425,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       MODE_EMISSIVE[mode] ?? MODE_EMISSIVE.observe,
       Math.min(1, delta * 2.5),
     );
-    if (metabolism.phase !== 'rest') {
+    if (!physical && metabolism.phase !== 'rest') {
       metabolismColorRef.current.set(metabolism.tint);
       uniforms.uModeTint.value.lerp(
         metabolismColorRef.current,
@@ -427,8 +442,6 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     // An active CHAT turn (GagosChrome) drives the conversation posture with
     // PRIORITY so the being visibly comes alive — thinking purple → streaming
     // cyan → complete green — then falls back to the idle organism phase.
-    const livePhase = getEffectiveOrganismPhase();
-    const bodyPosture = deriveBodyPosture({ phase: livePhase });
     const [postureR, postureG, postureB] = postureColor01(bodyPosture.color);
     POSTURE_SCRATCH.setRGB(postureR, postureG, postureB);
     uniforms.uPosture.value.lerp(POSTURE_SCRATCH, Math.min(1, delta * 3.0));
@@ -585,7 +598,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
       <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} />
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} />
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
           <SubsystemErrorBoundary name="AccretionCore">

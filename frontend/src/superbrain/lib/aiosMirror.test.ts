@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { startMirrorClient, stopMirrorClient } from './aiosMirror';
 import { useMirrorStore } from './mirrorStore';
 import { publishCognition } from './cognitionBus';
+import { beingPresentationFromStores } from '../../livingMirror/being/presentationFromStores';
 vi.mock('./cognitionBus', () => ({ publishCognition: vi.fn() }));
 vi.mock('./aiosAdapter', () => ({ humanizeRedactionMarkers: (value: string) => value }));
 
@@ -61,6 +62,33 @@ it('gap recovery closes the old source and reconciles a fresh snapshot before re
   expect(useMirrorStore.getState().lastEventId).toBe(9);
   expect(useMirrorStore.getState().activeWorkers).toEqual([]);
   expect(sources).toHaveLength(2);
+});
+it('does not reuse a previous pass when a turn boundary fell inside a replay gap', async () => {
+  await startMirrorClient(); const old = sources[0];
+  old.onopen!();
+  old.listeners.sync_complete({ data: '{"cursor":4}' });
+  old.onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'turn.started', payload: {} }), lastEventId: '5' });
+  old.onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'verification.passed', payload: { verdict: 'pass' } }), lastEventId: '6' });
+  old.onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'turn.completed', payload: {} }), lastEventId: '7' });
+  expect(beingPresentationFromStores(useMirrorStore.getState(), { tabs: [], focusId: null, attention: null } as never, 'complete').taskState).toBe('done-verified');
+
+  vi.mocked(fetch).mockResolvedValue(response(snapshot(9)));
+  old.listeners.snapshot_required({ data: '{"reason":"replay_gap"}' });
+  await vi.advanceTimersByTimeAsync(0);
+  sources[1].onopen!();
+  sources[1].listeners.sync_complete({ data: '{"cursor":9}' });
+
+  const recovered = beingPresentationFromStores(useMirrorStore.getState(), { tabs: [], focusId: null, attention: null } as never, 'complete');
+  expect(recovered.taskState).toBe('done-unverified');
+  expect(recovered.signals).not.toContain('verification-pass');
+
+  sources[1].onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'verification.passed', payload: { verdict: 'pass' } }), lastEventId: '10' });
+  expect(useMirrorStore.getState().turnAttributionInvalidated).toBe(true);
+  sources[1].onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'turn.started', payload: {} }), lastEventId: '11' });
+  expect(useMirrorStore.getState().turnAttributionInvalidated).toBe(false);
+  sources[1].onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'verification.passed', payload: { verdict: 'pass' } }), lastEventId: '12' });
+  sources[1].onmessage!({ data: JSON.stringify({ schemaVersion: '1', eventType: 'turn.completed', payload: {} }), lastEventId: '13' });
+  expect(beingPresentationFromStores(useMirrorStore.getState(), { tabs: [], focusId: null, attention: null } as never, 'complete').taskState).toBe('done-verified');
 });
 it('replayed events restore once and never reenact work without a live barrier', async () => {
   await startMirrorClient();

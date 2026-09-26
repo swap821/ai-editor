@@ -31,6 +31,9 @@ export interface CortexMirrorState {
   snapshotRequired: boolean;
   recentEvents: Array<{ id: number; type: string; summary: string; occurredAt: string | null; receivedAt: string; missionId?: string; workerId?: string }>;
   lastEventId: number | null;
+  lastTurnStartedEventId: number | null;
+  lastVerificationEventId: number | null;
+  turnAttributionInvalidated: boolean;
   bootFacts: Record<string, unknown> | null;
   setStatus: (status: 'offline' | 'online' | 'stale') => void;
   setConnection: (connection: CortexMirrorState['connection']) => void;
@@ -64,7 +67,7 @@ export const useMirrorStore = create<CortexMirrorState>()(subscribeWithSelector(
   status: 'offline', connection: 'disconnected', projection: 'unknown', compatibility: null, snapshotReceivedAt: null,
   observations: initialObservations(), metrics: {}, pendingEvents: 0, phase: 'unknown', activeCastes: [], activeMissions: [], activeWorkers: [], activeModels: [],
   missions: {}, workers: {}, approvals: {}, verifications: {}, approvalRequired: false, lastVerification: null, lastAnnouncement: null,
-  snapshotRequired: false, recentEvents: [], lastEventId: null, bootFacts: null,
+  snapshotRequired: false, recentEvents: [], lastEventId: null, lastTurnStartedEventId: null, lastVerificationEventId: null, turnAttributionInvalidated: false, bootFacts: null,
   setStatus: (status) => set({ status }),
   setConnection: (connection) => set({ connection }),
   setAnnouncement: (lastAnnouncement) => set({ lastAnnouncement }),
@@ -73,7 +76,7 @@ export const useMirrorStore = create<CortexMirrorState>()(subscribeWithSelector(
     lastAnnouncement: reason ?? s.lastAnnouncement })),
   setSnapshotRequired: (reason) => {
     get().markStale(reason ? `Mirror replay paused (${reason}); a fresh snapshot is required.` : 'Mirror replay paused; a fresh snapshot is required.');
-    set({ snapshotRequired: true });
+    set({ snapshotRequired: true, turnAttributionInvalidated: true });
   },
   setSnapshot: (data) => set((s) => {
     const receivedAt = new Date().toISOString();
@@ -90,10 +93,13 @@ export const useMirrorStore = create<CortexMirrorState>()(subscribeWithSelector(
       ? { status: stale ? 'stale' : 'measured', source: 'mirror/snapshot', observedAt: timestamp(data), receivedAt, cursor }
       : { ...observations[field], status: observations[field].status === 'unavailable' ? 'unavailable' : 'stale' };
     const valid = cursor !== null && data.status === 'online';
-    return { ...partial, observations, status: valid ? 'stale' : s.status,
+    return { ...partial, workers: valid ? {} : s.workers, observations, status: valid ? 'stale' : s.status,
       projection: valid ? stale ? 'stale' : 'snapshot' : s.projection,
       snapshotReceivedAt: valid ? receivedAt : s.snapshotReceivedAt,
       snapshotRequired: data.snapshot_required === true, lastEventId: cursor ?? s.lastEventId,
+      // A snapshot closes a global cursor, not a semantic turn boundary. Keep
+      // attribution invalid until an actual turn.started event arrives.
+      turnAttributionInvalidated: s.turnAttributionInvalidated || s.snapshotRequired || data.snapshot_required === true,
       metrics: isRecord(data.metrics) ? data.metrics as CortexMirrorState['metrics'] : s.metrics,
       bootFacts: isRecord(data.boot_facts) ? data.boot_facts : s.bootFacts };
   }),
@@ -127,6 +133,7 @@ export const useMirrorStore = create<CortexMirrorState>()(subscribeWithSelector(
       const next: Partial<CortexMirrorState> = { lastEventId: id, observations: { ...s.observations },
         recentEvents: [...s.recentEvents, { id, type, summary: String(p.summary ?? p.label ?? p.reason ?? p.status ?? type).slice(0, 180), occurredAt, receivedAt,
           ...(missionId ? { missionId } : {}), ...(workerId ? { workerId } : {}) }].slice(-256) };
+      if (type === 'turn.started') { next.lastTurnStartedEventId = id; next.turnAttributionInvalidated = false; }
       const observe = (field: ObservedField, status: Observation['status'] = 'derived') => {
         next.observations![field] = { status, source: `mirror/event/${type}`, observedAt: occurredAt, receivedAt, cursor: id };
       };
@@ -173,6 +180,7 @@ export const useMirrorStore = create<CortexMirrorState>()(subscribeWithSelector(
         const evidenceId = text(p, 'evidenceId', 'evidence_id') ?? `event:${id}`;
         next.verifications = Object.fromEntries(Object.entries({ ...s.verifications, [evidenceId]: entity(evidenceId, text(p, 'verdict', 'status') ?? type) }).slice(-256));
         next.lastVerification = envelope; // legacy inspection only; never promotion authority
+        next.lastVerificationEventId = id;
       }
       if (type === 'turn.started') { next.phase = 'active'; observe('phase'); }
       if (['turn.completed', 'turn.failed'].includes(type)) {

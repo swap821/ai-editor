@@ -73,7 +73,7 @@ export function deriveSemanticEffectTransition(
   const stopped = isActionPresentationStopped(current);
   return {
     enteredSignals: current.signals.filter((signal) => !previousSignals.has(signal)),
-    workerVisualStates: current.workers.slice(0, MAX_VISUAL_WORKERS).map((state) => workerVisualState(state, stopped)),
+    workerVisualStates: current.workers.slice(0, MAX_VISUAL_WORKERS).map(({ state }) => workerVisualState(state, stopped)),
     actionPulse: !stopped && current.motion === 'conduct',
   };
 }
