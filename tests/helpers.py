@@ -235,3 +235,33 @@ def save_minimal_trajectory(
     )
     repository.save(record)
     return record
+
+
+def seed_skill(repository: Any, record: Any) -> Any:
+    """Store *record* in the state it names, the way production must reach it.
+
+    ``SkillRepository.save`` writes evidence and never a state: a skill is
+    born ``candidate`` and every other state is reached through
+    ``transition_state``. A fixture that needs an ``active`` skill therefore
+    saves the candidate and walks the shortest path through the real
+    lifecycle graph -- there is no back door to seed it directly. Returns the
+    stored record.
+    """
+    from collections import deque
+
+    from aios.domain.learning.skill_contracts import BIRTH_STATE, SKILL_TRANSITIONS
+
+    paths: dict[str, list[str]] = {BIRTH_STATE: []}
+    queue = deque([BIRTH_STATE])
+    while queue:
+        state = queue.popleft()
+        for target in sorted(SKILL_TRANSITIONS[state]):
+            if target not in paths:
+                paths[target] = [*paths[state], target]
+                queue.append(target)
+    if record.state not in paths:
+        raise ValueError(f"no lifecycle path from {BIRTH_STATE!r} to {record.state!r}")
+    repository.save(record.model_copy(update={"state": BIRTH_STATE}))
+    for state in paths[record.state]:
+        repository.transition_state(record.skill_id, record.version, state)
+    return repository.get(record.skill_id, record.version)

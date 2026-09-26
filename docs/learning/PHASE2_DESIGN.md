@@ -78,8 +78,8 @@ re-gathered.
 | Slice | What | Owned files it must touch |
 |---|---|---|
 | **2.1** | The chokepoint. Cerebellum and curriculum become authority adapters built once in `bootstrap.py`. Compile-on-promotion is wired for real, and the false docstrings are fixed. Live learning writes go only through the authority. An AST enforcement test fails if production code writes a learning table or calls a learning-store write method any other way. | `deps.py` (providers), `generate_pipeline.py` (fallbacks), `authority.py` (new operations): organs 18, 32, and the 8 of `deps.py` |
-| **2.2** | The institutional store behind the authority. Fix the `qualified` defect. Lift the transition graph out of `SkillRepository` as pure policy. One emergency-stop mechanism (`learning_freeze`), including the three unguarded service methods. A review queue for candidates. | institutional stack files: 43, and 26 if `service.py` changes |
-| **2.3** | Migration tool: dry-run by default, backup first, row counts asserted, idempotent, provenance recorded. **The operator is asked before it runs on live data.** | none (a script) |
+| **2.2** | The institutional store enforces its own lifecycle. Fix the `qualified` defect. Lift the transition graph out of `SkillRepository` as pure policy. `save` never writes a state. The stop (`learning_freeze`) covers every institutional write, including the three unguarded service methods, at their stores. *(Review queue moved to 2.4; see below.)* | `repository.py`, `skill_contracts.py`: 43 only |
+| **2.3** | Migration tool: dry-run by default, backup first, row counts asserted, idempotent, provenance recorded. **The operator is asked before it runs on live data.** *(Built and dry-run; see below.)* | none (a script) |
 | **2.4** | Switch: the authority's skill operations read and write the institutional store. `procedural_skills` becomes read-only history. The cerebellum compiles from active skills. The payoff harness follows. | `authority.py`, adapters: 18 |
 | **2.5** | Re-pin `tests/test_documented_reachability.py` to "one learning authority". Rewrite the Learning Ledger L2–L5 records (LC1 owner class, LC2 live callers). Re-gather every organ the phase touched at master's tip. | ledgers |
 
@@ -113,6 +113,154 @@ behind the authority either way.
 **Organ cost:** `deps.py` changes, so organs 25, 27, 28, 29, 33, 34, 38 and 42
 are re-gathered: at the PR's head so the PR is green, then at master's tip
 after the squash.
+
+## Slice 2.2: what was done, and what was deliberately not done
+
+Slice 2.4 routes the live turn's skill writes into the institutional store, so
+its rules had to hold at the store itself, whoever calls it.
+
+**Done:**
+- **`qualified` removed.** It was declared in `SkillState` and nowhere else: no
+  document defined it, nothing wrote it, and no transition led into or out of
+  it. A record in that state made `transition_state` raise `KeyError` instead
+  of refusing. A stored `qualified` row now fails validation on load.
+- **The lifecycle is pure policy.** `SKILL_TRANSITIONS` sits beside
+  `SkillState` in `skill_contracts.py`, is total over it (a test pins that),
+  and `check_transition` refuses with `ValueError`. The graph is unchanged.
+- **`save` never writes a state.** A skill is born `candidate`. An existing
+  skill keeps its state on `save`, and `transition_state` is the only way a
+  state changes. Before this, `save` wrote any state it was handed, so
+  "activation is a human, capability-backed act" held only for callers that
+  chose to call `transition_state`. Read, check and write happen in one
+  `BEGIN IMMEDIATE` transaction.
+- **A reviewed contract is never rewritten.** Once a skill leaves `candidate`,
+  `save` may change only its evidence: `confidence`, `success_count`,
+  `failure_count` and `updated_at`. The procedure, tools, scope,
+  applicability, validated versions and the provenance the reviewer saw are
+  the approved contract. The legacy store refreshes a skill's steps in place
+  ("better recipe"). On this store that would run something the operator
+  never approved, under an approval given for something else. A changed
+  contract is a new version, born a candidate. A candidate can still be
+  refined before review. Found while mapping slice 2.4.
+- **The stop reaches the whole institutional stack.** It covers skill saves,
+  every transition toward use, trajectory saves and reuse outcomes. These are
+  checked at the stores, so `capture_trajectory`, `create_skill_candidate` and
+  `record_reuse_outcome` are covered without editing `service.py`, and organ 26
+  is not staled. The reuse-outcome refusal comes before the idempotency row, so
+  nothing is half-recorded.
+- **Withdrawal still works under the stop.** Moving a skill to `degraded`,
+  `suspended`, `revoked`, `superseded`, `deprecated` or `blocked` takes it out
+  of use and grants nothing, so the operator can always revoke. A stop that
+  blocked revocation would protect the skill, not the operator.
+- **`SkillRecord.provenance`**, an optional mapping of strings, lets the 2.3
+  migration and 2.4 live admission say where a record came from. It avoids
+  borrowing `source_trajectory_ids`, whose ids reuse lineage resolves. It is
+  unsigned and advisory; signed provenance is Phase 3. It was added now so
+  organ 43 is staled once, not three times.
+- Organ 43's live-evidence probe now reaches `active` through the graph. It
+  also proves the store refuses a skill saved straight into `active`.
+- Test fixtures that seeded `active` skills with a raw `save` now use
+  `tests.helpers.seed_skill`, which walks the real graph. No production back
+  door was added for tests.
+
+**Not done, deliberately:**
+- **The review queue** is a read over `list_skills()` plus provenance, which
+  belongs in the 2.4 adapter (an unowned file), not in organ 43's store.
+- **`activate_skill` and `attempt_local_reuse`** keep their injected-controller
+  check. In production that controller is built with no path, so it reads the
+  same durable latch as `learning_freeze`: one latch, two handles, one rule.
+  Unifying the handles means editing `service.py` (organs 26 and 43) for no
+  behavioural change.
+- **Concurrency** is argued, not tested: the transaction makes two concurrent
+  transitions from one state serialise, but no test races them.
+- **Pre-existing, noted:** `probation` is described as "reduced-trust reuse",
+  but applicability accepts only `active`, so a `probation` skill is never
+  reused. That is a semantics question for the operator, not a slice-2.2 fix.
+- **No production caller of `human_revoke` exists** (no route). Revocation is
+  reachable in the model but not yet from the operator's surface.
+
+**Organ cost:** `repository.py` and `skill_contracts.py` are organ 43's
+entrypoints, so only organ 43 is re-gathered.
+
+## Slice 2.3: the migration tool
+
+`tools/migrate_skills_to_institutional.py` is built and tested. It has **not
+been applied to live data**; that waits for the operator.
+
+**Found in the live data (read-only, 2026-09-26):** `signature_v2` is not
+unique. Six pairs share one: a superseded arc and the arc that replaced it.
+That is what the library's `version` means, so each pair becomes one skill
+with two versions, in legacy-id order.
+
+**Mapping:**
+
+| Legacy | Institutional |
+|---|---|
+| identity | `skill_id = arc-<signature_v2>`, version by legacy-id order within the signature. This is the identity the live path computes, so slice 2.4 can find a migrated skill from a turn. |
+| `candidate` (65) | `candidate` |
+| `verified` (8) | `candidate`, `provenance.review_ready = "true"`. **Not active:** activation needs the operator's capability proof. |
+| `superseded` (7) | born `candidate`, then `candidate -> deprecated` |
+| `steps_json` | `procedure`, verbatim, so a playbook can be recompiled byte for byte |
+| step tools | `allowed_tools` |
+| — | `allowed_scope_pattern = ""`, no source trajectory, no structured verifier. A migrated skill can never pass mission-reuse applicability, even when active. It fails closed. |
+| success / failure | carried. `confidence` is the success ratio capped at 0.8, the prior a trajectory-born candidate gets. |
+| everything else | `provenance`: legacy id, status, verification strength, reuse counts, `signature_v2`, migration id, timestamp |
+
+**Safety:** dry run by default. The source is opened read-only. The whole plan
+is checked before any write, and a `(skill_id, version)` held by anything this
+migration did not write aborts the run with nothing written. The target is
+backed up (SQLite online backup) before the first write. A re-run writes
+nothing. An interrupted run is finished by the next one. A skill the operator
+has moved on since (say, activated) is left alone. Every write goes through
+`SkillRepository`, so the lifecycle and the stop apply. Counts are asserted
+afterwards.
+
+**Dry run on live data:** 80 rows become 74 skills: 73 `candidate` and 7
+`deprecated`. Legacy ids 41, 49, 53, 66, 68, 70, 75 and 79 are review-ready,
+and 6 skills have two versions. Nothing to finish, no conflicts, and both
+databases are byte-identical before and after.
+
+**Tests:** `tests/test_phase2_skill_migration.py` has 15 tests. A mutation
+check killed 12 of 12 reverted safety properties.
+
+## Slice 2.4: the real blast radius (mapped 2026-09-26, before any code)
+
+The slices table says 2.4 touches `authority.py` and adapters (organ 18). The
+code says more. `procedural_skills` is read in 31 files. Outside the store
+and its tests:
+
+| Reader | Uses | Organ |
+|---|---|---|
+| `aios/core/cerebellum.py` | compiles from it; `compiled_playbooks.skill_id` is an **integer** key into it, but institutional identity is `(skill_id str, version int)` | none |
+| `aios/memory/skills.py` | the live store itself: `record_attempt` (auto-promotes on 3 floor-meeting successes, refreshes steps in place, keeps weak-success, streak and pheromone counters the institutional record does not have), `record_reuse`, `relevant_verified`, `trail_map`, `list` | none |
+| `aios/operations/doctor.py` | status counts | **53, 54** |
+| `aios/application/governance/governance_observation.py` | verification strength per skill | none |
+| `tools/governance_conformance_runner.py` | organ 55's benchmark, which reads strength | (the judged number) |
+| `tools/learning_conformance_runner.py`, `scripts/learning_scoreboard.py` | Learning Ledger L1–L8 | ledger |
+| `tools/learning_payoff.py`, `tools/learning_redteam_runner.py` | the pre-registered payoff and the reel judge | instruments |
+| `tools/prove_cerebellum.py`, `scripts/repair_playbooks.py` | tooling | none |
+| `frontend/src/superbrain/lib/aiosAdapter.ts` | the trail map's shape | Codex's |
+
+**What this means:**
+- The live record carries bookkeeping the institutional contract has no
+  place for: weak successes, a failure streak for the compile guard, reuse
+  pheromone and last-reused time. That is ranking mechanics, not contract. It
+  belongs in its own table beside the library, owned by the 2.4 adapter, not
+  in organ 43's record.
+- Auto-promotion becomes review-readiness. Nothing becomes `active` without
+  the operator.
+- The "better recipe" refresh becomes a new candidate version. Slice 2.2's
+  contract freeze already refuses the in-place form.
+- Two instruments read the store they measure: the payoff and the organ-55
+  benchmark. Switching the store under a pre-registered measurement changes
+  what it measures. That must be a recorded deviation, not a silent swap.
+- **Apply the migration at the switch, not before.** Applied now, candidates
+  would stop tracking the live counts until 2.4 lands; a re-run skips
+  records it already wrote.
+
+2.4 is therefore several PRs: the adapter and trail table (unowned), the
+cerebellum's identity, then the readers. Each touches organs 53, 54 or 18
+once.
 
 ## Found while starting
 

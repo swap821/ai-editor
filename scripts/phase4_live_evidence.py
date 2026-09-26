@@ -1133,7 +1133,17 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
             created_at="2026-07-31T00:00:00",
             updated_at="2026-07-31T00:00:00",
         )
-        repo.save(skill)
+        # A skill is born a candidate: the store refuses to write any other
+        # state, so `active` is reached only through the lifecycle graph.
+        try:
+            repo.save(skill)
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError("store accepted a skill saved straight into 'active'")
+        repo.save(skill.model_copy(update={"state": "candidate"}))
+        repo.transition_state("skill-p4", 1, "human_reviewed")
+        repo.transition_state("skill-p4", 1, "active")
         auth = SkillLifecycleAuthority(repo)
         updated = auth.apply_reuse_outcome("skill-p4", 1, success=True)
         restarted = SkillLifecycleAuthority(SkillRepository(db))
@@ -1141,6 +1151,7 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
         if got is None or got.success_count < 1:
             raise RuntimeError(f"skill outcome not durable: {got}")
         return (
+            "direct save into 'active' refused; candidate->human_reviewed->active; "
             f"apply_reuse_outcome success conf={updated.confidence} "
             f"success_count={got.success_count} state={got.state}"
         )
