@@ -2557,13 +2557,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 327c1f6313f8eceb9def1340cac61c3e80f4000b: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 327c1f6313f8eceb9def1340cac61c3e80f4000b exit=0; artifact=release/phase4/live-evidence-327c1f6313f8.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "327c1f6313f8eceb9def1340cac61c3e80f4000b",
+        "description": "Phase 4 absolute live run on tip f362b462dcf12da8b678bb9095f92229f3ccf0b9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip f362b462dcf12da8b678bb9095f92229f3ccf0b9 exit=0; artifact=release/phase4/live-evidence-f362b462dcf1.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
+        "commit_sha": "f362b462dcf12da8b678bb9095f92229f3ccf0b9",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "327c1f6313f8eceb9def1340cac61c3e80f4000b",
+    "last_verified_sha": "f362b462dcf12da8b678bb9095f92229f3ccf0b9",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SkillLifecycleAuthority class defined in production_entrypoints ['aios/domain/learning/skill_contracts.py', 'aios/domain/learning/repository.py', 'aios/application/learning/skill_lifecycle.py'] (Decision A / enforce_owner_attestation)",
