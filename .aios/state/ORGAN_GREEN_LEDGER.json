@@ -3136,13 +3136,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 94e457afabe4a17fcb61b24eabc4b555159d7c0f: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 94e457afabe4a17fcb61b24eabc4b555159d7c0f exit=0; artifact=release/phase4/live-evidence-94e457afabe4.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='b8cfa950a5bc25ee71d2a290c363308beb1da8bc30fbbc143a2e1a590a62385c', current_issued_at=1790503938.0454602, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1790503998.0454602); reopen_configured=True db_bytes=8192",
-        "commit_sha": "94e457afabe4a17fcb61b24eabc4b555159d7c0f",
+        "description": "Phase 4 absolute live run on tip f085eb1b91df3ee1b46a3343f68d2ba63c587ee9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip f085eb1b91df3ee1b46a3343f68d2ba63c587ee9 exit=0; artifact=release/phase4/live-evidence-f085eb1b91df.json; InstallationConfigurationAuthority.rotate + reopen SQLite => rotate persisted; state=ApiTokenRotationState(current_token_digest='e063f0415d1a525413c93bf5ce984b573b96725e3180486d006d290a248294c0', current_issued_at=1790517166.1109831, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1790517226.1109831); reopen_configured=True db_bytes=8192",
+        "commit_sha": "f085eb1b91df3ee1b46a3343f68d2ba63c587ee9",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "94e457afabe4a17fcb61b24eabc4b555159d7c0f",
+    "last_verified_sha": "f085eb1b91df3ee1b46a3343f68d2ba63c587ee9",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 InstallationConfigurationAuthority class defined in production_entrypoints ['aios/domain/security/api_token.py', 'aios/infrastructure/security/api_token_store.py', 'aios/application/security/api_token_authority.py'] (Decision A / enforce_owner_attestation)",
@@ -3177,13 +3177,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 94e457afabe4a17fcb61b24eabc4b555159d7c0f: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 94e457afabe4a17fcb61b24eabc4b555159d7c0f exit=0; artifact=release/phase4/live-evidence-94e457afabe4.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
-        "commit_sha": "94e457afabe4a17fcb61b24eabc4b555159d7c0f",
+        "description": "Phase 4 absolute live run on tip f085eb1b91df3ee1b46a3343f68d2ba63c587ee9: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip f085eb1b91df3ee1b46a3343f68d2ba63c587ee9 exit=0; artifact=release/phase4/live-evidence-f085eb1b91df.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
+        "commit_sha": "f085eb1b91df3ee1b46a3343f68d2ba63c587ee9",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "94e457afabe4a17fcb61b24eabc4b555159d7c0f",
+    "last_verified_sha": "f085eb1b91df3ee1b46a3343f68d2ba63c587ee9",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 BackupDisasterRecoveryAuthority class defined in production_entrypoints ['aios/operations/recovery.py', 'aios/operations/doctor.py', 'aios/__main__.py'] (Decision A / enforce_owner_attestation)",
