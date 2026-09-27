@@ -1457,3 +1457,13 @@ acceptance denominator, as the blueprint requires. Physical Android/iPhone
 models remain TBD; Android 17 and iOS 27 are the target OS versions. Next:
 LB-02 current import/evidence map, device/browser profiles, and fixed weighted
 acceptance list. Keep human visual and real-device evidence open.
+
+## 2026-09-28 mobile focused-work implementation checkpoint
+
+The active mobile shell now pairs navigation with workspace selection, keeps a full-width selected surface above the measured conversation composer, and uses a compact native disclosure for longer connection/Expert transport detail. The user-facing connection state and retry stay visible; opening the detail panel positions it above the composer. Local browser screenshots at 320×568 and 390×844 showed the panel, composer and recovery control without overlap. The active pane remains short at 320px, and the being's cortical/spinal silhouette is still mostly obscured there; this is not the complete north-star composition.
+
+The local mirror reported unavailable operational state; no chat send, retry or backend mutation was initiated. Verification: frontend **183 files / 1,042 tests**, typecheck, production build (**4,321 modules**), changed-file ESLint clean, port tests **16/16**, CSS palette and protected-texture guards, and `git diff --check`. This is viewport-emulation evidence only. Physical Android/iPhone, software keyboard, accessibility/user study, field performance, authenticated journey and operator visual approval remain open. No palette tokens, texture assets, body shaders/anatomy, backend authority or security code changed. **0 acceptance points; accepted evidence remains 3/100.**
+
+### 2026-09-28 compact Expert work-surface follow-up
+
+At ≤360px, active Expert work now collapses its content to a compact title/control row until expanded. The body remains mounted so local editor or panel state is not thrown away; Pin/Close stay reachable; collapse transfers focus out of the hidden region. The 361px boundary is covered by regression. Current verification is code/test/build proof only: **184 files / 1,044 tests**, TypeScript, build (4,321 modules), 13 focused shell tests, port unit tests 16/16 and canon checks pass. The current-master browser preview still needs visual inspection at 320×568/390×844; 3D exposure and work-plane balance must not be inferred from DOM tests. No new accepted points; physical devices, live service, keyboard, assistive technology and operator review remain open.

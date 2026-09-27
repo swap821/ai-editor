@@ -68,11 +68,18 @@ const guidedSurfaces = [
 ] as const;
 
 const NARROW_VIEWPORT_QUERY = '(max-width: 767px)';
+const COMPACT_WORKSPACE_QUERY = '(max-width: 360px)';
 
 function readNarrowViewport(): boolean {
   return typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia(NARROW_VIEWPORT_QUERY).matches;
+}
+
+function readCompactWorkspaceViewport(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(COMPACT_WORKSPACE_QUERY).matches;
 }
 
 function History({ guided }: { guided: boolean }) {
@@ -133,6 +140,8 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   const snapshot = useTabStore();
   const [listOpen, setListOpen] = useState(false);
   const [narrowViewport, setNarrowViewport] = useState(readNarrowViewport);
+  const [compactWorkspaceViewport, setCompactWorkspaceViewport] = useState(readCompactWorkspaceViewport);
+  const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<string | null>(null);
   const reducedMotion = useReducedMotion();
   // The generated reduced-motion store may be unable to subscribe in an SSR
   // or test-like environment without matchMedia. Keep the product-owned
@@ -142,6 +151,8 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   const motionPaused = reducedMotion || manualMotionPaused;
   const systemReducedMotion = detectSystemReducedMotion();
   const heading = useRef<HTMLHeadingElement>(null);
+  const workspaceContent = useRef<HTMLDivElement>(null);
+  const workspaceToggle = useRef<HTMLButtonElement>(null);
   const conversationButton = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const panels = snapshot.panels ?? [];
@@ -153,18 +164,32 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     ...snapshot.tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').map((t) => ({ id: t.id, title: t.content?.filepath ?? 'Approval review', seat: t.seatIndex, pinned: t.pinned })),
   ];
   const working = !!focused || !!artifact;
+  const compactWorkspace = experienceMode === 'expert' && compactWorkspaceViewport;
+  const workspaceCollapsed = compactWorkspace && expandedWorkspaceId !== snapshot.focusId;
   const wasWorking = useRef(working);
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
-    const media = window.matchMedia(NARROW_VIEWPORT_QUERY);
-    const sync = () => setNarrowViewport(media.matches);
+    const narrowMedia = window.matchMedia(NARROW_VIEWPORT_QUERY);
+    const compactMedia = window.matchMedia(COMPACT_WORKSPACE_QUERY);
+    const sync = () => {
+      setNarrowViewport(narrowMedia.matches);
+      setCompactWorkspaceViewport(compactMedia.matches);
+    };
     sync();
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', sync);
-      return () => media.removeEventListener('change', sync);
-    }
-    media.addListener?.(sync);
-    return () => media.removeListener?.(sync);
+    const subscribe = (media: MediaQueryList) => {
+      if (typeof media.addEventListener === 'function') media.addEventListener('change', sync);
+      else media.addListener?.(sync);
+    };
+    const unsubscribe = (media: MediaQueryList) => {
+      if (typeof media.removeEventListener === 'function') media.removeEventListener('change', sync);
+      else media.removeListener?.(sync);
+    };
+    subscribe(narrowMedia);
+    subscribe(compactMedia);
+    return () => {
+      unsubscribe(narrowMedia);
+      unsubscribe(compactMedia);
+    };
   }, []);
   const rememberReturnFocus = (trigger?: HTMLElement | null) => {
     const active = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -194,12 +219,13 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   };
   useEffect(() => {
     if (working) {
-      heading.current?.focus({ preventScroll: true });
+      if (workspaceCollapsed) workspaceToggle.current?.focus({ preventScroll: true });
+      else heading.current?.focus({ preventScroll: true });
     } else if (wasWorking.current) {
       restoreWorkspaceFocus();
     }
     wasWorking.current = working;
-  }, [snapshot.focusId, working]);
+  }, [snapshot.focusId, working, workspaceCollapsed]);
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (experienceMode !== 'expert' || event.defaultPrevented || event.key !== '`' || !event.ctrlKey) return;
@@ -265,21 +291,42 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       {handles.length > 0 && <button type="button" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>All {handles.length} workspaces</button>}
       {listOpen && <div className="lm-workspace-list">{handles.map((handle) => <button key={handle.id} type="button" onClick={(event) => { focusFromControl(handle.id, event.currentTarget); setListOpen(false); }}>{handle.title} · Anchor {handle.seat ?? 'unassigned'}</button>)}</div>}
     </aside>
-    <section className="lm-surface" hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
+    <section className="lm-surface" data-workspace-collapsed={workspaceCollapsed ? 'true' : undefined} hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
       if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('.monaco-editor')) { event.stopPropagation(); dismiss(); }
     }}>
       <header className="lm-surface__header"><h2 ref={heading} tabIndex={-1}>{focused?.title ?? artifact?.content?.filepath}</h2>
+        {compactWorkspace && <button
+          ref={workspaceToggle}
+          type="button"
+          aria-label={workspaceCollapsed ? 'Expand workspace' : 'Collapse workspace'}
+          aria-controls="lm-surface-content"
+          aria-expanded={!workspaceCollapsed}
+          onClick={(event) => {
+            const expand = workspaceCollapsed;
+            if (!expand && workspaceContent.current?.contains(document.activeElement)) {
+              event.currentTarget.focus({ preventScroll: true });
+            }
+            setExpandedWorkspaceId(expand ? snapshot.focusId : null);
+          }}
+        >{workspaceCollapsed ? 'Expand' : 'Collapse'}</button>}
         <button type="button" onClick={() => snapshot.focusId && pinWorkspace(snapshot.focusId)}>{(focused ?? artifact)?.pinned ? 'Unpin' : 'Pin'}</button>
         <button type="button" onClick={dismiss} aria-label="Close workspace">Close</button>
       </header>
-      <WorkspaceHostContext.Provider value={true}>
-        {focused && <div key={focused.id} className="lm-surface__body">
-          <Suspense fallback={<p role="status">Loading {focused.title}…</p>}><PanelContent panel={focused} experienceMode={experienceMode} /></Suspense>
+      <div
+        id="lm-surface-content"
+        ref={workspaceContent}
+        className="lm-surface__content"
+        hidden={workspaceCollapsed}
+      >
+        <WorkspaceHostContext.Provider value={true}>
+          {focused && <div key={focused.id} className="lm-surface__body">
+            <Suspense fallback={<p role="status">Loading {focused.title}…</p>}><PanelContent panel={focused} experienceMode={experienceMode} /></Suspense>
+          </div>}
+        </WorkspaceHostContext.Provider>
+        {artifact?.content && <div className="lm-surface__body"><p>Generated artifact · Project effects require separate receipts.</p><pre className="lm-artifact" tabIndex={0}>{artifact.content.code}</pre>
+          {artifact.content.verifyOutput && <details><summary>Reported check output</summary><pre>{artifact.content.verifyOutput}</pre></details>}
         </div>}
-      </WorkspaceHostContext.Provider>
-      {artifact?.content && <div className="lm-surface__body"><p>Generated artifact · Project effects require separate receipts.</p><pre className="lm-artifact" tabIndex={0}>{artifact.content.code}</pre>
-        {artifact.content.verifyOutput && <details><summary>Reported check output</summary><pre>{artifact.content.verifyOutput}</pre></details>}
-      </div>}
+      </div>
     </section>
   </div>;
 }

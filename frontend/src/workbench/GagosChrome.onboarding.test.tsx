@@ -58,6 +58,40 @@ describe('GagosChrome onboarding coach', () => {
     });
   });
 
+  it('keeps conversation context scrollable above a separate request composer', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { container } = render(<GagosChrome experienceMode="expert" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('group', { name: 'Getting started with GAGOS' })).toBeInTheDocument();
+    });
+
+    const chat = container.querySelector('.gagos-chat');
+    const context = chat?.querySelector('.gagos-chat__context');
+    const composer = chat?.querySelector('.gagos-bar');
+
+    expect(context).not.toBeNull();
+    expect(context).toContainElement(screen.getByRole('group', { name: 'Getting started with GAGOS' }));
+    expect(context).toContainElement(screen.getByRole('log', { name: 'Conversation with GAGOS' }));
+    expect(composer).not.toBeNull();
+    expect(composer?.parentElement).toBe(chat);
+    expect(context?.contains(composer ?? null)).toBe(false);
+  });
+
+  it('keeps the primary send path separate from horizontally scrollable composer accessories', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { container } = render(<GagosChrome experienceMode="expert" />);
+
+    const composer = container.querySelector('.gagos-bar');
+    const accessories = composer?.querySelector('.gagos-bar__accessories');
+
+    expect(accessories).not.toBeNull();
+    expect(accessories).toContainElement(screen.getByRole('button', { name: /Chat model:/i }));
+    expect(accessories).toContainElement(screen.getByRole('button', { name: /Swarm mode off/i }));
+    expect(accessories).not.toContainElement(screen.getByRole('button', { name: 'Send' }));
+    expect(composer).toContainElement(screen.getByLabelText('Talk to GAGOS'));
+  });
+
   it('leads with a "what is this" identity card on the very first run', async () => {
     fetchOnboardingState.mockResolvedValue({
       firstDirective: false,
