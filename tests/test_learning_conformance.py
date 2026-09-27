@@ -87,7 +87,7 @@ class TestTheRefusalReelIsAnInvariant:
     def test_every_reel_mission_is_flagged_as_a_refusal(self) -> None:
         report = lcr.run_all()
         reel_ids = {m.mission_id for m in report.reel}
-        assert reel_ids == {"R6", "R7", "R8", "R9"}, reel_ids
+        assert reel_ids == {"R6", "R7", "R8", "R9", "R10"}, reel_ids
 
     def test_the_reel_passes_on_the_current_tree(self) -> None:
         """These are invariants: a red here means the loop accepted something
@@ -143,3 +143,102 @@ class TestTheRunnerReportsHonestly:
             "a second run seeing 6 successes would mean the store leaked "
             "between missions"
         )
+
+
+class TestPilotModeMeasuresTheLibrary:
+    """Operator decision 2026-09-27: in pilot mode the ledger's skill missions
+    measure the institutional library, where evidence makes a skill
+    review-ready and only the operator activates it."""
+
+    @pytest.fixture()
+    def pilot(self, monkeypatch):
+        monkeypatch.setattr(lcr.config, "SKILL_STORE_MODE", "pilot")
+
+    def test_m2_passes_on_review_readiness_not_activation(self, tmp, pilot) -> None:
+        result = lcr.mission_2_skill_verifies(tmp)
+        assert result.passed, result.detail
+        assert "(pilot)" in result.name and "review_ready=True" in result.detail
+
+    @staticmethod
+    def _misreport(monkeypatch, **update) -> None:
+        """Make the runner's OWN read of the library report ``update``, while
+        the adapter's review-readiness stays real, so each condition of the
+        verdict is tested on its own."""
+        real = lcr._library
+
+        class Lying:
+            def __init__(self, repository) -> None:
+                self._repository = repository
+
+            def list_skills(self):
+                return tuple(
+                    r.model_copy(update=update) for r in self._repository.list_skills()
+                )
+
+        def library(tmp):
+            adapter, repository = real(tmp)
+            return adapter, Lying(repository)
+
+        monkeypatch.setattr(lcr, "_library", library)
+
+    def test_m2_fails_if_evidence_ever_activated_a_skill(
+        self, tmp, pilot, monkeypatch
+    ) -> None:
+        self._misreport(monkeypatch, state="active")
+        result = lcr.mission_2_skill_verifies(tmp)
+        assert result.passed is False
+        assert "review_ready=True" in result.detail, "readiness alone must not pass"
+
+    def test_r9_weak_successes_never_count_in_the_library(self, tmp, pilot) -> None:
+        result = lcr.refusal_9_below_floor_cannot_promote(tmp)
+        assert result.passed, result.detail
+        assert "success_count=0" in result.detail
+
+    def test_r9_fails_if_a_weak_success_was_counted(
+        self, tmp, pilot, monkeypatch
+    ) -> None:
+        self._misreport(monkeypatch, success_count=2)
+        result = lcr.refusal_9_below_floor_cannot_promote(tmp)
+        assert result.passed is False
+        assert "review_ready=False" in result.detail, "not-ready alone must not pass"
+
+    def test_the_report_names_the_mode_and_the_legacy_reflex_limit(self, pilot) -> None:
+        text = lcr.render(lcr.run_all())
+        assert "skill store mode: pilot" in text
+        assert "2.4c hard switch" in text
+
+
+def test_the_trail_records_which_store_was_measured(tmp_path, monkeypatch) -> None:
+    import json
+
+    trail = tmp_path / "trail.jsonl"
+    monkeypatch.setattr(lcr, "TRAIL", trail)
+    monkeypatch.setattr(lcr, "MISSIONS", [lcr.refusal_10_evidence_cannot_activate])
+    assert lcr.main(["--json"]) == 0
+    (row,) = [json.loads(line) for line in trail.read_text().splitlines()]
+    assert row["skill_store_mode"] == lcr.config.SKILL_STORE_MODE == "legacy"
+    assert row["reel"] == "1/1"
+
+
+def test_r10_holds_in_every_mode(tmp) -> None:
+    result = lcr.refusal_10_evidence_cannot_activate(tmp)
+    assert result.passed, result.detail
+    assert "refused" in result.detail
+
+
+def test_r10_fails_if_a_save_could_activate(tmp, monkeypatch) -> None:
+    """Positive control: the refusal instrument must be able to see a breach,
+    or a green R10 would mean nothing."""
+    from aios.domain.learning.repository import SkillRepository
+
+    real_save = SkillRepository.save
+
+    def permissive(self, record):
+        if record.state == "active":
+            return None  # accepted without complaint
+        return real_save(self, record)
+
+    monkeypatch.setattr(SkillRepository, "save", permissive)
+    result = lcr.refusal_10_evidence_cannot_activate(tmp)
+    assert result.passed is False
+    assert "ACCEPTED" in result.detail

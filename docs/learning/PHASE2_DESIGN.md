@@ -457,6 +457,27 @@ and removing the legacy writes.
   - Advised against: 66, 68 and 70, which write files, and whose compiled
     reflexes Phase 0b suspended as harness-compiled.
 
+## The instruments in pilot mode: the Learning Ledger runner
+
+Recorded deviation (operator: "Redefine now, record deviations", 2026-09-27).
+`tools/learning_conformance_runner.py` reads `AIOS_SKILL_STORE_MODE`, and it
+prints and records the mode with every score.
+
+| Mission | Legacy and shadow (reads legacy) | Pilot (reads the library) |
+|---|---|---|
+| M2 | 3 STRONG successes promote a skill to `verified` | 3 STRONG successes make a library skill **review-ready** and leave it `candidate`. It fails if the evidence activated it. |
+| R9 | 5 WEAK successes leave it `candidate` | 5 WEAK successes count 0 in the library, and the skill is not review-ready |
+| R10 (new) | 10 STRONG successes never activate a library skill, and a `save` straight to `active` is refused | the same |
+| M1, M3–M5, R6–R8 | unchanged | unchanged: M3–M5 still measure the legacy reflex chain, which the cerebellum compiles from until 2.4c |
+
+- **Comparability:** the reel grew from four missions to five, so a "5/5" is not
+  the "4/4" reported before this change.
+- **What 2.4c must redefine:** after the hard switch, M3–M5 must compile from
+  active skills.
+- **Each verdict condition has its own control:** a test makes the runner's
+  read of the library lie about one thing while the rest stays real, and checks
+  that the mission fails.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the
