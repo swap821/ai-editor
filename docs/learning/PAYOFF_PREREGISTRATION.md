@@ -319,3 +319,52 @@ recorded against it were:
 service unavailable, model not ready) is retried up to three times, at 15, 45
 and 90 s, and every retry is recorded. A timeout or any other error is not
 retried. An arm still unreached is not comparable, as before.
+
+### D5 — 2026-09-27 — calibration applied; the placebo becomes other stored lessons
+
+**Applies to:** the cloud cohort's baseline run and every later run, Phase 8
+included. It was recorded after the calibration (`PAYOFF_CALIBRATION_RESULT.md`)
+and before any other run.
+
+**The sizing rule, applied as D4 fixed it:** K = 3 (repeat disagreement was
+12.5%) and N = 150, excluding the 20 calibration targets
+(`--exclude-targets docs/learning/payoff_targets_calibration.txt`).
+
+**Minimum detectable effect:** about +6 points at α = 0.05, and +7 at Holm's
+worst case. It is approximate, because the heterogeneity fit sat at its grid
+bound. It is recorded now and never used to change N.
+
+**What the calibration found.** Recall gave all 20 tasks the same five of the
+store's seven verified lessons, and the skill channel was empty (0 activated).
+D4's placebo, memory recalled for *other* targets' tasks, therefore matched on
+**0 of 20** targets: nothing was left to draw.
+
+**Operator decision (2026-09-27): "Other stored lessons".** The alternatives
+recorded against it were:
+- dropping H1c, which would make the family {H1-cloud, H1-7B};
+- pausing the payoff to fix recall first.
+
+**The placebo from now on:**
+- **Size:** as many lessons as ON recalled.
+- **Selection:** none of them one ON saw. They are drawn with the fixed seed
+  `payoff-D5-20260927` per target label, from the store's **verified and
+  pending** lessons. Superseded (retired) lessons are never used.
+- **Format:** the same production block, with each lesson's **true** stored
+  status. **Known confound, accepted knowingly:** only two verified lessons
+  remain outside ON's five, so most placebo lessons display `[pending; …]`
+  where ON's display `[verified; …]`.
+- **Skills:** ON's skills block is kept unchanged, so ON and PLACEBO differ
+  only in which lessons are shown.
+- **Matching:** a target with no recalled lesson, or with too few other
+  lessons, is unmatched and removed from H1c only.
+
+**H1c, as it now reads:** on NOVEL targets, do the lessons recall picks beat
+other stored lessons of the same kind and amount? It is no longer "memory for
+this task versus memory for other tasks", because recall does not currently
+choose per task. The judged family and the Holm correction are unchanged:
+{H1-cloud, H1c-cloud, H1-7B}.
+
+**Stated before any number exists:** with recall task-invariant, H1-cloud
+measures the value of one fixed five-lesson block across all tasks. A positive
+result would not be evidence of per-task transfer. It would say this block
+helps this model on this task.

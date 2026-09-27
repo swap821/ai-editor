@@ -170,9 +170,9 @@ class Pair:
     #: NOVEL pairs: "helps on repeats" and "helps on new work" are different
     #: claims and must never be summed into one number.
     seen: bool = False
-    #: The PLACEBO arm (`--placebo`): as many recalled items as ON saw, drawn by
-    #: the production recall path for OTHER targets' tasks, none of them an item
-    #: ON saw. ON vs PLACEBO separates what memory SAYS from "a longer prompt".
+    #: The PLACEBO arm (`--placebo`, Deviation D5): as many stored lessons as ON
+    #: saw, none that recall picked, plus ON's own skills. ON vs PLACEBO asks
+    #: whether recall's choice of lessons beats other lessons of the same kind.
     placebo: Optional[dict] = None
     placebo_comparable: bool = False
     placebo_reason: str = ""
@@ -565,62 +565,74 @@ def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str
     return (chr(10) * 2).join(blocks), lessons, verified
 
 
-def _identity(item: dict) -> str:
-    for key in ("mistake_id", "skill_id", "id"):
-        if item.get(key) is not None:
-            return f"{key}:{item[key]}"
-    return "text:" + str(item.get("lesson_text") or item.get("goal_pattern") or item)
+#: Deviation D5 (2026-09-27): the placebo's seed. Fixed, so while the store is
+#: unchanged a target draws the same placebo in the baseline and at Phase 8.
+PLACEBO_SEED = "payoff-D5-20260927"
 
 
-#: How many other targets' recall a placebo may draw from before it is declared
-#: unmatched. Bounded, so a store with little variety cannot stall a run.
-PLACEBO_DONORS = 12
+def placebo_pool(db: Path) -> list[dict]:
+    """Every stored lesson a placebo may draw from, read-only, in id order.
+
+    Verified or pending: real lessons of the kind recall shows. Never
+    `superseded` -- those were retired, and a placebo of known-bad lessons would
+    flatter ON. Each is shaped like a recalled lesson, with its TRUE status, so
+    the production block labels it exactly as it is stored.
+    """
+    import sqlite3
+
+    conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    try:
+        return [
+            {
+                "mistake_id": int(row[0]),
+                "error_type": str(row[1] or ""),
+                "lesson_text": str(row[2] or ""),
+                "verification_status": str(row[3]),
+            }
+            for row in conn.execute(
+                "SELECT id, error_type, lesson_text, verification_status "
+                "FROM mistake_pool WHERE verification_status IN ('verified', 'pending') "
+                "ORDER BY id"
+            )
+        ]
+    finally:
+        conn.close()
 
 
 def placebo_context(
-    reflector,
-    skills,
+    pool: list[dict],
     *,
     own_lessons: list[dict],
     own_skills: list[dict],
-    donor_queries: list[str],
-    session_id: str,
+    target_label: str,
 ):
-    """Memory of the same kind and amount as ON's, selected for OTHER work.
+    """The same amount of stored lessons as ON's, but ones recall did NOT pick.
 
-    Each donor query is another target's task, recalled through the SAME
-    production path (`recalled_context`) and formatted by the same blocks, so
-    the placebo differs from ON only in WHICH memories were selected. Items ON
-    saw are excluded. Matched means it found exactly as many lessons and skills
-    as ON saw. An unmatched placebo makes the ON-vs-PLACEBO pair not comparable,
-    never a loss.
+    Deviation D5: the calibration found recall gives every task the same five
+    of the store's seven verified lessons, so D4's "recalled for other work"
+    placebo could never be drawn. This one takes as many lessons as ON saw,
+    none of them ON's, with a fixed seed per target, from `placebo_pool`. It
+    keeps ON's skills block unchanged, so ON and PLACEBO differ ONLY in which
+    lessons are shown: the question is whether recall's choice beats other
+    stored lessons of the same kind.
+
+    Matched means that many such lessons existed. A pair with no recalled
+    lesson has nothing to swap, so it is unmatched too, never a copy of ON.
     """
-    own = {_identity(i) for i in own_lessons + own_skills}
-    taken: set[str] = set()
-    lessons: list[dict] = []
-    picked_skills: list[dict] = []
-    for query in donor_queries[:PLACEBO_DONORS]:
-        if len(lessons) >= len(own_lessons) and len(picked_skills) >= len(own_skills):
-            break
-        _text, donor_lessons, donor_skills = recalled_context(
-            reflector, skills, query, session_id
-        )
-        for pool, wanted, bucket in (
-            (donor_lessons, len(own_lessons), lessons),
-            (donor_skills, len(own_skills), picked_skills),
-        ):
-            for item in pool or []:
-                key = _identity(item)
-                if len(bucket) < wanted and key not in own and key not in taken:
-                    bucket.append(item)
-                    taken.add(key)
-    matched = len(lessons) == len(own_lessons) and len(picked_skills) == len(own_skills)
+    import random
+
+    own = {int(item["mistake_id"]) for item in own_lessons if "mistake_id" in item}
+    candidates = [item for item in pool if item["mistake_id"] not in own]
+    wanted = len(own_lessons)
+    if wanted == 0 or len(candidates) < wanted:
+        return "", [], False
+    picked = random.Random(f"{PLACEBO_SEED}:{target_label}").sample(candidates, wanted)
     blocks = [
         block
-        for block in (lessons_prompt_block(lessons), skills_prompt_block(picked_skills))
+        for block in (lessons_prompt_block(picked), skills_prompt_block(own_skills))
         if block
     ]
-    return "\n\n".join(blocks), lessons, picked_skills, matched
+    return "\n\n".join(blocks), picked, True
 
 
 def restore_pristine(corpus) -> None:
@@ -869,6 +881,8 @@ def run_benchmark(
         )
 
         queries = [task_prompt(t) for t in chosen]
+        # Read once, from the store the run has frozen (fingerprinted above).
+        pool = placebo_pool(DB) if placebo else []
         for index, target in enumerate(chosen):
             # Alternate which arm goes first. A fixed order would let "the
             # second attempt runs against a warmer cache" look like payoff.
@@ -916,28 +930,18 @@ def run_benchmark(
 
             contexts = {"on": (context, n_lessons, n_skills), "off": ("", 0, 0)}
             if placebo:
-                # Donors are other targets' tasks, in an order fixed by the
-                # chosen list alone -- never by any outcome.
-                count = len(chosen)
-                donors = [
-                    queries[(index + count // 2 + step) % count]
-                    for step in range(count)
-                    if (index + count // 2 + step) % count != index
-                ]
-                p_text, p_lessons, p_skills, matched = placebo_context(
-                    reflector,
-                    skills,
+                p_text, p_lessons, matched = placebo_context(
+                    pool,
                     own_lessons=lessons,
                     own_skills=verified,
-                    donor_queries=donors,
-                    session_id=f"payoff-{run_id}-{index}-placebo",
+                    target_label=target.label,
                 )
                 if matched:
-                    contexts["placebo"] = (p_text, len(p_lessons), len(p_skills))
+                    contexts["placebo"] = (p_text, len(p_lessons), n_skills)
                 else:
                     pair.placebo_reason = (
-                        "no placebo of the same size could be drawn from other "
-                        "work without reusing what ON saw"
+                        "no placebo of the same size: ON recalled no lesson, or the "
+                        "store holds too few other verified or pending lessons"
                     )
                     order = tuple(arm for arm in order if arm != "placebo")
 
@@ -987,8 +991,9 @@ def run_benchmark(
                 else:
                     pair.placebo_comparable = True
                     pair.placebo_reason = (
-                        f"PLACEBO saw {contexts['placebo'][1]} lesson(s) and "
-                        f"{contexts['placebo'][2]} skill(s) recalled for other work"
+                        f"PLACEBO saw {contexts['placebo'][1]} stored lesson(s) recall "
+                        f"did not pick, and the same {contexts['placebo'][2]} skill(s) "
+                        "as ON"
                     )
             pairs.append(pair)
 
@@ -1279,7 +1284,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--placebo",
         action="store_true",
-        help="add a PLACEBO arm: the same amount of memory, selected for other work",
+        help="add a PLACEBO arm: as many stored lessons as ON saw, not recall's picks",
     )
     parser.add_argument(
         "--novel-only",

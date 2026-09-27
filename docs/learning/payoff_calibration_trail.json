@@ -1,0 +1,2653 @@
+{
+  "ts": "2026-09-27T14:16:21+00:00",
+  "kind": "run",
+  "run_id": "20260927T134910-94623ddc",
+  "outcome": "completed",
+  "corpus_sha": "f085eb1b91df3ee1b46a3343f68d2ba63c587ee9",
+  "harness_sha": "d4c264a92bac2e8546d82c0519f61914bb4885ce",
+  "preregistration_sha256": "cb4f882b9e8f397d0ff9bee523a8ccfd7ebef569b0a446e1288d52e838e131d8",
+  "target_labels": [
+    "aios/application/executor/service.py::execute_registered_repair_operation",
+    "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+    "aios/application/governance/governance_observation.py::normalise_bus_event",
+    "aios/application/governance/na_cite_validator.py::na_cite_sources",
+    "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+    "aios/application/governance/organ_ledger.py::current_commit_sha",
+    "aios/application/governance/organ_ledger.py::load_ledger",
+    "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+    "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+    "aios/application/governance/spine_release.py::key_continuity_findings",
+    "aios/application/governance/spine_release.py::load_attestation",
+    "aios/application/governance/spine_release.py::load_key_history",
+    "aios/application/governance/spine_release.py::load_public_key",
+    "aios/application/governance/text_screening.py::obfuscated_tokens",
+    "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+    "aios/application/intelligence/deliberation.py::blocks_promotion",
+    "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+    "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+    "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+    "aios/application/memory/human_representation.py::classify_human_state"
+  ],
+  "target_list_frozen": false,
+  "models": "qwen.qwen3-coder-30b-a3b-v1:0",
+  "samples": 3,
+  "placebo": true,
+  "novel_only": true,
+  "excluded_targets": null,
+  "skill_store_mode": "pilot",
+  "library_active_at_start": 0,
+  "summary": {
+    "attempted": 20,
+    "comparable": 20,
+    "not_comparable": [],
+    "all": {
+      "arms": [
+        "on",
+        "off"
+      ],
+      "pairs": 20,
+      "samples": 3,
+      "on_earned": 19,
+      "off_earned": 16,
+      "payoff": 0.05,
+      "on_only": 4,
+      "off_only": 3,
+      "p_value": 0.71875
+    },
+    "novel": {
+      "arms": [
+        "on",
+        "off"
+      ],
+      "pairs": 20,
+      "samples": 3,
+      "on_earned": 19,
+      "off_earned": 16,
+      "payoff": 0.05,
+      "on_only": 4,
+      "off_only": 3,
+      "p_value": 0.71875
+    },
+    "seen": {
+      "arms": [
+        "on",
+        "off"
+      ],
+      "pairs": 0,
+      "samples": 1,
+      "on_earned": 0,
+      "off_earned": 0,
+      "payoff": null,
+      "on_only": 0,
+      "off_only": 0,
+      "p_value": 1.0
+    },
+    "transport_retries": 0,
+    "content_novel": {
+      "arms": [
+        "on",
+        "placebo"
+      ],
+      "pairs": 0,
+      "samples": 1,
+      "on_earned": 0,
+      "off_earned": 0,
+      "payoff": null,
+      "on_only": 0,
+      "off_only": 0,
+      "p_value": 1.0
+    },
+    "placebo_not_comparable": [
+      {
+        "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/governance_observation.py::normalise_bus_event",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/na_cite_validator.py::na_cite_sources",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/organ_ledger.py::current_commit_sha",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/organ_ledger.py::load_ledger",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/spine_release.py::key_continuity_findings",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/spine_release.py::load_attestation",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/spine_release.py::load_key_history",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/spine_release.py::load_public_key",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/governance/text_screening.py::obfuscated_tokens",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/intelligence/deliberation.py::blocks_promotion",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      },
+      {
+        "target": "aios/application/memory/human_representation.py::classify_human_state",
+        "reason": "no placebo of the same size could be drawn from other work without reusing what ON saw"
+      }
+    ]
+  },
+  "pairs": [
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 4884,
+        "seconds": 13.562000000001717,
+        "notes": [
+          "clean run not green: >       target_path.exists = lambda: True\nE       AttributeError: 'WindowsPath' object attribute 'exists' is read-only\nFAILED tests/test_pin_aios_application_executor_service_exec"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 4004,
+        "seconds": 12.796999999998661,
+        "notes": [
+          "clean run not green: >       target_path.read_bytes = mock_read_bytes\nE       AttributeError: 'WindowsPath' object attribute 'read_bytes' is read-only\nFAILED tests/test_pin_aios_application_executor_s"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4884,
+            "seconds": 13.562000000001717,
+            "notes": [
+              "clean run not green: >       target_path.exists = lambda: True\nE       AttributeError: 'WindowsPath' object attribute 'exists' is read-only\nFAILED tests/test_pin_aios_application_executor_service_exec"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4884,
+            "seconds": 10.140999999999622,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.types'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4884,
+            "seconds": 13.765999999999622,
+            "notes": [
+              "clean run not green: >       target_path.exists = lambda: True\nE       AttributeError: 'WindowsPath' object attribute 'exists' is read-only\nFAILED tests/test_pin_aios_application_executor_service_exec"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 4004,
+            "seconds": 12.796999999998661,
+            "notes": [
+              "clean run not green: >       target_path.read_bytes = mock_read_bytes\nE       AttributeError: 'WindowsPath' object attribute 'read_bytes' is read-only\nFAILED tests/test_pin_aios_application_executor_s"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 4004,
+            "seconds": 13.875,
+            "notes": [
+              "clean run not green: >       target_path.read_bytes = mock_read_bytes\nE       AttributeError: 'WindowsPath' object attribute 'read_bytes' is read-only\nFAILED tests/test_pin_aios_application_executor_s"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 4004,
+            "seconds": 12.843000000000757,
+            "notes": [
+              "clean run not green: >           result = execute_registered_repair_operation(job)\n>           raise IsolationUnavailable(f\"unsupported repair operation: {op_id!r}\")\nE           aios.application.execu"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2471,
+        "seconds": 10.5,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._SENSITIVE_'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulat"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1591,
+        "seconds": 9.85899999999674,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._e0c5d0fedc6e'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simul"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1591,
+            "seconds": 9.85899999999674,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._e0c5d0fedc6e'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simul"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1591,
+            "seconds": 19.170999999998457,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._e0c5d0fedc6e'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simul"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1591,
+            "seconds": 13.6720000000023,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._e0c5d0fedc6e'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simul"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2471,
+            "seconds": 10.5,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._SENSITIVE_'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulat"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2471,
+            "seconds": 12.343000000000757,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._SENSITIVE_'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulat"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2471,
+            "seconds": 13.360000000000582,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._SENSITIVE_'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulat"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/governance_observation.py::normalise_bus_event",
+      "first": "placebo",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2929,
+        "seconds": 14.10899999999674,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2049,
+        "seconds": 12.218000000000757,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2929,
+            "seconds": 14.10899999999674,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2929,
+            "seconds": 11.203000000001339,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2929,
+            "seconds": 9.890999999999622,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2049,
+            "seconds": 12.218000000000757,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2049,
+            "seconds": 10.875,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2049,
+            "seconds": 10.015999999999622,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance._2dc9f59838f2'\nERROR tests/test_pin_aios_application_governance_governance_observation_normalise_bus_event.py"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/na_cite_validator.py::na_cite_sources",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 3525,
+        "seconds": 13.406000000002678,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2645,
+        "seconds": 12.5,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.types'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 3525,
+            "seconds": 13.406000000002678,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 3525,
+            "seconds": 14.156999999999243,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 3525,
+            "seconds": 14.609000000000378,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2645,
+            "seconds": 12.5,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.types'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2645,
+            "seconds": 11.03099999999904,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2645,
+            "seconds": 12.125,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.types'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2281,
+        "seconds": 13.125,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1401,
+        "seconds": 16.82800000000134,
+        "notes": [
+          "clean run not green: >           mock_default_path.assert_called_once_with(Path('/some/repo/root'))\n>           raise AssertionError(_error_message()) from cause\nE           AssertionError: expected c"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1401,
+            "seconds": 16.82800000000134,
+            "notes": [
+              "clean run not green: >           mock_default_path.assert_called_once_with(Path('/some/repo/root'))\n>           raise AssertionError(_error_message()) from cause\nE           AssertionError: expected c"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1401,
+            "seconds": 12.014999999999418,
+            "notes": [
+              "clean run not green: >           mock_default_path.assert_called_once_with(Path('/some/repo/root'))\n>           raise AssertionError(_error_message()) from cause\nE           AssertionError: expected c"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1401,
+            "seconds": 14.812000000001717,
+            "notes": [
+              "clean run not green: >           mock_default_ledger_path.assert_called_once_with(Path(\"/some/repo/root\"))\n>           raise AssertionError(_error_message()) from cause\nE           AssertionError: exp"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2281,
+            "seconds": 13.125,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2281,
+            "seconds": 11.84400000000096,
+            "notes": [
+              "clean run not green: >           mock_default_ledger_path.assert_called_once_with(mock_repo_root)\n>           raise AssertionError(_error_message()) from cause\nE           AssertionError: expected cal"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2281,
+            "seconds": 13.375,
+            "notes": [
+              "clean run not green: >           mock_validate_na_cites.assert_called_once_with(mock_records, repo_root=Path(\"/some/repo/root\"))\n>           raise AssertionError(_error_message()) from cause\nE        "
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/organ_ledger.py::current_commit_sha",
+      "first": "placebo",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2472,
+        "seconds": 15.0,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1592,
+        "seconds": 11.390999999999622,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2472,
+            "seconds": 15.0,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2472,
+            "seconds": 11.18699999999808,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2472,
+            "seconds": 13.68800000000192,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1592,
+            "seconds": 11.390999999999622,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1592,
+            "seconds": 11.218999999997322,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1592,
+            "seconds": 11.562000000001717,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/organ_ledger.py::load_ledger",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2307,
+        "seconds": 10.09400000000096,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_organ_ledger_load_ledger.py"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1427,
+        "seconds": 25.03099999999904,
+        "notes": [
+          "clean run not green: >       original_path = Path\nE       UnboundLocalError: cannot access local variable 'Path' where it is not associated with a value\nFAILED tests/test_pin_aios_application_governan"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2307,
+            "seconds": 10.09400000000096,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_organ_ledger_load_ledger.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2307,
+            "seconds": 11.062000000001717,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_organ_ledger_load_ledger.py"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2307,
+            "seconds": 11.2970000000023,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_organ_ledger_load_ledger.py"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1427,
+            "seconds": 25.03099999999904,
+            "notes": [
+              "clean run not green: >       original_path = Path\nE       UnboundLocalError: cannot access local variable 'Path' where it is not associated with a value\nFAILED tests/test_pin_aios_application_governan"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1427,
+            "seconds": 14.28099999999904,
+            "notes": [
+              "clean run not green: >       original_path = Path\nE       UnboundLocalError: cannot access local variable 'Path' where it is not associated with a value\nFAILED tests/test_pin_aios_application_governan"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1427,
+            "seconds": 16.125,
+            "notes": [
+              "clean run not green: >           record = OrganRecord(**entry)\nE           pydantic_core._pydantic_core.ValidationError: 5 validation errors for OrganRecord\nE           organ_id\nE             Field re"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 4486,
+        "seconds": 10.578000000001339,
+        "notes": [
+          "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 60\nE       (\"[SENSITIVE: c891856\nE        ^\nE   S"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 3606,
+        "seconds": 10.671999999998661,
+        "notes": [
+          "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 59\nE       \"[SENSITIVE: e38f79f87c1e]\": \"proof_re"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 3606,
+            "seconds": 10.671999999998661,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 59\nE       \"[SENSITIVE: e38f79f87c1e]\": \"proof_re"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 3606,
+            "seconds": 10.514999999999418,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 59\nE       \"[SENSITIVE: e38f79f87c1e]\": \"\nE      "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 3606,
+            "seconds": 14.10899999999674,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 72\nE       \"[SENSITIVE: e6593\nE       ^\nE   Synta"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4486,
+            "seconds": 10.578000000001339,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 60\nE       (\"[SENSITIVE: c891856\nE        ^\nE   S"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4486,
+            "seconds": 28.96900000000096,
+            "notes": [
+              "clean run not green: >           assert len(result.results) == 13\nE           AttributeError: 'R15RuntimeProofReport' object has no attribute 'results'\nFAILED tests/test_pin_aios_application_governanc"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4486,
+            "seconds": 10.890999999999622,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_r15_runtime_proof_run_r15_runtime_proofs.py\", line 70\nE       assert\nE             ^\nE   SyntaxError"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+      "first": "placebo",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 5807,
+        "seconds": 11.671999999998661,
+        "notes": [
+          "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_runtime_proof_run_runtime_proofs.py\", line 81\nE       \"[SENSITIVE: 22\nE       ^\nE   SyntaxError: unt"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 4927,
+        "seconds": 16.31300000000192,
+        "notes": [
+          "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_runtime_proof_run_runtime_proofs.py\", line 67\nE       mock_proof.side_effect = [\nE                  "
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 5807,
+            "seconds": 11.671999999998661,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_runtime_proof_run_runtime_proofs.py\", line 81\nE       \"[SENSITIVE: 22\nE       ^\nE   SyntaxError: unt"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 5807,
+            "seconds": 10.217999999997119,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_runtime_proof_run_runtime_proofs.py\", line 80\nE       mock_proof.assert_any_call(\"[SENSITIVE: eb58bc"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 5807,
+            "seconds": 15.734000000000378,
+            "notes": [
+              "clean run not green: >           assert calls[6][0][0] == \"[SENSITIVE: ce1d6a0da690]\"\nE           AssertionError: assert 'promotion_authority' == '[SENSITIVE: ce1d6a0da690]'\nE             \nE          "
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 4927,
+            "seconds": 16.31300000000192,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_governance_runtime_proof_run_runtime_proofs.py\", line 67\nE       mock_proof.side_effect = [\nE                  "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 4927,
+            "seconds": 13.90599999999904,
+            "notes": [
+              "clean run not green: >               assert hasattr(result, 'results')\nE               AssertionError: assert False\nE                +  where False = hasattr(RuntimeProofReport(proofs={'operator_ident"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 4927,
+            "seconds": 19.39099999999962,
+            "notes": [
+              "clean run not green: >               assert hasattr(result, 'results')\nE               AssertionError: assert False\nE                +  where False = hasattr(RuntimeProofReport(proofs={'operator_ident"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::key_continuity_findings",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 4670,
+        "seconds": 14.078000000001339,
+        "notes": [
+          "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 3790,
+        "seconds": 12.875,
+        "notes": [
+          "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4670,
+            "seconds": 14.078000000001339,
+            "notes": [
+              "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4670,
+            "seconds": 13.282000000002881,
+            "notes": [
+              "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 4670,
+            "seconds": 16.31300000000192,
+            "notes": [
+              "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 3790,
+            "seconds": 12.875,
+            "notes": [
+              "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 3790,
+            "seconds": 15.78099999999904,
+            "notes": [
+              "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 3790,
+            "seconds": 23.56300000000192,
+            "notes": [
+              "clean run not green: >               assert result == expected\nE               AssertionError: assert ['SIGNING KEY...trusting it.'] == ['SIGNING KEY...trusting it.']\nE                 \nE             "
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::load_attestation",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 3792,
+        "seconds": 22.0,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2912,
+        "seconds": 14.89100000000326,
+        "notes": [
+          "clean run not green: >           assert False, \"Expected SpineReleaseError to be raised\"\nE           AssertionError: Expected SpineReleaseError to be raised\nE           assert False\n>           assert"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2912,
+            "seconds": 14.89100000000326,
+            "notes": [
+              "clean run not green: >           assert False, \"Expected SpineReleaseError to be raised\"\nE           AssertionError: Expected SpineReleaseError to be raised\nE           assert False\n>           assert"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2912,
+            "seconds": 18.23400000000038,
+            "notes": [
+              "clean run not green: >           assert False, \"Expected SpineReleaseError to be raised\"\nE           AssertionError: Expected SpineReleaseError to be raised\nE           assert False\n>           assert"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2912,
+            "seconds": 15.39100000000326,
+            "notes": [
+              "clean run not green: >           assert False, \"Expected SpineReleaseError to be raised\"\nE           AssertionError: Expected SpineReleaseError to be raised\nE           assert False\n>           assert"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 3792,
+            "seconds": 22.0,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 3792,
+            "seconds": 15.217999999997119,
+            "notes": [
+              "clean run not green: >           assert False, \"Expected SpineReleaseError\"\nE           AssertionError: Expected SpineReleaseError\nE           assert False\n>           assert False, \"Expected SpineRel"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 3792,
+            "seconds": 11.875,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::load_key_history",
+      "first": "placebo",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2635,
+        "seconds": 12.0,
+        "notes": [
+          "clean run not green: >               entry = json.loads(line)\n>           raise JSONDecodeError(\"Expecting value\", s, err.value) from None\nE           json.decoder.JSONDecodeError: Expecting value: li"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1755,
+        "seconds": 11.764999999999418,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2635,
+            "seconds": 12.0,
+            "notes": [
+              "clean run not green: >               entry = json.loads(line)\n>           raise JSONDecodeError(\"Expecting value\", s, err.value) from None\nE           json.decoder.JSONDecodeError: Expecting value: li"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2635,
+            "seconds": 11.31300000000192,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2635,
+            "seconds": 12.139999999999418,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1755,
+            "seconds": 11.764999999999418,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1755,
+            "seconds": 11.609000000000378,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1755,
+            "seconds": 11.625,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/spine_release.py::load_public_key",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2207,
+        "seconds": 11.75,
+        "notes": [
+          "clean run not green: >           pubkey_path.write_text(\"test_public_key_content\", encoding=\"utf-8\")\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError:"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1327,
+        "seconds": 11.437999999998283,
+        "notes": [
+          "clean run not green: >           pubkey_path.write_text(\"test_public_key_content\", encoding=\"utf-8\")\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError:"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2207,
+            "seconds": 11.75,
+            "notes": [
+              "clean run not green: >           pubkey_path.write_text(\"test_public_key_content\", encoding=\"utf-8\")\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError:"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2207,
+            "seconds": 13.282000000002881,
+            "notes": [
+              "clean run not green: >           pubkey_path.write_text(\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\\n-----END PUBLIC KEY-----\", encoding=\"utf-8\")\n>       return io.ope"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2207,
+            "seconds": 22.35900000000038,
+            "notes": [
+              "clean run not green: >           pubkey_path.write_text(\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\\n-----END PUBLIC KEY-----\", encoding=\"utf-8\")\n>       return io.ope"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1327,
+            "seconds": 11.437999999998283,
+            "notes": [
+              "clean run not green: >           pubkey_path.write_text(\"test_public_key_content\", encoding=\"utf-8\")\n>       return io.open(self, mode, buffering, encoding, errors, newline)\nE       FileNotFoundError:"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1327,
+            "seconds": 11.921999999998661,
+            "notes": [
+              "clean run not green: >           pubkey_path.write_text(\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\", encoding=\"utf-8\")\n>       return io.open(self, mode, buffering, e"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1327,
+            "seconds": 12.328000000001339,
+            "notes": [
+              "clean run not green: >           pubkey_path.write_text(\"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\\n-----END PUBLIC KEY-----\", encoding=\"utf-8\")\n>       return io.ope"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/governance/text_screening.py::obfuscated_tokens",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 6556,
+        "seconds": 11.71900000000096,
+        "notes": [
+          "clean run not green: >       assert obfuscated_tokens(\"bypɑss grant\") == ()\nE       AssertionError: assert ('bypɑss',) == ()\nE         \nE         Left contains one more item: 'bypɑss'\nE         Use -v"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 5676,
+        "seconds": 13.531000000002678,
+        "notes": [
+          "clean run not green: >       assert obfuscated_tokens(\"hello world\") == ()\n>           cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)\nE           TypeError: mock_strip_invis"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 5676,
+            "seconds": 13.531000000002678,
+            "notes": [
+              "clean run not green: >       assert obfuscated_tokens(\"hello world\") == ()\n>           cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)\nE           TypeError: mock_strip_invis"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 5676,
+            "seconds": 13.046999999998661,
+            "notes": [
+              "clean run not green: >       result = obfuscated_tokens(\"bypɑss\")\n>           cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)\nE           TypeError: mock_strip_invisibles_and"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 5676,
+            "seconds": 12.828000000001339,
+            "notes": [
+              "clean run not green: >       result = obfuscated_tokens(\"bypɑss grant\")\n>           cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)\nE           TypeError: mock_strip_invisibl"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 6556,
+            "seconds": 11.71900000000096,
+            "notes": [
+              "clean run not green: >       assert obfuscated_tokens(\"bypɑss grant\") == ()\nE       AssertionError: assert ('bypɑss',) == ()\nE         \nE         Left contains one more item: 'bypɑss'\nE         Use -v"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 6556,
+            "seconds": 12.7970000000023,
+            "notes": [
+              "clean run not green: >       assert obfuscated_tokens(\"hello world\") == ()\n>           cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)\nE           TypeError: mock_strip_invis"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 6556,
+            "seconds": 12.968999999997322,
+            "notes": [
+              "clean run not green: >       assert obfuscated_tokens(\"hello world\") == ()\n>           cleaned = _strip_invisibles_and_marks(text, invisibles_as_space=as_space)\nE           TypeError: mock_strip_invis"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+      "first": "placebo",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2828,
+        "seconds": 12.062000000001717,
+        "notes": [
+          "clean run not green: >       assert result == expected_result\nE       AssertionError: assert 'efd6b82b717f...33777a85ddd3c' == '931ec7842e3e...33d03cb0c3e30'\nE         \nE         - 931ec7842e3e5c7e39f"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1948,
+        "seconds": 11.796999999998661,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2828,
+            "seconds": 12.062000000001717,
+            "notes": [
+              "clean run not green: >       assert result == expected_result\nE       AssertionError: assert 'efd6b82b717f...33777a85ddd3c' == '931ec7842e3e...33d03cb0c3e30'\nE         \nE         - 931ec7842e3e5c7e39f"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2828,
+            "seconds": 12.125,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2828,
+            "seconds": 11.5,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1948,
+            "seconds": 11.796999999998661,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1948,
+            "seconds": 11.406000000002678,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1948,
+            "seconds": 12.0779999999977,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/intelligence/deliberation.py::blocks_promotion",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2254,
+        "seconds": 11.84400000000096,
+        "notes": [
+          "clean run not green: >       assert blocks_promotion(record) == True\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'DeliberationRecord' object has no attribute 'unre"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1374,
+        "seconds": 12.140999999999622,
+        "notes": [
+          "clean run not green: >       assert blocks_promotion(record) == True\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'MockDeliberationRecord' object has no attribute '"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2254,
+            "seconds": 11.84400000000096,
+            "notes": [
+              "clean run not green: >       assert blocks_promotion(record) == True\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'DeliberationRecord' object has no attribute 'unre"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2254,
+            "seconds": 11.687000000001717,
+            "notes": [
+              "clean run not green: >       assert blocks_promotion(record) == False\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'DeliberationRecord' object has no attribute 'unr"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2254,
+            "seconds": 12.203000000001339,
+            "notes": [
+              "clean run not green: >       assert blocks_promotion(record) == False\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'DeliberationRecord' object has no attribute 'unr"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1374,
+            "seconds": 12.140999999999622,
+            "notes": [
+              "clean run not green: >       assert blocks_promotion(record) == True\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'MockDeliberationRecord' object has no attribute '"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1374,
+            "seconds": 12.515999999999622,
+            "notes": [
+              "clean run not green: >       assert blocks_promotion(record) == True\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'MockDeliberationRecord' object has no attribute '"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1374,
+            "seconds": 11.5,
+            "notes": [
+              "clean run not green: >       assert blocks_promotion(record) == True\n>       return bool(record.unresolved_minority_concerns)\nE       AttributeError: 'MockDeliberationRecord' object has no attribute '"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2956,
+        "seconds": 11.75,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2076,
+        "seconds": 11.15599999999904,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2076,
+            "seconds": 11.15599999999904,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2076,
+            "seconds": 12.90599999999904,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2076,
+            "seconds": 11.14100000000326,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2956,
+            "seconds": 11.75,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2956,
+            "seconds": 14.046999999998661,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2956,
+            "seconds": 11.593999999997322,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+      "first": "placebo",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2942,
+        "seconds": 14.546999999998661,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2062,
+        "seconds": 19.625,
+        "notes": [
+          "clean run not green: >       assert is_loopback_http_url(\"http://localhost/path\") == False\nE       AssertionError: assert True == False\nE        +  where True = is_loopback_http_url('http://localhost/"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2942,
+            "seconds": 14.546999999998661,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2942,
+            "seconds": 12.15599999999904,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2942,
+            "seconds": 11.5,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2062,
+            "seconds": 19.625,
+            "notes": [
+              "clean run not green: >       assert is_loopback_http_url(\"http://localhost/path\") == False\nE       AssertionError: assert True == False\nE        +  where True = is_loopback_http_url('http://localhost/"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2062,
+            "seconds": 12.703000000001339,
+            "notes": [
+              "clean run not green: >       assert is_loopback_http_url(\"https://127.0.0.1:8080/path\") == False\nE       AssertionError: assert True == False\nE        +  where True = is_loopback_http_url('https://127"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2062,
+            "seconds": 14.265999999999622,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+      "first": "on",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2925,
+        "seconds": 12.592999999997119,
+        "notes": [
+          "clean run not green: >       assert result == expected\nE       AssertionError: assert frozenset({'t...2', 'test_3'}) == frozenset({'p... 'profile_c'})\nE         \nE         Extra items in the left set:"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 2045,
+        "seconds": 12.125,
+        "notes": [
+          "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.local_workforce.f6cf2a10253f'\nERROR tests/test_pin_aios_application_local_workforce_qualification_evidence_evidence_back"
+        ],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2925,
+            "seconds": 12.592999999997119,
+            "notes": [
+              "clean run not green: >       assert result == expected\nE       AssertionError: assert frozenset({'t...2', 'test_3'}) == frozenset({'p... 'profile_c'})\nE         \nE         Extra items in the left set:"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2925,
+            "seconds": 10.78099999999904,
+            "notes": [
+              "clean run not green: >       assert evidence_backed_profiles(evidence) == expected\nE       AssertionError: assert frozenset({'t...2', 'test_3'}) == frozenset({'p... 'profile_c'})\nE         \nE         "
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2925,
+            "seconds": 7.765999999999622,
+            "notes": [
+              "clean run not green: E   ImportError: cannot import name 'evidence_backed_profiles' from 'MockModule' (unknown location)\nERROR tests/test_pin_aios_application_local_workforce_qualification_evidence_ev"
+            ],
+            "transport_retries": 0
+          }
+        ],
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2045,
+            "seconds": 12.125,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.local_workforce.f6cf2a10253f'\nERROR tests/test_pin_aios_application_local_workforce_qualification_evidence_evidence_back"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2045,
+            "seconds": 8.718000000000757,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.local_workforce.f6cf2a10253f'\nERROR tests/test_pin_aios_application_local_workforce_qualification_evidence_evidence_back"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 2045,
+            "seconds": 11.96900000000096,
+            "notes": [
+              "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.local_workforce.f6cf2a10253f'\nERROR tests/test_pin_aios_application_local_workforce_qualification_evidence_evidence_back"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "target": "aios/application/memory/human_representation.py::classify_human_state",
+      "first": "off",
+      "on": {
+        "arm": "on",
+        "reached_model": true,
+        "earned": false,
+        "outcome": "rejected",
+        "recalled_lessons": 5,
+        "recalled_skills": 0,
+        "prompt_chars": 2130,
+        "seconds": 7.25,
+        "notes": [
+          "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_memory_human_representation_classify_human_state.py\", line 13\nE       assert result[0][\"SENSITIVE\"] == 469c1698"
+        ],
+        "transport_retries": 0
+      },
+      "off": {
+        "arm": "off",
+        "reached_model": true,
+        "earned": true,
+        "outcome": "earned",
+        "recalled_lessons": 0,
+        "recalled_skills": 0,
+        "prompt_chars": 1250,
+        "seconds": 9.045999999998457,
+        "notes": [],
+        "transport_retries": 0
+      },
+      "comparable": true,
+      "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+      "seen": false,
+      "placebo": null,
+      "placebo_comparable": false,
+      "placebo_reason": "no placebo of the same size could be drawn from other work without reusing what ON saw",
+      "samples": {
+        "off": [
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1250,
+            "seconds": 9.045999999998457,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1250,
+            "seconds": 9.062000000001717,
+            "notes": [],
+            "transport_retries": 0
+          },
+          {
+            "arm": "off",
+            "reached_model": true,
+            "earned": true,
+            "outcome": "earned",
+            "recalled_lessons": 0,
+            "recalled_skills": 0,
+            "prompt_chars": 1250,
+            "seconds": 8.73399999999674,
+            "notes": [],
+            "transport_retries": 0
+          }
+        ],
+        "on": [
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2130,
+            "seconds": 7.25,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_memory_human_representation_classify_human_state.py\", line 13\nE       assert result[0][\"SENSITIVE\"] == 469c1698"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2130,
+            "seconds": 9.0470000000023,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_memory_human_representation_classify_human_state.py\", line 13\nE       assert result[0][\"SENSITIVE\"] == 469c1698"
+            ],
+            "transport_retries": 0
+          },
+          {
+            "arm": "on",
+            "reached_model": true,
+            "earned": false,
+            "outcome": "rejected",
+            "recalled_lessons": 5,
+            "recalled_skills": 0,
+            "prompt_chars": 2130,
+            "seconds": 7.28099999999904,
+            "notes": [
+              "clean run not green: E     File \"C:\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_memory_human_representation_classify_human_state.py\", line 13\nE       assert result[0][\"SENSITIVE\"] == 469c1698"
+            ],
+            "transport_retries": 0
+          }
+        ]
+      }
+    }
+  ]
+}

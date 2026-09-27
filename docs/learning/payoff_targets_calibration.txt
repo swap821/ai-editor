@@ -1,0 +1,22 @@
+# Deviation D4/D5 calibration targets (run 20260927T134910-94623ddc). Never judged;
+# excluded from every judged run with --exclude-targets.
+aios/application/executor/service.py::execute_registered_repair_operation
+aios/application/governance/adversarial_simulations.py::run_adversarial_simulations
+aios/application/governance/governance_observation.py::normalise_bus_event
+aios/application/governance/na_cite_validator.py::na_cite_sources
+aios/application/governance/na_cite_validator.py::validate_shipped_na_cites
+aios/application/governance/organ_ledger.py::current_commit_sha
+aios/application/governance/organ_ledger.py::load_ledger
+aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs
+aios/application/governance/runtime_proof.py::run_runtime_proofs
+aios/application/governance/spine_release.py::key_continuity_findings
+aios/application/governance/spine_release.py::load_attestation
+aios/application/governance/spine_release.py::load_key_history
+aios/application/governance/spine_release.py::load_public_key
+aios/application/governance/text_screening.py::obfuscated_tokens
+aios/application/intelligence/context_compiler.py::context_digest_from_record
+aios/application/intelligence/deliberation.py::blocks_promotion
+aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback
+aios/application/intelligence/transport_target.py::is_loopback_http_url
+aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles
+aios/application/memory/human_representation.py::classify_human_state

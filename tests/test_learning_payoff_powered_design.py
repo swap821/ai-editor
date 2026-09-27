@@ -118,52 +118,104 @@ class TestNovelOnly:
 
 
 class TestThePlacebo:
-    def _recall(self, table: dict[str, list[dict]]):
-        def recall(reflector, skills, query, session_id):
-            lessons = table.get(query, [])
-            return ("lessons" if lessons else ""), lessons, []
+    """Deviation D5: recall gave every task the same 5 of 7 verified lessons,
+    so the placebo is other STORED lessons recall did not pick."""
 
-        return recall
+    def _store(self, tmp_path):
+        import sqlite3
 
-    def test_it_draws_other_works_memory_and_never_ons(self, monkeypatch) -> None:
+        db = tmp_path / "memory.sqlite"
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE mistake_pool (id INTEGER PRIMARY KEY, error_type TEXT, "
+            "lesson_text TEXT, verification_status TEXT)"
+        )
+        rows = [(i, "E", f"lesson {i}", "verified") for i in range(1, 8)]
+        rows += [(i, "E", f"pending {i}", "pending") for i in range(8, 12)]
+        rows += [(i, "E", f"retired {i}", "superseded") for i in range(12, 40)]
+        conn.executemany("INSERT INTO mistake_pool VALUES (?,?,?,?)", rows)
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_the_pool_is_verified_and_pending_never_retired(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))
+        assert [item["mistake_id"] for item in pool] == list(range(1, 12))
+        assert {item["verification_status"] for item in pool} == {"verified", "pending"}
+
+    def test_it_never_shows_a_lesson_on_saw(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))
+        own = [_lesson(i) for i in (1, 2, 3, 4, 5)]
+        text, picked, matched = payoff.placebo_context(
+            pool, own_lessons=own, own_skills=[], target_label="aios/x.py::f"
+        )
+        assert matched is True and len(picked) == 5
+        assert not {item["mistake_id"] for item in picked} & {1, 2, 3, 4, 5}
+        assert all(f"lesson {i}]" not in text for i in (1, 2, 3, 4, 5))
+
+    def test_labels_are_the_stored_truth(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))
+        own = [_lesson(i) for i in (1, 2, 3, 4, 5)]
+        text, picked, _ = payoff.placebo_context(
+            pool, own_lessons=own, own_skills=[], target_label="aios/x.py::f"
+        )
+        pending = [item for item in picked if item["verification_status"] == "pending"]
+        assert pending, "only 2 verified remain, so pending lessons must appear"
+        assert text.count("[pending;") == len(pending), "a pending lesson relabelled"
+
+    def test_the_skills_block_is_on_s_own(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))
+        skills = [
+            {
+                "skill_id": 9,
+                "goal_pattern": "pin a function",
+                "steps": ["verify: pytest"],
+                "success_rate": 1.0,
+                "strength": 1.0,
+            }
+        ]
+        text, _picked, matched = payoff.placebo_context(
+            pool,
+            own_lessons=[_lesson(1)],
+            own_skills=skills,
+            target_label="aios/x.py::f",
+        )
+        assert matched and payoff.skills_prompt_block(skills) in text
+
+    def test_it_is_seeded_per_target(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))
         own = [_lesson(1), _lesson(2)]
-        monkeypatch.setattr(
-            payoff,
-            "recalled_context",
-            self._recall(
-                {
-                    "q-a": [_lesson(1), _lesson(7)],
-                    "q-b": [_lesson(2), _lesson(8), _lesson(9)],
-                }
-            ),
-        )
-        text, lessons, skills, matched = payoff.placebo_context(
-            None,
-            None,
-            own_lessons=own,
-            own_skills=[],
-            donor_queries=["q-a", "q-b"],
-            session_id="s",
-        )
-        assert matched is True
-        assert [item["mistake_id"] for item in lessons] == [7, 8]
-        assert skills == []
 
-    def test_too_little_other_memory_is_unmatched_not_padded(self, monkeypatch) -> None:
-        monkeypatch.setattr(
-            payoff,
-            "recalled_context",
-            self._recall({"q-a": [_lesson(1), _lesson(7)]}),
+        def pick(label):
+            return [
+                item["mistake_id"]
+                for item in payoff.placebo_context(
+                    pool, own_lessons=own, own_skills=[], target_label=label
+                )[1]
+            ]
+
+        assert pick("aios/a.py::f") == pick("aios/a.py::f"), "not reproducible"
+        assert any(pick(f"aios/{i}.py::f") != pick("aios/a.py::f") for i in range(8))
+
+    def test_the_boundary_is_exact_and_short_is_never_padded(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))  # 11 lessons
+        # ON's lessons from outside the pool: all 11 remain candidates.
+        exactly = [_lesson(100 + i) for i in range(11)]
+        _t, picked, matched = payoff.placebo_context(
+            pool, own_lessons=exactly, own_skills=[], target_label="t"
         )
-        _t, lessons, _s, matched = payoff.placebo_context(
-            None,
-            None,
-            own_lessons=[_lesson(1), _lesson(2)],
-            own_skills=[],
-            donor_queries=["q-a"],
-            session_id="s",
+        assert matched is True and len(picked) == 11
+        _t, picked, matched = payoff.placebo_context(
+            pool, own_lessons=exactly + [_lesson(200)], own_skills=[], target_label="t"
         )
-        assert matched is False and len(lessons) == 1
+        assert matched is False and picked == []
+
+    def test_no_recalled_lesson_is_unmatched_not_a_copy_of_on(self, tmp_path) -> None:
+        pool = payoff.placebo_pool(self._store(tmp_path))
+        _t, _p, matched = payoff.placebo_context(
+            pool, own_lessons=[], own_skills=[{"skill_id": 1}], target_label="t"
+        )
+        assert matched is False
 
 
 class TestTransportRetry:
@@ -237,6 +289,9 @@ class TestTheRunLoop:
         monkeypatch.setattr(payoff, "recalled_context", recall)
         # Classification only; the stub store has no lesson columns to read.
         monkeypatch.setattr(payoff, "enrich_lessons", lambda db, lessons: lessons)
+        monkeypatch.setattr(
+            payoff, "placebo_pool", lambda db: [_lesson(i) for i in range(1, 60)]
+        )
         calls: list = []
 
         def run_arm(
