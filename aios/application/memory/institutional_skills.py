@@ -195,13 +195,18 @@ class SkillTrailIndex:
     def record_reuse(self, trail_id: int, *, success: bool, now: datetime) -> None:
         """Ranking pheromone only. Frozen by the stop like every learning write."""
         assert_learning_permitted("skill_trails.record_reuse")
-        column = "reuse_success_count" if success else "reuse_failure_count"
+        # Two fixed statements rather than a formatted column name: nothing
+        # here is caller-supplied, but SQL assembled by formatting is the
+        # shape a reader has to prove safe, so there is none.
+        sql = (
+            "UPDATE skill_trails SET reuse_success_count = reuse_success_count + 1, "
+            "last_reused_at = ? WHERE trail_id = ?"
+            if success
+            else "UPDATE skill_trails SET reuse_failure_count = reuse_failure_count + 1, "
+            "last_reused_at = ? WHERE trail_id = ?"
+        )
         with self._connection() as connection:
-            connection.execute(
-                f"UPDATE skill_trails SET {column} = {column} + 1, last_reused_at = ? "
-                "WHERE trail_id = ?",
-                (now.isoformat(), int(trail_id)),
-            )
+            connection.execute(sql, (now.isoformat(), int(trail_id)))
 
     def adopt_migrated(self, repository: SkillRepository) -> list[int]:
         """Give every migrated skill a trail at its legacy id. Idempotent."""
