@@ -158,12 +158,12 @@ in both directions. Two consequences:
 - **The skill channel in pilot mode** contains only skills the operator has
   activated (D3). Every run records `library_active_at_start`.
 
-## 7. Proposed Deviation D4 (NOT binding until the operator signs it off)
+## 7. Proposed Deviation D4 (NOT binding until committed to the pre-registration before the run)
 
 | | |
 |---|---|
 | Cohort | Bedrock `qwen.qwen3-coder-30b-a3b-v1:0`, temperature 0.1, 420 s timeout |
-| Judged status | **For the operator to decide.** Recommended: this cohort's H1 becomes the primary judged number, and the 7B's Phase 8 run is kept for H3 as a secondary. They are designated before either runs, so neither can be picked afterwards. |
+| Judged status | **Operator decision, 2026-09-27: "Both judged, corrected".** The judged family is H1 on the cloud cohort, H1c (content, ON vs PLACEBO) on the cloud cohort, and the 7B's Phase 8 H1. All three are Holm-corrected at family-wise α = 0.05, so none gets a free extra chance at significance. It was fixed before either run, so neither can be picked afterwards. The alternatives recorded against it: cloud primary with the 7B secondary, or keeping the 7B as the only judged number. |
 | Targets | NOVEL only, from `collect_targets`' fixed ranking, disjoint from the calibration targets and frozen before any arm runs |
 | N, K | Set from calibration with Miller's formula for 80% power at +10 points. Expected range N 150–200, K 1–5. |
 | Arms | OFF, ON and PLACEBO, with arm order rotated by target index |
