@@ -42,8 +42,10 @@ institutional library, where nothing promotes itself. There M2 passes on
 REVIEW-READINESS (never activation) and R9 checks the library's counts. R10,
 new, holds in every mode: no evidence activates a library skill, and neither
 does a save. The reel grew from four to five, so older "4/4" reports are not
-comparable. M3-M5 still measure the legacy reflex chain, which the cerebellum
-compiles from until the 2.4c hard switch. The mode is printed and recorded.
+comparable. M3-M5 still measure the legacy reflex chain with a gate-less
+cerebellum of their own: the mechanism, not the pilot's reflexes, which since
+#395 replay only operator-activated skills. 2.4c redefines them to compile from
+active skills. The mode is printed and recorded.
 
     python tools/learning_conformance_runner.py
     python tools/learning_conformance_runner.py --json
@@ -586,8 +588,9 @@ def render(report: Report) -> str:
         lines.insert(
             2,
             "  (pilot: M2/R9 measure the institutional library; M3-M5 still measure "
-            "the legacy reflex chain, which the cerebellum compiles from until the "
-            "2.4c hard switch)",
+            "the legacy reflex MECHANISM with a gate-less cerebellum, not the pilot's "
+            "reflexes, which since #395 replay only operator-activated skills; the "
+            "2.4c hard switch redefines them)",
         )
     product_ok = sum(1 for m in report.product if m.passed)
     reel_ok = sum(1 for m in report.reel if m.passed)
