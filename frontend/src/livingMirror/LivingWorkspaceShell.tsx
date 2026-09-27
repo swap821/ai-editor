@@ -195,6 +195,12 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     const active = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     returnFocus.current = active === document.body ? null : active;
   };
+  const closeMobileExpertMenus = (trigger?: HTMLElement | null) => {
+    const groupMenu = trigger?.closest<HTMLDetailsElement>('.lm-expert-mobile-surface-group');
+    const surfacesMenu = trigger?.closest<HTMLDetailsElement>('.lm-expert-mobile-surfaces');
+    if (groupMenu) groupMenu.open = false;
+    if (surfacesMenu) surfacesMenu.open = false;
+  };
   const restoreWorkspaceFocus = () => {
     const target = returnFocus.current;
     returnFocus.current = null;
@@ -207,6 +213,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     conversationButton.current?.focus({ preventScroll: true });
   };
   const open = (id: string, title: string, trigger?: HTMLElement | null) => {
+    closeMobileExpertMenus(trigger);
     rememberReturnFocus(trigger);
     openWorkspacePanel(id, title);
   };
@@ -264,6 +271,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     </header>
     <nav className="lm-navigation" aria-label="Workspaces">
       <button ref={conversationButton} type="button" aria-current={!working ? 'page' : undefined} onClick={(event) => {
+        closeMobileExpertMenus(event.currentTarget);
         returnFocus.current = event.currentTarget;
         focusWorkspace(null);
       }}>Conversation</button>

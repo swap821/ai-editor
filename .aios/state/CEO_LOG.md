@@ -1125,3 +1125,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Verification:** Dedicated interaction tests plus existing shell tests **13/13**; full frontend **184 files / 1,044 tests**; TypeScript and production build (**4,321 modules**); changed-file ESLint **0 errors / 8 warnings in carried GagosChrome code**; `test:port` **16/16**; CSS palette and protected-texture guards; diff checks passed.
 - **Caveat:** `port:check` cannot complete because this isolated worktree lacks the external lab's `components/QualityTierProvider.tsx`. Current-branch browser screenshots at 320×568 and 390×844 remain pending. Device models TBD; physical keyboard, assistive technology, active/live journey, field performance and operator acceptance remain open. No request, Retry, backend, anatomy, palette or texture mutation. **0 new points; accepted score remains 3/100.**
 - **Next:** Commit the verified change set as requested, then inspect the active viewport composition in the branch-local browser preview.
+
+## 2026-09-28 — CEO checkpoint (mobile Expert menu handoff)
+
+- **Finding/fix:** Browser review caught the nested Expert navigation disclosure staying open over the new workspace and composer. Selecting a mobile surface now closes the category and root menu before focus enters the selected surface.
+- **Browser proof:** At 320×568 the menu closes, collapsed and expanded panel states leave composer/accessories and offline Retry reachable, and collapse returns focus to the disclosure. At 390×844 the toggle is absent and document width remains 390px. Console errors: none. Backend remained offline; no message or retry was sent.
+- **Verification:** Focused shell tests **14/14**; full frontend **185 files / 1,045 tests**; TypeScript; build (**4,321 modules**); changed-file ESLint clean; `test:port` **16/16**; palette/protected-texture guards and diff check passed.
+- **Limits:** Browser viewport emulation only. Device/keyboard, human accessibility, field performance, authenticated live journey and operator review remain open; no acceptance points earned and total remains 3/100. `port:check` still lacks external `components/QualityTierProvider.tsx`.
+- **Next:** Commit the menu-dismissal correction with its regression and keep the full LB-01–LB-20 goal active.
