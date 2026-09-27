@@ -1,0 +1,432 @@
+{
+  "ts": "2026-09-27T22:36:01+00:00",
+  "kind": "run",
+  "run_id": "20260927T221713-b131ac59",
+  "outcome": "completed",
+  "corpus_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
+  "models": "ollama.qwen2.5-coder:7b,deepseek.v3.2,mistral.devstral-2-123b",
+  "links": [
+    {
+      "link": "reflection",
+      "faculty": "L1",
+      "fired": true,
+      "detail": "",
+      "refs": [
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_blocked_read via ollama.qwen2.5-coder:7b",
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_blocked_read via ollama.qwen2.5-coder:7b",
+        "lesson 108 from aios/agents/tool_handlers.py::next_step_after_blocked_read via deepseek.v3.2",
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_blocked_read via deepseek.v3.2",
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_blocked_read via mistral.devstral-2-123b",
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_blocked_read via mistral.devstral-2-123b",
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_noop via ollama.qwen2.5-coder:7b",
+        "lesson 107 from aios/agents/tool_handlers.py::next_step_after_noop via ollama.qwen2.5-coder:7b",
+        "lesson 107 from aios/agents/tool_loop_helpers.py::normalize_command via ollama.qwen2.5-coder:7b",
+        "lesson 109 from aios/application/executor/service.py::execute_registered_repair_operation via ollama.qwen2.5-coder:7b",
+        "lesson 109 from aios/application/executor/service.py::execute_registered_repair_operation via ollama.qwen2.5-coder:7b",
+        "lesson 110 from aios/application/executor/service.py::execute_registered_repair_operation via deepseek.v3.2",
+        "lesson 108 from aios/application/executor/service.py::execute_registered_repair_operation via deepseek.v3.2",
+        "lesson 109 from aios/application/executor/service.py::execute_registered_repair_operation via mistral.devstral-2-123b",
+        "lesson 109 from aios/application/executor/service.py::execute_registered_repair_operation via mistral.devstral-2-123b"
+      ]
+    },
+    {
+      "link": "lesson_transfer",
+      "faculty": "L2",
+      "fired": true,
+      "detail": "",
+      "refs": [
+        "lesson 107 promoted by 'pytest tests/test_pin_aios_agents_tool_handlers_next_step_after_noop.py'",
+        "lesson 107 promoted by 'pytest tests/test_pin_aios_agents_tool_loop_helpers_normalize_command.py'"
+      ]
+    },
+    {
+      "link": "skill_acquisition",
+      "faculty": "L3",
+      "fired": true,
+      "detail": "",
+      "refs": [
+        "skill 66",
+        "skill 85",
+        "skill 86",
+        "skill 80"
+      ]
+    },
+    {
+      "link": "reflex_compilation",
+      "faculty": "L4",
+      "fired": true,
+      "detail": "1 newly compiled",
+      "refs": [
+        "playbook 16: Use the verify tool to run exactly this command and report the result:"
+      ]
+    },
+    {
+      "link": "reflex_replay",
+      "faculty": "L5",
+      "fired": false,
+      "detail": "the LLM was consulted on a turn a compiled reflex was supposed to serve — the reflex preceded the model instead of replacing it",
+      "refs": []
+    },
+    {
+      "link": "curriculum_progression",
+      "faculty": "L6",
+      "fired": true,
+      "detail": "gagos-real-modules level 1 MASTERED on real modules (6 real-code proposal(s) mined, none accepted)",
+      "refs": [
+        "gagos-real-modules level 1",
+        "mined proposal: Read aios/application/agent_bridge.py and then create tests/test_agent_bridge_pinned_v2.py"
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "target": "aios/agents/tool_agent.py::build_auto_verify_command",
+      "outcome": "model_error",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": false,
+      "source_sha256": "",
+      "passes_clean": false,
+      "fails_when_mutated": false,
+      "source_untouched": false,
+      "suite_still_green": false,
+      "attempt": 1,
+      "seconds": 26.51600000000326,
+      "notes": [
+        "Ollama returned HTTP 500 for model 'qwen2.5-coder:7b': {\"error\":\"llama-server process has terminated: exit status 0xc0000409: The system detected an overrun of a stack-based buffer in this application. This overrun could potentially allow a malicious user to gain control of this application.: CUDA e"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_agent.py::build_auto_verify_command",
+      "outcome": "earned",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": true,
+      "reached_model": true,
+      "source_sha256": "76d1ad6298b6a9281ad4480b99e92f3d13229a721ede94f77a260144492d91f0",
+      "passes_clean": true,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 29.5,
+      "notes": []
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "de28249af947d1c096ea8ff198aab912dea3228d1bafd65f2de08a4bf950ead3",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 30.56300000000192,
+      "notes": [
+        "clean run not green: >       assert next_step_after_blocked_read(\"cat file.txt\") == \" To read a file, call the read_file tool with its path instead of the shell. read_file is not blocked.\"\nE       AssertionError: assert ' To read a f... not blocked.' == ' To read a f... not blocked.'\nE         \nE   "
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "8f3f75f39b210b73e85d05397260163cc2babcbba11fcbfea07cf02d9f5ed4ac",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 35.51499999999942,
+      "notes": [
+        "clean run not green: >       assert next_step_after_blocked_read(\"cat file.txt\") == \" To read a file, call the read_file tool with its path instead of the shell. read_file is not blocked.\"\nE       AssertionError: assert ' To read a f... not blocked.' == ' To read a f... not blocked.'\nE         \nE   "
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "outcome": "rejected",
+      "model": "deepseek.v3.2",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "e37a05f0cbd68709183935861a83a6a09399a963d4a0b9906365f9be94ad368b",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 16.359000000004016,
+      "notes": [
+        "clean run not green: E     File \"C:\\Users\\kumar\\ai-editor-selfcorpus\\tests\\test_pin_aios_agents_tool_handlers_next_step_after_blocked_read.py\", line 103\nE       \" instead of the shell. read_directory is not\nE       ^\nE   SyntaxError: unterminated string literal (detected at line 103)\nERROR tests/tes"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "outcome": "rejected",
+      "model": "deepseek.v3.2",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "41c2093c920ea40631925a1cd4ea5456226dfe70a15494d5e058a61636ec8b48",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 17.593999999997322,
+      "notes": [
+        "clean run not green: >           assert result == expected\nE           AssertionError: assert ' To read a f... not blocked.' == ' To read a f... not blocked.'\nE             \nE             Skipping 46 identical leading characters in diff, use -v to show\nE             - filepath='file.txt' instead of "
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "outcome": "rejected",
+      "model": "mistral.devstral-2-123b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "cc41d558a9e7dc61fe317527f1740b0c8b099ce162ee1096cf8bb51496d0a720",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 18.31300000000192,
+      "notes": [
+        "clean run not green: >       assert next_step_after_blocked_read(\"C:\\\\Windows\\\\System32\\\\cat file.txt\") == (\nE       AssertionError: assert '' == ' To read a f... not blocked.'\nE         \nE         -  To read a file, call the read_file tool with filepath='file.txt' instead of the shell. read_file is"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+      "outcome": "rejected",
+      "model": "mistral.devstral-2-123b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "e6bf4b42bfc803a14b1fd2c171256f5ed6e6e1d0e229285f3cb5e4d65477c641",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 20.312000000005355,
+      "notes": [
+        "clean run not green: >       assert next_step_after_blocked_read(\"C:\\\\Windows\\\\System32\\\\cmd.exe /c dir\") == (\nE       AssertionError: assert '' == ' To list a d... not blocked.'\nE         \nE         -  To list a directory, call the read_directory tool instead of the shell. read_directory is not blo"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_noop",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "c648ce46fae72affa19c0d27b294a74edbef1b30ca9826724168f69937495391",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 20.031000000002678,
+      "notes": [
+        "clean run not green: >       assert next_step_after_noop(target) == expected_result\nE       AssertionError: assert '' == 'expected_result'\nE         \nE         - expected_result\nFAILED tests/test_pin_aios_agents_tool_handlers_next_step_after_noop.py::test_next_step_after_noop"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_noop",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "1f7099ea99c8e4d39be3b0582ab4791f38d70fceedb8c94b90655c9eedc69cff",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 16.125,
+      "notes": [
+        "clean run not green: >       assert next_step_after_noop(target) == expected_result\nE       AssertionError: assert '' == 'expected_result'\nE         \nE         - expected_result\nFAILED tests/test_pin_aios_agents_tool_handlers_next_step_after_noop.py::test_next_step_after_noop"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_handlers.py::next_step_after_noop",
+      "outcome": "earned",
+      "model": "deepseek.v3.2",
+      "earned": true,
+      "reached_model": true,
+      "source_sha256": "15d017a97370334070a907014f11c04dc960640c5520b8af61073af0ce14329f",
+      "passes_clean": true,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 13.921999999998661,
+      "notes": []
+    },
+    {
+      "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+      "outcome": "model_error",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": false,
+      "source_sha256": "",
+      "passes_clean": false,
+      "fails_when_mutated": false,
+      "source_untouched": false,
+      "suite_still_green": false,
+      "attempt": 1,
+      "seconds": 300.01600000000326,
+      "notes": [
+        "Ollama request to http://127.0.0.1:11434 failed: timed out"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "8b6abde6d78c337de80d85a431df7999cfb93524d2cce71795b4cdcdb2a3538c",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 58.375,
+      "notes": [
+        "clean run not green: >       assert normalize_command(input_command) == expected_output\nE       AssertionError: assert 'echo password=secret' == 'echo password=****'\nE         \nE         - echo password=****\nE         + echo password=secret\nFAILED tests/test_pin_aios_agents_tool_loop_helpers_normali"
+      ]
+    },
+    {
+      "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+      "outcome": "earned",
+      "model": "deepseek.v3.2",
+      "earned": true,
+      "reached_model": true,
+      "source_sha256": "47644a93336d202e26bd12a1a8d694946432bfffc4f4437683355c6f655aa5d2",
+      "passes_clean": true,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 14.202999999994063,
+      "notes": []
+    },
+    {
+      "target": "aios/application/agent_bridge.py::looks_secret_bearing",
+      "outcome": "earned",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": true,
+      "reached_model": true,
+      "source_sha256": "98f3889e9c80ec9522dc13ea39692d030315da16fe278fc2ea959861f4438f90",
+      "passes_clean": true,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 20.639999999999418,
+      "notes": []
+    },
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "990767c9388b48022f8d26ddc1ad2170d1a43018dd41194a76320c8b9a75b642",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 36.29699999999866,
+      "notes": [
+        "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.job'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+      ]
+    },
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "outcome": "rejected",
+      "model": "ollama.qwen2.5-coder:7b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "0f5edf6b302146e472121a2b63fa6307abda9e09b31acd9f3dfc66cff6d8f3d3",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 32.187999999994645,
+      "notes": [
+        "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.job'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+      ]
+    },
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "outcome": "rejected",
+      "model": "deepseek.v3.2",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "47521f2cdb32b84ae1e02bd7d37ba9a746b59cad0ba6ed932dc6e0f136d3df39",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 25.92199999999866,
+      "notes": [
+        "clean run not green: >           result = execute_registered_repair_operation(job)\n>           raise IsolationUnavailable(f\"unsupported repair operation: {op_id!r}\")\nE           aios.application.executor.service.IsolationUnavailable: unsupported repair operation: '[SENSITIVE: 7010da36b91e]'\nFAILED t"
+      ]
+    },
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "outcome": "rejected",
+      "model": "deepseek.v3.2",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "e1b41d84effd2e903fb9c199984665eb565780f596cc95539fe9dc22a19fb4eb",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 14.93800000000192,
+      "notes": [
+        "clean run not green: E     File \"C:\\Users\\kumar\\ai-editor-selfcorpus\\tests\\test_pin_aios_application_executor_service_execute_registered_repair_operation.py\", line 125\nE       assert\nE             ^\nE   SyntaxError: invalid syntax\nERROR tests/test_pin_aios_application_executor_service_execute_regist"
+      ]
+    },
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "outcome": "rejected",
+      "model": "mistral.devstral-2-123b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "2e0ab625b0409ef3093e3dac16466f22c239adee53fc14eeebe1c38fbbe21d9d",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 1,
+      "seconds": 15.0,
+      "notes": [
+        "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.model'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+      ]
+    },
+    {
+      "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+      "outcome": "rejected",
+      "model": "mistral.devstral-2-123b",
+      "earned": false,
+      "reached_model": true,
+      "source_sha256": "965efaca14ce5d29a1ec10de6a24599e872a5c76eb8c0b03c04e72aa0d6511c5",
+      "passes_clean": false,
+      "fails_when_mutated": true,
+      "source_untouched": true,
+      "suite_still_green": true,
+      "attempt": 2,
+      "seconds": 13.375,
+      "notes": [
+        "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.model'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+      ]
+    }
+  ]
+}
