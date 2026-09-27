@@ -178,8 +178,14 @@ class TestShadow:
         legacy, _, migrate, slot, _ = world
         migrate()
         dual = slot("shadow")
-        assert dual.relevant_verified(VERIFIED_GOAL, 3) == legacy.relevant_verified(
-            VERIFIED_GOAL, 3
+
+        # Compare WHAT is recalled, not the scores: freshness decays with the
+        # clock, so two calls a moment apart can round differently.
+        def recalled(rows):
+            return [(r["skill_id"], r["goal_pattern"], r["steps"]) for r in rows]
+
+        assert recalled(dual.relevant_verified(VERIFIED_GOAL, 3)) == recalled(
+            legacy.relevant_verified(VERIFIED_GOAL, 3)
         )
         assert dual.relevant_verified(VERIFIED_GOAL, 3), (
             "legacy still recalls its verified arc"
