@@ -392,6 +392,35 @@ credit only their own live row). This is accepted for the pilot window.
 2. sets `AIOS_SKILL_STORE_MODE=shadow`, then `pilot`;
 3. activates the review-ready skills they choose.
 
+## The pilot, as run (dated evidence, 2026-09-27)
+
+- **Migration applied** by operator decision ("Migrate + shadow"). The dry run
+  first matched 2026-09-26 exactly. `--apply` then created 80 records (74 skills:
+  73 candidates and 7 deprecated) and **activated none**. Its self-check passed,
+  and an independent count agreed.
+  - The backup is
+    `data/backups/aios_operational_state.pre-skill-migration.20260927T070718Z.db`.
+  - The legacy `aios_memory.db` is byte-identical.
+  - A re-run creates nothing.
+- **Shadow mode**, then **pilot mode** (operator: "all three"), set in the
+  git-ignored `.env`. A fresh process verified each: the slot is the dual
+  adapter, the 80 migrated skills were adopted at their legacy ids 1–80, and in
+  pilot mode recall answers only from ACTIVE skills. None are active yet, so
+  recall is empty until the operator activates some.
+- **Activation stays the operator's.** `tools/activate_skills.py` lists the
+  review-ready skills with a risk label and drives the real capability-backed
+  route through `ProbeSession`. The credential comes from the operator's
+  environment or a hidden prompt, is never printed or stored, and the tool never
+  enrolls. `tests/test_phase2_skill_activation_route.py` pins that route end to
+  end through the real action guard, which no earlier test did.
+- **Honest read of the eight review-ready skills:** all come from test harnesses
+  (the learning-loop prover and the self-corpus), not from organic work.
+  Activating them mainly exercises the pilot's machinery.
+  - Recommended: 79 (21 ok, 0 failed) and 41 (4/0, with a reuse history of
+    15/5). Both are read-only verify arcs.
+  - Advised against: 66, 68 and 70, which write files, and whose compiled
+    reflexes Phase 0b suspended as harness-compiled.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the
