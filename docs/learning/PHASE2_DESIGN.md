@@ -262,6 +262,90 @@ and its tests:
 cerebellum's identity, then the readers. Each touches organs 53, 54 or 18
 once.
 
+## Slice 2.4: plan of record (operator, 2026-09-27)
+
+A four-agent read-only workflow mapped every consumer, and every claim quoted
+code. Its synthesis was checked against the code before use, and two proposals
+were overruled:
+
+- **Kept the cerebellum on the legacy store permanently.** That would have let
+  self-promoted legacy skills keep producing reflexes, against "reflexes read
+  only operator-activated skills".
+- **Let ranking counters keep writing under the emergency stop.** They freeze
+  like every learning write.
+
+**The finding that shapes the plan:** every skill operation the authority offers
+(`recall_skills`, `record_skill_attempt`, `record_skill_reuse`, `skills_list`,
+`skills_trail_map`) goes through one generic slot, `_adapter_operation("skills",
+...)`. An adapter with the same interface can therefore be swapped in at
+`bootstrap.py`, which is unowned, with no edit to `authority.py` (organ 18) or
+`generate_pipeline.py` (organ 32). The slot's `store` must stay the production
+`SkillMemory`, because `owns_store` routes callers through the authority only
+then.
+
+**Identity:** the turn path, the planners, the cerebellum's foreign key and the
+frontend carry a skill as an integer. A sidecar table, `skill_trails`, owned by
+the adapter, gives each institutional skill an integer trail id. Migrated skills
+keep their legacy id, and during the pilot a dual-written arc takes the id the
+legacy store gave it, so the two stores' ids agree.
+
+**Sequence** (the operator chose "all three": fix organ 55 first, then a
+time-boxed pilot, then the hard switch):
+
+1. **Organ 55's M2 reader** stops concluding from a store it never read (#382).
+2. **2.4a (this PR):** `InstitutionalSkillAdapter` and `SkillTrailIndex`, built
+   and **not wired**.
+3. **2.4b:** a dual-write adapter in the `skills` slot. Reads come from a setting
+   that defaults to legacy; writes go to both stores. The migration is applied at
+   the start of the pilot (the operator is asked first), and
+   `SkillTrailIndex.adopt_migrated` aligns the ids.
+4. **The pilot window:** the operator activates review-ready skills and compares.
+5. **The instruments** become institutional-aware, each with a recorded
+   deviation: payoff, reel, Learning Ledger runner, scoreboard, doctor (organs
+   53, 54), prover, and organ 55.
+6. **2.4c, the hard switch:** the slot becomes the institutional adapter, and
+   the setting and the legacy writes are removed. The cerebellum compiles from
+   active skills only, and the 13 existing playbooks are retired with a reason.
+   The `compiled_playbooks` foreign key to `procedural_skills` is enforced, so
+   this needs a schema change.
+
+**Defaults, unless the operator says otherwise:** an activated skill that keeps
+failing in live reuse is demoted automatically by organ 43's policy (demotion only
+removes authority), and the migration is applied at the start of the pilot.
+
+## Slice 2.4a: what was done, and what was deliberately not done
+
+**Done:** `aios/application/memory/institutional_skills.py`.
+- `InstitutionalSkillAdapter` speaks the `skills` slot's interface in the legacy
+  row shapes: `record_attempt`, `record_reuse`, `relevant_verified`, `list`,
+  `trail_map`, `recall`.
+  - Nothing promotes itself. A candidate that meets the old promotion rule is
+    marked `review_ready`.
+  - Recall and reuse credit read `active` skills only.
+  - Failures go through organ 43's `apply_reuse_outcome`.
+  - A candidate's recipe may still be refined, and a reviewed one never is.
+- `SkillTrailIndex` provides integer trail ids (it honours a legacy id if that id
+  is free, never reuses one, and `AUTOINCREMENT` keeps fresh ids above adopted
+  ones) plus the reuse pheromone. It is R11-tracked, and it is listed as the only
+  writer of `skill_trails`.
+- The stop freezes every write, the pheromone included. It **never blinds a
+  read**: a skill the adapter never saw has no trail yet, and under the stop a
+  read leaves it out rather than writing one (the #375 lesson).
+
+**Not done, deliberately:**
+- It is not wired: `bootstrap.py` is unchanged, so the live path is untouched.
+- The legacy weak-success count and the failure streak are not carried. The
+  weak success still does not count. The streak fed only the legacy compile
+  guard; the cerebellum's rewire in 2.4c brings its own.
+- `quarantined` now means `degraded`/`suspended`, the library's automatic
+  disablement, instead of the legacy reuse-failure demotion.
+
+**Known and accepted:** importing `skill_lifecycle` loads the
+`aios.application.learning` package, and with it `service.py`. Once wired, the
+turn path will load (not call) the mission service. The static reachability pin
+scans turn-path files, not this module. It is re-pinned to "one learning
+authority" in slice 2.5, as planned.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the

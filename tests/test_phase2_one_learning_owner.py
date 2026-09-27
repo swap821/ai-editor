@@ -128,6 +128,9 @@ _OWNERS: dict[str, set[str]] = {
     "institutional_skills": {"aios/domain/learning/repository.py"},
     "expert_trajectories": {"aios/domain/learning/trajectory_repository.py"},
     "reuse_outcomes": {"aios/domain/learning/reuse_outcome_repository.py"},
+    # Phase 2 slice 2.4a: integer trail ids + ranking bookkeeping for the
+    # institutional skill slot.
+    "skill_trails": {"aios/application/memory/institutional_skills.py"},
 }
 
 _WRITE = re.compile(
