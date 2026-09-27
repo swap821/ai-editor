@@ -229,3 +229,93 @@ operator has moved away from.
    activated** before the run. `library_active_at_start: 0` means the skill
    channel was structurally empty. That result is a fact about activation, not
    a finding about the value of skills.
+
+### D4 — 2026-09-27 — a powered cloud cohort, judged alongside the 7B
+
+**Applies to:** the calibration run, the cloud cohort's baseline run, and every
+Phase 8 run, including how the 7B's Phase 8 H1 is judged. It was recorded before
+any run under it. The research behind it is `PAYOFF_POWER_RESEARCH.md`.
+
+**Why.** At N = 30 with one sample per arm, the 7B design has a 3–9% chance of
+detecting a real +10-point effect. Its null would describe the design, not the
+memory.
+
+**Operator decision (2026-09-27): "Both judged, corrected".** The alternatives
+recorded against it were:
+- the cloud cohort as the primary number, with the 7B as secondary;
+- keeping the 7B as the only judged number.
+
+**The cohort.**
+- **Model:** Bedrock `qwen.qwen3-coder-30b-a3b-v1:0`, reached through the
+  harness's product dispatch.
+  - The temperature is the product default (`AIOS_LLM_TEMPERATURE`, 0.1).
+  - The timeout is 420 s.
+- **Skill store mode:** the launch environment sets
+  `AIOS_SKILL_STORE_MODE=pilot` explicitly, because a `.env` is read from
+  wherever the run is launched. `library_active_at_start` is recorded.
+- **Arms:** OFF, ON and PLACEBO (`--placebo`). The arm order rotates by target
+  index.
+  - PLACEBO gets as many lessons and skills as ON.
+  - They are recalled by the production path for *other* targets' tasks, in an
+    order fixed by the chosen list, and none is an item ON saw.
+- **Targets:** `--novel-only`, taken in `collect_targets`' fixed ranking, and
+  `--exclude-targets` removes the calibration list. The baseline's chosen list
+  is frozen and re-run at Phase 8 with `--target-labels`.
+- **Credentials:** `AWS_BEARER_TOKEN_BEDROCK` and `AIOS_BEDROCK_REGION` exist
+  only in the operator's terminal, which launches the run. They are never
+  written to disk, and the agent never sees them.
+
+**Calibration (never judged).**
+- **Design:** the first 20 never-practised targets in the same ranking, with
+  `--samples 3`, all three arms and the same model.
+- **Freezing:** its target list is committed as
+  `payoff_targets_calibration.txt` before the baseline runs.
+- **Use of outcomes:** they are published and never enter a judged test.
+
+**The sizing rule, fixed now and applied mechanically:**
+- **K = 1** if fewer than 5% of the calibration's (target, arm) cells show any
+  disagreement among their three samples, since at temperature 0.1 repeats may
+  be near-identical. **Otherwise K = 3.**
+- **N = 150** NOVEL targets, or every never-practised target left after the
+  exclusion if fewer remain. This is a feasibility bound: 150 × 3 arms × 3
+  samples takes about 15 hours on this machine.
+- **Before the baseline, the design's minimum detectable effect is recorded.**
+  It comes from the registered simulation, with target heterogeneity estimated
+  from the calibration OFF arm. It is reported beside every result and **never**
+  used to change N afterwards.
+
+**Tests.**
+- **With K = 1:** exact McNemar, as before.
+- **With K > 1:** the exact sign-flip test on per-target differences in earned
+  samples (`sign_flip_exact`). The target stays the unit, so K samples of one
+  target are never K pairs.
+- **Comparability:**
+  - A pair is comparable only if every sample of ON and OFF reached the model.
+  - The content comparison also needs every PLACEBO sample reached and the
+    PLACEBO matched in lesson and skill counts. An unmatched or unreached
+    PLACEBO removes the pair from H1c only.
+
+**The judged family, at family-wise α = 0.05 by Holm (`holm_adjust`):**
+
+| Test | Cohort | Question |
+|---|---|---|
+| H1-cloud | Phase 8 cloud run | NOVEL: ON vs OFF |
+| H1c-cloud | Phase 8 cloud run | NOVEL: ON vs PLACEBO (content, not prompt length) |
+| H1-7B | Phase 8 7B run (design unchanged) | NOVEL: ON vs OFF |
+
+- **How a member is judged:**
+  - It is *met* only if its direction is positive **and** its Holm-adjusted
+    p is below 0.05.
+  - No raw p from any single run is reported as a verdict. The harness prints
+    such a p as "NOT a verdict on its own".
+- **Which runs are judged:**
+  - The cloud baseline run is reported as the cloud cohort's baseline, as
+    Phase 0 is for the 7B, and it is not judged.
+  - H3 is evaluated for each cohort on its own frozen targets.
+  - H2 (harm) stays per cohort and uncorrected. Correcting would make harm
+    *harder* to see.
+
+**Transport.** A provider refusal made before any reply exists (throttling,
+service unavailable, model not ready) is retried up to three times, at 15, 45
+and 90 s, and every retry is recorded. A timeout or any other error is not
+retried. An arm still unreached is not comparable, as before.

@@ -66,6 +66,10 @@ the live tree fingerprinted before and after.
 
     python tools/learning_payoff.py --targets 6
     python tools/learning_payoff.py --targets 10 --models ollama.qwen2.5-coder:7b
+
+    # the powered cloud design (research: docs/learning/PAYOFF_POWER_RESEARCH.md)
+    python tools/learning_payoff.py --models qwen.qwen3-coder-30b-a3b-v1:0 \\
+        --novel-only --samples 3 --placebo --exclude-targets calibration.txt
 """
 
 from __future__ import annotations
@@ -147,6 +151,9 @@ class ArmResult:
     prompt_chars: int = 0
     seconds: float = 0.0
     notes: list[str] = field(default_factory=list)
+    #: Transient provider refusals (throttling) retried before any reply
+    #: existed. Recorded, because a retry that is not visible is a re-roll.
+    transport_retries: int = 0
 
 
 @dataclass
@@ -163,6 +170,20 @@ class Pair:
     #: NOVEL pairs: "helps on repeats" and "helps on new work" are different
     #: claims and must never be summed into one number.
     seen: bool = False
+    #: The PLACEBO arm (`--placebo`): as many recalled items as ON saw, drawn by
+    #: the production recall path for OTHER targets' tasks, none of them an item
+    #: ON saw. ON vs PLACEBO separates what memory SAYS from "a longer prompt".
+    placebo: Optional[dict] = None
+    placebo_comparable: bool = False
+    placebo_reason: str = ""
+    #: Every sample of every arm when `--samples` > 1; `on`/`off`/`placebo`
+    #: then hold the first. Empty for a one-sample run, whose shape is unchanged.
+    samples: dict = field(default_factory=dict)
+
+    def earned_samples(self, arm: str) -> int:
+        """How many of *arm*'s samples earned (one sample: 0 or 1)."""
+        runs = self.samples.get(arm) or [getattr(self, arm)]
+        return sum(1 for r in runs if r["earned"])
 
     @property
     def payoff(self) -> Optional[int]:
@@ -201,6 +222,51 @@ def mcnemar_exact(b: int, c: int) -> float:
     k = min(b, c)
     tail = sum(math.comb(n, i) for i in range(k + 1)) / 2**n
     return min(1.0, 2 * tail)
+
+
+def sign_flip_exact(diffs: list[int]) -> float:
+    """Two-sided exact sign-flip permutation p-value for paired differences.
+
+    *diffs* are per-target differences in EARNED SAMPLES (ON minus the other
+    arm), integers in [-K, K]. Under the null that the arm label does not
+    matter, each difference is equally likely to have either sign, so the
+    exact distribution of their sum is a convolution, computed here in full
+    rather than sampled -- a Monte-Carlo p-value would be a second source of
+    noise in a judged number. Zeros carry no information, exactly as ties do
+    in McNemar; with every difference in {-1, 0, 1} this IS the exact McNemar
+    test, which a test pins.
+    """
+    magnitudes = [abs(int(d)) for d in diffs if int(d) != 0]
+    if not magnitudes:
+        return 1.0
+    counts = {0: 1}
+    for m in magnitudes:
+        nxt: dict[int, int] = {}
+        for total, ways in counts.items():
+            for signed in (total + m, total - m):
+                nxt[signed] = nxt.get(signed, 0) + ways
+        counts = nxt
+    observed = abs(sum(int(d) for d in diffs))
+    extreme = sum(ways for total, ways in counts.items() if abs(total) >= observed)
+    return min(1.0, extreme / 2 ** len(magnitudes))
+
+
+def holm_adjust(pvalues: dict[str, float]) -> dict[str, float]:
+    """Holm step-down adjusted p-values for a registered family of tests.
+
+    The operator's decision (2026-09-27) judges more than one payoff number.
+    Without a family-wise correction, testing several and quoting whichever came
+    out best is a free extra shot. A test is significant at family-wise alpha
+    iff its adjusted p is below alpha.
+    """
+    ordered = sorted(pvalues.items(), key=lambda kv: kv[1])
+    m = len(ordered)
+    adjusted: dict[str, float] = {}
+    running = 0.0
+    for rank, (name, p) in enumerate(ordered):
+        running = max(running, min(1.0, (m - rank) * p))
+        adjusted[name] = running
+    return adjusted
 
 
 def about_this_target(item: dict, target) -> bool:
@@ -337,17 +403,22 @@ def task_prompt(target) -> str:
     )
 
 
-def select_targets(candidates: list, n: int, is_practised) -> tuple[list, int, int]:
+def select_targets(
+    candidates: list, n: int, is_practised, *, novel_only: bool = False
+) -> tuple[list, int, int]:
     """Up to *n* targets, alternating unpractised and practised.
 
     Alternating keeps BOTH questions answerable in one run: SEEN needs targets
     the animal has worked on, NOVEL needs ones it has not. Order within each
     side is `collect_targets`' own reproducible ranking, so the choice depends
     on history and never on outcomes.
+
+    *novel_only* takes unpractised targets alone: the judged number is NOVEL,
+    and a cohort sized for power spends none of its budget on SEEN context.
     """
     flags = [(t, bool(is_practised(t))) for t in candidates]
     fresh = [t for t, seen in flags if not seen]
-    known = [t for t, seen in flags if seen]
+    known = [] if novel_only else [t for t, seen in flags if seen]
     chosen: list = []
     n_fresh = n_known = 0
     while len(chosen) < n and (fresh or known):
@@ -494,6 +565,64 @@ def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str
     return (chr(10) * 2).join(blocks), lessons, verified
 
 
+def _identity(item: dict) -> str:
+    for key in ("mistake_id", "skill_id", "id"):
+        if item.get(key) is not None:
+            return f"{key}:{item[key]}"
+    return "text:" + str(item.get("lesson_text") or item.get("goal_pattern") or item)
+
+
+#: How many other targets' recall a placebo may draw from before it is declared
+#: unmatched. Bounded, so a store with little variety cannot stall a run.
+PLACEBO_DONORS = 12
+
+
+def placebo_context(
+    reflector,
+    skills,
+    *,
+    own_lessons: list[dict],
+    own_skills: list[dict],
+    donor_queries: list[str],
+    session_id: str,
+):
+    """Memory of the same kind and amount as ON's, selected for OTHER work.
+
+    Each donor query is another target's task, recalled through the SAME
+    production path (`recalled_context`) and formatted by the same blocks, so
+    the placebo differs from ON only in WHICH memories were selected. Items ON
+    saw are excluded. Matched means it found exactly as many lessons and skills
+    as ON saw. An unmatched placebo makes the ON-vs-PLACEBO pair not comparable,
+    never a loss.
+    """
+    own = {_identity(i) for i in own_lessons + own_skills}
+    taken: set[str] = set()
+    lessons: list[dict] = []
+    picked_skills: list[dict] = []
+    for query in donor_queries[:PLACEBO_DONORS]:
+        if len(lessons) >= len(own_lessons) and len(picked_skills) >= len(own_skills):
+            break
+        _text, donor_lessons, donor_skills = recalled_context(
+            reflector, skills, query, session_id
+        )
+        for pool, wanted, bucket in (
+            (donor_lessons, len(own_lessons), lessons),
+            (donor_skills, len(own_skills), picked_skills),
+        ):
+            for item in pool or []:
+                key = _identity(item)
+                if len(bucket) < wanted and key not in own and key not in taken:
+                    bucket.append(item)
+                    taken.add(key)
+    matched = len(lessons) == len(own_lessons) and len(picked_skills) == len(own_skills)
+    blocks = [
+        block
+        for block in (lessons_prompt_block(lessons), skills_prompt_block(picked_skills))
+        if block
+    ]
+    return "\n\n".join(blocks), lessons, picked_skills, matched
+
+
 def restore_pristine(corpus) -> None:
     """Return the corpus to its committed state, and prove it did.
 
@@ -545,6 +674,24 @@ def restore_pristine(corpus) -> None:
         )
 
 
+#: A provider saying "not now" before any reply exists. Only these are
+#: retried: a timeout or a validation error is the registered "never reached
+#: the model", and retrying it would change the exclusion rule.
+TRANSIENT_PROVIDER_ERRORS = (
+    "ThrottlingException",
+    "ServiceUnavailableException",
+    "ModelNotReadyException",
+    "TooManyRequests",
+    "Too many requests",
+)
+TRANSPORT_RETRY_WAITS = (15, 45, 90)
+
+
+def _transient(exc: Exception) -> bool:
+    text = str(exc)
+    return any(marker in text for marker in TRANSIENT_PROVIDER_ERRORS)
+
+
 def run_arm(
     corpus,
     client,
@@ -565,13 +712,21 @@ def run_arm(
         prompt = f"{extra_context}\n\n{prompt}"
     result.prompt_chars = len(prompt)
 
-    try:
-        reply = complete_via(client, prompt, system=SYSTEM)
-    except LLMError as exc:
-        result.outcome = "model_error"
-        result.notes.append(str(exc)[:200])
-        result.seconds = time.monotonic() - started
-        return result
+    reply = None
+    for wait in (*TRANSPORT_RETRY_WAITS, None):
+        try:
+            reply = complete_via(client, prompt, system=SYSTEM)
+            break
+        except LLMError as exc:
+            if wait is not None and _transient(exc):
+                # No reply exists yet, so a retry cannot be chosen by outcome.
+                result.transport_retries += 1
+                time.sleep(wait)
+                continue
+            result.outcome = "model_error"
+            result.notes.append(str(exc)[:200])
+            result.seconds = time.monotonic() - started
+            return result
 
     result.reached_model = True
     code = _extract_code(reply)
@@ -623,6 +778,10 @@ def run_benchmark(
     model_timeout: int,
     ref: str = "HEAD",
     target_labels: Optional[list[str]] = None,
+    samples: int = 1,
+    placebo: bool = False,
+    novel_only: bool = False,
+    exclude_labels: Optional[list[str]] = None,
 ) -> tuple[list[Pair], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
@@ -671,7 +830,17 @@ def run_benchmark(
 
         candidates = collect_targets(corpus.root)
         history = practice_history(DB)
+        # Calibration targets are EXCLUDED from a judged run, so the numbers
+        # used to size it (base rate, repeat variability) were never measured
+        # on the work it is judged on.
+        excluded = set(exclude_labels or ())
         if target_labels is not None:
+            overlap = [label for label in target_labels if label in excluded]
+            if overlap:
+                raise CorpusError(
+                    f"{len(overlap)} frozen target(s) are also excluded (calibration) "
+                    f"targets: {overlap[:3]}. The two sets must be disjoint."
+                )
             # A FROZEN list. A paired before/after comparison means nothing if
             # the second run picks different targets -- and the selection rule
             # reads practice history, which the intervening learning changes.
@@ -690,16 +859,26 @@ def run_benchmark(
             n_known = len(chosen) - n_fresh
         else:
             chosen, n_fresh, n_known = select_targets(
-                candidates, targets, lambda t: practised(history, t)
+                [t for t in candidates if t.label not in excluded],
+                targets,
+                lambda t: practised(history, t),
+                novel_only=novel_only,
             )
         print(
             f"targets : {len(chosen)} chosen -- {n_fresh} never practised, {n_known} practised\n"
         )
 
+        queries = [task_prompt(t) for t in chosen]
         for index, target in enumerate(chosen):
             # Alternate which arm goes first. A fixed order would let "the
             # second attempt runs against a warmer cache" look like payoff.
-            first = "on" if index % 2 == 0 else "off"
+            # With a placebo the three arms rotate.
+            if placebo:
+                arms = ("on", "off", "placebo")
+                order = arms[index % 3 :] + arms[: index % 3]
+            else:
+                order = ("on", "off") if index % 2 == 0 else ("off", "on")
+            first = order[0]
             pair = Pair(target=target.label, first=first)
             print(f"  {target.label}   (first: {first.upper()})")
 
@@ -708,7 +887,7 @@ def run_benchmark(
             # first version queried an invented "pin the behaviour of X" label
             # that shares its boilerplate with every pin arc's goal_pattern --
             # manufacturing lexical matches no real turn would get.
-            query = task_prompt(target)
+            query = queries[index]
             context, lessons, verified = recalled_context(
                 reflector, skills, query, f"payoff-{run_id}-{index}"
             )
@@ -735,24 +914,60 @@ def run_benchmark(
                 pairs.append(pair)
                 continue
 
-            order = ("on", "off") if first == "on" else ("off", "on")
-            for arm in order:
-                result = run_arm(
-                    corpus,
-                    client,
-                    target,
-                    arm=arm,
-                    extra_context=context if arm == "on" else "",
-                    lessons=n_lessons if arm == "on" else 0,
-                    skills_count=n_skills if arm == "on" else 0,
+            contexts = {"on": (context, n_lessons, n_skills), "off": ("", 0, 0)}
+            if placebo:
+                # Donors are other targets' tasks, in an order fixed by the
+                # chosen list alone -- never by any outcome.
+                count = len(chosen)
+                donors = [
+                    queries[(index + count // 2 + step) % count]
+                    for step in range(count)
+                    if (index + count // 2 + step) % count != index
+                ]
+                p_text, p_lessons, p_skills, matched = placebo_context(
+                    reflector,
+                    skills,
+                    own_lessons=lessons,
+                    own_skills=verified,
+                    donor_queries=donors,
+                    session_id=f"payoff-{run_id}-{index}-placebo",
                 )
-                setattr(pair, arm, asdict(result))
-                print(
-                    f"    {arm.upper():<4} {result.outcome:<14} "
-                    f"earned={result.earned} ({result.seconds:.0f}s)"
-                )
+                if matched:
+                    contexts["placebo"] = (p_text, len(p_lessons), len(p_skills))
+                else:
+                    pair.placebo_reason = (
+                        "no placebo of the same size could be drawn from other "
+                        "work without reusing what ON saw"
+                    )
+                    order = tuple(arm for arm in order if arm != "placebo")
 
-            if not (pair.on["reached_model"] and pair.off["reached_model"]):
+            runs: dict[str, list[dict]] = {arm: [] for arm in order}
+            for _sample in range(samples):
+                for arm in order:
+                    text, n_l, n_s = contexts[arm]
+                    result = run_arm(
+                        corpus,
+                        client,
+                        target,
+                        arm=arm,
+                        extra_context=text,
+                        lessons=n_l,
+                        skills_count=n_s,
+                    )
+                    runs[arm].append(asdict(result))
+                    print(
+                        f"    {arm.upper():<7} {result.outcome:<14} "
+                        f"earned={result.earned} ({result.seconds:.0f}s)"
+                    )
+            for arm, results in runs.items():
+                setattr(pair, arm, results[0])
+            if samples > 1:
+                pair.samples = runs
+
+            def reached(arm: str) -> bool:
+                return all(r["reached_model"] for r in runs.get(arm, []))
+
+            if not (reached("on") and reached("off")):
                 pair.reason = (
                     "an arm never reached the model; a provider outage is not a "
                     "model failing and must not be scored as one"
@@ -764,6 +979,17 @@ def run_benchmark(
                     f"ON saw {n_lessons} lesson(s) and {n_skills} verified "
                     f"skill(s) the OFF arm did not"
                 )
+            if "placebo" in runs:
+                if not reached("placebo"):
+                    pair.placebo_reason = "the placebo arm never reached the model"
+                elif not pair.comparable:
+                    pair.placebo_reason = "the ON/OFF pair is not comparable"
+                else:
+                    pair.placebo_comparable = True
+                    pair.placebo_reason = (
+                        f"PLACEBO saw {contexts['placebo'][1]} lesson(s) and "
+                        f"{contexts['placebo'][2]} skill(s) recalled for other work"
+                    )
             pairs.append(pair)
 
     # Something wrote to the animal's memory while it was being measured -- a
@@ -787,24 +1013,34 @@ def summarise(pairs: list[Pair]) -> dict:
     """The numbers, computed once, so the printed report and the recorded trail
     can never disagree about what was measured."""
 
-    def arm_stats(group: list[Pair]) -> dict:
-        on = sum(1 for p in group if p.on["earned"])
-        off = sum(1 for p in group if p.off["earned"])
-        b = sum(1 for p in group if p.on["earned"] and not p.off["earned"])
-        c = sum(1 for p in group if p.off["earned"] and not p.on["earned"])
+    def arm_stats(group: list[Pair], arm: str = "on", other: str = "off") -> dict:
+        # Per TARGET, in earned samples: with one sample these are the familiar
+        # McNemar counts, and with K they are integers in [-K, K]. The target is
+        # the unit either way, so K samples of one target are never counted as
+        # K independent pairs.
+        mine = [p.earned_samples(arm) for p in group]
+        theirs = [p.earned_samples(other) for p in group]
+        diffs = [a - b for a, b in zip(mine, theirs)]
+        k = max((len(p.samples.get(arm) or [None]) for p in group), default=1)
         n = len(group)
+        wins = sum(1 for d in diffs if d > 0)
+        losses = sum(1 for d in diffs if d < 0)
         return {
+            "arms": [arm, other],
             "pairs": n,
-            "on_earned": on,
-            "off_earned": off,
-            "payoff": (on - off) / n if n else None,
-            "on_only": b,
-            "off_only": c,
-            "p_value": mcnemar_exact(b, c),
+            "samples": k,
+            "on_earned": sum(mine),
+            "off_earned": sum(theirs),
+            "payoff": (sum(mine) - sum(theirs)) / (n * k) if n else None,
+            "on_only": wins,
+            "off_only": losses,
+            "p_value": mcnemar_exact(wins, losses)
+            if k == 1
+            else sign_flip_exact(diffs),
         }
 
     comparable = [p for p in pairs if p.comparable]
-    return {
+    summary = {
         "attempted": len(pairs),
         "comparable": len(comparable),
         "not_comparable": [
@@ -813,14 +1049,59 @@ def summarise(pairs: list[Pair]) -> dict:
         "all": arm_stats(comparable),
         "novel": arm_stats([p for p in comparable if not p.seen]),
         "seen": arm_stats([p for p in comparable if p.seen]),
+        "transport_retries": sum(
+            int(result.get("transport_retries", 0))
+            for p in pairs
+            for results in (
+                p.samples.values()
+                if p.samples
+                else [[r] for r in (p.on, p.off, p.placebo) if r]
+            )
+            for result in results
+        ),
     }
+    if any(p.placebo is not None or p.placebo_reason for p in pairs):
+        # H1c: does what memory SAYS help, beyond a placebo of the same size?
+        summary["content_novel"] = arm_stats(
+            [p for p in comparable if p.placebo_comparable and not p.seen],
+            "on",
+            "placebo",
+        )
+        summary["placebo_not_comparable"] = [
+            {"target": p.target, "reason": p.placebo_reason}
+            for p in pairs
+            if p.comparable and not p.placebo_comparable
+        ]
+    return summary
 
 
 #: Below this a difference is reported as a direction, never as a finding.
 SIGNIFICANCE = 0.05
 
 
-def _verdict(stats: dict) -> str:
+def _stat_lines(stats: dict) -> list[str]:
+    first, second = (a.upper() for a in stats.get("arms", ["on", "off"]))
+    k = stats.get("samples", 1)
+    out = [
+        f"    {first} earned {stats['on_earned']}/{stats['pairs'] * k}   "
+        f"{second} earned {stats['off_earned']}/{stats['pairs'] * k}   "
+        f"payoff {stats['payoff']:+.0%}"
+        + (f"   ({k} samples per arm per target)" if k > 1 else "")
+    ]
+    if k == 1:
+        out.append(
+            f"    discordant: {first}-only {stats['on_only']}, "
+            f"{second}-only {stats['off_only']}"
+        )
+    else:
+        out.append(
+            f"    targets where {first} earned more: {stats['on_only']}, "
+            f"fewer: {stats['off_only']} (exact sign-flip test)"
+        )
+    return out
+
+
+def _verdict(stats: dict, *, family: bool = False, subject: str = "MEMORY") -> str:
     if not stats["pairs"]:
         return "no pairs"
     discordant = stats["on_only"] + stats["off_only"]
@@ -829,15 +1110,22 @@ def _verdict(stats: dict) -> str:
             "NO MEASURABLE DIFFERENCE -- every pair came out the same both ways. "
             "That is a result, not a failure to measure."
         )
+    if family:
+        direction = "positive" if stats["payoff"] > 0 else "negative or zero"
+        return (
+            f"raw p={stats['p_value']:.3f}, direction {direction}. NOT a verdict on "
+            "its own: significance is Holm over the registered family of judged "
+            "tests, applied in the result document once every member exists."
+        )
     if stats["p_value"] >= SIGNIFICANCE:
         return (
             f"NOT DISTINGUISHABLE FROM NOISE (p={stats['p_value']:.2f}, "
             f"{discordant} discordant pair(s)). A direction, not a finding."
         )
     if stats["payoff"] > 0:
-        return f"MEMORY HELPED (p={stats['p_value']:.3f})"
+        return f"{subject} HELPED (p={stats['p_value']:.3f})"
     return (
-        f"MEMORY HURT (p={stats['p_value']:.3f}). The most useful number here; "
+        f"{subject} HURT (p={stats['p_value']:.3f}). The most useful number here; "
         "it must not be explained away."
     )
 
@@ -864,6 +1152,10 @@ def render(pairs: list[Pair]) -> str:
     # be quoted -- so NOVEL, the only claim that memory helps on work the animal
     # has not already done, carries the verdict. SEEN and ALL are printed as
     # context and deliberately carry no significance language at all.
+    # With more than one judged test (the placebo design), no raw p decides
+    # anything on its own: significance is Holm over the registered family,
+    # which includes tests from other runs.
+    family = "content_novel" in summary
     for key, title, judged in (
         (
             "novel",
@@ -885,16 +1177,24 @@ def render(pairs: list[Pair]) -> str:
             )
             out.append("")
             continue
-        out.append(
-            f"    ON  earned {stats['on_earned']}/{stats['pairs']}   "
-            f"OFF earned {stats['off_earned']}/{stats['pairs']}   "
-            f"payoff {stats['payoff']:+.0%}"
-        )
-        out.append(
-            f"    discordant: ON-only {stats['on_only']}, OFF-only {stats['off_only']}"
-        )
+        out.extend(_stat_lines(stats))
         if judged:
-            out.append(f"    {_verdict(stats)}")
+            out.append(f"    {_verdict(stats, family=family)}")
+        out.append("")
+
+    if "content_novel" in summary:
+        stats = summary["content_novel"]
+        out.append(
+            "  JUDGED -- CONTENT: ON vs PLACEBO on NOVEL targets (does what memory "
+            "says help, beyond memory of the same size selected for other work?)"
+        )
+        if not stats["pairs"]:
+            out.append("    (none) -- NO CONTENT NUMBER this run")
+        else:
+            out.extend(_stat_lines(stats))
+            out.append(
+                f"    {_verdict(stats, family=family, subject='MEMORY CONTENT')}"
+            )
         out.append("")
 
     # WHAT THIS MEASURED, AND WHAT IT DID NOT. Printed with every number so the
@@ -905,8 +1205,13 @@ def render(pairs: list[Pair]) -> str:
         "semantic memory, facts/graph recall, self-model."
     )
     out.append(
-        "    recall is PREPENDED to the task, so a content effect is not separated "
-        "from a prompt-length/position effect by this design."
+        "    recall is PREPENDED to the task. ON vs OFF alone does not separate a "
+        "content effect from a prompt-length/position effect"
+        + (
+            "; ON vs PLACEBO does."
+            if "content_novel" in summary
+            else " (run with --placebo for that)."
+        )
     )
     out.append(
         "    SEEN is detected from text (label, pin-test filename, module + "
@@ -958,6 +1263,35 @@ def main(argv: list[str] | None = None) -> int:
             "so a before/after comparison measures the same work."
         ),
     )
+
+    def _positive(value: str) -> int:
+        number = int(value)
+        if number < 1:
+            raise argparse.ArgumentTypeError("--samples must be at least 1")
+        return number
+
+    parser.add_argument(
+        "--samples",
+        type=_positive,
+        default=1,
+        help="samples per arm per target; the target stays the unit of analysis",
+    )
+    parser.add_argument(
+        "--placebo",
+        action="store_true",
+        help="add a PLACEBO arm: the same amount of memory, selected for other work",
+    )
+    parser.add_argument(
+        "--novel-only",
+        action="store_true",
+        help="select never-practised targets only (the judged NOVEL question)",
+    )
+    parser.add_argument(
+        "--exclude-targets",
+        type=Path,
+        default=None,
+        help="a file of target labels never to select (e.g. calibration targets)",
+    )
     parser.add_argument(
         "--preregistration",
         type=Path,
@@ -975,6 +1309,17 @@ def main(argv: list[str] | None = None) -> int:
         ]
         if not labels:
             parser.error(f"{args.target_labels} lists no targets")
+
+    excluded: Optional[list[str]] = None
+    excluded_sha: Optional[str] = None
+    if args.exclude_targets is not None:
+        raw = args.exclude_targets.read_bytes()
+        excluded_sha = hashlib.sha256(raw).hexdigest()
+        excluded = [
+            line.strip()
+            for line in raw.decode("utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
 
     # Bind the result to the hypothesis it was run under. A number whose
     # registration can be edited after the fact is not pre-registered.
@@ -1018,6 +1363,10 @@ def main(argv: list[str] | None = None) -> int:
             model_timeout=args.model_timeout,
             ref=args.ref,
             target_labels=labels,
+            samples=args.samples,
+            placebo=args.placebo,
+            novel_only=args.novel_only,
+            exclude_labels=excluded,
         )
     except CorpusError as exc:
         print(f"\nREFUSED — {exc}")
@@ -1046,6 +1395,14 @@ def main(argv: list[str] | None = None) -> int:
             "target_labels": [p.target for p in pairs],
             "target_list_frozen": labels is not None,
             "models": args.models,
+            "samples": args.samples,
+            "placebo": args.placebo,
+            "novel_only": args.novel_only,
+            "excluded_targets": (
+                {"count": len(excluded or []), "sha256": excluded_sha}
+                if excluded_sha
+                else None
+            ),
             # D3: which store the ON arm recalled skills from, and how much of
             # it the operator had activated -- in pilot mode, all it can recall.
             "skill_store_mode": config.SKILL_STORE_MODE,
