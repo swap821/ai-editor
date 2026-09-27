@@ -504,6 +504,29 @@ class InstitutionalSkillAdapter:
         )
         return ranked[:limit]
 
+    def active_procedures(self) -> dict[int, dict[str, Any]]:
+        """The pilot's reflex source: ACTIVE skills by trail id.
+
+        Read-only. An active skill with no trail yet is left out rather than
+        assigned one, because a read must not write (the #375 lesson): it gets a
+        reflex once the next read that may write has given it a trail.
+        """
+        stats = self.trails.all()
+        activated: dict[int, dict[str, Any]] = {}
+        for record in self.repository.list_skills():
+            if record.state != ACTIVE:
+                continue
+            trail = stats.get((record.skill_id, record.version))
+            if trail is None:
+                continue
+            activated[int(trail["trail_id"])] = {
+                "skill_id": record.skill_id,
+                "version": record.version,
+                "goal_pattern": record.problem_signature,
+                "steps": _steps(record),
+            }
+        return activated
+
     def list(self, *, status: str | None = None) -> list[dict[str, Any]]:
         moment = _utc_now()
         stats = self.trails.all()
