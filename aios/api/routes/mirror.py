@@ -467,7 +467,11 @@ async def stream_journal(
                     "event: sync_complete\n"
                     f"data: {json.dumps({'cursor': barrier_event_id, 'replayed': last_event_id is not None})}\n\n"
                 )
-                sent_event_id = barrier_event_id
+                # Never backwards. The window's MAX(id) and its rows are two
+                # reads, so an event committed between them is replayed with an
+                # id above the barrier while still pending for live delivery;
+                # resetting to the barrier would send it twice.
+                sent_event_id = max(sent_event_id, barrier_event_id)
 
             # 3. Stream loop with heartbeat
             while not await request.is_disconnected():
