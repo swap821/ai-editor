@@ -312,3 +312,90 @@ class TestTheStopFreezesWritesButNeverBlindsReads:
         assert [r["institutional"]["skill_id"] for r in adapter.list()] == [
             tracked.skill_id
         ]
+
+
+def _record(**overrides: object) -> SkillRecord:
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    fields: dict[str, object] = dict(
+        skill_id="arc-review",
+        version=1,
+        problem_signature="review readiness probe",
+        applicability_conditions={},
+        known_exclusions=[],
+        required_inputs=[],
+        required_project_state={},
+        procedure=json.dumps(STEPS),
+        allowed_tools=["verify"],
+        allowed_scope_pattern="",
+        expected_observations=[],
+        verification_plan=None,
+        escalation_conditions=[],
+        source_trajectory_ids=[],
+        confidence=0.8,
+        success_count=3,
+        failure_count=0,
+        last_validated_versions=[],
+        state="candidate",
+        created_at=now,
+        updated_at=now,
+        provenance={},
+    )
+    fields.update(overrides)
+    return SkillRecord(**fields)
+
+
+class TestOneDefinitionOfReviewReady:
+    """The scoreboard said 11 while the migration and the activation tool said
+    8: two definitions of "ready". One derivation now serves every caller."""
+
+    def _r(self, state="candidate", ok=3, bad=0, **prov):
+        return _record(
+            state=state, success_count=ok, failure_count=bad, provenance=prov
+        )
+
+    def test_a_live_candidate_meeting_the_rule_is_ready(self) -> None:
+        from aios.application.memory.institutional_skills import is_review_ready
+
+        assert is_review_ready(self._r(source="live"))
+        assert not is_review_ready(self._r(ok=2, source="live"))
+        assert not is_review_ready(self._r(ok=3, bad=2, source="live"))
+
+    def test_a_quarantined_migrated_arc_is_not_ready(self) -> None:
+        from aios.application.memory.institutional_skills import is_review_ready
+
+        assert not is_review_ready(
+            self._r(ok=4, source="migrated", review_ready="false")
+        )
+        assert is_review_ready(self._r(ok=4, source="migrated", review_ready="true"))
+
+    def test_a_migrated_arc_that_since_failed_is_not_ready(self) -> None:
+        from aios.application.memory.institutional_skills import is_review_ready
+
+        assert not is_review_ready(
+            self._r(ok=4, bad=5, source="migrated", review_ready="true")
+        )
+
+    def test_only_a_candidate_can_be_ready(self) -> None:
+        from aios.application.memory.institutional_skills import is_review_ready
+
+        assert not is_review_ready(self._r(state="active", ok=9, source="live"))
+
+    def test_the_trail_map_uses_it(self, world) -> None:
+        adapter, repository, _ = world
+        repository.save(
+            _record(
+                skill_id="arc-quarantined",
+                success_count=4,
+                provenance={
+                    "source": "migrated",
+                    "legacy_id": "45",
+                    "review_ready": "false",
+                },
+            )
+        )
+        (row,) = [
+            t
+            for t in adapter.trail_map()["trails"]
+            if t["institutional"]["skill_id"] == "arc-quarantined"
+        ]
+        assert row["review_ready"] is False

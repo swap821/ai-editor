@@ -124,6 +124,28 @@ def _legacy_id(record: SkillRecord) -> Optional[int]:
         return None
 
 
+def is_review_ready(
+    record: SkillRecord, *, min_successes: int = 3, min_success_rate: float = 0.8
+) -> bool:
+    """A candidate the operator can reasonably review for activation.
+
+    ONE derivation for every caller (the trail map, the scoreboard, the
+    activation tool): two definitions of "ready" already disagreed once, 11
+    against 8. It is the legacy promotion rule, plus, for a migrated arc, the
+    legacy store's own verdict. A legacy trail that met the rule but was
+    QUARANTINED -- demoted for reuse failures, the only way the legacy store
+    leaves a rule-meeting arc a candidate -- is not presented as ready.
+    """
+    if record.state != BIRTH_STATE:
+        return False
+    ok, bad = record.success_count, record.failure_count
+    if ok < max(min_successes, 1) or ok / max(ok + bad, 1) < min_success_rate:
+        return False
+    if record.provenance.get("source") == "migrated":
+        return record.provenance.get("review_ready") == "true"
+    return True
+
+
 class SkillTrailIndex:
     """Integer trail ids for institutional skills, plus live ranking bookkeeping.
 
@@ -553,9 +575,11 @@ class InstitutionalSkillAdapter:
             "steps": _steps(record),
             "status": "verified" if record.state == ACTIVE else "candidate",
             "quarantined": record.state in _QUARANTINED,
-            "review_ready": record.state == BIRTH_STATE
-            and record.success_count >= self.min_successes
-            and rate >= self.min_success_rate,
+            "review_ready": is_review_ready(
+                record,
+                min_successes=self.min_successes,
+                min_success_rate=self.min_success_rate,
+            ),
             "success_count": record.success_count,
             "failure_count": record.failure_count,
             "success_rate": round(rate, 6),
@@ -721,4 +745,5 @@ __all__ = [
     "SKILL_STORE_MODES",
     "SkillTrailIndex",
     "build_skills_slot",
+    "is_review_ready",
 ]
