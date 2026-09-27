@@ -183,6 +183,13 @@ _TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex[:8]}"
 _TEST_DATA_DIR_PATH.mkdir(parents=True, exist_ok=False)
 os.environ["AIOS_DATA_DIR"] = str(_TEST_DATA_DIR_PATH)
 
+# The skill-store pilot (Phase 2 slice 2.4) is chosen in the operator's own
+# `.env`, which aios.config loads -- but `load_dotenv` never overrides a variable
+# already set, so pinning the default here keeps an operator's live
+# `AIOS_SKILL_STORE_MODE=pilot` from changing what the suite measures. Tests of
+# the pilot build their slot with an explicit mode instead.
+os.environ["AIOS_SKILL_STORE_MODE"] = "legacy"
+
 
 # Point COUNCIL_RUNTIME_DIR at the session root so _safe_resolve's containment
 # check (startswith) passes for every test's tmp_path — which is always a child
