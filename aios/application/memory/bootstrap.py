@@ -74,6 +74,7 @@ def build_memory_authority() -> MemoryAuthority:
         # Phase 2 slice 2.4 pilot (docs/learning/PHASE2_DESIGN.md). Imported
         # only off the default path, so the default boot is exactly as before.
         from aios.application.memory.institutional_skills import (
+            DualWriteSkillAdapter,
             SkillTrailIndex,
             build_skills_slot,
         )
@@ -86,6 +87,14 @@ def build_memory_authority() -> MemoryAuthority:
             repository=repository,
             trails=SkillTrailIndex(repository.database),
         )
+        # Reflexes read the store recall reads. Derived from the slot actually
+        # built, not from the setting: a pilot that refused to start (no
+        # migration) must not gate reflexes on a library it is not reading.
+        if (
+            isinstance(skills, DualWriteSkillAdapter)
+            and skills.reads == "institutional"
+        ):
+            cerebellum.attach_reflex_gate(skills.institutional)
     adapters = {
         "working": WorkingMemoryAdapter(WorkingMemory()),
         "episodic": EpisodicMemoryAdapter(EpisodicMemory()),

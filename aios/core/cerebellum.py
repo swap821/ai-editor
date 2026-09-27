@@ -412,6 +412,10 @@ class Cerebellum:
         #: Optional observation bus. Absent everywhere it is not wired, exactly
         #: like WorkerFoundry's -- a missing bus must never change behaviour.
         self._bus = bus
+        #: Phase 2 pilot: when attached, reflexes come ONLY from skills the
+        #: operator activated in the institutional library. See
+        #: `attach_reflex_gate`.
+        self._reflex_gate: Any = None
 
     def attach_bus(self, bus: Any) -> None:
         """Attach the observation bus once.
@@ -422,6 +426,48 @@ class Cerebellum:
         """
         if self._bus is None and bus is not None:
             self._bus = bus
+
+    def attach_reflex_gate(self, gate: Any) -> None:
+        """Make reflexes read the same store as recall (Phase 2 pilot).
+
+        *gate* answers ``active_procedures()``: ``{trail_id: {"steps": [...]}}``
+        for every skill the operator ACTIVATED in the institutional library.
+        Once attached, a playbook replays only if its skill is active and its
+        steps are exactly the activated procedure, and compiling reads active
+        skills instead of legacy ``verified`` ones. Before this, the pilot's
+        recall answered only from activated skills while reflexes still
+        compiled from self-promoted legacy skills.
+
+        Attached once and never removed, so the gate cannot be dropped at
+        runtime; leaving pilot mode is a restart.
+        """
+        if self._reflex_gate is None and gate is not None:
+            self._reflex_gate = gate
+
+    def _activated(self) -> Optional[dict[int, dict[str, Any]]]:
+        """Activated procedures by trail id, or ``None`` when no gate is attached.
+
+        Fails CLOSED: a library that cannot be read activates nothing. A reflex
+        is the one learned behaviour that runs with no model in the loop.
+        """
+        if self._reflex_gate is None:
+            return None
+        try:
+            raw = self._reflex_gate.active_procedures()
+        except Exception as exc:  # noqa: BLE001 - unreadable means nothing is active
+            logging.getLogger(__name__).warning(
+                "reflex gate unreadable; no reflex replays or compiles", exc_info=exc
+            )
+            return {}
+        activated: dict[int, dict[str, Any]] = {}
+        for trail_id, entry in raw.items():
+            steps = [_parse_step(str(desc)) for desc in entry.get("steps") or []]
+            if steps and all(step is not None for step in steps):
+                activated[int(trail_id)] = {
+                    **entry,
+                    "parsed": [step.to_dict() for step in steps if step is not None],
+                }
+        return activated
 
     # ------------------------------------------------------------------
     # Compilation
@@ -443,6 +489,9 @@ class Cerebellum:
                 "learning frozen; cerebellum.compile sweep skipped"
             )
             return 0
+        activated = self._activated()
+        if activated is not None:
+            return len(self._compile_activated(activated))
         init_memory_db(self.db_path)
         compiled = 0
         with get_connection(self.db_path) as conn:
@@ -511,6 +560,14 @@ class Cerebellum:
                 "learning frozen; cerebellum.compile skipped"
             )
             return None
+        activated = self._activated()
+        if activated is not None:
+            # The legacy store calls this when it promotes a skill. In the
+            # pilot, a legacy promotion is not an activation.
+            if skill_id not in activated:
+                return None
+            fresh = self._compile_activated({skill_id: activated[skill_id]})
+            return fresh[0] if fresh else None
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             row = conn.execute(
@@ -534,6 +591,70 @@ class Cerebellum:
             if pb is not None:
                 self._cache[pb.id] = pb
             return pb
+
+    def _compile_activated(
+        self, activated: dict[int, dict[str, Any]]
+    ) -> list[CompiledPlaybook]:
+        """Compile reflexes from operator-activated library skills (pilot).
+
+        The procedure compiled is the one the operator ACTIVATED, never the
+        legacy row's steps, which the legacy store may refresh in place. The
+        legacy row supplies only what the library does not keep: the failure
+        streak (guard 3) and the success count the retire rule compares.
+
+        ``compiled_playbooks.skill_id`` is a foreign key into
+        ``procedural_skills``, so a library-only skill (no legacy row) gets no
+        reflex until the 2.4c schema change. It is skipped, not forced.
+        """
+        init_memory_db(self.db_path)
+        fresh: list[CompiledPlaybook] = []
+        with get_connection(self.db_path) as conn:
+            for trail_id, entry in sorted(activated.items()):
+                legacy = conn.execute(
+                    """SELECT consecutive_failures, signature_v2, success_count
+                       FROM procedural_skills WHERE id = ?""",
+                    (trail_id,),
+                ).fetchone()
+                if legacy is None:
+                    continue
+                # One arc, one playbook; a retired one blocks until the skill
+                # has earned more than it had when it was retired -- the same
+                # rule as the legacy sweep.
+                blocked = conn.execute(
+                    """SELECT 1 FROM compiled_playbooks
+                       WHERE skill_id = ?
+                         AND (status = 'compiled'
+                              OR (status = 'decompiled'
+                                  AND ? <= COALESCE(decompiled_at_successes, ?)))""",
+                    (trail_id, legacy["success_count"], legacy["success_count"]),
+                ).fetchone()
+                if blocked is not None:
+                    continue
+                row = {
+                    "id": trail_id,
+                    "goal_pattern": str(entry.get("goal_pattern") or ""),
+                    "steps_json": json.dumps(list(entry.get("steps") or [])),
+                    "consecutive_failures": legacy["consecutive_failures"],
+                    "signature_v2": legacy["signature_v2"],
+                }
+                pb = self._try_compile_one(row, conn)
+                if pb is None:
+                    continue
+                self._cache[pb.id] = pb
+                fresh.append(pb)
+                journal(
+                    "L4",
+                    "compiled",
+                    subject_id=pb.id,
+                    detail={
+                        "skill_id": pb.skill_id,
+                        "goal_pattern": pb.goal_pattern[:160],
+                        "steps": len(pb.steps),
+                        "source": "operator-activated library skill",
+                    },
+                    conn=conn,
+                )
+        return fresh
 
     def _try_compile_one(
         self,
@@ -616,6 +737,7 @@ class Cerebellum:
         self._refresh_cache()
         if not self._cache:
             return None
+        activated = self._activated()
 
         best: Optional[CompiledPlaybook] = None
         best_score = 0.0
@@ -625,6 +747,21 @@ class Cerebellum:
                 continue
             score = relevance(user_message, pb.goal_pattern)
             if score < self.match_threshold:
+                continue
+            if activated is not None and (
+                pb.skill_id not in activated
+                or [s.to_dict() for s in pb.steps] != activated[pb.skill_id]["parsed"]
+            ):
+                # Pilot: withheld, not retired. The playbook is untouched, so
+                # leaving pilot mode restores it; an activation of exactly
+                # these steps lets it replay.
+                self._record_decision(
+                    "abstained",
+                    pb,
+                    score,
+                    user_message,
+                    "pilot: skill not operator-activated",
+                )
                 continue
             if _conflicting_targets(user_message, pb.steps):
                 # Relevant enough to consider, then DECLINED because the task
