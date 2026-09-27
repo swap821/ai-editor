@@ -186,3 +186,46 @@ heavy load, and **the same two targets** (`normalize_command`,
 `is_loopback_http_url`) timed out at 420 s again: three arms across the two.
 The timeouts belong to those targets under this model, not to the machine.
 They remain excluded as not comparable, exactly as the exclusions rule says.
+
+### D3 — 2026-09-27 — the ON arm recalls skills through the live slot
+
+**Applies to:** every run after this entry, Phase 8 included. It was recorded
+before any run under it, and **by operator decision** ("Redefine now, record
+deviations", 2026-09-27). The alternative recorded against it was to keep the
+legacy store until the Phase 2 hard switch, to preserve the pairing.
+
+**What changed.**
+- The ON arm used to recall skills through a `SkillMemory` of its own, which is
+  the legacy `procedural_skills` store.
+- It now recalls through `live_skills_slot()`: the `skills` slot production
+  builds for the configured `AIOS_SKILL_STORE_MODE`.
+  - In `legacy` mode that is the same legacy store, so nothing changes.
+  - In `shadow` mode it is the legacy store, reached through the dual adapter.
+  - In `pilot` mode it is the institutional skill library, **ACTIVE skills
+    only**.
+- Lesson recall is unchanged.
+- The library's tables (`institutional_skills`, `skill_trails`) are frozen for
+  the run exactly like `MEMORY_TABLES`. They are fingerprinted after the slot is
+  built, so its one-time setup is not read as learning.
+- Every trail records `skill_store_mode` and `library_active_at_start`.
+
+**Why.** The benchmark measures whether what this system *remembers* helps it.
+Once pilot recall answers from the library, the legacy store is no longer what
+the turn remembers skills from, and measuring it would describe a store the
+operator has moved away from.
+
+**What it costs, stated before any number exists:**
+
+1. **The Phase 0 → Phase 8 pairing is broken for the skill channel.** The
+   Phase 0 baseline recalled legacy *verified* skills. A pilot-mode run recalls
+   library *active* skills. A Phase 8 result under D3 is therefore not a paired
+   before/after comparison of the skill channel. It is reported as its own
+   measurement, beside the baseline, never as a delta from it. The lesson
+   channel is unchanged, so its pairing still holds.
+2. **No skill learned during a run can ever be recalled in `pilot` mode.**
+   Activation is the operator's capability-backed act, and a benchmark faking
+   one would be the laundering the cage forbids. A pilot-mode ON arm can
+   therefore gain only from lessons and from skills **the operator had already
+   activated** before the run. `library_active_at_start: 0` means the skill
+   channel was structurally empty. That result is a fact about activation, not
+   a finding about the value of skills.
