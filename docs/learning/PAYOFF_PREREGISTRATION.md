@@ -368,3 +368,42 @@ choose per task. The judged family and the Holm correction are unchanged:
 measures the value of one fixed five-lesson block across all tasks. A positive
 result would not be evidence of per-task transfer. It would say this block
 helps this model on this task.
+
+### D6 — 2026-09-27 — a pin test that never finishes is killed at 120 s; the first baseline attempt has no number
+
+**Applies to:** the cloud baseline re-run and every later run, both cohorts'
+Phase 8 runs included. It was recorded before any of them.
+
+**What happened.** The first cloud baseline attempt,
+`20260927T142947-8abefcd9` (harness `3a0d13c6`, this file's D5 text), stopped at
+target 77 of 150. The ON arm's model-written test for
+`aios/__main__.py::main` started the server and never returned.
+- **The grader's only bound was `run_suite`'s 30-minute default.** Reaching it
+  would have raised an uncaught `TimeoutExpired`, which ends the run with no
+  number.
+- **On Windows the kill reaches only the uv launcher.** The real pytest keeps
+  the output pipes open.
+- **The agent stopped the run after 20 minutes.** Under the exclusions above, a
+  run the instrument cannot finish produces **no number** and is re-run in
+  full. Its partial log is kept locally and was not analysed.
+
+**What changed (the harness, not the hypothesis).**
+- **`run_suite`:** at its timeout it kills the whole process tree and returns a
+  red result marked `timed_out`. Its tail says so, so it is never mistaken for
+  the "hollow" runner-died case.
+- **The grader:** a model-written pin test gets **120 s**, against about 5 s
+  typically.
+  - A clean run that times out does not pass clean, so the arm is rejected with
+    the note "TIMED OUT".
+  - A mutated run that times out is **not** credited with catching the
+    mutation. It is recorded as inconclusive, the conservative direction, as
+    for a hollow run.
+  - The repository's guard suite keeps its default bound.
+
+**The calibration is unaffected.** Its longest arm took 29 s in total, so the
+new bound would have changed none of its grades, and D5's sizing stands.
+
+**The re-run** uses everything D4 and D5 fixed: the model, K = 3, N = 150, the
+exclusions, the selection rule and the placebo seed. A timed-out arm is still
+an arm that reached the model, so the pair stays comparable, exactly as a
+failing test does.
