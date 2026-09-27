@@ -69,12 +69,29 @@ def build_memory_authority() -> MemoryAuthority:
     # approver, laundering learned text into the channel recall presents as
     # "RELEVANT APPROVED FACTS" (threat T16, red-team RT-18).
     cerebellum = Cerebellum(config.MEMORY_DB_PATH)
+    skills = SkillMemoryAdapter(SkillMemory(cerebellum=cerebellum))
+    if config.SKILL_STORE_MODE != "legacy":
+        # Phase 2 slice 2.4 pilot (docs/learning/PHASE2_DESIGN.md). Imported
+        # only off the default path, so the default boot is exactly as before.
+        from aios.application.memory.institutional_skills import (
+            SkillTrailIndex,
+            build_skills_slot,
+        )
+        from aios.domain.learning.repository import SkillRepository
+
+        repository = SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
+        skills = build_skills_slot(
+            skills,
+            mode=config.SKILL_STORE_MODE,
+            repository=repository,
+            trails=SkillTrailIndex(repository.database),
+        )
     adapters = {
         "working": WorkingMemoryAdapter(WorkingMemory()),
         "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
         "semantic": LegacySemanticMemoryAdapter(SemanticMemory(config.MEMORY_DB_PATH)),
         "facts": SemanticFactsAdapter(SemanticFacts()),
-        "skills": SkillMemoryAdapter(SkillMemory(cerebellum=cerebellum)),
+        "skills": skills,
         "lessons": MistakeMemoryAdapter(MistakeMemory()),
         "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
         "cerebellum": CerebellumAdapter(cerebellum),

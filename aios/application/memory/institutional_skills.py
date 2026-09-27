@@ -39,6 +39,7 @@ Every write asks the emergency stop first, the ranking counters included.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import sqlite3
 from contextlib import contextmanager
@@ -59,6 +60,8 @@ from aios.memory.relevance import relevance, skill_signature_v2
 from aios.memory.skills import SkillMemory, _better_recipe
 from aios.security.secret_scanner import scan_and_redact
 
+logger = logging.getLogger(__name__)
+
 #: The library's word for the legacy recall pool.
 ACTIVE = "active"
 #: States a skill is retired in; an arc in one of these starts a new version.
@@ -66,6 +69,13 @@ _RETIRED = frozenset({"deprecated", "superseded", "revoked"})
 #: Automatic, reversible disablement: the institutional analogue of a legacy
 #: trail quarantined by reuse failures.
 _QUARANTINED = frozenset({"degraded", "suspended"})
+#: Trail ids the library issues itself -- for a skill with no legacy row --
+#: start here. Legacy ``procedural_skills`` ids are small and keep growing during
+#: the pilot, so a library-issued id taken from the same low range would later
+#: be handed to a DIFFERENT legacy skill, and reuse credit for one skill would
+#: land on another's row. Found by a test that put the two counters out of
+#: step; the two ranges now never meet.
+LIBRARY_ID_BASE = 1_000_000_000
 #: How ``provenance.procedure_format`` marks a procedure that is a JSON step list.
 _STEPS_JSON = "legacy_steps_json"
 #: A new arc's starting confidence is its success ratio, never above the prior a
@@ -105,13 +115,23 @@ def _success_rate(record: SkillRecord) -> float:
     return record.success_count / max(record.success_count + record.failure_count, 1)
 
 
+def _legacy_id(record: SkillRecord) -> Optional[int]:
+    """The ``procedural_skills`` id a record carries, if it came from there."""
+    raw = record.provenance.get("legacy_id")
+    try:
+        return int(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
 class SkillTrailIndex:
     """Integer trail ids for institutional skills, plus live ranking bookkeeping.
 
     A sidecar table beside ``institutional_skills``, owned by this module and
     never referenced by the library, so organ 43's contract does not carry the
-    turn path's mechanics. ``AUTOINCREMENT`` keeps a fresh id above every id ever
-    assigned, including the legacy ids adopted explicitly.
+    turn path's mechanics. Two id ranges that never meet: a legacy id is kept
+    as-is (small), and an id the library issues itself starts at
+    ``LIBRARY_ID_BASE``.
     """
 
     def __init__(self, database: Path | str) -> None:
@@ -173,11 +193,17 @@ class SkillTrailIndex:
                         (int(preferred_id), skill_id, version, now),
                     )
                     return int(preferred_id)
-            cursor = connection.execute(
-                "INSERT INTO skill_trails (skill_id, version, created_at) VALUES (?, ?, ?)",
-                (skill_id, version, now),
+            highest = connection.execute(
+                "SELECT MAX(trail_id) FROM skill_trails WHERE trail_id >= ?",
+                (LIBRARY_ID_BASE,),
+            ).fetchone()[0]
+            issued = LIBRARY_ID_BASE if highest is None else int(highest) + 1
+            connection.execute(
+                "INSERT INTO skill_trails (trail_id, skill_id, version, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (issued, skill_id, version, now),
             )
-            return int(cursor.lastrowid)
+            return issued
 
     def key_for(self, trail_id: int) -> Optional[tuple[str, int]]:
         with self._connection() as connection:
@@ -502,7 +528,9 @@ class InstitutionalSkillAdapter:
             # stop a READ must not fail -- the #375 lesson -- so the skill is
             # left out until the stop is cleared, rather than blinding the read.
             try:
-                trail_id = self.trails.trail_for(record.skill_id, record.version)
+                trail_id = self.trails.trail_for(
+                    record.skill_id, record.version, preferred_id=_legacy_id(record)
+                )
             except EmergencyStopError:
                 return None
             reuse_s = reuse_f = 0
@@ -547,4 +575,150 @@ class InstitutionalSkillAdapter:
         }
 
 
-__all__ = ["InstitutionalSkillAdapter", "SkillTrailIndex"]
+#: The live skill slot's modes (``config.SKILL_STORE_MODE``).
+SKILL_STORE_MODES = ("legacy", "shadow", "pilot")
+
+
+class DualWriteSkillAdapter:
+    """The pilot: every write reaches both stores; one of them answers reads.
+
+    ``shadow`` reads the legacy store, ``pilot`` the institutional library. The
+    legacy store stays AUTHORITATIVE for writes in both: its id is returned, its
+    refusal (an engaged stop included) is the turn's refusal, and a failure in
+    the institutional write never breaks the turn -- it is counted and shown in
+    the trail map, not swallowed. Each institutional write is handed the legacy
+    id, so a skill has the same integer id in both stores.
+    """
+
+    memory_types = ("skill", "workflow")
+
+    def __init__(
+        self,
+        legacy: Any,
+        institutional: InstitutionalSkillAdapter,
+        *,
+        reads: str,
+    ) -> None:
+        if reads not in ("legacy", "institutional"):
+            raise ValueError(f"reads must be legacy or institutional, not {reads!r}")
+        self.legacy = legacy
+        self.institutional = institutional
+        self.reads = reads
+        # owns_store() identity: the production SkillMemory, as for the legacy slot.
+        self.store = legacy.store
+        self.shadow_failures = 0
+        self.last_shadow_failure: Optional[str] = None
+
+    @property
+    def _reader(self) -> Any:
+        return self.institutional if self.reads == "institutional" else self.legacy
+
+    def _shadow(self, operation: str, call: Any) -> Any:
+        try:
+            return call()
+        except EmergencyStopError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - counted and shown, never hidden
+            self.shadow_failures += 1
+            self.last_shadow_failure = f"{operation}: {type(exc).__name__}: {exc}"[:300]
+            logger.warning(
+                "institutional shadow write failed (%s)", self.last_shadow_failure
+            )
+            return None
+
+    def record_attempt(self, goal: str, steps: list[str], **kwargs: Any) -> int:
+        legacy_id = int(self.legacy.record_attempt(goal, steps, **kwargs))
+        self._shadow(
+            "record_attempt",
+            lambda: self.institutional.record_attempt(
+                goal, steps, legacy_id=legacy_id, **kwargs
+            ),
+        )
+        return legacy_id
+
+    def record_reuse(self, skill_ids: Sequence[int], **kwargs: Any) -> list[int]:
+        legacy_credited = list(self.legacy.record_reuse(skill_ids, **kwargs))
+        shadow_credited = self._shadow(
+            "record_reuse", lambda: self.institutional.record_reuse(skill_ids, **kwargs)
+        )
+        if self.reads == "institutional":
+            return list(shadow_credited or [])
+        return legacy_credited
+
+    def relevant_verified(self, query: str, limit: int) -> list[dict[str, Any]]:
+        return list(self._reader.relevant_verified(query, limit))
+
+    def list(self, *, status: str | None = None) -> list[dict[str, Any]]:
+        return list(self._reader.list(status=status))
+
+    def trail_map(self) -> dict[str, Any]:
+        view = dict(self._reader.trail_map())
+        view["pilot"] = {
+            "mode": "pilot" if self.reads == "institutional" else "shadow",
+            "reads": self.reads,
+            "shadow_failures": self.shadow_failures,
+            "last_shadow_failure": self.last_shadow_failure,
+        }
+        return view
+
+    def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
+        return tuple(self._reader.recall(query, context))
+
+    def rebuild_derived_indexes(self) -> None:
+        self.legacy.rebuild_derived_indexes()
+        self.institutional.rebuild_derived_indexes()
+
+
+def build_skills_slot(
+    legacy: Any,
+    *,
+    mode: str,
+    repository: SkillRepository,
+    trails: SkillTrailIndex,
+) -> Any:
+    """The adapter for the authority's ``skills`` slot in *mode*.
+
+    ``legacy`` returns *legacy* itself, so the default builds nothing new and
+    changes nothing. A non-legacy mode needs the skill migration applied
+    first: dual-writing before it would create ``arc-...`` records the
+    migration then refuses to overwrite. Until it has been applied, and for
+    an unknown mode, the slot stays legacy and says why, loudly.
+
+    The stores are passed in, never built here: R11 keeps every physical
+    store's construction in ``bootstrap.py``.
+    """
+    if mode == "legacy":
+        return legacy
+    if mode not in SKILL_STORE_MODES:
+        logger.error(
+            "unknown AIOS_SKILL_STORE_MODE %r; the skill slot stays legacy", mode
+        )
+        return legacy
+    records = repository.list_skills()
+    if not any(r.provenance.get("source") == "migrated" for r in records):
+        logger.error(
+            "AIOS_SKILL_STORE_MODE=%s needs the skill migration applied first "
+            "(tools/migrate_skills_to_institutional.py --apply); the skill slot "
+            "stays legacy",
+            mode,
+        )
+        return legacy
+    try:
+        trails.adopt_migrated(repository)
+    except EmergencyStopError:
+        logger.warning("stop engaged at startup: migrated trail ids assigned lazily")
+    institutional = InstitutionalSkillAdapter(
+        repository, trails, legacy=getattr(legacy, "store", None)
+    )
+    return DualWriteSkillAdapter(
+        legacy, institutional, reads="institutional" if mode == "pilot" else "legacy"
+    )
+
+
+__all__ = [
+    "DualWriteSkillAdapter",
+    "InstitutionalSkillAdapter",
+    "SKILL_STORE_MODES",
+    "SkillTrailIndex",
+    "build_skills_slot",
+]

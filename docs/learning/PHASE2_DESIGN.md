@@ -346,6 +346,52 @@ turn path will load (not call) the mission service. The static reachability pin
 scans turn-path files, not this module. It is re-pinned to "one learning
 authority" in slice 2.5, as planned.
 
+## Slice 2.4b: the pilot, off by default
+
+**Done:**
+- **`AIOS_SKILL_STORE_MODE`** (`config.SKILL_STORE_MODE`), read at startup:
+  - `legacy` is the **default**. The slot is the `SkillMemoryAdapter` object
+    itself, and the institutional module is not even imported, so the default
+    boot runs exactly as before. A test pins this.
+  - `shadow`: legacy answers reads, and every write also reaches the library.
+  - `pilot`: the library answers reads (ACTIVE skills only), and writes still
+    reach both.
+- **`DualWriteSkillAdapter`.** The legacy store stays authoritative for writes:
+  its id is returned, and its refusal (an engaged stop included) is the turn's
+  refusal. An institutional write failure never breaks a turn. It is counted and
+  shown in `trail_map()["pilot"]`, never swallowed. Each institutional write is
+  handed the legacy id, so a skill has one integer id in both stores.
+- **`build_skills_slot`** refuses a non-legacy mode until the skill migration
+  has been applied. Dual-writing first would create `arc-...` records the
+  migration then refuses to overwrite. An unknown mode also stays legacy, and in
+  both cases it logs an error. The stores are built in `bootstrap.py` (R11) and
+  passed in.
+
+**Found and fixed while building it:**
+- **Two id ranges that never meet.** A library-issued trail id (for a skill with
+  no legacy row, such as a mission-trajectory candidate) was taken from the same
+  low range the legacy store keeps issuing. The legacy store would later hand
+  that number to a *different* skill, and pilot reuse credit for one skill would
+  land on another's legacy row. Library-issued ids now start at
+  `LIBRARY_ID_BASE` (10^9). A test that put the two counters out of step found
+  it; the fix is mutation-checked.
+- **Legacy `record_reuse` was not frozen by the stop.** Phase 0b froze
+  `record_attempt` and missed reuse credit, whose counters rank recall and whose
+  stain can demote a trail. It is frozen now (`tests/test_learning_freeze.py`).
+  The turn path already treats reuse credit as best-effort, so a refusal cannot
+  break a turn.
+
+**Known limit:** when the legacy store supersedes an arc, it issues a new row id
+for the same arc. The library keeps the arc's trail, so the two ids part for
+that arc. Credit then misses rather than going to the wrong skill (both stores
+credit only their own live row). This is accepted for the pilot window.
+
+**Nothing live changes on merge.** The pilot starts when the operator:
+1. approves applying the migration (`tools/migrate_skills_to_institutional.py
+   --apply`);
+2. sets `AIOS_SKILL_STORE_MODE=shadow`, then `pilot`;
+3. activates the review-ready skills they choose.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the
