@@ -271,3 +271,86 @@ class TestTheTrackedSummary:
         trend = tmp_path / "TREND.md"
         write_trend(tmp_path / "absent.jsonl", trend)
         assert not trend.exists()
+
+
+def _library_record(skill_id, state, ok, bad, provenance):
+    from datetime import datetime, timezone
+
+    from aios.domain.learning.repository import SkillRecord
+
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return SkillRecord(
+        skill_id=skill_id,
+        version=1,
+        problem_signature=f"goal {skill_id}",
+        applicability_conditions={},
+        known_exclusions=[],
+        required_inputs=[],
+        required_project_state={},
+        procedure="[]",
+        allowed_tools=[],
+        allowed_scope_pattern="",
+        expected_observations=[],
+        verification_plan=None,
+        escalation_conditions=[],
+        source_trajectory_ids=[],
+        confidence=0.8,
+        success_count=ok,
+        failure_count=bad,
+        last_validated_versions=[],
+        state=state,
+        created_at=now,
+        updated_at=now,
+        provenance=provenance,
+    )
+
+
+class TestTheLibraryIsCountedToo:
+    """Phase 2: the pilot recalls from the institutional library, so the
+    scoreboard reads it too -- read-only, and absent reads as absent."""
+
+    def test_an_absent_library_is_reported_absent_not_zero(self, db, tmp_path) -> None:
+        missing = tmp_path / "no-operational.db"
+        stats = collect(db, missing)
+        assert stats["library_present"] is False
+        assert "library_active" not in stats
+        assert not missing.exists()
+        assert "library" not in render(stats)
+
+    def test_the_library_is_counted_and_never_written(self, db, tmp_path) -> None:
+        from aios.domain.learning.repository import SkillRepository
+        from tests.helpers import seed_skill
+
+        library = tmp_path / "operational.db"
+        repo = SkillRepository(library)
+        seed_skill(
+            repo, _library_record("live-ready", "candidate", 3, 0, {"source": "live"})
+        )
+        seed_skill(
+            repo,
+            _library_record(
+                "quarantined",
+                "candidate",
+                4,
+                0,
+                {"source": "migrated", "review_ready": "false"},
+            ),
+        )
+        seed_skill(repo, _library_record("on", "active", 5, 0, {"source": "live"}))
+        seed_skill(repo, _library_record("old", "deprecated", 1, 0, {"source": "live"}))
+        before = library.read_bytes()
+        stats = collect(db, library)
+        assert library.read_bytes() == before, "the scoreboard must not write"
+        assert (stats["library_active"], stats["library_candidate"]) == (1, 2)
+        assert stats["library_deprecated"] == 1
+        assert stats["library_review_ready"] == 1, "a quarantined arc is not ready"
+        assert "library     1 active / 2 candidate" in render(stats)
+
+    def test_nothing_active_is_called_out(self, db, tmp_path) -> None:
+        from aios.domain.learning.repository import SkillRepository
+
+        library = tmp_path / "operational.db"
+        SkillRepository(library).save(
+            _library_record("c", "candidate", 3, 0, {"source": "live"})
+        )
+        assert "no institutional skill is active" in render(collect(db, library))
