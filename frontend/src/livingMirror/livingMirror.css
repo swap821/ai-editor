@@ -250,8 +250,9 @@
   .lm-app .gagos-bar { flex-wrap: wrap; gap: 6px; }
   .lm-app .gagos-bar .gagos-intent { display: none; }
   .lm-app .gagos-bar .gagos-input { flex: 1 1 100%; min-width: 0; }
-  .lm-app .gagos-welcome { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .lm-app .gagos-welcome { flex: 1 1 0; min-height: 0; overflow-y: auto; }
   .lm-app .gagos-thread { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .lm-app .gagos-thread:empty { display: none; }
 }
 @media (max-width: 767px) {
   /* The root opts into edge-to-edge rendering. Keep the mobile control stack
@@ -360,7 +361,9 @@
      larger band without hiding the technical evidence. */
   .lm-app[data-experience-mode="expert"] .gagos-chat { bottom: calc(168px + var(--lm-safe-area-bottom)); }
   .lm-app .gagos-bar { flex-wrap: wrap; gap: 6px; }
-  .lm-app .gagos-bar .gagos-input { flex: 1 1 90px; }
+  /* Give the request field its own first line; voice, language and send
+     controls then wrap in their existing DOM/focus order. */
+  .lm-app .gagos-bar .gagos-input { flex: 1 1 calc(100% - 40px); }
   .lm-app .gagos-welcome { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   .lm-app .gagos-thread { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .lm-app .gagos-coach { display: none; }
@@ -383,12 +386,15 @@
 @media (max-width: 360px) {
   .lm-app .gagos-chat {
     bottom: calc(132px + var(--lm-safe-area-bottom));
-    height: calc(100dvh - 300px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
+    height: calc(100dvh - 260px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
     max-height: none;
   }
   .lm-app[data-experience-mode="expert"] .gagos-chat {
     bottom: calc(168px + var(--lm-safe-area-bottom));
-    height: calc(100dvh - 360px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
+    height: calc(100dvh - 294px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
+  }
+  .lm-app[data-experience-mode="expert"] .gagos-welcome {
+    display: none;
   }
 
   .lm-app .gagos-bar { flex: 0 0 auto; }
