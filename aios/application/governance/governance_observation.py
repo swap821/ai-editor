@@ -32,8 +32,6 @@ is sprung once, here, instead of in four adjudicators.
 
 from __future__ import annotations
 
-import logging
-
 import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -127,6 +125,11 @@ class GovernanceSnapshot:
     bus_head_id: int = 0
     file_digests: Mapping[str, str] = field(default_factory=dict)
     memory_baseline: frozenset[Any] = field(default_factory=frozenset)
+    #: Whether the baseline above was actually READ. An unread baseline is
+    #: empty, and an empty baseline makes every verified row already in the
+    #: store look like a write this mission made -- a dead reader fabricating
+    #: failures, the mirror image of it fabricating a pass.
+    memory_baseline_read: bool = False
 
 
 class GovernanceObservationCollector:
@@ -153,10 +156,12 @@ class GovernanceObservationCollector:
     # -- snapshot ---------------------------------------------------------- #
 
     def begin(self) -> GovernanceSnapshot:
+        memory_baseline, memory_baseline_read = self._memory_ids()
         return GovernanceSnapshot(
             bus_head_id=self._bus_head(),
             file_digests=_file_digests(self._protected_roots, self._repo_root),
-            memory_baseline=self._memory_ids(),
+            memory_baseline=memory_baseline,
+            memory_baseline_read=memory_baseline_read,
         )
 
     def _bus_head(self) -> int:
@@ -168,13 +173,14 @@ class GovernanceObservationCollector:
             return 0
         return max((int(getattr(r, "id", 0)) for r in rows), default=0)
 
-    def _memory_ids(self) -> frozenset[Any]:
+    def _memory_ids(self) -> tuple[frozenset[Any], bool]:
+        """The verified ids before the mission, and whether they were read."""
         if self._memory_reader is None:
-            return frozenset()
+            return frozenset(), False
         try:
-            return frozenset(self._memory_reader.verified_ids())
-        except Exception:  # noqa: BLE001
-            return frozenset()
+            return frozenset(self._memory_reader.verified_ids()), True
+        except Exception:  # noqa: BLE001 - unread, and reported as unread
+            return frozenset(), False
 
     # -- collect ----------------------------------------------------------- #
 
@@ -203,7 +209,13 @@ class GovernanceObservationCollector:
             collected.add("bus")
         if self._protected_roots:
             collected.add("filesystem")
-        if self._memory_reader is not None:
+        # Memory counts as READ only when the store was actually read at BOTH
+        # ends of the window. It used to count whenever a reader was attached,
+        # and the reader answered an unreadable store with "no rows" -- so M2
+        # could conclude "nothing unearned was promoted" about a store it never
+        # saw, the exact blindness the comment above exists to prevent.
+        memory_writes, memory_read = self._memory_since(snapshot.memory_baseline)
+        if snapshot.memory_baseline_read and memory_read:
             collected.add("memory")
         # `decisions is not None` was always true -- the parameter defaults to
         # `()`, so the "no decision channel was read" guard this flag exists to
@@ -291,7 +303,7 @@ class GovernanceObservationCollector:
         return GovernanceObservation(
             audit_rows=tuple(rows),
             filesystem_changes=self._changes_since(snapshot.file_digests),
-            memory_writes=tuple(self._memory_since(snapshot.memory_baseline)),
+            memory_writes=tuple(memory_writes),
             decisions=tuple(dict(d) for d in decisions) + tuple(derived),
             collected=frozenset(collected),
         )
@@ -316,15 +328,26 @@ class GovernanceObservationCollector:
                 changes[path] = None  # deleted
         return changes
 
-    def _memory_since(self, baseline: frozenset[Any]) -> list[Mapping[str, Any]]:
+    def _memory_since(
+        self, baseline: frozenset[Any]
+    ) -> tuple[list[Mapping[str, Any]], bool]:
+        """Verified entries new since *baseline*, and whether the store was read."""
         if self._memory_reader is None:
-            return []
+            return [], False
         try:
             return [
                 dict(entry) for entry in self._memory_reader.verified_since(baseline)
-            ]
-        except Exception:  # noqa: BLE001
-            return []
+            ], True
+        except Exception:  # noqa: BLE001 - unread, and reported as unread
+            return [], False
+
+
+class MemoryUnreadable(RuntimeError):
+    """The trusted-memory store could not be read, so nothing about it holds.
+
+    Raised instead of returning no rows: "unread" and "empty" are different
+    answers, and only the second supports a conclusion.
+    """
 
 
 class VerifiedMemoryReader:
@@ -356,8 +379,14 @@ class VerifiedMemoryReader:
 
         from aios import config
 
-        path = self._db_path if self._db_path is not None else config.MEMORY_DB_PATH
-        conn = sqlite3.connect(str(path))
+        path = Path(
+            self._db_path if self._db_path is not None else config.MEMORY_DB_PATH
+        )
+        # Read-only and never creating: a plain connect() on a missing path
+        # makes an EMPTY store, which then read as "no verified rows".
+        if not path.is_file():
+            raise MemoryUnreadable(f"no trusted-memory store at {path}")
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -375,29 +404,39 @@ class VerifiedMemoryReader:
     )
 
     def _rows(self) -> list[dict[str, Any]]:
+        """Every verified entry in every trusted store.
+
+        Raises ``MemoryUnreadable`` when the store, or any table it reads,
+        cannot be read. The comment here used to say "an unreadable store is
+        reported, not guessed" while the code returned an empty list -- which
+        the collector then counted as a successful read, so M2 concluded
+        "nothing unearned was promoted" about a store it never saw.
+        """
         out: list[dict[str, Any]] = []
         try:
             conn = self._connect()
-        except Exception:  # noqa: BLE001 - an unreadable store is reported, not guessed
-            return out
+        except MemoryUnreadable:
+            raise
+        except Exception as exc:  # noqa: BLE001 - any failure to open is unread
+            raise MemoryUnreadable(
+                f"trusted-memory store could not be opened: {exc}"
+            ) from exc
         try:
             for store, sql in self._QUERIES:
                 try:
-                    for row in conn.execute(sql):
-                        out.append(
-                            {
-                                "store": store,
-                                "id": row["id"],
-                                "trust": "verified",
-                                "strength": row["strength"],
-                                "earned": self._earned(row["strength"]),
-                            }
-                        )
-                except Exception as exc:  # noqa: BLE001 - table may not exist yet
-                    logging.getLogger(__name__).debug(
-                        "Skipping unreadable memory table", exc_info=exc
+                    rows = conn.execute(sql).fetchall()
+                except Exception as exc:  # noqa: BLE001 - a missing table is unread, not empty
+                    raise MemoryUnreadable(f"{store} could not be read: {exc}") from exc
+                for row in rows:
+                    out.append(
+                        {
+                            "store": store,
+                            "id": row["id"],
+                            "trust": "verified",
+                            "strength": row["strength"],
+                            "earned": self._earned(row["strength"]),
+                        }
                     )
-                    continue
         finally:
             conn.close()
         return out
