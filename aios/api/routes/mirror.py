@@ -253,9 +253,12 @@ def get_governance_projection(
     provider-health, pending-approvals, routing-decision, and privacy-audit
     surface.
 
-    Unauthenticated by design, matching /snapshot's own convention -- the
-    living mirror reflects state, it never gates on who's watching (risky
-    ACTIONS are gated elsewhere). The constitution is honestly UNAVAILABLE
+    The ONE /mirror route an unbonded caller may read
+    (`edge_security._PUBLIC_API_PATHS`); /snapshot, /stream and /executor
+    require a bonded operator session. It authorizes per field instead of
+    per route: an unbonded caller learns only what the edge allowlist records
+    (for example, whether the emergency stop is engaged), and risky ACTIONS
+    are gated elsewhere. The constitution is honestly UNAVAILABLE
     (never fabricated) unless a real Human Sovereign session is active, and
     now reads the DURABLE chain via ConstitutionAuthority (organ 25) -- the
     same single authority that stamps every Principal and gates capability
@@ -313,8 +316,9 @@ def get_executor_status_projection(
 ) -> JSONResponse:
     """Organ 40: the truthful private-executor status surface.
 
-    Unauthenticated by design, matching /snapshot and /governance -- this
-    reflects reachability, it never gates on who's watching. Reuses the exact
+    Requires a bonded operator session, like /snapshot: the edge refuses an
+    unbonded caller before this runs (Invariant I; only /governance is public).
+    It reflects reachability and carries no authority. Reuses the exact
     same production ExecutorService the real job-execution path uses; a
     configured-but-unreachable service can take up to
     config.EXECUTOR_HTTP_TIMEOUT_S to respond, matching that path's own

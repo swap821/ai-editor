@@ -302,6 +302,10 @@ def test_mirror_snapshot_and_stream_require_a_bonded_operator(
             test_client.cookies.clear()
             assert test_client.get("/api/v1/mirror/snapshot").status_code == 401
             assert test_client.get("/api/v1/mirror/stream").status_code == 401
+            # The docstrings say so: /executor is bonded like /snapshot, and
+            # /governance is the one public /mirror route (per-field authz).
+            assert test_client.get("/api/v1/mirror/executor").status_code == 401
+            assert test_client.get("/api/v1/mirror/governance").status_code == 200
     finally:
         app.dependency_overrides.clear()
 
