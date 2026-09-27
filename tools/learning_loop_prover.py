@@ -571,6 +571,41 @@ def skill_promoted(marker: str) -> bool:
     return False
 
 
+def skill_store_mode() -> str:
+    """The backend's live skill-slot mode (Phase 2 slice 2.4), asked of the backend.
+
+    The dual-write slot adds a `pilot` section to the trail map; the legacy slot
+    has none. Asking the RUNNING backend, not this process's config, because the
+    two can differ (a backend started before `.env` changed).
+    """
+    resp = _session().get("/api/v1/development/trails", timeout=30)
+    resp.raise_for_status()
+    pilot = resp.json().get("pilot")
+    return str(pilot.get("mode", "legacy")) if isinstance(pilot, dict) else "legacy"
+
+
+def skill_review_ready(marker: str) -> bool:
+    """Pilot mode: a library trail for this goal whose evidence made it review-ready.
+
+    In pilot mode `/development/skills?status=verified` lists only ACTIVE
+    library skills, and only the operator activates -- so a harness can never
+    see its own arc there. What the harness CAN earn is the evidence: the arc
+    meeting the promotion rule, reported by the library as `review_ready`.
+    """
+    for _ in range(PROMOTION_POLL_TRIES):
+        try:
+            resp = _session().get("/api/v1/development/trails", timeout=30)
+        except requests.RequestException:
+            time.sleep(PROMOTION_POLL_DELAY_S)
+            continue
+        resp.raise_for_status()
+        for trail in resp.json().get("trails", []):
+            if marker in json.dumps(trail) and trail.get("review_ready"):
+                return True
+        time.sleep(PROMOTION_POLL_DELAY_S)
+    return False
+
+
 # --------------------------------------------------------------------------- #
 # The three phases
 # --------------------------------------------------------------------------- #
@@ -681,12 +716,28 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
                 "cerebellum matched BEFORE promotion completed",
             )
 
-    promoted = skill_promoted(f"llp_reflex_{_slug(run_id)}")
-    check.soft(
-        "reflex.skill-verified",
-        promoted,
-        "a verified skill row for this goal exists in /development/skills",
-    )
+    marker = f"llp_reflex_{_slug(run_id)}"
+    # Deviation (operator 2026-09-27, "redefine now"): in pilot mode the prover
+    # reads the live skill slot. Promotion there is review-readiness -- the
+    # evidence -- because activation is the operator's capability-backed act and
+    # a harness can never activate its own arc.
+    mode = skill_store_mode()
+    if mode == "pilot":
+        promoted = False
+        check.soft(
+            "reflex.skill-review-ready",
+            skill_review_ready(marker),
+            "pilot: the arc's evidence made it review-ready in the skill library "
+            "(activation is the operator's, so no harness-learned skill becomes "
+            "active or recallable)",
+        )
+    else:
+        promoted = skill_promoted(marker)
+        check.soft(
+            "reflex.skill-verified",
+            promoted,
+            "a verified skill row for this goal exists in /development/skills",
+        )
 
     replay = run_prompt(prompt, f"ll-reflex-{run_id}-replay", model_id=model)
     log_event(
@@ -726,6 +777,30 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             "the playbook matched and its approval-needing step was withheld, "
             f"not auto-run (controls={replay.get('cerebellum_controls') or 'none'})",
         )
+    elif mode == "pilot":
+        replayed = "cerebellum_match" in replay["cerebellum_events"]
+        # KNOWN LIMIT, reported rather than hidden: the operator's rule is that
+        # reflexes replay only activated skills, but the cerebellum compiles
+        # from the legacy store until the 2.4c hard switch, so a
+        # legacy-promoted reflex can still match here.
+        check.soft(
+            "reflex.pilot-no-legacy-reflex",
+            not replayed,
+            "pilot: no legacy-promoted reflex replayed"
+            if not replayed
+            else "KNOWN LIMIT: a legacy-promoted reflex replayed in pilot mode -- "
+            "the cerebellum compiles from the legacy store until the 2.4c hard switch",
+        )
+        if replayed:
+            # Whatever the mode, a reflex that DOES replay must not auto-run a
+            # step no human approved (the Phase 0b containment).
+            check.hard(
+                "reflex.withheld-without-human-approval",
+                "reflex_authority" in replay.get("cerebellum_controls", [])
+                and "cerebellum_done" not in replay["cerebellum_events"],
+                "a replayed reflex's approval-needing step was withheld, not "
+                f"auto-run (controls={replay.get('cerebellum_controls') or 'none'})",
+            )
     else:
         check.soft(
             "reflex.cerebellum-match",
