@@ -207,6 +207,46 @@ class TestLearningWritesAreRefusedWhileTheStopIsEngaged:
         lessons.record("t", "e", "c", "f", "thawed", -0.1)
 
 
+class TestReuseCreditIsFrozenToo:
+    """Reuse counters rank recall and a stain can demote a trail: a learning
+    write. Phase 0b froze record_attempt and missed record_reuse."""
+
+    def _verified(self, db: Path) -> tuple[SkillMemory, int]:
+        skills = SkillMemory(db_path=db)
+        for _ in range(3):
+            skill_id = skills.record_attempt(
+                "run the pin tests",
+                ["verify: command=pytest x -q"],
+                success=True,
+                strength=VerificationStrength.STRONG,
+            )
+        return skills, skill_id
+
+    def _reuse(self, db: Path, skill_id: int) -> tuple[int, int, str]:
+        with sqlite3.connect(db) as conn:
+            row = conn.execute(
+                "SELECT reuse_success_count, reuse_failure_count, status "
+                "FROM procedural_skills WHERE id = ?",
+                (skill_id,),
+            ).fetchone()
+        return int(row[0]), int(row[1]), str(row[2])
+
+    def test_reuse_is_refused_while_engaged(self, world) -> None:
+        data, db = world
+        skills, skill_id = self._verified(db)
+        before = self._reuse(db, skill_id)
+        _engage(data)
+        with pytest.raises(EmergencyStopError, match="skills.record_reuse"):
+            skills.record_reuse([skill_id], success=False)
+        assert self._reuse(db, skill_id) == before
+
+    def test_reuse_lands_when_clear(self, world) -> None:
+        _data, db = world
+        skills, skill_id = self._verified(db)
+        assert skills.record_reuse([skill_id], success=True) == [skill_id]
+        assert self._reuse(db, skill_id)[0] == 1
+
+
 class TestThePositiveControlsTheReviewFoundMissing:
     """An adversarial review found four guarded writes with a refusal test and
     no proof the same call writes when the latch is clear."""
