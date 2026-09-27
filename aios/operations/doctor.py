@@ -167,9 +167,38 @@ def _learning_loop_check() -> DoctorCheck:
         f"skills {verified} verified / {candidates} candidate "
         f"({one_off} seen once or never); "
         f"playbooks {compiled} compiled / {decompiled} decompiled; "
-        f"{int(replays)} replay(s) total",
+        f"{int(replays)} replay(s) total" + _skill_library_note(),
         required=False,
     )
+
+
+def _skill_library_note() -> str:
+    """The institutional skill library, which the Phase 2 pilot recalls from.
+
+    Without it this line described only the legacy store, so in pilot mode --
+    where recall answers from the library, ACTIVE skills only -- the doctor
+    could not see the store doing the work, nor say that recall is empty until
+    the operator activates a skill. Read through the same read-only reader as
+    the learning scoreboard, so the two cannot report different numbers.
+    """
+    mode = config.SKILL_STORE_MODE
+    try:
+        from aios.application.memory.institutional_skills import library_summary
+
+        library = library_summary(config.OPERATIONAL_STATE_DB_PATH)
+    except Exception as exc:  # noqa: BLE001 - doctor reports, never crashes
+        return f"; skill store mode {mode}; skill library unavailable: {exc}"
+    if not library.get("library_present"):
+        return f"; skill store mode {mode}; no institutional skill library"
+    active = int(library.get("library_active", 0))
+    note = (
+        f"; skill store mode {mode}; library {active} active / "
+        f"{int(library.get('library_candidate', 0))} candidate "
+        f"({int(library.get('library_review_ready', 0))} review-ready)"
+    )
+    if mode == "pilot" and active == 0:
+        note += "; recall is empty until the operator activates a skill"
+    return note
 
 
 def newest_backup_age_seconds(backup_dir: Path) -> float | None:
