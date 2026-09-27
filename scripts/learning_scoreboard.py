@@ -80,56 +80,13 @@ def _scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> int:
 def collect_library(path: Path) -> dict:
     """The institutional skill library (Phase 2): the store the pilot recalls from.
 
-    Read-only like everything here. Absent reads as absent -- a machine that has
-    not migrated has no library, which is different from an empty one.
+    Read-only, and absent reads as absent. The counting lives in
+    ``institutional_skills.library_summary`` so the doctor reports the same
+    numbers from the same reader.
     """
-    stats: dict[str, object] = {"library_present": False}
-    if not path.exists():
-        return stats
-    conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
-    try:
-        present = _tables(conn)
-        if "institutional_skills" not in present:
-            return stats
-        stats["library_present"] = True
-        from aios.application.memory.institutional_skills import is_review_ready
-        from aios.domain.learning.repository import SkillRecord
+    from aios.application.memory.institutional_skills import library_summary
 
-        states: dict[str, int] = {}
-        successes = failures = review_ready = 0
-        for (payload,) in conn.execute("SELECT payload_json FROM institutional_skills"):
-            record = SkillRecord.model_validate(json.loads(payload))
-            states[record.state] = states.get(record.state, 0) + 1
-            successes += record.success_count
-            failures += record.failure_count
-            review_ready += is_review_ready(record)
-        for state in (
-            "candidate",
-            "human_reviewed",
-            "active",
-            "probation",
-            "degraded",
-            "suspended",
-            "revoked",
-            "deprecated",
-            "superseded",
-            "blocked",
-        ):
-            stats[f"library_{state}"] = states.get(state, 0)
-        stats["library_review_ready"] = review_ready
-        stats["library_successes"] = successes
-        stats["library_failures"] = failures
-        if "skill_trails" in present:
-            stats["library_trails"] = _scalar(conn, "SELECT COUNT(*) FROM skill_trails")
-            stats["library_reuse_successes"] = _scalar(
-                conn, "SELECT SUM(reuse_success_count) FROM skill_trails"
-            )
-            stats["library_reuse_failures"] = _scalar(
-                conn, "SELECT SUM(reuse_failure_count) FROM skill_trails"
-            )
-    finally:
-        conn.close()
-    return stats
+    return dict(library_summary(path))
 
 
 def collect(db_path: Path, library_path: Path | None = None) -> dict:

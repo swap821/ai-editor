@@ -146,6 +146,57 @@ def is_review_ready(
     return True
 
 
+def library_summary(path: Path | str) -> dict[str, object]:
+    """Read-only counts of the institutional skill library, for every reporter.
+
+    One reader for the scoreboard and the doctor alike, so they cannot drift
+    the way two definitions of "review-ready" once did. Opened ``mode=ro``: it
+    never creates or migrates the store it reports on, and an absent library
+    reads as absent (``library_present: False``), never as zeros.
+    """
+    from typing import get_args
+
+    from aios.domain.learning.skill_contracts import SkillState
+
+    stats: dict[str, object] = {"library_present": False}
+    db = Path(path)
+    if not db.is_file():
+        return stats
+    conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    try:
+        tables = {
+            r[0]
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if "institutional_skills" not in tables:
+            return stats
+        stats["library_present"] = True
+        states: dict[str, int] = {}
+        successes = failures = review_ready = 0
+        for (payload,) in conn.execute("SELECT payload_json FROM institutional_skills"):
+            record = SkillRecord.model_validate(json.loads(payload))
+            states[record.state] = states.get(record.state, 0) + 1
+            successes += record.success_count
+            failures += record.failure_count
+            review_ready += is_review_ready(record)
+        for state in get_args(SkillState):
+            stats[f"library_{state}"] = states.get(state, 0)
+        stats["library_review_ready"] = review_ready
+        stats["library_successes"] = successes
+        stats["library_failures"] = failures
+        if "skill_trails" in tables:
+            row = conn.execute(
+                "SELECT COUNT(*), COALESCE(SUM(reuse_success_count), 0), "
+                "COALESCE(SUM(reuse_failure_count), 0) FROM skill_trails"
+            ).fetchone()
+            stats["library_trails"] = int(row[0])
+            stats["library_reuse_successes"] = int(row[1])
+            stats["library_reuse_failures"] = int(row[2])
+    finally:
+        conn.close()
+    return stats
+
+
 class SkillTrailIndex:
     """Integer trail ids for institutional skills, plus live ranking bookkeeping.
 
@@ -746,4 +797,5 @@ __all__ = [
     "SkillTrailIndex",
     "build_skills_slot",
     "is_review_ready",
+    "library_summary",
 ]
