@@ -35,6 +35,18 @@ MISSION 4 IS THE ACCEPTANCE TEST FOR THE WHOLE APPARATUS. Everything else shows
 the memory changing; only mission 4 shows the memory PAYING -- a turn served
 end to end with the LLM client rigged to raise if it is touched.
 
+PILOT MODE (recorded deviation, operator decision 2026-09-27)
+-------------------------------------------------------------
+With ``AIOS_SKILL_STORE_MODE=pilot`` the turn recalls skills from the
+institutional library, where nothing promotes itself. There M2 passes on
+REVIEW-READINESS (never activation) and R9 checks the library's counts. R10,
+new, holds in every mode: no evidence activates a library skill, and neither
+does a save. The reel grew from four to five, so older "4/4" reports are not
+comparable. M3-M5 still measure the legacy reflex chain with a gate-less
+cerebellum of their own: the mechanism, not the pilot's reflexes, which since
+#395 replay only operator-activated skills. 2.4c redefines them to compile from
+active skills. The mode is printed and recorded.
+
     python tools/learning_conformance_runner.py
     python tools/learning_conformance_runner.py --json
 """
@@ -62,6 +74,7 @@ from aios.core.verification_strength import VerificationStrength  # noqa: E402
 from aios.memory.db import get_connection, init_memory_db  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
+from aios import config  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-conformance.jsonl"
 
@@ -144,6 +157,36 @@ def _insert_verified_skill(db: Path, goal: str, steps: list[str]) -> int:
     return skill_id
 
 
+def _pilot() -> bool:
+    """The operator's skill-store mode reads the institutional library.
+
+    Operator decision 2026-09-27 ("redefine now"): in `pilot` mode the ledger's
+    skill missions measure the store the turn actually recalls from. Legacy and
+    `shadow` (which reads legacy) keep the legacy missions.
+    """
+    return config.SKILL_STORE_MODE == "pilot"
+
+
+def _library(tmp: Path):
+    """A throwaway institutional skill slot, as production builds it."""
+    from aios.application.memory.institutional_skills import (
+        InstitutionalSkillAdapter,
+        SkillTrailIndex,
+    )
+    from aios.domain.learning.repository import SkillRepository
+
+    operational = tmp / "operational.sqlite"
+    repository = SkillRepository(operational)
+    return (
+        InstitutionalSkillAdapter(
+            repository,
+            SkillTrailIndex(operational),
+            legacy=SkillMemory(db_path=_fresh_db(tmp)),
+        ),
+        repository,
+    )
+
+
 # --------------------------------------------------------------------------- #
 # The product claim: does the memory actually change?
 # --------------------------------------------------------------------------- #
@@ -191,6 +234,26 @@ def mission_1_lesson_transfers(tmp: Path) -> MissionResult:
 
 def mission_2_skill_verifies(tmp: Path) -> MissionResult:
     """Three STRONG successes move a skill candidate -> verified."""
+    if _pilot():
+        # In pilot mode the library never promotes itself: evidence makes a
+        # skill REVIEW-READY, and only the operator activates it.
+        adapter, repository = _library(tmp)
+        for _ in range(3):
+            adapter.record_attempt(
+                "run the tests",
+                ["read_file: a.py", "verify: pytest"],
+                success=True,
+                strength=VerificationStrength.STRONG,
+            )
+        (record,) = repository.list_skills()
+        ready = adapter.trail_map()["trails"][0]["review_ready"]
+        return MissionResult(
+            "M2",
+            "repeated verified success makes a library skill review-ready (pilot)",
+            record.state == "candidate" and ready is True,
+            f"state={record.state!r}, review_ready={ready} after "
+            f"{record.success_count} STRONG successes; activation is the operator's",
+        )
     db = _fresh_db(tmp)
     skill_id = _insert_verified_skill(
         db, "run the tests", ["read_file: a.py", "verify: pytest"]
@@ -398,6 +461,25 @@ def refusal_8_vacuous_test_is_a_failure(tmp: Path) -> MissionResult:
 
 def refusal_9_below_floor_cannot_promote(tmp: Path) -> MissionResult:
     """A WEAK success is remembered but can never calibrate the future."""
+    if _pilot():
+        adapter, repository = _library(tmp)
+        for _ in range(5):
+            adapter.record_attempt(
+                "tidy some imports",
+                ["read_file: a.py", "verify: ruff"],
+                success=True,
+                strength=VerificationStrength.WEAK,
+            )
+        records = repository.list_skills()
+        ready = bool(records) and adapter.trail_map()["trails"][0]["review_ready"]
+        counted = sum(r.success_count for r in records)
+        return MissionResult(
+            "R9",
+            "five below-floor successes cannot make a library skill review-ready (pilot)",
+            counted == 0 and not ready,
+            f"success_count={counted}, review_ready={ready} after 5 WEAK successes",
+            refusal=True,
+        )
     db = _fresh_db(tmp)
     skills = SkillMemory(db_path=db)
     for _ in range(5):
@@ -419,6 +501,36 @@ def refusal_9_below_floor_cannot_promote(tmp: Path) -> MissionResult:
     )
 
 
+def refusal_10_evidence_cannot_activate(tmp: Path) -> MissionResult:
+    """No amount of evidence activates a library skill; only the operator does."""
+    from aios.domain.learning.repository import SkillRecord
+
+    adapter, repository = _library(tmp)
+    for _ in range(10):
+        adapter.record_attempt(
+            "run the pin tests",
+            ["verify: pytest tests/test_pin.py -q"],
+            success=True,
+            strength=VerificationStrength.STRONG,
+        )
+    (record,) = repository.list_skills()
+    forged = record.model_copy(update={"state": "active"})
+    refused = False
+    try:
+        repository.save(SkillRecord.model_validate(forged.model_dump()))
+    except ValueError:
+        refused = True
+    after = repository.get(record.skill_id, record.version)
+    return MissionResult(
+        "R10",
+        "ten STRONG successes never activate a library skill, and a save cannot",
+        record.state == "candidate" and refused and after.state == "candidate",
+        f"state={after.state!r} after {record.success_count} STRONG successes; "
+        f"a save straight to 'active' was {'refused' if refused else 'ACCEPTED'}",
+        refusal=True,
+    )
+
+
 MISSIONS = [
     mission_1_lesson_transfers,
     mission_2_skill_verifies,
@@ -429,6 +541,7 @@ MISSIONS = [
     refusal_7_unreachable_model_is_not_scored,
     refusal_8_vacuous_test_is_a_failure,
     refusal_9_below_floor_cannot_promote,
+    refusal_10_evidence_cannot_activate,
 ]
 
 
@@ -466,7 +579,19 @@ def run_all() -> Report:
 
 
 def render(report: Report) -> str:
-    lines = ["LEARNING CONFORMANCE", ""]
+    lines = [
+        "LEARNING CONFORMANCE",
+        f"  skill store mode: {config.SKILL_STORE_MODE}",
+        "",
+    ]
+    if _pilot():
+        lines.insert(
+            2,
+            "  (pilot: M2/R9 measure the institutional library; M3-M5 still measure "
+            "the legacy reflex MECHANISM with a gate-less cerebellum, not the pilot's "
+            "reflexes, which since #395 replay only operator-activated skills; the "
+            "2.4c hard switch redefines them)",
+        )
     product_ok = sum(1 for m in report.product if m.passed)
     reel_ok = sum(1 for m in report.reel if m.passed)
     lines.append(f"  product claim : {product_ok} / {len(report.product)}")
@@ -507,6 +632,8 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     {
                         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        # A score is unreadable without the store it measured.
+                        "skill_store_mode": config.SKILL_STORE_MODE,
                         "product": f"{sum(1 for m in report.product if m.passed)}/{len(report.product)}",
                         "reel": f"{sum(1 for m in report.reel if m.passed)}/{len(report.reel)}",
                         "missions": [asdict(m) for m in report.missions],

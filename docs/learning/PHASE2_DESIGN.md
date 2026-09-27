@@ -392,6 +392,42 @@ credit only their own live row). This is accepted for the pilot window.
 2. sets `AIOS_SKILL_STORE_MODE=shadow`, then `pilot`;
 3. activates the review-ready skills they choose.
 
+## The pilot's reflexes read the library
+
+**The gap:** until this change, pilot recall answered only from skills the
+operator activated, but the cerebellum still compiled and replayed reflexes from
+skills the legacy store had promoted by itself. The operator had been told that
+"skill recall and reflexes go quiet until the operator activates". Only recall
+did. A reflex is the one learned behaviour that runs with no model in the loop,
+so it was the wrong half to leave behind.
+
+**Now:** `bootstrap.py` attaches a reflex gate to the one cerebellum whenever
+the skill slot it actually built reads the library, which is pilot mode after
+the migration. A pilot that refused to start gates nothing. With the gate
+attached:
+- A playbook replays only if its skill is **active** in the library and its
+  steps are **exactly** the activated procedure. The legacy store refreshes
+  recipes in place, so being active is not enough on its own.
+- A withheld playbook is recorded as an abstention with the reason
+  `pilot: skill not operator-activated`. The playbook itself is untouched, so
+  leaving pilot mode (a restart) restores it.
+- Compiling reads active skills, never legacy `verified` ones, and compiles the
+  activated procedure rather than the legacy row's steps.
+- A library-only skill (no `procedural_skills` row) gets no reflex, because
+  `compiled_playbooks.skill_id` is a foreign key into the legacy table. That
+  waits for the 2.4c schema change.
+- An unreadable library activates nothing (fail closed), and the gate cannot be
+  replaced once attached.
+
+**Checked against live data (read-only, 2026-09-27):** the compiled playbooks
+for skills 79, 41, 53 and 49 match their library procedures step for step. If
+the operator activates 79 and 41, their existing reflexes replay; everything
+else stays quiet. Phase 0b's approval containment still applies to anything
+that replays.
+
+**What 2.4c still owns:** retiring the 13 legacy playbooks, the schema change,
+and removing the legacy writes.
+
 ## The pilot, as run (dated evidence, 2026-09-27)
 
 - **Migration applied** by operator decision ("Migrate + shadow"). The dry run
@@ -420,6 +456,27 @@ credit only their own live row). This is accepted for the pilot window.
     15/5). Both are read-only verify arcs.
   - Advised against: 66, 68 and 70, which write files, and whose compiled
     reflexes Phase 0b suspended as harness-compiled.
+
+## The instruments in pilot mode: the Learning Ledger runner
+
+Recorded deviation (operator: "Redefine now, record deviations", 2026-09-27).
+`tools/learning_conformance_runner.py` reads `AIOS_SKILL_STORE_MODE`, and it
+prints and records the mode with every score.
+
+| Mission | Legacy and shadow (reads legacy) | Pilot (reads the library) |
+|---|---|---|
+| M2 | 3 STRONG successes promote a skill to `verified` | 3 STRONG successes make a library skill **review-ready** and leave it `candidate`. It fails if the evidence activated it. |
+| R9 | 5 WEAK successes leave it `candidate` | 5 WEAK successes count 0 in the library, and the skill is not review-ready |
+| R10 (new) | 10 STRONG successes never activate a library skill, and a `save` straight to `active` is refused | the same |
+| M1, M3–M5, R6–R8 | unchanged | unchanged. M3–M5 still measure the legacy reflex **mechanism** with a gate-less cerebellum of their own. Since #395, the pilot's live reflexes replay only operator-activated skills. |
+
+- **Comparability:** the reel grew from four missions to five, so a "5/5" is not
+  the "4/4" reported before this change.
+- **What 2.4c must redefine:** after the hard switch, M3–M5 must compile from
+  active skills.
+- **Each verdict condition has its own control:** a test makes the runner's
+  read of the library lie about one thing while the rest stays real, and checks
+  that the mission fails.
 
 ## Found while starting
 

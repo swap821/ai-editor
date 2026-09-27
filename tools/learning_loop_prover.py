@@ -571,6 +571,56 @@ def skill_promoted(marker: str) -> bool:
     return False
 
 
+def skill_store_mode() -> str:
+    """The backend's live skill-slot mode (Phase 2 slice 2.4), asked of the backend.
+
+    The dual-write slot adds a `pilot` section to the trail map; the legacy slot
+    has none. Asking the RUNNING backend, not this process's config, because the
+    two can differ (a backend started before `.env` changed).
+    """
+    resp = _session().get("/api/v1/development/trails", timeout=30)
+    resp.raise_for_status()
+    pilot = resp.json().get("pilot")
+    return str(pilot.get("mode", "legacy")) if isinstance(pilot, dict) else "legacy"
+
+
+def library_active_count() -> Optional[int]:
+    """Pilot mode: how many library skills the operator has ACTIVATED.
+
+    Read from the running backend's trail map, where an active library skill
+    is reported as `verified`. None when it cannot be read: an unknown count is
+    never taken as zero, because zero is what makes a replay a hard failure.
+    """
+    try:
+        resp = _session().get("/api/v1/development/trails", timeout=30)
+        resp.raise_for_status()
+        return int(resp.json()["summary"]["verified"])
+    except (requests.RequestException, KeyError, TypeError, ValueError):
+        return None
+
+
+def skill_review_ready(marker: str) -> bool:
+    """Pilot mode: a library trail for this goal whose evidence made it review-ready.
+
+    In pilot mode `/development/skills?status=verified` lists only ACTIVE
+    library skills, and only the operator activates -- so a harness can never
+    see its own arc there. What the harness CAN earn is the evidence: the arc
+    meeting the promotion rule, reported by the library as `review_ready`.
+    """
+    for _ in range(PROMOTION_POLL_TRIES):
+        try:
+            resp = _session().get("/api/v1/development/trails", timeout=30)
+        except requests.RequestException:
+            time.sleep(PROMOTION_POLL_DELAY_S)
+            continue
+        resp.raise_for_status()
+        for trail in resp.json().get("trails", []):
+            if marker in json.dumps(trail) and trail.get("review_ready"):
+                return True
+        time.sleep(PROMOTION_POLL_DELAY_S)
+    return False
+
+
 # --------------------------------------------------------------------------- #
 # The three phases
 # --------------------------------------------------------------------------- #
@@ -681,12 +731,28 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
                 "cerebellum matched BEFORE promotion completed",
             )
 
-    promoted = skill_promoted(f"llp_reflex_{_slug(run_id)}")
-    check.soft(
-        "reflex.skill-verified",
-        promoted,
-        "a verified skill row for this goal exists in /development/skills",
-    )
+    marker = f"llp_reflex_{_slug(run_id)}"
+    # Deviation (operator 2026-09-27, "redefine now"): in pilot mode the prover
+    # reads the live skill slot. Promotion there is review-readiness -- the
+    # evidence -- because activation is the operator's capability-backed act and
+    # a harness can never activate its own arc.
+    mode = skill_store_mode()
+    if mode == "pilot":
+        promoted = False
+        check.soft(
+            "reflex.skill-review-ready",
+            skill_review_ready(marker),
+            "pilot: the arc's evidence made it review-ready in the skill library "
+            "(activation is the operator's, so no harness-learned skill becomes "
+            "active or recallable)",
+        )
+    else:
+        promoted = skill_promoted(marker)
+        check.soft(
+            "reflex.skill-verified",
+            promoted,
+            "a verified skill row for this goal exists in /development/skills",
+        )
 
     replay = run_prompt(prompt, f"ll-reflex-{run_id}-replay", model_id=model)
     log_event(
@@ -726,6 +792,45 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             "the playbook matched and its approval-needing step was withheld, "
             f"not auto-run (controls={replay.get('cerebellum_controls') or 'none'})",
         )
+    elif mode == "pilot":
+        replayed = "cerebellum_match" in replay["cerebellum_events"]
+        # Since #395 a pilot backend's cerebellum replays only skills the
+        # operator ACTIVATED, with exactly the activated steps. This run's arc
+        # was learned minutes ago and no harness can activate it. With nothing
+        # activated at all, any replay is the gate failing: hard. With some
+        # activated, one of THEM could legitimately match this prompt, so a
+        # replay is reported, not failed -- and an unreadable count is treated
+        # as "some", never as zero.
+        active = library_active_count()
+        if active == 0:
+            check.hard(
+                "reflex.pilot-no-legacy-reflex",
+                not replayed,
+                "pilot: nothing is activated and no reflex replayed"
+                if not replayed
+                else "GATE FAILURE: a reflex replayed in pilot mode with NO "
+                "activated skill -- the reflex gate (#395) did not withhold it",
+            )
+        else:
+            check.soft(
+                "reflex.pilot-no-legacy-reflex",
+                not replayed,
+                "pilot: no reflex replayed"
+                if not replayed
+                else f"a reflex replayed in pilot mode; {active if active is not None else 'an unknown number of'} "
+                "activated skill(s) exist and may be what matched. If it was this "
+                "run's own arc, the reflex gate failed",
+            )
+        if replayed:
+            # Whatever the mode, a reflex that DOES replay must not auto-run a
+            # step no human approved (the Phase 0b containment).
+            check.hard(
+                "reflex.withheld-without-human-approval",
+                "reflex_authority" in replay.get("cerebellum_controls", [])
+                and "cerebellum_done" not in replay["cerebellum_events"],
+                "a replayed reflex's approval-needing step was withheld, not "
+                f"auto-run (controls={replay.get('cerebellum_controls') or 'none'})",
+            )
     else:
         check.soft(
             "reflex.cerebellum-match",
@@ -757,13 +862,33 @@ def phase_probe(files: dict[str, str], run_id: str, model: str, check: Check) ->
     log_event({"kind": "turn", "phase": "probe", "run_id": run_id, **result})
     saw_fail = any(e.startswith("[VERIFY FAIL]") for e in result.get("evidence", []))
     saw_pass = any(e.startswith("[VERIFY PASS]") for e in result.get("evidence", []))
-    check.hard(
-        "probe.broken-code-fails",
-        saw_fail and not saw_pass,
-        "VERIFICATION-CONFIDENCE VIOLATION: broken code did not fail verification"
-        if not saw_fail or saw_pass
-        else "verification correctly failed broken code",
+    reached = saw_fail or saw_pass
+
+    # Two different things used to share one hard check. "Verification PASSED
+    # broken code" is a verifier that rubber-stamps -- a harness defect, hard in
+    # every mode. "The model never ran verification" is model obedience: the
+    # negative control was simply not exercised. Reporting the second as the
+    # first made a 0.5b model's silence read as a VERIFICATION-CONFIDENCE
+    # VIOLATION on the nightly. Merging them the other way (hard-failing only on
+    # a pass) would be worse: a probe that never ran would then PASS -- a dead
+    # instrument certifying the verifier. So: reaching is soft, like the reflex
+    # checks gated on promotion; what verification does once reached is hard.
+    check.soft(
+        "probe.reached",
+        reached,
+        "the model ran verification on the broken code"
+        if reached
+        else "NOT EXERCISED: the model never ran verification, so the negative "
+        "control said nothing about the verifier this run",
     )
+    if reached:
+        check.hard(
+            "probe.broken-code-fails",
+            saw_fail and not saw_pass,
+            "verification correctly failed broken code"
+            if saw_fail and not saw_pass
+            else "VERIFICATION-CONFIDENCE VIOLATION: verification PASSED broken code",
+        )
 
 
 # --------------------------------------------------------------------------- #

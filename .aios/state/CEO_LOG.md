@@ -1087,3 +1087,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Remote:** pushed branch codex/gagos-living-being-vision-continuation-20260926 and opened PR #377 against master: https://github.com/swap821/ai-editor/pull/377. GitHub reported it open and mergeable; CI and CodeQL were still running at the last check.
 - **Next:** re-check remote statuses on the latest PR tip and keep the merge decision with the operator/review process. Do not equate a mergeable PR with passing CI or visual acceptance.
 - **Evidence:** local frontend and Python gates passed; Python coverage 88.49% with 85% required. No active/held WebGL review, device test, live journey, or operator acceptance. 0 points; accepted evidence remains 3/100.
+
+## 2026-09-27 — CEO checkpoint (the pilot waits on one human act)
+
+- **State:** the Phase 2 instruments are institutional-aware. Merged: scoreboard #388, payoff D3 #391. Open: doctor #389 (organs 53/54), organ-55 M2 #390, red-team RT-07 #387, prover #392 and #393, Learning Ledger #394. #395 makes pilot reflexes honour activation: until now only recall did.
+- **Critical path:** the pilot window cannot start without the operator. The library holds 0 active, 73 candidate and 8 review-ready skills. Recommended: merge #395, restart the backend, then activate 79 and 41 (read-only verify arcs) with `tools/activate_skills.py`. Their compiled reflexes already match the library procedures step for step.
+- **Honesty:** all 8 review-ready skills were born in test harnesses. The pilot will exercise the machinery; it will not show organic learning. The payoff baseline did not meet H1, so no claim that learning helps is earned yet.
+- **Merge order:** #392 before reading another nightly (the red prover is the known probe conflation). #393 needs a rebase after #392. When #389 is squashed, its organ 53/54 evidence is orphaned, so re-gather at master's tip straight away.
+- **Next after the pilot window:** 2.4c, the hard switch (retire the 13 playbooks, FK schema change, remove the legacy writes).

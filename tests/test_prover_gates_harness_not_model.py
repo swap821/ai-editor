@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from tests.source_rules import executable_source
 from tools import learning_loop_prover as prover
 
@@ -111,3 +113,208 @@ def test_lenient_downgrades_soft_and_never_hard() -> None:
     strict = prover.Check(lenient=False)
     strict.soft("s", False, "model was disobedient")
     assert not strict.passed, "without --lenient a soft failure still fails"
+
+
+def _probe(monkeypatch, evidence: list[str], *, lenient: bool) -> "prover.Check":
+    monkeypatch.setattr(prover, "run_prompt", lambda *a, **k: {"evidence": evidence})
+    monkeypatch.setattr(prover, "log_event", lambda *a, **k: None)
+    check = prover.Check(lenient=lenient)
+    prover.phase_probe({"probe_test": "lab/test_llp_probe_x.py"}, "run", "model", check)
+    return check
+
+
+def _result(check, name):
+    return next((r for r in check.results if r["check"] == name), None)
+
+
+class TestTheProbeSeparatesNotReachedFromViolated:
+    """The nightly failed on "broken code did not fail verification" with a
+    0.5b model whose other turns never reached verification. "The model never
+    ran verify" and "verify PASSED broken code" are different findings."""
+
+    def test_verification_failing_broken_code_passes(self, monkeypatch) -> None:
+        check = _probe(monkeypatch, ["[VERIFY FAIL] 1 failed"], lenient=True)
+        assert _result(check, "probe.reached")["ok"]
+        assert _result(check, "probe.broken-code-fails")["ok"]
+
+    @pytest.mark.parametrize("lenient", [True, False])
+    def test_verification_passing_broken_code_fails_in_every_mode(
+        self, monkeypatch, lenient
+    ) -> None:
+        check = _probe(monkeypatch, ["[VERIFY PASS] 1 passed"], lenient=lenient)
+        verdict = _result(check, "probe.broken-code-fails")
+        assert verdict["ok"] is False and verdict["soft"] is False
+        assert "PASSED broken code" in verdict["detail"]
+        assert check.passed is False
+
+    def test_not_reached_is_never_a_pass_of_the_negative_control(
+        self, monkeypatch
+    ) -> None:
+        check = _probe(monkeypatch, [], lenient=True)
+        reached = _result(check, "probe.reached")
+        assert reached["ok"] is False and reached["downgraded"] is True
+        assert "NOT EXERCISED" in reached["detail"]
+        assert _result(check, "probe.broken-code-fails") is None, (
+            "a probe that never ran must not record a verdict at all"
+        )
+
+    def test_a_strict_run_still_fails_when_the_probe_is_not_reached(
+        self, monkeypatch
+    ) -> None:
+        check = _probe(monkeypatch, [], lenient=False)
+        assert check.passed is False
+
+    def test_reaching_the_probe_is_soft(self) -> None:
+        assert "probe.reached" in " ".join(_registrations("soft"))
+
+
+def _turn(*, replayed: bool = False, done: bool = False, withheld: bool = True) -> dict:
+    events = (["cerebellum_match"] if replayed else []) + (
+        ["cerebellum_done"] if done else []
+    )
+    return {
+        "outcome": "verified_success",
+        "evidence": ["[VERIFY PASS] 1 passed strength=STRONG"],
+        "step_tools": ["verify"],
+        "cerebellum_events": events,
+        "cerebellum_controls": ["reflex_authority"] if (replayed and withheld) else [],
+    }
+
+
+def _reflex(
+    monkeypatch, *, mode: str, replay: dict, ready: bool = True, active=0
+) -> "prover.Check":
+    turns = iter([_turn(), _turn(), _turn(), replay])
+    monkeypatch.setattr(prover, "run_prompt", lambda *a, **k: next(turns))
+    monkeypatch.setattr(prover, "log_event", lambda *a, **k: None)
+    monkeypatch.setattr(prover, "skill_store_mode", lambda: mode)
+    monkeypatch.setattr(prover, "skill_review_ready", lambda marker: ready)
+    monkeypatch.setattr(prover, "library_active_count", lambda: active)
+
+    def no_legacy_poll(marker):
+        raise AssertionError("pilot mode must not ask the legacy promotion question")
+
+    monkeypatch.setattr(
+        prover,
+        "skill_promoted",
+        no_legacy_poll if mode == "pilot" else (lambda m: False),
+    )
+    check = prover.Check(lenient=True)
+    prover.phase_reflex(
+        {"reflex_test": "lab/test_llp_reflex_x.py"}, "20260927T000000", "model", check
+    )
+    return check
+
+
+class TestTheProverReadsTheLiveSlotInPilotMode:
+    """Operator decision 2026-09-27: redefine the prover against the live slot.
+    In pilot mode promotion is review-readiness (activation is the operator's),
+    and since #395 a reflex replays there only if the operator activated it."""
+
+    def test_legacy_mode_keeps_the_legacy_question(self, monkeypatch) -> None:
+        check = _reflex(monkeypatch, mode="legacy", replay=_turn())
+        assert _result(check, "reflex.skill-verified") is not None
+        assert _result(check, "reflex.skill-review-ready") is None
+
+    def test_pilot_mode_asks_for_review_readiness(self, monkeypatch) -> None:
+        check = _reflex(monkeypatch, mode="pilot", replay=_turn())
+        ready = _result(check, "reflex.skill-review-ready")
+        assert ready["ok"] and ready["soft"]
+        assert _result(check, "reflex.skill-verified") is None
+        assert _result(check, "reflex.pilot-no-legacy-reflex")["ok"]
+        assert _result(check, "reflex.withheld-without-human-approval") is None
+
+    def test_with_nothing_activated_a_replay_is_a_gate_failure(
+        self, monkeypatch
+    ) -> None:
+        check = _reflex(
+            monkeypatch, mode="pilot", replay=_turn(replayed=True), active=0
+        )
+        gate = _result(check, "reflex.pilot-no-legacy-reflex")
+        assert gate["ok"] is False and gate["soft"] is False
+        assert "GATE FAILURE" in gate["detail"]
+        assert check.passed is False
+
+    def test_with_nothing_activated_no_replay_passes_hard(self, monkeypatch) -> None:
+        check = _reflex(monkeypatch, mode="pilot", replay=_turn(), active=0)
+        gate = _result(check, "reflex.pilot-no-legacy-reflex")
+        assert gate["ok"] is True and gate["soft"] is False
+
+    @pytest.mark.parametrize("active", [2, None])
+    def test_with_activated_skills_or_an_unknown_count_a_replay_is_reported(
+        self, monkeypatch, active
+    ) -> None:
+        """An activated skill may legitimately match; an unreadable count is
+        never taken as zero."""
+        check = _reflex(
+            monkeypatch, mode="pilot", replay=_turn(replayed=True), active=active
+        )
+        gate = _result(check, "reflex.pilot-no-legacy-reflex")
+        assert gate["ok"] is False and gate["soft"] is True
+        assert "activated skill(s) exist" in gate["detail"]
+        withheld = _result(check, "reflex.withheld-without-human-approval")
+        assert withheld["ok"] and withheld["soft"] is False
+
+    def test_a_reflex_that_auto_ran_in_pilot_mode_fails_hard(self, monkeypatch) -> None:
+        check = _reflex(
+            monkeypatch,
+            mode="pilot",
+            replay=_turn(replayed=True, done=True, withheld=False),
+        )
+        withheld = _result(check, "reflex.withheld-without-human-approval")
+        assert withheld["ok"] is False and withheld["soft"] is False
+        assert check.passed is False
+
+    def test_the_active_count_is_read_from_the_trail_summary(self, monkeypatch) -> None:
+        class Resp:
+            def __init__(self, body):
+                self._body = body
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._body
+
+        class Session:
+            def __init__(self, body):
+                self.body = body
+
+            def get(self, path, **kwargs):
+                assert path == "/api/v1/development/trails"
+                return Resp(self.body)
+
+        monkeypatch.setattr(
+            prover, "_session", lambda: Session({"summary": {"verified": 3}})
+        )
+        assert prover.library_active_count() == 3
+        monkeypatch.setattr(prover, "_session", lambda: Session({"trails": []}))
+        assert prover.library_active_count() is None, "unknown is not zero"
+
+    def test_the_mode_is_asked_of_the_running_backend(self, monkeypatch) -> None:
+        class Resp:
+            def __init__(self, body):
+                self._body = body
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._body
+
+        class Session:
+            def __init__(self, body):
+                self.body = body
+
+            def get(self, path, **kwargs):
+                assert path == "/api/v1/development/trails"
+                return Resp(self.body)
+
+        monkeypatch.setattr(prover, "_session", lambda: Session({"trails": []}))
+        assert prover.skill_store_mode() == "legacy"
+        monkeypatch.setattr(
+            prover,
+            "_session",
+            lambda: Session({"trails": [], "pilot": {"mode": "pilot"}}),
+        )
+        assert prover.skill_store_mode() == "pilot"
