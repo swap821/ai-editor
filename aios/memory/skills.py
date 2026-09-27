@@ -372,6 +372,11 @@ class SkillMemory:
         ids = [int(skill_id) for skill_id in skill_ids]
         if not ids:
             return []
+        # Reuse evidence is a learning write -- the counters rank future recall
+        # and a stain can demote a verified trail -- so the stop freezes it like
+        # record_attempt. Phase 0b froze the attempt and missed this one; found
+        # in Phase 2 slice 2.4b, whose pilot dual-writes through it.
+        assert_learning_permitted("skills.record_reuse")
         moment = (
             (now or datetime.now(timezone.utc))
             .replace(tzinfo=None)
