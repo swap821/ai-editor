@@ -158,7 +158,9 @@ in both directions. Two consequences:
 - **The skill channel in pilot mode** contains only skills the operator has
   activated (D3). Every run records `library_active_at_start`.
 
-## 7. Proposed Deviation D4 (NOT binding until committed to the pre-registration before the run)
+## 7. Proposed Deviation D4 (as proposed; the binding text is D4 in `PAYOFF_PREREGISTRATION.md`)
+
+*D4 was registered on 2026-09-27, with one refinement: the sizing rule is fixed in advance (K by measured repeat disagreement, N = 150). Where this table and D4 differ, D4 governs.*
 
 | | |
 |---|---|
