@@ -584,6 +584,21 @@ def skill_store_mode() -> str:
     return str(pilot.get("mode", "legacy")) if isinstance(pilot, dict) else "legacy"
 
 
+def library_active_count() -> Optional[int]:
+    """Pilot mode: how many library skills the operator has ACTIVATED.
+
+    Read from the running backend's trail map, where an active library skill
+    is reported as `verified`. None when it cannot be read: an unknown count is
+    never taken as zero, because zero is what makes a replay a hard failure.
+    """
+    try:
+        resp = _session().get("/api/v1/development/trails", timeout=30)
+        resp.raise_for_status()
+        return int(resp.json()["summary"]["verified"])
+    except (requests.RequestException, KeyError, TypeError, ValueError):
+        return None
+
+
 def skill_review_ready(marker: str) -> bool:
     """Pilot mode: a library trail for this goal whose evidence made it review-ready.
 
@@ -779,18 +794,33 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
         )
     elif mode == "pilot":
         replayed = "cerebellum_match" in replay["cerebellum_events"]
-        # KNOWN LIMIT, reported rather than hidden: the operator's rule is that
-        # reflexes replay only activated skills, but the cerebellum compiles
-        # from the legacy store until the 2.4c hard switch, so a
-        # legacy-promoted reflex can still match here.
-        check.soft(
-            "reflex.pilot-no-legacy-reflex",
-            not replayed,
-            "pilot: no legacy-promoted reflex replayed"
-            if not replayed
-            else "KNOWN LIMIT: a legacy-promoted reflex replayed in pilot mode -- "
-            "the cerebellum compiles from the legacy store until the 2.4c hard switch",
-        )
+        # Since #395 a pilot backend's cerebellum replays only skills the
+        # operator ACTIVATED, with exactly the activated steps. This run's arc
+        # was learned minutes ago and no harness can activate it. With nothing
+        # activated at all, any replay is the gate failing: hard. With some
+        # activated, one of THEM could legitimately match this prompt, so a
+        # replay is reported, not failed -- and an unreadable count is treated
+        # as "some", never as zero.
+        active = library_active_count()
+        if active == 0:
+            check.hard(
+                "reflex.pilot-no-legacy-reflex",
+                not replayed,
+                "pilot: nothing is activated and no reflex replayed"
+                if not replayed
+                else "GATE FAILURE: a reflex replayed in pilot mode with NO "
+                "activated skill -- the reflex gate (#395) did not withhold it",
+            )
+        else:
+            check.soft(
+                "reflex.pilot-no-legacy-reflex",
+                not replayed,
+                "pilot: no reflex replayed"
+                if not replayed
+                else f"a reflex replayed in pilot mode; {active if active is not None else 'an unknown number of'} "
+                "activated skill(s) exist and may be what matched. If it was this "
+                "run's own arc, the reflex gate failed",
+            )
         if replayed:
             # Whatever the mode, a reflex that DOES replay must not auto-run a
             # step no human approved (the Phase 0b containment).

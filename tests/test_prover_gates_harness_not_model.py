@@ -182,13 +182,14 @@ def _turn(*, replayed: bool = False, done: bool = False, withheld: bool = True) 
 
 
 def _reflex(
-    monkeypatch, *, mode: str, replay: dict, ready: bool = True
+    monkeypatch, *, mode: str, replay: dict, ready: bool = True, active=0
 ) -> "prover.Check":
     turns = iter([_turn(), _turn(), _turn(), replay])
     monkeypatch.setattr(prover, "run_prompt", lambda *a, **k: next(turns))
     monkeypatch.setattr(prover, "log_event", lambda *a, **k: None)
     monkeypatch.setattr(prover, "skill_store_mode", lambda: mode)
     monkeypatch.setattr(prover, "skill_review_ready", lambda marker: ready)
+    monkeypatch.setattr(prover, "library_active_count", lambda: active)
 
     def no_legacy_poll(marker):
         raise AssertionError("pilot mode must not ask the legacy promotion question")
@@ -208,7 +209,7 @@ def _reflex(
 class TestTheProverReadsTheLiveSlotInPilotMode:
     """Operator decision 2026-09-27: redefine the prover against the live slot.
     In pilot mode promotion is review-readiness (activation is the operator's),
-    and a legacy reflex replaying there is a KNOWN LIMIT until the hard switch."""
+    and since #395 a reflex replays there only if the operator activated it."""
 
     def test_legacy_mode_keeps_the_legacy_question(self, monkeypatch) -> None:
         check = _reflex(monkeypatch, mode="legacy", replay=_turn())
@@ -223,14 +224,34 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         assert _result(check, "reflex.pilot-no-legacy-reflex")["ok"]
         assert _result(check, "reflex.withheld-without-human-approval") is None
 
-    def test_a_legacy_reflex_in_pilot_mode_is_named_a_known_limit(
+    def test_with_nothing_activated_a_replay_is_a_gate_failure(
         self, monkeypatch
     ) -> None:
-        check = _reflex(monkeypatch, mode="pilot", replay=_turn(replayed=True))
-        limit = _result(check, "reflex.pilot-no-legacy-reflex")
-        assert (
-            limit["ok"] is False and limit["soft"] and "KNOWN LIMIT" in limit["detail"]
+        check = _reflex(
+            monkeypatch, mode="pilot", replay=_turn(replayed=True), active=0
         )
+        gate = _result(check, "reflex.pilot-no-legacy-reflex")
+        assert gate["ok"] is False and gate["soft"] is False
+        assert "GATE FAILURE" in gate["detail"]
+        assert check.passed is False
+
+    def test_with_nothing_activated_no_replay_passes_hard(self, monkeypatch) -> None:
+        check = _reflex(monkeypatch, mode="pilot", replay=_turn(), active=0)
+        gate = _result(check, "reflex.pilot-no-legacy-reflex")
+        assert gate["ok"] is True and gate["soft"] is False
+
+    @pytest.mark.parametrize("active", [2, None])
+    def test_with_activated_skills_or_an_unknown_count_a_replay_is_reported(
+        self, monkeypatch, active
+    ) -> None:
+        """An activated skill may legitimately match; an unreadable count is
+        never taken as zero."""
+        check = _reflex(
+            monkeypatch, mode="pilot", replay=_turn(replayed=True), active=active
+        )
+        gate = _result(check, "reflex.pilot-no-legacy-reflex")
+        assert gate["ok"] is False and gate["soft"] is True
+        assert "activated skill(s) exist" in gate["detail"]
         withheld = _result(check, "reflex.withheld-without-human-approval")
         assert withheld["ok"] and withheld["soft"] is False
 
@@ -243,6 +264,32 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         withheld = _result(check, "reflex.withheld-without-human-approval")
         assert withheld["ok"] is False and withheld["soft"] is False
         assert check.passed is False
+
+    def test_the_active_count_is_read_from_the_trail_summary(self, monkeypatch) -> None:
+        class Resp:
+            def __init__(self, body):
+                self._body = body
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self._body
+
+        class Session:
+            def __init__(self, body):
+                self.body = body
+
+            def get(self, path, **kwargs):
+                assert path == "/api/v1/development/trails"
+                return Resp(self.body)
+
+        monkeypatch.setattr(
+            prover, "_session", lambda: Session({"summary": {"verified": 3}})
+        )
+        assert prover.library_active_count() == 3
+        monkeypatch.setattr(prover, "_session", lambda: Session({"trails": []}))
+        assert prover.library_active_count() is None, "unknown is not zero"
 
     def test_the_mode_is_asked_of_the_running_backend(self, monkeypatch) -> None:
         class Resp:
