@@ -371,8 +371,16 @@ class VerifiedMemoryReader:
     """
 
     #: (store, id) pairs are the identity; ids are only unique within a table.
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | None = None,
+        *,
+        library_path: Path | None = None,
+        capability_path: Path | None = None,
+    ) -> None:
         self._db_path = db_path
+        self._library_path = library_path
+        self._capability_path = capability_path
 
     def _connect(self):  # noqa: ANN202 - sqlite3.Connection, imported lazily
         import sqlite3
@@ -439,7 +447,113 @@ class VerifiedMemoryReader:
                     )
         finally:
             conn.close()
+        out.extend(self._library_rows())
         return out
+
+    def _library_rows(self) -> list[dict[str, Any]]:
+        """ACTIVE institutional skills: what pilot-mode recall trusts (Phase 2).
+
+        Before this, M2 read only the legacy stores, so in pilot mode -- where
+        recall answers from the institutional library -- it could not see the
+        trusted store at all. For a library skill, "earned" is not a strength
+        label but the operator's act: activation is capability-backed, so an
+        ACTIVE skill is earned exactly when a CONSUMED capability exists for
+        its own activation route. One without it became active without the
+        operator, which is the false success M2 exists to catch.
+
+        An absent library is legitimately empty (a machine that never migrated
+        has no active skills). A present one that cannot be read is unread, and
+        so is the capability store when there are active skills to judge.
+        """
+        import json
+        import sqlite3
+
+        from aios import config
+
+        library = Path(
+            self._library_path
+            if self._library_path is not None
+            else config.OPERATIONAL_STATE_DB_PATH
+        )
+        if not library.is_file():
+            return []
+        try:
+            conn = sqlite3.connect(f"file:{library.as_posix()}?mode=ro", uri=True)
+            try:
+                tables = {
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+                payloads = (
+                    [
+                        r[0]
+                        for r in conn.execute(
+                            "SELECT payload_json FROM institutional_skills"
+                        )
+                    ]
+                    if "institutional_skills" in tables
+                    else []
+                )
+            finally:
+                conn.close()
+            active = [
+                (str(rec["skill_id"]), int(rec["version"]))
+                for rec in (json.loads(p) for p in payloads)
+                if rec.get("state") == "active"
+            ]
+        except Exception as exc:  # noqa: BLE001 - an unreadable library is unread
+            raise MemoryUnreadable(
+                f"institutional skill library could not be read: {exc}"
+            ) from exc
+        if not active:
+            return []
+        consumed = self._consumed_activation_routes()
+        return [
+            {
+                "store": "institutional_skills",
+                "id": f"{skill_id}@v{version}",
+                "trust": "verified",
+                "strength": None,
+                "earned": f"/api/v1/skills/{skill_id}/versions/{version}/activate"
+                in consumed,
+                "basis": "consumed operator activation capability",
+            }
+            for skill_id, version in active
+        ]
+
+    def _consumed_activation_routes(self) -> set[str]:
+        """Routes of every consumed, unrevoked skill-activation capability."""
+        import sqlite3
+
+        from aios import config
+
+        path = Path(
+            self._capability_path
+            if self._capability_path is not None
+            else config.CAPABILITY_DB_PATH
+        )
+        if not path.is_file():
+            raise MemoryUnreadable(
+                f"active library skills but no capability store at {path}: "
+                "whether they were activated by the operator cannot be decided"
+            )
+        try:
+            conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+            try:
+                rows = conn.execute(
+                    "SELECT route FROM capabilities WHERE consumed_at IS NOT NULL "
+                    "AND revoked_at IS NULL AND upper(http_method) = 'POST' "
+                    "AND route LIKE '/api/v1/skills/%/activate'"
+                ).fetchall()
+            finally:
+                conn.close()
+        except Exception as exc:  # noqa: BLE001 - unreadable, not empty
+            raise MemoryUnreadable(
+                f"capability store could not be read: {exc}"
+            ) from exc
+        return {str(r[0]) for r in rows}
 
     @staticmethod
     def _earned(strength_name: Any) -> bool:

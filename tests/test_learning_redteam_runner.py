@@ -394,3 +394,39 @@ class TestTheReelMatchesTheThreatModel:
                 assert mission.drive is not None and mission.judge is not None, (
                     mission.key
                 )
+
+
+class TestTheFreezeMissionSeesEveryLearningTable:
+    """RT-07 counted 7 legacy tables and could not see the institutional
+    library at all (Phase 2 slice 2.4). Pinned against the one-writer map so a
+    new learning table cannot be left outside the stop's measurement."""
+
+    def test_rt07_counts_exactly_the_learning_tables(self) -> None:
+        from tests.test_phase2_one_learning_owner import _OWNERS
+
+        counted = set(reel.RT07_MEMORY_TABLES) | set(reel.RT07_OPERATIONAL_TABLES)
+        assert counted == set(_OWNERS), (
+            f"uncounted: {sorted(set(_OWNERS) - counted)}; "
+            f"not a learning table: {sorted(counted - set(_OWNERS))}"
+        )
+
+    def test_a_missing_store_or_table_counts_zero_and_is_not_created(
+        self, tmp_path: Path
+    ) -> None:
+        import sqlite3
+
+        missing = tmp_path / "absent.db"
+        assert reel._table_counts(missing, ("institutional_skills",)) == {
+            "institutional_skills": 0
+        }
+        assert not missing.exists()
+        db = tmp_path / "op.db"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE skill_trails (trail_id INTEGER)")
+        conn.execute("INSERT INTO skill_trails VALUES (1)")
+        conn.commit()
+        conn.close()
+        assert reel._table_counts(db, ("skill_trails", "reuse_outcomes")) == {
+            "skill_trails": 1,
+            "reuse_outcomes": 0,
+        }
