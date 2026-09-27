@@ -124,6 +124,79 @@ def _legacy_id(record: SkillRecord) -> Optional[int]:
         return None
 
 
+def is_review_ready(
+    record: SkillRecord, *, min_successes: int = 3, min_success_rate: float = 0.8
+) -> bool:
+    """A candidate the operator can reasonably review for activation.
+
+    ONE derivation for every caller (the trail map, the scoreboard, the
+    activation tool): two definitions of "ready" already disagreed once, 11
+    against 8. It is the legacy promotion rule, plus, for a migrated arc, the
+    legacy store's own verdict. A legacy trail that met the rule but was
+    QUARANTINED -- demoted for reuse failures, the only way the legacy store
+    leaves a rule-meeting arc a candidate -- is not presented as ready.
+    """
+    if record.state != BIRTH_STATE:
+        return False
+    ok, bad = record.success_count, record.failure_count
+    if ok < max(min_successes, 1) or ok / max(ok + bad, 1) < min_success_rate:
+        return False
+    if record.provenance.get("source") == "migrated":
+        return record.provenance.get("review_ready") == "true"
+    return True
+
+
+def library_summary(path: Path | str) -> dict[str, object]:
+    """Read-only counts of the institutional skill library, for every reporter.
+
+    One reader for the scoreboard and the doctor alike, so they cannot drift
+    the way two definitions of "review-ready" once did. Opened ``mode=ro``: it
+    never creates or migrates the store it reports on, and an absent library
+    reads as absent (``library_present: False``), never as zeros.
+    """
+    from typing import get_args
+
+    from aios.domain.learning.skill_contracts import SkillState
+
+    stats: dict[str, object] = {"library_present": False}
+    db = Path(path)
+    if not db.is_file():
+        return stats
+    conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    try:
+        tables = {
+            r[0]
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if "institutional_skills" not in tables:
+            return stats
+        stats["library_present"] = True
+        states: dict[str, int] = {}
+        successes = failures = review_ready = 0
+        for (payload,) in conn.execute("SELECT payload_json FROM institutional_skills"):
+            record = SkillRecord.model_validate(json.loads(payload))
+            states[record.state] = states.get(record.state, 0) + 1
+            successes += record.success_count
+            failures += record.failure_count
+            review_ready += is_review_ready(record)
+        for state in get_args(SkillState):
+            stats[f"library_{state}"] = states.get(state, 0)
+        stats["library_review_ready"] = review_ready
+        stats["library_successes"] = successes
+        stats["library_failures"] = failures
+        if "skill_trails" in tables:
+            row = conn.execute(
+                "SELECT COUNT(*), COALESCE(SUM(reuse_success_count), 0), "
+                "COALESCE(SUM(reuse_failure_count), 0) FROM skill_trails"
+            ).fetchone()
+            stats["library_trails"] = int(row[0])
+            stats["library_reuse_successes"] = int(row[1])
+            stats["library_reuse_failures"] = int(row[2])
+    finally:
+        conn.close()
+    return stats
+
+
 class SkillTrailIndex:
     """Integer trail ids for institutional skills, plus live ranking bookkeeping.
 
@@ -553,9 +626,11 @@ class InstitutionalSkillAdapter:
             "steps": _steps(record),
             "status": "verified" if record.state == ACTIVE else "candidate",
             "quarantined": record.state in _QUARANTINED,
-            "review_ready": record.state == BIRTH_STATE
-            and record.success_count >= self.min_successes
-            and rate >= self.min_success_rate,
+            "review_ready": is_review_ready(
+                record,
+                min_successes=self.min_successes,
+                min_success_rate=self.min_success_rate,
+            ),
             "success_count": record.success_count,
             "failure_count": record.failure_count,
             "success_rate": round(rate, 6),
@@ -721,4 +796,6 @@ __all__ = [
     "SKILL_STORE_MODES",
     "SkillTrailIndex",
     "build_skills_slot",
+    "is_review_ready",
+    "library_summary",
 ]

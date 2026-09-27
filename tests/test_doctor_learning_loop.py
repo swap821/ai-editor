@@ -90,3 +90,98 @@ def test_it_opens_the_database_read_only(tmp_path, monkeypatch) -> None:
     source = executable_source(_learning_loop_check)
 
     assert "mode=ro" in source, "the doctor check can write to the memory database"
+
+
+def _library(path, *records) -> None:
+    import json as _json
+
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE institutional_skills (skill_id TEXT, version INTEGER, "
+        "payload_json TEXT, PRIMARY KEY (skill_id, version))"
+    )
+    for skill_id, state, ok, provenance in records:
+        payload = {
+            "skill_id": skill_id,
+            "version": 1,
+            "problem_signature": "g",
+            "applicability_conditions": {},
+            "known_exclusions": [],
+            "required_inputs": [],
+            "required_project_state": {},
+            "procedure": "[]",
+            "allowed_tools": [],
+            "allowed_scope_pattern": "",
+            "expected_observations": [],
+            "verification_plan": None,
+            "escalation_conditions": [],
+            "source_trajectory_ids": [],
+            "confidence": 0.8,
+            "success_count": ok,
+            "failure_count": 0,
+            "last_validated_versions": [],
+            "state": state,
+            "created_at": "2026-09-27T00:00:00+00:00",
+            "updated_at": "2026-09-27T00:00:00+00:00",
+            "provenance": provenance,
+        }
+        conn.execute(
+            "INSERT INTO institutional_skills VALUES (?, 1, ?)",
+            (skill_id, _json.dumps(payload)),
+        )
+    conn.commit()
+    conn.close()
+
+
+class TestTheSkillLibraryIsReportedToo:
+    """Phase 2: in pilot mode recall answers from the institutional library."""
+
+    def test_pilot_mode_with_nothing_active_says_recall_is_empty(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        db = tmp_path / "m.db"
+        _seed(db, [("verified", 5)], [("compiled", 2)])
+        library = tmp_path / "op.db"
+        _library(
+            library,
+            ("a", "candidate", 4, {"source": "migrated", "review_ready": "true"}),
+            ("b", "candidate", 4, {"source": "migrated", "review_ready": "false"}),
+        )
+        before = library.read_bytes()
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", library)
+        monkeypatch.setattr(config, "SKILL_STORE_MODE", "pilot")
+
+        message = _learning_loop_check().message
+
+        assert "skill store mode pilot" in message
+        assert "library 0 active / 2 candidate (1 review-ready)" in message
+        assert "recall is empty until the operator activates a skill" in message
+        assert library.read_bytes() == before, "the doctor must not write the library"
+
+    def test_an_absent_library_is_said_plainly(self, tmp_path, monkeypatch) -> None:
+        db = tmp_path / "m.db"
+        _seed(db, [], [])
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", tmp_path / "none.db")
+        monkeypatch.setattr(config, "SKILL_STORE_MODE", "legacy")
+
+        message = _learning_loop_check().message
+
+        assert "skill store mode legacy; no institutional skill library" in message
+        assert not (tmp_path / "none.db").exists()
+
+    def test_a_broken_library_is_reported_not_raised(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        db = tmp_path / "m.db"
+        _seed(db, [], [])
+        junk = tmp_path / "op.db"
+        junk.write_bytes(b"not a database at all" * 50)
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", junk)
+
+        result = _learning_loop_check()
+
+        assert result.required is False
+        assert "skill library unavailable" in result.message
