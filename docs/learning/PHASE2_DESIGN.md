@@ -468,7 +468,7 @@ prints and records the mode with every score.
 | M2 | 3 STRONG successes promote a skill to `verified` | 3 STRONG successes make a library skill **review-ready** and leave it `candidate`. It fails if the evidence activated it. |
 | R9 | 5 WEAK successes leave it `candidate` | 5 WEAK successes count 0 in the library, and the skill is not review-ready |
 | R10 (new) | 10 STRONG successes never activate a library skill, and a `save` straight to `active` is refused | the same |
-| M1, M3–M5, R6–R8 | unchanged | unchanged: M3–M5 still measure the legacy reflex chain, which the cerebellum compiles from until 2.4c |
+| M1, M3–M5, R6–R8 | unchanged | unchanged. M3–M5 still measure the legacy reflex **mechanism** with a gate-less cerebellum of their own. Since #395, the pilot's live reflexes replay only operator-activated skills. |
 
 - **Comparability:** the reel grew from four missions to five, so a "5/5" is not
   the "4/4" reported before this change.
