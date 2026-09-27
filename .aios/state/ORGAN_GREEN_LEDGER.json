@@ -1510,13 +1510,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip a6d4accee56f157dc15943623c6efd5f3f624ac3: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a6d4accee56f157dc15943623c6efd5f3f624ac3 exit=0; artifact=release/phase4/live-evidence-a6d4accee56f.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "a6d4accee56f157dc15943623c6efd5f3f624ac3",
+        "description": "Phase 4 absolute live run on tip b26424266c76fcc266ca54d71efea7c39789a815: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip b26424266c76fcc266ca54d71efea7c39789a815 exit=0; artifact=release/phase4/live-evidence-b26424266c76.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
+        "commit_sha": "b26424266c76fcc266ca54d71efea7c39789a815",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "a6d4accee56f157dc15943623c6efd5f3f624ac3",
+    "last_verified_sha": "b26424266c76fcc266ca54d71efea7c39789a815",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalKernelAuthority class defined in production_entrypoints ['aios/application/governance/constitution_authority.py', 'aios/infrastructure/governance/constitution_snapshot_store.py', 'aios/domain/governance/constitution.py'] (Decision A / enforce_owner_attestation)",
@@ -2801,13 +2801,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip a6d4accee56f157dc15943623c6efd5f3f624ac3: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a6d4accee56f157dc15943623c6efd5f3f624ac3 exit=0; artifact=release/phase4/live-evidence-a6d4accee56f.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
-        "commit_sha": "a6d4accee56f157dc15943623c6efd5f3f624ac3",
+        "description": "Phase 4 absolute live run on tip b26424266c76fcc266ca54d71efea7c39789a815: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip b26424266c76fcc266ca54d71efea7c39789a815 exit=0; artifact=release/phase4/live-evidence-b26424266c76.json; ReadModelProjectionAuthority.build_governance_surface => build_governance_surface keys=['approvals', 'constitution', 'emergencyStop', 'privacyAudits', 'privacyAuditsStatus', 'providerHealth', 'routingDecisions']",
+        "commit_sha": "b26424266c76fcc266ca54d71efea7c39789a815",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "a6d4accee56f157dc15943623c6efd5f3f624ac3",
+    "last_verified_sha": "b26424266c76fcc266ca54d71efea7c39789a815",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReadModelProjectionAuthority class defined in production_entrypoints ['aios/domain/read_models/contracts.py', 'aios/application/read_models/governance_projections.py', 'aios/api/routes/mirror.py'] (Decision A / enforce_owner_attestation)",
@@ -2949,13 +2949,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip a6d4accee56f157dc15943623c6efd5f3f624ac3: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a6d4accee56f157dc15943623c6efd5f3f624ac3 exit=0; artifact=release/phase4/live-evidence-a6d4accee56f.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-flo1ylvx\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
-        "commit_sha": "a6d4accee56f157dc15943623c6efd5f3f624ac3",
+        "description": "Phase 4 absolute live run on tip b26424266c76fcc266ca54d71efea7c39789a815: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip b26424266c76fcc266ca54d71efea7c39789a815 exit=0; artifact=release/phase4/live-evidence-b26424266c76.json; PrivacyAuditTracker.record + reopen real SQLite => rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-agyojh1d\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384",
+        "commit_sha": "b26424266c76fcc266ca54d71efea7c39789a815",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "a6d4accee56f157dc15943623c6efd5f3f624ac3",
+    "last_verified_sha": "b26424266c76fcc266ca54d71efea7c39789a815",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProvenanceExplanationSurfaceAuthority class defined in production_entrypoints ['aios/memory/development.py', 'aios/application/models/privacy_audit.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
