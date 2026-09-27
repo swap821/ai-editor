@@ -42,6 +42,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from aios import config  # noqa: E402
+from aios.application.memory.institutional_skills import is_review_ready  # noqa: E402
 from aios.domain.learning.repository import SkillRecord, SkillRepository  # noqa: E402
 
 #: Step tools that only read or run a check. Anything else writes.
@@ -71,7 +72,7 @@ def describe(record: SkillRecord) -> dict[str, Any]:
         "skill_id": record.skill_id,
         "version": record.version,
         "state": record.state,
-        "review_ready": record.provenance.get("review_ready") == "true",
+        "review_ready": is_review_ready(record),
         "evidence": f"{record.success_count} ok / {record.failure_count} failed",
         "confidence": record.confidence,
         "legacy_reuse": record.provenance.get("legacy_reuse", ""),
@@ -171,9 +172,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "--activate is the operator's act: add --i-am-the-operator NAME"
         )
     records = resolve(repository, args.activate)
-    not_ready = [
-        _legacy_id(r) for r in records if r.provenance.get("review_ready") != "true"
-    ]
+    not_ready = [_legacy_id(r) for r in records if not is_review_ready(r)]
     if not_ready and not args.allow_not_review_ready:
         raise SystemExit(
             f"not review-ready: {not_ready}; add --allow-not-review-ready to activate anyway"

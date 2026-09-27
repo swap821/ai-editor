@@ -707,3 +707,109 @@ class TestOneArmCannotBeChargedForAnothersLeftovers:
 
         with pytest.raises(CorpusError, match="could not be restored"):
             payoff.restore_pristine(_NotARepo())
+
+
+class TestD3TheOnArmRecallsThroughTheLiveSlot:
+    """Deviation D3: the ON arm recalls skills through the slot the live turn
+    builds for AIOS_SKILL_STORE_MODE, and the library is frozen for the run."""
+
+    def _stores(self, tmp_path, monkeypatch):
+        from aios.memory.db import init_memory_db
+
+        db = tmp_path / "aios_memory.db"
+        init_memory_db(db)
+        monkeypatch.setattr(payoff, "DB", db)
+        monkeypatch.setattr(
+            payoff, "LIBRARY_DB", db.with_name("aios_operational_state.db")
+        )
+        return db
+
+    def test_legacy_mode_recalls_the_legacy_store(self, tmp_path, monkeypatch) -> None:
+        from aios.application.memory.adapters import SkillMemoryAdapter
+
+        db = self._stores(tmp_path, monkeypatch)
+        monkeypatch.setattr(payoff.config, "SKILL_STORE_MODE", "legacy")
+        slot = payoff.live_skills_slot()
+        assert type(slot) is SkillMemoryAdapter
+        assert slot.store.db_path == db
+
+    def test_pilot_mode_recalls_only_what_the_operator_activated(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        from aios.application.memory.institutional_skills import DualWriteSkillAdapter
+        from aios.core.verification_strength import VerificationStrength
+        from aios.domain.learning.repository import SkillRepository
+        from aios.memory.skills import SkillMemory
+        from tools import migrate_skills_to_institutional as mig
+
+        db = self._stores(tmp_path, monkeypatch)
+        goal = "run the parser tests and report the result"
+        steps = ["verify: command=pytest tests/test_parser.py -q"]
+        legacy = SkillMemory(db_path=db)
+        for _ in range(3):
+            legacy.record_attempt(
+                goal, steps, success=True, strength=VerificationStrength.STRONG
+            )
+        mig.run(
+            source=db,
+            target=payoff.LIBRARY_DB,
+            backup_dir=tmp_path / "backups",
+            do_apply=True,
+        )
+        monkeypatch.setattr(payoff.config, "SKILL_STORE_MODE", "pilot")
+        slot = payoff.live_skills_slot()
+        assert isinstance(slot, DualWriteSkillAdapter) and slot.reads == "institutional"
+        assert legacy.relevant_verified(goal, 3), "the legacy store calls it verified"
+        assert payoff._recall_skills(slot, goal) == [], (
+            "nothing activated, nothing recalled"
+        )
+        assert payoff.library_active_count() == 0
+        (record,) = SkillRepository(payoff.LIBRARY_DB).list_skills()
+        repo = SkillRepository(payoff.LIBRARY_DB)
+        repo.transition_state(record.skill_id, record.version, "human_reviewed")
+        repo.transition_state(record.skill_id, record.version, "active")
+        assert [r["goal_pattern"] for r in payoff._recall_skills(slot, goal)] == [goal]
+        assert payoff.library_active_count() == 1
+
+    def test_an_absent_library_fingerprints_absent_and_is_not_created(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        self._stores(tmp_path, monkeypatch)
+        assert payoff.store_fingerprint(payoff.LIBRARY_DB, payoff.LIBRARY_TABLES) == {
+            "institutional_skills": "absent",
+            "skill_trails": "absent",
+        }
+        assert not payoff.LIBRARY_DB.exists()
+
+    def test_a_library_that_moved_during_the_run_refuses_the_run(self) -> None:
+        before = {"institutional_skills": "a", "skill_trails": "b"}
+        payoff.refuse_if_moved(
+            before, dict(before), payoff.LIBRARY_TABLES, "the skill library"
+        )
+        with pytest.raises(CorpusError, match="the skill library changed"):
+            payoff.refuse_if_moved(
+                before,
+                {**before, "institutional_skills": "z"},
+                payoff.LIBRARY_TABLES,
+                "the skill library",
+            )
+
+    def test_d3_is_recorded_in_the_preregistration(self) -> None:
+        text = payoff.PREREGISTRATION.read_text(encoding="utf-8")
+        assert "### D3" in text
+        assert "library_active_at_start" in text
+        assert "pairing is broken for the skill channel" in text
+
+    def test_the_run_loop_freezes_the_library_and_recalls_through_the_slot(
+        self,
+    ) -> None:
+        """STATIC pin: run_benchmark needs a live model, so no unit test executes
+        it. This checks its source wires what the tests above prove in parts."""
+        from tests.source_rules import executable_source
+
+        source = executable_source(payoff.run_benchmark)
+        assert "live_skills_slot()" in source
+        assert "SkillMemory(db_path=DB)" not in source, (
+            "the ON arm bypasses the live slot"
+        )
+        assert "LIBRARY_TABLES" in source and "refuse_if_moved" in source

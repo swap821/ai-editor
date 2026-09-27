@@ -77,13 +77,31 @@ def _scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
-def collect(db_path: Path) -> dict:
-    """Every number that would move if the system were learning."""
+def collect_library(path: Path) -> dict:
+    """The institutional skill library (Phase 2): the store the pilot recalls from.
+
+    Read-only, and absent reads as absent. The counting lives in
+    ``institutional_skills.library_summary`` so the doctor reports the same
+    numbers from the same reader.
+    """
+    from aios.application.memory.institutional_skills import library_summary
+
+    return dict(library_summary(path))
+
+
+def collect(db_path: Path, library_path: Path | None = None) -> dict:
+    """Every number that would move if the system were learning.
+
+    *library_path* adds the institutional skill library (Phase 2); without it
+    the report is the legacy stores only, as before.
+    """
     stats: dict[str, object] = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "db_present": db_path.exists(),
     }
     if not db_path.exists():
+        if library_path is not None:
+            stats.update(collect_library(library_path))
         return stats
 
     conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
@@ -199,6 +217,8 @@ def collect(db_path: Path) -> dict:
             )
     finally:
         conn.close()
+    if library_path is not None:
+        stats.update(collect_library(library_path))
     return stats
 
 
@@ -227,6 +247,13 @@ def render(stats: dict) -> str:
         f"{g('skills_verified') + g('skills_candidate')} live"
         f"  ({g('skills_candidate')} candidate)"
     )
+    if stats.get("library_present"):
+        lines.append(
+            f"  library     {g('library_active')} active / "
+            f"{g('library_candidate')} candidate  ({g('library_review_ready')} review-ready, "
+            f"{g('library_degraded') + g('library_suspended')} demoted, "
+            f"{g('library_revoked')} revoked)"
+        )
     lines.append(
         f"  reflexes    {g('playbooks_compiled')} compiled playbooks, "
         f"{g('reflex_replays')} replays served without an LLM"
@@ -276,6 +303,15 @@ def render(stats: dict) -> str:
         notes.append(
             "skills are verifying but none has compiled — the chain stops one link "
             "before the reflex that would make it pay off"
+        )
+    if (
+        stats.get("library_present")
+        and g("library_candidate")
+        and not g("library_active")
+    ):
+        notes.append(
+            "no institutional skill is active: in pilot mode skill recall is empty "
+            "until the operator activates one (tools/activate_skills.py)"
         )
     if not has("successes_weak"):
         notes.append(
@@ -497,13 +533,19 @@ def main(argv: list[str] | None = None) -> int:
         help="memory database to read (default: the configured store)",
     )
     parser.add_argument(
+        "--library",
+        type=Path,
+        default=Path(config.OPERATIONAL_STATE_DB_PATH),
+        help="institutional skill library to read (default: the configured store)",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="exit non-zero if learning REGRESSED against the last recorded row",
     )
     args = parser.parse_args(argv)
 
-    stats = collect(args.db)
+    stats = collect(args.db, args.library)
     print(json.dumps(stats, indent=2) if args.json else render(stats))
 
     if args.check:

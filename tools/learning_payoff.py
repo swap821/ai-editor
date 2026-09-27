@@ -83,7 +83,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -118,6 +118,7 @@ from aios.agents.reflection_agent import ReflectionAgent  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
+from aios import config  # noqa: E402
 from aios.core.llm import LLMError  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
 from tools.self_corpus_grading import _is_build_artefact, grade_pin_test  # noqa: E402
@@ -127,6 +128,9 @@ TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-payoff.jsonl"
 PREREGISTRATION = REPO_ROOT / "docs" / "learning" / "PAYOFF_PREREGISTRATION.md"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
 DB = REPO_ROOT / "data" / "aios_memory.db"
+#: The institutional skill library beside it (D3): the SAME data directory as
+#: the memory store measured, never a separately configured one.
+LIBRARY_DB = DB.with_name("aios_operational_state.db")
 GUARD_SELECTION = ["tests/test_code_chunking.py"]
 
 
@@ -366,8 +370,67 @@ MEMORY_TABLES = (
     "learning_events",
 )
 
+#: The institutional skill library, which the live `skills` slot recalls from
+#: in pilot mode (deviation D3). Frozen for the run exactly like the tables above.
+LIBRARY_TABLES = ("institutional_skills", "skill_trails")
 
-def store_fingerprint(db: Path) -> dict[str, str]:
+
+def live_skills_slot() -> Any:
+    """The `skills` slot the live turn would recall from, built the same way.
+
+    Deviation D3 (docs/learning/PAYOFF_PREREGISTRATION.md): the ON arm used to
+    recall through a `SkillMemory` of its own. It now recalls through the slot
+    production builds for the configured `AIOS_SKILL_STORE_MODE` -- the legacy
+    store in `legacy` mode, and in `shadow`/`pilot` the dual-write adapter,
+    whose recall in `pilot` answers from the institutional library's ACTIVE
+    skills only. What the benchmark measures follows what the turn does.
+    """
+    from aios.application.memory.adapters import SkillMemoryAdapter
+
+    legacy = SkillMemoryAdapter(SkillMemory(db_path=DB))
+    if config.SKILL_STORE_MODE == "legacy":
+        return legacy
+    from aios.application.memory.institutional_skills import (
+        SkillTrailIndex,
+        build_skills_slot,
+    )
+    from aios.domain.learning.repository import SkillRepository
+
+    repository = SkillRepository(LIBRARY_DB)
+    return build_skills_slot(
+        legacy,
+        mode=config.SKILL_STORE_MODE,
+        repository=repository,
+        trails=SkillTrailIndex(repository.database),
+    )
+
+
+def library_active_count() -> int:
+    """ACTIVE institutional skills: all a pilot-mode ON arm can recall."""
+    from aios.application.memory.institutional_skills import library_summary
+
+    return int(library_summary(LIBRARY_DB).get("library_active", 0))
+
+
+def refuse_if_moved(
+    before: dict[str, str], after: dict[str, str], tables: tuple[str, ...], what: str
+) -> None:
+    """Refuse the run when any fingerprinted table changed during it."""
+    moved = {
+        table: (before.get(table), after.get(table))
+        for table in tables
+        if before.get(table) != after.get(table)
+    }
+    if moved:
+        raise CorpusError(
+            f"{what} changed during the benchmark ({moved}); the arms were not "
+            "measuring the same memory, so no number is reported"
+        )
+
+
+def store_fingerprint(
+    db: Path, tables: tuple[str, ...] = MEMORY_TABLES
+) -> dict[str, str]:
     """A digest of every row of every memory table, read-only.
 
     CONTENT, not counts. The first version fingerprinted `COUNT(*)`, which
@@ -383,9 +446,11 @@ def store_fingerprint(db: Path) -> dict[str, str]:
     import sqlite3
 
     out: dict[str, str] = {}
+    if not Path(db).is_file():
+        return {table: "absent" for table in tables}
     conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
     try:
-        for table in MEMORY_TABLES:
+        for table in tables:
             digest = hashlib.sha256()
             try:
                 # `table` comes only from the fixed tuple above.
@@ -563,7 +628,10 @@ def run_benchmark(
     init_memory_db(DB)
     memory_before = store_fingerprint(DB)
     mistakes = MistakeMemory(db_path=DB)
-    skills = SkillMemory(db_path=DB)
+    # D3: recall through the live slot. Fingerprinted AFTER it is built, so its
+    # one-time setup (adopting migrated trail ids) is not read as learning.
+    skills = live_skills_slot()
+    library_before = store_fingerprint(LIBRARY_DB, LIBRARY_TABLES)
 
     client = None
     for spec in [m.strip() for m in models.split(",") if m.strip()]:
@@ -698,21 +766,19 @@ def run_benchmark(
                 )
             pairs.append(pair)
 
-    memory_after = store_fingerprint(DB)
-    if memory_after != memory_before:
-        # Something wrote to the animal's memory while it was being measured --
-        # a live backend serving turns, a scheduled learning drive, anything.
-        # Later ON arms were then shown different memory than earlier ones, so
-        # the pairs no longer measure one thing. Refused, not averaged over.
-        moved = {
-            table: (memory_before.get(table), memory_after.get(table))
-            for table in MEMORY_TABLES
-            if memory_before.get(table) != memory_after.get(table)
-        }
-        raise CorpusError(
-            f"the memory store changed during the benchmark ({moved}); the "
-            "arms were not measuring the same memory, so no number is reported"
-        )
+    # Something wrote to the animal's memory while it was being measured -- a
+    # live backend serving turns, a scheduled learning drive, anything. Later
+    # ON arms were then shown different memory than earlier ones, so the pairs
+    # no longer measure one thing. Refused, not averaged over.
+    refuse_if_moved(
+        library_before,
+        store_fingerprint(LIBRARY_DB, LIBRARY_TABLES),
+        LIBRARY_TABLES,
+        "the skill library",
+    )
+    refuse_if_moved(
+        memory_before, store_fingerprint(DB), MEMORY_TABLES, "the memory store"
+    )
 
     return pairs, run_id, corpus_sha
 
@@ -980,6 +1046,12 @@ def main(argv: list[str] | None = None) -> int:
             "target_labels": [p.target for p in pairs],
             "target_list_frozen": labels is not None,
             "models": args.models,
+            # D3: which store the ON arm recalled skills from, and how much of
+            # it the operator had activated -- in pilot mode, all it can recall.
+            "skill_store_mode": config.SKILL_STORE_MODE,
+            "library_active_at_start": library_active_count()
+            if config.SKILL_STORE_MODE != "legacy"
+            else None,
             "summary": summarise(pairs),
             "pairs": [asdict(p) for p in pairs],
         }
