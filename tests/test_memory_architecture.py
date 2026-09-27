@@ -19,6 +19,8 @@ _LEGACY_TYPES = frozenset(
         # aios/api/deps.py, invisible to this scan because neither was listed.
         "Cerebellum",
         "CurriculumManager",
+        # Phase 2 slice 2.4a: the institutional skill slot's trail index.
+        "SkillTrailIndex",
     }
 )
 
