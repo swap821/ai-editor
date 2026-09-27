@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from tests.source_rules import executable_source
 from tools import learning_loop_prover as prover
 
@@ -111,3 +113,56 @@ def test_lenient_downgrades_soft_and_never_hard() -> None:
     strict = prover.Check(lenient=False)
     strict.soft("s", False, "model was disobedient")
     assert not strict.passed, "without --lenient a soft failure still fails"
+
+
+def _probe(monkeypatch, evidence: list[str], *, lenient: bool) -> "prover.Check":
+    monkeypatch.setattr(prover, "run_prompt", lambda *a, **k: {"evidence": evidence})
+    monkeypatch.setattr(prover, "log_event", lambda *a, **k: None)
+    check = prover.Check(lenient=lenient)
+    prover.phase_probe({"probe_test": "lab/test_llp_probe_x.py"}, "run", "model", check)
+    return check
+
+
+def _result(check, name):
+    return next((r for r in check.results if r["check"] == name), None)
+
+
+class TestTheProbeSeparatesNotReachedFromViolated:
+    """The nightly failed on "broken code did not fail verification" with a
+    0.5b model whose other turns never reached verification. "The model never
+    ran verify" and "verify PASSED broken code" are different findings."""
+
+    def test_verification_failing_broken_code_passes(self, monkeypatch) -> None:
+        check = _probe(monkeypatch, ["[VERIFY FAIL] 1 failed"], lenient=True)
+        assert _result(check, "probe.reached")["ok"]
+        assert _result(check, "probe.broken-code-fails")["ok"]
+
+    @pytest.mark.parametrize("lenient", [True, False])
+    def test_verification_passing_broken_code_fails_in_every_mode(
+        self, monkeypatch, lenient
+    ) -> None:
+        check = _probe(monkeypatch, ["[VERIFY PASS] 1 passed"], lenient=lenient)
+        verdict = _result(check, "probe.broken-code-fails")
+        assert verdict["ok"] is False and verdict["soft"] is False
+        assert "PASSED broken code" in verdict["detail"]
+        assert check.passed is False
+
+    def test_not_reached_is_never_a_pass_of_the_negative_control(
+        self, monkeypatch
+    ) -> None:
+        check = _probe(monkeypatch, [], lenient=True)
+        reached = _result(check, "probe.reached")
+        assert reached["ok"] is False and reached["downgraded"] is True
+        assert "NOT EXERCISED" in reached["detail"]
+        assert _result(check, "probe.broken-code-fails") is None, (
+            "a probe that never ran must not record a verdict at all"
+        )
+
+    def test_a_strict_run_still_fails_when_the_probe_is_not_reached(
+        self, monkeypatch
+    ) -> None:
+        check = _probe(monkeypatch, [], lenient=False)
+        assert check.passed is False
+
+    def test_reaching_the_probe_is_soft(self) -> None:
+        assert "probe.reached" in " ".join(_registrations("soft"))

@@ -757,13 +757,33 @@ def phase_probe(files: dict[str, str], run_id: str, model: str, check: Check) ->
     log_event({"kind": "turn", "phase": "probe", "run_id": run_id, **result})
     saw_fail = any(e.startswith("[VERIFY FAIL]") for e in result.get("evidence", []))
     saw_pass = any(e.startswith("[VERIFY PASS]") for e in result.get("evidence", []))
-    check.hard(
-        "probe.broken-code-fails",
-        saw_fail and not saw_pass,
-        "VERIFICATION-CONFIDENCE VIOLATION: broken code did not fail verification"
-        if not saw_fail or saw_pass
-        else "verification correctly failed broken code",
+    reached = saw_fail or saw_pass
+
+    # Two different things used to share one hard check. "Verification PASSED
+    # broken code" is a verifier that rubber-stamps -- a harness defect, hard in
+    # every mode. "The model never ran verification" is model obedience: the
+    # negative control was simply not exercised. Reporting the second as the
+    # first made a 0.5b model's silence read as a VERIFICATION-CONFIDENCE
+    # VIOLATION on the nightly. Merging them the other way (hard-failing only on
+    # a pass) would be worse: a probe that never ran would then PASS -- a dead
+    # instrument certifying the verifier. So: reaching is soft, like the reflex
+    # checks gated on promotion; what verification does once reached is hard.
+    check.soft(
+        "probe.reached",
+        reached,
+        "the model ran verification on the broken code"
+        if reached
+        else "NOT EXERCISED: the model never ran verification, so the negative "
+        "control said nothing about the verifier this run",
     )
+    if reached:
+        check.hard(
+            "probe.broken-code-fails",
+            saw_fail and not saw_pass,
+            "verification correctly failed broken code"
+            if saw_fail and not saw_pass
+            else "VERIFICATION-CONFIDENCE VIOLATION: verification PASSED broken code",
+        )
 
 
 # --------------------------------------------------------------------------- #
