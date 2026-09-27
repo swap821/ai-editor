@@ -35,6 +35,7 @@ import pytest
 from aios.api.deps import get_learning_service
 from aios.application.learning.service import LearningService
 from aios.domain.learning.repository import SkillRecord
+from tests.helpers import seed_skill
 from aios.domain.verification import SkillVerifierSpec
 from aios.domain.learning.reuse_orchestrator import (
     EscalateToFrontierDirective,
@@ -135,6 +136,18 @@ def _build_real_service(
     return service
 
 
+def _store(service: LearningService, skill: SkillRecord) -> None:
+    """Seed a new skill through the lifecycle; update an existing one in place.
+
+    `SkillRepository.save` writes evidence, never a state, so a fixture reaches
+    `active` through the real transition graph (`tests.helpers.seed_skill`).
+    """
+    if service.skill_repository.get(skill.skill_id, skill.version) is None:
+        seed_skill(service.skill_repository, skill)
+    else:
+        service.skill_repository.save(skill)
+
+
 def _reuse_attempt(
     service: LearningService,
     skill: SkillRecord,
@@ -142,7 +155,7 @@ def _reuse_attempt(
     mission_id: str = "reuse-mission-1",
 ) -> Any:
     """Save the skill and run attempt_local_reuse through the canonical service."""
-    service.skill_repository.save(skill)
+    _store(service, skill)
     return service.attempt_local_reuse(
         skill_id=skill.skill_id,
         version=skill.version,
@@ -340,7 +353,7 @@ def test_09_legacy_string_plan_is_quarantined_and_escalates(tmp_path: Path) -> N
     contract_payload = {
         k: v
         for k, v in skill.model_dump(mode="python").items()
-        if k not in ("created_at", "updated_at")
+        if k not in ("created_at", "updated_at", "provenance")
     }
     contract_payload["verification_plan"] = (
         "pytest tests/test_parser.py"  # legacy string
@@ -364,7 +377,7 @@ def test_09_legacy_string_plan_is_quarantined_and_escalates(tmp_path: Path) -> N
     )
 
     # Full integration: reuse with this quarantined skill must escalate
-    service.skill_repository.save(quarantined_skill)
+    _store(service, quarantined_skill)
     directive = service.attempt_local_reuse(
         skill_id=quarantined_skill.skill_id,
         version=quarantined_skill.version,
@@ -430,7 +443,7 @@ def test_12_malformed_skill_never_raises_500(tmp_path: Path) -> None:
     """
     service = _build_real_service(tmp_path)
     skill = _valid_skill_record()
-    service.skill_repository.save(skill)
+    _store(service, skill)
 
     # This must not raise AttributeError (the old .strip() bug)
     try:
@@ -452,7 +465,7 @@ def test_13_dependency_survives_reconstruction(tmp_path: Path) -> None:
     for attempt in range(2):
         service = _build_real_service(tmp_path)
         skill = _valid_skill_record()
-        service.skill_repository.save(skill)
+        _store(service, skill)
 
         directive = _reuse_attempt(
             service, skill, mission_id=f"reuse-restart-{attempt}"

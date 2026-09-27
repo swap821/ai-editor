@@ -31,7 +31,7 @@ from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from aios.application.missions.mission_service import MissionService
-from tests.helpers import reuse_outcome_reference, save_minimal_trajectory
+from tests.helpers import reuse_outcome_reference, save_minimal_trajectory, seed_skill
 from aios.core.autonomy import UNGOVERNED_FIXTURE
 
 
@@ -525,7 +525,7 @@ def test_reuse_outcome_updates_confidence_only_from_current_verification(
         created_at="2026-07-18T00:00:00Z",
         updated_at="2026-07-18T00:00:00Z",
     )
-    service.skill_repository.save(skill)
+    seed_skill(service.skill_repository, skill)
     save_minimal_trajectory(
         service.trajectory_repository,
         "trajectory-1",
@@ -612,7 +612,8 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
         reuse_policy=lambda *_args: True,
         emergency_stop=UNGOVERNED_FIXTURE,
     )
-    service.skill_repository.save(
+    seed_skill(
+        service.skill_repository,
         SkillRecord(
             skill_id="skill-http",
             version=1,
@@ -639,7 +640,7 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
             state="active",
             created_at="2026-07-18T00:00:00Z",
             updated_at="2026-07-18T00:00:00Z",
-        )
+        ),
     )
     app.dependency_overrides[get_learning_service] = lambda: service
     try:

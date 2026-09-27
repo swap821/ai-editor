@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Iterator
 
 from aios.domain.learning.contracts import ReuseOutcomeReference
+from aios.memory.learning_freeze import assert_learning_permitted
 
 
 def _utc_now() -> str:
@@ -42,6 +43,9 @@ class ReuseOutcomeRepository:
             )
 
     def record(self, reference: ReuseOutcomeReference) -> bool:
+        # Checked before the idempotency row: `record_reuse_outcome` writes
+        # this first, so refusing here leaves no outcome half-recorded.
+        assert_learning_permitted("reuse_outcomes.record")
         payload = json.dumps(reference.model_dump(mode="json"), sort_keys=True)
         lineage_key = self.lineage_key(reference)
         try:

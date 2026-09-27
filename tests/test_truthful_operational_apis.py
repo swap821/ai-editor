@@ -20,6 +20,7 @@ from aios.api.main import app
 from aios.domain.intelligence.repository import HiringRecord, HiringRecordRepository
 from aios.domain.learning.repository import SkillRecord, SkillRepository
 from aios.domain.learning.skill_contracts import SkillVerifierSpec
+from tests.helpers import seed_skill
 from aios.domain.maintenance.contracts import MaintenanceFinding
 from aios.domain.maintenance.repository import MaintenanceFindingRepository
 from aios.domain.maintenance.scan_contracts import BoundedScanContract
@@ -160,7 +161,7 @@ def test_operational_repositories_survive_restart_and_update(tmp_path) -> None:
     hiring.save(_hiring_record().model_copy(update={"status": "reused"}))
 
     skills = SkillRepository(database)
-    skills.save(_skill_record())
+    seed_skill(skills, _skill_record())
     scans = MaintenanceScanRepository(database)
     scans.save(_scan())
 
@@ -176,7 +177,7 @@ def test_mounted_operational_reads_use_durable_repositories(tmp_path) -> None:
     findings = MaintenanceFindingRepository(database)
     scans = MaintenanceScanRepository(database)
     hiring.save(_hiring_record())
-    skills.save(_skill_record())
+    seed_skill(skills, _skill_record())
     findings.save(_finding())
     scans.save(_scan())
 

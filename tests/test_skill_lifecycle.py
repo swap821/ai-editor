@@ -22,6 +22,7 @@ from aios.application.learning import (
     human_revoke,
 )
 from aios.domain.learning.repository import SkillRecord, SkillRepository
+from tests.helpers import seed_skill
 
 
 def _record(**overrides: object) -> SkillRecord:
@@ -105,7 +106,7 @@ def test_repeated_verification_failures_demote_active_to_degraded_then_suspended
     tmp_path: Path,
 ) -> None:
     repo = _repo(tmp_path)
-    repo.save(_record())  # confidence=0.9; 0.2 penalty per failure
+    seed_skill(repo, _record())  # confidence=0.9; 0.2 penalty per failure
     for _ in range(3):
         # 0.9 -> 0.7 (active) -> 0.5 (active, boundary: not < floor) -> 0.3 (< floor)
         record = apply_reuse_outcome(
@@ -120,7 +121,7 @@ def test_repeated_verification_failures_demote_active_to_degraded_then_suspended
 
 def test_successful_reuse_increases_confidence_and_persists(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
-    repo.save(_record(confidence=0.5))
+    seed_skill(repo, _record(confidence=0.5))
     updated = apply_reuse_outcome(repo, "skill-1", 1, success=True)
     assert updated.confidence == pytest.approx(0.55)
     assert updated.success_count == 4
@@ -132,7 +133,7 @@ def test_applicability_failure_immediately_suspends_a_highly_confident_skill(
     tmp_path: Path,
 ) -> None:
     repo = _repo(tmp_path)
-    repo.save(_record(confidence=0.95, success_count=20, failure_count=0))
+    seed_skill(repo, _record(confidence=0.95, success_count=20, failure_count=0))
     updated = apply_reuse_outcome(
         repo, "skill-1", 1, success=False, reason="applicability"
     )
@@ -141,7 +142,7 @@ def test_applicability_failure_immediately_suspends_a_highly_confident_skill(
 
 def test_failure_outcome_requires_a_reason(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
-    repo.save(_record())
+    seed_skill(repo, _record())
     with pytest.raises(ValueError, match="reason"):
         apply_reuse_outcome(repo, "skill-1", 1, success=False)
 
@@ -169,14 +170,14 @@ def test_human_revocation_is_reachable_from_every_non_terminal_state(
         "blocked",
     ):
         skill_id = f"skill-{state}"
-        repo.save(_record(skill_id=skill_id, state=state))
+        seed_skill(repo, _record(skill_id=skill_id, state=state))
         revoked = human_revoke(repo, skill_id, 1)
         assert revoked.state == "revoked"
 
 
 def test_double_revocation_is_refused(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
-    repo.save(_record())
+    seed_skill(repo, _record())
     human_revoke(repo, "skill-1", 1)
     with pytest.raises(ValueError, match="terminal state"):
         human_revoke(repo, "skill-1", 1)

@@ -11,6 +11,7 @@ from aios.domain.learning.applicability import (
     SkillApplicabilityEngine,
 )
 from aios.domain.learning.repository import SkillRecord
+from tests.helpers import seed_skill
 from aios.domain.learning.skill_contracts import SkillContract, SkillVerifierSpec
 from aios.domain.missions.mission_contract import MissionContract
 from aios.domain.missions.mission_state import MissionState
@@ -116,7 +117,7 @@ def test_skill_reuse_mission_contains_structured_verifier_not_command(
         created_at="2026-07-19T00:00:00Z",
         updated_at="2026-07-19T00:00:00Z",
     )
-    learning.skill_repository.save(skill)
+    seed_skill(learning.skill_repository, skill)
 
     directive = learning.attempt_local_reuse(
         skill_id=skill.skill_id,
