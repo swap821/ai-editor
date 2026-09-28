@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `9582a2c3897c04cf0f944b14a029ec0ae948f03dea75e478cee101449c992849`
+- **Source ledger sha256:** `53efbea2ecbdedcb15c21907baefe3059db1e83dd73b78a06378767bff839fb8`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -851,7 +851,7 @@ re-audits recorded above.
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `cb19e19ef2c7` | live |
 | 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `cb19e19ef2c7` | live |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `cb19e19ef2c7` | live |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `cb19e19ef2c7` | live |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `43f710a95e90` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `cb19e19ef2c7` | live |
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `cb19e19ef2c7` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
