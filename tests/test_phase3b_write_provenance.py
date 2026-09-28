@@ -214,6 +214,24 @@ class TestNoKeyMeansUnsignedNeverBroken:
         assert adapter.provenance.failures == 1
         assert "disk full" in adapter.provenance.last_failure
 
+    def test_the_pre_read_initialises_a_store_nothing_has_opened(
+        self, tmp_path
+    ) -> None:
+        """The recurrence pre-read runs BEFORE the write; on a store nothing
+        has initialised yet it must not be what fails the first lesson."""
+        fresh = tmp_path / "fresh" / "memory.db"
+        fresh.parent.mkdir()
+        adapter = MistakeMemoryAdapter(
+            MistakeMemory(db_path=fresh),
+            provenance=ProvenanceWriter(
+                ProvenanceStore(tmp_path / "provenance.db"),
+                LearningSigner.from_env({}),
+                source_kind="live",
+            ),
+        )
+        mistake_id, recurrence = adapter.record_or_increment(**LESSON)
+        assert mistake_id and recurrence is False
+
     def test_the_stop_is_never_swallowed(self, world, monkeypatch) -> None:
         _db, adapter, store, _v = world
 
