@@ -54,17 +54,20 @@ def test_run_suite_uses_the_active_python_interpreter(tmp_path, monkeypatch) -> 
     corpus.root.mkdir()
     observed: dict[str, object] = {}
 
-    def fake_run(command, **kwargs):
-        observed["command"] = command
-        observed["kwargs"] = kwargs
-        return subprocess.CompletedProcess(
-            command,
-            0,
-            stdout="1 passed in 0.01s\n",
-            stderr="",
-        )
+    class FakePopen:
+        # `run_suite` uses Popen so a timeout can kill the whole process tree
+        # (payoff Deviation D6); the interpreter and cwd rules are unchanged.
+        pid = 0
+        returncode = 0
 
-    monkeypatch.setattr(self_corpus_module.subprocess, "run", fake_run)
+        def __init__(self, command, **kwargs):
+            observed["command"] = command
+            observed["kwargs"] = kwargs
+
+        def communicate(self, timeout=None):
+            return "1 passed in 0.01s\n", ""
+
+    monkeypatch.setattr(self_corpus_module.subprocess, "Popen", FakePopen)
 
     result = run_suite(corpus, ["test_green.py"])
 

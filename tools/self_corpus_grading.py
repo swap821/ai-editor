@@ -205,6 +205,15 @@ def _refuse_hollow(result, what: str) -> None:
         )
 
 
+#: How long a MODEL-WRITTEN pin test may run. A real one finishes in seconds
+#: (about 5 s on this machine); one that starts a server or waits on input
+#: never finishes, and without a bound it stalls the whole run (2026-09-27,
+#: payoff Deviation D6). Generous by a factor of ~25, so a slow but finishing
+#: test is never cut off. The repository's own guard suite keeps the longer
+#: default: it is not the thing under test.
+PIN_TEST_TIMEOUT_S = 120
+
+
 def grade_pin_test(
     corpus: Corpus,
     *,
@@ -223,7 +232,7 @@ def grade_pin_test(
     """
     verdict = PinVerdict()
 
-    clean = run_suite(corpus, new_test)
+    clean = run_suite(corpus, new_test, timeout=PIN_TEST_TIMEOUT_S)
     _refuse_hollow(clean, "the agent's new test")
     verdict.passes_clean = clean.green
     if not clean.green:
@@ -240,11 +249,20 @@ def grade_pin_test(
     module_path = corpus.root / Path(target_module)
     mutation = mutate_function(module_path, target_function)
     try:
-        mutated = run_suite(corpus, new_test)
+        mutated = run_suite(corpus, new_test, timeout=PIN_TEST_TIMEOUT_S)
         # Checked INSIDE the try so `restore()` still runs: leaving the corpus
         # mutated would break every later attempt in the run.
         _refuse_hollow(mutated, "the mutated negative control")
-        verdict.fails_when_mutated = not mutated.green
+        # A mutated run that never FINISHED is not a test failing on broken
+        # code; whether it would have caught the mutation is unknown. Unknown
+        # is never credited: the conservative direction, as for a hollow run.
+        verdict.fails_when_mutated = not mutated.green and not mutated.timed_out
+        if mutated.timed_out:
+            verdict.notes.append(
+                "NEGATIVE CONTROL INCONCLUSIVE: the test did not finish on the "
+                f"mutated code within {PIN_TEST_TIMEOUT_S}s, so it is not credited "
+                "with catching the mutation."
+            )
         if mutated.green:
             verdict.notes.append(
                 f"NEGATIVE CONTROL FAILED: the test still passes with "

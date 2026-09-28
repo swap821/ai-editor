@@ -612,3 +612,100 @@ class TestAHollowRunIsNotAVerdict:
                 guard_selection=["tests/test_existing.py"],
             )
         assert (corpus.root / "calc.py").read_text(encoding="utf-8") == before
+
+
+class TestAHangingTestCannotStallTheRun:
+    """Payoff Deviation D6, 2026-09-27: a model-written pin test for
+    `aios/__main__.py::main` started the server and blocked a 150-target run
+    for 20 minutes. The grader's 30-minute timeout would then have raised an
+    uncaught TimeoutExpired, and on Windows `subprocess.run` kills only the uv
+    launcher, leaving the real pytest holding the pipes."""
+
+    HANG = "import time\n\n\ndef test_hangs():\n    time.sleep(600)\n"
+
+    def test_a_hanging_run_is_red_timed_out_and_not_hollow(self, corpus) -> None:
+        import time
+
+        from tools.self_corpus import run_suite
+
+        selection = _write_agent_test(corpus, self.HANG)
+        started = time.monotonic()
+        result = run_suite(corpus, selection, timeout=8)
+        assert time.monotonic() - started < 60, "the timeout did not bite"
+        assert result.timed_out and not result.green
+        assert not result.hollow, "a killed run must never read as the runner dying"
+        assert "TIMED OUT after 8s" in result.tail
+
+    def test_the_whole_process_tree_is_killed(self, corpus) -> None:
+        import time
+
+        import psutil
+
+        from tools.self_corpus import run_suite
+
+        pid_file = corpus.root / "grandchild.pid"
+        selection = _write_agent_test(
+            corpus,
+            "import subprocess, sys, time\n\n\n"
+            "def test_spawns_and_hangs():\n"
+            "    child = subprocess.Popen([sys.executable, '-c', "
+            "'import time; time.sleep(600)'])\n"
+            f"    open({str(pid_file)!r}, 'w').write(str(child.pid))\n"
+            "    time.sleep(600)\n",
+        )
+        result = run_suite(corpus, selection, timeout=8)
+        assert result.timed_out
+        grandchild = int(pid_file.read_text())
+        deadline = time.monotonic() + 15
+        while psutil.pid_exists(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.5)
+        alive = psutil.pid_exists(grandchild) and psutil.Process(
+            grandchild
+        ).status() not in (psutil.STATUS_ZOMBIE,)
+        assert not alive, "a process the test started survived the timeout"
+
+    def test_a_clean_run_that_hangs_is_graded_not_raised(
+        self, corpus, monkeypatch
+    ) -> None:
+        from tools import self_corpus_grading
+
+        monkeypatch.setattr(self_corpus_grading, "PIN_TEST_TIMEOUT_S", 8)
+        selection = _write_agent_test(corpus, self.HANG)
+        verdict = grade_pin_test(
+            corpus,
+            new_test=selection,
+            target_module="calc.py",
+            target_function="add",
+            guard_selection=["tests/test_existing.py"],
+        )
+        assert verdict.passes_clean is False and verdict.earned is False
+        assert any("TIMED OUT" in note for note in verdict.notes)
+
+    LOOPS_WHEN_BROKEN = (
+        "from calc import add\n\n\n"
+        "def test_retries_until_it_works():\n"
+        "    while True:\n"
+        "        try:\n"
+        "            assert add(1, 1) == 2\n"
+        "            return\n"
+        "        except NotImplementedError:\n"
+        "            pass\n"
+    )
+
+    def test_a_mutated_run_that_never_finishes_is_not_credited(
+        self, corpus, monkeypatch
+    ) -> None:
+        from tools import self_corpus_grading
+
+        monkeypatch.setattr(self_corpus_grading, "PIN_TEST_TIMEOUT_S", 8)
+        selection = _write_agent_test(corpus, self.LOOPS_WHEN_BROKEN)
+        verdict = grade_pin_test(
+            corpus,
+            new_test=selection,
+            target_module="calc.py",
+            target_function="add",
+            guard_selection=["tests/test_existing.py"],
+        )
+        assert verdict.passes_clean is True, "positive control: it does pass clean"
+        assert verdict.fails_when_mutated is False and verdict.earned is False
+        assert any("INCONCLUSIVE" in note for note in verdict.notes)
