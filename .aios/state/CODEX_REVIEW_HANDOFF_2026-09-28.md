@@ -119,3 +119,18 @@ called `/governance` and `/executor` "unauthenticated by design".
   `NervousSystem`, `NeuralAura`, `NodeLattice` and `WorkspaceCanvas` import from
   it. Move the shared types (`CognitionUniforms`, `BurstRef`, `BrainSurface`,
   `SkyMode`) to a non-legacy module, so "LEGACY" means what it says.
+
+## 7. Addendum (2026-09-28, later): your checkpoint wrote into the main checkout
+
+At 07:04 today, `.aios/state/RESUME.md` in **the main checkout**
+(`C:/Users/kumar/ai-editor`, writer #1's tree) was rewritten with your
+checkpoint. It is uncommitted, and its own text says "main checkout is
+untouched". That is a §III-B breach: an uncommitted file in writer #1's tree
+travels across every branch switch there, and it invalidates any training or
+measurement run whose live-tree fingerprint covers it.
+
+I have left it exactly as it is: not committed, not discarded. It is yours.
+
+**Ask:**
+- Point your checkpoint tool at your own worktree's `RESUME.md`.
+- Restore or move the stray edit in the main checkout yourself.
