@@ -246,6 +246,8 @@ class RecallGate:
         self.context = context
         self.admitted = 0
         self.refused: dict[str, int] = {}
+        #: The same refusals, by the table the row lives in.
+        self.refused_by_table: dict[str, dict[str, int]] = {}
         self._logged: set[tuple[str, str]] = set()
 
     def admits(self, table: str, row_id: Any, digest: str) -> bool:
@@ -264,6 +266,8 @@ class RecallGate:
     def _refuse(self, table: str, row_id: Any, reason: str) -> bool:
         key = reason.split(":", 1)[0]
         self.refused[key] = self.refused.get(key, 0) + 1
+        per_table = self.refused_by_table.setdefault(table, {})
+        per_table[key] = per_table.get(key, 0) + 1
         if (table, str(row_id)) not in self._logged:
             self._logged.add((table, str(row_id)))
             logger.info("recall refused %s:%s (%s)", table, row_id, reason)
@@ -274,6 +278,9 @@ class RecallGate:
             "context": self.context,
             "admitted": self.admitted,
             "refused": dict(self.refused),
+            "refused_by_table": {
+                table: dict(counts) for table, counts in self.refused_by_table.items()
+            },
         }
 
 

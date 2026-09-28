@@ -631,9 +631,14 @@ def test_consolidator_routes_fact_reconciliation_and_supersession_through_author
             self.calls.append(("facts_add_fact", (args, kwargs)))
             return FactWriteResult(True, 1, "committed")
 
-        def facts_for(self, subject: str, predicate: str) -> list[dict[str, str]]:
-            self.calls.append(("facts_for", (subject, predicate)))
-            return [{"subject": subject, "predicate": predicate, "object": "old"}]
+        def facts_by_status(self, status: str) -> list[dict[str, str]]:
+            # The reconcile's MAINTENANCE read (plan Phase 3c-2): every active
+            # row, verified or not; facts_for is the gated recall read.
+            self.calls.append(("facts_by_status", status))
+            return [
+                {"subject": "service", "predicate": "host", "object": "old"},
+                {"subject": "other", "predicate": "host", "object": "kept"},
+            ]
 
         def facts_reconcile(self, *args, **kwargs) -> FactWriteResult:
             self.calls.append(("facts_reconcile", (args, kwargs)))
@@ -668,11 +673,17 @@ def test_consolidator_routes_fact_reconciliation_and_supersession_through_author
     assert [name for name, _ in authority.calls] == [
         "facts_add_fact",
         "semantic_add_verified",
-        "facts_for",
+        "facts_by_status",
         "facts_reconcile",
         "semantic_supersede_text",
         "semantic_add_verified",
     ]
+    superseded = [
+        text for name, text in authority.calls if name == "semantic_supersede_text"
+    ]
+    assert superseded == ["VERIFIED FACT\nservice host old"], (
+        "only the reconciled subject+predicate's rows are superseded"
+    )
 
 
 def test_consolidator_bulk_run_routes_status_reads_through_authority(

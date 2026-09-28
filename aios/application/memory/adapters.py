@@ -292,11 +292,38 @@ class SemanticFactsAdapter:
         store: SemanticFacts,
         *,
         provenance: Optional["ProvenanceWriter"] = None,
+        gate: Optional["RecallGate"] = None,
     ) -> None:
         self.store = store
         #: Plan Phase 3b: a committed fact appends a signed record naming its
         #: approver. None: write as before.
         self.provenance = provenance
+        #: Plan Phase 3c-2: the reads that feed a prompt -- search, neighbours,
+        #: the operator block (facts_for) and the weighted traversal -- admit a
+        #: fact only if its provenance verifies. A fact with no approver is
+        #: recorded unsigned (3b), so it is never admitted. None: as before.
+        #: Maintenance reads (rows_by_status) and the UI graph (traverse) are
+        #: not recall, and stay ungated.
+        self.gate = gate
+
+    def _admits_row(self, row: Any) -> bool:
+        if self.gate is None:
+            return True
+        return self.gate.admits("semantic_facts", row["id"], fact_digest(row))
+
+    def _admits_triple(self, subject: Any, predicate: Any, obj: Any) -> bool:
+        """An ACTIVE triple is unique (add_fact refuses duplicates and
+        contradictions), so a triple names one row to verify."""
+        if self.gate is None:
+            return True
+        init_memory_db(self.store.db_path)
+        with get_connection(self.store.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM semantic_facts WHERE subject = ? AND predicate = ? "
+                "AND object = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+                (str(subject), str(predicate), str(obj)),
+            ).fetchone()
+        return row is not None and self._admits_row(row)
 
     def _attest(self, result: Any, transition: str) -> Any:
         fact_id = getattr(result, "fact_id", None)
@@ -333,7 +360,7 @@ class SemanticFactsAdapter:
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
         hits: list[MemoryHit] = []
-        for position, row in enumerate(self.store.search(query)[: context.limit]):
+        for position, row in enumerate(self.search(query)[: context.limit]):
             subject = str(row["subject"])
             predicate = str(row["predicate"])
             obj = str(row["object"])
@@ -351,7 +378,11 @@ class SemanticFactsAdapter:
 
     def search(self, query: str) -> list[Any]:
         init_memory_db(self.store.db_path)
-        return self.store.search(query)
+        return [
+            row
+            for row in self.store.search(query)
+            if self._admits_triple(row["subject"], row["predicate"], row["object"])
+        ]
 
     def strengthen_or_propose(
         self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
@@ -379,11 +410,19 @@ class SemanticFactsAdapter:
 
     def neighbors(self, subject: str) -> list[Any]:
         init_memory_db(self.store.db_path)
-        return self.store.neighbors(subject)
+        return [
+            row
+            for row in self.store.neighbors(subject)
+            if self._admits_triple(row["subject"], row["predicate"], row["object"])
+        ]
 
     def facts_for(self, subject: str, predicate: str | None = None) -> list[Any]:
         init_memory_db(self.store.db_path)
-        return self.store.facts_for(subject, predicate)
+        return [
+            row
+            for row in self.store.facts_for(subject, predicate)
+            if self._admits_row(row)
+        ]
 
     def operator_model(self) -> dict[str, Any]:
         """Build the operator snapshot from authority-owned fact reads."""
@@ -439,11 +478,27 @@ class SemanticFactsAdapter:
         min_path_confidence: float = 0.3,
     ) -> list[Any]:
         init_memory_db(self.store.db_path)
-        return self.store.traverse_weighted(
+        edges = self.store.traverse_weighted(
             subject,
             max_depth=max_depth,
             min_path_confidence=min_path_confidence,
         )
+        if self.gate is None:
+            return edges
+        # The path records nodes, not predicates, so a hop cannot be rebuilt
+        # exactly. The sound rule: an edge is kept only if its own triple
+        # verifies AND an admitted edge already reached its subject from the
+        # start. Every kept edge is verified, and connected to the start
+        # through verified edges only.
+        reached = {str(subject).strip()}
+        kept: set[int] = set()
+        for index, edge in sorted(enumerate(edges), key=lambda pair: pair[1].depth):
+            if edge.subject in reached and self._admits_triple(
+                edge.subject, edge.predicate, edge.object
+            ):
+                kept.add(index)
+                reached.add(edge.object)
+        return [edge for index, edge in enumerate(edges) if index in kept]
 
     def traverse(self, subject: str, max_depth: int = 2) -> list[Any]:
         init_memory_db(self.store.db_path)

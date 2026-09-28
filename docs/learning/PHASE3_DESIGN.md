@@ -228,6 +228,32 @@ Then **Phase 4**, which rests on 3c's verdicts:
   - The payoff ON arm recalling through the same gate: deviation D8, before
     Phase 8.
 
+## 3c-2 as built (2026-09-28): facts
+
+- **Gated reads.** Every fact read that feeds a prompt now admits a fact
+  only if its provenance verifies:
+  - `search` (the facts block);
+  - `neighbors`;
+  - `facts_for` (the operator block, and the operator model);
+  - `traverse_weighted` (the inference chains).
+- **Rows from triples.** Fact reads return triples, not ids. An ACTIVE triple
+  is unique (`add_fact` refuses duplicates and contradictions), so each triple
+  names one row to verify.
+- **The traversal rule.** A traversal path records nodes, not predicates, so
+  a hop cannot be rebuilt exactly. An edge is kept only if its own triple
+  verifies AND an admitted edge already reached its subject from the start.
+  Every kept edge is verified, and connected through verified edges only.
+- **Facts with no approver.** 3b records them unsigned, so they are never
+  admitted (T16).
+- **Maintenance stays ungated.** A reconcile must supersede every active row,
+  verified or not, so consolidation reads them through `facts_by_status`. The
+  UI graph (`traverse`) is not recall and stays ungated too.
+- **RT-18** seeds its fact through the adapter, as a production path writes
+  one. In the same turn it plants an APPROVED control fact, which must reach
+  the prompt, or the mission is "not reached". On this tree RT-18 went from
+  **breached to held, by `fact_approval`**: the approved control reached the
+  prompt as "RELEVANT APPROVED FACTS", and the unapproved canary did not.
+
 ## Operator steps (needed before 3c changes live behaviour)
 
 1. Generate a 32-byte seed per source kind **in your own terminal**. The agent
