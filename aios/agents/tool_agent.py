@@ -89,7 +89,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
 from aios import config
-from aios.agents import tool_handlers, tool_loop_helpers
+from aios.agents import recall_envelope, tool_handlers, tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import (
     REFLEX_AUTHORITY_CONTROL,
@@ -732,6 +732,7 @@ class ToolAgent:
         read_root: Optional[Path] = None,
         session_id: Optional[str] = None,
         memory_context: Optional[str] = None,
+        governance_context: Optional[str] = None,
         on_failure: Optional[FailureHook] = None,
         confirm_lesson: Optional[ConfirmHook] = None,
         recalled_pending: Optional[list[tuple[int, str]]] = None,
@@ -780,9 +781,17 @@ class ToolAgent:
         #: confined to the executor's own (tighter) sandbox scope roots.
         self.read_root = (read_root or config.PROJECT_ROOT).resolve()
         self.session_id = session_id
-        #: Optional recalled-memory block injected into the system prompt
-        #: (blueprint stage 4 -- the agent reasons with relevant past knowledge).
+        #: Optional recalled-memory block (blueprint stage 4 -- the agent
+        #: reasons with relevant past knowledge). DATA, not instructions (plan
+        #: Phase 4): it travels in a labelled envelope inside the operator's
+        #: latest message, never in the system message, and a tool call that
+        #: carries its text pauses for a human (``recall_envelope``).
         self.memory_context = memory_context
+        #: Optional context that is NOT recalled memory and keeps the system
+        #: channel: this turn's advisory frame and plan, and the governed
+        #: representative context (the operator's constraints and delegated
+        #: authority). Nothing read back from a learning store belongs here.
+        self.governance_context = governance_context
         #: Optional reflection hook fired when a command genuinely fails (not when
         #: it is merely blocked by the gateway) -- blueprint stage 9.
         self.on_failure = on_failure
@@ -1005,9 +1014,12 @@ class ToolAgent:
         ``human_required`` (pauses the turn for YELLOW approval), ``text``,
         ``code``, ``done``, ``error``.
         """
+        # Recalled memory is DATA, not instructions (plan Phase 4): it no
+        # longer joins the system message, the operator's channel. It travels
+        # as a labelled envelope inside the operator's latest message.
         system = self.system_prompt or SYSTEM_PROMPT
-        if self.memory_context:
-            system = f"{system}\n\n{self.memory_context}"
+        if self.governance_context:
+            system = f"{system}\n\n{self.governance_context}"
         specs = TOOL_SPECS
         if self.allowed_tools is not None:
             specs = [
@@ -1020,6 +1032,11 @@ class ToolAgent:
 
         convo: list[dict[str, Any]] = [{"role": "system", "content": system}]
         convo.extend(messages)
+        envelopes = recall_envelope.attach_envelope(convo, self.memory_context)
+        #: Everything before this index is the turn's prefix: the system
+        #: message, the operator's messages, and the recall envelope.
+        prefix_len = 1 + len(messages) + envelopes
+        self._operator_text = recall_envelope.operator_text(messages)
         if self.resume_tail:
             # Continuation (ratified option A, S3): splice in the PRIOR turn's
             # tail (this session's own last pause -- assistant tool_call(s) +
@@ -1222,13 +1239,42 @@ class ToolAgent:
                 call_id = f"{name}-{index}"
 
                 yield {"type": "tool_call", "tool": name, "input": args, "id": call_id}
-                output, status, failed = self._dispatch(name, args)
+                taint = self._recall_taint(name, args)
+                #: True only when the taint changed the outcome: a command it
+                #: paused, or an auto-grant it withheld. A write that pauses
+                #: anyway still carries the provenance, not the control.
+                taint_forced = False
+                if (
+                    taint
+                    and name in ("execute_terminal", "verify")
+                    and not self._gateway_refuses(args)
+                ):
+                    # Recalled memory proposed this, not the operator: a human
+                    # decides, even when the gateway would call it GREEN or
+                    # earned autonomy would run it. A command the gateway
+                    # refuses is dispatched and refused as usual: RED is never
+                    # offered for approval. Browse always asks a human anyway.
+                    taint_forced = True
+                    output, status, failed = (
+                        "[APPROVAL REQUIRED] this carries text recalled from "
+                        "memory that you did not write; a human must approve "
+                        "it before it runs.",
+                        "approval",
+                        False,
+                    )
+                else:
+                    output, status, failed = self._dispatch(name, args)
                 if status == "approval":
                     _target = str(args.get("filepath") or args.get("command") or "")
-                    if name in (
+                    earned = name in (
                         "create_file",
                         "edit_file",
-                    ) and self._write_is_authorised(name, args):
+                    ) and self._write_is_authorised(name, args)
+                    if earned and taint:
+                        # A human approved these bytes before; memory is now
+                        # proposing them again. That is a new decision.
+                        taint_forced = True
+                    if earned and not taint:
                         # EARNED AUTONOMY: this write class has earned enough
                         # verifier-backed successes to run without a human this
                         # turn. Whitelist it and re-dispatch through the SAME gated
@@ -1259,6 +1305,15 @@ class ToolAgent:
                         pause_event = tool_loop_helpers.format_human_required_event(
                             name, args, output, call_id
                         )
+                        # Backend fields for the approval surface (T15):
+                        # the recalled lines the proposal came from, and the
+                        # control, when the taint is what paused it.
+                        if taint:
+                            pause_event["recall_provenance"] = taint
+                        if taint_forced:
+                            pause_event["control"] = (
+                                recall_envelope.RECALL_TAINT_CONTROL
+                            )
                         # S2 (approval-resume continuation, ratified option A):
                         # attach the CONVO TAIL -- everything this turn appended
                         # on top of the initial [system]+messages prefix -- so
@@ -1274,7 +1329,7 @@ class ToolAgent:
                         # synthetic re-append needed. Popped off the event by
                         # main.py before it reaches the SSE payload -- this key
                         # must NEVER be emitted to the client.
-                        pause_event["_convo_tail"] = list(convo[1 + len(messages) :])
+                        pause_event["_convo_tail"] = list(convo[prefix_len:])
                         yield pause_event
                         return
                 # A verify verdict is evidence, not narration -- it keeps the
@@ -1880,6 +1935,40 @@ class ToolAgent:
         return msg, bool(content_parts)  # type: ignore[return-value]
 
     # --------------------------------------------------------------- dispatch
+    @staticmethod
+    def _gateway_refuses(args: dict[str, Any]) -> bool:
+        """Would the gateway refuse this command outright?
+
+        The executor's block decision is ``classify(command).zone is RED``;
+        this asks the same classifier without the rate limiter, so the dry
+        check spends no rate-limit tokens (``_withheld_reflex_step``'s
+        pattern). If it cannot tell, the answer is "no": the caller then
+        pauses for a human, never runs unattended.
+        """
+        try:
+            return classify(str(args.get("command", ""))).zone is Zone.RED
+        except Exception:  # noqa: BLE001 - uncertainty pauses, never runs
+            return False
+
+    def _recall_taint(self, name: str, args: dict[str, Any]) -> list[str]:
+        """The recalled lines this call's command, URL or content came from.
+
+        Empty when nothing was recalled, when the operator wrote it, or when a
+        human already approved exactly this command (a resumed turn). A browse
+        needs no such case: it asks a human whenever it is not approved, and
+        the provenance is only attached to a pause.
+        """
+        candidate = recall_envelope.tainted_arguments(name, args)
+        if not candidate or not self.memory_context:
+            return []
+        if name in ("execute_terminal", "verify") and (
+            candidate in self.approved_commands
+        ):
+            return []
+        return recall_envelope.recall_taint(
+            candidate, self.memory_context, getattr(self, "_operator_text", "")
+        )
+
     def _dispatch(self, name: str, args: dict[str, Any]) -> tuple[str, str, bool]:
         """Route a tool call to its handler. Returns ``(output, status, failed)``.
 
