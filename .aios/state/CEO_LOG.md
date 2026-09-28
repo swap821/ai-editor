@@ -1142,3 +1142,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Limits:** No backend request or chat send; browser viewport emulation is not operator/device acceptance. Physical Android/iPhone, keyboard, human accessibility, field performance, authenticated journey and operator review remain open; port:check lacks the external lab's QualityTierProvider.tsx. No points earned; accepted evidence remains 3/100.
 - **Branch:** codex/gagos-2030-full-20260928 at d2ea60f8 before this slice's commit. The full diff and this checkpoint are being prepared for the requested push/PR; merge waits on hosted checks and hash-pinned non-builder review.
 - **Next:** Commit the scoped files, push, and open the PR; then hand the exact tree to a non-builder reviewer.
+
+## 2026-09-28 — CI format-gate correction for PR #406
+
+- **Hosted finding:** Both format-gate jobs failed on the initial PR head b8441c60. The logs were unavailable while the workflow runs remained in progress, so I reproduced the gate locally instead of guessing.
+- **Cause/fix:** Local ruff format --check identified only tests/test_agent_bridge.py. Applied Ruff's mechanical wrapping; no behavior changed.
+- **Recheck:** Repository-wide ruff format --check . passed (942 files already formatted); agent-bridge tests passed 32/32; git diff check passed. This formatting correction is local and still needs a follow-up commit/push to PR #406.
+- **State/limit:** PR #406 remains open and BLOCKED on the initial CI results; other checks were still running at last inspection. Do not merge until the corrected head has green required checks and a hash-pinned non-builder review.
+- **Next:** Commit and push the formatter correction and its checkpoint, then inspect the new PR run.

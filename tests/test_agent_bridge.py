@@ -79,10 +79,10 @@ def test_an_absolute_read_inside_the_project_ignores_checkout_ancestors() -> Non
 
 
 @pytest.mark.parametrize("relative_path", [".env", "secrets/api.key"])
-def test_a_credential_write_inside_the_sandbox_is_still_refused(relative_path: str) -> None:
-    decision = authorize(
-        "Write", {"file_path": f"training_ground/{relative_path}"}
-    )
+def test_a_credential_write_inside_the_sandbox_is_still_refused(
+    relative_path: str,
+) -> None:
+    decision = authorize("Write", {"file_path": f"training_ground/{relative_path}"})
 
     assert not decision.allowed
     assert "credential-shaped" in decision.reason
