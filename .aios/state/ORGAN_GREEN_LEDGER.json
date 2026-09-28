@@ -1938,13 +1938,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 43f710a95e904985e6c1023a54ae45382cd6783f: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 43f710a95e904985e6c1023a54ae45382cd6783f exit=0; artifact=release/phase4/live-evidence-43f710a95e90.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
-        "commit_sha": "43f710a95e904985e6c1023a54ae45382cd6783f",
+        "description": "Phase 4 absolute live run on tip 4d7731d9d5ae9b9d6c8b093f0d153f318487a69b: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 4d7731d9d5ae9b9d6c8b093f0d153f318487a69b exit=0; artifact=release/phase4/live-evidence-4d7731d9d5ae.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
+        "commit_sha": "4d7731d9d5ae9b9d6c8b093f0d153f318487a69b",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "43f710a95e904985e6c1023a54ae45382cd6783f",
+    "last_verified_sha": "4d7731d9d5ae9b9d6c8b093f0d153f318487a69b",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 UniversalIntelligenceGatewayAuthority class defined in production_entrypoints ['aios/application/intelligence/gateway.py', 'aios/council/gateway_reasoning.py', 'aios/application/intelligence/authenticated_chat.py'] (Decision A / enforce_owner_attestation)",
