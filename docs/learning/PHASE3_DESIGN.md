@@ -207,3 +207,30 @@ Then **Phase 4**, which rests on 3c's verdicts:
   envelope and Phase 5's reflex authority. RT-19 showed that strong models act
   on a verified poisoned lesson, and signing does not change what a *live-signed*
   lesson says.
+
+## 3d as built (2026-09-28): the operator re-admits reviewed rows
+
+`tools/readmit_learning.py` is operator-run.
+
+- **Listing.** With no arguments it lists, per channel, every row recall
+  could show that the live gate would refuse, with the reason:
+  - lessons that are verified or pending;
+  - verified semantic memories;
+  - active facts that name an approver.
+- **Signing.** `--table T --ids 3,7 --approver operator:... --apply` signs
+  each named row's CURRENT content as `transition: readmitted`, naming the
+  approver, with `AIOS_LEARNING_KEY_LIVE` from the operator's environment.
+  - It vouches for what the operator read, and nothing else: a later edit
+    breaks the signature again.
+  - After re-admission, 3b's rule lets the loop extend the row (a recurrence,
+    a promotion) as a signed chain.
+- **Refusals.** It refuses before signing anything if:
+  - there is no live key;
+  - there is no approver;
+  - the channel is unknown;
+  - any named id is not a recall-eligible row;
+  - the emergency stop is engaged.
+
+  The default is a dry run, there is no "all", and it never prints a key.
+- **The journal.** The signed record in the append-only provenance table is
+  itself the record of the re-admission.
