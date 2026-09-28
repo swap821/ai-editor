@@ -127,9 +127,15 @@ class MemoryConsolidator:
         if not approved_by or not approved_by.strip():
             return FactWriteResult(False, None, "human approval required")
         if self._authority_owns("facts", self.facts):
-            old_rows = self.memory_authority.facts_for(
-                subject.strip(), predicate.strip()
-            )
+            # A maintenance read, not recall: every active row this reconcile
+            # supersedes, verified or not (facts_for is the gated recall read
+            # since plan Phase 3c-2, and would hide unsigned rows from it).
+            old_rows = [
+                row
+                for row in self.memory_authority.facts_by_status("active")
+                if row["subject"] == subject.strip()
+                and row["predicate"] == predicate.strip()
+            ]
             result = self.memory_authority.facts_reconcile(
                 subject, predicate, obj, approved_by=approved_by
             )
