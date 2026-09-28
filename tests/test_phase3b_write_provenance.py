@@ -270,17 +270,29 @@ class TestTheLiveWiring:
         assert reel.main(["run"]) == 0
         assert sys.path[0] == root
 
-    def test_a_red_team_child_never_holds_a_learning_key(
+    def test_a_red_team_child_never_holds_the_operators_key(
         self, tmp_path, monkeypatch
     ) -> None:
+        """It holds a throwaway LIVE key, pinned only inside its own root (3c),
+        so what it learns is signed as production signs it. Harness and
+        synthetic are set EMPTY, not absent: the child loads the repo .env."""
+        import json
+
+        from aios.memory.provenance import PUBLIC_KEYS_ENV, LearningSigner
         from tools import learning_redteam_runner as reel
 
+        operator = _seed()
         for name in KEY_ENV.values():
-            monkeypatch.setenv(name, "a-seed-the-child-must-not-inherit")
+            monkeypatch.setenv(name, operator)
         env = reel.child_environment(tmp_path)
-        assert all(env[name] == "" for name in KEY_ENV.values()), (
-            "empty, not absent: absent would let the child's .env fill it in"
-        )
+        assert operator not in env.values()
+        assert env[KEY_ENV["harness"]] == "" and env[KEY_ENV["synthetic"]] == ""
+        pins = Path(env[PUBLIC_KEYS_ENV])
+        assert pins.parent == tmp_path, "pinned only inside the throwaway root"
+        child = LearningSigner({"live": env[KEY_ENV["live"]]})
+        assert json.loads(pins.read_text(encoding="utf-8"))["keys"]["live"] == [
+            child.public_keys()["live"]
+        ]
 
 
 # --------------------------------------------------------------------------- #

@@ -38,7 +38,10 @@ from aios.application.memory.institutional_skills import (
     SkillTrailIndex,
     build_skills_slot,
 )
-from aios.application.memory.provenance_policy import ProvenanceWriter
+from aios.application.memory.provenance_policy import (
+    ProvenanceWriter,
+    RecallGate,
+)
 from aios.core.cerebellum import Cerebellum
 from aios.domain.learning.repository import SkillRepository
 from aios.infrastructure.memory import MemoryAuthorityStore
@@ -100,21 +103,28 @@ def build_memory_authority() -> MemoryAuthority:
     # A new state of an existing row is signed only if the state it extends
     # verifies under a PINNED key, so an unsigned row is never laundered into
     # a signed one by the next real event that touches it.
+    pinned = LearningVerifier.from_pinned_file()
     provenance = ProvenanceWriter(
         ProvenanceStore(config.MEMORY_DB_PATH),
         LearningSigner.from_env(),
         source_kind="live",
-        verifier=LearningVerifier.from_pinned_file(),
+        verifier=pinned,
     )
+    # Plan Phase 3c: recall into a live turn admits only rows whose newest
+    # record verifies under a pinned LIVE key. With no pinned key nothing is
+    # admitted: recall is quiet until rows are re-earned or re-admitted.
+    gate = RecallGate(provenance.store, pinned, context="live")
     adapters = {
         "working": WorkingMemoryAdapter(WorkingMemory()),
         "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
         "semantic": LegacySemanticMemoryAdapter(
-            SemanticMemory(config.MEMORY_DB_PATH), provenance=provenance
+            SemanticMemory(config.MEMORY_DB_PATH), provenance=provenance, gate=gate
         ),
         "facts": SemanticFactsAdapter(SemanticFacts(), provenance=provenance),
         "skills": skills,
-        "lessons": MistakeMemoryAdapter(MistakeMemory(), provenance=provenance),
+        "lessons": MistakeMemoryAdapter(
+            MistakeMemory(), provenance=provenance, gate=gate
+        ),
         "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
         "cerebellum": CerebellumAdapter(cerebellum),
         "curriculum": CurriculumAdapter(CurriculumManager(config.MEMORY_DB_PATH)),

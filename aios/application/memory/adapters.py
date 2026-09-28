@@ -25,8 +25,15 @@ from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
 
+#: How many candidates a gated recall reads per slot it fills: refused rows
+#: must not silently shrink recall when admitted ones sit just below the cut.
+_GATED_OVERFETCH = 3
+
 if TYPE_CHECKING:
-    from aios.application.memory.provenance_policy import ProvenanceWriter
+    from aios.application.memory.provenance_policy import (
+        ProvenanceWriter,
+        RecallGate,
+    )
     from aios.core.cerebellum import Cerebellum
     from aios.council.council_memory import CouncilMemory
     from aios.memory.curriculum import CurriculumManager
@@ -47,14 +54,28 @@ class LegacySemanticMemoryAdapter:
         store: SemanticMemory,
         *,
         provenance: Optional["ProvenanceWriter"] = None,
+        gate: Optional["RecallGate"] = None,
     ) -> None:
         if not isinstance(store, SemanticMemory):
             raise RuntimeError("an explicit SemanticMemory store is required")
         self.store = store
         self.db_path = Path(store.db_path)
+        #: Plan Phase 3c: recall admits only a memory whose provenance verifies.
+        #: None: recall exactly as before (tests, fakes).
+        self.gate = gate
         #: Plan Phase 3b: each write that changes what a memory's recall shows
         #: appends a signed record of its new state. None: write as before.
         self.provenance = provenance
+
+    def _admits(self, result: Any) -> bool:
+        """A retrieved memory is admitted only if its provenance verifies."""
+        mem_id = getattr(result, "id", None)
+        if mem_id is None or self.gate is None:
+            return False
+        row = self.store.get(int(mem_id))
+        return row is not None and self.gate.admits(
+            "semantic_memory", mem_id, semantic_digest(row)
+        )
 
     def _prior(self, target: Any, text: Any) -> Any:
         """The row a write of *text* would consolidate into, read BEFORE it."""
@@ -113,7 +134,10 @@ class LegacySemanticMemoryAdapter:
     ) -> tuple[MemoryHit, ...]:
         if context.project_id:
             return ()
-        results = retrieval_fn(query, top_k=context.limit)
+        top_k = context.limit * (_GATED_OVERFETCH if self.gate is not None else 1)
+        results = retrieval_fn(query, top_k=top_k)
+        if self.gate is not None:
+            results = [r for r in results if self._admits(r)][: context.limit]
         hits: list[MemoryHit] = []
         for position, result in enumerate(results):
             external_id = getattr(result, "id", None)
@@ -525,10 +549,38 @@ class MistakeMemoryAdapter:
     memory_types = ("lesson", "mistake")
 
     def __init__(
-        self, store: MistakeMemory, *, provenance: Optional["ProvenanceWriter"] = None
+        self,
+        store: MistakeMemory,
+        *,
+        provenance: Optional["ProvenanceWriter"] = None,
+        gate: Optional["RecallGate"] = None,
     ) -> None:
         self.store = store
         self.provenance = provenance
+        #: Plan Phase 3c: every read that feeds a prompt -- task lessons,
+        #: verified cross-task lessons, the self-model's recurring cautions --
+        #: admits only a lesson whose provenance verifies. None: as before.
+        self.gate = gate
+
+    def _admitted(self, items: list[Any], limit: int) -> list[Any]:
+        if self.gate is None:
+            return list(items)[:limit]
+        kept: list[Any] = []
+        for item in items:
+            mistake_id = int(
+                item["mistake_id"] if "mistake_id" in item.keys() else item["id"]
+            )
+            row = self.store.get(mistake_id)
+            if row is not None and self.gate.admits(
+                "mistake_pool", mistake_id, lesson_digest(row)
+            ):
+                kept.append(item)
+            if len(kept) >= limit:
+                break
+        return kept
+
+    def _fetch(self, limit: int) -> int:
+        return limit * (_GATED_OVERFETCH if self.gate is not None else 1)
 
     def _attest(
         self,
@@ -591,17 +643,19 @@ class MistakeMemoryAdapter:
                 "verification_status": "pending",
                 "relevance": 1.0,
             }
-            for row in self.store.pending_for_task(task_id, limit)
+            for row in self._admitted(
+                self.store.pending_for_task(task_id, self._fetch(limit)), limit
+            )
         ]
         remaining = max(limit - len(pending), 0)
-        verified = self.store.relevant_verified(query, remaining)
+        verified = self.relevant_verified(query, remaining)
         pending_ids = {lesson["mistake_id"] for lesson in pending}
         return pending + [
             lesson for lesson in verified if lesson["mistake_id"] not in pending_ids
         ]
 
     def recurring(self, limit: int = 3) -> list[dict[str, Any]]:
-        return self.store.recurring(limit=limit)
+        return self._admitted(self.store.recurring(limit=self._fetch(limit)), limit)
 
     def record_or_increment(self, *args: Any, **kwargs: Any) -> tuple[int, bool]:
         write_budget.spend(self, "mistake_pool")
@@ -649,7 +703,11 @@ class MistakeMemoryAdapter:
         return self.store.pending_for_task(task_id, limit)
 
     def relevant_verified(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
-        return self.store.relevant_verified(query, limit)
+        if limit <= 0:
+            return []
+        return self._admitted(
+            self.store.relevant_verified(query, self._fetch(limit)), limit
+        )
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
         rows = self.recall_relevant(query, context.session_id or "", context.limit)
