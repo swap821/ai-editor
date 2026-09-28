@@ -214,6 +214,24 @@ class TestNoKeyMeansUnsignedNeverBroken:
         assert adapter.provenance.failures == 1
         assert "disk full" in adapter.provenance.last_failure
 
+    def test_the_pre_read_initialises_a_store_nothing_has_opened(
+        self, tmp_path
+    ) -> None:
+        """The recurrence pre-read runs BEFORE the write; on a store nothing
+        has initialised yet it must not be what fails the first lesson."""
+        fresh = tmp_path / "fresh" / "memory.db"
+        fresh.parent.mkdir()
+        adapter = MistakeMemoryAdapter(
+            MistakeMemory(db_path=fresh),
+            provenance=ProvenanceWriter(
+                ProvenanceStore(tmp_path / "provenance.db"),
+                LearningSigner.from_env({}),
+                source_kind="live",
+            ),
+        )
+        mistake_id, recurrence = adapter.record_or_increment(**LESSON)
+        assert mistake_id and recurrence is False
+
     def test_the_stop_is_never_swallowed(self, world, monkeypatch) -> None:
         _db, adapter, store, _v = world
 
@@ -237,6 +255,20 @@ class TestTheLiveWiring:
             "without pinned keys no transition can extend a signed state"
         )
         assert Path(lessons.provenance.store.database) == Path(config.MEMORY_DB_PATH)
+
+    def test_the_red_team_parent_imports_this_trees_aios(self, monkeypatch) -> None:
+        """The parent reads aios too (the key names it scrubs). Run as a script
+        from another worktree, an editable install would otherwise resolve aios
+        to a different checkout, one that may lack these very modules."""
+        import sys
+
+        from tools import learning_redteam_runner as reel
+
+        root = str(reel.REPO_ROOT)
+        monkeypatch.setattr(sys, "path", [p for p in sys.path if p != root])
+        monkeypatch.setattr(reel, "cmd_run", lambda args: 0)
+        assert reel.main(["run"]) == 0
+        assert sys.path[0] == root
 
     def test_a_red_team_child_never_holds_a_learning_key(
         self, tmp_path, monkeypatch
