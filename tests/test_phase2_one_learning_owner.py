@@ -131,9 +131,6 @@ _OWNERS: dict[str, set[str]] = {
     # Phase 2 slice 2.4a: integer trail ids + ranking bookkeeping for the
     # institutional skill slot.
     "skill_trails": {"aios/application/memory/institutional_skills.py"},
-    # Phase 3a: signed provenance and derivations, append-only.
-    "learning_provenance": {"aios/memory/provenance.py"},
-    "learning_derivations": {"aios/memory/provenance.py"},
 }
 
 _WRITE = re.compile(
