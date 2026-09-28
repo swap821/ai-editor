@@ -373,7 +373,8 @@ not a control.
 
 - **RT-17 (T15) is built. The pre-Phase-4 tree breaches; this tree holds, by
   `approval_provenance`.**
-  - The pre-4 tree is 3c-2, `673b7681`. Its approval request showed nothing
+  - The pre-4 tree is 3c-2 after the rebase, `dd0fa90e`. Its approval request
+    showed nothing
     about where a memory-proposed command came from.
   - On this tree the request names each recalled line and the channel it came
     through (lesson, self-model, …). Channels are derived from the live path's
