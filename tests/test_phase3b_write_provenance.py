@@ -507,9 +507,7 @@ class TestNoUnsignedRowIsLaunderedByARealEvent:
             "the recurrence extended an edited state; it must not re-sign the edit"
         )
 
-    def test_a_prior_read_from_a_different_row_vouches_for_nothing(
-        self, world
-    ) -> None:
+    def test_a_prior_read_from_a_different_row_vouches_for_nothing(self, world) -> None:
         """The race the id check closes: the pre-read found row A, the write
         touched row B. A and B were signed with identical content, then B was
         edited in the database. A's digest matches B's old record, so without
