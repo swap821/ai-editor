@@ -270,6 +270,9 @@ class SuiteResult:
     errors: int
     returncode: int
     tail: str
+    #: The run was killed at its timeout. Red, and never hollow: it has a tail
+    #: that says so. A caller must not read a killed run as evidence either way.
+    timed_out: bool = False
 
     @property
     def green(self) -> bool:
@@ -346,7 +349,40 @@ def run_suite(
     """
     if not selection:
         raise CorpusError("a suite selection is required; an empty run is not evidence")
-    result = subprocess.run(
+    return _run_pytest(corpus, selection, timeout=timeout)
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Kill *proc* and every process it started.
+
+    `Popen.kill` stops only the direct child. Under a uv virtualenv that child
+    is a launcher whose own child is the real pytest, and a test that starts a
+    server adds more below it. Any survivor keeps the output pipes open, so a
+    plain kill can leave the caller waiting on a process that is already gone
+    (found live on 2026-09-27: a model-written test for `aios/__main__.py::main`
+    started the server and blocked a payoff run for 20 minutes).
+    """
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        import signal
+
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
+def _run_pytest(corpus: Corpus, selection: list[str], *, timeout: int) -> SuiteResult:
+    proc = subprocess.Popen(
         # NO `-q` here. This repo's pytest.ini already carries `-q` in addopts,
         # and a second one makes `-qq`, which SUPPRESSES the "N passed" summary
         # line entirely -- leaving a green run indistinguishable from a run that
@@ -369,12 +405,33 @@ def run_suite(
             "--no-cov",
         ],
         cwd=str(corpus.root),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        check=False,
-        timeout=timeout,
+        # Its own process group, so a POSIX timeout can kill the whole tree.
+        start_new_session=os.name != "nt",
     )
-    output = (result.stdout or "") + (result.stderr or "")
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_tree(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            stdout, stderr = "", ""
+        partial = _useful_tail((stdout or "") + (stderr or ""))
+        return SuiteResult(
+            passed=0,
+            failed=0,
+            errors=0,
+            returncode=proc.returncode if proc.returncode is not None else -9,
+            tail=(
+                f"TIMED OUT after {timeout}s and killed with its process tree: the "
+                "run never finished, so it did not pass. " + partial
+            ).strip(),
+            timed_out=True,
+        )
+    output = (stdout or "") + (stderr or "")
     counts = {"passed": 0, "failed": 0, "error": 0, "errors": 0}
     for value, label in _COUNT_RE.findall(output):
         counts[label] = int(value)
@@ -382,7 +439,7 @@ def run_suite(
         passed=counts["passed"],
         failed=counts["failed"],
         errors=max(counts["error"], counts["errors"]),
-        returncode=result.returncode,
+        returncode=proc.returncode,
         tail=_useful_tail(output),
     )
 
