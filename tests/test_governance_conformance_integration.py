@@ -330,24 +330,22 @@ def test_the_cerebellum_reports_both_replay_and_abstention(tmp_path: Path) -> No
     is dangerous. M5's claim is that the cerebellum tells the two tasks apart,
     so this asserts BOTH decisions reach the bus from one seeded skill.
     """
-    from aios.core.cerebellum import Cerebellum
-    from aios.core.verification_strength import VerificationStrength
-    from aios.memory.skills import SkillMemory
+    from aios.memory.db import init_memory_db
+    from tests.reflex_fixtures import ActivatedSkills, gated
 
     bus = CortexBus(db_path=tmp_path / "cortex.db")
     db = tmp_path / "memory.db"
+    init_memory_db(db)
     learned, divergent = "training_ground/a.py", "training_ground/b.py"
     goal = f"run exactly this command for {learned}"
 
-    cerebellum = Cerebellum(db_path=db, bus=bus)
-    skills = SkillMemory(cerebellum=cerebellum, db_path=db)
-    for _ in range(3):
-        skills.record_attempt(
-            goal,
-            [f"verify: command=pytest {learned} -q"],
-            success=True,
-            strength=VerificationStrength.STRONG,
-        )
+    # Since Phase 2 slice 2.4c-B a reflex exists only for a skill the operator
+    # activated; the stand-in answers the gate's contract (the live mission
+    # cannot seed one, and says so -- drive_m5).
+    gate = ActivatedSkills()
+    gate.activate(goal, [f"verify: command=pytest {learned} -q"])
+    cerebellum = gated(gate, db_path=db, bus=bus)
+    assert cerebellum.try_compile_all() == 1
 
     head = bus.head_id() if hasattr(bus, "head_id") else 0
     assert cerebellum.match(goal) is not None, "the compiled playbook did not match"

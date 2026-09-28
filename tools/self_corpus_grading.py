@@ -46,7 +46,33 @@ from aios.core.verification_strength import VerificationStrength
 from tools.self_corpus import Corpus, CorpusError, run_suite
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from aios.application.memory.institutional_skills import (
+        InstitutionalSkillAdapter,
+    )
+
+
+def live_skill_library(memory_db: Path) -> "InstitutionalSkillAdapter":
+    """The skill store a learning run writes to: the library beside *memory_db*.
+
+    Phase 2 slice 2.4c-B: the institutional library is the only skill store,
+    and ``procedural_skills`` is read-only history. A run that still wrote a
+    ``SkillMemory`` of its own would keep a second skill store alive beside the
+    one the operator governs, so every run builds the slot the way
+    ``bootstrap.py`` does, from the same data directory as the memory store.
+    """
+    from aios.application.memory.institutional_skills import (
+        SkillTrailIndex,
+        build_skills_slot,
+    )
+    from aios.domain.learning.repository import SkillRepository
     from aios.memory.skills import SkillMemory
+
+    repository = SkillRepository(memory_db.with_name("aios_operational_state.db"))
+    return build_skills_slot(
+        repository=repository,
+        trails=SkillTrailIndex(repository.database),
+        history=SkillMemory(db_path=memory_db, read_only=True),
+    )
 
 
 @dataclass(frozen=True)
@@ -371,7 +397,7 @@ def _pin_verify_command(test_rel: str) -> str:
 
 
 def record_pin_outcome(
-    skills: "SkillMemory",
+    skills: "InstitutionalSkillAdapter",
     verdict: PinVerdict,
     *,
     target_label: str,

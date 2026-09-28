@@ -247,15 +247,9 @@ SKILL_REUSE_SUCCESS_K: Final[float] = _env_float("AIOS_SKILL_REUSE_SUCCESS_K", 3
 SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1.5)
 SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
-#: Which store serves the live skill slot (Phase 2 slice 2.4, docs/learning/
-#: PHASE2_DESIGN.md). ``legacy`` (default): SkillMemory only, exactly as before.
-#: ``shadow``: SkillMemory answers reads; every write also reaches the
-#: institutional library. ``pilot``: the institutional library answers reads
-#: (ACTIVE skills only); writes still reach both. Both non-legacy modes refuse
-#: to start until the skill migration has been applied. Read at startup.
-SKILL_STORE_MODE: Final[str] = (
-    _env_str("AIOS_SKILL_STORE_MODE", "legacy").strip().lower()
-)
+#: There is no ``AIOS_SKILL_STORE_MODE`` any more. Since Phase 2 slice 2.4c-B
+#: the institutional skill library is the only skill store
+#: (docs/learning/PHASE2_DESIGN.md), and a ``.env`` line setting it is inert.
 
 #: OFF by default, by operator decision 2026-08-17.
 #:
@@ -887,7 +881,6 @@ __all__ = [
     "SKILL_REUSE_FAILURE_K",
     "SKILL_REUSE_FACTOR_FLOOR",
     "SKILL_REUSE_DEMOTE_NET_FAILURES",
-    "SKILL_STORE_MODE",
     "EARNED_AUTONOMY_ENABLED",
     "REPLAY_APPROVED_WRITES_ENABLED",
     "EARNED_AUTONOMY_MIN_SUCCESSES",

@@ -85,7 +85,11 @@ def main() -> int:
     from aios.core.llm import OllamaClient
     from aios.core.replay_writes import is_approved_write, content_digest
     from aios.memory.db import init_memory_db
-    from aios.memory.skills import SkillMemory
+    from aios.application.memory.institutional_skills import (
+        InstitutionalSkillAdapter,
+        SkillTrailIndex,
+    )
+    from aios.domain.learning.repository import SkillRepository
 
     init_memory_db(db)
     config.REPLAY_APPROVED_WRITES_ENABLED = True
@@ -134,11 +138,20 @@ def main() -> int:
         return 1
 
     # ---- 2. the turn's own steps become a skill, then a playbook ------------
-    print("[2] skill -> playbook")
-    skills = SkillMemory(db)
+    print("[2] skill -> activation -> playbook")
+    # Phase 2 slice 2.4c-B: skills are learned in the institutional library,
+    # and a reflex compiles only from one the OPERATOR activated. This script
+    # stands in for that activation, in its own throwaway root only.
+    library = root / "operational.db"
+    repository = SkillRepository(library)
+    skills = InstitutionalSkillAdapter(repository, SkillTrailIndex(library))
     for _ in range(5):
         skills.record_attempt(_GOAL, steps, success=True)
+    (record,) = repository.list_skills()
+    repository.transition_state(record.skill_id, record.version, "human_reviewed")
+    repository.transition_state(record.skill_id, record.version, "active")
     cb = Cerebellum(db)
+    cb.attach_reflex_gate(skills)
     compiled = cb.try_compile_all()
     # The cache is loaded on construction, so a Cerebellum built BEFORE the
     # compile would report zero playbooks while the database held one. Ask the

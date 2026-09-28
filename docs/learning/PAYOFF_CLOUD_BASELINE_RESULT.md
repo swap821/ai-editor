@@ -31,6 +31,12 @@ over {H1-cloud, H1c-cloud, H1-7B}.
 - **Proposed fix:** the harness should hash line-ending-normalised text, so a
   recorded hash can be checked with `git show`. The fix and its note belong
   before Phase 8.
+- **Fixed 2026-09-28, before Phase 8.** `tools/learning_payoff.py` now hashes
+  the registration and the exclusion list as LF-normalised text
+  (`text_sha256`), and every trail row records `hash_basis: lf-normalised`.
+  A test checks the hash against `git show HEAD:<path>`. Rows without
+  `hash_basis`, this baseline's and the calibration's included, hashed the
+  checkout's bytes; strip the carriage returns to reproduce them.
 
 ## The numbers (NOVEL targets)
 

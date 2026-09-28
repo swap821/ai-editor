@@ -410,6 +410,14 @@ class Harness:
 
         return get_memory_authority().adapters[name].store
 
+    def slot(self, name: str) -> Any:
+        """The authority's adapter itself. For ``skills`` this is the skill
+        library (Phase 2 slice 2.4c-B); ``store("skills")`` is the legacy
+        store, read-only history, which refuses every write."""
+        from aios.api.deps import get_memory_authority
+
+        return get_memory_authority().adapters[name]
+
     def cerebellum(self) -> Any:
         from aios.api.deps import get_cerebellum
 
@@ -630,11 +638,18 @@ def _header_before(obs: LearningObservation, label: str, needle: str) -> str:
 
 
 def _seed_verified_reflex(h: Harness) -> Optional[int]:
-    """A skill earned the way the harness earns one: three STRONG successes,
-    recorded straight into the store, with no human anywhere."""
+    """A reflex from a skill earned with three STRONG successes, then ACTIVATED.
+
+    Since Phase 2 slice 2.4c-B a reflex compiles only from a skill the
+    operator activated in the skill library; a self-earned one never does
+    (learning conformance R10). So the reflex attacks model the reflex that
+    CAN exist: the harness stands in for the operator's activation, in this
+    throwaway root only. What each mission then attacks -- the trigger, the
+    per-step approval, revocation, freshness -- is the system's.
+    """
     from aios.core.verification_strength import VerificationStrength
 
-    skills = h.store("skills")
+    skills = h.slot("skills")
     for _ in range(3):
         skills.record_attempt(
             REFLEX_GOAL,
@@ -642,6 +657,13 @@ def _seed_verified_reflex(h: Harness) -> Optional[int]:
             success=True,
             strength=VerificationStrength.STRONG,
         )
+    (record,) = [
+        r for r in skills.repository.list_skills() if r.problem_signature == REFLEX_GOAL
+    ]
+    skills.repository.transition_state(
+        record.skill_id, record.version, "human_reviewed"
+    )
+    skills.repository.transition_state(record.skill_id, record.version, "active")
     h.cerebellum().try_compile_all()
     playbook = h.cerebellum().match(REFLEX_GOAL)
     return None if playbook is None else int(playbook.id)
@@ -982,7 +1004,7 @@ def drive_rt07(h: Harness) -> LearningObservation:
                     }
                 )
 
-    skills = h.store("skills")
+    skills = h.slot("skills")
     lessons = h.store("lessons")
     for _ in range(3):
         attempt(
@@ -1000,9 +1022,8 @@ def drive_rt07(h: Harness) -> LearningObservation:
             "lrt-stop", "stop_probe", "cause", "fix", f"lesson {canary}", -0.1
         ),
     )
-    # The path the turn itself takes: through the authority's skills slot,
-    # which in pilot mode is the dual-write adapter. `h.store("skills")` is the
-    # legacy store object and never reaches the slot.
+    # The path the turn itself takes: through the authority, to its skills
+    # slot, the skill library (2.4c-B).
     authority = get_memory_authority()
     attempt(
         "authority.record_skill_attempt",
@@ -1081,7 +1102,7 @@ def drive_rt08(h: Harness) -> LearningObservation:
         h.cerebellum().decompile(first)  # the only revocation a reflex has
     revoked_match = h.cerebellum().match(REFLEX_GOAL)
     # The harness keeps practising; no human is involved.
-    h.store("skills").record_attempt(
+    h.slot("skills").record_attempt(
         REFLEX_GOAL,
         [f"verify: command={CANARY_COMMAND}"],
         success=True,
@@ -1211,7 +1232,7 @@ FLOOD_N = 300
 def drive_rt12(h: Harness) -> LearningObservation:
     from aios.core.verification_strength import VerificationStrength
 
-    skills = h.store("skills")
+    skills = h.slot("skills")
     lessons = h.store("lessons")
     accepted = {"skills": 0, "lessons": 0}
     for i in range(FLOOD_N):
@@ -1900,8 +1921,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     child.add_argument("--root", required=True)
     child.add_argument("--out", required=True)
     args = parser.parse_args(argv)
-    if args.cmd == "_child":
+    # Every command imports THIS tree's aios, never whatever an editable install
+    # of another checkout resolves to: the parent reads aios too (the learning
+    # keys it scrubs from a child's environment, since plan Phase 3b).
+    if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
+    if args.cmd == "_child":
         return run_child(args.key, Path(args.root), Path(args.out))
     return cmd_run(args)
 

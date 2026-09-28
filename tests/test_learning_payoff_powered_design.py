@@ -476,7 +476,11 @@ class TestTheTrailRecordsTheDesign:
         assert (row["samples"], row["placebo"], row["novel_only"]) == (3, True, True)
         assert row["excluded_targets"] == {
             "count": 2,
-            "sha256": hashlib.sha256(excluded.read_bytes()).hexdigest(),
+            # LF-normalised, as every text hash a run records (payoff
+            # text_sha256): Windows writes this file with CRLF.
+            "sha256": hashlib.sha256(
+                excluded.read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest(),
         }
         assert seen_kwargs["exclude_labels"] == ["aios/a.py::f", "aios/b.py::g"]
         assert seen_kwargs["samples"] == 3 and seen_kwargs["placebo"] is True

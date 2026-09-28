@@ -153,35 +153,45 @@ class TestAStoredRecipeCanImprove:
             is False
         )
 
-    def test_a_verified_arc_upgrades_on_its_next_success(self, tmp_path) -> None:
-        """End to end: the stuck arc becomes compilable without losing counts."""
+    def test_a_candidate_arc_upgrades_on_its_next_success(self, tmp_path) -> None:
+        """End to end: the stuck arc becomes compilable without losing counts.
+
+        Since slice 2.4c-B the arc lives in the skill library, where the recipe
+        of a CANDIDATE may still be refined (a reviewed contract never is), and
+        a reflex compiles once the operator activates it."""
         import json as _json
 
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+            SkillTrailIndex,
+        )
         from aios.core.cerebellum import Cerebellum
         from aios.core.verification_strength import VerificationStrength
-        from aios.memory.db import get_connection, init_memory_db
-        from aios.memory.skills import SkillMemory
+        from aios.domain.learning.repository import SkillRepository
+        from aios.memory.db import init_memory_db
 
         db = tmp_path / "memory.sqlite"
         init_memory_db(db)
-        skills = SkillMemory(db_path=db)
+        operational = tmp_path / "operational.sqlite"
+        repository = SkillRepository(operational)
+        skills = InstitutionalSkillAdapter(repository, SkillTrailIndex(operational))
         goal = "pin the behaviour of a.py::thing via clerk"
         old_steps = ["read_file: a.py", "create_file: t.py", "verify: pytest"]
         for _ in range(3):
             skills.record_attempt(
                 goal, old_steps, success=True, strength=VerificationStrength.STRONG
             )
-        assert Cerebellum(db).try_compile_all() == 0, "the old shape cannot compile"
 
         new_steps = pin_steps("a.py", "t.py", content_digest("x"))
         skills.record_attempt(
             goal, new_steps, success=True, strength=VerificationStrength.STRONG
         )
 
-        with get_connection(db) as conn:
-            row = conn.execute(
-                "SELECT steps_json, success_count FROM procedural_skills"
-            ).fetchone()
-        assert _json.loads(row["steps_json"]) == new_steps
-        assert row["success_count"] == 4, "counts accumulate; they are never rewritten"
-        assert Cerebellum(db).try_compile_all() == 1
+        (record,) = repository.list_skills()
+        assert _json.loads(record.procedure) == new_steps
+        assert record.success_count == 4, "counts accumulate; they are never rewritten"
+        repository.transition_state(record.skill_id, record.version, "human_reviewed")
+        repository.transition_state(record.skill_id, record.version, "active")
+        cerebellum = Cerebellum(db)
+        cerebellum.attach_reflex_gate(skills)
+        assert cerebellum.try_compile_all() == 1

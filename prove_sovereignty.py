@@ -229,7 +229,32 @@ def main() -> None:
         # ────────────────────────────────────────────────────────────
         _separator("Phase 4: Cerebellum Replay")
 
+        # A reflex compiles only from a skill the OPERATOR activated in the
+        # skill library (Phase 2 slice 2.4c-B). This proof earns the skill
+        # there and stands in for the activation, in its own throwaway root.
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+            SkillTrailIndex,
+        )
+        from aios.core.verification_strength import VerificationStrength
+        from aios.domain.learning.repository import SkillRepository
+
+        library_db = Path(tmp) / "operational.db"
+        repository = SkillRepository(library_db)
+        library = InstitutionalSkillAdapter(repository, SkillTrailIndex(library_db))
+        for _ in range(3):
+            library.record_attempt(
+                skill_goal,
+                skill_steps,
+                success=True,
+                strength=VerificationStrength.STRONG,
+            )
+        (record,) = repository.list_skills()
+        repository.transition_state(record.skill_id, record.version, "human_reviewed")
+        repository.transition_state(record.skill_id, record.version, "active")
+
         cb = Cerebellum(db_path)
+        cb.attach_reflex_gate(library)
 
         # 10. Compilation
         compiled = cb.try_compile_all()

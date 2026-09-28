@@ -112,29 +112,29 @@
     },
     {
       "faculty_id": "L3",
-      "name": "Skill acquisition (attempt -> arc -> verified)",
-      "authority_owner": "SkillMemory",
+      "name": "Skill acquisition (attempt -> arc -> review-ready)",
+      "authority_owner": "InstitutionalSkillAdapter",
       "production_entrypoints": [
-        "aios/memory/skills.py"
+        "aios/application/memory/institutional_skills.py"
       ],
       "live_path_callers": [
         "aios/application/turns/generate_pipeline.py"
       ],
       "durable_store": {
-        "table": "procedural_skills",
-        "writes_via": "SkillMemory.record_attempt"
+        "table": "institutional_skills",
+        "writes_via": "InstitutionalSkillAdapter.record_attempt"
       },
       "journal": {
         "kind": "table",
-        "referent": "procedural_skills",
+        "referent": "institutional_skills",
         "append_only_claim": false
       },
       "fail_closed_tests": [
-        "tests/test_skill_failure_streak.py",
+        "tests/test_phase2_slice24c_skills.py",
         "tests/test_superseded_does_not_block_relearning.py"
       ],
       "focused_tests": [
-        "tests/test_skill_failure_streak.py",
+        "tests/test_phase2_slice24c_skills.py",
         "tests/test_superseded_does_not_block_relearning.py"
       ],
       "integration_tests": [
@@ -143,9 +143,11 @@
       "mutation_probe": {
         "kind": "conformance-mission",
         "referent": "tests/test_learning_conformance.py::test_m2_fails_when_the_successes_are_below_floor",
-        "claim": "Forcing every success to WEAK must turn mission M2 red, proving the promotion floor is what verifies a skill and not the count alone."
+        "claim": "Forcing every success to WEAK must turn mission M2 red, proving the learning floor -- not the count alone -- is what makes a library skill review-ready."
       },
-      "known_blockers": [],
+      "known_blockers": [
+        "PHASE 2 SLICE 2.4c-B (2026-09-28). Skills are learned in the institutional library, where nothing promotes itself: evidence makes an arc REVIEW-READY and only the operator activates it. The organic evidence below is of the legacy store verifying skill 66 by itself, a path that no longer runs (procedural_skills is read-only history). It is true history and is kept; it does not describe master. Re-earn with an organic run that makes a library arc review-ready (tools/organic_chain_run.py now writes the library)."
+      ],
       "live_evidence": [
         {
           "description": "ORGANIC. Run 20260922T044658-557cc9a6 at 00dbf6f38956: the verify-only arc over this repository's own tests/test_code_chunking.py earned three STRONG turns and SkillMemory verified skill 66.",
@@ -201,7 +203,9 @@
         "referent": "tests/test_decompiled_reflex_can_recover.py::TestWhatMustStayBarred",
         "claim": "Recovery must be buyable ONLY with new promotable successes: a WEAK green, a failure, and simply re-running the compiler each leave the reflex retired."
       },
-      "known_blockers": [],
+      "known_blockers": [
+        "PHASE 2 SLICE 2.4c-B (2026-09-28). A reflex compiles only from a skill the OPERATOR activated in the institutional library, with exactly the activated steps. The organic compile below (playbook 16) was of a skill the legacy store promoted by itself, which can no longer happen. It is true history and is kept; it does not describe master. Re-earn: the operator activates an organically earned, review-ready skill (tools/activate_skills.py), then an organic run compiles it."
+      ],
       "live_evidence": [
         {
           "description": "ORGANIC. Same run: a NEW verify-only arc (skill 90: the pin test for build_auto_verify_command, never before a reflex) earned three STRONG turns and try_compile_all compiled playbook 16 -- a fresh compile, not the idempotent re-run the old blocker described.",
@@ -256,7 +260,8 @@
       },
       "known_blockers": [
         "PHASE 0b CONTAINMENT (2026-09-25). A replayed command is no longer pre-approved without a recorded human approval of that command (ToolAgent._dispatch_approved; operator decision 2026-09-25: a reflex may auto-approve only a step a human approved). This faculty's organic evidence is playbook 15, whose step is a YELLOW `pytest` verify: on master the same replay is now withheld by `reflex_authority` and falls through to the model. The evidence is true history and is kept; it no longer describes master. Re-earn organically with a reflex whose steps need no approval, or under approval provenance for commands (plan Phase 5).",
-        "Re-confirmed 2026-09-28 (run 20260927T221713-b131ac59): playbook 16 matched, its approval-needing pytest step was refused during replay ('blocked'), and the model was consulted. A reflex learned with no human approval cannot serve a turn alone by design; zero-LLM replay needs a step a human approved (Phase 5), not a loosened gate."
+        "Re-confirmed 2026-09-28 (run 20260927T221713-b131ac59): playbook 16 matched, its approval-needing pytest step was refused during replay ('blocked'), and the model was consulted. A reflex learned with no human approval cannot serve a turn alone by design; zero-LLM replay needs a step a human approved (Phase 5), not a loosened gate.",
+        "PHASE 2 SLICE 2.4c-B (2026-09-28): a reflex now exists only for an operator-activated skill, so re-earning L5 also needs L4's activation first."
       ],
       "live_evidence": [
         {

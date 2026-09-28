@@ -49,8 +49,7 @@ def test_it_reports_the_shape_of_what_was_learned(tmp_path, monkeypatch) -> None
     result = _learning_loop_check()
 
     assert result.required is False, "the learning-loop line must never block"
-    assert "1 verified" in result.message
-    assert "3 candidate" in result.message
+    assert "legacy history (read-only) 1 verified / 3 candidate" in result.message
     # Two candidates have <=1 success; the one with 3 is a different story.
     assert "2 seen once or never" in result.message
     assert "1 compiled" in result.message
@@ -133,10 +132,10 @@ def _library(path, *records) -> None:
     conn.close()
 
 
-class TestTheSkillLibraryIsReportedToo:
-    """Phase 2: in pilot mode recall answers from the institutional library."""
+class TestTheSkillLibraryLeads:
+    """Phase 2 slice 2.4c-B: the institutional library is the skill store."""
 
-    def test_pilot_mode_with_nothing_active_says_recall_is_empty(
+    def test_nothing_active_says_recall_and_reflexes_are_quiet(
         self, tmp_path, monkeypatch
     ) -> None:
         db = tmp_path / "m.db"
@@ -150,25 +149,43 @@ class TestTheSkillLibraryIsReportedToo:
         before = library.read_bytes()
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", library)
-        monkeypatch.setattr(config, "SKILL_STORE_MODE", "pilot")
 
         message = _learning_loop_check().message
 
-        assert "skill store mode pilot" in message
-        assert "library 0 active / 2 candidate (1 review-ready)" in message
-        assert "recall is empty until the operator activates a skill" in message
+        assert message.startswith(
+            "skill library 0 active / 2 candidate (1 review-ready)"
+        )
+        assert (
+            "recall and reflexes are quiet until the operator activates a skill"
+            in message
+        )
+        assert message.index("skill library") < message.index(
+            "legacy history (read-only)"
+        ), "the library leads; the legacy store is labelled history"
         assert library.read_bytes() == before, "the doctor must not write the library"
+
+    def test_an_active_skill_is_not_called_quiet(self, tmp_path, monkeypatch) -> None:
+        db = tmp_path / "m.db"
+        _seed(db, [], [])
+        library = tmp_path / "op.db"
+        _library(library, ("a", "active", 4, {"source": "migrated"}))
+        monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
+        monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", library)
+
+        message = _learning_loop_check().message
+
+        assert message.startswith("skill library 1 active / 0 candidate")
+        assert "quiet" not in message
 
     def test_an_absent_library_is_said_plainly(self, tmp_path, monkeypatch) -> None:
         db = tmp_path / "m.db"
         _seed(db, [], [])
         monkeypatch.setattr(config, "MEMORY_DB_PATH", db)
         monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", tmp_path / "none.db")
-        monkeypatch.setattr(config, "SKILL_STORE_MODE", "legacy")
 
         message = _learning_loop_check().message
 
-        assert "skill store mode legacy; no institutional skill library" in message
+        assert message.startswith("no skill library yet")
         assert not (tmp_path / "none.db").exists()
 
     def test_a_broken_library_is_reported_not_raised(
