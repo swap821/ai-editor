@@ -318,12 +318,27 @@ _PLAYBOOK_COLUMNS = frozenset(
 #: own static statement, so an older table reaches the full set without
 #: interpolating an identifier.
 _PLAYBOOK_LATE_COLUMNS = {
+    "compiled_at": "ALTER TABLE compiled_playbooks ADD COLUMN compiled_at DATETIME",
+    "updated_at": "ALTER TABLE compiled_playbooks ADD COLUMN updated_at DATETIME",
     "signature_v2": "ALTER TABLE compiled_playbooks ADD COLUMN signature_v2 TEXT",
+    "replay_count": (
+        "ALTER TABLE compiled_playbooks "
+        "ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0"
+    ),
+    "consecutive_failures": (
+        "ALTER TABLE compiled_playbooks "
+        "ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0"
+    ),
     "decompiled_at_successes": (
         "ALTER TABLE compiled_playbooks ADD COLUMN decompiled_at_successes INTEGER"
     ),
     "retired_reason": "ALTER TABLE compiled_playbooks ADD COLUMN retired_reason TEXT",
 }
+#: Columns no ALTER can supply (no default carries a row's meaning), so an
+#: older table without one is refused rather than guessed at.
+_PLAYBOOK_REQUIRED_COLUMNS = frozenset(
+    {"id", "skill_id", "goal_pattern", "steps_json", "status"}
+)
 
 
 def _migrate_playbooks_to_library_identity(db_path: Path) -> None:
@@ -376,9 +391,16 @@ def _rebuild_playbooks_table(conn: sqlite3.Connection, db_path: Path) -> None:
             f"compiled_playbooks has column(s) this rebuild does not know how to "
             f"carry across: {unknown}. Refusing rather than dropping them."
         )
+    missing = sorted(_PLAYBOOK_REQUIRED_COLUMNS - columns)
+    if missing:
+        raise RuntimeError(
+            f"compiled_playbooks lacks column(s) this rebuild cannot supply: "
+            f"{missing}. Refusing rather than inventing them."
+        )
     # Bring an older table up to the full column set with STATIC statements, so
     # the copy below names every column literally: no identifier is ever
-    # interpolated into SQL.
+    # interpolated into SQL. Any column with a default can be added; a table
+    # from before a column existed gets NULL (or its default) for it.
     for column, add in _PLAYBOOK_LATE_COLUMNS.items():
         if column not in columns:
             conn.execute(add)

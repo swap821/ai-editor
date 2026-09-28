@@ -184,3 +184,61 @@ class TestRetirement:
         with pytest.raises(EmergencyStopError):
             retire.apply(memory_db, tmp_path / "bk", [r["id"] for r in to_retire])
         assert len(retire.plan(memory_db, library_db)[0]) == 1, "nothing was retired"
+
+
+_MINIMAL_TABLE = """
+    CREATE TABLE compiled_playbooks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        skill_id INTEGER NOT NULL REFERENCES procedural_skills(id),
+        goal_pattern TEXT NOT NULL,
+        steps_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'compiled'
+            CHECK (status IN ('compiled','decompiled'))
+    )
+"""
+
+
+class TestOlderTableShapes:
+    """A store from before a column existed still migrates; one missing a column
+    no default can supply is refused, not guessed at."""
+
+    def _store(self, tmp_path: Path, table: str) -> Path:
+        db = tmp_path / "memory.db"
+        init_memory_db(db)
+        conn = sqlite3.connect(db)
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("DROP TABLE compiled_playbooks")
+        conn.execute(table)
+        conn.execute(
+            "INSERT INTO procedural_skills (id, signature, goal_pattern, steps_json, "
+            "status) VALUES (7, 'sig', 'g', '[]', 'verified')"
+        )
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_a_table_without_the_optional_columns_migrates(self, tmp_path) -> None:
+        db = self._store(tmp_path, _MINIMAL_TABLE)
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "INSERT INTO compiled_playbooks (id, skill_id, goal_pattern, steps_json) "
+            "VALUES (4, 7, 'g', '[]')"
+        )
+        conn.commit()
+        conn.close()
+        init_memory_db(db)
+        conn = sqlite3.connect(db)
+        row = conn.execute(
+            "SELECT id, status, replay_count, consecutive_failures, retired_reason "
+            "FROM compiled_playbooks"
+        ).fetchone()
+        conn.close()
+        assert row == (4, "compiled", 0, 0, None)
+
+    def test_a_table_missing_a_required_column_is_refused(self, tmp_path) -> None:
+        db = self._store(
+            tmp_path,
+            _MINIMAL_TABLE.replace("        goal_pattern TEXT NOT NULL,\n", ""),
+        )
+        with pytest.raises(RuntimeError, match="goal_pattern"):
+            init_memory_db(db)
