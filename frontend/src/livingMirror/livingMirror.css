@@ -108,6 +108,8 @@
 .lm-connection__message { display: inline-flex; flex-wrap: wrap; gap: 0 8px; }
 .lm-connection__message strong { color: var(--lm-text); font-weight: 600; }
 .lm-connection__technical, .lm-connection__snapshot { font-family: var(--font-jetbrains-mono), monospace; font-size: 12px; overflow-wrap: anywhere; }
+.lm-connection__actions, .lm-connection__details, .lm-connection__detail-content { display: contents; }
+.lm-connection__details > summary { display: none; }
 .lm-connection button { min-height: 44px; font-size: 13px; color: var(--lm-orange); }
 .lm-workspace-rail { position: absolute; top: 160px; right: 28px; display: flex; flex-direction: column; gap: 8px; max-width: 250px; pointer-events: auto; }
 .lm-workspace-rail > button { display: flex; gap: 10px; align-items: center; text-align: left; overflow-wrap: anywhere; font-size: 14px; }
@@ -116,7 +118,8 @@
 .lm-workspace-list { max-height: 45vh; overflow: auto; padding: 8px; background: var(--lm-surface); border: 1px solid var(--lm-line); border-radius: 10px; display: grid; gap: 6px; }
 .lm-app[data-working="true"] .lm-workspace-rail { right: auto; left: 28px; top: 166px; width: calc(32% - 56px); }
 .lm-surface { position: absolute; top: 162px; right: 28px; bottom: 78px; width: calc(68% - 28px); display: flex; flex-direction: column; pointer-events: auto; background: var(--lm-surface); border: 1px solid var(--lm-line); border-radius: 14px; overflow: hidden; }
-.lm-surface[hidden], .lm-surface__body[hidden] { display: none; }
+.lm-surface[hidden], .lm-surface__content[hidden], .lm-surface__body[hidden] { display: none; }
+.lm-surface__content { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
 .lm-surface__header { display: flex; align-items: center; gap: 8px; padding: 16px 20px; border-bottom: 1px solid var(--lm-line); }
 .lm-surface__header h2 { flex: 1; min-width: 0; font-size: 23px; margin: 0; overflow-wrap: anywhere; }
 .lm-surface__header button { background: transparent; font-size: 14px; }
@@ -179,7 +182,33 @@
 .lm-stop__detail dd { margin-left: 0; font-family: var(--font-jetbrains-mono), monospace; font-size: 14px; }
 .lm-app .gagos-status { top: auto; right: auto; left: 28px; bottom: 80px; flex-direction: row; flex-wrap: wrap; max-width: calc(32% - 40px); }
 .lm-app .gagos-status > .gagos-pill { font-size: 12px; }
-.lm-app .gagos-chat { left: 28px; bottom: 154px; width: min(390px, 32vw); max-height: calc(100dvh - 330px); }
+.lm-app .gagos-chat {
+  left: 28px;
+  bottom: 154px;
+  width: min(390px, 32vw);
+  height: min(62dvh, 440px);
+  max-height: calc(100dvh - 330px);
+  overflow: hidden;
+}
+.lm-app .gagos-chat__context {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+.lm-app .gagos-chat__context::-webkit-scrollbar { width: 5px; }
+.lm-app .gagos-chat__context::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+.lm-app .gagos-chat__context .gagos-welcome,
+.lm-app .gagos-chat__context .gagos-thread {
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+.lm-app .gagos-bar { flex: 0 0 auto; }
+.lm-app .gagos-bar__accessories { display: contents; }
 .lm-app[data-working="false"] .gagos-chat { width: min(390px, calc(var(--lm-conversation-rail) - 40px)); }
 .lm-app[data-working="true"] .gagos-chat {
   /* The active workspace gives the scene only its left-side companion pane.
@@ -205,6 +234,39 @@
     --lm-desktop-connection-slot: 148px;
   }
 
+  /* Expert navigation is a real control band, not text floating over the
+     point-field. Keep every label on one touch-sized row, then give the being
+     the scene below it so the full body remains visible. Guided keeps its
+     larger, unobstructed canvas because this navigation is hidden there. */
+  .lm-app:has(.lm-shell[data-experience-mode="expert"]) .lm-scene {
+    top: 144px;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation {
+    box-sizing: border-box;
+    height: 44px;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: var(--lm-canvas);
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation,
+  .lm-shell[data-experience-mode="expert"] .lm-navigation button,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group__items,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group__label,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group > summary {
+    white-space: nowrap;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation button {
+    flex: 0 0 auto;
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation :focus-visible {
+    outline-offset: -3px;
+  }
+
   /* Connection truth belongs to the same left rail as the conversation. Keep
      the right-hand organism and its root field free of full-width status copy. */
   .lm-app[data-working="false"] .lm-connection {
@@ -220,26 +282,42 @@
   .lm-app .gagos-status {
     bottom: calc(18px + var(--lm-desktop-connection-slot) + 12px);
   }
+  /* The full desktop rail has room for an editorial-width request field;
+     place the frequent controls on their own row instead of squeezing the
+     text entry between four 44px actions. */
+  .lm-app .gagos-bar,
+  .lm-app[data-working="true"] .gagos-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .lm-app .gagos-bar .gagos-input,
+  .lm-app[data-working="true"] .gagos-bar .gagos-input {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
   .lm-app .gagos-chat {
     bottom: calc(18px + var(--lm-desktop-connection-slot) + 12px + 40px + 12px);
     height: min(62dvh, calc(100dvh - 356px));
   }
 
-  /* The integrated rail is a bounded composition: keep the request control
-     visible while the longer welcome/starter content scrolls inside it. */
+  /* The context and request control have separate ownership: all welcome,
+     history, status details and receipts scroll above the stable composer. */
   .lm-app .gagos-chat {
     height: min(62dvh, 440px);
     max-height: none;
     overflow: hidden;
   }
-  .lm-app .gagos-welcome,
-  .lm-app .gagos-thread {
-    min-height: 0;
-    overflow-y: auto;
+
+  /* A fixed 440px height plus the reserved status band pulled this rail up to
+     the top edge on 720px displays, where voice status and welcome copy collided
+     with the identity and workspace navigation. Let the rail fill the actual
+     space below those controls; the request dock stays pinned above status. */
+  .lm-app[data-working="false"] .gagos-chat { top: 156px; }
+  .lm-app[data-working="true"] .gagos-chat { top: 272px; }
+  .lm-app .gagos-chat {
+    height: auto;
+    max-height: none;
   }
-  .lm-app .gagos-welcome { flex: 1 1 auto; }
-  .lm-app .gagos-thread { flex: 0 1 auto; }
-  .lm-app .gagos-bar { flex: 0 0 auto; }
 }
 @media (max-width: 1199px) {
   .lm-navigation { gap: 2px; }
@@ -250,9 +328,251 @@
   .lm-app .gagos-bar { flex-wrap: wrap; gap: 6px; }
   .lm-app .gagos-bar .gagos-intent { display: none; }
   .lm-app .gagos-bar .gagos-input { flex: 1 1 100%; min-width: 0; }
-  .lm-app .gagos-welcome { flex: 1 1 0; min-height: 0; overflow-y: auto; }
-  .lm-app .gagos-thread { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .lm-app .gagos-thread:empty { display: none; }
+}
+@media (min-width: 768px) and (max-height: 520px) {
+  /* A short landscape viewport cannot honor the portrait 520px floor or the
+     normal bottom/status reservations. Recompose the rail into four bounded
+     slots instead of clipping the request controls below the viewport. */
+  .lm-app {
+    --lm-landscape-chat-height: min(164px, calc(100dvh - 230px));
+    min-height: 100dvh;
+  }
+  .lm-app .lm-connection {
+    box-sizing: border-box;
+    height: 70px;
+    max-height: 70px;
+    flex-wrap: nowrap;
+    overflow-y: auto;
+  }
+  /* In the resting short-landscape composition, connection truth stays with
+     the conversation rail. Active work replaces this with its own bounded,
+     full-width trust band below the navigation. */
+  .lm-app .gagos-status,
+  .lm-app .lm-connection,
+  .lm-app[data-working="false"] .lm-connection,
+  .lm-app[data-working="true"] .lm-connection {
+    right: max(28px, calc(100vw - 508px));
+  }
+  .lm-app .lm-connection__message { min-width: 0; }
+  .lm-app .lm-connection button { flex: 0 0 auto; }
+  .lm-app .gagos-status {
+    top: calc(100dvh - 100px - var(--lm-landscape-chat-height) - 44px - 2px);
+    right: max(28px, calc(100vw - 508px));
+    bottom: auto;
+    left: 28px;
+    width: auto;
+    max-width: none;
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+  .lm-app .gagos-chat,
+  .lm-app[data-working="false"] .gagos-chat,
+  .lm-app[data-working="true"] .gagos-chat {
+    right: 28px;
+    bottom: 100px;
+    left: 28px;
+    width: min(480px, calc(100vw - 56px));
+    max-width: min(480px, calc(100vw - 56px));
+    height: var(--lm-landscape-chat-height);
+    max-height: none;
+    overflow: hidden;
+  }
+  .lm-app .gagos-bar,
+  .lm-app[data-working="true"] .gagos-bar {
+    flex-wrap: nowrap;
+  }
+  .lm-app .gagos-bar .gagos-input,
+  .lm-app[data-working="true"] .gagos-bar .gagos-input {
+    flex: 1 1 70px;
+    min-width: 0;
+  }
+
+  /* Active compact-landscape is a distinct composition, not the resting
+     conversation rail squeezed underneath the workspace. Keep every control
+     in its own lane: mode + stop, a scrollable nav beside trust status, a
+     full-width connection band, then the being / workspace split. */
+  .lm-app[data-working="true"] .lm-scene { right: 42%; }
+  .lm-app[data-working="true"] .lm-header {
+    top: 8px;
+    left: 28px;
+    right: 28px;
+    height: 54px;
+    align-items: center;
+    gap: 0;
+  }
+  .lm-app[data-working="true"] .lm-brand { display: none; }
+  .lm-app[data-working="true"] .gagos-experience-switch {
+    top: 8px;
+    left: auto;
+    right: 28px;
+    transform: none;
+  }
+  .lm-app[data-working="true"] .lm-navigation {
+    top: 72px;
+    left: 28px;
+    right: calc(50% + 12px);
+    height: 54px;
+    gap: 2px;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-navigation > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-navigation button { white-space: nowrap; }
+  .lm-app[data-working="true"] .lm-navigation { scrollbar-color: rgba(123, 245, 251, .42) rgba(255, 255, 255, .06); }
+  .lm-app[data-working="true"] .lm-navigation::-webkit-scrollbar-track,
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-track { background: rgba(255, 255, 255, .06); border-radius: 3px; }
+  .lm-app[data-working="true"] .lm-navigation::-webkit-scrollbar-thumb,
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-thumb { background: rgba(123, 245, 251, .42); border-radius: 3px; }
+  .lm-app[data-working="true"] .lm-expert-group { flex: 0 0 auto; flex-wrap: nowrap; }
+  .lm-app[data-working="true"] .lm-expert-group__label,
+  .lm-app[data-working="true"] .lm-expert-group > summary { font-size: 10px; padding-inline: 3px; }
+  .lm-app[data-working="true"] .gagos-status {
+    top: 72px;
+    right: 28px;
+    bottom: auto;
+    left: calc(50% + 12px);
+    width: auto;
+    max-width: none;
+    height: 44px;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .lm-app[data-working="true"] .gagos-status > .gagos-pill {
+    gap: 4px;
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+  .lm-app[data-working="true"] .lm-connection {
+    top: 130px;
+    right: 28px;
+    bottom: auto;
+    left: 28px;
+    box-sizing: border-box;
+    width: auto;
+    height: 68px;
+    max-height: 68px;
+    flex-wrap: wrap;
+    align-content: center;
+    align-items: center;
+    overflow-x: hidden;
+    overflow-y: auto;
+    gap: 4px 10px;
+    padding: 2px 12px;
+    border: 1px solid var(--lm-line);
+    border-radius: 10px;
+    background: rgba(3, 1, 8, .88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    scrollbar-width: thin;
+  }
+  .lm-app[data-working="true"] .lm-connection__message {
+    flex: 1 1 360px;
+    min-width: 0;
+  }
+  .lm-app[data-working="true"] .lm-connection__technical {
+    flex: 1 1 180px;
+    min-width: 140px;
+    font-size: 11px;
+  }
+  .lm-app[data-working="true"] .lm-connection button { margin-left: auto; }
+  .lm-app[data-working="true"] .lm-workspace-rail {
+    top: 202px;
+    right: auto;
+    bottom: auto;
+    left: 28px;
+    width: calc(42% - 56px);
+    max-width: none;
+    flex-direction: row;
+    gap: 4px;
+  }
+  .lm-app[data-working="true"] .lm-workspace-rail > button {
+    min-width: 0;
+    flex: 1 1 0;
+    gap: 6px;
+    padding: 6px 8px;
+    overflow: hidden;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-workspace-rail > button:first-child { flex-grow: 1.3; }
+  .lm-app[data-working="true"] .lm-workspace-rail > button .lm-vertebra { flex: 0 0 8px; }
+  .lm-app[data-working="true"] .lm-surface {
+    top: 202px;
+    right: 28px;
+    bottom: 14px;
+    left: auto;
+    width: calc(58% - 28px);
+  }
+  .lm-app[data-working="true"] .gagos-chat {
+    top: auto;
+    right: auto;
+    bottom: 14px;
+    left: 28px;
+    box-sizing: border-box;
+    width: calc(42% - 56px);
+    max-width: calc(42% - 56px);
+    height: 128px;
+    max-height: none;
+    gap: 6px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .lm-app[data-working="true"] .gagos-chat__context {
+    min-height: 0;
+    overflow: auto;
+    font-size: 11px;
+  }
+  .lm-app[data-working="true"] .gagos-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-rows: 44px 44px;
+    align-items: center;
+    gap: 4px 6px;
+    padding: 5px 6px;
+    overflow: hidden;
+  }
+  .lm-app[data-working="true"] .gagos-intent { display: none; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-input {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+  .lm-app[data-working="true"] .gagos-bar__accessories {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    touch-action: pan-x;
+    scrollbar-color: rgba(123, 245, 251, .42) rgba(255, 255, 255, .06);
+  }
+  .lm-app[data-working="true"] .gagos-bar__accessories > .gagos-btn { flex: 0 0 auto; padding-inline: 4px; font-size: 10px; }
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar { height: 3px; }
+  .lm-app[data-working="true"] .lm-navigation::-webkit-scrollbar { height: 3px; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-send {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
 }
 @media (max-width: 767px) {
   /* The root opts into edge-to-edge rendering. Keep the mobile control stack
@@ -331,11 +651,51 @@
   }
   .lm-workspace-rail > button:not(:last-of-type) { display: none; }
   .lm-connection {
+    z-index: 45;
     left: max(16px, var(--lm-safe-area-left));
     bottom: calc(8px + var(--lm-safe-area-bottom));
     right: max(16px, var(--lm-safe-area-right));
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+    align-items: center;
+    box-sizing: border-box;
+    max-height: 112px;
+    overflow-y: auto;
+    padding: 7px 9px;
+    border: 1px solid var(--lm-line);
+    border-radius: 12px;
+    background: rgba(3, 1, 8, .94);
     font-size: 11px;
-    gap: 4px 10px;
+    gap: 4px 8px;
+  }
+  .lm-app .lm-connection__signal { grid-column: 1; grid-row: 1; }
+  .lm-app .lm-connection__message { grid-column: 2; grid-row: 1; display: grid; gap: 1px; min-width: 0; }
+  .lm-app .lm-connection__message > strong { line-height: 1.25; }
+  .lm-app .lm-connection__details { display: block; min-width: 0; }
+  .lm-app .lm-connection__details > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--lm-cyan);
+    cursor: pointer;
+    font-size: 10px;
+    list-style-position: inside;
+  }
+  .lm-app .lm-connection__details[open] > summary { min-height: 44px; }
+  .lm-app .lm-connection__detail-content { display: grid; gap: 2px; min-width: 0; line-height: 1.3; }
+  .lm-app .lm-connection__actions { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 4px; }
+  .lm-app .lm-connection__technical, .lm-app .lm-connection__snapshot { font-size: 10px; }
+  .lm-app .lm-connection__actions button { min-height: 44px; padding-inline: 8px; }
+  /* Expanded diagnostics rise above the measured composer instead of
+     covering its input/accessory row. The selected work plane may yield
+     temporary space while the operator inspects the connection receipt. */
+  .lm-app .lm-connection[data-details-open="true"] {
+    bottom: var(--lm-workspace-dock-clearance, 238px);
+  }
+  .lm-app[data-working="true"] .lm-surface {
+    /* Let the preserved organism remain faintly present through its work
+       membrane; no blur layer or new palette color is introduced. */
+    background: color-mix(in srgb, var(--lm-surface) 84%, transparent);
   }
   .lm-connection__technical, .lm-connection__snapshot { font-size: 10px; }
   .lm-app .gagos-chat {
@@ -356,18 +716,18 @@
     background: linear-gradient(180deg, rgba(3, 1, 8, .94) 0%, rgba(3, 1, 8, .82) 100%);
     box-shadow: 0 -16px 38px rgba(3, 1, 8, .28);
   }
-  /* Expert keeps technical transport/projection details in the connection
-     notice, so its measured copy is taller than Guided copy. Reserve the
-     larger band without hiding the technical evidence. */
-  .lm-app[data-experience-mode="expert"] .gagos-chat { bottom: calc(168px + var(--lm-safe-area-bottom)); }
+  /* The work sheet shares the shell's stacking context; lift the conversation
+     layer as a whole so its composer cannot be painted beneath that sheet. */
+  .lm-app[data-working="true"] .gagos-chrome { z-index: 40; }
+  /* A narrow mobile status keeps the measured label + recovery action visible;
+     explanation and transport evidence are available from its disclosure. */
+  .lm-app[data-experience-mode="expert"] .gagos-chat { bottom: calc(90px + var(--lm-safe-area-bottom)); }
   .lm-app .gagos-bar { flex-wrap: wrap; gap: 6px; }
   /* Give the request field its own first line; voice, language and send
      controls then wrap in their existing DOM/focus order. */
   .lm-app .gagos-bar .gagos-input { flex: 1 1 calc(100% - 40px); }
-  .lm-app .gagos-welcome { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  .lm-app .gagos-thread { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .lm-app .gagos-coach { display: none; }
-  .lm-app[data-working="true"] .gagos-chat { height: auto; max-height: 42dvh; }
+  .lm-app[data-working="true"] .gagos-chat { bottom: calc(90px + var(--lm-safe-area-bottom)); height: auto; max-height: 42dvh; }
   .lm-app[data-working="true"] .gagos-chat { width: auto; max-width: none; }
   .lm-app[data-working="false"] .gagos-chat { width: auto; }
   .lm-app .gagos-status { display: none; }
@@ -380,6 +740,69 @@
     left: max(18px, var(--lm-safe-area-left));
   }
 }
+@media (min-width: 361px) and (max-width: 767px) {
+  /* On phone portrait, make the navigation and workspace picker a single
+     control row. The work sheet starts beneath the compact presence band. */
+  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-header {
+    top: calc(70px + var(--lm-safe-area-top));
+  }
+  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-navigation {
+    top: calc(120px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: auto;
+    width: calc(50% - 18px);
+    height: 44px;
+    box-sizing: border-box;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 2px;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-navigation > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-navigation > button { padding-inline: 6px; font-size: 11px; }
+  .lm-app[data-working="true"] .lm-expert-mobile-surfaces { flex: 0 0 auto; }
+  .lm-app[data-working="true"] .lm-expert-mobile-surfaces > summary { padding-inline: 7px; font-size: 10px; }
+  .lm-app[data-working="true"] .lm-workspace-rail {
+    z-index: 35;
+    top: calc(120px + var(--lm-safe-area-top));
+    right: max(12px, var(--lm-safe-area-right));
+    left: auto;
+    width: calc(50% - 18px);
+    max-width: none;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 0;
+  }
+  .lm-app[data-working="true"] .lm-workspace-rail > button:last-of-type {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding-inline: 7px;
+    overflow: hidden;
+    font-size: 11px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-surface {
+    z-index: 10;
+    top: calc(222px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    width: auto;
+    bottom: max(var(--lm-workspace-dock-clearance, 164px), calc(140px + var(--lm-safe-area-bottom)));
+  }
+  .lm-app[data-working="true"] .gagos-chat { z-index: 20; }
+}
 /* At the narrowest supported width, voice guidance and the multi-line
    request bar must share a bounded zone without letting action controls slip
    behind the connection notice. */
@@ -390,21 +813,20 @@
     max-height: none;
   }
   .lm-app[data-experience-mode="expert"] .gagos-chat {
-    bottom: calc(168px + var(--lm-safe-area-bottom));
-    height: calc(100dvh - 294px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
+    bottom: calc(90px + var(--lm-safe-area-bottom));
+    height: calc(100dvh - 254px - var(--lm-safe-area-top) - var(--lm-safe-area-bottom));
   }
   .lm-app[data-experience-mode="expert"] .gagos-welcome {
     display: none;
   }
 
-  .lm-app .gagos-bar { flex: 0 0 auto; }
 }
 @media (max-width: 767px) {
   .lm-app[data-keyboard-open="true"] {
     --lm-keyboard-clearance: min(132px, max(0px, calc(var(--lm-visible-viewport-height, 100dvh) - 68px)));
   }
   .lm-app[data-experience-mode="expert"][data-keyboard-open="true"] {
-    --lm-keyboard-clearance: min(168px, max(0px, calc(var(--lm-visible-viewport-height, 100dvh) - 68px)));
+    --lm-keyboard-clearance: min(128px, max(0px, calc(var(--lm-visible-viewport-height, 100dvh) - 68px)));
   }
   .lm-app[data-keyboard-open="true"] .gagos-chat {
     bottom: calc(var(--lm-keyboard-clearance) + var(--lm-keyboard-inset, 0px));
@@ -415,6 +837,183 @@
     bottom: calc(8px + var(--lm-keyboard-inset, 0px));
     max-height: max(0px, calc(var(--lm-keyboard-clearance) - 16px));
     overflow-y: auto;
+  }
+  .lm-app[data-keyboard-open="true"] .lm-connection[data-details-open="true"] {
+    bottom: var(--lm-workspace-dock-clearance, 238px);
+  }
+}
+@media (max-width: 767px) {
+  /* A work surface must not steal the composer width on phone portrait.
+     Keep typing + Send together and let optional voice/model controls occupy
+     their own touch-scrollable row, just as in compact landscape. */
+  .lm-app[data-working="true"] .gagos-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-rows: 44px 44px;
+    align-items: center;
+    gap: 4px 6px;
+    padding: 5px 6px;
+    overflow: hidden;
+  }
+  .lm-app[data-working="true"] .gagos-intent { display: none; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-input {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+  .lm-app[data-working="true"] .gagos-bar__accessories {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(123, 245, 251, .42) rgba(255, 255, 255, .06);
+    touch-action: pan-x;
+  }
+  .lm-app[data-working="true"] .gagos-bar__accessories > .gagos-btn {
+    flex: 0 0 auto;
+    padding-inline: 4px;
+    font-size: 10px;
+  }
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar { height: 3px; }
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-track { background: rgba(255, 255, 255, .06); border-radius: 3px; }
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-thumb { background: rgba(123, 245, 251, .42); border-radius: 3px; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-send {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+}
+@media (max-width: 360px) {
+  /* The narrow resting composer reserves room for its welcome story; an
+     active workspace has no story there, so do not keep that empty height. */
+  .lm-app[data-working="true"] .gagos-chat { height: auto; max-height: none; }
+
+  /* At 320px, stack the controls into a single paired row. The previous
+     Expert nav wrapped to two lines while the workspace selector occupied
+     the same coordinates, and its 286px panel start sat below the composer
+     clearance. Keep the body scrollable in the small remaining band. */
+  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-header {
+    top: calc(70px + var(--lm-safe-area-top));
+  }
+  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-navigation {
+    top: calc(120px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: auto;
+    width: calc(50% - 18px);
+    height: 44px;
+    box-sizing: border-box;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 2px;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-navigation > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-navigation > button {
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+  .lm-app[data-working="true"] .lm-expert-mobile-surfaces { flex: 0 0 auto; }
+  .lm-app[data-working="true"] .lm-expert-mobile-surfaces > summary {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding-inline: 7px;
+    font-size: 10px;
+  }
+  .lm-app[data-working="true"] .lm-expert-mobile-surfaces__groups {
+    position: fixed;
+    z-index: 70;
+    top: calc(172px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    min-width: 0;
+    max-height: min(55dvh, 300px);
+  }
+  .lm-app[data-working="true"] .lm-workspace-rail {
+    z-index: 35;
+    top: calc(120px + var(--lm-safe-area-top));
+    right: max(12px, var(--lm-safe-area-right));
+    left: auto;
+    width: calc(50% - 18px);
+    max-width: none;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 0;
+  }
+  .lm-app[data-working="true"] .lm-workspace-rail > button:last-of-type {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding-inline: 4px;
+    overflow: hidden;
+    font-size: 10px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lm-app[data-working="true"] .lm-workspace-list {
+    position: fixed;
+    z-index: 70;
+    top: calc(172px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    max-height: min(55dvh, 300px);
+  }
+  .lm-app[data-working="true"] .lm-surface {
+    z-index: 10;
+    top: calc(172px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    width: auto;
+    min-height: 0;
+  }
+  .lm-app[data-working="true"] .lm-surface[data-workspace-collapsed="true"] {
+    bottom: auto;
+    height: 48px;
+    min-height: 48px;
+  }
+  .lm-app[data-working="true"] .lm-surface__header {
+    min-height: 48px;
+    box-sizing: border-box;
+    gap: 4px;
+    padding: 2px 4px;
+  }
+  .lm-app[data-working="true"] .lm-surface__header h2 { font-size: 16px; }
+  .lm-app[data-working="true"] .lm-surface__header button {
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+  .lm-app[data-working="true"] .lm-surface__body { padding: 4px 8px; }
+  .lm-app[data-working="true"] .lm-surface__body h3 { margin-block: 2px; font-size: 16px; }
+  .lm-app[data-working="true"] .lm-surface__body p { margin-block: 4px; }
+  .lm-app[data-working="true"] .lm-surface__body li { margin-bottom: 8px; }
+  .lm-app[data-working="true"] .gagos-chat {
+    z-index: 20;
+    gap: 2px;
+    padding: 4px 6px;
+  }
+  .lm-app[data-working="true"] .gagos-chat__context {
+    min-height: 0;
+    max-height: 22px;
+    flex: 0 1 auto;
+    overflow: auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {

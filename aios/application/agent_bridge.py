@@ -26,6 +26,7 @@ of the two they are looking at; claiming otherwise would be the overclaim organ
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -101,6 +102,45 @@ def looks_secret_bearing(path: str) -> bool:
     return is_credential_path(path)
 
 
+def _is_credential_bearing_scoped_path(
+    target: str,
+    *,
+    base: Path,
+    roots: tuple[Path, ...],
+    resolved: Path,
+) -> bool:
+    """Classify a path relative to its authorized root, not host ancestors.
+
+    Managed checkouts can live beneath host directories such as ``.codex`` or
+    ``.claude``. Those ancestors are sensitive when they are part of the path
+    the agent is requesting, but they must not make every ordinary file in an
+    already-authorized project look like credential material. Inspect both the
+    lexical path (so a credential-named symlink is still denied) and the
+    resolved path (so a symlink into a credential directory remains denied).
+    """
+    requested = Path(target)
+    lexical = requested if requested.is_absolute() else base / requested
+    lexical = Path(os.path.abspath(str(lexical)))
+    candidates = [requested.name]
+    scoped_candidates = 0
+
+    for root in roots:
+        trusted_root = root.resolve()
+        for path in (lexical, resolved):
+            try:
+                relative = path.relative_to(trusted_root)
+            except ValueError:
+                continue
+            scoped_candidates += 1
+            candidates.append(relative.as_posix())
+
+    # Callers first prove containment. If that proof cannot be related back to
+    # one of the same roots, deny rather than silently skip the credential gate.
+    if not scoped_candidates:
+        return True
+    return any(is_credential_path(candidate) for candidate in candidates)
+
+
 def authorize(
     tool_name: str,
     tool_input: Optional[dict[str, Any]] = None,
@@ -167,7 +207,12 @@ def authorize(
         # In scope is not permission to WRITE credential material. Reads were
         # guarded here from the start and writes were not, so the bridge refused
         # to show an agent `.env` while letting it overwrite the file.
-        if is_credential_path(target) or is_credential_path(resolved):
+        if _is_credential_bearing_scoped_path(
+            target,
+            base=base,
+            roots=scope_lock.get_scope_roots(),
+            resolved=Path(resolved),
+        ):
             return BridgeDecision(False, refusal_reason(target), name, "N/A", target)
         return BridgeDecision(
             True, "Write within the sandbox scope.", name, "N/A", target
@@ -177,7 +222,21 @@ def authorize(
         target = _first_str(payload, "file_path", "filepath", "path", "pattern")
         if not target:
             return BridgeDecision(True, "Read with no explicit path.", name, "N/A", "")
-        if looks_secret_bearing(target):
+        resolved = Path(target) if Path(target).is_absolute() else (base / target)
+        try:
+            resolved = resolved.resolve()
+            project_root = Path(config.PROJECT_ROOT).resolve()
+            resolved.relative_to(project_root)
+        except ValueError:
+            return BridgeDecision(
+                False, "Read outside the project root.", name, "N/A", target
+            )
+        if _is_credential_bearing_scoped_path(
+            target,
+            base=base,
+            roots=(project_root,),
+            resolved=resolved,
+        ):
             return BridgeDecision(
                 False,
                 "Refused: the path names credential material, and handing a key to "
@@ -185,13 +244,6 @@ def authorize(
                 name,
                 "N/A",
                 target,
-            )
-        resolved = Path(target) if Path(target).is_absolute() else (base / target)
-        try:
-            resolved.resolve().relative_to(Path(config.PROJECT_ROOT).resolve())
-        except ValueError:
-            return BridgeDecision(
-                False, "Read outside the project root.", name, "N/A", target
             )
         return BridgeDecision(
             True, "Read within the project root.", name, "N/A", target
