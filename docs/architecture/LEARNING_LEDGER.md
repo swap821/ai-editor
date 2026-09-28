@@ -94,7 +94,32 @@ These are not aspirations; each one has a test.
   accepting is a human act, and a training harness doing it on the miner's
   behalf would be the same act wearing a different hat.
 
+## L2 and L4 re-earned (2026-09-28); L5 stays yellow by design
+
+Organic run `20260927T221713-b131ac59` at `701dda46` (master) used a ladder: the
+local `qwen2.5-coder:7b` first, then Bedrock `deepseek.v3.2` and
+`mistral.devstral-2-123b`. The artifact is
+`docs/learning/organic_chain_20260927T221713-b131ac59.json`.
+
+- **L2 (green).** The 7B's real failures were reflected locally, as production
+  reflects, into lesson 107. A stronger tier then passed the *identical*
+  failed command, and the lesson was promoted. **Scope:** the confirming model
+  never saw the lesson. L2 is confirmation by the identical command, as this
+  ledger defines it. Whether a lesson's *content* helps is the payoff
+  benchmark's question, and its cloud baseline found no measurable benefit.
+- **L4 (green).** A new verify-only arc, skill 90, earned three STRONG turns,
+  and `try_compile_all` compiled playbook 16. It is a fresh compile, not the
+  idempotent re-run that kept L4 yellow.
+- **L5 (still yellow).** Playbook 16 matched, but its approval-needing `pytest`
+  step was refused during replay, and the model was consulted. That is Phase
+  0b's containment working: a reflex learned with no human approval cannot
+  serve a turn alone. Earning L5 needs a step that a human approved (Phase 5),
+  not a loosened gate.
+
 ## Why L2 and L4 are yellow
+
+> **Superseded 2026-09-28.** L2 and L4 were re-earned; see the section above.
+> This section is kept as dated evidence.
 
 Both lost their organic evidence when #359 was squash-merged, and neither
 re-fired in three runs of `tools/organic_chain_run.py` at `00dbf6f3`.
