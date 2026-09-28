@@ -234,6 +234,39 @@
     --lm-desktop-connection-slot: 148px;
   }
 
+  /* Expert navigation is a real control band, not text floating over the
+     point-field. Keep every label on one touch-sized row, then give the being
+     the scene below it so the full body remains visible. Guided keeps its
+     larger, unobstructed canvas because this navigation is hidden there. */
+  .lm-app:has(.lm-shell[data-experience-mode="expert"]) .lm-scene {
+    top: 144px;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation {
+    box-sizing: border-box;
+    height: 44px;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: var(--lm-canvas);
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation,
+  .lm-shell[data-experience-mode="expert"] .lm-navigation button,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group__items,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group__label,
+  .lm-shell[data-experience-mode="expert"] .lm-expert-group > summary {
+    white-space: nowrap;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation button {
+    flex: 0 0 auto;
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+  .lm-shell[data-experience-mode="expert"] .lm-navigation :focus-visible {
+    outline-offset: -3px;
+  }
+
   /* Connection truth belongs to the same left rail as the conversation. Keep
      the right-hand organism and its root field free of full-width status copy. */
   .lm-app[data-working="false"] .lm-connection {

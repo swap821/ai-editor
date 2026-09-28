@@ -1150,3 +1150,11 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Recheck:** Repository-wide ruff format --check . passed (942 files already formatted); agent-bridge tests passed 32/32; git diff check passed. This formatting correction is local and still needs a follow-up commit/push to PR #406.
 - **State/limit:** PR #406 remains open and BLOCKED on the initial CI results; other checks were still running at last inspection. Do not merge until the corrected head has green required checks and a hash-pinned non-builder review.
 - **Next:** Commit and push the formatter correction and its checkpoint, then inspect the new PR run.
+
+## 2026-09-28 — CEO checkpoint (Expert navigation clears desktop point-field)
+
+- **Product correction:** At 1200×720 and 1280×720, Expert navigation now occupies its own 44px opaque row; every label fits without horizontal scrolling, and the 3D scene begins 2px below the row. Its keyboard focus outline is inset and visible. Guided keeps its scene at y=0. The desktop rule is inactive at 390×844; the previously known mobile silhouette limitation remains.
+- **Browser evidence:** Isolated local Chromium viewport emulation only. The preview was offline/resting; no message, Retry, or backend request was sent. At 1200×720 and 1280×720, page dimensions equal the viewport and nav content fits exactly. Keyboard focus moved from Conversation to Missions and the cyan focus ring remained visible inside the nav bounds.
+- **Verification:** Frontend **185 files / 1,045 tests**; TypeScript; production build (**4,321 modules**); port tests **16/16**; palette guard **12 files / 9 tokens**; protected-texture guard; diff check. A first npm invocation at the repository root was invalid (frontend scripts live under frontend/) and is excluded from evidence.
+- **Limits:** CSS viewport evidence does not establish operator, physical-device, field-performance, human accessibility, or live-backend acceptance. No new goal points; accepted score remains **3/100**. The current pushed PR #406 head is 94811b72 and its listed checks passed; this new local change has not yet been published or reviewed.
+- **Next:** Commit and push this bounded desktop-layout finding to PR #406, then inspect checks on the new head and request hash-pinned non-builder review. Do not merge without that review.
