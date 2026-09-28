@@ -274,6 +274,17 @@
     max-height: none;
     overflow: hidden;
   }
+
+  /* A fixed 440px height plus the reserved status band pulled this rail up to
+     the top edge on 720px displays, where voice status and welcome copy collided
+     with the identity and workspace navigation. Let the rail fill the actual
+     space below those controls; the request dock stays pinned above status. */
+  .lm-app[data-working="false"] .gagos-chat { top: 156px; }
+  .lm-app[data-working="true"] .gagos-chat { top: 272px; }
+  .lm-app .gagos-chat {
+    height: auto;
+    max-height: none;
+  }
 }
 @media (max-width: 1199px) {
   .lm-navigation { gap: 2px; }
