@@ -199,6 +199,13 @@ atexit.register(shutil.rmtree, _PYTEST_SESSION_ROOT, ignore_errors=True)
 # the authority classes will refuse an unset or short key (Blocker 13 fix).
 os.environ.setdefault("AIOS_TEST_SIGNING_KEYS_ALLOWED", "1")
 
+# The bounded-learning-writes cap (plan Phase 6b) is a per-minute burst limit
+# on the ONE process-wide memory authority, and the suite drives hundreds of
+# turns through that authority in minutes. Pinned out of the way here, so no
+# test depends on how fast its neighbours ran; the cap's own tests build their
+# own budgets (tests/test_phase6b_write_cap.py).
+os.environ["AIOS_LEARNING_WRITE_CAP_PER_MINUTE"] = "1000000"
+
 
 @pytest.fixture(autouse=True)
 def _reset_constitution_singletons():
