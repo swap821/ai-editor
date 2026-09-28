@@ -478,6 +478,49 @@ prints and records the mode with every score.
   read of the library lie about one thing while the rest stays real, and checks
   that the mission fails.
 
+## Slice 2.4c: the hard switch (operator: "Let's honestly complete the plan", 2026-09-28)
+
+2.4c runs in two slices so each can be reviewed and reverted on its own.
+
+**Slice A (reflexes, this PR): the reflex table speaks library identity.**
+- `compiled_playbooks.skill_id` no longer references `procedural_skills`. It is
+  a skill **trail id** (`SkillTrailIndex`). Migrated arcs keep their legacy
+  ids, and library-issued ids start at 1e9, which the old foreign key could
+  never accept.
+- The status gains `retired`, with a `retired_reason`.
+- The rebuild follows `_migrate_skill_signature_index`: its own connection
+  with foreign keys off, a timestamped backup first, ids preserved, the row
+  count asserted, and idempotent.
+- `tools/retire_legacy_playbooks.py` (dry run by default) retires every
+  compiled reflex that no operator activation backs, with a reason and an L5
+  journal entry, after a backup. It refuses while the emergency stop is
+  engaged.
+- **The keep-or-retire rule is the live gate's own**:
+  `Cerebellum.activation_backs`, one derivation with two callers.
+- Retirement is permanent. Decompilation, by contrast, can be earned back.
+  Retiring a reflex does not block a new one compiled from a later activation.
+- **Live data:** the 13-plus existing reflexes are retired by `--apply`, run
+  only with the operator's go-ahead, as the migration was.
+
+**Slice B (skills, next): the library is the only skill store.**
+- The `skills` slot is the institutional adapter alone. `DualWriteSkillAdapter`
+  and `AIOS_SKILL_STORE_MODE` are removed. The `.env` line becomes inert and
+  can be deleted.
+- `procedural_skills` becomes read-only history: the production store refuses
+  writes.
+- The cerebellum's reflex gate is always attached. Its bookkeeping (the
+  failure streak and the retire rule) moves from `procedural_skills` counts to
+  the library record plus organ 43's demotion policy: an activated skill that
+  keeps failing is demoted, and a demoted skill's reflex is withheld.
+- **Consequences, stated before building:**
+  - Learning Ledger L3 "verified" becomes "review-ready", as the instruments
+    were redefined.
+  - L4 and L5 need a skill the operator activated.
+  - The organic-learning runner and the self-corpus ladder write through the
+    library.
+  - Readers default to the library: doctor, organ-55 M2, the scoreboard, the
+    runner and the prover.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the

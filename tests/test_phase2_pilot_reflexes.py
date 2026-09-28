@@ -47,6 +47,11 @@ class Bus:
 
 @pytest.fixture()
 def world(tmp_path: Path, monkeypatch):
+    return build_world(tmp_path, monkeypatch)
+
+
+def build_world(tmp_path: Path, monkeypatch):
+    """A legacy store with a compiled reflex, and a migrated library (pilot slot)."""
     monkeypatch.setattr(
         learning_freeze, "_latch_path", lambda: tmp_path / "emergency_stop.db"
     )
