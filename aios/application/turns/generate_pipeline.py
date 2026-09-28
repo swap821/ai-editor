@@ -654,7 +654,14 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     #    approval authority and is never treated as evidence. When the
     #    interpreter is disabled (AIOS_INTERPRET_ALIGNMENT=false) the turn
     #    skips interpretation entirely: no frame, observation, or ask-pause.
+    #: Recalled memory (semantic, lessons, skills, facts, self-model): the
+    #: agent carries it as a labelled data envelope, never in the system
+    #: message (plan Phase 4).
     context_parts: list[str] = []
+    #: This turn's advisory frame and plan: derived from the operator's own
+    #: words, not read back from a learning store, so they keep the system
+    #: channel as before.
+    guidance_parts: list[str] = []
     alignment = None
     # Hoisted above the (conditional) alignment block: the plan stage below
     # must be able to read it even when AIOS_INTERPRET_ALIGNMENT is off.
@@ -674,7 +681,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 # Corrupt optional continuity state must never break chat or
                 # silently gain authority.
                 logger.warning("Failed to apply active user correction", exc_info=exc)
-        context_parts.append(alignment.to_prompt_block())
+        guidance_parts.append(alignment.to_prompt_block())
         alignment_payload = alignment.as_dict()
         base_alignment_payload = base_alignment.as_dict()
         try:
@@ -844,7 +851,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             logger.warning("Plan stage failed open", exc_info=exc)
         else:
             yield sse("plan", serialize_plan(_stage_plan))
-            context_parts.append(plan_to_prompt_block(_stage_plan))
+            guidance_parts.append(plan_to_prompt_block(_stage_plan))
 
     if crag_judge is None and crag_cloud_source is None:
         semantic = _recall_memory(user_text, authority=runtime.memory_authority)
@@ -979,6 +986,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             )
 
     memory_context = "\n\n".join(context_parts) or None
+    guidance_context = "\n\n".join(guidance_parts) or None
 
     # Seed for the fail->confirm tracker (see _recall_pending_commands): this
     # session's still-pending lessons + their failed commands, so a lesson
@@ -998,12 +1006,14 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
 
     def make_agent(**overrides: Any) -> ToolAgent:
         agent_memory_context = overrides.pop("memory_context", memory_context)
+        agent_governance = overrides.pop("governance_context", guidance_context)
         return ToolAgent(
             chat_client,
             executor,
             model=model,
             session_id=session_id,
             memory_context=agent_memory_context,
+            governance_context=agent_governance,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(
                 reflector, consolidator, authority=runtime.memory_authority
@@ -1079,6 +1089,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             model=cloud_model,
             session_id=session_id,
             memory_context=memory_context,
+            governance_context=guidance_context,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(
                 reflector, consolidator, authority=runtime.memory_authority
@@ -1518,17 +1529,25 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             rendered_context = json.dumps(
                 compiled_context.as_dict(), sort_keys=True, ensure_ascii=True
             )
+            # The representative context is the operator's contract (goal,
+            # constraints, delegated authority, permitted tools), not recall:
+            # it keeps the system channel. Recalled memory, when it may be
+            # sent at all, travels in the agent's data envelope.
             if compiled_context.privacy_classification == "cloud":
-                governed_memory = rendered_context
+                governed_recall = None
+                governance = rendered_context
                 governed_messages = [{"role": "user", "content": compiled_context.goal}]
             else:
-                governed_memory = (
-                    (memory_context + "\n\n" if memory_context else "")
+                governed_recall = memory_context
+                governance = (
+                    (guidance_context + "\n\n" if guidance_context else "")
                     + "Governed representative context:\n"
                     + rendered_context
                 )
                 governed_messages = chat_messages
-            return make_agent(memory_context=governed_memory).run(governed_messages)
+            return make_agent(
+                memory_context=governed_recall, governance_context=governance
+            ).run(governed_messages)
 
         receipt_now = datetime.now(timezone.utc)
         receipt_expires = receipt_now + timedelta(minutes=5)
@@ -1906,6 +1925,16 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 capabilities.clear_grants(session_id, route="/api/generate")
                 yield sse("error", {"text": f"Approval request refused: {exc}"})
                 return
+            if ev.get("control"):
+                # Plan Phase 4 (T15): a pause a control forced names it, and a
+                # proposal that came from recalled memory carries the recalled
+                # lines, so the human sees where it came from. Display only:
+                # neither field is part of the capability binding.
+                payload["control"] = str(ev["control"])
+            if ev.get("recall_provenance"):
+                payload["recallProvenance"] = [
+                    str(line) for line in ev["recall_provenance"]
+                ]
             try:
                 record_development = (
                     runtime.memory_authority.record_development

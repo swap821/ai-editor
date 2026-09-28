@@ -524,7 +524,10 @@ def test_agent_surfaces_llm_error() -> None:
     assert "ollama is down" in events[-1]["text"]
 
 
-def test_agent_injects_memory_context_into_system_prompt() -> None:
+def test_agent_carries_memory_context_as_data_not_in_the_system_prompt() -> None:
+    """Recalled memory reaches the model, but as the labelled data envelope in
+    the operator's message, never the system message (plan Phase 4; see
+    tests/test_phase4a_recall_envelope.py)."""
     chat = ScriptedChat([{"role": "assistant", "content": "ok"}])
     agent = ToolAgent(
         chat,
@@ -536,7 +539,12 @@ def test_agent_injects_memory_context_into_system_prompt() -> None:
 
     system_msg = chat.calls[0][0]
     assert system_msg["role"] == "system"
-    assert "the answer is 42" in system_msg["content"]
+    assert "the answer is 42" not in system_msg["content"]
+    user_msg = chat.calls[0][1]  # the live convo: the reply is appended after
+    assert user_msg["role"] == "user"
+    assert user_msg["content"].startswith("<recalled_memory>")
+    assert "the answer is 42" in user_msg["content"]
+    assert user_msg["content"].endswith("what is the answer?")
 
 
 def test_agent_reflects_on_command_failure() -> None:
