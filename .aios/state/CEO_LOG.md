@@ -1158,3 +1158,9 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Verification:** Frontend **185 files / 1,045 tests**; TypeScript; production build (**4,321 modules**); port tests **16/16**; palette guard **12 files / 9 tokens**; protected-texture guard; diff check. A first npm invocation at the repository root was invalid (frontend scripts live under frontend/) and is excluded from evidence.
 - **Limits:** CSS viewport evidence does not establish operator, physical-device, field-performance, human accessibility, or live-backend acceptance. No new goal points; accepted score remains **3/100**. The current pushed PR #406 head is 94811b72 and its listed checks passed; this new local change has not yet been published or reviewed.
 - **Next:** Commit and push this bounded desktop-layout finding to PR #406, then inspect checks on the new head and request hash-pinned non-builder review. Do not merge without that review.
+
+## 2026-09-28 — publication checkpoint for PR #406
+
+- **Published:** Commit 3cb160f64e4d1a10f6357389ecf7b54c8532b773 was pushed to the existing PR #406 branch. No merge was attempted.
+- **Hosted state:** PR #406 remains OPEN and BLOCKED, review decision is empty. On the pushed head, both format-gate jobs were already SUCCESS; backend, frontend, contract, ledger and CodeQL checks were still IN_PROGRESS at the last read. Recheck the exact latest head before handoff or merge.
+- **Next:** Wait for all latest-head checks, then hash-pin a non-builder review. Keep the main checkout untouched pending the operator's choice about its accidental RESUME edit.
