@@ -28,6 +28,14 @@ _SEMANTIC_WRITE_LOCK = threading.Lock()
 _LOCK_TIMEOUT_S = 30
 
 
+#: The active row an add consolidates into: one derivation for the write and
+#: for the read that captures the state it extends (``duplicate_of``).
+_DUPLICATE_MATCH = (
+    "SELECT id FROM semantic_memory "
+    "WHERE content_hash = ? AND verification_status != 'superseded'"
+)
+
+
 class SemanticMemory:
     """CRUD facade over ``semantic_memory`` plus its FAISS vector index."""
 
@@ -102,11 +110,7 @@ class SemanticMemory:
         ):
             with get_connection(self.db_path) as conn:
                 conn.execute("BEGIN IMMEDIATE")
-                existing = conn.execute(
-                    "SELECT id FROM semantic_memory "
-                    "WHERE content_hash = ? AND verification_status != 'superseded'",
-                    (digest,),
-                ).fetchone()
+                existing = conn.execute(_DUPLICATE_MATCH, (digest,)).fetchone()
                 if existing is not None:
                     mem_id = int(existing["id"])
                     if count_occurrence:
@@ -148,6 +152,22 @@ class SemanticMemory:
                     conn.execute("DELETE FROM semantic_memory WHERE id = ?", (mem_id,))
                 raise
         return mem_id
+
+    def duplicate_of(self, text: str) -> Optional[sqlite3.Row]:
+        """The active row an ``add`` of *text* would consolidate into, or ``None``.
+
+        The same scrub, hash and query as ``add``, so a caller can read the state
+        a repeat is about to change (plan Phase 3b). Read-only.
+        """
+        digest = content_hash(scan_and_redact(text).scrubbed)
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(_DUPLICATE_MATCH, (digest,)).fetchone()
+            if row is None:
+                return None
+            return conn.execute(
+                "SELECT * FROM semantic_memory WHERE id = ?", (int(row["id"]),)
+            ).fetchone()
 
     def get(self, mem_id: int) -> Optional[sqlite3.Row]:
         """Return the row for *mem_id*, or ``None`` if it does not exist."""

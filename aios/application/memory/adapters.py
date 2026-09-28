@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -54,7 +55,24 @@ class LegacySemanticMemoryAdapter:
         #: appends a signed record of its new state. None: write as before.
         self.provenance = provenance
 
-    def _attest(self, mem_id: int, transition: str, *, source: Any = None) -> None:
+    def _prior(self, target: Any, text: Any) -> Any:
+        """The row a write of *text* would consolidate into, read BEFORE it."""
+        if self.provenance is None or not isinstance(text, str):
+            return None
+        finder = getattr(target, "duplicate_of", None)
+        return finder(text) if callable(finder) else None
+
+    def _attest(
+        self,
+        mem_id: int,
+        transition: str,
+        *,
+        prior: Any = None,
+        existed: bool,
+        source: Any = None,
+    ) -> None:
+        """A new row is attested as new; a repeat or a promotion extends the
+        prior state, and is signed only if that state verifies."""
         if self.provenance is None:
             return
         target = source if source is not None else self.store
@@ -62,8 +80,22 @@ class LegacySemanticMemoryAdapter:
         row = getter(int(mem_id)) if callable(getter) else None
         if row is None:
             return
-        self.provenance.attest(
-            "semantic_memory", mem_id, semantic_digest(row), transition
+        if not existed:
+            self.provenance.attest_new(
+                "semantic_memory", mem_id, semantic_digest(row), transition
+            )
+            return
+        prior_digest = (
+            semantic_digest(prior)
+            if prior is not None and int(prior["id"]) == int(mem_id)
+            else None
+        )
+        self.provenance.attest_transition(
+            "semantic_memory",
+            mem_id,
+            semantic_digest(row),
+            transition,
+            prior_digest=prior_digest,
         )
 
     @property
@@ -107,6 +139,7 @@ class LegacySemanticMemoryAdapter:
     def record_chat(self, content: str, *, indexer: Any | None = None) -> int:
         """Persist a scrubbed unverified chat observation via the semantic store."""
         target = indexer if indexer is not None else self.store
+        prior = self._prior(target, content)
         try:
             mem_id = int(
                 target.add(
@@ -117,17 +150,21 @@ class LegacySemanticMemoryAdapter:
             )
         except TypeError:
             mem_id = int(target.add(content))
-        self._attest(mem_id, "recorded", source=target)
+        self._attest(
+            mem_id, "recorded", prior=prior, existed=prior is not None, source=target
+        )
         return mem_id
 
     def add(self, *args: Any, **kwargs: Any) -> int:
+        prior = self._prior(self.store, args[0] if args else kwargs.get("text"))
         mem_id = int(self.store.add(*args, **kwargs))
-        self._attest(mem_id, "recorded")
+        self._attest(mem_id, "recorded", prior=prior, existed=prior is not None)
         return mem_id
 
     def promote(self, mem_id: int) -> None:
+        prior = self.store.get(int(mem_id)) if self.provenance is not None else None
         self.store.promote(mem_id)
-        self._attest(int(mem_id), "promoted")
+        self._attest(int(mem_id), "promoted", prior=prior, existed=True)
 
     def supersede_text(self, text: str) -> int:
         return int(self.store.supersede_text(text))
@@ -246,13 +283,27 @@ class SemanticFactsAdapter:
         ):
             return result
         row = self.store.get(int(fact_id))
-        if row is not None:
-            self.provenance.attest(
+        if row is None:
+            return result
+        if row["approved_by"]:
+            # A named human approved exactly this triple: that act, not any
+            # earlier record, is what the signature attests.
+            self.provenance.attest_new(
                 "semantic_facts",
                 fact_id,
                 fact_digest(row),
                 transition,
                 approver=row["approved_by"],
+            )
+        else:
+            # No approver: recall never admits it anyway, and nothing earlier
+            # can vouch for it. Recorded, unsigned.
+            self.provenance.attest_transition(
+                "semantic_facts",
+                fact_id,
+                fact_digest(row),
+                transition,
+                prior_digest=None,
             )
         return result
 
@@ -474,19 +525,55 @@ class MistakeMemoryAdapter:
         self.store = store
         self.provenance = provenance
 
-    def _attest(self, mistake_id: int, transition: str) -> None:
+    def _attest(
+        self,
+        mistake_id: int,
+        transition: str,
+        *,
+        prior: Any = None,
+        existed: bool,
+    ) -> None:
+        """A new lesson is attested as new. A recurrence or a promotion extends
+        the prior state and is signed only if that state verifies: a recurrence
+        keeps the EXISTING row's text, so signing it unconditionally would sign
+        whatever text an unsigned row held."""
         if self.provenance is None:
             return
         row = self.store.get(mistake_id)
         if row is None:
             return
-        self.provenance.attest(
+        if not existed:
+            self.provenance.attest_new(
+                "mistake_pool",
+                mistake_id,
+                lesson_digest(row),
+                transition,
+                session_id=row["task_id"],
+            )
+            return
+        prior_digest = (
+            lesson_digest(prior)
+            if prior is not None and int(prior["id"]) == int(mistake_id)
+            else None
+        )
+        self.provenance.attest_transition(
             "mistake_pool",
             mistake_id,
             lesson_digest(row),
             transition,
+            prior_digest=prior_digest,
             session_id=row["task_id"],
         )
+
+    def _recurrence_prior(self, args: tuple, kwargs: dict) -> Any:
+        """The row a recurrence would increment, read BEFORE the write."""
+        if self.provenance is None:
+            return None
+        finder = getattr(self.store, "recurrence_candidate", None)
+        if not callable(finder):
+            return None
+        bound = inspect.signature(self.store.record_or_increment).bind(*args, **kwargs)
+        return finder(bound.arguments["task_id"], bound.arguments["error_type"])
 
     def recall_relevant(
         self, query: str, task_id: str, limit: int
@@ -512,13 +599,19 @@ class MistakeMemoryAdapter:
         return self.store.recurring(limit=limit)
 
     def record_or_increment(self, *args: Any, **kwargs: Any) -> tuple[int, bool]:
+        prior = self._recurrence_prior(args, kwargs)
         mistake_id, recurrence = self.store.record_or_increment(*args, **kwargs)
-        self._attest(int(mistake_id), "recurred" if recurrence else "created")
+        self._attest(
+            int(mistake_id),
+            "recurred" if recurrence else "created",
+            prior=prior,
+            existed=bool(recurrence),
+        )
         return mistake_id, recurrence
 
     def record(self, *args: Any, **kwargs: Any) -> int:
         mistake_id = int(self.store.record(*args, **kwargs))
-        self._attest(mistake_id, "created")
+        self._attest(mistake_id, "created", existed=False)
         return mistake_id
 
     def get(self, mistake_id: int) -> Any:
@@ -535,11 +628,12 @@ class MistakeMemoryAdapter:
             )
 
     def promote(self, mistake_id: int, **kwargs: Any) -> None:
+        prior = self.store.get(mistake_id) if self.provenance is not None else None
         self.store.promote(mistake_id, **kwargs)
         # Attested even when the evidence was below the floor and nothing
-        # changed: the record then restates the same state, which is harmless,
-        # and a promotion that DID change the status is never left unsigned.
-        self._attest(int(mistake_id), "promoted")
+        # changed: the record then restates the same state. Signed only if the
+        # state it restates, or promotes, was signed.
+        self._attest(int(mistake_id), "promoted", prior=prior, existed=True)
 
     def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
         return self.store.pending_command_pairs(task_id)

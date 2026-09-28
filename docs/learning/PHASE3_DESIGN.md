@@ -162,6 +162,24 @@ Then **Phase 4**, which rests on 3c's verdicts:
     next turn.
 - **A record that cannot be appended never breaks the write.** The row is
   unsigned, so it is never recalled. The stop is the exception, and re-raises.
+- **No laundering: a new state of an existing row is signed only if the state
+  it extends verifies** (`ProvenanceWriter.attest_transition`). Found while
+  building 3b. `record_or_increment` matches an existing lesson by
+  (task, error type) and KEEPS its text. So a lesson written straight into the
+  database would have been signed the first time a genuine same-type failure
+  recurred onto it, or a real success promoted it. The same held for a semantic
+  memory repeated into an injected row.
+  - Each store now has one method that finds the row a write will touch
+    (`recurrence_candidate`, `duplicate_of`). The write and the adapter's
+    pre-read both use it.
+  - The adapter captures that row's digest before the write, and the writer
+    signs the transition only if the row's newest record verifies over that
+    digest under a pinned key.
+  - Anything else is appended unsigned and counted (`unsigned_transitions`):
+    an injected row, a row edited after signing, a race, or no pinned keys.
+  - A fact that names a human approver is the exception: that approval is the
+    act being signed. A fact with no approver is never recalled, and stays
+    unsigned.
 - **Harness children never hold a learning key.** The learning red-team's
   child environment sets every `AIOS_LEARNING_KEY_*` to empty. Empty, not
   absent: the child loads the repository's `.env`, and `load_dotenv` fills only

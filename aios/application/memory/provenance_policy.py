@@ -24,6 +24,7 @@ from typing import Any, Mapping, Optional
 from aios.application.governance.emergency_stop import EmergencyStopError
 from aios.memory.provenance import (
     LearningSigner,
+    LearningVerifier,
     Provenance,
     ProvenanceStore,
     content_digest,
@@ -94,6 +95,14 @@ class ProvenanceWriter:
     *source_kind* is the kind this process writes AS. The signer signs it only
     if it holds that kind's seed; otherwise the record is appended unsigned,
     which is honest (the row exists) and inert (it is never recalled).
+
+    **A new state of an existing row is signed only if the state it extends
+    verifies** (``attest_transition``). Otherwise a row nobody signed -- a
+    legacy row, or one written straight into the database -- would be signed
+    the first time a real event touched it: a genuine failure recurring onto an
+    injected lesson keeps the injected TEXT, and a real success promotes it.
+    That would launder it into trusted memory, which the design forbids:
+    re-admission is by re-earning, or by the operator.
     """
 
     def __init__(
@@ -102,31 +111,72 @@ class ProvenanceWriter:
         signer: LearningSigner,
         *,
         source_kind: str,
+        verifier: Optional[LearningVerifier] = None,
     ) -> None:
         self.store = store
         self.signer = signer
         self.source_kind = source_kind
+        #: Pinned keys. Without them no transition can be proven to extend a
+        #: signed state, so every transition is recorded unsigned.
+        self.verifier = verifier
         self.failures = 0
         self.last_failure: Optional[str] = None
+        #: Transitions recorded unsigned because the state they extend did not
+        #: verify: a count the doctor can show, never an error.
+        self.unsigned_transitions = 0
 
-    def attest(
+    def attest_new(
+        self, table: str, row_id: Any, digest: str, transition: str, **context: Any
+    ) -> Optional[int]:
+        """A row this write CREATED: signed if this process holds the key."""
+        return self._append(
+            self._provenance(table, row_id, digest, transition, context), sign=True
+        )
+
+    def attest_transition(
         self,
         table: str,
         row_id: Any,
         digest: str,
         transition: str,
+        *,
+        prior_digest: Optional[str],
         **context: Any,
     ) -> Optional[int]:
-        """Append one signed (or unsigned) record for a row's current state.
+        """A new state of an EXISTING row: signed only if its prior state verifies.
 
-        Returns the record id, or ``None`` when appending failed. A failure is
-        counted and logged, never raised: the row is then unsigned, and an
-        unsigned row is never recalled. The emergency stop is the exception. It
-        re-raises, because the write it belongs to was refused by the same
-        latch a moment earlier, and the record must not outlive that refusal.
+        *prior_digest* is the row's digest just before the write, or ``None``
+        when it could not be captured (a race, or a different row matched),
+        which is treated as unverifiable: fail-closed.
         """
+        provenance = self._provenance(table, row_id, digest, transition, context)
+        return self._append(
+            provenance, sign=self._extends_a_signed_state(table, row_id, prior_digest)
+        )
+
+    def _extends_a_signed_state(
+        self, table: str, row_id: Any, prior_digest: Optional[str]
+    ) -> bool:
+        if self.verifier is None or prior_digest is None:
+            return False
+        try:
+            prior = self.store.latest(table, str(row_id))
+        except Exception:  # noqa: BLE001 - unreadable proves nothing
+            return False
+        return self.verifier.verify(
+            prior, content_sha256=prior_digest, context=self.source_kind
+        ).admitted
+
+    def _provenance(
+        self,
+        table: str,
+        row_id: Any,
+        digest: str,
+        transition: str,
+        context: dict[str, Any],
+    ) -> Provenance:
         parents = tuple(str(p) for p in (context.pop("parents", None) or ()))
-        provenance = Provenance(
+        return Provenance(
             table=table,
             row_id=str(row_id),
             content_sha256=digest,
@@ -135,13 +185,27 @@ class ProvenanceWriter:
             parents=parents,
             **{k: (None if v is None else str(v)) for k, v in context.items()},
         )
+
+    def _append(self, provenance: Provenance, *, sign: bool) -> Optional[int]:
+        """Append one record. A failure is counted and logged, never raised: the
+        row is then unsigned, and an unsigned row is never recalled. The
+        emergency stop is the exception. It re-raises, because the write it
+        belongs to was refused by the same latch a moment earlier, and the
+        record must not outlive that refusal.
+        """
+        if not sign:
+            self.unsigned_transitions += 1
         try:
-            return self.store.append(provenance, self.signer.sign(provenance))
+            return self.store.append(
+                provenance, self.signer.sign(provenance) if sign else None
+            )
         except EmergencyStopError:
             raise
         except Exception as exc:  # noqa: BLE001 - counted and shown, fail-closed
             self.failures += 1
-            self.last_failure = f"{table}:{row_id}: {type(exc).__name__}: {exc}"[:300]
+            self.last_failure = (
+                f"{provenance.table}:{provenance.row_id}: {type(exc).__name__}: {exc}"
+            )[:300]
             logger.warning("provenance not recorded (%s)", self.last_failure)
             return None
 
@@ -149,8 +213,10 @@ class ProvenanceWriter:
         return {
             "source_kind": self.source_kind,
             "signs": self.source_kind in self.signer.kinds,
+            "verifies_chains": self.verifier is not None,
             "failures": self.failures,
             "last_failure": self.last_failure,
+            "unsigned_transitions": self.unsigned_transitions,
         }
 
 
