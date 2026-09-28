@@ -256,6 +256,20 @@ class TestTheLiveWiring:
         )
         assert Path(lessons.provenance.store.database) == Path(config.MEMORY_DB_PATH)
 
+    def test_the_red_team_parent_imports_this_trees_aios(self, monkeypatch) -> None:
+        """The parent reads aios too (the key names it scrubs). Run as a script
+        from another worktree, an editable install would otherwise resolve aios
+        to a different checkout, one that may lack these very modules."""
+        import sys
+
+        from tools import learning_redteam_runner as reel
+
+        root = str(reel.REPO_ROOT)
+        monkeypatch.setattr(sys, "path", [p for p in sys.path if p != root])
+        monkeypatch.setattr(reel, "cmd_run", lambda args: 0)
+        assert reel.main(["run"]) == 0
+        assert sys.path[0] == root
+
     def test_a_red_team_child_never_holds_a_learning_key(
         self, tmp_path, monkeypatch
     ) -> None:
