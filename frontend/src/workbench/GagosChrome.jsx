@@ -340,7 +340,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
   }, [draft, onDraftPresenceChange]);
 
   const inputRef = useRef(null);
-  const threadRef = useRef(null);
+  const chatContextRef = useRef(null);
   const busyRef = useRef(busy);
   useEffect(() => {
     busyRef.current = busy;
@@ -381,8 +381,8 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
 
   // Keep newest message in view
   useEffect(() => {
-    const el = threadRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    const el = chatContextRef.current;
+    if (el && messages.length > 0) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // Focus intake on desktop mount
@@ -748,133 +748,135 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
       ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
-        <div className="gagos-voice-state" role="status">
-          {voicePresentation.status}{voicePresentation.error ? ` · ${voicePresentation.error}` : ''}
-        </div>
-        {!backendVoice.stt && browserVoiceAvailable ? (
-          <details className="gagos-voice-options">
-            <summary>{experienceMode === 'beginner' ? 'Voice options (optional)' : 'Voice route'}</summary>
-            <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
-              Use browser recognition. Audio may be processed by your browser's speech service.
-            </label>
-            {experienceMode === 'beginner' ? (
-              <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
-            ) : null}
-          </details>
-        ) : experienceMode === 'beginner' ? (
-          <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
-        ) : null}
-        {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
-        {messages.length === 0 && !busy ? (
-          <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
-            <p className="gagos-welcome__eyebrow">{listening ? 'Microphone capturing' : 'Begin a conversation'}</p>
-            <p className="gagos-welcome__greeting">
-              I'm <span className="gagos-welcome__name">GAGOS</span>. I remember useful context.
-              What would you like to get done?
-            </p>
-            {experienceMode === 'beginner' ? (
-              <p className="gagos-welcome__guidance">
-                Say it, type it, or choose an example. I explain first and ask before I act.
+        <div className="gagos-chat__context" ref={chatContextRef}>
+          <div className="gagos-voice-state" role="status">
+            {voicePresentation.status}{voicePresentation.error ? ` · ${voicePresentation.error}` : ''}
+          </div>
+          {!backendVoice.stt && browserVoiceAvailable ? (
+            <details className="gagos-voice-options">
+              <summary>{experienceMode === 'beginner' ? 'Voice options (optional)' : 'Voice route'}</summary>
+              <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
+                Use browser recognition. Audio may be processed by your browser's speech service.
+              </label>
+              {experienceMode === 'beginner' ? (
+                <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
+              ) : null}
+            </details>
+          ) : experienceMode === 'beginner' ? (
+            <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
+          ) : null}
+          {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
+          {messages.length === 0 && !busy ? (
+            <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
+              <p className="gagos-welcome__eyebrow">{listening ? 'Microphone capturing' : 'Begin a conversation'}</p>
+              <p className="gagos-welcome__greeting">
+                I'm <span className="gagos-welcome__name">GAGOS</span>. I remember useful context.
+                What would you like to get done?
               </p>
-            ) : null}
-            {experienceMode === 'beginner' ? (
-              <StarterPaths onChoose={(text) => { setDraft(text); inputRef.current?.focus(); }} />
-            ) : (
-              <div className="gagos-starters" role="list" aria-label="Suggested prompts">
-                {[
-                  'What can you help me with?',
-                  'Summarise this project',
-                  'Find bugs in my code',
-                  'Explain how this works',
-                ].map((text) => (
-                  <button
-                    key={text}
-                    className="gagos-starter"
-                    role="listitem"
-                    onClick={() => { setDraft(text); inputRef.current?.focus(); }}
-                  >
-                    {text}
-                  </button>
-                ))}
-              </div>
-            )}
-            {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
-          </div>
-        ) : null}
+              {experienceMode === 'beginner' ? (
+                <p className="gagos-welcome__guidance">
+                  Say it, type it, or choose an example. I explain first and ask before I act.
+                </p>
+              ) : null}
+              {experienceMode === 'beginner' ? (
+                <StarterPaths onChoose={(text) => { setDraft(text); inputRef.current?.focus(); }} />
+              ) : (
+                <div className="gagos-starters" role="list" aria-label="Suggested prompts">
+                  {[
+                    'What can you help me with?',
+                    'Summarise this project',
+                    'Find bugs in my code',
+                    'Explain how this works',
+                  ].map((text) => (
+                    <button
+                      key={text}
+                      className="gagos-starter"
+                      role="listitem"
+                      onClick={() => { setDraft(text); inputRef.current?.focus(); }}
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
+            </div>
+          ) : null}
 
-        <div className="gagos-thread" ref={threadRef} role="log" aria-label="Conversation with GAGOS" tabIndex={0}>
-          {messages.map((m, i) => {
-            const depth = messages.length - 1 - i;
-            const streaming = m.role === 'gagos' && i === messages.length - 1 && busy && !!m.text;
-            return (
-              <div
-                key={m.id}
-                className={`gagos-msg gagos-msg--${m.role}${depth === 0 ? ' is-latest' : ''}`}
-                style={{ '--depth': depth }}
-              >
-                <span className="gagos-sr-only">{m.role === 'gagos' ? 'GAGOS: ' : 'You: '}</span>
-                <span className="gagos-msg__node" aria-hidden="true" />
-                {m.role === 'gagos' && !m.text
-                  ? <span className="gagos-typing"><i /><i /><i /></span>
-                  : <span className="gagos-msg__text">
-                      {renderWithRedactionChips(sanitizeToText(m.text))}
-                      {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
-                      {m.retry ? (
-                        <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
-                          Retry
-                        </button>
-                      ) : null}
-                    </span>}
-                {m.role === 'user' && m.humanState ? (
-                  <HumanStateHint
-                    humanState={m.humanState}
-                    open={openHumanStateMsgId === m.id}
-                    onToggle={() => setOpenHumanStateMsgId((prev) => (prev === m.id ? null : m.id))}
-                    onCorrect={(state) => {
-                      setOpenHumanStateMsgId(null);
-                      void correctMessageHumanState(m.id, state);
-                    }}
-                  />
-                ) : null}
-              </div>
-            );
-          })}
+          <div className="gagos-thread" role="log" aria-label="Conversation with GAGOS" tabIndex={0}>
+            {messages.map((m, i) => {
+              const depth = messages.length - 1 - i;
+              const streaming = m.role === 'gagos' && i === messages.length - 1 && busy && !!m.text;
+              return (
+                <div
+                  key={m.id}
+                  className={`gagos-msg gagos-msg--${m.role}${depth === 0 ? ' is-latest' : ''}`}
+                  style={{ '--depth': depth }}
+                >
+                  <span className="gagos-sr-only">{m.role === 'gagos' ? 'GAGOS: ' : 'You: '}</span>
+                  <span className="gagos-msg__node" aria-hidden="true" />
+                  {m.role === 'gagos' && !m.text
+                    ? <span className="gagos-typing"><i /><i /><i /></span>
+                    : <span className="gagos-msg__text">
+                        {renderWithRedactionChips(sanitizeToText(m.text))}
+                        {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
+                        {m.retry ? (
+                          <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
+                            Retry
+                          </button>
+                        ) : null}
+                      </span>}
+                  {m.role === 'user' && m.humanState ? (
+                    <HumanStateHint
+                      humanState={m.humanState}
+                      open={openHumanStateMsgId === m.id}
+                      onToggle={() => setOpenHumanStateMsgId((prev) => (prev === m.id ? null : m.id))}
+                      onCorrect={(state) => {
+                        setOpenHumanStateMsgId(null);
+                        void correctMessageHumanState(m.id, state);
+                      }}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          {showThinkingEcho || showReplyingEcho ? (
+            <div className="gagos-thinking-echo" aria-hidden="true">
+              <span className="gagos-thinking-echo__label">{showReplyingEcho ? 'replying…' : 'thinking…'}</span>
+              <span className="gagos-typing"><i /><i /><i /></span>
+            </div>
+          ) : null}
+          {reflexActive && busy ? (
+            <div className="gagos-reflex-echo" role="status">
+              {guided ? 'Using a verified routine.' : 'Used a verified routine. No model call.'}
+            </div>
+          ) : null}
+
+          {receipt ? (
+            <ReceiptCard
+              receipt={receipt}
+              onReview={() => {
+                if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
+                else inputRef.current?.focus();
+              }}
+              onCheck={() => {
+                if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
+                setDraft(`Run a check for ${receipt.target}.`);
+                inputRef.current?.focus();
+              }}
+              onDiscard={() => {
+                if (receipt.targetTabId) {
+                  beginRetractingMaterializedTab(receipt.targetTabId);
+                  workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== receipt.targetTabId);
+                }
+                pushMessage('gagos', 'Removed the unverified work surface. The receipt remains available.');
+              }}
+              onPrimary={() => inputRef.current?.focus()}
+            />
+          ) : null}
         </div>
-
-        {showThinkingEcho || showReplyingEcho ? (
-          <div className="gagos-thinking-echo" aria-hidden="true">
-            <span className="gagos-thinking-echo__label">{showReplyingEcho ? 'replying…' : 'thinking…'}</span>
-            <span className="gagos-typing"><i /><i /><i /></span>
-          </div>
-        ) : null}
-        {reflexActive && busy ? (
-          <div className="gagos-reflex-echo" role="status">
-            {guided ? 'Using a verified routine.' : 'Used a verified routine. No model call.'}
-          </div>
-        ) : null}
-
-        {receipt ? (
-          <ReceiptCard
-            receipt={receipt}
-            onReview={() => {
-              if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
-              else inputRef.current?.focus();
-            }}
-            onCheck={() => {
-              if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
-              setDraft(`Run a check for ${receipt.target}.`);
-              inputRef.current?.focus();
-            }}
-            onDiscard={() => {
-              if (receipt.targetTabId) {
-                beginRetractingMaterializedTab(receipt.targetTabId);
-                workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== receipt.targetTabId);
-              }
-              pushMessage('gagos', 'Removed the unverified work surface. The receipt remains available.');
-            }}
-            onPrimary={() => inputRef.current?.focus()}
-          />
-        ) : null}
 
         <div
           className={`gagos-bar intent-${intentHint}${dock.active ? ' is-active' : ''}${dock.minimized ? ' is-minimized' : ''}`}
@@ -906,6 +908,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
             }}
             aria-label="Talk to GAGOS"
           />
+          <div className="gagos-bar__accessories">
           {voiceSupported || backendVoice.stt ? (
             <button
               type="button"
@@ -996,6 +999,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
               </button>
             </>
           ) : null}
+          </div>
           <button
             type="button"
             className={`gagos-btn gagos-send ${busy ? 'is-busy' : ''}`}

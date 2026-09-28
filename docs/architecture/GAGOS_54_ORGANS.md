@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `9983dbe5eac1a9840e4888868326a7aba8c719e69c8a67ac09a918357d67284d`
+- **Source ledger sha256:** `064e08ac14de5423a98e15db4abf17023980c48ced710d19724904879b2dfb66`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -844,7 +844,7 @@ re-audits recorded above.
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `cb19e19ef2c7` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `cdfd7d16d2f6` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `cb19e19ef2c7` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `2ea0586c90b3` | live |
 | 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `cb19e19ef2c7` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `cb19e19ef2c7` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `cb19e19ef2c7` | live |
@@ -863,8 +863,8 @@ re-audits recorded above.
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `cb19e19ef2c7` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `00f3216824ca` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `cb19e19ef2c7` | live |
-| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `cb19e19ef2c7` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `cb19e19ef2c7` | live |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `2ea0586c90b3` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `cb19e19ef2c7` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `f085eb1b91df` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `f085eb1b91df` | live |

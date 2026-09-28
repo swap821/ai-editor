@@ -1095,3 +1095,72 @@ default-flips — infrastructure before privileges, same discipline as today.
 - **Honesty:** all 8 review-ready skills were born in test harnesses. The pilot will exercise the machinery; it will not show organic learning. The payoff baseline did not meet H1, so no claim that learning helps is earned yet.
 - **Merge order:** #392 before reading another nightly (the red prover is the known probe conflation). #393 needs a rebase after #392. When #389 is squashed, its organ 53/54 evidence is orphaned, so re-gather at master's tip straight away.
 - **Next after the pilot window:** 2.4c, the hard switch (retire the 13 playbooks, FK schema change, remove the legacy writes).
+
+## 2026-09-28 — CEO checkpoint (LB-08 conversation rail usability)
+
+- **Product change:** One bounded conversation-context scroll region now owns welcome/history/receipts while the request composer stays outside it. The normal desktop field grew from 101px to 355px by moving frequent voice/send controls to a second row. Compact landscape recovery/status content now stays within the left rail; the retry action remains a full 44px control inside its slot.
+- **Verification:** Fresh frontend **183 files / 1,038 tests**; TypeScript; production build (**4,321 modules**); changed-JS ESLint **0 errors / 8 existing warnings**; `test:port` **16/16**; palette and protected-texture guards; `git diff --check`. Chromium viewport emulation covered 1280×800, 1024×480, 844×390, 768×521, 390×844 and 320×568 without page overflow.
+- **Caveat:** The in-app preview stayed offline/resting. Expert/active-work visual state, live journey, real keyboard, physical Android/iPhone, human accessibility and operator visual approval remain unverified. No palette, texture, anatomy, backend or security source changed. **0 new points; accepted score remains 3/100.** This branch is local/uncommitted; no new PR or push is claimed.
+- **Next:** Reconcile the existing physical-embodiment RFC/baseline against this branch, then inspect compact-landscape active-work using an offline fixture; preserve the being and do not submit a backend request. Keep anatomy/material/render changes behind baseline evidence and LB-04-B review.
+
+## 2026-09-28 — CEO checkpoint (active narrow-phone workspace)
+
+- **Product correction:** At 320×568, Expert navigation wrapped underneath the workspace picker and the selected work surface collapsed below its composer clearance. The ≤360px active layout now places navigation and the workspace picker in one non-overlapping, horizontally reachable row, moves the selected panel into the remaining band, keeps its body scrollable, and opens both Expert surfaces and workspace-list menus in bounded overlays. Composer input/Send/accessory rows and connection/retry remain visible.
+- **Browser evidence:** In the isolated `:5187` preview, Expert mode and a local Recent observations panel were opened. The 320×568 screenshot showed distinct controls, a visible panel/body, message composer and offline retry. Expanding the panel body revealed its no-events copy. No chat send, backend request, or live operational state occurred. This is a visual emulation only; 390px and landscape results predate this ≤360px-only override and remain unaffected by its media query.
+- **Verification:** Frontend **183 files / 1,039 tests**; TypeScript; production build (**4,321 modules**); changed-file ESLint **0 errors / 8 existing warnings**; `test:port` **16/16**; CSS palette guard **12 files / 9 canon tokens**; protected-texture guard passed; `git diff --check`.
+- **Limits:** The low-height work surface is intentionally compact and scrollable, not a full-size editor. No physical handset, keyboard, human accessibility or operator visual approval; no active workload state or live backend journey. `port:check` was not rerun because the ignored external lab is absent. **0 new points; accepted evidence remains 3/100.** No backend/security/anatomy/palette/texture changes. Branch remains local and uncommitted.
+- **Next:** Verify focused workspace content and keyboard focus survive responsive resize/reduced motion, then fix a reproduced product defect; keep visual canon and physical-device/operator gates open.
+
+## 2026-09-28 — CEO checkpoint (LB-09 phone work-plane composition)
+
+- **Product change:** Mobile Expert mode now pairs navigation and workspace selection from 361–767px, constrains the selected sheet above the measured composer, and lifts the conversation layer so the input stays visible. At ≤360px, the existing paired controls remain; the panel is scrollable. A concise connection label and retry stay visible while explanatory/technical detail is disclosed on demand and rises above the composer when opened.
+- **Browser evidence:** CUA viewport screenshots at 320×568 and 390×844 showed the selected work surface, composer and retry. Expanded status details did not cover the composer. This is local browser emulation only. No chat send, retry, or backend mutation was initiated. At 320px the 3D being remains too obscured to call this the intended presence composition.
+- **Verification:** Frontend **183 files / 1,042 tests**; TypeScript; production build (**4,321 modules**); changed-file ESLint clean; `test:port` **16/16**; CSS canon (**12 files / 9 tokens**); protected-texture guard and `git diff --check` passed.
+- **Limits:** Physical Android/iPhone, keyboard-open, screen-reader/human accessibility, performance, live journey and operator visual approval remain open; exact handset models are TBD. **0 new points; accepted evidence remains 3/100.** Branch stays local/uncommitted; no PR or push is claimed.
+- **Next:** Improve the compact mobile being-presence stage while keeping work content and composer controls readable and reachable; preserve the canonical palette and textures.
+
+## 2026-09-28 — CEO checkpoint (≤360px compact Expert work surface)
+
+- **Product change:** Added a collapsed-by-default work-surface disclosure for active Expert mode only at ≤360px. Its content stays mounted while hidden, expansion restores the full scroll surface, Pin/Close remain available, and collapse returns focus to the toggle. The existing 361px+ layout stays expanded.
+- **Verification:** Dedicated interaction tests plus existing shell tests **13/13**; full frontend **184 files / 1,044 tests**; TypeScript and production build (**4,321 modules**); changed-file ESLint **0 errors / 8 warnings in carried GagosChrome code**; `test:port` **16/16**; CSS palette and protected-texture guards; diff checks passed.
+- **Caveat:** `port:check` cannot complete because this isolated worktree lacks the external lab's `components/QualityTierProvider.tsx`. Current-branch browser screenshots at 320×568 and 390×844 remain pending. Device models TBD; physical keyboard, assistive technology, active/live journey, field performance and operator acceptance remain open. No request, Retry, backend, anatomy, palette or texture mutation. **0 new points; accepted score remains 3/100.**
+- **Next:** Commit the verified change set as requested, then inspect the active viewport composition in the branch-local browser preview.
+
+## 2026-09-28 — CEO checkpoint (mobile Expert menu handoff)
+
+- **Finding/fix:** Browser review caught the nested Expert navigation disclosure staying open over the new workspace and composer. Selecting a mobile surface now closes the category and root menu before focus enters the selected surface.
+- **Browser proof:** At 320×568 the menu closes, collapsed and expanded panel states leave composer/accessories and offline Retry reachable, and collapse returns focus to the disclosure. At 390×844 the toggle is absent and document width remains 390px. Console errors: none. Backend remained offline; no message or retry was sent.
+- **Verification:** Focused shell tests **14/14**; full frontend **185 files / 1,045 tests**; TypeScript; build (**4,321 modules**); changed-file ESLint clean; `test:port` **16/16**; palette/protected-texture guards and diff check passed.
+- **Limits:** Browser viewport emulation only. Device/keyboard, human accessibility, field performance, authenticated live journey and operator review remain open; no acceptance points earned and total remains 3/100. `port:check` still lacks external `components/QualityTierProvider.tsx`.
+- **Next:** Commit the menu-dismissal correction with its regression and keep the full LB-01–LB-20 goal active.
+
+## 2026-09-28 — CEO checkpoint (desktop rail + managed-checkout bridge)
+
+- **Product correction:** At 1280×720, the desktop conversation rail's fixed height and status reserve let voice/welcome content overlap the identity/navigation. On 1200px+ screens the resting rail now begins below navigation (156px), focused work below both anchor rows (272px), and the rail uses available height instead of the old fixed 440px. The isolated browser showed the status/composer/retry below the anchors; the app stayed offline. The point-field is still partly obscured.
+- **Bridge correction:** A managed checkout nested under the host .codex directory caused absolute safe project/sandbox paths to inherit a credential-shaped ancestor. The bridge now classifies lexical and resolved paths relative to already-authorized roots; outside-root and credential-named/symlink paths remain denied. Added absolute read/write and credential-write regressions. Frozen aios/security modules were untouched.
+- **Verification:** Full frontend 185 files / 1,045 tests; TypeScript; production build (4,321 modules); test:port 16/16; palette/protected-texture guards; git diff check. Full Python gate: 6,985 test IDs collected, exit 0, 88.62% coverage (85% required); agent_bridge tests 32/32; targeted Ruff clean. The suite emits an existing executor drain-thread warning. The first run's external --basetemp was rejected by the council sandbox; the correct retry used a short PYTEST_DEBUG_TEMPROOT and kept AIOS_TEST_TMP_ROOT within the worktree.
+- **Limits:** No backend request or chat send; browser viewport emulation is not operator/device acceptance. Physical Android/iPhone, keyboard, human accessibility, field performance, authenticated journey and operator review remain open; port:check lacks the external lab's QualityTierProvider.tsx. No points earned; accepted evidence remains 3/100.
+- **Branch:** codex/gagos-2030-full-20260928 at d2ea60f8 before this slice's commit. The full diff and this checkpoint are being prepared for the requested push/PR; merge waits on hosted checks and hash-pinned non-builder review.
+- **Next:** Commit the scoped files, push, and open the PR; then hand the exact tree to a non-builder reviewer.
+
+## 2026-09-28 — CI format-gate correction for PR #406
+
+- **Hosted finding:** Both format-gate jobs failed on the initial PR head b8441c60. The logs were unavailable while the workflow runs remained in progress, so I reproduced the gate locally instead of guessing.
+- **Cause/fix:** Local ruff format --check identified only tests/test_agent_bridge.py. Applied Ruff's mechanical wrapping; no behavior changed.
+- **Recheck:** Repository-wide ruff format --check . passed (942 files already formatted); agent-bridge tests passed 32/32; git diff check passed. This formatting correction is local and still needs a follow-up commit/push to PR #406.
+- **State/limit:** PR #406 remains open and BLOCKED on the initial CI results; other checks were still running at last inspection. Do not merge until the corrected head has green required checks and a hash-pinned non-builder review.
+- **Next:** Commit and push the formatter correction and its checkpoint, then inspect the new PR run.
+
+## 2026-09-28 — CEO checkpoint (Expert navigation clears desktop point-field)
+
+- **Product correction:** At 1200×720 and 1280×720, Expert navigation now occupies its own 44px opaque row; every label fits without horizontal scrolling, and the 3D scene begins 2px below the row. Its keyboard focus outline is inset and visible. Guided keeps its scene at y=0. The desktop rule is inactive at 390×844; the previously known mobile silhouette limitation remains.
+- **Browser evidence:** Isolated local Chromium viewport emulation only. The preview was offline/resting; no message, Retry, or backend request was sent. At 1200×720 and 1280×720, page dimensions equal the viewport and nav content fits exactly. Keyboard focus moved from Conversation to Missions and the cyan focus ring remained visible inside the nav bounds.
+- **Verification:** Frontend **185 files / 1,045 tests**; TypeScript; production build (**4,321 modules**); port tests **16/16**; palette guard **12 files / 9 tokens**; protected-texture guard; diff check. A first npm invocation at the repository root was invalid (frontend scripts live under frontend/) and is excluded from evidence.
+- **Limits:** CSS viewport evidence does not establish operator, physical-device, field-performance, human accessibility, or live-backend acceptance. No new goal points; accepted score remains **3/100**. The current pushed PR #406 head is 94811b72 and its listed checks passed; this new local change has not yet been published or reviewed.
+- **Next:** Commit and push this bounded desktop-layout finding to PR #406, then inspect checks on the new head and request hash-pinned non-builder review. Do not merge without that review.
+
+## 2026-09-28 — publication checkpoint for PR #406
+
+- **Published:** Commit 3cb160f64e4d1a10f6357389ecf7b54c8532b773 was pushed to the existing PR #406 branch. No merge was attempted.
+- **Hosted state:** PR #406 remains OPEN and BLOCKED, review decision is empty. On the pushed head, both format-gate jobs were already SUCCESS; backend, frontend, contract, ledger and CodeQL checks were still IN_PROGRESS at the last read. Recheck the exact latest head before handoff or merge.
+- **Next:** Wait for all latest-head checks, then hash-pin a non-builder review. Keep the main checkout untouched pending the operator's choice about its accidental RESUME edit.

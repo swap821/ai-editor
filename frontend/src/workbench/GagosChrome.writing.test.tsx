@@ -95,6 +95,23 @@ describe('GagosChrome — live writing slab', () => {
     });
   });
 
+  it('auto-scrolls the conversation context to the newest message', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { container } = render(<GagosChrome />);
+    const context = container.querySelector<HTMLElement>('.gagos-chat__context');
+    expect(context).not.toBeNull();
+    Object.defineProperty(context, 'scrollHeight', { configurable: true, value: 480 });
+
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'create hello.py that prints hi' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+
+    await waitFor(() => expect(sendDirective).toHaveBeenCalled());
+    expect(context?.scrollTop).toBe(480);
+  });
+
   it('grows the slab live as the answer streams (Slice 2 / A)', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
