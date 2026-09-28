@@ -298,6 +298,7 @@ class MistakeMemory:
         """
         task_id = scan_and_redact(task_id).scrubbed
         error_type = scan_and_redact(error_type).scrubbed
+        init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             row = conn.execute(_RECURRENCE_MATCH, (task_id, error_type)).fetchone()
             if row is None:
