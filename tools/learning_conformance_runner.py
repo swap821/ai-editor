@@ -35,17 +35,15 @@ MISSION 4 IS THE ACCEPTANCE TEST FOR THE WHOLE APPARATUS. Everything else shows
 the memory changing; only mission 4 shows the memory PAYING -- a turn served
 end to end with the LLM client rigged to raise if it is touched.
 
-PILOT MODE (recorded deviation, operator decision 2026-09-27)
--------------------------------------------------------------
-With ``AIOS_SKILL_STORE_MODE=pilot`` the turn recalls skills from the
-institutional library, where nothing promotes itself. There M2 passes on
-REVIEW-READINESS (never activation) and R9 checks the library's counts. R10,
-new, holds in every mode: no evidence activates a library skill, and neither
-does a save. The reel grew from four to five, so older "4/4" reports are not
-comparable. M3-M5 still measure the legacy reflex chain with a gate-less
-cerebellum of their own: the mechanism, not the pilot's reflexes, which since
-#395 replay only operator-activated skills. 2.4c redefines them to compile from
-active skills. The mode is printed and recorded.
+THE SKILL LIBRARY (recorded deviations, operator decisions 2026-09-27/28)
+-----------------------------------------------------------------------
+Since Phase 2 slice 2.4c-B the institutional library is the only skill store,
+and nothing in it promotes itself. M2 passes on REVIEW-READINESS, never
+activation. R9 checks the library's counts, and R10 holds that no evidence and
+no save activates a skill. M3-M5 start from a skill ACTIVATED in a throwaway
+library, the harness standing in for the operator's capability-backed act,
+which is the only source a reflex has. Older reports measured self-promoted
+reflexes and are not comparable; the store measured is printed and recorded.
 
     python tools/learning_conformance_runner.py
     python tools/learning_conformance_runner.py --json
@@ -74,9 +72,10 @@ from aios.core.verification_strength import VerificationStrength  # noqa: E402
 from aios.memory.db import get_connection, init_memory_db  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
-from aios import config  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-conformance.jsonl"
+#: The store the skill missions measure (Phase 2 slice 2.4c-B: the only one).
+SKILL_STORE = "library"
 
 
 @dataclass
@@ -142,31 +141,6 @@ def _fresh_db(tmp: Path) -> Path:
     return db
 
 
-def _insert_verified_skill(db: Path, goal: str, steps: list[str]) -> int:
-    """Earn a skill the way production earns it: repeated STRONG successes.
-
-    Deliberately NOT an INSERT. Writing the row by hand would prove that the
-    downstream link works on a row shaped the way this file imagines, which is
-    how a benchmark drifts away from the system it measures.
-    """
-    skills = SkillMemory(db_path=db)
-    for _ in range(3):
-        skill_id = skills.record_attempt(
-            goal, steps, success=True, strength=VerificationStrength.STRONG
-        )
-    return skill_id
-
-
-def _pilot() -> bool:
-    """The operator's skill-store mode reads the institutional library.
-
-    Operator decision 2026-09-27 ("redefine now"): in `pilot` mode the ledger's
-    skill missions measure the store the turn actually recalls from. Legacy and
-    `shadow` (which reads legacy) keep the legacy missions.
-    """
-    return config.SKILL_STORE_MODE == "pilot"
-
-
 def _library(tmp: Path):
     """A throwaway institutional skill slot, as production builds it."""
     from aios.application.memory.institutional_skills import (
@@ -181,13 +155,50 @@ def _library(tmp: Path):
         InstitutionalSkillAdapter(
             repository,
             SkillTrailIndex(operational),
-            legacy=SkillMemory(db_path=_fresh_db(tmp)),
+            legacy=SkillMemory(db_path=_fresh_db(tmp), read_only=True),
         ),
         repository,
     )
 
 
+def _earn(adapter, goal: str, steps: list[str], times: int = 3) -> int:
+    """Earn evidence the way production earns it: repeated STRONG successes.
+
+    Deliberately NOT an INSERT. Writing the row by hand would prove that the
+    downstream link works on a row shaped the way this file imagines, which is
+    how a benchmark drifts away from the system it measures.
+    """
+    for _ in range(times):
+        trail = adapter.record_attempt(
+            goal, steps, success=True, strength=VerificationStrength.STRONG
+        )
+    return trail
+
+
+def _operator_activates(repository) -> None:
+    """The operator's act, in a THROWAWAY library.
+
+    Live, only the capability-backed route activates a skill
+    (``tools/activate_skills.py``). The state change is the same one.
+    """
+    (record,) = repository.list_skills()
+    repository.transition_state(record.skill_id, record.version, "human_reviewed")
+    repository.transition_state(record.skill_id, record.version, "active")
+
+
+def _activated_reflex(tmp: Path, goal: str, steps: list[str]):
+    """A skill earned and activated in a throwaway library, and its cerebellum."""
+    adapter, repository = _library(tmp)
+    _earn(adapter, goal, steps)
+    _operator_activates(repository)
+    db = _fresh_db(tmp)
+    cerebellum = Cerebellum(db)
+    cerebellum.attach_reflex_gate(adapter)
+    return adapter, db, cerebellum
+
+
 # --------------------------------------------------------------------------- #
+# The product claim: does the memory actually change?# --------------------------------------------------------------------------- #
 # The product claim: does the memory actually change?
 # --------------------------------------------------------------------------- #
 def mission_1_lesson_transfers(tmp: Path) -> MissionResult:
@@ -233,57 +244,32 @@ def mission_1_lesson_transfers(tmp: Path) -> MissionResult:
 
 
 def mission_2_skill_verifies(tmp: Path) -> MissionResult:
-    """Three STRONG successes move a skill candidate -> verified."""
-    if _pilot():
-        # In pilot mode the library never promotes itself: evidence makes a
-        # skill REVIEW-READY, and only the operator activates it.
-        adapter, repository = _library(tmp)
-        for _ in range(3):
-            adapter.record_attempt(
-                "run the tests",
-                ["read_file: a.py", "verify: pytest"],
-                success=True,
-                strength=VerificationStrength.STRONG,
-            )
-        (record,) = repository.list_skills()
-        ready = adapter.trail_map()["trails"][0]["review_ready"]
-        return MissionResult(
-            "M2",
-            "repeated verified success makes a library skill review-ready (pilot)",
-            record.state == "candidate" and ready is True,
-            f"state={record.state!r}, review_ready={ready} after "
-            f"{record.success_count} STRONG successes; activation is the operator's",
-        )
-    db = _fresh_db(tmp)
-    skill_id = _insert_verified_skill(
-        db, "run the tests", ["read_file: a.py", "verify: pytest"]
-    )
-    with get_connection(db) as conn:
-        row = conn.execute(
-            "SELECT status, success_count FROM procedural_skills WHERE id = ?",
-            (skill_id,),
-        ).fetchone()
-    ok = row["status"] == "verified"
+    """Repeated verified success makes a library skill review-ready, never active."""
+    adapter, repository = _library(tmp)
+    _earn(adapter, "run the tests", ["read_file: a.py", "verify: pytest"])
+    (record,) = repository.list_skills()
+    ready = adapter.trail_map()["trails"][0]["review_ready"]
     return MissionResult(
         "M2",
-        "repeated verified success promotes a skill",
-        ok,
-        f"status={row['status']!r} after {row['success_count']} STRONG successes",
+        "repeated verified success makes a library skill review-ready",
+        record.state == "candidate" and ready is True,
+        f"state={record.state!r}, review_ready={ready} after "
+        f"{record.success_count} STRONG successes; activation is the operator's",
     )
 
 
 def mission_3_skill_compiles(tmp: Path) -> MissionResult:
-    """A verified skill becomes a compiled playbook."""
-    db = _fresh_db(tmp)
-    _insert_verified_skill(db, "run the tests", ["read_file: a.py", "verify: pytest"])
-    cerebellum = Cerebellum(db)
+    """An operator-activated skill becomes a compiled playbook."""
+    _adapter, db, cerebellum = _activated_reflex(
+        tmp, "run the tests", ["read_file: a.py", "verify: pytest"]
+    )
     compiled = cerebellum.try_compile_all()
     with get_connection(db) as conn:
         rows = conn.execute("SELECT status FROM compiled_playbooks").fetchall()
     ok = compiled >= 1 and any(r["status"] == "compiled" for r in rows)
     return MissionResult(
         "M3",
-        "a verified skill compiles into a reflex",
+        "an operator-activated skill compiles into a reflex",
         ok,
         f"compiled={compiled}, playbook rows={[r['status'] for r in rows]}",
     )
@@ -298,15 +284,13 @@ def mission_4_replay_serves_a_turn_with_no_llm(tmp: Path) -> MissionResult:
     """
     from aios.agents.tool_agent import ToolAgent
 
-    db = _fresh_db(tmp)
     # A file that really exists: a playbook whose read fails aborts the replay
     # and falls through to the LLM, which would be the gateway doing its job on
     # a broken fixture rather than the reflex failing. The abort path is worth
     # having -- it just must not be what this mission accidentally measures.
     target = "README.md"
     goal = f"read {target} and report what it says"
-    _insert_verified_skill(db, goal, [f"read_file: {target}"])
-    cerebellum = Cerebellum(db)
+    _adapter, _db, cerebellum = _activated_reflex(tmp, goal, [f"read_file: {target}"])
     cerebellum.try_compile_all()
 
     llm = RefusingLLM()
@@ -335,17 +319,14 @@ def mission_4_replay_serves_a_turn_with_no_llm(tmp: Path) -> MissionResult:
 
 
 def mission_5_decompiled_reflex_recovers(tmp: Path) -> MissionResult:
-    """A reflex retired by two flakes comes back when the skill re-earns it.
+    """A decompiled reflex comes back once its skill has earned more.
 
-    `cerebellum.py`'s own docstring promises this: "It cannot recompile without
-    the underlying skill re-earning verification from scratch." The compile
-    query bars `status IN ('compiled','decompiled')` and nothing ever clears
-    'decompiled', so today the promise is not kept. Expected to FAIL until the
-    recovery path exists -- which is the mission doing its job.
+    `cerebellum.py`'s own docstring promises this: a decompiled reflex cannot
+    recompile until the skill has earned more successes than it had when it
+    was decompiled. Since 2.4c-B the count is the library's.
     """
-    db = _fresh_db(tmp)
-    _insert_verified_skill(db, "run the tests", ["read_file: a.py", "verify: pytest"])
-    cerebellum = Cerebellum(db)
+    goal, steps = "run the tests", ["read_file: a.py", "verify: pytest"]
+    adapter, db, cerebellum = _activated_reflex(tmp, goal, steps)
     cerebellum.try_compile_all()
 
     # Retire it through the PRODUCTION path, not a hand-written UPDATE. The
@@ -354,21 +335,25 @@ def mission_5_decompiled_reflex_recovers(tmp: Path) -> MissionResult:
     # write-the-row-by-hand shortcut this file warns about elsewhere.
     [skill_id] = [pb.skill_id for pb in cerebellum._cache.values()]
     assert cerebellum.invalidate_for_skill(skill_id), "nothing was decompiled"
+    blocked = cerebellum.try_compile_all()
 
-    # Re-earn it: three more STRONG successes on the same arc.
-    _insert_verified_skill(db, "run the tests", ["read_file: a.py", "verify: pytest"])
-    recompiled = Cerebellum(db).try_compile_all()
+    # Re-earn it: three more STRONG successes on the same, still-active arc.
+    _earn(adapter, goal, steps)
+    fresh = Cerebellum(db)
+    fresh.attach_reflex_gate(adapter)
+    recompiled = fresh.try_compile_all()
 
     with get_connection(db) as conn:
         live = conn.execute(
             "SELECT COUNT(*) n FROM compiled_playbooks WHERE status = 'compiled'"
         ).fetchone()["n"]
-    ok = recompiled >= 1 or live >= 1
+    ok = blocked == 0 and recompiled >= 1 and live >= 1
     return MissionResult(
         "M5",
-        "a decompiled reflex recovers once its skill is re-earned",
+        "a decompiled reflex recovers once its skill has earned more",
         ok,
-        f"recompiled={recompiled}, live compiled playbooks={live}",
+        f"before re-earning={blocked}, recompiled={recompiled}, "
+        f"live compiled playbooks={live}",
     )
 
 
@@ -430,73 +415,52 @@ def refusal_7_unreachable_model_is_not_scored(tmp: Path) -> MissionResult:
 def refusal_8_vacuous_test_is_a_failure(tmp: Path) -> MissionResult:
     """A test that cannot fail is a FAILURE, never a weak success.
 
-    A weak success would reset `consecutive_failures`, so an agent writing
-    `assert True` would actively help itself toward a reflex.
+    A weak success would read as "this arc ran cleanly", so an agent writing
+    `assert True` would actively help itself toward review-readiness.
     """
     from tools.self_corpus_grading import record_pin_outcome
 
-    db = _fresh_db(tmp)
-    skills = SkillMemory(db_path=db)
+    adapter, _repository = _library(tmp)
 
     class _Vacuous:
         earned = False
 
     record_pin_outcome(
-        skills,
+        adapter,
         _Vacuous(),
         target_label="calc.py::add",
         model="qwen2.5-coder:7b",
         steps=["read_file: calc.py", "create_file: t.py", "verify: pytest"],
     )
-    row = skills.list()[0]
-    ok = row["failure_count"] == 1 and row["weak_success_count"] == 0
+    row = adapter.list()[0]
+    ok = row["failure_count"] == 1 and row["success_count"] == 0
     return MissionResult(
         "R8",
         "a test that cannot fail is recorded as a failure, not a weak success",
         ok,
-        f"failure_count={row['failure_count']}, weak_success_count={row['weak_success_count']}",
+        f"failure_count={row['failure_count']}, success_count={row['success_count']}",
         refusal=True,
     )
 
 
 def refusal_9_below_floor_cannot_promote(tmp: Path) -> MissionResult:
-    """A WEAK success is remembered but can never calibrate the future."""
-    if _pilot():
-        adapter, repository = _library(tmp)
-        for _ in range(5):
-            adapter.record_attempt(
-                "tidy some imports",
-                ["read_file: a.py", "verify: ruff"],
-                success=True,
-                strength=VerificationStrength.WEAK,
-            )
-        records = repository.list_skills()
-        ready = bool(records) and adapter.trail_map()["trails"][0]["review_ready"]
-        counted = sum(r.success_count for r in records)
-        return MissionResult(
-            "R9",
-            "five below-floor successes cannot make a library skill review-ready (pilot)",
-            counted == 0 and not ready,
-            f"success_count={counted}, review_ready={ready} after 5 WEAK successes",
-            refusal=True,
-        )
-    db = _fresh_db(tmp)
-    skills = SkillMemory(db_path=db)
+    """A WEAK success can never calibrate the future."""
+    adapter, repository = _library(tmp)
     for _ in range(5):
-        skills.record_attempt(
+        adapter.record_attempt(
             "tidy some imports",
             ["read_file: a.py", "verify: ruff"],
             success=True,
             strength=VerificationStrength.WEAK,
         )
-    row = skills.list()[0]
-    ok = row["status"] == "candidate" and row["weak_success_count"] == 5
+    records = repository.list_skills()
+    ready = bool(records) and adapter.trail_map()["trails"][0]["review_ready"]
+    counted = sum(r.success_count for r in records)
     return MissionResult(
         "R9",
-        "five below-floor successes still cannot promote a skill",
-        ok,
-        f"status={row['status']!r} after 5 WEAK successes "
-        f"(weak_success_count={row['weak_success_count']})",
+        "five below-floor successes cannot make a library skill review-ready",
+        counted == 0 and not ready,
+        f"success_count={counted}, review_ready={ready} after 5 WEAK successes",
         refusal=True,
     )
 
@@ -581,17 +545,9 @@ def run_all() -> Report:
 def render(report: Report) -> str:
     lines = [
         "LEARNING CONFORMANCE",
-        f"  skill store mode: {config.SKILL_STORE_MODE}",
+        f"  skill store: {SKILL_STORE} (reflexes only from operator-activated skills)",
         "",
     ]
-    if _pilot():
-        lines.insert(
-            2,
-            "  (pilot: M2/R9 measure the institutional library; M3-M5 still measure "
-            "the legacy reflex MECHANISM with a gate-less cerebellum, not the pilot's "
-            "reflexes, which since #395 replay only operator-activated skills; the "
-            "2.4c hard switch redefines them)",
-        )
     product_ok = sum(1 for m in report.product if m.passed)
     reel_ok = sum(1 for m in report.reel if m.passed)
     lines.append(f"  product claim : {product_ok} / {len(report.product)}")
@@ -633,7 +589,8 @@ def main(argv: list[str] | None = None) -> int:
                     {
                         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                         # A score is unreadable without the store it measured.
-                        "skill_store_mode": config.SKILL_STORE_MODE,
+                        # Older records say "legacy" or "pilot".
+                        "skill_store_mode": SKILL_STORE,
                         "product": f"{sum(1 for m in report.product if m.passed)}/{len(report.product)}",
                         "reel": f"{sum(1 for m in report.reel if m.passed)}/{len(report.reel)}",
                         "missions": [asdict(m) for m in report.missions],

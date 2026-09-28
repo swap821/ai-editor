@@ -142,8 +142,24 @@ def _free_legacy_signature(conn, signature: str) -> None:
     )
 
 
+class ReadOnlySkillHistoryError(RuntimeError):
+    """A write reached ``procedural_skills`` after it became read-only history.
+
+    Phase 2 slice 2.4c-B: the institutional library is the only skill store.
+    The legacy table keeps what it learned, as history, and the production
+    store refuses every write, so nothing can quietly keep a second skill store
+    alive beside the one the operator governs.
+    """
+
+
 class SkillMemory:
-    """Store, promote, retrieve, and regress reusable verified workflows."""
+    """Store, promote, retrieve, and regress reusable verified workflows.
+
+    Since Phase 2 slice 2.4c-B the production instance is READ-ONLY history
+    (``read_only=True``, built in ``bootstrap.py``): the live skill store is the
+    institutional library. A writable instance remains for isolated stores
+    that test this module's own rules.
+    """
 
     def __init__(
         self,
@@ -153,13 +169,22 @@ class SkillMemory:
         min_success_rate: float = 0.8,
         cerebellum: Optional["Cerebellum"] = None,
         facts: Optional["SemanticFacts"] = None,
+        read_only: bool = False,
     ) -> None:
         record_construction("SkillMemory")
         self.db_path = db_path
+        self.read_only = read_only
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))
         self._cerebellum = cerebellum
         self._facts = facts
+
+    def _refuse_if_history(self, operation: str) -> None:
+        if self.read_only:
+            raise ReadOnlySkillHistoryError(
+                f"{operation}: procedural_skills is read-only history since "
+                "Phase 2.4c-B; skills are learned in the institutional library"
+            )
 
     @staticmethod
     def _signature(goal: str, steps: list[str]) -> str:
@@ -199,6 +224,7 @@ class SkillMemory:
         more freely than it grants STRONG. AUTHORITY is unaffected: whether an
         action may run unattended still asks ``meets_promotion_floor``.
         """
+        self._refuse_if_history("skills.record_attempt")
         assert_learning_permitted("skills.record_attempt")
         clean_steps = [
             scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
@@ -369,6 +395,7 @@ class SkillMemory:
         evaporating; it cannot stay fresh by failing. *now* is injectable for
         deterministic tests.
         """
+        self._refuse_if_history("skills.record_reuse")
         ids = [int(skill_id) for skill_id in skill_ids]
         if not ids:
             return []

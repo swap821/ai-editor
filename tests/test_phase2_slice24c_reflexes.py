@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from aios.memory.db import get_connection, init_memory_db
-from tests.test_phase2_pilot_reflexes import GOAL, _activate, _migrated, build_world
+from tests.test_phase2_reflex_gate import GOAL, _activate, _migrated, build_world
 from tools import retire_legacy_playbooks as retire
 
 
@@ -151,21 +151,24 @@ class TestRetirement:
         assert retire.plan(memory_db, library_db)[0] == [], "nothing unbacked remains"
 
     def test_a_retired_reflex_never_replays(self, world, tmp_path) -> None:
-        memory_db, library_db = self._paths(world)
-        cerebellum = world[1]
+        memory_db, _library_db = self._paths(world)
+        cerebellum, repository, slot = world[1], world[3], world[4]
+        cerebellum.attach_reflex_gate(slot)
+        _activate(repository, _migrated(repository))
         assert cerebellum.match(GOAL) is not None, "positive control: it replays"
-        to_retire, _ = retire.plan(memory_db, library_db)
-        retire.apply(memory_db, tmp_path / "bk", [r["id"] for r in to_retire])
+        # Retired by id: an activated reflex is one the plan KEEPS.
+        ids = [row["id"] for row in cerebellum.playbook_map()]
+        retire.apply(memory_db, tmp_path / "bk", ids)
         assert cerebellum.match(GOAL) is None
 
     def test_retirement_does_not_block_a_reflex_the_operator_later_activates(
         self, world, tmp_path
     ) -> None:
         memory_db, library_db = self._paths(world)
-        _legacy_db, cerebellum, _bus, repository, dual = world
+        _legacy_db, cerebellum, _bus, repository, slot = world
         to_retire, _ = retire.plan(memory_db, library_db)
         retire.apply(memory_db, tmp_path / "bk", [r["id"] for r in to_retire])
-        cerebellum.attach_reflex_gate(dual.institutional)
+        cerebellum.attach_reflex_gate(slot)
         _activate(repository, _migrated(repository))
         assert cerebellum.try_compile_all() == 1, "a NEW reflex, from the activation"
         assert cerebellum.match(GOAL) is not None

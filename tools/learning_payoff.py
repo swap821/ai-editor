@@ -122,7 +122,6 @@ from aios.agents.reflection_agent import ReflectionAgent  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
-from aios import config  # noqa: E402
 from aios.core.llm import LLMError  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
 from tools.self_corpus_grading import _is_build_artefact, grade_pin_test  # noqa: E402
@@ -371,8 +370,44 @@ def practice_history(db: Path) -> Optional[str]:
             "SELECT root_cause, fix_applied, lesson_text, task_id FROM mistake_pool"
         ):
             parts.extend(str(value or "") for value in row)
-        return "\n".join(parts)
     except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+    # Since slice 2.4c-B new arcs are learned ONLY in the skill library, and
+    # `procedural_skills` is history. A target practised there is practised.
+    library = library_goals(db.with_name(LIBRARY_DB.name))
+    if library is None:
+        return None
+    return "\n".join(parts + library)
+
+
+def library_goals(library_db: Path) -> Optional[list[str]]:
+    """Every goal the skill library holds; [] when there is no library.
+
+    None when a library exists but cannot be read: unknown history must never
+    inflate NOVEL, so the caller then treats every target as practised.
+    """
+    import sqlite3
+
+    if not library_db.is_file():
+        return []
+    try:
+        conn = sqlite3.connect(f"file:{library_db.as_posix()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return None
+    try:
+        present = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='institutional_skills'"
+        ).fetchone()
+        if present is None:
+            return []
+        return [
+            str(json.loads(row[0]).get("problem_signature") or "")
+            for row in conn.execute("SELECT payload_json FROM institutional_skills")
+        ]
+    except (sqlite3.Error, ValueError):
         return None
     finally:
         conn.close()
@@ -442,25 +477,24 @@ MEMORY_TABLES = (
 )
 
 #: The institutional skill library, which the live `skills` slot recalls from
-#: in pilot mode (deviation D3). Frozen for the run exactly like the tables above.
+#: (deviation D3; since Phase 2 slice 2.4c-B the only skill store). Frozen for
+#: the run exactly like the tables above.
 LIBRARY_TABLES = ("institutional_skills", "skill_trails")
+#: The store the ON arm recalls skills from, recorded with every run. Runs
+#: before slice 2.4c-B recorded "legacy" or "pilot"; "pilot" read this same
+#: store.
+SKILL_STORE = "library"
 
 
 def live_skills_slot() -> Any:
     """The `skills` slot the live turn would recall from, built the same way.
 
     Deviation D3 (docs/learning/PAYOFF_PREREGISTRATION.md): the ON arm used to
-    recall through a `SkillMemory` of its own. It now recalls through the slot
-    production builds for the configured `AIOS_SKILL_STORE_MODE` -- the legacy
-    store in `legacy` mode, and in `shadow`/`pilot` the dual-write adapter,
-    whose recall in `pilot` answers from the institutional library's ACTIVE
-    skills only. What the benchmark measures follows what the turn does.
+    recall through a `SkillMemory` of its own. It recalls through the slot
+    production builds, whose recall answers from the institutional library's
+    ACTIVE skills only. Since slice 2.4c-B that is the only slot there is:
+    what the benchmark measures follows what the turn does.
     """
-    from aios.application.memory.adapters import SkillMemoryAdapter
-
-    legacy = SkillMemoryAdapter(SkillMemory(db_path=DB))
-    if config.SKILL_STORE_MODE == "legacy":
-        return legacy
     from aios.application.memory.institutional_skills import (
         SkillTrailIndex,
         build_skills_slot,
@@ -469,10 +503,9 @@ def live_skills_slot() -> Any:
 
     repository = SkillRepository(LIBRARY_DB)
     return build_skills_slot(
-        legacy,
-        mode=config.SKILL_STORE_MODE,
         repository=repository,
         trails=SkillTrailIndex(repository.database),
+        history=SkillMemory(db_path=DB, read_only=True),
     )
 
 
@@ -1409,11 +1442,9 @@ def main(argv: list[str] | None = None) -> int:
                 else None
             ),
             # D3: which store the ON arm recalled skills from, and how much of
-            # it the operator had activated -- in pilot mode, all it can recall.
-            "skill_store_mode": config.SKILL_STORE_MODE,
-            "library_active_at_start": library_active_count()
-            if config.SKILL_STORE_MODE != "legacy"
-            else None,
+            # it the operator had activated -- all it can recall.
+            "skill_store_mode": SKILL_STORE,
+            "library_active_at_start": library_active_count(),
             "summary": summarise(pairs),
             "pairs": [asdict(p) for p in pairs],
         }
