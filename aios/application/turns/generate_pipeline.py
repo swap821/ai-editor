@@ -1933,7 +1933,13 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 payload["control"] = str(ev["control"])
             if ev.get("recall_provenance"):
                 payload["recallProvenance"] = [
-                    str(line) for line in ev["recall_provenance"]
+                    {
+                        "text": str(item.get("text", "")),
+                        "channel": str(item.get("channel", "")),
+                    }
+                    if isinstance(item, dict)
+                    else {"text": str(item), "channel": ""}
+                    for item in ev["recall_provenance"]
                 ]
             try:
                 record_development = (

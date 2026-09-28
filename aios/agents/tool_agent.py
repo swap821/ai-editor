@@ -1309,7 +1309,11 @@ class ToolAgent:
                         # the recalled lines the proposal came from, and the
                         # control, when the taint is what paused it.
                         if taint:
-                            pause_event["recall_provenance"] = taint
+                            pause_event["recall_provenance"] = (
+                                recall_envelope.recall_provenance(
+                                    taint, self.memory_context
+                                )
+                            )
                         if taint_forced:
                             pause_event["control"] = (
                                 recall_envelope.RECALL_TAINT_CONTROL

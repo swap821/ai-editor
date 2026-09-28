@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 #: The control the pause names, so a red-team harness can credit it.
 RECALL_TAINT_CONTROL = "recall_taint"
@@ -207,6 +207,50 @@ def recall_taint(
     return matched[:5] or [needles[0]]
 
 
+#: The header each live recall channel opens with, and the channel a human is
+#: shown for it (T15). Pinned to the live path's source by a test, so a
+#: renamed header fails loudly instead of reading as "recalled memory".
+RECALL_CHANNELS: tuple[tuple[str, str], ...] = (
+    ("UNVERIFIED PRIOR CHAT MEMORY", "unverified chat memory"),
+    ("VERIFIED TRUSTED MEMORY", "verified memory"),
+    ("RELEVANT LESSONS", "lesson"),
+    ("VERIFIED REUSABLE WORKFLOWS", "skill"),
+    ("KNOWN FACTS ABOUT THE OPERATOR", "human-approved fact about the operator"),
+    ("RELEVANT APPROVED FACTS", "approved fact"),
+    ("Self-model from my verified work", "self-model"),
+)
+#: Shown when a line sits under no known header. Never guessed at.
+UNKNOWN_CHANNEL = "recalled memory (channel unknown)"
+
+
+def _channel_of(line: str) -> Optional[str]:
+    text = line.strip()
+    for header, channel in RECALL_CHANNELS:
+        if text.startswith(header):
+            return channel
+    return None
+
+
+def recall_provenance(
+    lines: Iterable[str], memory_context: str | None
+) -> list[dict[str, str]]:
+    """Each recalled line a proposal came from, with the channel it was
+    recalled through: the nearest known header at or above it (T15)."""
+    raw = (memory_context or "").splitlines()
+    out: list[dict[str, str]] = []
+    for line in lines:
+        channel = UNKNOWN_CHANNEL
+        index = next((i for i, r in enumerate(raw) if r.strip() == line), None)
+        if index is not None:
+            for candidate in reversed(raw[: index + 1]):
+                found = _channel_of(candidate)
+                if found is not None:
+                    channel = found
+                    break
+        out.append({"text": line, "channel": channel})
+    return out
+
+
 def tainted_arguments(name: str, args: dict[str, Any]) -> str:
     """The argument of *name* whose origin matters: what would run or be written."""
     if name in ("execute_terminal", "verify"):
@@ -228,6 +272,9 @@ __all__ = [
     "attach_envelope",
     "model_visible",
     "operator_text",
+    "RECALL_CHANNELS",
+    "UNKNOWN_CHANNEL",
+    "recall_provenance",
     "recall_taint",
     "tainted_arguments",
 ]

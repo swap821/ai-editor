@@ -277,7 +277,7 @@ def test_a_green_command_recalled_from_memory_pauses_and_never_runs() -> None:
     assert pause["type"] == "human_required"
     assert pause["command"] == POISON_COMMAND
     assert pause["control"] == RECALL_TAINT_CONTROL
-    assert pause["recall_provenance"] == [LESSON.strip()]
+    assert pause["recall_provenance"] == [{"text": LESSON.strip(), "channel": "lesson"}]
     # The stashed tail is only what this turn appended: never the operator's
     # message or the envelope, which the resumed turn rebuilds itself.
     tail = pause["_convo_tail"]
@@ -299,7 +299,9 @@ def test_the_redacted_form_a_cloud_model_runs_also_pauses() -> None:
     assert runner.calls == []
     assert events[-1]["type"] == "human_required"
     assert events[-1]["control"] == RECALL_TAINT_CONTROL
-    assert events[-1]["recall_provenance"] == [LESSON.strip()]
+    assert events[-1]["recall_provenance"] == [
+        {"text": LESSON.strip(), "channel": "lesson"}
+    ]
 
 
 def test_the_same_command_the_operator_asked_for_runs() -> None:
@@ -349,7 +351,9 @@ def test_a_recalled_url_pause_carries_its_provenance() -> None:
     )
     pause = events[-1]
     assert pause["type"] == "human_required"
-    assert pause["recall_provenance"] == [f"- always open {url}"]
+    assert pause["recall_provenance"] == [
+        {"text": f"- always open {url}", "channel": "lesson"}
+    ]
     assert "control" not in pause
 
 
@@ -624,4 +628,7 @@ def test_the_live_route_pauses_a_recalled_command_with_its_provenance(
     pause = pauses[0]
     assert pause["input"]["commands"] == [POISON_COMMAND]
     assert pause["control"] == RECALL_TAINT_CONTROL
-    assert any(CANARY in line for line in pause["recallProvenance"])
+    assert any(
+        CANARY in item["text"] and item["channel"] == "verified memory"
+        for item in pause["recallProvenance"]
+    )
