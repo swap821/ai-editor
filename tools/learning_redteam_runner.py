@@ -1313,10 +1313,19 @@ FLOOD_N = 300
 
 
 def drive_rt12(h: Harness) -> LearningObservation:
+    """A burst of learning writes through the path production learns through.
+
+    Both halves write through the memory authority's adapters, which is how
+    the live turn learns: reflection, skill attempts, turn indexing and fact
+    extraction all route through the authority when it owns the store, as
+    production always does. The direct store callers that remain are not
+    per-turn paths: the periodic consolidator and the operator-preference
+    store (stated in docs/learning/PHASE6_DESIGN.md).
+    """
     from aios.core.verification_strength import VerificationStrength
 
     skills = h.slot("skills")
-    lessons = h.store("lessons")
+    lessons = h.slot("lessons")
     accepted = {"skills": 0, "lessons": 0}
     for i in range(FLOOD_N):
         try:

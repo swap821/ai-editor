@@ -33,6 +33,7 @@ from aios.application.memory.adapters import (
     WorkingMemoryAdapter,
 )
 from aios.application.memory.authority import MemoryAuthority
+from aios.application.memory.write_budget import LearningWriteBudget
 from aios.application.memory.institutional_skills import (
     SkillTrailIndex,
     build_skills_slot,
@@ -59,6 +60,10 @@ from aios.memory.working import WorkingMemory
 if TYPE_CHECKING:
     from aios.council.council_memory import CouncilMemory
     from aios.council.council_state import CouncilState
+
+
+#: The adapters whose writes create or grow learned content (plan Phase 6b).
+LEARNING_WRITE_TABLES = ("lessons", "skills", "semantic", "facts")
 
 
 def build_memory_authority() -> MemoryAuthority:
@@ -114,6 +119,11 @@ def build_memory_authority() -> MemoryAuthority:
         "cerebellum": CerebellumAdapter(cerebellum),
         "curriculum": CurriculumAdapter(CurriculumManager(config.MEMORY_DB_PATH)),
     }
+    # Plan Phase 6b: one budget bounds every write that creates or grows
+    # learned content, so a runaway loop cannot flood what recall reads.
+    budget = LearningWriteBudget(config.LEARNING_WRITE_CAP_PER_MINUTE)
+    for name in LEARNING_WRITE_TABLES:
+        adapters[name].write_budget = budget
     authority = MemoryAuthority(
         store=MemoryAuthorityStore(config.MEMORY_DB_PATH),
         adapters=adapters,

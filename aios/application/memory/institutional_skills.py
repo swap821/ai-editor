@@ -52,6 +52,7 @@ from typing import Any, Iterator, Optional, Sequence
 
 from aios import config
 from aios.application.governance.emergency_stop import EmergencyStopError
+from aios.application.memory import write_budget
 from aios.application.learning.skill_lifecycle import SkillLifecycleAuthority
 from aios.core.verification_strength import VerificationStrength, meets_learning_floor
 from aios.domain.learning.repository import SkillRecord, SkillRepository
@@ -380,6 +381,8 @@ class InstitutionalSkillAdapter:
         if self.migration_pending:
             raise SkillMigrationPendingError(self.migration_pending)
         assert_learning_permitted("institutional_skills.record_attempt")
+        # Plan Phase 6b: spent before anything is written.
+        write_budget.spend(self, "institutional_skills")
         clean_steps = [
             scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
         ]

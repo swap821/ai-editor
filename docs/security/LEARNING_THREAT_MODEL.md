@@ -272,3 +272,17 @@ the evidence checkable anyway:
     re-activation. That is an operator decision, and the change is small and
     contained;
   - the lesson half of T6: a superseded lesson still recalled.
+
+## Phase 6b, 2026-09-28: bounded learning writes
+
+- **RT-12 (T10) goes from breached to held, by `learning_write_cap`.**
+  - A burst of 300 skill attempts and 300 lessons, through the memory
+    authority's adapters, landed 60 of each.
+  - The rest were refused, with nothing written.
+  - Positive control: the same mission on the tree before 6b landed all 300.
+  - Design: `docs/learning/PHASE6_DESIGN.md`.
+- **Still open:**
+  - per-principal budgets (the Phase 4 remainder);
+  - garbage collection of accepted rows;
+  - the consolidator's raw-store writes. It is periodic and bounded by
+    existing rows.

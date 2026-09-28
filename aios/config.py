@@ -247,6 +247,14 @@ SKILL_REUSE_SUCCESS_K: Final[float] = _env_float("AIOS_SKILL_REUSE_SUCCESS_K", 3
 SKILL_REUSE_FAILURE_K: Final[float] = _env_float("AIOS_SKILL_REUSE_FAILURE_K", 1.5)
 SKILL_REUSE_FACTOR_FLOOR: Final[float] = _env_float("AIOS_SKILL_REUSE_FLOOR", 0.25)
 SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_NET", 3)
+#: Bounded learning writes (plan Phase 6b, threat T10): at most this many
+#: writes per learning table (lessons, skills, semantic memory, facts) in any
+#: rolling minute, process-wide. A real turn writes a handful; a runaway loop
+#: writes hundreds a second. See ``aios/application/memory/write_budget.py``.
+LEARNING_WRITE_CAP_PER_MINUTE: Final[int] = _env_int(
+    "AIOS_LEARNING_WRITE_CAP_PER_MINUTE", 60
+)
+
 #: There is no ``AIOS_SKILL_STORE_MODE`` any more. Since Phase 2 slice 2.4c-B
 #: the institutional skill library is the only skill store
 #: (docs/learning/PHASE2_DESIGN.md), and a ``.env`` line setting it is inert.

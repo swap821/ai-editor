@@ -6,6 +6,7 @@ import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
     fact_digest,
     lesson_digest,
@@ -138,6 +139,7 @@ class LegacySemanticMemoryAdapter:
 
     def record_chat(self, content: str, *, indexer: Any | None = None) -> int:
         """Persist a scrubbed unverified chat observation via the semantic store."""
+        write_budget.spend(self, "semantic_memory")
         target = indexer if indexer is not None else self.store
         prior = self._prior(target, content)
         try:
@@ -156,6 +158,7 @@ class LegacySemanticMemoryAdapter:
         return mem_id
 
     def add(self, *args: Any, **kwargs: Any) -> int:
+        write_budget.spend(self, "semantic_memory")
         prior = self._prior(self.store, args[0] if args else kwargs.get("text"))
         mem_id = int(self.store.add(*args, **kwargs))
         self._attest(mem_id, "recorded", prior=prior, existed=prior is not None)
@@ -332,9 +335,11 @@ class SemanticFactsAdapter:
     def strengthen_or_propose(
         self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
     ) -> Any:
+        write_budget.spend(self, "semantic_facts")
         return self.store.strengthen_or_propose(subject, predicate, obj, source=source)
 
     def add_fact(self, *args: Any, **kwargs: Any) -> Any:
+        write_budget.spend(self, "semantic_facts")
         return self._attest(self.store.add_fact(*args, **kwargs), "created")
 
     def reconcile(self, *args: Any, **kwargs: Any) -> Any:
@@ -599,6 +604,7 @@ class MistakeMemoryAdapter:
         return self.store.recurring(limit=limit)
 
     def record_or_increment(self, *args: Any, **kwargs: Any) -> tuple[int, bool]:
+        write_budget.spend(self, "mistake_pool")
         prior = self._recurrence_prior(args, kwargs)
         mistake_id, recurrence = self.store.record_or_increment(*args, **kwargs)
         self._attest(
@@ -610,6 +616,7 @@ class MistakeMemoryAdapter:
         return mistake_id, recurrence
 
     def record(self, *args: Any, **kwargs: Any) -> int:
+        write_budget.spend(self, "mistake_pool")
         mistake_id = int(self.store.record(*args, **kwargs))
         self._attest(mistake_id, "created", existed=False)
         return mistake_id
