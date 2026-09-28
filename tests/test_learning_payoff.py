@@ -568,8 +568,9 @@ class TestThePreregistrationBindsTheRun:
         row = rows[-1]
         assert (
             row["preregistration_sha256"]
-            == hashlib.sha256(prereg.read_bytes()).hexdigest()
+            == hashlib.sha256(prereg.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
         )
+        assert row["hash_basis"] == "lf-normalised"
         assert row["target_labels"] == ["t"], "the chosen list is recorded on every run"
         assert row["target_list_frozen"] is False
 
@@ -593,6 +594,32 @@ class TestThePreregistrationBindsTheRun:
             ["--targets", "1", "--ref", "HEAD", "--preregistration", str(prereg)]
         )
         assert rows[0]["preregistration_sha256"] != rows[1]["preregistration_sha256"]
+
+    def test_a_crlf_checkout_hashes_as_the_committed_text_does(self) -> None:
+        """The cloud baseline recorded the CRLF form of its registration, a hash
+        `git show` could not reproduce. Line endings must not change it; text
+        must."""
+        assert payoff.text_sha256(b"H1\r\nH2\r\n") == payoff.text_sha256(b"H1\nH2\n")
+        assert payoff.text_sha256(b"p<0.05\n") != payoff.text_sha256(b"p<0.10\n")
+
+    def test_the_hash_of_the_shipped_registration_matches_git(self) -> None:
+        """End to end: what a run records is what `git show HEAD:<path>` hashes to."""
+        import hashlib
+        import subprocess
+
+        rel = payoff.PREREGISTRATION.relative_to(payoff.REPO_ROOT).as_posix()
+        blob = subprocess.run(
+            ["git", "show", f"HEAD:{rel}"],
+            cwd=payoff.REPO_ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if blob.returncode != 0:
+            pytest.skip("no git history to compare against")
+        working = payoff.PREREGISTRATION.read_bytes()
+        if working.replace(b"\r\n", b"\n") != blob.stdout:
+            pytest.skip("the registration is edited in this checkout")
+        assert payoff.text_sha256(working) == hashlib.sha256(blob.stdout).hexdigest()
 
     def test_the_shipped_registration_exists(self) -> None:
         assert payoff.PREREGISTRATION.is_file(), (

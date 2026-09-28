@@ -128,6 +128,21 @@ from tools.self_corpus_grading import _is_build_artefact, grade_pin_test  # noqa
 from tools.self_corpus_targets import collect_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "learning-payoff.jsonl"
+#: How every text file this run cites is hashed (see ``text_sha256``).
+HASH_BASIS = "lf-normalised"
+
+
+def text_sha256(raw: bytes) -> str:
+    """SHA-256 of a text file's bytes with CRLF normalised to LF.
+
+    A Windows checkout writes CRLF, but Git stores LF, so hashing the checkout's
+    bytes gave a registration hash nobody could reproduce from the commit (the
+    cloud baseline's ``2dbd6873`` was the CRLF form of blob ``4d1be969``). This
+    hash matches ``git show <sha>:<path> | sha256sum`` on every platform.
+    """
+    return hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()
+
+
 PREREGISTRATION = REPO_ROOT / "docs" / "learning" / "PAYOFF_PREREGISTRATION.md"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
 DB = REPO_ROOT / "data" / "aios_memory.db"
@@ -1352,7 +1367,7 @@ def main(argv: list[str] | None = None) -> int:
     excluded_sha: Optional[str] = None
     if args.exclude_targets is not None:
         raw = args.exclude_targets.read_bytes()
-        excluded_sha = hashlib.sha256(raw).hexdigest()
+        excluded_sha = text_sha256(raw)
         excluded = [
             line.strip()
             for line in raw.decode("utf-8").splitlines()
@@ -1362,7 +1377,7 @@ def main(argv: list[str] | None = None) -> int:
     # Bind the result to the hypothesis it was run under. A number whose
     # registration can be edited after the fact is not pre-registered.
     prereg_sha = (
-        hashlib.sha256(args.preregistration.read_bytes()).hexdigest()
+        text_sha256(args.preregistration.read_bytes())
         if args.preregistration.is_file()
         else None
     )
@@ -1428,6 +1443,10 @@ def main(argv: list[str] | None = None) -> int:
             "corpus_sha": corpus_sha,
             "harness_sha": harness_sha,
             "preregistration_sha256": prereg_sha,
+            # Hashes of text files are of LF-normalised bytes: what Git stores,
+            # so `git show <sha>:<path>` reproduces them on any platform. Rows
+            # without this key hashed the checkout's bytes, CRLF on Windows.
+            "hash_basis": HASH_BASIS,
             # Always recorded, in run order: this is how a run's list is frozen
             # for the paired re-run (`--target-labels`).
             "target_labels": [p.target for p in pairs],
