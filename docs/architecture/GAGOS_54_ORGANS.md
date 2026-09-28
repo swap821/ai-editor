@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `038fa37ca1fef1e5cb7a9eb5caf6af5f998d70246008c0840a82f284ed19add8`
+- **Source ledger sha256:** `9582a2c3897c04cf0f944b14a029ec0ae948f03dea75e478cee101449c992849`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -866,8 +866,8 @@ re-audits recorded above.
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `2ea0586c90b3` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `cb19e19ef2c7` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `a7b863485b2d` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `a7b863485b2d` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `210e56e61151` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `210e56e61151` | live |
 
 ### Yellow (8) — exact residual, from the ledger's own `known_blockers`
 
