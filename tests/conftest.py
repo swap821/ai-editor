@@ -183,6 +183,42 @@ _TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex[:8]}"
 _TEST_DATA_DIR_PATH.mkdir(parents=True, exist_ok=False)
 os.environ["AIOS_DATA_DIR"] = str(_TEST_DATA_DIR_PATH)
 
+
+def _session_learning_key() -> None:
+    """A throwaway LIVE learning key for this session, pinned in a session file.
+
+    Plan Phase 3c: recall admits only learned rows whose provenance verifies
+    under a PINNED live key. The suite gets its own key, so rows it learns
+    through the authority are signed and recalled exactly as in production,
+    and the operator's key -- in the repository's .env -- is never read: every
+    learning variable is set here, and load_dotenv fills only what is absent.
+    The names mirror ``aios.memory.provenance`` (nothing from aios may be
+    imported yet). Tests of the refusals build their own signers and gates.
+    """
+    import json as _json
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        NoEncryption,
+        PrivateFormat,
+        PublicFormat,
+    )
+
+    key = Ed25519PrivateKey.generate()
+    os.environ["AIOS_LEARNING_KEY_LIVE"] = key.private_bytes(
+        Encoding.Raw, PrivateFormat.Raw, NoEncryption()
+    ).hex()
+    os.environ["AIOS_LEARNING_KEY_HARNESS"] = ""
+    os.environ["AIOS_LEARNING_KEY_SYNTHETIC"] = ""
+    pins = _TEST_DATA_DIR_PATH / "learning_public_keys.json"
+    public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    pins.write_text(_json.dumps({"keys": {"live": [public]}}), encoding="utf-8")
+    os.environ["AIOS_LEARNING_PUBLIC_KEYS"] = str(pins)
+
+
+_session_learning_key()
+
 # The skill-store pilot (Phase 2 slice 2.4) is chosen in the operator's own
 # `.env`, which aios.config loads -- but `load_dotenv` never overrides a variable
 # already set, so pinning the default here keeps an operator's live

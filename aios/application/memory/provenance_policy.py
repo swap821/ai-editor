@@ -220,8 +220,66 @@ class ProvenanceWriter:
         }
 
 
+class RecallGate:
+    """Admits a learned row into a prompt only if it can prove where it came from.
+
+    Plan Phase 3c (``docs/learning/PHASE3_DESIGN.md``). A row is admitted only
+    if its NEWEST provenance record verifies under a pinned key whose kind the
+    context admits, over the row's CURRENT digest. The digest is the same
+    function the writer signed, one derivation for both callers. Everything
+    else is refused, never "included with a warning": Phase 0b showed that a
+    header is advice, not a boundary.
+
+    Refusals are counted by reason for the operator and logged once per row.
+    Nothing here writes, so a recall under the emergency stop still reads.
+    """
+
+    def __init__(
+        self,
+        store: ProvenanceStore,
+        verifier: LearningVerifier,
+        *,
+        context: str = "live",
+    ) -> None:
+        self.store = store
+        self.verifier = verifier
+        self.context = context
+        self.admitted = 0
+        self.refused: dict[str, int] = {}
+        self._logged: set[tuple[str, str]] = set()
+
+    def admits(self, table: str, row_id: Any, digest: str) -> bool:
+        try:
+            signed = self.store.latest(table, str(row_id))
+        except Exception as exc:  # noqa: BLE001 - unreadable proves nothing
+            return self._refuse(table, row_id, f"provenance unreadable: {exc}")
+        verdict = self.verifier.verify(
+            signed, content_sha256=digest, context=self.context
+        )
+        if not verdict.admitted:
+            return self._refuse(table, row_id, verdict.reason)
+        self.admitted += 1
+        return True
+
+    def _refuse(self, table: str, row_id: Any, reason: str) -> bool:
+        key = reason.split(":", 1)[0]
+        self.refused[key] = self.refused.get(key, 0) + 1
+        if (table, str(row_id)) not in self._logged:
+            self._logged.add((table, str(row_id)))
+            logger.info("recall refused %s:%s (%s)", table, row_id, reason)
+        return False
+
+    def status(self) -> Mapping[str, Any]:
+        return {
+            "context": self.context,
+            "admitted": self.admitted,
+            "refused": dict(self.refused),
+        }
+
+
 __all__ = [
     "FACT_FIELDS",
+    "RecallGate",
     "LESSON_FIELDS",
     "ProvenanceWriter",
     "SEMANTIC_FIELDS",

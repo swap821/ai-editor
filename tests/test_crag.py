@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
 from aios.memory.crag import (
     CalibrationResult,
     CragAction,
@@ -183,6 +185,15 @@ def test_retrieval_verdict_exposes_per_hit_scores() -> None:
 
 
 # ── Slice 2: wiring into _recall_memory (opt-in, AIOS_CRAG) ──────────────────
+
+
+@pytest.fixture(autouse=True)
+def _no_provenance_gate(monkeypatch):
+    """The recall tests here feed synthetic hits with no database rows; the
+    Phase 3c provenance gate would refuse them all (tests/recall_fixtures.py)."""
+    from tests.recall_fixtures import ungate_semantic_recall
+
+    ungate_semantic_recall(monkeypatch)
 
 
 def _patch_recall(monkeypatch, hits, *, crag: bool):

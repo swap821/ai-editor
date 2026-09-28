@@ -892,6 +892,9 @@ def test_generate_persists_episodic_turns(client: TestClient) -> None:
 
 
 def test_generate_recalls_memory_as_step(client: TestClient, monkeypatch) -> None:
+    from tests.recall_fixtures import ungate_semantic_recall
+
+    ungate_semantic_recall(monkeypatch)  # synthetic hits have no rows
     recalled = [
         SimpleNamespace(
             text="The project serves the API on port 8000.",
@@ -927,6 +930,9 @@ def test_generate_never_sends_unverified_memory_to_the_model(
     was green with the containment removed. CRAG is pinned off, the poison is
     made relevant, and a verified memory in the SAME recall must arrive -- so
     the channel is proven live and only the containment can explain the gap."""
+    from tests.recall_fixtures import ungate_semantic_recall
+
+    ungate_semantic_recall(monkeypatch)  # synthetic hits have no rows
     monkeypatch.setattr(config, "CRAG", False)
     chat = CapturingOllama()
     app.dependency_overrides[get_ollama_client] = lambda: chat

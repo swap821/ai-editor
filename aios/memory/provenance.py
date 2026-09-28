@@ -68,6 +68,10 @@ KEY_ENV = {
 PUBLIC_KEYS_FILE = (
     Path(config.PROJECT_ROOT) / ".aios" / "state" / ("LEARNING_PUBLIC_KEYS.json")
 )
+#: Points the verifier at another pinned file. Read at call time, never at
+#: import. For an isolated root -- a test session, a red-team mission child --
+#: never for the live store, whose keys are the committed file.
+PUBLIC_KEYS_ENV = "AIOS_LEARNING_PUBLIC_KEYS"
 #: Which kinds each recall context admits. A live turn admits only live rows.
 ADMITTED_KINDS = {
     "live": frozenset({"live"}),
@@ -223,8 +227,15 @@ class LearningVerifier:
 
     @classmethod
     def from_pinned_file(cls, path: Path | None = None) -> "LearningVerifier":
-        """Pinned keys from the committed file. Absent or malformed: none."""
-        target = PUBLIC_KEYS_FILE if path is None else path
+        """Pinned keys from the committed file (or ``PUBLIC_KEYS_ENV``'s).
+
+        Absent or malformed: none, so nothing verifies.
+        """
+        if path is not None:
+            target = path
+        else:
+            override = os.environ.get(PUBLIC_KEYS_ENV, "").strip()
+            target = Path(override) if override else PUBLIC_KEYS_FILE
         try:
             data = json.loads(target.read_text(encoding="utf-8"))
             keys = data["keys"]
@@ -405,6 +416,7 @@ __all__ = [
     "KEY_ENV",
     "LearningSigner",
     "LearningVerifier",
+    "PUBLIC_KEYS_ENV",
     "PUBLIC_KEYS_FILE",
     "Provenance",
     "ProvenanceStore",

@@ -65,13 +65,15 @@ class MistakeMemory:
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
-                "SELECT lesson_text, error_type, occurrence_count FROM mistake_pool "
+                "SELECT id, lesson_text, error_type, occurrence_count FROM mistake_pool "
                 "WHERE verification_status = 'verified' AND occurrence_count > 1 "
                 "ORDER BY occurrence_count DESC, id DESC LIMIT ?",
                 (max(int(limit), 1),),
             ).fetchall()
         return [
             {
+                # The id lets a reader verify the row's provenance (Phase 3c).
+                "mistake_id": int(row["id"]),
                 "lesson_text": str(row["lesson_text"]),
                 "error_type": str(row["error_type"]),
                 "occurrence_count": int(row["occurrence_count"]),
