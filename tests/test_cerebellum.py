@@ -1,10 +1,15 @@
 """Tests for the Cerebellum (compiled experience engine).
 
-The Cerebellum compiles verified procedural skills (0 failures, all steps
-parsing into compilable tool calls) into deterministic playbooks that replay
-without an LLM call, through the same dispatch/security path as ordinary
-tool calls. These tests cover step parsing, compilation guards, lexical
-matching, replay bookkeeping/decompilation, and observability.
+The Cerebellum compiles skills the operator ACTIVATED (all steps parsing into
+compilable tool calls) into deterministic playbooks that replay without an LLM
+call, through the same dispatch/security path as ordinary tool calls. These
+tests cover step parsing, compilation guards, lexical matching, replay
+bookkeeping/decompilation, and observability.
+
+Since Phase 2 slice 2.4c-B the activation comes from the skill library; these
+mechanism tests use the gate's contract answered from a dict
+(``tests/reflex_fixtures.py``), and the gate itself is tested against the real
+library in ``tests/test_phase2_reflex_gate.py``.
 
 Each test uses an isolated temporary SQLite database (via ``tmp_path``), so
 the suite never touches real ``data/`` artifacts and has no network, model,
@@ -21,48 +26,39 @@ import pytest
 
 from aios.core.cerebellum import Cerebellum, PlaybookStep, _parse_step
 from aios.memory.db import get_connection, init_memory_db
+from tests.reflex_fixtures import ActivatedSkills, gated
 from tests.source_rules import executable_source
 
 
 # --------------------------------------------------------------------------- #
 # Helpers / fixtures
 # --------------------------------------------------------------------------- #
-def _insert_verified_skill(
+_GATE = ActivatedSkills()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_gate():
+    """One activation stand-in per test, so no test sees another's skills."""
+    global _GATE
+    _GATE = ActivatedSkills()
+    yield _GATE
+
+
+def _activated_skill(
     db_path: Path,
     goal: str,
     steps: list[str],
     *,
-    failure_count: int = 0,
-    consecutive_failures: int = 0,
-    signature: str = "sig_legacy",
     sig_v2: str = "sig_test",
-    status: str = "verified",
+    activated: bool = True,
 ) -> int:
-    """Insert a procedural skill row directly, bypassing SkillMemory promotion
-    logic, so compilation guards can be tested in isolation.
-
-    ``failure_count`` is the lifetime tally and ``consecutive_failures`` the
-    run since the last success — separable here precisely because the compile
-    guard reads the second one, and a test that could not tell them apart
-    could not tell whether the guard had been loosened or merely moved."""
+    """A skill the operator activated, as the gate reports it; returns its id."""
     init_memory_db(db_path)
-    with get_connection(db_path) as conn:
-        cur = conn.execute(
-            """INSERT INTO procedural_skills
-               (signature, signature_v2, goal_pattern, steps_json,
-                status, success_count, failure_count, consecutive_failures)
-               VALUES (?, ?, ?, ?, ?, 3, ?, ?)""",
-            (
-                signature,
-                sig_v2,
-                goal,
-                json.dumps(steps),
-                status,
-                failure_count,
-                consecutive_failures,
-            ),
-        )
-        return cur.lastrowid
+    return _GATE.activate(goal, steps, sig_v2=sig_v2, activated=activated)
+
+
+def _cerebellum(*args, **kwargs) -> Cerebellum:
+    return gated(_GATE, *args, **kwargs)
 
 
 def _mark_already_compiled(
@@ -173,13 +169,13 @@ def test_playbook_step_is_frozen() -> None:
 # --------------------------------------------------------------------------- #
 # B. Compilation
 # --------------------------------------------------------------------------- #
-def test_try_compile_all_compiles_verified_zero_failure_skill(db_path: Path) -> None:
-    _insert_verified_skill(
+def test_try_compile_all_compiles_an_activated_skill(db_path: Path) -> None:
+    _activated_skill(
         db_path,
         goal="run the test suite",
         steps=["read_file: src/foo.py", "verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 1
@@ -194,80 +190,32 @@ def test_try_compile_all_compiles_verified_zero_failure_skill(db_path: Path) -> 
     ]
 
 
-def test_try_compile_all_skips_skill_that_failed_most_recently(db_path: Path) -> None:
-    """A skill whose last run failed is not muscle memory yet."""
-    _insert_verified_skill(
-        db_path,
-        goal="run the test suite",
-        steps=["read_file: src/foo.py"],
-        failure_count=1,
-        consecutive_failures=1,
-    )
-    cerebellum = Cerebellum(db_path)
-    compiled = cerebellum.try_compile_all()
-
-    assert compiled == 0
-    assert cerebellum.compiled_count() == 0
-
-
-def test_an_old_flake_does_not_disqualify_a_skill_forever(db_path: Path) -> None:
-    """The guard used to read the LIFETIME failure tally, which only grows.
-
-    One bad run therefore barred an arc from ever compiling again, however many
-    times it later succeeded — and nothing surfaced that it had happened. The
-    trust bar is untouched: this skill is still `verified`, which already means
-    >=3 STRONG successes at >=80%.
-    """
-    _insert_verified_skill(
-        db_path,
-        goal="run the test suite",
-        steps=["read_file: src/foo.py"],
-        failure_count=1,
-        consecutive_failures=0,
-    )
-    cerebellum = Cerebellum(db_path)
-
-    assert cerebellum.try_compile_all() == 1
-    assert cerebellum.compiled_count() == 1
-
-
-def test_a_candidate_skill_with_a_clean_recent_record_still_cannot_compile(
+def test_a_skill_the_operator_did_not_activate_never_compiles(
     db_path: Path,
 ) -> None:
-    """Loosening guard 3 must not leak trust in from anywhere else."""
-    _insert_verified_skill(
+    """Evidence is not activation: before 2.4c-B a self-promoted 'verified'
+    skill compiled; now only an activated one does. The old failure-streak
+    guard is gone with it -- a skill that keeps failing is DEMOTED by the
+    library (organ 43), which the gate tests against the real library."""
+    _activated_skill(
         db_path,
         goal="run the test suite",
         steps=["read_file: src/foo.py"],
-        consecutive_failures=0,
-        status="candidate",
+        activated=False,
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
 
     assert cerebellum.try_compile_all() == 0
-
-
-def test_try_compile_all_skips_candidate_skill(db_path: Path) -> None:
-    _insert_verified_skill(
-        db_path,
-        goal="run the test suite",
-        steps=["read_file: src/foo.py"],
-        status="candidate",
-    )
-    cerebellum = Cerebellum(db_path)
-    compiled = cerebellum.try_compile_all()
-
-    assert compiled == 0
     assert cerebellum.compiled_count() == 0
 
 
 def test_try_compile_all_skips_skill_with_noncompilable_step(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="edit a file",
         steps=["read_file: src/foo.py", "edit_file: src/foo.py"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 0
@@ -275,42 +223,42 @@ def test_try_compile_all_skips_skill_with_noncompilable_step(db_path: Path) -> N
 
 
 def test_try_compile_all_skips_already_compiled_skill(db_path: Path) -> None:
-    skill_id = _insert_verified_skill(
+    skill_id = _activated_skill(
         db_path,
         goal="run the test suite",
         steps=["read_file: src/foo.py"],
     )
     _mark_already_compiled(db_path, skill_id, status="compiled")
 
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 0
 
 
 def test_try_compile_all_skips_skill_with_decompiled_playbook(db_path: Path) -> None:
-    """A previously decompiled playbook must never recompile automatically —
-    the skill must re-earn verification from scratch."""
-    skill_id = _insert_verified_skill(
+    """A decompiled playbook does not recompile until its skill has earned
+    more (see tests/test_decompiled_reflex_can_recover.py)."""
+    skill_id = _activated_skill(
         db_path,
         goal="run the test suite",
         steps=["read_file: src/foo.py"],
     )
     _mark_already_compiled(db_path, skill_id, status="decompiled")
 
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 0
 
 
 def test_try_compile_all_skips_skill_with_only_redacted_goal(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="   ",  # whitespace-only goal strips to empty after redaction scan
         steps=["read_file: src/foo.py"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 0
@@ -318,12 +266,12 @@ def test_try_compile_all_skips_skill_with_only_redacted_goal(db_path: Path) -> N
 
 
 def test_try_compile_skill_by_id(db_path: Path) -> None:
-    skill_id = _insert_verified_skill(
+    skill_id = _activated_skill(
         db_path,
         goal="run the test suite",
         steps=["verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     pb = cerebellum.try_compile_skill(skill_id)
 
     assert pb is not None
@@ -333,38 +281,36 @@ def test_try_compile_skill_by_id(db_path: Path) -> None:
 
 
 def test_try_compile_skill_returns_none_for_unknown_id(db_path: Path) -> None:
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     assert cerebellum.try_compile_skill(999999) is None
 
 
 def test_try_compile_skill_returns_none_when_already_compiled(db_path: Path) -> None:
-    skill_id = _insert_verified_skill(
+    skill_id = _activated_skill(
         db_path,
         goal="run the test suite",
         steps=["verify: pytest tests/"],
     )
     _mark_already_compiled(db_path, skill_id, status="compiled")
 
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     assert cerebellum.try_compile_skill(skill_id) is None
 
 
 def test_try_compile_all_compiles_multiple_eligible_skills(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the tests",
         steps=["verify: pytest tests/"],
-        signature="sig_a",
         sig_v2="sig_v2_a",
     )
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="read the config",
         steps=["read_file: config.yaml"],
-        signature="sig_b",
         sig_v2="sig_v2_b",
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     compiled = cerebellum.try_compile_all()
 
     assert compiled == 2
@@ -375,12 +321,12 @@ def test_try_compile_all_compiles_multiple_eligible_skills(db_path: Path) -> Non
 # C. Matching
 # --------------------------------------------------------------------------- #
 def test_match_finds_relevant_playbook(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the pytest test suite",
         steps=["verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     cerebellum.try_compile_all()
 
     pb = cerebellum.match("please run the pytest test suite")
@@ -389,12 +335,12 @@ def test_match_finds_relevant_playbook(db_path: Path) -> None:
 
 
 def test_match_returns_none_below_threshold(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the pytest test suite",
         steps=["verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path, match_threshold=0.9)
+    cerebellum = _cerebellum(db_path, match_threshold=0.9)
     cerebellum.try_compile_all()
 
     # Weak lexical overlap should score well under a 0.9 threshold.
@@ -403,26 +349,24 @@ def test_match_returns_none_below_threshold(db_path: Path) -> None:
 
 
 def test_match_returns_none_when_no_playbooks_compiled(db_path: Path) -> None:
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     assert cerebellum.match("run the pytest test suite") is None
 
 
 def test_match_picks_best_scoring_playbook_among_several(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the pytest test suite",
         steps=["verify: pytest tests/"],
-        signature="sig_a",
         sig_v2="sig_v2_a",
     )
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the pytest test suite now please",
         steps=["verify: pytest tests/ -x"],
-        signature="sig_b",
         sig_v2="sig_v2_b",
     )
-    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
 
     pb = cerebellum.match("run the pytest test suite now please")
@@ -431,14 +375,14 @@ def test_match_picks_best_scoring_playbook_among_several(db_path: Path) -> None:
 
 
 def test_match_respects_custom_threshold(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the pytest test suite",
         steps=["verify: pytest tests/"],
     )
-    lenient = Cerebellum(db_path, match_threshold=0.01)
+    lenient = _cerebellum(db_path, match_threshold=0.01)
     lenient.try_compile_all()
-    strict = Cerebellum(db_path, match_threshold=0.99)
+    strict = _cerebellum(db_path, match_threshold=0.99)
 
     assert lenient.match("pytest") is not None
     assert strict.match("pytest") is None
@@ -449,12 +393,12 @@ def test_match_rejects_request_for_a_different_concrete_file(db_path: Path) -> N
     # request explicitly naming a DIFFERENT file, even when the generic goal
     # prefix scores highly — else it would replay a stale command and fabricate
     # a verdict (the mutation-probe verification-confidence violation).
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="use the verify tool to run exactly this command",
         steps=["verify: pytest lab/test_reflex.py -q"],
     )
-    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
 
     assert (
@@ -474,12 +418,12 @@ def test_match_rejects_request_for_a_different_concrete_file(db_path: Path) -> N
 def test_match_concrete_target_guard_ignores_paraphrases(db_path: Path) -> None:
     # When the request names no concrete file, the guard is inert and lexical
     # goal-matching stands (paraphrase-tolerant recall is preserved).
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the pytest test suite",
         steps=["verify: pytest lab/test_reflex.py -q"],
     )
-    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
     assert cerebellum.match("please run the pytest test suite") is not None
 
@@ -488,12 +432,12 @@ def test_compiled_command_strips_workflow_step_key_prefix(db_path: Path) -> None
     # _workflow_step (aios/api/main.py) serializes tool calls as
     # 'verify: command=<cmd>'; the compiled playbook must replay the BARE
     # command, else the gateway classifies 'command=pytest ...' RED on replay.
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="use the verify tool to run exactly this command",
         steps=["verify: command=pytest lab/test_reflex.py -q"],
     )
-    cerebellum = Cerebellum(db_path, match_threshold=0.0)
+    cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
     pb = cerebellum.match(
         "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q"
@@ -600,12 +544,12 @@ def test_step_targets_are_clean_predicate() -> None:
 def test_compile_skips_skill_with_unclean_target(db_path: Path) -> None:
     # A verified skill operating on a spaced filename must NOT compile — the
     # conflict guard cannot disambiguate such a target, so we never replay it.
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="read the quarterly report",
         steps=["read_file: filepath=sales report.xlsx"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     assert cerebellum.try_compile_all() == 0
     assert cerebellum.compiled_count() == 0
 
@@ -614,12 +558,12 @@ def test_compile_skips_skill_with_unclean_target(db_path: Path) -> None:
 # D. Replay
 # --------------------------------------------------------------------------- #
 def _compile_two_step_playbook(db_path: Path):
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the tests",
         steps=["read_file: src/foo.py", "verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     cerebellum.try_compile_all()
     [pb] = cerebellum._cache.values()
     return cerebellum, pb
@@ -795,12 +739,12 @@ def test_decompiled_playbook_does_not_match(db_path: Path) -> None:
 
 
 def test_replay_custom_max_consecutive_failures(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the tests",
         steps=["verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path, max_consecutive_failures=1)
+    cerebellum = _cerebellum(db_path, max_consecutive_failures=1)
     cerebellum.try_compile_all()
     [pb] = cerebellum._cache.values()
 
@@ -816,10 +760,10 @@ def test_replay_custom_max_consecutive_failures(db_path: Path) -> None:
 # E. Observability
 # --------------------------------------------------------------------------- #
 def test_compiled_count_reflects_only_active_playbooks(db_path: Path) -> None:
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     assert cerebellum.compiled_count() == 0
 
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the tests",
         steps=["verify: pytest tests/"],
@@ -829,12 +773,12 @@ def test_compiled_count_reflects_only_active_playbooks(db_path: Path) -> None:
 
 
 def test_playbook_map_contains_expected_fields(db_path: Path) -> None:
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="run the tests",
         steps=["verify: pytest tests/"],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     cerebellum.try_compile_all()
 
     [entry] = cerebellum.playbook_map()
@@ -854,7 +798,7 @@ def test_playbook_map_contains_expected_fields(db_path: Path) -> None:
 
 
 def test_playbook_map_empty_when_nothing_compiled(db_path: Path) -> None:
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     assert cerebellum.playbook_map() == []
 
 
@@ -882,12 +826,12 @@ def _sandbox(monkeypatch, root: Path) -> None:
 
 
 def _compile_write_playbook(db_path: Path, filepath: str, digest: str):
-    _insert_verified_skill(
+    _activated_skill(
         db_path,
         goal="write the greeting",
         steps=["create_file: filepath=" + filepath + ", content_sha256=" + digest],
     )
-    cerebellum = Cerebellum(db_path)
+    cerebellum = _cerebellum(db_path)
     cerebellum.try_compile_all()
     return cerebellum, next(iter(cerebellum._cache.values()), None)
 
@@ -1004,7 +948,7 @@ def test_a_confirm_only_step_cannot_read_outside_the_sandbox(
     sandbox.mkdir()
     _sandbox(monkeypatch, sandbox)
 
-    outcome = Cerebellum(db_path)._confirm_write(
+    outcome = _cerebellum(db_path)._confirm_write(
         PlaybookStep(
             "create_file",
             {"filepath": "../outside.txt", "content_sha256": _DIGEST_OF_HELLO},
@@ -1074,7 +1018,7 @@ def test_a_confirm_only_step_cannot_use_env_as_a_content_oracle(
     (tmp_path / ".env").write_bytes(secret)
     _sandbox(monkeypatch, tmp_path)
 
-    outcome = Cerebellum(db_path)._confirm_write(
+    outcome = _cerebellum(db_path)._confirm_write(
         PlaybookStep(
             "create_file",
             {

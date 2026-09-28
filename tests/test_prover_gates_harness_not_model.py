@@ -192,12 +192,12 @@ def _reflex(
     monkeypatch.setattr(prover, "library_active_count", lambda: active)
 
     def no_legacy_poll(marker):
-        raise AssertionError("pilot mode must not ask the legacy promotion question")
+        raise AssertionError("a library backend is never asked the legacy question")
 
     monkeypatch.setattr(
         prover,
         "skill_promoted",
-        no_legacy_poll if mode == "pilot" else (lambda m: False),
+        no_legacy_poll if mode == "library" else (lambda m: False),
     )
     check = prover.Check(lenient=True)
     prover.phase_reflex(
@@ -216,8 +216,8 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         assert _result(check, "reflex.skill-verified") is not None
         assert _result(check, "reflex.skill-review-ready") is None
 
-    def test_pilot_mode_asks_for_review_readiness(self, monkeypatch) -> None:
-        check = _reflex(monkeypatch, mode="pilot", replay=_turn())
+    def test_a_library_backend_is_asked_for_review_readiness(self, monkeypatch) -> None:
+        check = _reflex(monkeypatch, mode="library", replay=_turn())
         ready = _result(check, "reflex.skill-review-ready")
         assert ready["ok"] and ready["soft"]
         assert _result(check, "reflex.skill-verified") is None
@@ -228,7 +228,7 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         self, monkeypatch
     ) -> None:
         check = _reflex(
-            monkeypatch, mode="pilot", replay=_turn(replayed=True), active=0
+            monkeypatch, mode="library", replay=_turn(replayed=True), active=0
         )
         gate = _result(check, "reflex.pilot-no-legacy-reflex")
         assert gate["ok"] is False and gate["soft"] is False
@@ -236,7 +236,7 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         assert check.passed is False
 
     def test_with_nothing_activated_no_replay_passes_hard(self, monkeypatch) -> None:
-        check = _reflex(monkeypatch, mode="pilot", replay=_turn(), active=0)
+        check = _reflex(monkeypatch, mode="library", replay=_turn(), active=0)
         gate = _result(check, "reflex.pilot-no-legacy-reflex")
         assert gate["ok"] is True and gate["soft"] is False
 
@@ -247,7 +247,7 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         """An activated skill may legitimately match; an unreadable count is
         never taken as zero."""
         check = _reflex(
-            monkeypatch, mode="pilot", replay=_turn(replayed=True), active=active
+            monkeypatch, mode="library", replay=_turn(replayed=True), active=active
         )
         gate = _result(check, "reflex.pilot-no-legacy-reflex")
         assert gate["ok"] is False and gate["soft"] is True
@@ -255,10 +255,10 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
         withheld = _result(check, "reflex.withheld-without-human-approval")
         assert withheld["ok"] and withheld["soft"] is False
 
-    def test_a_reflex_that_auto_ran_in_pilot_mode_fails_hard(self, monkeypatch) -> None:
+    def test_a_reflex_that_auto_ran_fails_hard(self, monkeypatch) -> None:
         check = _reflex(
             monkeypatch,
-            mode="pilot",
+            mode="library",
             replay=_turn(replayed=True, done=True, withheld=False),
         )
         withheld = _result(check, "reflex.withheld-without-human-approval")
@@ -311,10 +311,22 @@ class TestTheProverReadsTheLiveSlotInPilotMode:
                 return Resp(self.body)
 
         monkeypatch.setattr(prover, "_session", lambda: Session({"trails": []}))
-        assert prover.skill_store_mode() == "legacy"
+        assert prover.skill_store_mode() == "legacy", "a pre-2.4c legacy backend"
+        monkeypatch.setattr(
+            prover,
+            "_session",
+            lambda: Session({"trails": [], "pilot": {"mode": "shadow"}}),
+        )
+        assert prover.skill_store_mode() == "legacy", "shadow read the legacy store"
         monkeypatch.setattr(
             prover,
             "_session",
             lambda: Session({"trails": [], "pilot": {"mode": "pilot"}}),
         )
-        assert prover.skill_store_mode() == "pilot"
+        assert prover.skill_store_mode() == "library", "a pre-2.4c-B pilot backend"
+        monkeypatch.setattr(
+            prover,
+            "_session",
+            lambda: Session({"trails": [], "store": "institutional_skills"}),
+        )
+        assert prover.skill_store_mode() == "library", "every 2.4c-B backend"

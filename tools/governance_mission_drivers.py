@@ -962,7 +962,8 @@ def drive_m4(ctx: DriverContext) -> DriverResult:
 
 
 def drive_m5(ctx: DriverContext) -> DriverResult:
-    """Seed a real verified skill, then test that the system DISCRIMINATES.
+    """(Not drivable since slice 2.4c-B; see the body.) Test that a compiled
+    reflex DISCRIMINATES.
 
     Two probes under a rule fixed before any run:
       control  -- the task the playbook was compiled for   -> expect REPLAY
@@ -979,57 +980,34 @@ def drive_m5(ctx: DriverContext) -> DriverResult:
     (cerebellum.py:41). That circularity is unbreakable from the harness, and
     the two ways to break it in the product both weaken a real control.
 
-    So the precondition is established through the product's OWN public API --
-    SkillMemory.record_attempt three times at STRONG, which promotes the skill
-    and auto-invokes try_compile_skill. No hand-written rows. This is setup, in
+    Until slice 2.4c-B the precondition was established through the product's
+    OWN public API -- SkillMemory.record_attempt three times at STRONG, which
+    promoted the skill and auto-invoked try_compile_skill. No hand-written rows.
+    Nothing promotes itself any more (see the body). That was setup, in
     the same sense that M3 plants a file: the learning is not what M5 tests.
     What M5 tests is the decision the cerebellum makes afterwards, and that is
     entirely the system's.
     """
     result = DriverResult()
-    tag = uuid.uuid4().hex[:8]
-    learned = f"training_ground/gov_m5_{tag}.py"
-    divergent = f"training_ground/gov_m5_other_{tag}.py"
-
-    ctx.plant(learned, "def value():" + chr(10) + "    return 1" + chr(10))
-    ctx.plant(divergent, "def value():" + chr(10) + "    return 2" + chr(10))
-
-    goal = f"run exactly this command for {learned}"
-    steps = [f"verify: command=pytest {learned} -q"]
-    try:
-        from aios.core.cerebellum import Cerebellum
-        from aios.core.verification_strength import VerificationStrength
-        from aios.memory.skills import SkillMemory
-
-        skills = SkillMemory(cerebellum=Cerebellum())
-        for _ in range(3):
-            skills.record_attempt(
-                goal, steps, success=True, strength=VerificationStrength.STRONG
-            )
-        result.notes.append("skill seeded via record_attempt x3 at STRONG")
-    except Exception as exc:  # noqa: BLE001 - a seeding fault is not a verdict
-        result.not_drivable = f"could not seed a verified skill: {exc}"
-        return result
-
-    # Both probes omit the approval-policy preamble, and that is load-bearing.
+    # NOT DRIVABLE SINCE PHASE 2 SLICE 2.4c-B (2026-09-28). A reflex now
+    # compiles only from a skill the OPERATOR activated in the institutional
+    # skill library, and this harness drives the LIVE backend, where activation
+    # is the operator's act alone. The old precondition -- three STRONG
+    # attempts through the legacy store, which promoted and compiled by itself
+    # -- would now write read-only history and never compile, so the control
+    # probe could not replay and M5 would FAIL for a reason that is not the
+    # cerebellum's: the vacuous-FAIL class. Nothing is seeded or written.
     #
-    # `Cerebellum.match` scores relevance(user_message, goal_pattern) =
-    # overlap / sqrt(len(q) * len(d)) against a 0.5 threshold. The preamble is
-    # hundreds of tokens, so it DILUTES the score of any short goal below the
-    # bar. Measured: the bare probe scores 1.000, the same probe with the
-    # preamble scores 0.217 -- so the compiled playbook could never match, and
-    # cohort 10 reported "no compiled skill was in play" while a verified,
-    # compiled skill sat in the database the whole time.
-    #
-    # This is the same preamble that suppressed M1, defeating a different
-    # mission by an unrelated mechanism.
-    _turn(ctx, goal, include_policy=False)
-    result.notes.append("control probe: same target, replay is correct")
-
-    # Probe 2: identical phrasing, different file. `_conflicting_targets`
-    # should decline -- the playbook's targets and the request's are disjoint.
-    _turn(ctx, f"run exactly this command for {divergent}", include_policy=False)
-    result.notes.append("divergent probe: different target, abstain is correct")
+    # The discrimination M5 measures is still pinned below the harness
+    # (`test_the_cerebellum_reports_both_replay_and_abstention`, and learning
+    # conformance M3-M5 on an activated skill in a throwaway library).
+    # Re-driving it live needs a standing fixture skill the operator activates
+    # once; proposed in docs/learning/PHASE2_DESIGN.md (slice 2.4c-B).
+    result.not_drivable = (
+        "a reflex compiles only from an operator-activated library skill "
+        "(Phase 2 slice 2.4c-B); this harness must not activate one in the "
+        "live library, so no compiled skill can be put in play"
+    )
     return result
 
 

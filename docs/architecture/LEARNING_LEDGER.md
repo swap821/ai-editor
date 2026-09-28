@@ -1,8 +1,13 @@
 # The Learning Ledger
 
-*Status as of 2026-09-24: **6 green / 8 faculties** (L2 and L4 yellow),
-computed by `scripts/verify_learning_conditions.py` and enforced by the
-`learning-ledger` job in CI. This document describes the apparatus; the ledger
+*Status as of 2026-09-28, Phase 2 slice 2.4c-B: **5 green / 8 faculties**
+expected (L3, L4 and L5 yellow, each with a named blocker), computed by
+`scripts/verify_learning_conditions.py` and enforced by the `learning-ledger`
+job in CI. The switch to the skill library made the cited evidence for L3 and
+L4 describe a path that no longer runs; see "Slice 2.4c-B" below.*
+
+*Earlier status, 2026-09-24: 6 green / 8 (L2 and L4 yellow), then 7 / 8 after
+#404 re-earned them. This document describes the apparatus; the ledger
 itself is `.aios/state/LEARNING_LEDGER.json` and it is the authority. Where
 they disagree, the ledger is right and this file is stale.*
 
@@ -32,8 +37,8 @@ anyone can write `PASS` into.
 |---|---|---|
 | L1 | Reflection | a real failure becomes a lesson |
 | L2 | Lesson transfer | the lesson is recalled and confirmed by a later success |
-| L3 | Skill acquisition | repeated STRONG successes verify an arc |
-| L4 | Reflex compilation | a verified arc becomes a playbook |
+| L3 | Skill acquisition | repeated STRONG successes make a library arc review-ready |
+| L4 | Reflex compilation | an operator-activated skill becomes a playbook |
 | L5 | Reflex replay | a turn is served with **zero** LLM calls |
 | L6 | Curriculum progression | levels are proposed, trained, and mastered |
 | L7 | Organic acquisition | the loop can be fed from real code, contained |
@@ -94,7 +99,34 @@ These are not aspirations; each one has a test.
   accepting is a human act, and a training harness doing it on the miner's
   behalf would be the same act wearing a different hat.
 
+## Slice 2.4c-B: L3 and L4 yellow again (2026-09-28)
+
+The institutional skill library became the only skill store
+(`docs/learning/PHASE2_DESIGN.md`, slice 2.4c-B). Two faculty claims changed
+with it, as stated before the switch was built:
+
+- **L3** now means *review-ready*, not *verified*. Its owner is
+  `InstitutionalSkillAdapter`. Nothing promotes itself: evidence makes an arc
+  review-ready, and only the operator activates it. The cited organic evidence
+  (skill 66, verified by the legacy store by itself) is of a path that no
+  longer runs.
+- **L4** compiles only from a skill the operator activated. The cited organic
+  compile (playbook 16) came from a self-promoted skill, which can no longer
+  happen.
+
+Both are yellow with that blocker in the ledger. Re-earning them needs an
+organic run that makes a library arc review-ready (L3), then the operator's
+activation of such a skill and a run that compiles it (L4). L5 also needs L4's
+activation first. The instrument itself did not notice: LC11/LC12 check only
+that the evidence commit is recorded and on master, so a changed owner keeps a
+stale green unless the blocker is written. That gap is recorded here rather
+than hidden by it.
+
 ## L2 and L4 re-earned (2026-09-28); L5 stays yellow by design
+
+> **Superseded for L4 by slice 2.4c-B (same day).** The compile below was of a
+> self-promoted skill; see the section above. The run is true history and is
+> kept as written.
 
 Organic run `20260927T221713-b131ac59` at `701dda46` (master) used a ladder: the
 local `qwen2.5-coder:7b` first, then Bedrock `deepseek.v3.2` and

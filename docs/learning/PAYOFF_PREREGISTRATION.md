@@ -407,3 +407,23 @@ new bound would have changed none of its grades, and D5's sizing stands.
 exclusions, the selection rule and the placebo seed. A timed-out arm is still
 an arm that reached the model, so the pair stays comparable, exactly as a
 failing test does.
+
+### D7 — 2026-09-28 — practice history includes the skill library; the ON arm's slot has no mode
+
+**What happened.** Phase 2 slice 2.4c-B made the institutional skill library
+the only skill store. New arcs are learned there, and `procedural_skills` is
+read-only history. `practice_history`, which decides whether a target is NOVEL,
+read only `procedural_skills` and `mistake_pool`. A target practised after the
+switch would therefore have looked never-practised, inflating NOVEL.
+
+**What changed.**
+- `practice_history` also reads every goal in the library beside the memory
+  store. A library that exists but cannot be read makes the history unknown,
+  and every target is then treated as practised, as for the memory store.
+- `live_skills_slot()` builds the one slot there is. Runs record
+  `skill_store_mode: "library"`; "pilot" in earlier trails read the same store.
+
+**What it does not change.** The Phase 8 run re-uses the frozen list
+`docs/learning/payoff_targets_cloud_baseline.txt` (D4), so no selection runs
+and this has no effect on it. D3's statement about the skill channel stands:
+an ON arm recalls only skills the operator activated before the run.
