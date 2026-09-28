@@ -120,7 +120,9 @@ def build_memory_authority() -> MemoryAuthority:
         "semantic": LegacySemanticMemoryAdapter(
             SemanticMemory(config.MEMORY_DB_PATH), provenance=provenance, gate=gate
         ),
-        "facts": SemanticFactsAdapter(SemanticFacts(), provenance=provenance),
+        "facts": SemanticFactsAdapter(
+            SemanticFacts(), provenance=provenance, gate=gate
+        ),
         "skills": skills,
         "lessons": MistakeMemoryAdapter(
             MistakeMemory(), provenance=provenance, gate=gate

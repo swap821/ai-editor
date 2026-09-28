@@ -266,6 +266,15 @@ with no model (structural missions only).
 - **Unchanged:** RT-01, RT-05, RT-06 and RT-07 held; RT-08, RT-12 and RT-18
   breached (RT-18's facts are slice 3c-2); RT-09 and RT-10 not reached.
 
+## Phase 3c-2, 2026-09-28: signed recall of facts
+
+- **RT-18 (T16), breached → held, by `fact_approval`.** The mission seeds its
+  fact through the adapter, as a production path writes one. A fact with no
+  approver is recorded unsigned (3b), and the recall gate refused it. In the
+  same turn, an APPROVED control fact reached the prompt as "RELEVANT APPROVED
+  FACTS", so the facts channel was exercised and the hold is not an absence.
+- RT-13 still held.
+
 ## Phase 6a, 2026-09-28: a reflex a human revoked stays revoked
 
 *Design and evidence: `docs/learning/PHASE6_DESIGN.md`.*
