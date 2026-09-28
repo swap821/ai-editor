@@ -1900,8 +1900,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     child.add_argument("--root", required=True)
     child.add_argument("--out", required=True)
     args = parser.parse_args(argv)
-    if args.cmd == "_child":
+    # Every command imports THIS tree's aios, never whatever an editable install
+    # of another checkout resolves to: the parent reads aios too (the learning
+    # keys it scrubs from a child's environment, since plan Phase 3b).
+    if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
+    if args.cmd == "_child":
         return run_child(args.key, Path(args.root), Path(args.out))
     return cmd_run(args)
 
