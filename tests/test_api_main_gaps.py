@@ -1876,6 +1876,9 @@ def test_recall_memory_without_crag_recalls_trusted_and_withholds_unverified(
     """Was `..._builds_trusted_and_unverified_blocks`, pinning unverified chat
     INTO the prompt. Contained 2026-09-25 (plan Phase 0b): the learning
     red-team reel showed forwarded text reaching another session (RT-01)."""
+    from tests.recall_fixtures import ungate_semantic_recall
+
+    ungate_semantic_recall(monkeypatch)  # synthetic hits have no rows
     monkeypatch.setattr(config, "CRAG", False)
 
     class Hit:
@@ -1901,6 +1904,9 @@ def test_recall_memory_without_crag_recalls_trusted_and_withholds_unverified(
 
 
 def test_recall_memory_of_only_unverified_hits_recalls_nothing(monkeypatch) -> None:
+    from tests.recall_fixtures import ungate_semantic_recall
+
+    ungate_semantic_recall(monkeypatch)  # synthetic hits have no rows
     monkeypatch.setattr(config, "CRAG", False)
 
     class Hit:
@@ -2064,6 +2070,9 @@ def test_recall_memory_crag_incorrect_verdict_drops_local_retrieval(
 def test_recall_memory_crag_evaluation_exception_falls_back_to_unrefined(
     monkeypatch,
 ) -> None:
+    from tests.recall_fixtures import ungate_semantic_recall
+
+    ungate_semantic_recall(monkeypatch)  # synthetic hits have no rows
     monkeypatch.setattr(config, "CRAG", True)
 
     class Hit:
