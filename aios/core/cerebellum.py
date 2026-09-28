@@ -385,6 +385,14 @@ def _step_targets_are_clean(step: "PlaybookStep") -> bool:
     return True
 
 
+def _backed(playbook: "CompiledPlaybook", activated: dict[int, dict[str, Any]]) -> bool:
+    """The playbook's skill is ACTIVE and its steps are exactly the activated ones."""
+    entry = activated.get(playbook.skill_id)
+    return (
+        entry is not None and [s.to_dict() for s in playbook.steps] == entry["parsed"]
+    )
+
+
 class Cerebellum:
     """Compiled Experience Engine.
 
@@ -443,6 +451,17 @@ class Cerebellum:
         """
         if self._reflex_gate is None and gate is not None:
             self._reflex_gate = gate
+
+    def activation_backs(self, playbook: "CompiledPlaybook") -> bool:
+        """Is *playbook* backed by an operator activation of exactly its steps?
+
+        The live gate in `match` and the retirement tool
+        (`tools/retire_legacy_playbooks.py`) both ask this, through this one
+        method, so the two can never disagree about which reflexes are backed.
+        Without a gate attached nothing is backed: the question has no answer.
+        """
+        activated = self._activated()
+        return activated is not None and _backed(playbook, activated)
 
     def _activated(self) -> Optional[dict[int, dict[str, Any]]]:
         """Activated procedures by trail id, or ``None`` when no gate is attached.
@@ -748,10 +767,7 @@ class Cerebellum:
             score = relevance(user_message, pb.goal_pattern)
             if score < self.match_threshold:
                 continue
-            if activated is not None and (
-                pb.skill_id not in activated
-                or [s.to_dict() for s in pb.steps] != activated[pb.skill_id]["parsed"]
-            ):
+            if activated is not None and not _backed(pb, activated):
                 # Pilot: withheld, not retired. The playbook is untouched, so
                 # leaving pilot mode restores it; an activation of exactly
                 # these steps lets it replay.
