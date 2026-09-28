@@ -302,6 +302,10 @@ def test_mirror_snapshot_and_stream_require_a_bonded_operator(
             test_client.cookies.clear()
             assert test_client.get("/api/v1/mirror/snapshot").status_code == 401
             assert test_client.get("/api/v1/mirror/stream").status_code == 401
+            # The docstrings say so: /executor is bonded like /snapshot, and
+            # /governance is the one public /mirror route (per-field authz).
+            assert test_client.get("/api/v1/mirror/executor").status_code == 401
+            assert test_client.get("/api/v1/mirror/governance").status_code == 200
     finally:
         app.dependency_overrides.clear()
 
@@ -747,3 +751,58 @@ def test_executor_status_reports_an_honest_reason_when_configured_but_unreachabl
             assert "timed out" in data["reason"]["value"]
     finally:
         app.dependency_overrides.clear()
+
+
+def test_mirror_stream_never_resends_an_event_replayed_past_the_barrier(
+    tmp_path: Path,
+) -> None:
+    """The replay window's two reads (MAX(id), then the rows) are not one
+    snapshot, so an event committed between them arrives in the replay window
+    with an id ABOVE the barrier -- and is also still pending for live delivery.
+    Resetting the cursor to the barrier after `sync_complete` moved it
+    backwards and sent that event twice."""
+    from aios.runtime.cortex_bus import ReplaySubscription
+
+    class RacingBus(CortexBus):
+        late_id: int = 0
+
+        def subscribe_replay(self, event_id, handler, *, limit=1000):
+            sub = super().subscribe_replay(event_id, handler, limit=limit)
+            # Committed after the barrier was fixed, but read into the window.
+            self.late_id = append_event(self, "worker.started", "w-1", {"n": 2})
+            late = next(e for e in self.fetch_since(event_id) if e.id == self.late_id)
+            self.dispatch_pending()  # ...and delivered live as well
+            return ReplaySubscription(
+                events=(*sub.events, late),
+                barrier_event_id=sub.barrier_event_id,
+                unsubscribe=sub.unsubscribe,
+            )
+
+    bus = RacingBus(tmp_path / "cortex.db")
+    first = append_event(bus, "turn.completed", "session-1", {"n": 1})
+    bus.dispatch_pending()
+
+    app.dependency_overrides[get_cortex_bus] = lambda: bus
+    try:
+        with patch("fastapi.Request.is_disconnected") as mock_is_disconnected:
+            polls = {"n": 0}
+
+            async def disconnect_after_draining():
+                polls["n"] += 1
+                return polls["n"] > 3
+
+            mock_is_disconnected.side_effect = disconnect_after_draining
+            with TestClient(app, client=("127.0.0.1", 12345)) as test_client:
+                with test_client.stream(
+                    "GET",
+                    "/api/v1/mirror/stream",
+                    headers={"Last-Event-ID": str(first)},
+                ) as response:
+                    lines = [line for line in response.iter_lines() if line]
+
+        assert response.status_code == 200
+        assert "event: sync_complete" in lines
+        assert lines.count(f"id: {bus.late_id}") == 1, lines
+    finally:
+        app.dependency_overrides.clear()
+        projection_module._PROJECTIONS.clear()
