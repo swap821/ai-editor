@@ -90,11 +90,18 @@
         "referent": "tests/test_learning_conformance.py::test_m1_fails_when_promotion_does_nothing",
         "claim": "Disabling MistakeMemory.promote must turn mission M1 red; a lesson that silently fails to promote would otherwise be invisible."
       },
-      "known_blockers": [
-        "ORGANIC EVIDENCE LOST TO A SQUASH MERGE AND NOT YET RE-EARNED. L2 requires a lesson recorded from a real failure to be CONFIRMED by the identical command later succeeding. Across three runs at 00dbf6f38956 (targets 1/3/5, retries 1/2/3) the model failed on real targets 12 times and never recovered on the same command, so nothing was promoted. That is the model's ~14% success rate on this corpus, not a broken link -- the mechanism is still proven by conformance mission M2. Re-earning it needs either a stronger model in the ladder or more attempts per target. A seeded failure would satisfy this condition and prove nothing, so it is refused."
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "ORGANIC. Run 20260927T221713-b131ac59 at 701dda4637da (master): a ladder of the local qwen2.5-coder:7b, then Bedrock deepseek.v3.2, then mistral.devstral-2-123b, over 6 real targets (21 attempts, 4 earned). The 7B's real failures were reflected LOCALLY, as production reflects, into lesson 107, and a stronger tier later passed the IDENTICAL failed command, which confirmed and promoted it: 'pytest tests/test_pin_aios_agents_tool_handlers_next_step_after_noop.py' and 'pytest tests/test_pin_aios_agents_tool_loop_helpers_normalize_command.py'. Scope, stated: the confirming model did not see the lesson. L2 here is confirmation by the identical command, as this ledger defines it; whether a lesson's content helps is the payoff benchmark's question, and its cloud baseline found no measurable benefit (PAYOFF_CLOUD_BASELINE_RESULT.md).",
+          "command": "python tools/organic_chain_run.py --models ollama.qwen2.5-coder:7b,deepseek.v3.2,mistral.devstral-2-123b --targets 6 --retries 1 (Bedrock credentials from the operator's env file, loaded into the run process only)",
+          "artifact": "docs/learning/organic_chain_20260927T221713-b131ac59.json",
+          "commit_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
+          "proof_level": "live",
+          "organic": true
+        }
       ],
-      "live_evidence": [],
-      "last_verified_sha": null,
+      "last_verified_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
       "na_by_design": {
         "LC4": "No journal of its own; promotion mutates the lesson row in place. Referent: aios/memory/mistake.py::MistakeMemory.promote"
       },
@@ -194,11 +201,18 @@
         "referent": "tests/test_decompiled_reflex_can_recover.py::TestWhatMustStayBarred",
         "claim": "Recovery must be buyable ONLY with new promotable successes: a WEAK green, a failure, and simply re-running the compiler each leave the reflex retired."
       },
-      "known_blockers": [
-        "ORGANIC EVIDENCE LOST TO A SQUASH MERGE AND NOT YET RE-EARNED. The compile that produced playbook 15 happened at a commit #359's squash discarded. `try_compile_all` is idempotent, so a re-run compiles NOTHING NEW while that playbook exists -- there is no fresh compile to witness at 00dbf6f38956. Re-earning it requires a NEW arc to reach three STRONG runs, which none of the three runs at this commit produced. Re-pointing the sha at a run that did not compile anything would be the exact dishonesty this ledger exists to prevent."
+      "known_blockers": [],
+      "live_evidence": [
+        {
+          "description": "ORGANIC. Same run: a NEW verify-only arc (skill 90: the pin test for build_auto_verify_command, never before a reflex) earned three STRONG turns and try_compile_all compiled playbook 16 -- a fresh compile, not the idempotent re-run the old blocker described.",
+          "command": "python tools/organic_chain_run.py --models ollama.qwen2.5-coder:7b,deepseek.v3.2,mistral.devstral-2-123b --targets 6 --retries 1 (Bedrock credentials from the operator's env file, loaded into the run process only)",
+          "artifact": "docs/learning/organic_chain_20260927T221713-b131ac59.json",
+          "commit_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
+          "proof_level": "live",
+          "organic": true
+        }
       ],
-      "live_evidence": [],
-      "last_verified_sha": null,
+      "last_verified_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
@@ -241,7 +255,8 @@
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
       "known_blockers": [
-        "PHASE 0b CONTAINMENT (2026-09-25). A replayed command is no longer pre-approved without a recorded human approval of that command (ToolAgent._dispatch_approved; operator decision 2026-09-25: a reflex may auto-approve only a step a human approved). This faculty's organic evidence is playbook 15, whose step is a YELLOW `pytest` verify: on master the same replay is now withheld by `reflex_authority` and falls through to the model. The evidence is true history and is kept; it no longer describes master. Re-earn organically with a reflex whose steps need no approval, or under approval provenance for commands (plan Phase 5)."
+        "PHASE 0b CONTAINMENT (2026-09-25). A replayed command is no longer pre-approved without a recorded human approval of that command (ToolAgent._dispatch_approved; operator decision 2026-09-25: a reflex may auto-approve only a step a human approved). This faculty's organic evidence is playbook 15, whose step is a YELLOW `pytest` verify: on master the same replay is now withheld by `reflex_authority` and falls through to the model. The evidence is true history and is kept; it no longer describes master. Re-earn organically with a reflex whose steps need no approval, or under approval provenance for commands (plan Phase 5).",
+        "Re-confirmed 2026-09-28 (run 20260927T221713-b131ac59): playbook 16 matched, its approval-needing pytest step was refused during replay ('blocked'), and the model was consulted. A reflex learned with no human approval cannot serve a turn alone by design; zero-LLM replay needs a step a human approved (Phase 5), not a loosened gate."
       ],
       "live_evidence": [
         {
