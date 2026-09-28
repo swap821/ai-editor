@@ -48,6 +48,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from aios import config
+from aios.memory.construction_ledger import record_construction
 from aios.memory.learning_freeze import assert_learning_permitted
 
 logger = logging.getLogger(__name__)
@@ -304,6 +305,8 @@ class ProvenanceStore:
     """
 
     def __init__(self, database: Path | str) -> None:
+        # R11: a physical store. Production builds exactly one, in bootstrap.py.
+        record_construction("ProvenanceStore")
         self.database = Path(database)
         self.database.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as connection:

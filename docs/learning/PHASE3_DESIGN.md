@@ -143,6 +143,34 @@ Then **Phase 4**, which rests on 3c's verdicts:
 - principal scoping;
 - provenance on the approval surface.
 
+## 3b as built (2026-09-28)
+
+- **Where records are attached: the authority's adapters**, not the authority
+  (organ 18's entrypoint). Each adapter owns its channel's fields, so the same
+  digest function serves the writer now and the verifier in 3c.
+- **Channels covered:**
+  - lessons (`mistake_pool`): created, recurred, promoted;
+  - semantic memory: recorded (chat and consolidation), promoted;
+  - facts: created, reconciled, approved (with the approver).
+- **Skills and reflexes follow** once slice 2.4c-B (#412) has landed, because
+  both files change there.
+- **What each digest covers** (`aios/application/memory/provenance_policy.py`):
+  everything recall shows or filters on, status included.
+  - A fact's `confidence` is deliberately **not** covered. Auto-extraction
+    bumps it every chat turn without naming the fact, and it changes ranking
+    only. Covering it would make every approved fact's record stale by the
+    next turn.
+- **A record that cannot be appended never breaks the write.** The row is
+  unsigned, so it is never recalled. The stop is the exception, and re-raises.
+- **Harness children never hold a learning key.** The learning red-team's
+  child environment sets every `AIOS_LEARNING_KEY_*` to empty. Empty, not
+  absent: the child loads the repository's `.env`, and `load_dotenv` fills only
+  what is absent.
+- **Residual, stated.** A harness that drives the LIVE backend over HTTP (the
+  learning-loop prover) writes through the backend's authority, so its rows
+  are signed `live`. That is the same as any user's turn. Keeping one
+  principal's rows from another is Phase 4's principal scoping, not signing.
+
 ## Operator steps (needed before 3c changes live behaviour)
 
 1. Generate a 32-byte seed per source kind **in your own terminal**. The agent
