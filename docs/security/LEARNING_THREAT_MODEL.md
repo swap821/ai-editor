@@ -368,3 +368,16 @@ not a control.
 
   That run was stopped and redone on the fixed tree. Its partial results are
   not reported.
+
+## Phase 4b, 2026-09-28: the approval surface names where a proposal came from
+
+- **RT-17 (T15) is built. The pre-Phase-4 tree breaches; this tree holds, by
+  `approval_provenance`.**
+  - The pre-4 tree is 3c-2, `673b7681`. Its approval request showed nothing
+    about where a memory-proposed command came from.
+  - On this tree the request names each recalled line and the channel it came
+    through (lesson, self-model, …). Channels are derived from the live path's
+    own headers, which are pinned by a test.
+- **Still open.** A row's signed provenance (`source_kind`, principal,
+  approver) is not yet on the approval surface. It needs structured recall
+  (Phase 4 remainder).
