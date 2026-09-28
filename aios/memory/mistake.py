@@ -32,6 +32,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+#: The row a recurrence increments: one derivation for the write and for the
+#: read that captures the state it extends (``recurrence_candidate``).
+_RECURRENCE_MATCH = (
+    "SELECT id FROM mistake_pool "
+    "WHERE task_id = ? AND error_type = ? "
+    "AND verification_status != 'superseded' "
+    "ORDER BY timestamp DESC LIMIT 1"
+)
+
+
 class MistakeMemory:
     """CRUD + lifecycle facade over the ``mistake_pool`` table."""
 
@@ -247,13 +257,7 @@ class MistakeMemory:
         failed_command = scan_and_redact(failed_command).scrubbed
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
-            existing = conn.execute(
-                "SELECT id FROM mistake_pool "
-                "WHERE task_id = ? AND error_type = ? "
-                "AND verification_status != 'superseded' "
-                "ORDER BY timestamp DESC LIMIT 1",
-                (task_id, error_type),
-            ).fetchone()
+            existing = conn.execute(_RECURRENCE_MATCH, (task_id, error_type)).fetchone()
             if existing is not None:
                 mistake_id = int(existing["id"])
                 # Refresh failed_command to the MOST RECENT recurrence so the
@@ -282,6 +286,25 @@ class MistakeMemory:
                 ),
             )
             return int(cur.lastrowid), False
+
+    def recurrence_candidate(
+        self, task_id: str, error_type: str
+    ) -> Optional[sqlite3.Row]:
+        """The row ``record_or_increment`` would increment now, or ``None``.
+
+        The same scrub and the same query as the write, so a caller can read the
+        state a recurrence is about to change (plan Phase 3b: a transition is
+        signed only if the state it extends was). Read-only.
+        """
+        task_id = scan_and_redact(task_id).scrubbed
+        error_type = scan_and_redact(error_type).scrubbed
+        with get_connection(self.db_path) as conn:
+            row = conn.execute(_RECURRENCE_MATCH, (task_id, error_type)).fetchone()
+            if row is None:
+                return None
+            return conn.execute(
+                "SELECT * FROM mistake_pool WHERE id = ?", (int(row["id"]),)
+            ).fetchone()
 
     def increment_occurrence(self, mistake_id: int) -> None:
         """Bump the occurrence counter for a repeated mistake."""

@@ -860,6 +860,10 @@ RT07_MEMORY_TABLES: tuple[str, ...] = (
     "approved_edit_decisions",
     # Append-only: it grows only when a learning transition really happened.
     "learning_events",
+    # Phase 3b: signed provenance and derivations, created by the store
+    # bootstrap wires in. A record is a learning write like any other.
+    "learning_provenance",
+    "learning_derivations",
 )
 RT07_OPERATIONAL_TABLES: tuple[str, ...] = (
     "institutional_skills",
@@ -1706,6 +1710,14 @@ def child_environment(root: Path) -> dict[str, str]:
             "PYTHONIOENCODING": "utf-8",
         }
     )
+    # A mission child must never hold the operator's learning keys (plan
+    # Phase 3b): its rows would be signed as trusted rows of the operator's
+    # store. Set EMPTY, not dropped: the child loads the repository's .env at
+    # import, and load_dotenv fills only variables that are absent.
+    from aios.memory.provenance import KEY_ENV as LEARNING_KEY_ENV
+
+    for name in LEARNING_KEY_ENV.values():
+        env[name] = ""
     return env
 
 

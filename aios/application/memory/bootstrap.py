@@ -34,6 +34,7 @@ from aios.application.memory.adapters import (
     WorkingMemoryAdapter,
 )
 from aios.application.memory.authority import MemoryAuthority
+from aios.application.memory.provenance_policy import ProvenanceWriter
 from aios.core.cerebellum import Cerebellum
 from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.memory.consolidation import MemoryConsolidator
@@ -42,6 +43,11 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
+from aios.memory.provenance import (
+    LearningSigner,
+    LearningVerifier,
+    ProvenanceStore,
+)
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
@@ -95,13 +101,28 @@ def build_memory_authority() -> MemoryAuthority:
             and skills.reads == "institutional"
         ):
             cerebellum.attach_reflex_gate(skills.institutional)
+    # Plan Phase 3b (docs/learning/PHASE3_DESIGN.md): learned rows this process
+    # writes carry signed provenance, as LIVE rows. The seed is read from the
+    # environment once, here; without it every record is unsigned, and an
+    # unsigned row is never recalled (3c). Nothing generates a key.
+    # A new state of an existing row is signed only if the state it extends
+    # verifies under a PINNED key, so an unsigned row is never laundered into
+    # a signed one by the next real event that touches it.
+    provenance = ProvenanceWriter(
+        ProvenanceStore(config.MEMORY_DB_PATH),
+        LearningSigner.from_env(),
+        source_kind="live",
+        verifier=LearningVerifier.from_pinned_file(),
+    )
     adapters = {
         "working": WorkingMemoryAdapter(WorkingMemory()),
         "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
-        "semantic": LegacySemanticMemoryAdapter(SemanticMemory(config.MEMORY_DB_PATH)),
-        "facts": SemanticFactsAdapter(SemanticFacts()),
+        "semantic": LegacySemanticMemoryAdapter(
+            SemanticMemory(config.MEMORY_DB_PATH), provenance=provenance
+        ),
+        "facts": SemanticFactsAdapter(SemanticFacts(), provenance=provenance),
         "skills": skills,
-        "lessons": MistakeMemoryAdapter(MistakeMemory()),
+        "lessons": MistakeMemoryAdapter(MistakeMemory(), provenance=provenance),
         "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
         "cerebellum": CerebellumAdapter(cerebellum),
         "curriculum": CurriculumAdapter(CurriculumManager(config.MEMORY_DB_PATH)),
