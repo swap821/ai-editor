@@ -276,12 +276,17 @@ CREATE TABLE IF NOT EXISTS compiled_playbooks (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     compiled_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
-    skill_id              INTEGER NOT NULL REFERENCES procedural_skills(id),
+    -- A skill TRAIL id (institutional_skills.SkillTrailIndex), not a
+    -- procedural_skills row. Since Phase 2 slice 2.4c a reflex compiles only
+    -- from an operator-activated library skill: migrated arcs keep their legacy
+    -- id, and library-issued ids start at 1e9 -- which a foreign key into
+    -- procedural_skills could never accept.
+    skill_id              INTEGER NOT NULL,
     goal_pattern          TEXT NOT NULL,
     signature_v2          TEXT,
     steps_json            TEXT NOT NULL,
     status                TEXT NOT NULL DEFAULT 'compiled'
-                          CHECK (status IN ('compiled','decompiled')),
+                          CHECK (status IN ('compiled','decompiled','retired')),
     replay_count          INTEGER NOT NULL DEFAULT 0,
     consecutive_failures  INTEGER NOT NULL DEFAULT 0,
     -- The skill's promotable success_count at the moment this playbook was
@@ -292,7 +297,10 @@ CREATE TABLE IF NOT EXISTS compiled_playbooks (
     -- before the column existed; those are backfilled to the skill's count at
     -- migration time, so they require growth from then on rather than being
     -- either permanently barred or silently forgiven.
-    decompiled_at_successes INTEGER
+    decompiled_at_successes INTEGER,
+    -- Why a reflex was RETIRED (Phase 2.4c): retirement is permanent and says
+    -- why, unlike decompilation, which a skill can earn its way back from.
+    retired_reason        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_compiled_skill ON compiled_playbooks(skill_id);
 CREATE INDEX IF NOT EXISTS idx_compiled_status ON compiled_playbooks(status);
