@@ -45,8 +45,19 @@ def client() -> TestClient:
     ),
 )
 def test_default_operational_reads_are_truthful_empty_states(
-    client: TestClient, path: str
+    client: TestClient, path: str, tmp_path, monkeypatch
 ) -> None:
+    """A FRESH operational store reads as empty, through the default wiring.
+
+    The store is fresh on purpose. The session-wide one is written by other
+    tests: since Phase 2 slice 2.4c-B every skill the turn learns lands in the
+    skill library, so asserting that the shared store is empty measured test
+    order, not truthfulness. The providers read the path at call time, so the
+    default wiring is still what answers.
+    """
+    from aios import config
+
+    monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", tmp_path / "op.db")
     response = client.get(path)
 
     assert response.status_code == 200

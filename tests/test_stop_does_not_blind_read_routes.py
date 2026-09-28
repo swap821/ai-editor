@@ -95,24 +95,17 @@ def test_the_sweep_skips_only_while_frozen(tmp_path, monkeypatch) -> None:
     compiles nothing -- without raising -- when it is frozen. The fix lives in
     the cerebellum, not in `deps.py`, which is an entrypoint of eight green
     organs."""
-    from aios.core.cerebellum import Cerebellum
-    from aios.core.verification_strength import VerificationStrength
     from aios.memory.db import init_memory_db
-    from aios.memory.skills import SkillMemory
+    from tests.reflex_fixtures import ActivatedSkills, gated
 
     db = tmp_path / "memory.db"
     init_memory_db(db)
-    skills = SkillMemory(db_path=db)
-    for _ in range(3):
-        skills.record_attempt(
-            "run the pin tests",
-            ["verify: command=pytest x -q"],
-            success=True,
-            strength=VerificationStrength.STRONG,
-        )
+    # Slice 2.4c-B: only an operator-activated skill compiles.
+    gate = ActivatedSkills()
+    gate.activate("run the pin tests", ["verify: command=pytest x -q"])
     import aios.core.cerebellum as cerebellum_module
 
     monkeypatch.setattr(cerebellum_module, "learning_permitted", lambda: False)
-    assert Cerebellum(db).try_compile_all() == 0, "a frozen sweep compiled something"
+    assert gated(gate, db).try_compile_all() == 0, "a frozen sweep compiled something"
     monkeypatch.setattr(cerebellum_module, "learning_permitted", lambda: True)
-    assert Cerebellum(db).try_compile_all() == 1, "a permitted sweep compiled nothing"
+    assert gated(gate, db).try_compile_all() == 1, "a permitted sweep compiled nothing"

@@ -42,11 +42,13 @@ class TestTheAuthorityOwnsEveryLearningStore:
         assert first is second
         assert first is deps.get_memory_authority().adapters["curriculum"].store
 
-    def test_the_skill_store_is_wired_to_that_cerebellum(self) -> None:
+    def test_that_cerebellum_reads_the_skill_slot(self) -> None:
+        """Slice 2.4c-B: reflexes come from the store recall reads -- the skill
+        library in the authority's slot -- and the legacy store is history."""
         authority = build_memory_authority()
-        skills = authority.adapters["skills"].store
-        assert isinstance(skills, SkillMemory)
-        assert skills._cerebellum is authority.adapters["cerebellum"].store
+        skills = authority.adapters["skills"]
+        assert authority.adapters["cerebellum"].store._reflex_gate is skills
+        assert isinstance(skills.store, SkillMemory) and skills.store.read_only
 
     def test_the_facts_hook_stays_unwired(self) -> None:
         """Wiring it would write learned text into facts recalled as
@@ -56,28 +58,45 @@ class TestTheAuthorityOwnsEveryLearningStore:
         assert authority.adapters["lessons"].store._facts is None
 
 
-class TestCompileOnPromotionIsReal:
-    def test_a_promoted_skill_compiles_in_the_same_request(self) -> None:
-        """No sweep runs here: only the store's own promotion hook can compile."""
+class TestAReflexComesOnlyFromAnActivation:
+    """Before slice 2.4c-B a skill the legacy store promoted by itself compiled
+    its reflex in the same request. Nothing promotes itself now: evidence
+    through the authority compiles nothing, and the operator's activation
+    compiles at the next sweep (`get_cerebellum` runs one per request)."""
+
+    def test_evidence_compiles_nothing_and_activation_compiles_once(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        from aios.domain.learning.repository import SkillRepository
+
+        monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", tmp_path / "op.db")
         authority = build_memory_authority()
-        skills = authority.adapters["skills"].store
-        goal = "phase two compile on promotion probe"
-        with sqlite3.connect(config.MEMORY_DB_PATH) as conn:
-            before = conn.execute("SELECT COUNT(*) FROM compiled_playbooks").fetchone()[
-                0
-            ]
+        cerebellum = authority.adapters["cerebellum"].store
+        goal = "phase two compile on activation probe"
+
+        def playbooks() -> int:
+            with sqlite3.connect(config.MEMORY_DB_PATH) as conn:
+                return conn.execute(
+                    "SELECT COUNT(*) FROM compiled_playbooks"
+                ).fetchone()[0]
+
+        cerebellum.try_compile_all()
+        before = playbooks()
         for _ in range(3):
-            skills.record_attempt(
+            authority.record_skill_attempt(
                 goal,
                 ["read_file: filepath=README.md"],
                 success=True,
                 strength=VerificationStrength.STRONG,
             )
-        with sqlite3.connect(config.MEMORY_DB_PATH) as conn:
-            after = conn.execute("SELECT COUNT(*) FROM compiled_playbooks").fetchone()[
-                0
-            ]
-        assert after == before + 1, "promotion did not compile its reflex"
+        assert cerebellum.try_compile_all() == 0 and playbooks() == before
+
+        repository = SkillRepository(tmp_path / "op.db")
+        (record,) = [r for r in repository.list_skills() if r.problem_signature == goal]
+        repository.transition_state(record.skill_id, record.version, "human_reviewed")
+        repository.transition_state(record.skill_id, record.version, "active")
+        assert cerebellum.try_compile_all() == 1
+        assert playbooks() == before + 1
 
 
 class TestTheSharedCerebellumIsSafeUnderConcurrency:
@@ -131,6 +150,9 @@ _OWNERS: dict[str, set[str]] = {
     # Phase 2 slice 2.4a: integer trail ids + ranking bookkeeping for the
     # institutional skill slot.
     "skill_trails": {"aios/application/memory/institutional_skills.py"},
+    # Phase 3b: signed provenance and derivations, append-only.
+    "learning_provenance": {"aios/memory/provenance.py"},
+    "learning_derivations": {"aios/memory/provenance.py"},
 }
 
 _WRITE = re.compile(

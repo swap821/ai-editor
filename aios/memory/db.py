@@ -128,6 +128,7 @@ def init_memory_db(db_path: Path = config.MEMORY_DB_PATH) -> None:
     """
     schema_sql = _SCHEMA_PATH.read_text(encoding="utf-8")
     _migrate_skill_signature_index(db_path)
+    _migrate_playbooks_to_library_identity(db_path)
     with get_connection(db_path) as conn:
         conn.executescript(schema_sql)
         _migrate(conn)
@@ -291,6 +292,159 @@ def _rebuild_skills_table(conn: sqlite3.Connection, db_path: Path) -> None:
     # destined for consolidation into an IntegrityError mid-migration. They are
     # created at the end of `_migrate`, once the data is in a state that can
     # satisfy them.
+
+
+#: Every column the rebuilt compiled_playbooks declares (see
+#: `_REBUILT_COLUMNS` for why the copy is restricted to a fixed set).
+_PLAYBOOK_COLUMNS = frozenset(
+    {
+        "id",
+        "compiled_at",
+        "updated_at",
+        "skill_id",
+        "goal_pattern",
+        "signature_v2",
+        "steps_json",
+        "status",
+        "replay_count",
+        "consecutive_failures",
+        "decompiled_at_successes",
+        "retired_reason",
+    }
+)
+
+
+#: Columns added to compiled_playbooks after it was first created, each with its
+#: own static statement, so an older table reaches the full set without
+#: interpolating an identifier.
+_PLAYBOOK_LATE_COLUMNS = {
+    "compiled_at": "ALTER TABLE compiled_playbooks ADD COLUMN compiled_at DATETIME",
+    "updated_at": "ALTER TABLE compiled_playbooks ADD COLUMN updated_at DATETIME",
+    "signature_v2": "ALTER TABLE compiled_playbooks ADD COLUMN signature_v2 TEXT",
+    "replay_count": (
+        "ALTER TABLE compiled_playbooks "
+        "ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0"
+    ),
+    "consecutive_failures": (
+        "ALTER TABLE compiled_playbooks "
+        "ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0"
+    ),
+    "decompiled_at_successes": (
+        "ALTER TABLE compiled_playbooks ADD COLUMN decompiled_at_successes INTEGER"
+    ),
+    "retired_reason": "ALTER TABLE compiled_playbooks ADD COLUMN retired_reason TEXT",
+}
+#: Columns no ALTER can supply (no default carries a row's meaning), so an
+#: older table without one is refused rather than guessed at.
+_PLAYBOOK_REQUIRED_COLUMNS = frozenset(
+    {"id", "skill_id", "goal_pattern", "steps_json", "status"}
+)
+
+
+def _migrate_playbooks_to_library_identity(db_path: Path) -> None:
+    """Phase 2 slice 2.4c: a reflex's skill is a library TRAIL id.
+
+    Before 2.4c, `compiled_playbooks.skill_id` was a foreign key into
+    `procedural_skills`. Reflexes now compile only from operator-activated
+    library skills, whose ids a legacy foreign key cannot accept (library-issued
+    ids start at 1e9), and the table gains a `retired` status with a reason.
+
+    SQLite cannot drop a constraint, so the table is rebuilt, the same way as
+    `_migrate_skill_signature_index`: its own connection with foreign keys off,
+    a timestamped backup first, ids preserved, and the row count asserted.
+    Idempotent: it does nothing once the table has no foreign key and knows
+    `retired`.
+    """
+    if not db_path.is_file():
+        return
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        _rebuild_playbooks_table(conn, db_path)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.close()
+
+
+def _rebuild_playbooks_table(conn: sqlite3.Connection, db_path: Path) -> None:
+    table_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='compiled_playbooks'"
+    ).fetchone()
+    if not table_sql:
+        return  # a fresh store gets the new shape from schema.sql
+    has_fk = bool(
+        conn.execute("PRAGMA foreign_key_list(compiled_playbooks)").fetchall()
+    )
+    if not has_fk and "'retired'" in str(table_sql[0]):
+        return
+    before = conn.execute("SELECT COUNT(*) FROM compiled_playbooks").fetchone()[0]
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    shutil.copy2(db_path, db_path.with_suffix(f".{stamp}.pre-library-reflexes.bak"))
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(compiled_playbooks)")}
+    unknown = sorted(columns - _PLAYBOOK_COLUMNS)
+    if unknown:
+        raise RuntimeError(
+            f"compiled_playbooks has column(s) this rebuild does not know how to "
+            f"carry across: {unknown}. Refusing rather than dropping them."
+        )
+    missing = sorted(_PLAYBOOK_REQUIRED_COLUMNS - columns)
+    if missing:
+        raise RuntimeError(
+            f"compiled_playbooks lacks column(s) this rebuild cannot supply: "
+            f"{missing}. Refusing rather than inventing them."
+        )
+    # Bring an older table up to the full column set with STATIC statements, so
+    # the copy below names every column literally: no identifier is ever
+    # interpolated into SQL. Any column with a default can be added; a table
+    # from before a column existed gets NULL (or its default) for it.
+    for column, add in _PLAYBOOK_LATE_COLUMNS.items():
+        if column not in columns:
+            conn.execute(add)
+    conn.execute("""
+        CREATE TABLE compiled_playbooks_rebuilt (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            compiled_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+            skill_id              INTEGER NOT NULL,
+            goal_pattern          TEXT NOT NULL,
+            signature_v2          TEXT,
+            steps_json            TEXT NOT NULL,
+            status                TEXT NOT NULL DEFAULT 'compiled'
+                                  CHECK (status IN ('compiled','decompiled','retired')),
+            replay_count          INTEGER NOT NULL DEFAULT 0,
+            consecutive_failures  INTEGER NOT NULL DEFAULT 0,
+            decompiled_at_successes INTEGER,
+            retired_reason        TEXT
+        )
+    """)
+    conn.execute(
+        "INSERT INTO compiled_playbooks_rebuilt (id, compiled_at, updated_at, "
+        "skill_id, goal_pattern, signature_v2, steps_json, status, replay_count, "
+        "consecutive_failures, decompiled_at_successes, retired_reason) "
+        "SELECT id, compiled_at, updated_at, skill_id, goal_pattern, signature_v2, "
+        "steps_json, status, replay_count, consecutive_failures, "
+        "decompiled_at_successes, retired_reason FROM compiled_playbooks"
+    )
+    after = conn.execute("SELECT COUNT(*) FROM compiled_playbooks_rebuilt").fetchone()[
+        0
+    ]
+    if after != before:
+        raise RuntimeError(
+            f"compiled_playbooks rebuild would lose rows ({before} -> {after}); "
+            "refusing and leaving the original table in place"
+        )
+    conn.execute("DROP TABLE compiled_playbooks")
+    conn.execute("ALTER TABLE compiled_playbooks_rebuilt RENAME TO compiled_playbooks")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_compiled_skill ON compiled_playbooks(skill_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_compiled_status ON compiled_playbooks(status)"
+    )
 
 
 def _migrate(conn: sqlite3.Connection) -> None:

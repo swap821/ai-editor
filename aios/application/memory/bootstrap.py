@@ -30,11 +30,16 @@ from aios.application.memory.adapters import (
     MemoryConsolidationAdapter,
     MistakeMemoryAdapter,
     SemanticFactsAdapter,
-    SkillMemoryAdapter,
     WorkingMemoryAdapter,
 )
 from aios.application.memory.authority import MemoryAuthority
+from aios.application.memory.institutional_skills import (
+    SkillTrailIndex,
+    build_skills_slot,
+)
+from aios.application.memory.provenance_policy import ProvenanceWriter
 from aios.core.cerebellum import Cerebellum
+from aios.domain.learning.repository import SkillRepository
 from aios.infrastructure.memory import MemoryAuthorityStore
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.curriculum import CurriculumManager
@@ -42,6 +47,11 @@ from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
+from aios.memory.provenance import (
+    LearningSigner,
+    LearningVerifier,
+    ProvenanceStore,
+)
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
 from aios.memory.working import WorkingMemory
@@ -58,50 +68,48 @@ def build_memory_authority() -> MemoryAuthority:
     behind an authority adapter; the consolidator reuses the registered
     stores so no second physical store exists for the same data.
     """
-    # One cerebellum for the process, and the skill store is wired to it, so a
-    # skill promoted to 'verified' compiles its reflex in the SAME request.
-    # Before Phase 2 the skill store had no cerebellum at all, and compilation
-    # happened a request later through the API layer's per-request sweep --
-    # while `get_skill_memory`'s docstring claimed the opposite.
+    # One cerebellum for the process.
     #
-    # `facts=` is deliberately NOT wired into the skill or lesson stores: their
+    # `facts=` is deliberately NOT wired into the lesson store: its
     # graph-ingestion hook writes `semantic_facts` rows as ACTIVE with no
     # approver, laundering learned text into the channel recall presents as
     # "RELEVANT APPROVED FACTS" (threat T16, red-team RT-18).
     cerebellum = Cerebellum(config.MEMORY_DB_PATH)
-    skills = SkillMemoryAdapter(SkillMemory(cerebellum=cerebellum))
-    if config.SKILL_STORE_MODE != "legacy":
-        # Phase 2 slice 2.4 pilot (docs/learning/PHASE2_DESIGN.md). Imported
-        # only off the default path, so the default boot is exactly as before.
-        from aios.application.memory.institutional_skills import (
-            DualWriteSkillAdapter,
-            SkillTrailIndex,
-            build_skills_slot,
-        )
-        from aios.domain.learning.repository import SkillRepository
-
-        repository = SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
-        skills = build_skills_slot(
-            skills,
-            mode=config.SKILL_STORE_MODE,
-            repository=repository,
-            trails=SkillTrailIndex(repository.database),
-        )
-        # Reflexes read the store recall reads. Derived from the slot actually
-        # built, not from the setting: a pilot that refused to start (no
-        # migration) must not gate reflexes on a library it is not reading.
-        if (
-            isinstance(skills, DualWriteSkillAdapter)
-            and skills.reads == "institutional"
-        ):
-            cerebellum.attach_reflex_gate(skills.institutional)
+    # Phase 2 slice 2.4c-B (docs/learning/PHASE2_DESIGN.md): the institutional
+    # library, which organ 43 governs, is the only skill store. The legacy
+    # `procedural_skills` store is attached READ-ONLY, as history, and nothing
+    # promotes itself: activation is the operator's act.
+    repository = SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
+    skills = build_skills_slot(
+        repository=repository,
+        trails=SkillTrailIndex(repository.database),
+        history=SkillMemory(read_only=True),
+    )
+    # Reflexes compile and replay only from skills the operator activated, with
+    # exactly the activated steps. Always attached: there is no ungated mode.
+    cerebellum.attach_reflex_gate(skills)
+    # Plan Phase 3b (docs/learning/PHASE3_DESIGN.md): learned rows this process
+    # writes carry signed provenance, as LIVE rows. The seed is read from the
+    # environment once, here; without it every record is unsigned, and an
+    # unsigned row is never recalled (3c). Nothing generates a key.
+    # A new state of an existing row is signed only if the state it extends
+    # verifies under a PINNED key, so an unsigned row is never laundered into
+    # a signed one by the next real event that touches it.
+    provenance = ProvenanceWriter(
+        ProvenanceStore(config.MEMORY_DB_PATH),
+        LearningSigner.from_env(),
+        source_kind="live",
+        verifier=LearningVerifier.from_pinned_file(),
+    )
     adapters = {
         "working": WorkingMemoryAdapter(WorkingMemory()),
         "episodic": EpisodicMemoryAdapter(EpisodicMemory()),
-        "semantic": LegacySemanticMemoryAdapter(SemanticMemory(config.MEMORY_DB_PATH)),
-        "facts": SemanticFactsAdapter(SemanticFacts()),
+        "semantic": LegacySemanticMemoryAdapter(
+            SemanticMemory(config.MEMORY_DB_PATH), provenance=provenance
+        ),
+        "facts": SemanticFactsAdapter(SemanticFacts(), provenance=provenance),
         "skills": skills,
-        "lessons": MistakeMemoryAdapter(MistakeMemory()),
+        "lessons": MistakeMemoryAdapter(MistakeMemory(), provenance=provenance),
         "development": DevelopmentHistoryAdapter(DevelopmentTracker()),
         "cerebellum": CerebellumAdapter(cerebellum),
         "curriculum": CurriculumAdapter(CurriculumManager(config.MEMORY_DB_PATH)),

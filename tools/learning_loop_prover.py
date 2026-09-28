@@ -572,16 +572,23 @@ def skill_promoted(marker: str) -> bool:
 
 
 def skill_store_mode() -> str:
-    """The backend's live skill-slot mode (Phase 2 slice 2.4), asked of the backend.
+    """Which skill store the RUNNING backend recalls from: "library" or "legacy".
 
-    The dual-write slot adds a `pilot` section to the trail map; the legacy slot
-    has none. Asking the RUNNING backend, not this process's config, because the
-    two can differ (a backend started before `.env` changed).
+    Since Phase 2 slice 2.4c-B a backend's trail map says `store:
+    institutional_skills`, and the library is its only store. A backend from
+    before then read the library only in `pilot` mode, which its trail map
+    reported in a `pilot` section. Asked of the running backend, not this
+    process, because the two can run different code.
     """
     resp = _session().get("/api/v1/development/trails", timeout=30)
     resp.raise_for_status()
-    pilot = resp.json().get("pilot")
-    return str(pilot.get("mode", "legacy")) if isinstance(pilot, dict) else "legacy"
+    body = resp.json()
+    pilot = body.get("pilot")
+    if body.get("store") == "institutional_skills" or (
+        isinstance(pilot, dict) and pilot.get("mode") == "pilot"
+    ):
+        return "library"
+    return "legacy"
 
 
 def library_active_count() -> Optional[int]:
@@ -732,17 +739,18 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             )
 
     marker = f"llp_reflex_{_slug(run_id)}"
-    # Deviation (operator 2026-09-27, "redefine now"): in pilot mode the prover
-    # reads the live skill slot. Promotion there is review-readiness -- the
-    # evidence -- because activation is the operator's capability-backed act and
-    # a harness can never activate its own arc.
+    # Deviation (operator 2026-09-27, "redefine now"): against a backend that
+    # recalls from the skill library -- since slice 2.4c-B, every current one --
+    # promotion is review-readiness, the evidence, because activation is the
+    # operator's capability-backed act and a harness can never activate its own
+    # arc.
     mode = skill_store_mode()
-    if mode == "pilot":
+    if mode == "library":
         promoted = False
         check.soft(
             "reflex.skill-review-ready",
             skill_review_ready(marker),
-            "pilot: the arc's evidence made it review-ready in the skill library "
+            "library: the arc's evidence made it review-ready in the skill library "
             "(activation is the operator's, so no harness-learned skill becomes "
             "active or recallable)",
         )
@@ -792,10 +800,10 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             "the playbook matched and its approval-needing step was withheld, "
             f"not auto-run (controls={replay.get('cerebellum_controls') or 'none'})",
         )
-    elif mode == "pilot":
+    elif mode == "library":
         replayed = "cerebellum_match" in replay["cerebellum_events"]
-        # Since #395 a pilot backend's cerebellum replays only skills the
-        # operator ACTIVATED, with exactly the activated steps. This run's arc
+        # Since #395 (and, from 2.4c-B, always) the cerebellum replays only
+        # skills the operator ACTIVATED, with exactly the activated steps. This run's arc
         # was learned minutes ago and no harness can activate it. With nothing
         # activated at all, any replay is the gate failing: hard. With some
         # activated, one of THEM could legitimately match this prompt, so a
@@ -806,18 +814,18 @@ def phase_reflex(files: dict[str, str], run_id: str, model: str, check: Check) -
             check.hard(
                 "reflex.pilot-no-legacy-reflex",
                 not replayed,
-                "pilot: nothing is activated and no reflex replayed"
+                "library: nothing is activated and no reflex replayed"
                 if not replayed
-                else "GATE FAILURE: a reflex replayed in pilot mode with NO "
-                "activated skill -- the reflex gate (#395) did not withhold it",
+                else "GATE FAILURE: a reflex replayed with NO activated skill -- "
+                "the reflex gate (#395) did not withhold it",
             )
         else:
             check.soft(
                 "reflex.pilot-no-legacy-reflex",
                 not replayed,
-                "pilot: no reflex replayed"
+                "library: no reflex replayed"
                 if not replayed
-                else f"a reflex replayed in pilot mode; {active if active is not None else 'an unknown number of'} "
+                else f"a reflex replayed; {active if active is not None else 'an unknown number of'} "
                 "activated skill(s) exist and may be what matched. If it was this "
                 "run's own arc, the reflex gate failed",
             )

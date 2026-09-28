@@ -28,6 +28,15 @@ from aios.memory.db import init_memory_db
 from aios.memory.mistake import MistakeMemory
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
+from tests.reflex_fixtures import ActivatedSkills, gated
+
+
+def _activated_reflex_source(db: Path) -> Cerebellum:
+    """A cerebellum with one operator-activated skill to compile (slice
+    2.4c-B: nothing else compiles), before any stop is engaged."""
+    gate = ActivatedSkills()
+    gate.activate("run the pin tests", ["verify: command=pytest x -q"])
+    return gated(gate, db)
 
 
 def _noop(*_a, **_k):
@@ -168,15 +177,7 @@ class TestLearningWritesAreRefusedWhileTheStopIsEngaged:
 
     def test_no_reflex_is_compiled_while_the_stop_is_engaged(self, world) -> None:
         data, db = world
-        skills = SkillMemory(db_path=db)
-        for _ in range(3):
-            skills.record_attempt(
-                "run the pin tests",
-                ["verify: command=pytest x -q"],
-                success=True,
-                strength=VerificationStrength.STRONG,
-            )
-        cerebellum = Cerebellum(db)
+        cerebellum = _activated_reflex_source(db)
         _engage(data)
         before = _count(db, "compiled_playbooks")
         # Compilation is a sweep run on every request: frozen, it compiles
@@ -266,15 +267,7 @@ class TestThePositiveControlsTheReviewFoundMissing:
 
     def test_compilation_lands_when_clear(self, world) -> None:
         _data, db = world
-        skills = SkillMemory(db_path=db)
-        for _ in range(3):
-            skills.record_attempt(
-                "run the pin tests",
-                ["verify: command=pytest x -q"],
-                success=True,
-                strength=VerificationStrength.STRONG,
-            )
-        assert Cerebellum(db).try_compile_all() == 1
+        assert _activated_reflex_source(db).try_compile_all() == 1
         assert _count(db, "compiled_playbooks") == 1
 
 
@@ -349,15 +342,7 @@ class TestReplayBookkeepingFreezesInsteadOfCounting:
     would crash the turn. Frozen bookkeeping neither counts nor forgives."""
 
     def _compiled(self, db: Path):
-        skills = SkillMemory(db_path=db)
-        for _ in range(3):
-            skills.record_attempt(
-                "run the pin tests",
-                ["verify: command=pytest x -q"],
-                success=True,
-                strength=VerificationStrength.STRONG,
-            )
-        cerebellum = Cerebellum(db)
+        cerebellum = _activated_reflex_source(db)
         assert cerebellum.try_compile_all() == 1
         return cerebellum
 

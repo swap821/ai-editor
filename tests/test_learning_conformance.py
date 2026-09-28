@@ -62,18 +62,21 @@ class TestTheMissionsMeasureWhatTheyName:
     def test_m2_fails_when_the_successes_are_below_floor(
         self, tmp, monkeypatch
     ) -> None:
-        """Three WEAK successes must not verify a skill — so M2 must go red."""
+        """Three WEAK successes must not make a skill review-ready -- so M2 must
+        go red. Patched on the library adapter, the store M2 measures."""
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+        )
         from aios.core.verification_strength import VerificationStrength
-        from aios.memory.skills import SkillMemory
 
-        real = SkillMemory.record_attempt
+        real = InstitutionalSkillAdapter.record_attempt
 
         def weak(self, goal, steps, *, success, strength=VerificationStrength.STRONG):
             return real(
                 self, goal, steps, success=success, strength=VerificationStrength.WEAK
             )
 
-        monkeypatch.setattr(SkillMemory, "record_attempt", weak)
+        monkeypatch.setattr(InstitutionalSkillAdapter, "record_attempt", weak)
         assert lcr.mission_2_skill_verifies(tmp).passed is False
 
     def test_m1_fails_when_promotion_does_nothing(self, tmp, monkeypatch) -> None:
@@ -145,19 +148,16 @@ class TestTheRunnerReportsHonestly:
         )
 
 
-class TestPilotModeMeasuresTheLibrary:
-    """Operator decision 2026-09-27: in pilot mode the ledger's skill missions
-    measure the institutional library, where evidence makes a skill
-    review-ready and only the operator activates it."""
+class TestTheSkillMissionsMeasureTheLibrary:
+    """Operator decisions 2026-09-27/28: the ledger's skill missions measure
+    the institutional library -- since slice 2.4c-B the only skill store --
+    where evidence makes a skill review-ready and only the operator activates
+    it."""
 
-    @pytest.fixture()
-    def pilot(self, monkeypatch):
-        monkeypatch.setattr(lcr.config, "SKILL_STORE_MODE", "pilot")
-
-    def test_m2_passes_on_review_readiness_not_activation(self, tmp, pilot) -> None:
+    def test_m2_passes_on_review_readiness_not_activation(self, tmp) -> None:
         result = lcr.mission_2_skill_verifies(tmp)
         assert result.passed, result.detail
-        assert "(pilot)" in result.name and "review_ready=True" in result.detail
+        assert "review-ready" in result.name and "review_ready=True" in result.detail
 
     @staticmethod
     def _misreport(monkeypatch, **update) -> None:
@@ -182,30 +182,54 @@ class TestPilotModeMeasuresTheLibrary:
         monkeypatch.setattr(lcr, "_library", library)
 
     def test_m2_fails_if_evidence_ever_activated_a_skill(
-        self, tmp, pilot, monkeypatch
+        self, tmp, monkeypatch
     ) -> None:
         self._misreport(monkeypatch, state="active")
         result = lcr.mission_2_skill_verifies(tmp)
         assert result.passed is False
         assert "review_ready=True" in result.detail, "readiness alone must not pass"
 
-    def test_r9_weak_successes_never_count_in_the_library(self, tmp, pilot) -> None:
+    def test_r9_weak_successes_never_count_in_the_library(self, tmp) -> None:
         result = lcr.refusal_9_below_floor_cannot_promote(tmp)
         assert result.passed, result.detail
         assert "success_count=0" in result.detail
 
-    def test_r9_fails_if_a_weak_success_was_counted(
-        self, tmp, pilot, monkeypatch
-    ) -> None:
+    def test_r9_fails_if_a_weak_success_was_counted(self, tmp, monkeypatch) -> None:
         self._misreport(monkeypatch, success_count=2)
         result = lcr.refusal_9_below_floor_cannot_promote(tmp)
         assert result.passed is False
         assert "review_ready=False" in result.detail, "not-ready alone must not pass"
 
-    def test_the_report_names_the_mode_and_the_legacy_reflex_limit(self, pilot) -> None:
+    def test_the_report_names_the_store_measured(self) -> None:
         text = lcr.render(lcr.run_all())
-        assert "skill store mode: pilot" in text
-        assert "2.4c hard switch" in text
+        assert "skill store: library" in text
+        assert "operator-activated" in text
+
+    def test_the_reflex_missions_start_from_an_activation(self, tmp) -> None:
+        """M3-M5 measure the only reflex that can exist since 2.4c-B."""
+        result = lcr.mission_3_skill_compiles(tmp)
+        assert result.passed, result.detail
+        assert "operator-activated" in result.name
+
+    def test_m3_fails_without_the_activation(self, tmp, monkeypatch) -> None:
+        """Positive control: evidence alone must not be able to pass M3."""
+        monkeypatch.setattr(lcr, "_operator_activates", lambda repository: None)
+        result = lcr.mission_3_skill_compiles(tmp)
+        assert result.passed is False
+        assert "compiled=0" in result.detail
+
+    def test_m5_fails_if_the_reflex_recompiled_before_re_earning(
+        self, tmp, monkeypatch
+    ) -> None:
+        """The recovery must be EARNED: a reflex back before the skill earned
+        anything more is a fail, not a recovery."""
+        from aios.core.cerebellum import Cerebellum
+
+        # A retire mark below any real count lets the reflex straight back.
+        monkeypatch.setattr(Cerebellum, "_successes", lambda self, skill_id: -1)
+        result = lcr.mission_5_decompiled_reflex_recovers(tmp)
+        assert result.passed is False
+        assert "before re-earning=1" in result.detail
 
 
 def test_the_trail_records_which_store_was_measured(tmp_path, monkeypatch) -> None:
@@ -216,11 +240,11 @@ def test_the_trail_records_which_store_was_measured(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(lcr, "MISSIONS", [lcr.refusal_10_evidence_cannot_activate])
     assert lcr.main(["--json"]) == 0
     (row,) = [json.loads(line) for line in trail.read_text().splitlines()]
-    assert row["skill_store_mode"] == lcr.config.SKILL_STORE_MODE == "legacy"
+    assert row["skill_store_mode"] == lcr.SKILL_STORE == "library"
     assert row["reel"] == "1/1"
 
 
-def test_r10_holds_in_every_mode(tmp) -> None:
+def test_r10_holds(tmp) -> None:
     result = lcr.refusal_10_evidence_cannot_activate(tmp)
     assert result.passed, result.detail
     assert "refused" in result.detail

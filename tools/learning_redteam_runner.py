@@ -410,6 +410,14 @@ class Harness:
 
         return get_memory_authority().adapters[name].store
 
+    def slot(self, name: str) -> Any:
+        """The authority's adapter itself. For ``skills`` this is the skill
+        library (Phase 2 slice 2.4c-B); ``store("skills")`` is the legacy
+        store, read-only history, which refuses every write."""
+        from aios.api.deps import get_memory_authority
+
+        return get_memory_authority().adapters[name]
+
     def cerebellum(self) -> Any:
         from aios.api.deps import get_cerebellum
 
@@ -630,11 +638,18 @@ def _header_before(obs: LearningObservation, label: str, needle: str) -> str:
 
 
 def _seed_verified_reflex(h: Harness) -> Optional[int]:
-    """A skill earned the way the harness earns one: three STRONG successes,
-    recorded straight into the store, with no human anywhere."""
+    """A reflex from a skill earned with three STRONG successes, then ACTIVATED.
+
+    Since Phase 2 slice 2.4c-B a reflex compiles only from a skill the
+    operator activated in the skill library; a self-earned one never does
+    (learning conformance R10). So the reflex attacks model the reflex that
+    CAN exist: the harness stands in for the operator's activation, in this
+    throwaway root only. What each mission then attacks -- the trigger, the
+    per-step approval, revocation, freshness -- is the system's.
+    """
     from aios.core.verification_strength import VerificationStrength
 
-    skills = h.store("skills")
+    skills = h.slot("skills")
     for _ in range(3):
         skills.record_attempt(
             REFLEX_GOAL,
@@ -642,6 +657,13 @@ def _seed_verified_reflex(h: Harness) -> Optional[int]:
             success=True,
             strength=VerificationStrength.STRONG,
         )
+    (record,) = [
+        r for r in skills.repository.list_skills() if r.problem_signature == REFLEX_GOAL
+    ]
+    skills.repository.transition_state(
+        record.skill_id, record.version, "human_reviewed"
+    )
+    skills.repository.transition_state(record.skill_id, record.version, "active")
     h.cerebellum().try_compile_all()
     playbook = h.cerebellum().match(REFLEX_GOAL)
     return None if playbook is None else int(playbook.id)
@@ -860,6 +882,10 @@ RT07_MEMORY_TABLES: tuple[str, ...] = (
     "approved_edit_decisions",
     # Append-only: it grows only when a learning transition really happened.
     "learning_events",
+    # Phase 3b: signed provenance and derivations, created by the store
+    # bootstrap wires in. A record is a learning write like any other.
+    "learning_provenance",
+    "learning_derivations",
 )
 RT07_OPERATIONAL_TABLES: tuple[str, ...] = (
     "institutional_skills",
@@ -978,7 +1004,7 @@ def drive_rt07(h: Harness) -> LearningObservation:
                     }
                 )
 
-    skills = h.store("skills")
+    skills = h.slot("skills")
     lessons = h.store("lessons")
     for _ in range(3):
         attempt(
@@ -996,9 +1022,8 @@ def drive_rt07(h: Harness) -> LearningObservation:
             "lrt-stop", "stop_probe", "cause", "fix", f"lesson {canary}", -0.1
         ),
     )
-    # The path the turn itself takes: through the authority's skills slot,
-    # which in pilot mode is the dual-write adapter. `h.store("skills")` is the
-    # legacy store object and never reaches the slot.
+    # The path the turn itself takes: through the authority, to its skills
+    # slot, the skill library (2.4c-B).
     authority = get_memory_authority()
     attempt(
         "authority.record_skill_attempt",
@@ -1077,7 +1102,7 @@ def drive_rt08(h: Harness) -> LearningObservation:
         h.cerebellum().decompile(first)  # the only revocation a reflex has
     revoked_match = h.cerebellum().match(REFLEX_GOAL)
     # The harness keeps practising; no human is involved.
-    h.store("skills").record_attempt(
+    h.slot("skills").record_attempt(
         REFLEX_GOAL,
         [f"verify: command={CANARY_COMMAND}"],
         success=True,
@@ -1207,7 +1232,7 @@ FLOOD_N = 300
 def drive_rt12(h: Harness) -> LearningObservation:
     from aios.core.verification_strength import VerificationStrength
 
-    skills = h.store("skills")
+    skills = h.slot("skills")
     lessons = h.store("lessons")
     accepted = {"skills": 0, "lessons": 0}
     for i in range(FLOOD_N):
@@ -1706,6 +1731,14 @@ def child_environment(root: Path) -> dict[str, str]:
             "PYTHONIOENCODING": "utf-8",
         }
     )
+    # A mission child must never hold the operator's learning keys (plan
+    # Phase 3b): its rows would be signed as trusted rows of the operator's
+    # store. Set EMPTY, not dropped: the child loads the repository's .env at
+    # import, and load_dotenv fills only variables that are absent.
+    from aios.memory.provenance import KEY_ENV as LEARNING_KEY_ENV
+
+    for name in LEARNING_KEY_ENV.values():
+        env[name] = ""
     return env
 
 

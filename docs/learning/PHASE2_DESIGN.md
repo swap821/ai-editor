@@ -478,6 +478,121 @@ prints and records the mode with every score.
   read of the library lie about one thing while the rest stays real, and checks
   that the mission fails.
 
+## Slice 2.4c: the hard switch (operator: "Let's honestly complete the plan", 2026-09-28)
+
+2.4c runs in two slices so each can be reviewed and reverted on its own.
+
+**Slice A (reflexes, this PR): the reflex table speaks library identity.**
+- `compiled_playbooks.skill_id` no longer references `procedural_skills`. It is
+  a skill **trail id** (`SkillTrailIndex`). Migrated arcs keep their legacy
+  ids, and library-issued ids start at 1e9, which the old foreign key could
+  never accept.
+- The status gains `retired`, with a `retired_reason`.
+- The rebuild follows `_migrate_skill_signature_index`: its own connection
+  with foreign keys off, a timestamped backup first, ids preserved, the row
+  count asserted, and idempotent.
+- `tools/retire_legacy_playbooks.py` (dry run by default) retires every
+  compiled reflex that no operator activation backs, with a reason and an L5
+  journal entry, after a backup. It refuses while the emergency stop is
+  engaged.
+- **The keep-or-retire rule is the live gate's own**:
+  `Cerebellum.activation_backs`, one derivation with two callers.
+- Retirement is permanent. Decompilation, by contrast, can be earned back.
+  Retiring a reflex does not block a new one compiled from a later activation.
+- **Live data:** the 13-plus existing reflexes are retired by `--apply`, run
+  only with the operator's go-ahead, as the migration was.
+
+**Slice B (skills, done 2026-09-28): the library is the only skill store.**
+- The `skills` slot is the institutional adapter alone, built by
+  `build_skills_slot(repository=, trails=, history=)`. `DualWriteSkillAdapter`,
+  `SKILL_STORE_MODES` and `config.SKILL_STORE_MODE` are removed, and a `.env`
+  line setting `AIOS_SKILL_STORE_MODE` is inert (it can be deleted).
+- `procedural_skills` is read-only history. The production `SkillMemory` is
+  built `read_only=True` and refuses `record_attempt` and `record_reuse` with
+  `ReadOnlySkillHistoryError`. A static test fails if any module in `aios/`,
+  `tools/` or `scripts/` constructs a writable one.
+- **Legacy history that was never migrated blocks learning.** The migration
+  refuses to write if an `arc-...` record it would create already exists, so a
+  store that learned new arcs first could never migrate its history. The slot
+  therefore refuses new arcs (`SkillMigrationPendingError`, logged loudly and
+  shown in the trail map) until `tools/migrate_skills_to_institutional.py
+  --apply` has run. A fresh install has no history and learns normally.
+- **The reflex gate is always attached, and there is no ungated mode.** A
+  cerebellum without a gate compiles and replays nothing. The legacy compile
+  sweep, which read `procedural_skills WHERE status = 'verified'`, is deleted.
+- **The cerebellum's bookkeeping is the library's.**
+  - A skill's success count comes from the library (`active_procedures()` and
+    `successes()`). The retire rule compares against it, and so does the
+    `decompiled_at_successes` stamp.
+  - The failure-streak guard is gone. An activated skill that keeps failing is
+    demoted by organ 43's policy, and a demoted skill is not activated, so its
+    reflex is withheld and never recompiles.
+  - A library-only skill (id 1e9 and up, no legacy row) compiles once
+    activated.
+  - An unstamped decompiled row is stamped from the library at first sight.
+- **Writers moved to the library.** These now write through the library:
+  - `tools/organic_chain_run.py`
+  - the ladder (`tools/reverse_engineer_gagos.py`), through
+    `self_corpus_grading.live_skill_library`
+  - the payoff tool
+  - `scripts/replay_live_session.py` (its own throwaway root)
+- **Readers default to the library.** The doctor's learning line leads with the
+  library and labels the legacy counts as read-only history. The prover
+  recognises a library backend by its trail map (`store:
+  institutional_skills`). The conformance runner and the payoff tool record
+  `skill_store_mode: "library"`.
+
+**Consequences, as measured (not only as predicted):**
+- **Learning Ledger 7/8 → 5/8.** L3 is now "review-ready" and owned by
+  `InstitutionalSkillAdapter`. L3 and L4 carry blockers because their organic
+  evidence is of the self-promotion path that no longer runs. L5 also needs
+  L4's activation. Measured by `scripts/verify_learning_conditions.py` with the
+  trail files present.
+- **Learning conformance 5/5 + 5/5, redefined.** M3–M5 start from a skill
+  activated in a throwaway library, with the harness standing in for the
+  operator. Positive controls show that evidence alone cannot pass M3, and that
+  a reflex back before re-earning fails M5.
+- **Organ 55 M5 is now `unproven (not drivable)`.** It drives the live backend,
+  where only the operator may activate a skill, so it cannot put a compiled
+  skill in play. Its old seeding would now write read-only history and never
+  compile: a vacuous FAIL. It now seeds nothing and says why.
+  - **Proposal:** a standing fixture skill (a fixed goal over a planted
+    `training_ground/` file) that the operator activates once through
+    `tools/activate_skills.py`. M5 would drive against it, and would not be
+    drivable until it is activated.
+- **The learning red-team's reflex missions** (RT-05/06/08/09) seed the reflex
+  that can still exist: an arc earned, then activated, with the harness
+  standing in for the operator in its throwaway root. RT-08 (a revoked reflex
+  comes back after more practice) still reaches its attack under the library's
+  retire rule, so the finding stays open for Phase 6.
+- **Payoff D7:** practice history includes the library. The frozen Phase 8
+  target list is unaffected.
+
+**Residuals, stated rather than left to be found:**
+- `aios/memory/db.py` still backfills an unstamped decompiled row from
+  `procedural_skills`, the legacy count, for a skill that has a legacy row.
+  That is reachable only if the library was unreadable at the moment of
+  decompiling. A migrated skill whose library count has grown since the
+  migration could then recompile without new evidence. Closing it means that
+  backfill stops reading the legacy table: a change to `db.py`, left for a
+  reviewed follow-up.
+- `tools/prove_cerebellum.py`, an old S1 proof script with no test, was already
+  failing before this slice (at "skill with failures does NOT compile"). It is
+  not updated here.
+- The Learning Ledger gate cannot see an owner change: LC11/LC12 check only
+  that the evidence commit is recorded and on master. The L3/L4 blockers were
+  written by hand.
+
+**Operator steps (none is automatic):**
+1. After merge, restart the backend (it has no `--reload`).
+2. Delete the inert `AIOS_SKILL_STORE_MODE` line from `.env`.
+3. When ready, retire the self-promoted reflexes:
+   `python tools/retire_legacy_playbooks.py` (dry run), then `--apply`.
+4. Activate what should become recallable and a reflex:
+   `tools/activate_skills.py`.
+5. Then 2.5: re-earn L3 organically, L4 after an activation, re-pin
+   reachability, and re-gather organs 18/26/31/43 at master's tip.
+
 ## Found while starting
 
 - **Hotfix #375:** a regression from #373. While the stop was engaged, the

@@ -451,9 +451,13 @@ class TestTheInstrumentIsProvenBeforeUse:
             yield SimpleNamespace(root=tmp_path, sha="c" * 40)
 
         monkeypatch.setattr(payoff, "DB", db)
+        # The library beside it, never the checkout's own data directory.
+        monkeypatch.setattr(
+            payoff, "LIBRARY_DB", db.with_name("aios_operational_state.db")
+        )
         monkeypatch.setattr(payoff, "init_memory_db", lambda db: None)
         monkeypatch.setattr(payoff, "MistakeMemory", lambda db_path: object())
-        monkeypatch.setattr(payoff, "SkillMemory", lambda db_path: object())
+        monkeypatch.setattr(payoff, "SkillMemory", lambda db_path, **kw: object())
         monkeypatch.setattr(payoff, "ReflectionAgent", lambda *a, **k: object())
         monkeypatch.setattr(
             payoff, "resolve_client", lambda spec, timeout_s: (object(), spec)
@@ -738,7 +742,8 @@ class TestOneArmCannotBeChargedForAnothersLeftovers:
 
 class TestD3TheOnArmRecallsThroughTheLiveSlot:
     """Deviation D3: the ON arm recalls skills through the slot the live turn
-    builds for AIOS_SKILL_STORE_MODE, and the library is frozen for the run."""
+    builds -- since slice 2.4c-B the skill library, the only one -- and the
+    library is frozen for the run."""
 
     def _stores(self, tmp_path, monkeypatch):
         from aios.memory.db import init_memory_db
@@ -751,19 +756,24 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
         )
         return db
 
-    def test_legacy_mode_recalls_the_legacy_store(self, tmp_path, monkeypatch) -> None:
-        from aios.application.memory.adapters import SkillMemoryAdapter
-
-        db = self._stores(tmp_path, monkeypatch)
-        monkeypatch.setattr(payoff.config, "SKILL_STORE_MODE", "legacy")
-        slot = payoff.live_skills_slot()
-        assert type(slot) is SkillMemoryAdapter
-        assert slot.store.db_path == db
-
-    def test_pilot_mode_recalls_only_what_the_operator_activated(
+    def test_the_slot_is_the_library_with_legacy_history_read_only(
         self, tmp_path, monkeypatch
     ) -> None:
-        from aios.application.memory.institutional_skills import DualWriteSkillAdapter
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+        )
+
+        db = self._stores(tmp_path, monkeypatch)
+        slot = payoff.live_skills_slot()
+        assert type(slot) is InstitutionalSkillAdapter
+        assert slot.store.db_path == db and slot.store.read_only is True
+
+    def test_it_recalls_only_what_the_operator_activated(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+        )
         from aios.core.verification_strength import VerificationStrength
         from aios.domain.learning.repository import SkillRepository
         from aios.memory.skills import SkillMemory
@@ -783,9 +793,8 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
             backup_dir=tmp_path / "backups",
             do_apply=True,
         )
-        monkeypatch.setattr(payoff.config, "SKILL_STORE_MODE", "pilot")
         slot = payoff.live_skills_slot()
-        assert isinstance(slot, DualWriteSkillAdapter) and slot.reads == "institutional"
+        assert isinstance(slot, InstitutionalSkillAdapter)
         assert legacy.relevant_verified(goal, 3), "the legacy store calls it verified"
         assert payoff._recall_skills(slot, goal) == [], (
             "nothing activated, nothing recalled"
@@ -797,6 +806,31 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
         repo.transition_state(record.skill_id, record.version, "active")
         assert [r["goal_pattern"] for r in payoff._recall_skills(slot, goal)] == [goal]
         assert payoff.library_active_count() == 1
+
+    def test_a_goal_learned_only_in_the_library_is_practised(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Since 2.4c-B new arcs live ONLY in the library; NOVEL must see them."""
+        from aios.core.verification_strength import VerificationStrength
+
+        db = self._stores(tmp_path, monkeypatch)
+        assert "summarise the parser" not in (payoff.practice_history(db) or "")
+        payoff.live_skills_slot().record_attempt(
+            "summarise the parser module",
+            ["read_file: parser.py"],
+            success=True,
+            strength=VerificationStrength.STRONG,
+        )
+        assert "summarise the parser module" in payoff.practice_history(db)
+
+    def test_an_unreadable_library_makes_the_history_unknown(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        db = self._stores(tmp_path, monkeypatch)
+        payoff.LIBRARY_DB.write_bytes(b"not a database at all" * 50)
+        assert payoff.practice_history(db) is None, (
+            "unknown history must never inflate NOVEL"
+        )
 
     def test_an_absent_library_fingerprints_absent_and_is_not_created(
         self, tmp_path, monkeypatch

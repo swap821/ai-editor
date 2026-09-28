@@ -1,26 +1,27 @@
 """Compiled Experience Engine — the organism's muscle memory.
 
-A verified skill arc (>=3 STRONG successes, >=80% rate) that additionally
-passes the compilation guards is compiled into a deterministic playbook:
-a literal list of (tool_name, args) steps that can be replayed without an
-LLM call, through the SAME security gateway, with the SAME audit trail.
+A skill the operator ACTIVATED in the institutional skill library that
+additionally passes the compilation guards is compiled into a deterministic
+playbook: a literal list of (tool_name, args) steps that can be replayed
+without an LLM call, through the SAME security gateway, with the SAME audit
+trail. Since Phase 2 slice 2.4c-B there is no other source: nothing a learning
+loop promotes by itself becomes a reflex (docs/learning/PHASE2_DESIGN.md).
 
 The cerebellum is injected into ToolAgent via DI.  In run(), before the
 LLM chat loop, it attempts to match the user message against compiled
 playbooks.  A match short-circuits the entire LLM turn — the organism
 acts from compiled experience, not external consultation.
 
-Compilation guards (beyond SkillMemory's promotion criteria):
+Compilation guards (beyond the operator's activation):
   1. All steps must parse into compilable tool calls (read/execute/verify).
   2. All tool names must exist in the ToolAgent dispatch table.
-  3. Zero failures SINCE the skill's last success (a clean recent record).
-     This was once a clean *lifetime* record, which no skill could ever get
-     back after a single flake; the promotion bar itself is unchanged.
+  3. The skill is still ACTIVE: one that keeps failing is demoted by the
+     library's own policy (organ 43) and leaves the activated set.
   4. Goal pattern must be non-empty after secret redaction.
 
 Decompilation: 2 consecutive replay failures marks the playbook as
-'decompiled'.  It cannot recompile without the underlying skill
-re-earning verification from scratch (the skill must be re-promoted).
+'decompiled'.  It cannot recompile until the skill has earned more successes
+in the library than it had when it was decompiled.
 
 Security: Every replayed step flows through ToolAgent._dispatch(), which
 calls the gateway classify(), scope_lock, audit_logger, and verifier.
@@ -385,11 +386,19 @@ def _step_targets_are_clean(step: "PlaybookStep") -> bool:
     return True
 
 
+def _backed(playbook: "CompiledPlaybook", activated: dict[int, dict[str, Any]]) -> bool:
+    """The playbook's skill is ACTIVE and its steps are exactly the activated ones."""
+    entry = activated.get(playbook.skill_id)
+    return (
+        entry is not None and [s.to_dict() for s in playbook.steps] == entry["parsed"]
+    )
+
+
 class Cerebellum:
     """Compiled Experience Engine.
 
-    Watches SkillMemory for verified skills, compiles them into
-    deterministic playbooks, and replays them without LLM consultation.
+    Compiles operator-activated library skills into deterministic
+    playbooks, and replays them without LLM consultation.
     """
 
     def __init__(
@@ -412,8 +421,9 @@ class Cerebellum:
         #: Optional observation bus. Absent everywhere it is not wired, exactly
         #: like WorkerFoundry's -- a missing bus must never change behaviour.
         self._bus = bus
-        #: Phase 2 pilot: when attached, reflexes come ONLY from skills the
-        #: operator activated in the institutional library. See
+        #: Reflexes come ONLY from skills the operator activated in the
+        #: institutional library (Phase 2 slice 2.4c-B). Until a gate is
+        #: attached, nothing is activated: no reflex compiles or replays. See
         #: `attach_reflex_gate`.
         self._reflex_gate: Any = None
 
@@ -428,30 +438,41 @@ class Cerebellum:
             self._bus = bus
 
     def attach_reflex_gate(self, gate: Any) -> None:
-        """Make reflexes read the same store as recall (Phase 2 pilot).
+        """Make reflexes read the same store as recall: the skill library.
 
-        *gate* answers ``active_procedures()``: ``{trail_id: {"steps": [...]}}``
-        for every skill the operator ACTIVATED in the institutional library.
-        Once attached, a playbook replays only if its skill is active and its
-        steps are exactly the activated procedure, and compiling reads active
-        skills instead of legacy ``verified`` ones. Before this, the pilot's
-        recall answered only from activated skills while reflexes still
-        compiled from self-promoted legacy skills.
+        *gate* answers ``active_procedures()``: ``{trail_id: {"steps": [...],
+        "success_count": n, ...}}`` for every skill the operator ACTIVATED in
+        the institutional library, and ``successes(trail_id)`` for any skill. A
+        playbook replays only if its skill is active and its steps are exactly
+        the activated procedure, and compiling reads only active skills.
 
-        Attached once and never removed, so the gate cannot be dropped at
-        runtime; leaving pilot mode is a restart.
+        Since slice 2.4c-B there is no other source: a cerebellum with no gate
+        compiles and replays nothing. ``bootstrap.py`` always attaches the
+        library. Attached once and never removed, so the gate cannot be dropped
+        at runtime.
         """
         if self._reflex_gate is None and gate is not None:
             self._reflex_gate = gate
 
-    def _activated(self) -> Optional[dict[int, dict[str, Any]]]:
-        """Activated procedures by trail id, or ``None`` when no gate is attached.
+    def activation_backs(self, playbook: "CompiledPlaybook") -> bool:
+        """Is *playbook* backed by an operator activation of exactly its steps?
 
-        Fails CLOSED: a library that cannot be read activates nothing. A reflex
-        is the one learned behaviour that runs with no model in the loop.
+        The live gate in `match` and the retirement tool
+        (`tools/retire_legacy_playbooks.py`) both ask this, through this one
+        method, so the two can never disagree about which reflexes are backed.
+        Without a gate attached nothing is backed.
+        """
+        return _backed(playbook, self._activated())
+
+    def _activated(self) -> dict[int, dict[str, Any]]:
+        """Activated procedures by trail id; empty when no gate is attached.
+
+        Fails CLOSED: no library, or one that cannot be read, activates
+        nothing. A reflex is the one learned behaviour that runs with no model
+        in the loop.
         """
         if self._reflex_gate is None:
-            return None
+            return {}
         try:
             raw = self._reflex_gate.active_procedures()
         except Exception as exc:  # noqa: BLE001 - unreadable means nothing is active
@@ -474,7 +495,7 @@ class Cerebellum:
     # ------------------------------------------------------------------
 
     def try_compile_all(self) -> int:
-        """Scan verified skills and compile any that pass guards.
+        """Compile every operator-activated skill that passes the guards.
 
         Returns the number of newly compiled playbooks.
 
@@ -489,67 +510,7 @@ class Cerebellum:
                 "learning frozen; cerebellum.compile sweep skipped"
             )
             return 0
-        activated = self._activated()
-        if activated is not None:
-            return len(self._compile_activated(activated))
-        init_memory_db(self.db_path)
-        compiled = 0
-        with get_connection(self.db_path) as conn:
-            rows = conn.execute(
-                """SELECT ps.id, ps.goal_pattern, ps.steps_json,
-                          ps.success_count, ps.failure_count,
-                          ps.consecutive_failures, ps.signature_v2
-                   FROM procedural_skills ps
-                   WHERE ps.status = 'verified'
-                     AND ps.consecutive_failures = 0
-                     AND NOT EXISTS (
-                         SELECT 1 FROM compiled_playbooks cp
-                         WHERE cp.skill_id = ps.id
-                           AND (
-                             -- An existing reflex always blocks: one arc, one
-                             -- playbook, no duplicates.
-                             cp.status = 'compiled'
-                             -- A RETIRED reflex blocks only until its skill has
-                             -- earned more than it had when it was retired.
-                             -- This module's docstring has always promised
-                             -- exactly this ("cannot recompile WITHOUT the
-                             -- underlying skill re-earning verification"), and
-                             -- until now nothing implemented the second half:
-                             -- two replay flakes removed a reflex permanently,
-                             -- with no path back. The comparison is on
-                             -- `success_count`, which only moves on a success
-                             -- at or above the LEARNING floor -- so a weak
-                             -- green cannot buy a reflex back, and neither can
-                             -- a failure (which also trips
-                             -- `consecutive_failures` above).
-                             OR (
-                               cp.status = 'decompiled'
-                               AND ps.success_count <=
-                                   COALESCE(cp.decompiled_at_successes, ps.success_count)
-                             )
-                           )
-                     )"""
-            ).fetchall()
-            for row in rows:
-                pb = self._try_compile_one(row, conn)
-                if pb is not None:
-                    self._cache[pb.id] = pb
-                    compiled += 1
-                    # Journalled inside the SAME transaction as the compile, so
-                    # the entry cannot survive a rolled-back compile and
-                    # describe something that never happened.
-                    journal(
-                        "L4",
-                        "compiled",
-                        subject_id=pb.id,
-                        detail={
-                            "skill_id": pb.skill_id,
-                            "goal_pattern": pb.goal_pattern[:160],
-                            "steps": len(pb.steps),
-                        },
-                        conn=conn,
-                    )
-        return compiled
+        return len(self._compile_activated(self._activated()))
 
     def try_compile_skill(self, skill_id: int) -> Optional[CompiledPlaybook]:
         """Attempt to compile a single skill by id.  Returns the playbook
@@ -561,72 +522,58 @@ class Cerebellum:
             )
             return None
         activated = self._activated()
-        if activated is not None:
-            # The legacy store calls this when it promotes a skill. In the
-            # pilot, a legacy promotion is not an activation.
-            if skill_id not in activated:
-                return None
-            fresh = self._compile_activated({skill_id: activated[skill_id]})
-            return fresh[0] if fresh else None
-        init_memory_db(self.db_path)
-        with get_connection(self.db_path) as conn:
-            row = conn.execute(
-                """SELECT id, goal_pattern, steps_json,
-                          success_count, failure_count,
-                          consecutive_failures, signature_v2
-                   FROM procedural_skills
-                   WHERE id = ? AND status = 'verified'""",
-                (skill_id,),
-            ).fetchone()
-            if row is None:
-                return None
-            already = conn.execute(
-                """SELECT 1 FROM compiled_playbooks
-                   WHERE skill_id = ? AND status IN ('compiled', 'decompiled')""",
-                (skill_id,),
-            ).fetchone()
-            if already is not None:
-                return None
-            pb = self._try_compile_one(row, conn)
-            if pb is not None:
-                self._cache[pb.id] = pb
-            return pb
+        if skill_id not in activated:
+            return None
+        fresh = self._compile_activated({skill_id: activated[skill_id]})
+        return fresh[0] if fresh else None
 
     def _compile_activated(
         self, activated: dict[int, dict[str, Any]]
     ) -> list[CompiledPlaybook]:
-        """Compile reflexes from operator-activated library skills (pilot).
+        """Compile reflexes from operator-activated library skills.
 
-        The procedure compiled is the one the operator ACTIVATED, never the
-        legacy row's steps, which the legacy store may refresh in place. The
-        legacy row supplies only what the library does not keep: the failure
-        streak (guard 3) and the success count the retire rule compares.
-
-        ``compiled_playbooks.skill_id`` is a foreign key into
-        ``procedural_skills``, so a library-only skill (no legacy row) gets no
-        reflex until the 2.4c schema change. It is skipped, not forced.
+        The procedure compiled is the one the operator ACTIVATED. Its
+        bookkeeping is the library's (slice 2.4c-B): the success count the
+        retire rule compares is the library record's, and there is no separate
+        failure streak, because an activated skill that keeps failing is
+        demoted by organ 43's policy and a demoted skill is not in *activated*.
         """
         init_memory_db(self.db_path)
         fresh: list[CompiledPlaybook] = []
         with get_connection(self.db_path) as conn:
             for trail_id, entry in sorted(activated.items()):
-                legacy = conn.execute(
-                    """SELECT consecutive_failures, signature_v2, success_count
-                       FROM procedural_skills WHERE id = ?""",
+                successes = int(entry.get("success_count") or 0)
+                # An unstamped decompiled row -- the library was unreadable
+                # when it was decompiled, or it predates the column and has no
+                # legacy row to be stamped from -- means "needs more than it
+                # has now". Stamped with the library's count at first sight;
+                # left NULL it would compare the count against itself and bar
+                # the reflex forever. Read first: no write lock in the steady
+                # state.
+                unstamped = conn.execute(
+                    "SELECT 1 FROM compiled_playbooks WHERE skill_id = ? "
+                    "AND status = 'decompiled' AND decompiled_at_successes IS NULL",
                     (trail_id,),
                 ).fetchone()
-                if legacy is None:
-                    continue
-                # One arc, one playbook; a retired one blocks until the skill
-                # has earned more than it had when it was retired -- the same
-                # rule as the legacy sweep.
+                if unstamped:
+                    conn.execute(
+                        "UPDATE compiled_playbooks SET decompiled_at_successes = ? "
+                        "WHERE skill_id = ? AND status = 'decompiled' "
+                        "AND decompiled_at_successes IS NULL",
+                        (successes, trail_id),
+                    )
+                # One arc, one playbook; a decompiled one blocks until the
+                # skill has earned more than it had when it was decompiled. A
+                # RETIRED one (2.4c-A) never blocks: retirement ended the
+                # self-promoted reflex, and this is a new one, from an
+                # activation.
                 blocked = conn.execute(
                     """SELECT 1 FROM compiled_playbooks
                        WHERE skill_id = ?
                          AND (status = 'compiled'
                               OR (status = 'decompiled'
                                   AND ? <= COALESCE(decompiled_at_successes, ?)))""",
-                    (trail_id, legacy["success_count"], legacy["success_count"]),
+                    (trail_id, successes, successes),
                 ).fetchone()
                 if blocked is not None:
                     continue
@@ -634,8 +581,8 @@ class Cerebellum:
                     "id": trail_id,
                     "goal_pattern": str(entry.get("goal_pattern") or ""),
                     "steps_json": json.dumps(list(entry.get("steps") or [])),
-                    "consecutive_failures": legacy["consecutive_failures"],
-                    "signature_v2": legacy["signature_v2"],
+                    "consecutive_failures": 0,
+                    "signature_v2": str(entry.get("signature_v2") or ""),
                 }
                 pb = self._try_compile_one(row, conn)
                 if pb is None:
@@ -748,19 +695,15 @@ class Cerebellum:
             score = relevance(user_message, pb.goal_pattern)
             if score < self.match_threshold:
                 continue
-            if activated is not None and (
-                pb.skill_id not in activated
-                or [s.to_dict() for s in pb.steps] != activated[pb.skill_id]["parsed"]
-            ):
-                # Pilot: withheld, not retired. The playbook is untouched, so
-                # leaving pilot mode restores it; an activation of exactly
-                # these steps lets it replay.
+            if not _backed(pb, activated):
+                # Withheld, not retired: the playbook is untouched, and an
+                # activation of exactly these steps lets it replay.
                 self._record_decision(
                     "abstained",
                     pb,
                     score,
                     user_message,
-                    "pilot: skill not operator-activated",
+                    "skill not operator-activated",
                 )
                 continue
             if _conflicting_targets(user_message, pb.steps):
@@ -1168,6 +1111,29 @@ class Cerebellum:
             "content_sha256": digest,
         }
 
+    def _successes(self, skill_id: int) -> Optional[int]:
+        """The library's success count for *skill_id*, the retire rule's mark.
+
+        ``None`` (stored as NULL) when it cannot be read, which blocks a
+        recompile until it can: the rule fails closed.
+        """
+        if self._reflex_gate is None:
+            return None
+        try:
+            count = self._reflex_gate.successes(int(skill_id))
+        except Exception as exc:  # noqa: BLE001 - unreadable blocks, never grants
+            logging.getLogger(__name__).warning(
+                "skill library unreadable; decompiled reflex blocked", exc_info=exc
+            )
+            return None
+        return None if count is None else int(count)
+
+    def _successes_of_playbook(self, conn: Any, playbook_id: int) -> Optional[int]:
+        row = conn.execute(
+            "SELECT skill_id FROM compiled_playbooks WHERE id = ?", (playbook_id,)
+        ).fetchone()
+        return None if row is None else self._successes(int(row["skill_id"]))
+
     def decompile(self, playbook_id: int) -> None:
         """Retire one playbook immediately, without waiting for a threshold.
 
@@ -1190,12 +1156,9 @@ class Cerebellum:
                 """UPDATE compiled_playbooks
                    SET status = 'decompiled',
                        updated_at = CURRENT_TIMESTAMP,
-                       decompiled_at_successes = (
-                           SELECT ps.success_count FROM procedural_skills ps
-                           WHERE ps.id = compiled_playbooks.skill_id
-                       )
+                       decompiled_at_successes = ?
                    WHERE id = ?""",
-                (playbook_id,),
+                (self._successes_of_playbook(conn, playbook_id), playbook_id),
             )
             journal(
                 "L5",
@@ -1267,12 +1230,9 @@ class Cerebellum:
                     """UPDATE compiled_playbooks
                        SET status = 'decompiled',
                            updated_at = CURRENT_TIMESTAMP,
-                           decompiled_at_successes = (
-                               SELECT ps.success_count FROM procedural_skills ps
-                               WHERE ps.id = compiled_playbooks.skill_id
-                           )
+                           decompiled_at_successes = ?
                        WHERE id = ?""",
-                    (playbook_id,),
+                    (self._successes_of_playbook(conn, playbook_id), playbook_id),
                 )
                 journal(
                     "L5",
@@ -1312,12 +1272,9 @@ class Cerebellum:
                 """UPDATE compiled_playbooks
                    SET status = 'decompiled',
                        updated_at = CURRENT_TIMESTAMP,
-                       decompiled_at_successes = (
-                           SELECT ps.success_count FROM procedural_skills ps
-                           WHERE ps.id = compiled_playbooks.skill_id
-                       )
+                       decompiled_at_successes = ?
                    WHERE skill_id = ? AND status = 'compiled'""",
-                (skill_id,),
+                (self._successes(skill_id), skill_id),
             )
             if cur.rowcount > 0:
                 journal(
