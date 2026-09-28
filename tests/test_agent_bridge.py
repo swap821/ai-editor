@@ -13,9 +13,13 @@ escape. A patched client simply does not ask.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from aios import config
 from aios.application.agent_bridge import authorize, looks_secret_bearing
+from aios.security import scope_lock
 
 
 # -- commands ----------------------------------------------------------------
@@ -60,6 +64,36 @@ def test_a_command_tool_with_no_command_fails_closed() -> None:
 
 def test_a_write_inside_the_sandbox_is_allowed() -> None:
     assert authorize("Write", {"file_path": "training_ground/x.py"}).allowed
+
+
+def test_an_absolute_write_inside_the_sandbox_ignores_checkout_ancestors() -> None:
+    safe_source = scope_lock.get_scope_roots()[0] / "safe_example.py"
+
+    assert authorize("Write", {"file_path": str(safe_source)}).allowed
+
+
+def test_an_absolute_read_inside_the_project_ignores_checkout_ancestors() -> None:
+    safe_source = Path(config.PROJECT_ROOT) / "aios" / "application" / "agent_bridge.py"
+
+    assert authorize("Read", {"file_path": str(safe_source)}).allowed
+
+
+@pytest.mark.parametrize("relative_path", [".env", "secrets/api.key"])
+def test_a_credential_write_inside_the_sandbox_is_still_refused(
+    relative_path: str,
+) -> None:
+    decision = authorize("Write", {"file_path": f"training_ground/{relative_path}"})
+
+    assert not decision.allowed
+    assert "credential-shaped" in decision.reason
+
+
+def test_an_absolute_credential_write_inside_the_sandbox_is_still_refused() -> None:
+    secret_path = scope_lock.get_scope_roots()[0] / ".env"
+    decision = authorize("Write", {"file_path": str(secret_path)})
+
+    assert not decision.allowed
+    assert "credential-shaped" in decision.reason
 
 
 def test_a_write_to_the_frozen_security_spine_is_refused() -> None:
