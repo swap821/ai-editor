@@ -24,11 +24,9 @@ from pathlib import Path
 
 import pytest
 
-from aios.core.cerebellum import Cerebellum
-from aios.core.verification_strength import VerificationStrength
 from aios.memory import learning_journal
 from aios.memory.db import get_connection, init_memory_db
-from aios.memory.skills import SkillMemory
+from tests.reflex_fixtures import ActivatedSkills, gated
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GOAL = "read the source and run the tests"
@@ -42,14 +40,12 @@ def db(tmp_path):
     return path
 
 
-def _earn(db, times: int = 3) -> int:
-    skills = SkillMemory(db_path=db)
-    skill_id = 0
-    for _ in range(times):
-        skill_id = skills.record_attempt(
-            GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
-        )
-    return skill_id
+def _activated(db):
+    """A cerebellum with one operator-activated skill (slice 2.4c-B: the only
+    kind that compiles), and that skill's id."""
+    gate = ActivatedSkills()
+    skill_id = gate.activate(GOAL, STEPS)
+    return gated(gate, db), skill_id
 
 
 class TestNothingCanRewriteIt:
@@ -83,8 +79,8 @@ class TestNothingCanRewriteIt:
 
 class TestItRecordsRealTransitions:
     def test_compiling_a_reflex_is_journalled(self, db) -> None:
-        _earn(db)
-        assert Cerebellum(db).try_compile_all() == 1
+        cerebellum, _skill_id = _activated(db)
+        assert cerebellum.try_compile_all() == 1
 
         entries = learning_journal.history("L4", db_path=db)
         assert [e["transition"] for e in entries] == ["compiled"]
@@ -92,8 +88,7 @@ class TestItRecordsRealTransitions:
 
     def test_retiring_a_reflex_records_WHY(self, db) -> None:
         """The reason is the part the mutable table cannot keep."""
-        skill_id = _earn(db)
-        cerebellum = Cerebellum(db)
+        cerebellum, skill_id = _activated(db)
         cerebellum.try_compile_all()
         cerebellum.invalidate_for_skill(skill_id)
 

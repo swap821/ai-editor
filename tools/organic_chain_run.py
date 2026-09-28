@@ -16,10 +16,15 @@ this closes it:
 
     a real failure on real code        -> ReflectionAgent records a lesson   L1
     the identical command later passes -> that lesson is promoted            L2
-    the arc earns three STRONG runs    -> the skill verifies                 L3
-    the verified arc compiles          -> a reflex exists                    L4
+    the arc earns STRONG runs          -> the library skill gains evidence   L3
+    the OPERATOR activates it          -> it compiles into a reflex          L4
     the reflex serves the next request -> with the LLM rigged to raise       L5
     a level about real modules masters -> on real verifier evidence          L6
+
+Since Phase 2 slice 2.4c-B skills are learned in the institutional library,
+where nothing promotes itself, and a reflex compiles only from a skill the
+operator activated. A run cannot activate its own arc, so L4 and L5 fire only
+for an arc the operator has activated; otherwise they say so.
 
 Every link is the PRODUCTION class doing its production job. Nothing here
 reimplements a link in order to watch it work.
@@ -113,10 +118,10 @@ from aios.core.cerebellum import Cerebellum  # noqa: E402
 from aios.core.verification_strength import VerificationStrength  # noqa: E402
 from aios.memory.db import get_connection, init_memory_db  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
-from aios.memory.skills import SkillMemory  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
 from tools.self_corpus_grading import (  # noqa: E402
     _pin_verify_command,
+    live_skill_library,
     pin_steps,
     record_pin_outcome,
 )
@@ -182,8 +187,11 @@ def run_chain(
     init_memory_db(DB)
 
     mistakes = MistakeMemory(db_path=DB)
-    skills = SkillMemory(db_path=DB)
+    # The live skill library (2.4c-B), and the cerebellum gated by it, exactly
+    # as bootstrap.py builds them: reflexes only from operator-activated skills.
+    skills = live_skill_library(DB)
     cerebellum = Cerebellum(DB)
+    cerebellum.attach_reflex_gate(skills)
 
     ladder = []
     for spec in [m.strip() for m in models.split(",") if m.strip()]:
@@ -366,13 +374,17 @@ def run_chain(
             )
             print(f"\n  L4 compiled {compiled} playbook(s)")
         else:
-            links[
-                "reflex_compilation"
-            ].detail = "no verified arc became a reflex this run"
+            links["reflex_compilation"].detail = (
+                "no arc this run earned became a reflex: a reflex compiles only "
+                "from a skill the operator activated, and a run cannot activate "
+                "its own arc"
+            )
 
         # --- L5: the reflex serves a request with the LLM rigged to raise ---
         if live is not None:
-            served, detail = _replay_without_llm(DB, str(live["goal_pattern"]))
+            served, detail = _replay_without_llm(
+                DB, str(live["goal_pattern"]), gate=skills
+            )
             links["reflex_replay"].fired = served
             links["reflex_replay"].detail = detail
             if served:
@@ -832,14 +844,20 @@ def _reflect(reflector, command: str, error_output: str, run_id: str) -> int | N
     return getattr(reflection, "mistake_id", None) if reflection else None
 
 
-def _replay_without_llm(db: Path, goal: str) -> tuple[bool, str]:
-    """Ask for the compiled goal with a client that raises if consulted."""
+def _replay_without_llm(db: Path, goal: str, *, gate) -> tuple[bool, str]:
+    """Ask for the compiled goal with a client that raises if consulted.
+
+    The cerebellum is gated by the live library, as in production: a reflex
+    whose skill is no longer activated must not be served here either.
+    """
     from aios.agents.tool_agent import ToolAgent
     from aios.core.autonomy import UNGOVERNED_FIXTURE
     from aios.core.executor import Executor
     from aios.security.gateway import RateLimiter
 
     llm = RefusingLLM()
+    cerebellum = Cerebellum(db)
+    cerebellum.attach_reflex_gate(gate)
     agent = ToolAgent(
         llm,
         Executor(
@@ -848,7 +866,7 @@ def _replay_without_llm(db: Path, goal: str) -> tuple[bool, str]:
             emergency_stop=UNGOVERNED_FIXTURE,
         ),
         max_iters=2,
-        cerebellum=Cerebellum(db),
+        cerebellum=cerebellum,
     )
     try:
         events = list(agent.run([{"role": "user", "content": goal}]))

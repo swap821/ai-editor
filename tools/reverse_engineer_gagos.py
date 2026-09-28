@@ -106,11 +106,11 @@ _bootstrap_provider_env()
 
 from aios.core.llm import LLMError  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
-from aios.memory.skills import SkillMemory  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
 from tools.self_corpus_grading import (  # noqa: E402
     content_digest,
     grade_pin_test,
+    live_skill_library,
     pin_steps,
     record_pin_outcome,
 )
@@ -533,7 +533,9 @@ def main(argv: list[str] | None = None) -> int:
 
     db = REPO_ROOT / "data" / "aios_memory.db"
     init_memory_db(db)
-    skills = SkillMemory(db_path=db)
+    # The live skill library (Phase 2 slice 2.4c-B): procedural_skills is
+    # read-only history, and a ladder arc is evidence in the library.
+    skills = live_skill_library(db)
 
     print("ladder  : " + " -> ".join(spec for spec, _c, _s in ladder))
     print(f"targets : {len(targets)}")

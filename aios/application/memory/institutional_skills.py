@@ -28,10 +28,13 @@ The turn path, the planners, the cerebellum's foreign key and the frontend all
 carry a skill as an INTEGER. The library's identity is ``(skill_id, version)`` in
 a different database file. ``SkillTrailIndex`` maps a stable integer *trail id*
 to each institutional skill. A migrated skill keeps its legacy
-``procedural_skills.id``, and during the dual-write pilot a live arc takes the id
-the legacy store gave it, so the two stores' ids agree and nothing typed as an
-integer changes. The table also holds the live ranking bookkeeping the contract
-has no place for (reuse pheromone, last reuse).
+``procedural_skills.id``, so nothing typed as an integer changed at the switch,
+and a new arc takes a library-issued id (from ``LIBRARY_ID_BASE``). The table
+also holds the live ranking bookkeeping the contract has no place for (reuse
+pheromone, last reuse).
+
+Since slice 2.4c-B this is the ONLY skill store. ``procedural_skills`` is
+read-only history, and there is no mode to choose.
 
 Every write asks the emergency stop first, the ranking counters included.
 """
@@ -57,7 +60,7 @@ from aios.domain.memory.contracts import MemoryHit, MemoryRecallContext
 from aios.memory.construction_ledger import record_construction
 from aios.memory.learning_freeze import assert_learning_permitted
 from aios.memory.relevance import relevance, skill_signature_v2
-from aios.memory.skills import SkillMemory, _better_recipe
+from aios.memory.skills import ReadOnlySkillHistoryError, SkillMemory, _better_recipe
 from aios.security.secret_scanner import scan_and_redact
 
 logger = logging.getLogger(__name__)
@@ -345,6 +348,7 @@ class InstitutionalSkillAdapter:
         legacy: Optional[SkillMemory] = None,
         min_successes: int = 3,
         min_success_rate: float = 0.8,
+        migration_pending: Optional[str] = None,
     ) -> None:
         self.repository = repository
         self.trails = trails
@@ -353,6 +357,7 @@ class InstitutionalSkillAdapter:
         # only when the slot's ``store`` is the production SkillMemory, so the
         # legacy store stays attached, as read-only history.
         self.store = legacy
+        self.migration_pending = migration_pending
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))
 
@@ -372,6 +377,8 @@ class InstitutionalSkillAdapter:
         A success below the learning floor is not evidence for the arc (as in
         the legacy store); it neither counts nor refreshes the recipe.
         """
+        if self.migration_pending:
+            raise SkillMigrationPendingError(self.migration_pending)
         assert_learning_permitted("institutional_skills.record_attempt")
         clean_steps = [
             scan_and_redact(step.strip()).scrubbed for step in steps if step.strip()
@@ -460,6 +467,8 @@ class InstitutionalSkillAdapter:
         now: Optional[datetime] = None,
     ) -> list[int]:
         """Credit or stain recalled ACTIVE skills after a verifier-judged turn."""
+        if self.migration_pending:
+            raise SkillMigrationPendingError(self.migration_pending)
         moment = now or _utc_now()
         credited: list[int] = []
         for trail_id in skill_ids:
@@ -505,7 +514,7 @@ class InstitutionalSkillAdapter:
         return ranked[:limit]
 
     def active_procedures(self) -> dict[int, dict[str, Any]]:
-        """The pilot's reflex source: ACTIVE skills by trail id.
+        """The only reflex source: ACTIVE skills by trail id.
 
         Read-only. An active skill with no trail yet is left out rather than
         assigned one, because a read must not write (the #375 lesson): it gets a
@@ -519,13 +528,27 @@ class InstitutionalSkillAdapter:
             trail = stats.get((record.skill_id, record.version))
             if trail is None:
                 continue
+            steps = _steps(record)
             activated[int(trail["trail_id"])] = {
                 "skill_id": record.skill_id,
                 "version": record.version,
                 "goal_pattern": record.problem_signature,
-                "steps": _steps(record),
+                "steps": steps,
+                "success_count": record.success_count,
+                "signature_v2": record.provenance.get("signature_v2")
+                or skill_signature_v2(record.problem_signature, steps),
             }
         return activated
+
+    def successes(self, trail_id: int) -> Optional[int]:
+        """The library's success count for a trail, in any state; read-only.
+
+        The cerebellum's retire rule compares against it: a decompiled reflex
+        recompiles only once its skill has earned more than this.
+        """
+        key = self.trails.key_for(int(trail_id))
+        record = None if key is None else self.repository.get(*key)
+        return None if record is None else record.success_count
 
     def list(self, *, status: str | None = None) -> list[dict[str, Any]]:
         moment = _utc_now()
@@ -585,6 +608,7 @@ class InstitutionalSkillAdapter:
                 "min_success_rate": self.min_success_rate,
             },
             "store": "institutional_skills",
+            "migration_pending": self.migration_pending,
         }
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
@@ -673,150 +697,78 @@ class InstitutionalSkillAdapter:
         }
 
 
-#: The live skill slot's modes (``config.SKILL_STORE_MODE``).
-SKILL_STORE_MODES = ("legacy", "shadow", "pilot")
+class SkillMigrationPendingError(RuntimeError):
+    """The library refuses new arcs until the legacy history has been migrated.
 
-
-class DualWriteSkillAdapter:
-    """The pilot: every write reaches both stores; one of them answers reads.
-
-    ``shadow`` reads the legacy store, ``pilot`` the institutional library. The
-    legacy store stays AUTHORITATIVE for writes in both: its id is returned, its
-    refusal (an engaged stop included) is the turn's refusal, and a failure in
-    the institutional write never breaks the turn -- it is counted and shown in
-    the trail map, not swallowed. Each institutional write is handed the legacy
-    id, so a skill has the same integer id in both stores.
+    ``tools/migrate_skills_to_institutional.py`` refuses to write anything when
+    an ``arc-...`` record it would create already exists. A store that learned
+    new arcs before migrating could therefore never migrate its history, so the
+    library learns nothing until the migration has run.
     """
 
-    memory_types = ("skill", "workflow")
 
-    def __init__(
-        self,
-        legacy: Any,
-        institutional: InstitutionalSkillAdapter,
-        *,
-        reads: str,
-    ) -> None:
-        if reads not in ("legacy", "institutional"):
-            raise ValueError(f"reads must be legacy or institutional, not {reads!r}")
-        self.legacy = legacy
-        self.institutional = institutional
-        self.reads = reads
-        # owns_store() identity: the production SkillMemory, as for the legacy slot.
-        self.store = legacy.store
-        self.shadow_failures = 0
-        self.last_shadow_failure: Optional[str] = None
-
-    @property
-    def _reader(self) -> Any:
-        return self.institutional if self.reads == "institutional" else self.legacy
-
-    def _shadow(self, operation: str, call: Any) -> Any:
-        try:
-            return call()
-        except EmergencyStopError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - counted and shown, never hidden
-            self.shadow_failures += 1
-            self.last_shadow_failure = f"{operation}: {type(exc).__name__}: {exc}"[:300]
-            logger.warning(
-                "institutional shadow write failed (%s)", self.last_shadow_failure
-            )
-            return None
-
-    def record_attempt(self, goal: str, steps: list[str], **kwargs: Any) -> int:
-        legacy_id = int(self.legacy.record_attempt(goal, steps, **kwargs))
-        self._shadow(
-            "record_attempt",
-            lambda: self.institutional.record_attempt(
-                goal, steps, legacy_id=legacy_id, **kwargs
-            ),
-        )
-        return legacy_id
-
-    def record_reuse(self, skill_ids: Sequence[int], **kwargs: Any) -> list[int]:
-        legacy_credited = list(self.legacy.record_reuse(skill_ids, **kwargs))
-        shadow_credited = self._shadow(
-            "record_reuse", lambda: self.institutional.record_reuse(skill_ids, **kwargs)
-        )
-        if self.reads == "institutional":
-            return list(shadow_credited or [])
-        return legacy_credited
-
-    def relevant_verified(self, query: str, limit: int) -> list[dict[str, Any]]:
-        return list(self._reader.relevant_verified(query, limit))
-
-    def list(self, *, status: str | None = None) -> list[dict[str, Any]]:
-        return list(self._reader.list(status=status))
-
-    def trail_map(self) -> dict[str, Any]:
-        view = dict(self._reader.trail_map())
-        view["pilot"] = {
-            "mode": "pilot" if self.reads == "institutional" else "shadow",
-            "reads": self.reads,
-            "shadow_failures": self.shadow_failures,
-            "last_shadow_failure": self.last_shadow_failure,
-        }
-        return view
-
-    def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
-        return tuple(self._reader.recall(query, context))
-
-    def rebuild_derived_indexes(self) -> None:
-        self.legacy.rebuild_derived_indexes()
-        self.institutional.rebuild_derived_indexes()
+def _history_rows(history: Any) -> int:
+    """Rows in the legacy history table, read-only; 0 when there is none."""
+    path = getattr(history, "db_path", None)
+    if path is None or not Path(path).is_file():
+        return 0
+    conn = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
+    try:
+        present = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='procedural_skills'"
+        ).fetchone()
+        if present is None:
+            return 0
+        return int(conn.execute("SELECT COUNT(*) FROM procedural_skills").fetchone()[0])
+    finally:
+        conn.close()
 
 
 def build_skills_slot(
-    legacy: Any,
     *,
-    mode: str,
     repository: SkillRepository,
     trails: SkillTrailIndex,
-) -> Any:
-    """The adapter for the authority's ``skills`` slot in *mode*.
+    history: Optional[SkillMemory],
+) -> InstitutionalSkillAdapter:
+    """The memory authority's ``skills`` slot: the institutional library, alone.
 
-    ``legacy`` returns *legacy* itself, so the default builds nothing new and
-    changes nothing. A non-legacy mode needs the skill migration applied
-    first: dual-writing before it would create ``arc-...`` records the
-    migration then refuses to overwrite. Until it has been applied, and for
-    an unknown mode, the slot stays legacy and says why, loudly.
+    Phase 2 slice 2.4c-B. The dual-write pilot and ``AIOS_SKILL_STORE_MODE``
+    are gone: every write goes to the library, which organ 43 governs, and
+    nothing promotes itself. *history* is the legacy store, attached READ-ONLY
+    so ``MemoryAuthority.owns_store`` still recognises the production store
+    callers hold.
+
+    Legacy history that was never migrated keeps the slot from learning (see
+    :class:`SkillMigrationPendingError`), loudly. A store with no history, a
+    fresh install, has nothing to migrate.
 
     The stores are passed in, never built here: R11 keeps every physical
     store's construction in ``bootstrap.py``.
     """
-    if mode == "legacy":
-        return legacy
-    if mode not in SKILL_STORE_MODES:
-        logger.error(
-            "unknown AIOS_SKILL_STORE_MODE %r; the skill slot stays legacy", mode
+    migrated = any(
+        r.provenance.get("source") == "migrated" for r in repository.list_skills()
+    )
+    pending: Optional[str] = None
+    if not migrated and _history_rows(history):
+        pending = (
+            "legacy skill history has not been migrated into the institutional "
+            "library; run tools/migrate_skills_to_institutional.py --apply"
         )
-        return legacy
-    records = repository.list_skills()
-    if not any(r.provenance.get("source") == "migrated" for r in records):
-        logger.error(
-            "AIOS_SKILL_STORE_MODE=%s needs the skill migration applied first "
-            "(tools/migrate_skills_to_institutional.py --apply); the skill slot "
-            "stays legacy",
-            mode,
-        )
-        return legacy
+        logger.error("skill library refuses new arcs: %s", pending)
     try:
         trails.adopt_migrated(repository)
     except EmergencyStopError:
         logger.warning("stop engaged at startup: migrated trail ids assigned lazily")
-    institutional = InstitutionalSkillAdapter(
-        repository, trails, legacy=getattr(legacy, "store", None)
-    )
-    return DualWriteSkillAdapter(
-        legacy, institutional, reads="institutional" if mode == "pilot" else "legacy"
+    return InstitutionalSkillAdapter(
+        repository, trails, legacy=history, migration_pending=pending
     )
 
 
 __all__ = [
-    "DualWriteSkillAdapter",
     "InstitutionalSkillAdapter",
-    "SKILL_STORE_MODES",
+    "ReadOnlySkillHistoryError",
+    "SkillMigrationPendingError",
     "SkillTrailIndex",
     "build_skills_slot",
     "is_review_ready",
