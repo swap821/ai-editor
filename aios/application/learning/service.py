@@ -77,6 +77,13 @@ from aios.domain.promotion import PromotionResult, PromotionStatus
 from aios.application.promotion.authority import PromotionAuthority
 
 
+#: What the operator's capability-backed activation accepts: a first activation
+#: (``candidate``) or a RE-activation of a skill the machine withdrew
+#: (``suspended``) -- the only way a retired reflex returns (operator decision,
+#: 2026-09-29).
+ACTIVATABLE_STATES = frozenset({"candidate", "suspended"})
+
+
 class SkillActivationDenied(RuntimeError):
     """Raised when a skill lacks an external Human/authority approval."""
 
@@ -308,7 +315,14 @@ class LearningService:
         self,
         authorization: SkillActivationAuthorization,
     ) -> SkillRecord:
-        """Activate a candidate skill using an exact capability-backed Human approval."""
+        """Activate a skill using an exact capability-backed Human approval.
+
+        A ``candidate`` is activated for the first time. A ``suspended`` skill
+        -- one the machine withdrew, e.g. when it retired its reflex -- is
+        RE-activated: that is the only way it comes back (operator decision,
+        2026-09-29). Both go through ``human_reviewed``; nothing else is
+        activatable here.
+        """
         self._assert_operational()
         if not isinstance(authorization, SkillActivationAuthorization):
             raise SkillActivationDenied(
@@ -323,9 +337,10 @@ class LearningService:
         if skill is None:
             raise KeyError(f"skill {target_skill_id!r} version {ver} not found")
 
-        if skill.state != "candidate":
+        if skill.state not in ACTIVATABLE_STATES:
             raise SkillActivationDenied(
-                f"skill is in state {skill.state!r}, expected 'candidate'"
+                f"skill is in state {skill.state!r}, expected 'candidate' or "
+                "'suspended'"
             )
 
         now = time.time()

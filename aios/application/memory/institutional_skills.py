@@ -543,11 +543,29 @@ class InstitutionalSkillAdapter:
             }
         return activated
 
+    def withdraw_reflex_source(self, trail_id: int) -> bool:
+        """Suspend the ACTIVE skill behind a trail whose reflex the machine
+        retired (operator decision, 2026-09-29).
+
+        ``suspended`` is an automatic, reviewable disablement; the only way
+        back is the operator's capability-backed re-activation. A withdrawal,
+        so the emergency stop allows it. True when the skill is out of
+        ``active``, now or already; False when the trail is unknown.
+        """
+        key = self.trails.key_for(int(trail_id))
+        record = None if key is None else self.repository.get(*key)
+        if record is None:
+            return False
+        if record.state != ACTIVE:
+            return True
+        self.repository.transition_state(record.skill_id, record.version, "suspended")
+        return True
+
     def successes(self, trail_id: int) -> Optional[int]:
         """The library's success count for a trail, in any state; read-only.
 
-        The cerebellum's retire rule compares against it: a decompiled reflex
-        recompiles only once its skill has earned more than this.
+        Bookkeeping only since 2026-09-29: a retired reflex returns by the
+        operator's re-activation, never by a count.
         """
         key = self.trails.key_for(int(trail_id))
         record = None if key is None else self.repository.get(*key)

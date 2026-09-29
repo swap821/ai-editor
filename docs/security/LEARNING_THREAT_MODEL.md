@@ -100,7 +100,7 @@ and the test that proves the control. Test IDs `RT-*` are missions in
 | T3 | **Reflex hijack by pasted text.** A playbook's goal text inside forwarded content triggers replay with auto-approved commands, before any model. | X2 | **Yes** (A4, B3) | Match on authored directive only; applicability; abstain on ambiguity (5) | RT-05 (S) |
 | T4 | **Harness-grant laundering.** A skill learned under harness grants (or no human at all) compiles into a reflex that auto-approves in live turns. | X4 | **Yes** (playbooks 9, 10, 14) | Per-step approval provenance; harness grants never cross into live (0b, 5) | RT-06 (S) |
 | T5 | **Learning during an emergency stop.** Memory writes, promotion and compilation continue while authority is revoked. | X4 X6 | **Yes** (F7) | Stop boundaries on every learning write (0b, 6); the institutional skill, trajectory and reuse-outcome stores refuse too, withdrawals excepted (2.2); legacy reuse credit (`skills.record_reuse`) refuses too -- Phase 0b had missed it (2.4b) | RT-07 (S) |
-| T6 | **Revoked memory resurfaces.** A superseded lesson or decompiled reflex is still recalled or replayed. | X6 | Partly | Retrieval-time guard; cascade over derivations (4, 6) | RT-08 (S) |
+| T6 | **Revoked memory resurfaces.** A superseded lesson or decompiled reflex is still recalled or replayed. | X6 | Partly | Retrieval-time guard; cascade over derivations (4, 6); a machine-retired reflex returns only by operator re-activation (6c) | RT-08 (S: human revocation), RT-20 (S: machine retirement) |
 | T7 | **Stale reflex.** A reflex replays after the code it was verified against changed. | X6 | **Yes** | Content-hash freshness → `probation` (5) | RT-09 (S) |
 | T8 | **Cross-principal recall.** One principal's memory governs another's turns. | X3 | **Yes** (no scoping) | Principal scoping on every recall (4) | RT-10 (S) |
 | T9 | **Forged or hollow verification.** Evidence rated STRONG without real behaviour being asserted. `derive_strength` already defeats the two cheap forms: `echo "5 passed"` stays WEAK (program-position check) and a runner that collected nothing stays WEAK (`passed_count > 0`). **Open:** counts are parsed from stdout the test itself can write to, and a real runner over a vacuous test (`assert True`, possibly attacker-authored) mints STRONG. | X1 X6 | Partly | Existing derivation re-proven; counts from the runner's own report (junit/exit status), not free stdout; vacuous-assertion detection is **not** claimed (3, 7) | RT-11 (S) |
@@ -407,9 +407,8 @@ not a control.
   `tests/test_decompiled_reflex_can_recover.py`). The baseline table above
   records what the old mission measured, and it is left as dated evidence.
 - **Open:**
-  - whether a machine decompile should also require the operator's
-    re-activation. That is an operator decision, and the change is small and
-    contained;
+  - ~~whether a machine decompile should also require the operator's
+    re-activation~~ (decided yes on 2026-09-29; built in 6c below);
   - the lesson half of T6: a superseded lesson still recalled.
 
 ## Phase 6b, 2026-09-28: bounded learning writes
@@ -425,3 +424,16 @@ not a control.
   - garbage collection of accepted rows;
   - the consolidator's raw-store writes. It is periodic and bounded by
     existing rows.
+
+## Phase 6c, 2026-09-29: a reflex the machine retired returns only by re-activation
+
+- **Operator decision, 2026-09-29.** Every machine retirement suspends the
+  library skill, and only the operator's capability-backed re-activation brings
+  the reflex back. Earning more restores nothing. An unrecordable suspension
+  fails closed.
+- **RT-20 (T6, new) is held (`reflex_reactivation`)**, on the mechanism's own
+  evidence:
+  - the skill is suspended and the row retired;
+  - there was no match after three unattended successes.
+- **Positive control:** on master before 6c, the reflex came back: breached.
+- **Design:** `docs/learning/PHASE6_DESIGN.md`.

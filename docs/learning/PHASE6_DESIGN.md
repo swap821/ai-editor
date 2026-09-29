@@ -68,10 +68,11 @@ The verdicts:
   4. any abstention reason counts;
   5. a return after practice is ignored.
 
-### Open, for the operator
+### Open, for the operator (decided 2026-09-29: see 6c)
 
-**Whether a machine-decompiled reflex may recover by re-earned evidence** is a
-policy choice, and today's answer is yes, deliberately.
+**Whether a machine-decompiled reflex may recover by re-earned evidence** was
+a policy choice. When 6a was written the answer was yes, deliberately. The
+operator has since decided no; slice 6c below builds that.
 
 - It stays inside the operator's activation, so a human's grant still bounds
   it.
@@ -160,3 +161,88 @@ control is `learning_write_cap`.
   Phase 4 remainder.
 - **Rows accepted under the cap still accumulate.** There is no garbage
   collection of learned rows yet (Phase 6, later).
+
+## 6c as built (2026-09-29): a reflex the machine retired returns only by re-activation (T6, RT-20)
+
+**Operator decision, 2026-09-29.** A reflex the machine retires comes back only
+when the operator re-activates it. That covers every machine retirement:
+- a permanent abstention;
+- a streak of replay failures;
+- a demoted source.
+
+Before this, three more verified successes brought it back. That stayed inside
+the operator's first activation, but with no human seeing it again.
+
+### What changed
+
+- **Every machine retirement suspends the skill.**
+  - `decompile`, the failure streak and `invalidate_for_skill` all go through
+    one path, `Cerebellum._take_out_of_service`.
+  - It suspends the library skill (`active` → `suspended`: an automatic,
+    reviewable withdrawal the emergency stop allows,
+    `InstitutionalSkillAdapter.withdraw_reflex_source`).
+  - It then retires the row.
+  - A retired row blocks nothing. The library state is the gate, and a
+    re-activation compiles a fresh reflex.
+- **Earning more restores nothing.** The compile sweep no longer compares
+  success counts. `decompiled_at_successes` is still written, as bookkeeping.
+- **Fail closed.**
+  - If the suspension cannot be recorded, the row stays `decompiled`, which
+    blocks its arc outright.
+  - Each sweep retries the suspension, and once it lands the row is retired.
+  - Nothing lets the reflex back except the operator.
+- **Re-activation exists.**
+  - The capability-backed activation (`LearningService.activate_skill`,
+    organs 26 and 43) accepted only `candidate` skills, which would have left a
+    suspended skill no way back at all. It now also accepts `suspended`
+    (`suspended` → `human_reviewed` → `active`, both legal lifecycle
+    transitions).
+  - A `revoked` or `active` skill is still refused.
+- **The tool.**
+  - `tools/activate_skills.py` lists suspended skills with a
+    `SKILL_ID@VERSION` key.
+  - `--reactivate` drives the same capability-backed route and needs the
+    operator's declaration.
+
+### Evidence
+
+- **RT-20 (new, T6): held (`reflex_reactivation`).** The machine retires a
+  reflex; then three unattended STRONG successes and a compile sweep follow.
+  - The skill is `suspended`, the row is `retired`, and the reflex did not
+    come back.
+  - The hold is credited only on that evidence, never on the absence of a
+    match.
+- **Positive control: breached.** The same runner on master `7bfbbad2`,
+  before this slice: the reflex came back after the unattended successes
+  (`docs/learning/redteam_rt20_positive_control.json`).
+- **RT-08 is still held.** Human revocation is unchanged.
+- **Learning conformance M5 now claims the new rule.** "A retired reflex
+  returns only by the operator's re-activation": it stays out after
+  re-earning and is live after re-activation. There are three positive
+  controls:
+  - a withdrawal that is claimed but not made;
+  - a library in which earning re-activates;
+  - no re-activation.
+- **Mutations: ten, all killed.**
+  1. Retiring never suspends.
+  2. A decompiled row stops blocking.
+  3. The library claims a withdrawal it never makes.
+  4. Re-activation is refused.
+  5. A revoked skill becomes re-activatable.
+  6. The sweep never retries the suspension.
+  7. `invalidate_for_skill` retires without suspending.
+  8. The tool re-activates any state.
+  9. RT-20 is credited on absence.
+  10. M5 lets earning count.
+- **Replaced tests.** `tests/test_decompiled_reflex_can_recover.py` pinned the
+  old rule. It is replaced by
+  `tests/test_retired_reflex_returns_only_by_reactivation.py`, which keeps its
+  evidence-only properties: weak greens and failures buy nothing, one live
+  reflex per arc, and the count is recorded at retirement.
+- **The learning ledger** (`scripts/verify_learning_conditions.py`) prints
+  output identical to master's.
+
+### Cost
+
+After replay flakes, the operator re-activates a reflex by hand. Reflexes are
+rare, because only the operator activates skills at all, so the toil is small.

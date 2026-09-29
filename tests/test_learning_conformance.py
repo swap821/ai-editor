@@ -218,18 +218,62 @@ class TestTheSkillMissionsMeasureTheLibrary:
         assert result.passed is False
         assert "compiled=0" in result.detail
 
-    def test_m5_fails_if_the_reflex_recompiled_before_re_earning(
-        self, tmp, monkeypatch
-    ) -> None:
-        """The recovery must be EARNED: a reflex back before the skill earned
-        anything more is a fail, not a recovery."""
-        from aios.core.cerebellum import Cerebellum
+    def test_m5_fails_if_earning_brings_it_back(self, tmp, monkeypatch) -> None:
+        """Positive control: a retirement that does not really suspend the
+        skill lets the reflex straight back, and M5 must say so."""
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+        )
 
-        # A retire mark below any real count lets the reflex straight back.
-        monkeypatch.setattr(Cerebellum, "_successes", lambda self, skill_id: -1)
+        monkeypatch.setattr(
+            InstitutionalSkillAdapter,
+            "withdraw_reflex_source",
+            lambda self, trail_id: True,  # claims the withdrawal, does nothing
+        )
         result = lcr.mission_5_decompiled_reflex_recovers(tmp)
         assert result.passed is False
-        assert "before re-earning=1" in result.detail
+        assert "before re-activation=1" in result.detail
+
+    def test_m5_fails_if_earning_reactivates_the_skill(self, tmp, monkeypatch) -> None:
+        """Positive control for the EARNING clause alone: the retirement really
+        suspends the skill, but a recorded success puts it back to active --
+        the rule this decision replaced, moved into the library."""
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+        )
+
+        real = InstitutionalSkillAdapter.record_attempt
+
+        def earning_restores(self, *args, **kwargs):
+            trail = real(self, *args, **kwargs)
+            for record in self.repository.list_skills():
+                if record.state == "suspended":
+                    self.repository.transition_state(
+                        record.skill_id, record.version, "human_reviewed"
+                    )
+                    self.repository.transition_state(
+                        record.skill_id, record.version, "active"
+                    )
+            return trail
+
+        monkeypatch.setattr(
+            InstitutionalSkillAdapter, "record_attempt", earning_restores
+        )
+        result = lcr.mission_5_decompiled_reflex_recovers(tmp)
+        assert result.passed is False
+        assert "before re-activation=0" in result.detail
+        assert "after re-earning=1" in result.detail
+
+    def test_m5_fails_without_the_reactivation(self, tmp, monkeypatch) -> None:
+        """Positive control: with no re-activation it must not come back."""
+        monkeypatch.setattr(lcr, "_operator_reactivates", lambda repository: None)
+        result = lcr.mission_5_decompiled_reflex_recovers(tmp)
+        assert result.passed is False
+        assert "after re-activation=0" in result.detail
+
+    def test_m5_passes_on_this_tree(self, tmp) -> None:
+        result = lcr.mission_5_decompiled_reflex_recovers(tmp)
+        assert result.passed, result.detail
 
 
 def test_the_trail_records_which_store_was_measured(tmp_path, monkeypatch) -> None:

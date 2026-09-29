@@ -533,49 +533,36 @@ class Cerebellum:
         """Compile reflexes from operator-activated library skills.
 
         The procedure compiled is the one the operator ACTIVATED. Its
-        bookkeeping is the library's (slice 2.4c-B): the success count the
-        retire rule compares is the library record's, and there is no separate
+        bookkeeping is the library's (slice 2.4c-B), and there is no separate
         failure streak, because an activated skill that keeps failing is
         demoted by organ 43's policy and a demoted skill is not in *activated*.
+
+        A reflex the machine retired comes back ONLY when the operator
+        re-activates its skill (operator decision, 2026-09-29). Retiring it
+        suspends the skill, so it is not in *activated* until then; earning
+        more successes restores nothing. A ``decompiled`` row is one whose
+        suspension could not be recorded when it was retired: it blocks its arc
+        outright, and this sweep retries the suspension (``_retry_withdrawal``).
         """
         init_memory_db(self.db_path)
         fresh: list[CompiledPlaybook] = []
         with get_connection(self.db_path) as conn:
             for trail_id, entry in sorted(activated.items()):
-                successes = int(entry.get("success_count") or 0)
-                # An unstamped decompiled row -- the library was unreadable
-                # when it was decompiled, or it predates the column and has no
-                # legacy row to be stamped from -- means "needs more than it
-                # has now". Stamped with the library's count at first sight;
-                # left NULL it would compare the count against itself and bar
-                # the reflex forever. Read first: no write lock in the steady
-                # state.
-                unstamped = conn.execute(
-                    "SELECT 1 FROM compiled_playbooks WHERE skill_id = ? "
-                    "AND status = 'decompiled' AND decompiled_at_successes IS NULL",
-                    (trail_id,),
-                ).fetchone()
-                if unstamped:
-                    conn.execute(
-                        "UPDATE compiled_playbooks SET decompiled_at_successes = ? "
-                        "WHERE skill_id = ? AND status = 'decompiled' "
-                        "AND decompiled_at_successes IS NULL",
-                        (successes, trail_id),
-                    )
-                # One arc, one playbook; a decompiled one blocks until the
-                # skill has earned more than it had when it was decompiled. A
-                # RETIRED one (2.4c-A) never blocks: retirement ended the
-                # self-promoted reflex, and this is a new one, from an
-                # activation.
-                blocked = conn.execute(
-                    """SELECT 1 FROM compiled_playbooks
-                       WHERE skill_id = ?
-                         AND (status = 'compiled'
-                              OR (status = 'decompiled'
-                                  AND ? <= COALESCE(decompiled_at_successes, ?)))""",
-                    (trail_id, successes, successes),
-                ).fetchone()
-                if blocked is not None:
+                # One arc, one live playbook. A RETIRED row never blocks: the
+                # library state is the gate, and an activation compiles a
+                # fresh reflex. A DECOMPILED row blocks unconditionally.
+                statuses = {
+                    str(r["status"])
+                    for r in conn.execute(
+                        "SELECT status FROM compiled_playbooks WHERE skill_id = ? "
+                        "AND status IN ('compiled', 'decompiled')",
+                        (trail_id,),
+                    ).fetchall()
+                }
+                if "compiled" in statuses:
+                    continue
+                if "decompiled" in statuses:
+                    self._retry_withdrawal(conn, trail_id)
                     continue
                 row = {
                     "id": trail_id,
@@ -1128,6 +1115,94 @@ class Cerebellum:
             return None
         return None if count is None else int(count)
 
+    def _withdraw_source(self, trail_id: int) -> bool:
+        """Suspend the library skill behind a reflex the machine retired.
+
+        True when the skill is out of ``active`` -- now, or already. Never
+        raises: False keeps the row ``decompiled``, which blocks its arc.
+        """
+        withdraw = getattr(self._reflex_gate, "withdraw_reflex_source", None)
+        if withdraw is None:
+            return False
+        try:
+            return bool(withdraw(int(trail_id)))
+        except Exception as exc:  # noqa: BLE001 - a failure blocks, never grants
+            logging.getLogger(__name__).warning(
+                "could not suspend the skill behind retired reflex trail %s",
+                trail_id,
+                exc_info=exc,
+            )
+            return False
+
+    def _take_out_of_service(
+        self, conn: Any, playbook_id: int, reason: str, **detail: Any
+    ) -> str:
+        """Retire a reflex the machine gave up on; return the status it got.
+
+        Operator decision, 2026-09-29: such a reflex returns only by the
+        operator's re-activation. So its skill is suspended in the library
+        (active -> suspended, a withdrawal the emergency stop allows) and the
+        row is ``retired``, which blocks nothing: the library state is the
+        gate. If the suspension cannot be recorded the row stays
+        ``decompiled``, which blocks its arc until a later sweep suspends it.
+        """
+        row = conn.execute(
+            "SELECT skill_id FROM compiled_playbooks WHERE id = ?", (playbook_id,)
+        ).fetchone()
+        withdrawn = row is not None and self._withdraw_source(int(row["skill_id"]))
+        status = "retired" if withdrawn else "decompiled"
+        conn.execute(
+            """UPDATE compiled_playbooks
+               SET status = ?,
+                   updated_at = CURRENT_TIMESTAMP,
+                   decompiled_at_successes = ?,
+                   retired_reason = ?
+               WHERE id = ?""",
+            (
+                status,
+                self._successes_of_playbook(conn, playbook_id),
+                f"{reason}; skill suspended, returns only by operator re-activation"
+                if withdrawn
+                else None,
+                playbook_id,
+            ),
+        )
+        journal(
+            "L5",
+            "decompiled",
+            subject_id=playbook_id,
+            detail={"reason": reason, "skill_suspended": withdrawn, **detail},
+            conn=conn,
+        )
+        pb = self._cache.get(playbook_id)
+        if pb is not None:
+            pb.status = status
+        return status
+
+    def _retry_withdrawal(self, conn: Any, trail_id: int) -> None:
+        """A decompiled row whose skill is still active: suspend it now."""
+        if not self._withdraw_source(trail_id):
+            return
+        conn.execute(
+            """UPDATE compiled_playbooks
+               SET status = 'retired',
+                   updated_at = CURRENT_TIMESTAMP,
+                   retired_reason = ?
+               WHERE skill_id = ? AND status = 'decompiled'""",
+            (
+                "decompiled earlier; skill suspended now, returns only by "
+                "operator re-activation",
+                trail_id,
+            ),
+        )
+        journal(
+            "L5",
+            "decompiled",
+            subject_id=trail_id,
+            detail={"reason": "suspension retried", "skill_suspended": True},
+            conn=conn,
+        )
+
     def _successes_of_playbook(self, conn: Any, playbook_id: int) -> Optional[int]:
         row = conn.execute(
             "SELECT skill_id FROM compiled_playbooks WHERE id = ?", (playbook_id,)
@@ -1138,9 +1213,9 @@ class Cerebellum:
         """Retire one playbook immediately, without waiting for a threshold.
 
         Distinct from `_record_replay_failure`, which counts toward
-        `max_consecutive_failures`: an abstention is not evidence the playbook
-        is bad, only that it does not fit the current state, so it is retired
-        rather than accumulated against.
+        `max_consecutive_failures`: a PERMANENT abstention retires at once.
+        Either way the reflex returns only by the operator's re-activation
+        (``_take_out_of_service``).
         """
         if not learning_permitted():
             # The stop freezes learned state: a replay the stop refused is not
@@ -1152,24 +1227,7 @@ class Cerebellum:
             return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
-            conn.execute(
-                """UPDATE compiled_playbooks
-                   SET status = 'decompiled',
-                       updated_at = CURRENT_TIMESTAMP,
-                       decompiled_at_successes = ?
-                   WHERE id = ?""",
-                (self._successes_of_playbook(conn, playbook_id), playbook_id),
-            )
-            journal(
-                "L5",
-                "decompiled",
-                subject_id=playbook_id,
-                detail={"reason": "explicit"},
-                conn=conn,
-            )
-        pb = self._cache.get(playbook_id)
-        if pb is not None:
-            pb.status = "decompiled"
+            self._take_out_of_service(conn, playbook_id, "explicit")
 
     # ------------------------------------------------------------------
     # Replay bookkeeping
@@ -1226,37 +1284,24 @@ class Cerebellum:
                 row
                 and int(row["consecutive_failures"]) >= self.max_consecutive_failures
             ):
-                conn.execute(
-                    """UPDATE compiled_playbooks
-                       SET status = 'decompiled',
-                           updated_at = CURRENT_TIMESTAMP,
-                           decompiled_at_successes = ?
-                       WHERE id = ?""",
-                    (self._successes_of_playbook(conn, playbook_id), playbook_id),
+                self._take_out_of_service(
+                    conn,
+                    playbook_id,
+                    "consecutive replay failures",
+                    threshold=self.max_consecutive_failures,
                 )
-                journal(
-                    "L5",
-                    "decompiled",
-                    subject_id=playbook_id,
-                    detail={
-                        "reason": "consecutive replay failures",
-                        "threshold": self.max_consecutive_failures,
-                    },
-                    conn=conn,
-                )
-                pb = self._cache.get(playbook_id)
-                if pb is not None:
-                    pb.status = "decompiled"
                 return
         pb = self._cache.get(playbook_id)
         if pb is not None:
             pb.consecutive_failures += 1
 
     def invalidate_for_skill(self, skill_id: int) -> bool:
-        """Mark any compiled playbook for *skill_id* as decompiled.
+        """Retire every live playbook for *skill_id*; True if any was live.
 
-        Called when the source skill is demoted from 'verified' back to
-        'candidate'. Returns True if a playbook was decompiled.
+        The same machine retirement as ``decompile``: the skill is suspended
+        and each row retired, so a reflex comes back only by the operator's
+        re-activation (operator decision, 2026-09-29); an unrecordable
+        suspension leaves the row ``decompiled``, which blocks.
         """
         if not learning_permitted():
             # The stop freezes learned state: a replay the stop refused is not
@@ -1268,27 +1313,19 @@ class Cerebellum:
             return False
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
-            cur = conn.execute(
-                """UPDATE compiled_playbooks
-                   SET status = 'decompiled',
-                       updated_at = CURRENT_TIMESTAMP,
-                       decompiled_at_successes = ?
-                   WHERE skill_id = ? AND status = 'compiled'""",
-                (self._successes(skill_id), skill_id),
-            )
-            if cur.rowcount > 0:
-                journal(
-                    "L5",
-                    "decompiled",
-                    subject_id=skill_id,
-                    detail={
-                        "reason": "source skill demoted from verified",
-                        "playbooks": cur.rowcount,
-                    },
-                    conn=conn,
-                )
-                self._refresh_cache()
-                return True
+            live = [
+                int(row["id"])
+                for row in conn.execute(
+                    "SELECT id FROM compiled_playbooks "
+                    "WHERE skill_id = ? AND status = 'compiled'",
+                    (skill_id,),
+                ).fetchall()
+            ]
+            for playbook_id in live:
+                self._take_out_of_service(conn, playbook_id, "source skill demoted")
+        if live:
+            self._refresh_cache()
+            return True
         return False
 
     # ------------------------------------------------------------------

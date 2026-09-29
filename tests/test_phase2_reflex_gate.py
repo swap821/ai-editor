@@ -293,11 +293,11 @@ class TestFailingSkillsAreDemotedByTheLibrary:
         assert cerebellum.try_compile_all() == 0, "a demoted skill recompiled"
 
 
-class TestTheRetireRuleCountsTheLibrary:
-    """A decompiled reflex recompiles only once its skill has earned MORE than
-    it had when it was decompiled. Since 2.4c-B the count is the library's; the
-    legacy count no longer moves, so a rule still reading it could never let a
-    reflex back."""
+class TestARetiredReflexReturnsOnlyByReactivation:
+    """A reflex the machine retires comes back ONLY when the operator
+    re-activates its skill (operator decision, 2026-09-29). Retiring it
+    suspends the library skill; earning more restores nothing. The library's
+    count is still recorded on the row, as bookkeeping."""
 
     def _compiled(self, world):
         legacy_db, cerebellum, _, repository, slot = world
@@ -315,33 +315,44 @@ class TestTheRetireRuleCountsTheLibrary:
                 "SELECT status, decompiled_at_successes FROM compiled_playbooks"
             ).fetchone()
 
-    def test_decompiling_records_the_librarys_count(self, world) -> None:
+    def _reactivate(self, repository, record) -> None:
+        """The operator's re-activation, in a test: live, only the
+        capability-backed route does it (suspended -> human_reviewed -> active)."""
+        repository.transition_state(record.skill_id, record.version, "human_reviewed")
+        repository.transition_state(record.skill_id, record.version, "active")
+
+    def test_decompiling_suspends_the_skill_and_retires_the_row(self, world) -> None:
         legacy_db, cerebellum, repository, slot, record = self._compiled(world)
         library_count = repository.get(record.skill_id, record.version).success_count
         [pb] = list(cerebellum._cache.values())
         cerebellum.decompile(pb.id)
         status, mark = self._mark(legacy_db)
-        assert status == "decompiled" and mark == library_count
+        assert status == "retired" and mark == library_count
+        assert repository.get(record.skill_id, record.version).state == "suspended"
 
-    def test_it_recompiles_only_after_the_library_skill_earns_more(self, world) -> None:
-        legacy_db, cerebellum, _, slot, record = self._compiled(world)
+    def test_earning_more_does_not_bring_it_back_reactivation_does(self, world) -> None:
+        legacy_db, cerebellum, repository, slot, record = self._compiled(world)
         [pb] = list(cerebellum._cache.values())
         cerebellum.invalidate_for_skill(pb.skill_id)
-        assert cerebellum.try_compile_all() == 0, "nothing earned since"
-        slot.record_attempt(
-            GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
-        )
+        assert cerebellum.try_compile_all() == 0, "nothing re-activated"
+        for _ in range(3):
+            slot.record_attempt(
+                GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+            )
+        assert cerebellum.try_compile_all() == 0, "earning is not re-activation"
+        self._reactivate(repository, record)
         assert cerebellum.try_compile_all() == 1
-        assert [s for _, s, _ in _playbooks(legacy_db)] == ["decompiled", "compiled"]
+        assert [s for _, s, _ in _playbooks(legacy_db)] == ["retired", "compiled"]
 
-    def test_two_replay_failures_also_record_the_librarys_count(self, world) -> None:
+    def test_two_replay_failures_also_suspend_the_skill(self, world) -> None:
         legacy_db, cerebellum, repository, _, record = self._compiled(world)
         [pb] = list(cerebellum._cache.values())
         for _ in range(cerebellum.max_consecutive_failures):
             cerebellum._record_replay_failure(pb.id)
         status, mark = self._mark(legacy_db)
-        assert status == "decompiled"
+        assert status == "retired"
         assert mark == repository.get(record.skill_id, record.version).success_count
+        assert repository.get(record.skill_id, record.version).state == "suspended"
 
 
 class TestTheBootAlwaysGates:
