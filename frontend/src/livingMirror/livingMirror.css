@@ -1066,3 +1066,66 @@
   transition: none !important;
   scroll-behavior: auto !important;
 }
+
+/* A deliberate presentation posture: let the same full scene breathe behind
+   the active work surface, while retaining the request dock, service truth,
+   emergency stop, and a persistent route back to the full controls. The canvas
+   resizes once on activation; it is not animated through expensive WebGL
+   layout frames. */
+.lm-app[data-being-focus="true"] .lm-scene {
+  inset: 0;
+}
+.lm-app[data-being-focus="true"] .lm-navigation,
+.lm-app[data-being-focus="true"] .lm-workspace-rail {
+  display: none;
+}
+.lm-app[data-being-focus="true"] .gagos-chat__context {
+  display: none;
+}
+.lm-app[data-being-focus="true"] .gagos-coach,
+.lm-app[data-being-focus="true"] .gagos-hint {
+  display: none;
+}
+.lm-app[data-being-focus="true"] .gagos-chat {
+  top: auto !important;
+  left: auto;
+  right: 28px;
+  bottom: 18px;
+  width: min(420px, calc(100vw - 56px));
+  height: auto !important;
+  max-height: none !important;
+  padding: 8px 12px;
+  overflow: visible;
+  border: 1px solid rgba(123, 245, 251, .2);
+  border-radius: 16px;
+  background: rgba(3, 1, 8, .92);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .34);
+  transform: none;
+}
+.lm-app[data-being-focus="true"] .lm-connection {
+  top: 112px;
+  right: auto;
+  bottom: auto;
+  left: 28px;
+  width: min(360px, calc(100vw - 56px));
+  max-height: 148px;
+}
+
+@media (max-width: 767px) {
+  .lm-app[data-being-focus="true"] .gagos-chat {
+    left: max(12px, var(--lm-safe-area-left));
+    right: max(12px, var(--lm-safe-area-right));
+    bottom: calc(12px + var(--lm-safe-area-bottom));
+    width: auto;
+    max-width: none;
+    padding: 8px 10px;
+    transform: none;
+  }
+  .lm-app[data-being-focus="true"] .lm-connection {
+    top: calc(124px + var(--lm-safe-area-top));
+    right: max(12px, var(--lm-safe-area-right));
+    left: max(12px, var(--lm-safe-area-left));
+    width: auto;
+    max-height: min(112px, 22dvh);
+  }
+}

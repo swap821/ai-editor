@@ -33,7 +33,18 @@ vi.mock('@/components/canvas/WorkspaceCanvas', () => ({
 }));
 
 vi.mock('../workbench/GagosChrome', () => ({
-  default: () => <div data-testid="gagos-chrome" />,
+  default: ({ beingFocused = false, onBeingFocusChange = () => {} }) => (
+    <div data-testid="gagos-chrome">
+      <button
+        type="button"
+        aria-pressed={beingFocused}
+        aria-label={beingFocused ? 'Return to full workspace controls' : 'Focus on the being'}
+        onClick={() => onBeingFocusChange(!beingFocused)}
+      >
+        {beingFocused ? 'Full view' : 'Focus'}
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('../workbench/SuperbrainReactiveEffects', () => ({
@@ -133,6 +144,23 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     await waitFor(() => expect(app).not.toHaveAttribute('data-keyboard-open', 'true'));
     expect(app.style.getPropertyValue('--lm-keyboard-inset')).toBe('');
     expect(app.style.getPropertyValue('--lm-visible-viewport-height')).toBe('');
+  });
+
+  it('toggles the organism-first presentation without unmounting the conversation shell', () => {
+    render(<SuperbrainApp />);
+
+    const app = document.querySelector('.lm-app');
+    if (!app) throw new Error('Expected the GAGOS app root to mount.');
+    expect(app).toHaveAttribute('data-being-focus', 'false');
+    expect(screen.getByTestId('gagos-chrome')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Focus on the being' }));
+    expect(app).toHaveAttribute('data-being-focus', 'true');
+    expect(screen.getByRole('button', { name: 'Return to full workspace controls' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to full workspace controls' }));
+    expect(app).toHaveAttribute('data-being-focus', 'false');
+    expect(screen.getByTestId('gagos-chrome')).toBeInTheDocument();
   });
 
   it('measures keyboard occlusion from the app bounds when its minimum height exceeds the viewport', async () => {

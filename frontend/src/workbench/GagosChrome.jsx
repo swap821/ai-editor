@@ -240,9 +240,18 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
 /**
  * @param {{ integrated?: boolean, experienceMode?: string,
  *   onExperienceModeChange?: (mode: string) => void,
- *   onDraftPresenceChange?: (present: boolean) => void }} props
+ *   onDraftPresenceChange?: (present: boolean) => void,
+ *   beingFocused?: boolean,
+ *   onBeingFocusChange?: (focused: boolean) => void }} props
  */
-export default function GagosChrome({ integrated = false, experienceMode = 'beginner', onExperienceModeChange = () => {}, onDraftPresenceChange }) {
+export default function GagosChrome({
+  integrated = false,
+  experienceMode = 'beginner',
+  onExperienceModeChange = () => {},
+  onDraftPresenceChange,
+  beingFocused = false,
+  onBeingFocusChange = () => {},
+}) {
   const guided = experienceMode === 'beginner';
   const [focused, setFocused] = useState(false);
   const [voiceSupported] = useState(
@@ -698,6 +707,19 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
 
       <div className="gagos-experience-switch">
         <ExperienceModeSwitch mode={experienceMode} onChange={onExperienceModeChange} />
+        {integrated ? (
+          <button
+            type="button"
+            className="gagos-focus-toggle"
+            aria-pressed={beingFocused}
+            aria-label={beingFocused
+              ? 'Return to full workspace controls'
+              : 'Focus on the being; hide conversation history and workspace navigation'}
+            onClick={() => onBeingFocusChange(!beingFocused)}
+          >
+            {beingFocused ? 'Full view' : 'Focus'}
+          </button>
+        ) : null}
       </div>
 
       {verifyToast ? (
@@ -748,7 +770,7 @@ export default function GagosChrome({ integrated = false, experienceMode = 'begi
       ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
-        <div className="gagos-chat__context" ref={chatContextRef}>
+        <div id="gagos-chat-context" className="gagos-chat__context" ref={chatContextRef}>
           <div className="gagos-voice-state" role="status">
             {voicePresentation.status}{voicePresentation.error ? ` · ${voicePresentation.error}` : ''}
           </div>
