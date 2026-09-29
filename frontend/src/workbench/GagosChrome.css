@@ -201,8 +201,27 @@
   left: 50%;
   z-index: 55;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: auto;
 }
+.gagos-focus-toggle {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid rgba(123, 245, 251, 0.2);
+  border-radius: 999px;
+  color: rgba(228, 236, 250, 0.82);
+  background: rgba(6, 4, 15, 0.82);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gagos-focus-toggle:hover { border-color: rgba(123, 245, 251, 0.52); color: #eaf0fb; }
+.gagos-focus-toggle:focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 3px; }
+.gagos-focus-toggle:active { transform: scale(0.98); }
 .gagos-experience-mode {
   display: flex;
   align-items: center;

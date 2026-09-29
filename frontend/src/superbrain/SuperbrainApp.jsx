@@ -30,6 +30,7 @@ export default function SuperbrainApp() {
   const [booted, setBooted] = useState(false);
   const [experienceMode, setExperienceMode] = useState(() => readExperienceMode());
   const [inputDraftPresent, setInputDraftPresent] = useState(false);
+  const [beingFocused, setBeingFocused] = useState(false);
   const [canvasContextLost, setCanvasContextLost] = useState(false);
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
   const snapshot = useTabStore();
@@ -170,6 +171,7 @@ export default function SuperbrainApp() {
     data-being-coherence={being.coherence}
     data-being-motion={being.motion}
     data-being-attention={being.attention}
+    data-being-focus={beingFocused ? 'true' : 'false'}
   >
     <div className="lm-being-status" role="status" aria-live="polite" aria-atomic="true">{beingStatusText(being)}</div>
     <BootSequence onComplete={handleBootComplete} />
@@ -187,7 +189,14 @@ export default function SuperbrainApp() {
         </Suspense>
       </RendererFailureBoundary>
     )}</div>
-    <main aria-label="GAGOS conversation"><GagosChrome integrated experienceMode={experienceMode} onExperienceModeChange={handleExperienceModeChange} onDraftPresenceChange={handleDraftPresenceChange} /></main>
+    <main aria-label="GAGOS conversation"><GagosChrome
+      integrated
+      experienceMode={experienceMode}
+      onExperienceModeChange={handleExperienceModeChange}
+      onDraftPresenceChange={handleDraftPresenceChange}
+      beingFocused={beingFocused}
+      onBeingFocusChange={setBeingFocused}
+    /></main>
     <LivingWorkspaceShell experienceMode={experienceMode} />
   </div>;
 }
