@@ -1029,6 +1029,30 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
         );
       })}
 
+      {heldApprovalSeat !== null && (
+        <mesh
+          data-testid="approval-seat-boundary"
+          name={`approval-seat-boundary-${heldApprovalSeat}`}
+          position={anchorWorldPosition(heldApprovalSeat).add(new THREE.Vector3(0, 0, 0.06))}
+          renderOrder={8}
+        >
+          <torusGeometry args={[
+            0.2,
+            0.014,
+            tier === 'high' ? 8 : 6,
+            tier === 'high' ? 48 : tier === 'medium' ? 40 : 32,
+          ]} />
+          <meshBasicMaterial
+            color={CONDUCTOR_COLORS.held}
+            toneMapped={false}
+            transparent
+            opacity={0.68 * coherenceOpacity}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
       {/* Conduct pulse: a bounded semantic cue around the cortex. */}
       {!conductorStopped && <mesh
         ref={semanticPulseMeshRef}
