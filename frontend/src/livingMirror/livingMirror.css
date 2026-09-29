@@ -286,7 +286,8 @@
      place the frequent controls on their own row instead of squeezing the
      text entry between four 44px actions. */
   .lm-app .gagos-bar,
-  .lm-app[data-working="true"] .gagos-bar {
+  .lm-app[data-working="true"] .gagos-bar,
+  .lm-app[data-experience-mode="expert"] .gagos-bar {
     flex-wrap: wrap;
     gap: 6px;
   }
@@ -542,16 +543,20 @@
     padding: 5px 6px;
     overflow: hidden;
   }
-  .lm-app[data-working="true"] .gagos-intent { display: none; }
-  .lm-app[data-working="true"] .gagos-bar .gagos-input {
+  .lm-app[data-working="true"] .gagos-intent,
+  .lm-app[data-experience-mode="expert"] .gagos-intent { display: none; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-input,
+  .lm-app[data-experience-mode="expert"] .gagos-bar .gagos-input {
     grid-column: 1;
     grid-row: 1;
     width: 100%;
     min-width: 0;
     flex: none;
   }
-  .lm-app[data-working="true"] .gagos-bar__accessories {
+  .lm-app[data-working="true"] .gagos-bar__accessories,
+  .lm-app[data-experience-mode="expert"] .gagos-bar__accessories {
     display: flex;
+    flex-wrap: nowrap;
     grid-column: 1 / -1;
     grid-row: 2;
     align-items: center;
@@ -846,7 +851,8 @@
   /* A work surface must not steal the composer width on phone portrait.
      Keep typing + Send together and let optional voice/model controls occupy
      their own touch-scrollable row, just as in compact landscape. */
-  .lm-app[data-working="true"] .gagos-bar {
+  .lm-app[data-working="true"] .gagos-bar,
+  .lm-app[data-experience-mode="expert"] .gagos-bar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 44px;
     grid-template-rows: 44px 44px;
@@ -855,16 +861,20 @@
     padding: 5px 6px;
     overflow: hidden;
   }
-  .lm-app[data-working="true"] .gagos-intent { display: none; }
-  .lm-app[data-working="true"] .gagos-bar .gagos-input {
+  .lm-app[data-working="true"] .gagos-intent,
+  .lm-app[data-experience-mode="expert"] .gagos-intent { display: none; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-input,
+  .lm-app[data-experience-mode="expert"] .gagos-bar .gagos-input {
     grid-column: 1;
     grid-row: 1;
     width: 100%;
     min-width: 0;
     flex: none;
   }
-  .lm-app[data-working="true"] .gagos-bar__accessories {
+  .lm-app[data-working="true"] .gagos-bar__accessories,
+  .lm-app[data-experience-mode="expert"] .gagos-bar__accessories {
     display: flex;
+    flex-wrap: nowrap;
     grid-column: 1 / -1;
     grid-row: 2;
     align-items: center;
@@ -878,15 +888,20 @@
     scrollbar-color: rgba(123, 245, 251, .42) rgba(255, 255, 255, .06);
     touch-action: pan-x;
   }
-  .lm-app[data-working="true"] .gagos-bar__accessories > .gagos-btn {
+  .lm-app[data-working="true"] .gagos-bar__accessories > .gagos-btn,
+  .lm-app[data-experience-mode="expert"] .gagos-bar__accessories > .gagos-btn {
     flex: 0 0 auto;
     padding-inline: 4px;
     font-size: 10px;
   }
-  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar { height: 3px; }
-  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-track { background: rgba(255, 255, 255, .06); border-radius: 3px; }
-  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-thumb { background: rgba(123, 245, 251, .42); border-radius: 3px; }
-  .lm-app[data-working="true"] .gagos-bar .gagos-send {
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar,
+  .lm-app[data-experience-mode="expert"] .gagos-bar__accessories::-webkit-scrollbar { height: 3px; }
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-track,
+  .lm-app[data-experience-mode="expert"] .gagos-bar__accessories::-webkit-scrollbar-track { background: rgba(255, 255, 255, .06); border-radius: 3px; }
+  .lm-app[data-working="true"] .gagos-bar__accessories::-webkit-scrollbar-thumb,
+  .lm-app[data-experience-mode="expert"] .gagos-bar__accessories::-webkit-scrollbar-thumb { background: rgba(123, 245, 251, .42); border-radius: 3px; }
+  .lm-app[data-working="true"] .gagos-bar .gagos-send,
+  .lm-app[data-experience-mode="expert"] .gagos-bar .gagos-send {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
@@ -896,6 +911,13 @@
   /* The narrow resting composer reserves room for its welcome story; an
      active workspace has no story there, so do not keep that empty height. */
   .lm-app[data-working="true"] .gagos-chat { height: auto; max-height: none; }
+  /* Give the 320px resting Expert view more vertical field and keep its
+     cortex below the compact navigation instead of cropping it above the pane. */
+  .lm-app[data-working="false"][data-experience-mode="expert"] .lm-scene { bottom: 34%; }
+  .lm-app[data-working="false"][data-experience-mode="expert"] .lm-scene > .superbrain-experience {
+    top: 14px;
+    bottom: -14px;
+  }
 
   /* At 320px, stack the controls into a single paired row. The previous
      Expert nav wrapped to two lines while the workspace selector occupied
@@ -1014,6 +1036,20 @@
     max-height: 22px;
     flex: 0 1 auto;
     overflow: auto;
+  }
+
+}
+@media (max-width: 767px) {
+  /* Resting Expert mode hides the welcome story on phones, so do not keep
+     reserving the full-height rail. Let conversation content scroll above a
+     compact composer while preserving the separately measured keyboard dock. */
+  .lm-app[data-experience-mode="expert"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-chat {
+    height: auto;
+    max-height: 32dvh;
+  }
+  .lm-app[data-experience-mode="expert"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-chat__context {
+    flex: 0 1 auto;
+    max-height: min(16dvh, 132px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
