@@ -186,6 +186,19 @@ def _operator_activates(repository) -> None:
     repository.transition_state(record.skill_id, record.version, "active")
 
 
+def _operator_reactivates(repository) -> None:
+    """The operator's RE-activation of a skill the machine suspended, in a
+    throwaway library (suspended -> human_reviewed -> active). Live, only the
+    capability-backed route does it (``tools/activate_skills.py --reactivate``).
+    """
+    for record in repository.list_skills():
+        if record.state == "suspended":
+            repository.transition_state(
+                record.skill_id, record.version, "human_reviewed"
+            )
+            repository.transition_state(record.skill_id, record.version, "active")
+
+
 def _activated_reflex(tmp: Path, goal: str, steps: list[str]):
     """A skill earned and activated in a throwaway library, and its cerebellum."""
     adapter, repository = _library(tmp)
@@ -319,41 +332,44 @@ def mission_4_replay_serves_a_turn_with_no_llm(tmp: Path) -> MissionResult:
 
 
 def mission_5_decompiled_reflex_recovers(tmp: Path) -> MissionResult:
-    """A decompiled reflex comes back once its skill has earned more.
+    """A reflex the machine retired returns ONLY by the operator's re-activation.
 
-    `cerebellum.py`'s own docstring promises this: a decompiled reflex cannot
-    recompile until the skill has earned more successes than it had when it
-    was decompiled. Since 2.4c-B the count is the library's.
+    Operator decision, 2026-09-29. It used to return once its skill had earned
+    more successes; now retiring it suspends the skill, earning more restores
+    nothing, and the operator's re-activation brings it back. The name is kept
+    so trails stay comparable; the claim is the new one.
     """
     goal, steps = "run the tests", ["read_file: a.py", "verify: pytest"]
     adapter, db, cerebellum = _activated_reflex(tmp, goal, steps)
     cerebellum.try_compile_all()
 
-    # Retire it through the PRODUCTION path, not a hand-written UPDATE. The
-    # raw SQL version left `decompiled_at_successes` NULL, so the mission was
-    # measuring a state the system cannot actually produce -- the same
-    # write-the-row-by-hand shortcut this file warns about elsewhere.
+    # Retire it through the PRODUCTION path, not a hand-written UPDATE.
     [skill_id] = [pb.skill_id for pb in cerebellum._cache.values()]
-    assert cerebellum.invalidate_for_skill(skill_id), "nothing was decompiled"
+    assert cerebellum.invalidate_for_skill(skill_id), "nothing was retired"
     blocked = cerebellum.try_compile_all()
 
-    # Re-earn it: three more STRONG successes on the same, still-active arc.
+    # Earning more -- three more STRONG successes -- must NOT bring it back.
     _earn(adapter, goal, steps)
     fresh = Cerebellum(db)
     fresh.attach_reflex_gate(adapter)
+    after_earning = fresh.try_compile_all()
+
+    # The operator's re-activation does.
+    _operator_reactivates(adapter.repository)
     recompiled = fresh.try_compile_all()
 
     with get_connection(db) as conn:
         live = conn.execute(
             "SELECT COUNT(*) n FROM compiled_playbooks WHERE status = 'compiled'"
         ).fetchone()["n"]
-    ok = blocked == 0 and recompiled >= 1 and live >= 1
+    # Live AFTER the re-activation, and not before it: nothing earlier did it.
+    ok = blocked == 0 and after_earning == 0 and live >= 1
     return MissionResult(
         "M5",
-        "a decompiled reflex recovers once its skill has earned more",
+        "a retired reflex returns only by the operator's re-activation",
         ok,
-        f"before re-earning={blocked}, recompiled={recompiled}, "
-        f"live compiled playbooks={live}",
+        f"before re-activation={blocked}, after re-earning={after_earning}, "
+        f"after re-activation={recompiled}, live compiled playbooks={live}",
     )
 
 

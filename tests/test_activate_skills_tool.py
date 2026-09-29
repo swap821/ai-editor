@@ -147,3 +147,51 @@ def test_it_drives_the_route_and_stops_at_the_first_refusal(
     ], "the refusal for 2 must stop before 3"
     assert code == 1
     assert SECRET not in out, "the credential must never reach output"
+
+
+def _suspend(repository: SkillRepository, legacy_id: int) -> None:
+    """A skill the machine withdrew: active, then suspended (what retiring its
+    reflex does since the operator's 2026-09-29 decision)."""
+    repository.save(_record(legacy_id, ["verify: command=pytest s.py -q"], ready=True))
+    skill_id = f"arc-{legacy_id}"
+    for state in ("human_reviewed", "active", "suspended"):
+        repository.transition_state(skill_id, 1, state)
+
+
+def test_the_listing_shows_suspended_skills_with_their_reactivate_key(
+    world, capsys
+) -> None:
+    _suspend(world, 5)
+    assert tool.main([]) == 0
+    listing = json.loads(capsys.readouterr().out)
+    [row] = listing["suspended"]
+    assert row["reactivate"] == "arc-5@1" and row["state"] == "suspended"
+    assert not FakeSession.instances
+
+
+def test_reactivation_needs_the_operators_declaration(world) -> None:
+    _suspend(world, 5)
+    with pytest.raises(SystemExit, match="operator"):
+        tool.main(["--reactivate", "arc-5@1"])
+    assert not FakeSession.instances
+
+
+def test_only_a_suspended_skill_can_be_reactivated(world, monkeypatch) -> None:
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    with pytest.raises(SystemExit, match="not a suspended skill"):
+        tool.main(["--reactivate", "arc-1@1", "--i-am-the-operator", "Operator"])
+    assert not FakeSession.instances
+
+
+def test_reactivation_drives_the_same_capability_route(
+    world, monkeypatch, capsys
+) -> None:
+    _suspend(world, 5)
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    code = tool.main(["--reactivate", "arc-5@1", "--i-am-the-operator", "Operator"])
+    out = capsys.readouterr().out
+    assert FakeSession.instances[0].posts == [
+        "/api/v1/skills/arc-5/versions/1/activate"
+    ]
+    assert code == 0
+    assert SECRET not in out

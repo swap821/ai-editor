@@ -20,8 +20,14 @@ The credential is the operator's:
 
 USAGE (one line each; works in PowerShell and bash)
 -----
-    python tools/activate_skills.py                                   # list review-ready skills, read-only
+    python tools/activate_skills.py                                   # list review-ready and suspended skills, read-only
     python tools/activate_skills.py --activate 79 41 --i-am-the-operator "Swapnil"
+    python tools/activate_skills.py --reactivate arc-abc@1 --i-am-the-operator "Swapnil"
+
+A SUSPENDED skill is one the machine withdrew -- e.g. when it retired the
+skill's reflex after failures. It returns only when the operator re-activates
+it here (operator decision, 2026-09-29), through the same capability-backed
+route; nothing the machine does alone restores it.
 
 The backend must be running (``AIOS_PROBE_BASE``, default http://127.0.0.1:8000).
 Ids are the legacy ``procedural_skills`` ids shown in the listing.
@@ -90,6 +96,28 @@ def candidates(repository: SkillRepository) -> list[SkillRecord]:
     )
 
 
+def suspended(repository: SkillRepository) -> list[SkillRecord]:
+    """Skills the machine withdrew; each returns only by re-activation."""
+    return sorted(
+        (r for r in repository.list_skills() if r.state == "suspended"),
+        key=lambda r: (r.skill_id, r.version),
+    )
+
+
+def resolve_suspended(
+    repository: SkillRepository, targets: Sequence[str]
+) -> list[SkillRecord]:
+    """The suspended record for each ``SKILL_ID@VERSION``, or an error."""
+    by_key = {f"{r.skill_id}@{r.version}": r for r in suspended(repository)}
+    missing = [t for t in targets if t not in by_key]
+    if missing:
+        raise SystemExit(
+            f"not a suspended skill: {missing}. Run with no arguments to list "
+            "the suspended skills (SKILL_ID@VERSION)."
+        )
+    return [by_key[t] for t in targets]
+
+
 def resolve(
     repository: SkillRepository, legacy_ids: Sequence[int]
 ) -> list[SkillRecord]:
@@ -146,6 +174,12 @@ def activate(records: Sequence[SkillRecord], base: str) -> list[dict[str, Any]]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--activate", nargs="+", type=int, metavar="LEGACY_ID")
+    parser.add_argument(
+        "--reactivate",
+        nargs="+",
+        metavar="SKILL_ID@VERSION",
+        help="re-activate a suspended skill (e.g. one whose reflex was retired)",
+    )
     parser.add_argument("--i-am-the-operator", dest="operator", metavar="NAME")
     parser.add_argument(
         "--allow-not-review-ready",
@@ -156,16 +190,39 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     repository = SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
 
-    if not args.activate:
+    if not args.activate and not args.reactivate:
         rows = [describe(r) for r in candidates(repository)]
         ready = [r for r in rows if r["review_ready"]]
         print(
             json.dumps(
-                {"review_ready": ready, "other_candidates": len(rows) - len(ready)},
+                {
+                    "review_ready": ready,
+                    "other_candidates": len(rows) - len(ready),
+                    "suspended": [
+                        {**describe(r), "reactivate": f"{r.skill_id}@{r.version}"}
+                        for r in suspended(repository)
+                    ],
+                },
                 indent=2,
             )
         )
         return 0
+
+    if args.reactivate:
+        if not args.operator:
+            raise SystemExit(
+                "--reactivate is the operator's act: add --i-am-the-operator NAME"
+            )
+        records = resolve_suspended(repository, args.reactivate)
+        for record in records:
+            info = describe(record)
+            print(
+                f"re-activating {record.skill_id}@{record.version} "
+                f"({info['risk']}): {info['goal'][:100]}"
+            )
+        results = activate(records, args.base)
+        print(json.dumps({"operator": args.operator, "results": results}, indent=2))
+        return 0 if results and all(r["status"] == 200 for r in results) else 1
 
     if not args.operator:
         raise SystemExit(

@@ -669,3 +669,43 @@ def test_mounted_skill_reuse_creates_only_a_governed_mission(
     assert body["mission_id"] == "http-reuse-1"
     assert body["execution"] == "mission_service_draft_only"
     assert mission_repo.get("http-reuse-1").state is MissionState.DRAFT
+
+
+def test_a_suspended_skill_comes_back_only_through_the_operators_activation(
+    tmp_path: Path,
+) -> None:
+    """Operator decision, 2026-09-29: a skill the machine withdrew -- e.g. when
+    it retired the skill's reflex -- returns only by the operator's
+    capability-backed RE-activation. The route used to accept candidates only,
+    which would have left such a skill with no way back at all."""
+    mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
+    source = mission_repo.create(_mission(), state=MissionState.COMPLETED)
+    authority = VerificationAuthority()
+    service = LearningService(
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
+        trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
+        verification_authority=authority,
+        activation_authorizer=lambda *_args: True,
+        verification_plan_validator=lambda *_args: True,
+        reuse_policy=lambda *_args: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+    trajectory = _capture(service, source, (_authoritative_verification(authority),))
+    candidate = service.create_skill_candidate(trajectory.trajectory_id, _candidate())
+    auth = _activation_auth(candidate.skill_id, candidate.version)
+    assert service.activate_skill(auth).state == "active"
+
+    # The machine withdraws it (what retiring its reflex does).
+    service.skill_repository.transition_state(
+        candidate.skill_id, candidate.version, "suspended"
+    )
+    assert service.activate_skill(auth).state == "active"
+
+    # An active skill is not re-activated, and a revoked one never comes back.
+    with pytest.raises(SkillActivationDenied, match="expected 'candidate' or"):
+        service.activate_skill(auth)
+    service.skill_repository.transition_state(
+        candidate.skill_id, candidate.version, "revoked"
+    )
+    with pytest.raises(SkillActivationDenied, match="'revoked'"):
+        service.activate_skill(auth)
