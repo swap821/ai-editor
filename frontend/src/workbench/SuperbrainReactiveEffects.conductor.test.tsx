@@ -239,6 +239,8 @@ describe('SuperbrainReactiveEffects point conductor', () => {
 
     expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')?.getAttribute('name'))
       .toBe('approval-seat-boundary-6');
+    expect(view.container.querySelectorAll('[data-testid="approval-seat-boundary-loop"]'))
+      .toHaveLength(2);
     expect(getTabStoreSnapshot().focusId).toBe(work.id);
     const currents = view.container.querySelectorAll('[data-testid="cortex-current"]');
     expect(currents.length).toBeGreaterThan(0);
