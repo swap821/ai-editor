@@ -109,6 +109,35 @@ describe('GagosChrome W3 status chrome', () => {
     expect(screen.getByRole('button', { name: 'Skip to the chat' })).toBeInTheDocument();
   });
 
+  it('exposes a reversible, accessible organism-focus control in the integrated shell', async () => {
+    const onBeingFocusChange = vi.fn();
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { rerender } = render(
+      <GagosChrome
+        integrated
+        beingFocused={false}
+        onBeingFocusChange={onBeingFocusChange}
+      />,
+    );
+
+    const focusButton = screen.getByRole('button', {
+      name: 'Focus on the being; hide conversation history and workspace navigation',
+    });
+    expect(focusButton).toHaveAttribute('aria-pressed', 'false');
+    await act(async () => { fireEvent.click(focusButton); });
+    expect(onBeingFocusChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <GagosChrome
+        integrated
+        beingFocused
+        onBeingFocusChange={onBeingFocusChange}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Return to full workspace controls' }))
+      .toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('moves keyboard users from the skip control to the primary conversation input', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
