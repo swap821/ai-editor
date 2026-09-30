@@ -10,6 +10,7 @@ import { readExperienceMode, writeExperienceMode } from '../livingMirror/experie
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
+import { WorkspaceConnectionOverlay, WorkspaceConnectionProjection } from '../livingMirror/being/WorkspaceConnectionOverlay';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
 import { createMirrorReconnectTracker, recordFrontendMetric, startRafIntervalSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
@@ -40,6 +41,7 @@ export default function SuperbrainApp() {
   const measuredAttentionRef = useRef(null);
   const canvasContextLostRef = useRef(false);
   const appRootRef = useRef(null);
+  const workspaceConnectionRef = useRef(null);
   const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open)
     || snapshot.tabs.some((t) => t.id === snapshot.focusId && t.kind === 'content' && t.lifecycle !== 'retracting');
   const handleBootComplete = useCallback(() => setBooted(true), []);
@@ -185,10 +187,12 @@ export default function SuperbrainApp() {
             physicalOverride={physical}
             inputDraftPresent={inputDraftPresent}
           />
+          <WorkspaceConnectionProjection overlayRef={workspaceConnectionRef} snapshot={snapshot} />
           </WorkspaceCanvas>
         </Suspense>
       </RendererFailureBoundary>
     )}</div>
+    <WorkspaceConnectionOverlay overlayRef={workspaceConnectionRef} />
     <main aria-label="GAGOS conversation"><GagosChrome
       integrated
       experienceMode={experienceMode}

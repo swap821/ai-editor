@@ -1,0 +1,28 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-09-30T08:57:04.238485+00:00",
+  "tip_sha": "efee8d6aa1188b24eb55389e863c49e39ead5912",
+  "runner": "scripts/phase4_boundary_skill_evidence.py",
+  "runner_sha256": "179b71919aaef2e10db873276c8c1dd30796a03e6fccd358cfa14800c10c29dd",
+  "command": "\"C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe\" scripts/phase4_boundary_skill_evidence.py",
+  "scope": "Only organs26/43 production authorities + real temporary SQLite. Backend clean at HEAD before/after; unrelated UI edits allowed. No models/network/Docker, human approval, worker termination, or release readiness claimed.",
+  "proofs": [
+    {
+      "organ_id": 26,
+      "name": "Emergency Stop Organ (full boundary hard-wiring)",
+      "passed": true,
+      "command": "\"C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe\" scripts/phase4_boundary_skill_evidence.py",
+      "evidence": "real SQLite controller accepted; non-checkable dependency refused; no worker/hook termination claimed"
+    },
+    {
+      "organ_id": 43,
+      "name": "Local Skill Reuse, Confidence and Demotion",
+      "passed": true,
+      "command": "\"C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe\" scripts/phase4_boundary_skill_evidence.py",
+      "evidence": "direct active birth refused; candidate→human_reviewed→active (synthetic probe transition, NOT operator approval); reopen SQLite success_count=1 confidence=0.55 state=active"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}

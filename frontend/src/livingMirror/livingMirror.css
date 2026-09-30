@@ -58,6 +58,11 @@
 .lm-renderer-fallback__retry:hover { border-color: var(--lm-orange); }
 .lm-renderer-fallback__retry:focus-visible { outline: 2px solid var(--lm-cyan); outline-offset: 3px; }
 .lm-scene { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+/* A static spatial connection, beneath all readable/control surfaces. No flow,
+   pulse or easing: keyboard/focus and reduced-motion remain immediate. */
+.lm-workspace-connection { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; color: var(--lm-cyan); opacity: .65; }
+.lm-workspace-connection path { stroke: currentColor; stroke-width: 1.5; fill: none; }
+.lm-workspace-connection circle { fill: currentColor; }
 /* The canon scene owns a full-screen fixed root. Inside the Living Mirror it
    must follow this shell's scene pane so workspaces can claim readable space;
    the override is scoped to this product-owned host and does not affect the
@@ -927,6 +932,7 @@
   }
   .lm-app[data-working="true"] .lm-surface__header h2 { font-size: 16px; }
   .lm-app[data-working="true"] .lm-surface__header button {
+    min-width: 44px;
     padding-inline: 6px;
     font-size: 11px;
   }
@@ -973,6 +979,14 @@
   animation: none !important;
   transition: none !important;
   scroll-behavior: auto !important;
+}
+
+/* Taller phones can retain an exposed body/seat band above the work plane.
+   Keep short/keyboard-constrained viewports on the compact, composer-safe
+   layout; this is one layout settle, never an animated canvas resize. */
+@media (min-width: 361px) and (max-width: 767px) and (min-height: 740px) {
+  .lm-app[data-working="true"]:not([data-keyboard-open="true"]) .lm-scene { top: 164px; bottom: calc(100% - 332px); }
+  .lm-app[data-working="true"]:not([data-keyboard-open="true"]) .lm-surface { top: 332px; }
 }
 
 /* A deliberate presentation posture: let the same full scene breathe behind

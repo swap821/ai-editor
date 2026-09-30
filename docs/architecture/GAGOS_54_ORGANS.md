@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `d96702947bedc089f0bcb572453b72be682b5486e7e0e328780bdcf469263dcc`
+- **Source ledger sha256:** `f4d12ffededd84934a1b586cf28e57b836c8f58e0a85bb958bf409955e0b4adc`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -845,7 +845,7 @@ re-audits recorded above.
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `cdfd7d16d2f6` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `2ea0586c90b3` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `56f3cd7019f2` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `efee8d6aa118` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `cb19e19ef2c7` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `cb19e19ef2c7` | live |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `cb19e19ef2c7` | live |
@@ -861,7 +861,7 @@ re-audits recorded above.
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `cb19e19ef2c7` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `cb19e19ef2c7` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `cb19e19ef2c7` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `56f3cd7019f2` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `efee8d6aa118` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `cb19e19ef2c7` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `2ea0586c90b3` | live |
@@ -902,3 +902,7 @@ reliable 4/5 honest floor, with M1 gated on model behaviour that must not be
 engineered around. The ledger entry and its `yellow` status are deliberately
 untouched: a change to the mission SET is the operator's to attest, not
 something an assistant should grant itself by editing the row that records it.
+
+### 2026-09-30 — organs26/43 evidence-provenance correction
+
+The Codex frontend branch's byte-identical lineage re-point was insufficient for C10: it changed the active evidence SHA while retaining an artifact generated at12253c9ed17e. Release CI refused that mismatch. Fresh scoped production-authority/temporary-SQLite probes at actual backend HEADefee8d6aa118 now replace those active references, with a new artifact and runner-byte hash; the old artifact remains historical and unchanged. Organ statuses/owners/security policy remain unchanged. The skill probe's human_reviewed transition is synthetic, not operator approval; worker shutdown/models/Docker/whole-release acceptance are not claimed. Generated current status and manifest are refreshed mechanically. Local C10 reference/currency checks pass; remote requalification remains required.
