@@ -11,7 +11,7 @@ import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
-import { createMirrorReconnectTracker, recordFrontendMetric, startFrameTimeSampler } from '../livingMirror/observability/frontendMetrics';
+import { createMirrorReconnectTracker, recordFrontendMetric, startRafIntervalSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
 import { RendererFailureBoundary } from '../livingMirror/RendererFailureBoundary';
 import {
@@ -98,7 +98,7 @@ export default function SuperbrainApp() {
     frame = window.requestAnimationFrame(findInput);
     const organismReady = () => recordFrontendMetric('3d-initialization', performance.now() - startedAt);
     window.addEventListener('gagos:ready', organismReady, { once: true });
-    const stopFrameSampler = startFrameTimeSampler();
+    const stopRafIntervalSampler = startRafIntervalSampler();
     const trackMirrorReconnect = createMirrorReconnectTracker();
     const unsubscribeMirror = useMirrorStore.subscribe((state, previous) => {
       trackMirrorReconnect(state, previous);
@@ -143,7 +143,7 @@ export default function SuperbrainApp() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('gagos:ready', organismReady);
-      stopFrameSampler();
+      stopRafIntervalSampler();
       unsubscribeMirror();
       canvasObserver?.disconnect();
       if (boundCanvas) {

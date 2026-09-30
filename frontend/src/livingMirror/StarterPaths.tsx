@@ -11,7 +11,8 @@ export function StarterPaths({ onChoose }: StarterPathsProps) {
         <button
           key={path.id}
           type="button"
-          className="gagos-starter gagos-starter--path"
+          className={`gagos-starter gagos-starter--path${path.id === 'understand' ? ' gagos-starter--featured' : ''}`}
+          aria-label={`${path.title}. ${path.description} Select to fill a starter prompt; it will not be sent automatically.`}
           onClick={() => onChoose(path.prompt)}
         >
           <span className="gagos-starter__title">{path.title}</span>

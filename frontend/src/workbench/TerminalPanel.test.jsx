@@ -44,6 +44,15 @@ describe('TerminalPanel', () => {
     expect(screen.getByText('Terminal (Ctrl+`)')).toBeInTheDocument();
   });
 
+  it('keeps standalone Close as a reversible toggle preserving its draft', () => {
+    render(<TerminalPanel />);
+    fireEvent.click(screen.getByText('Terminal (Ctrl+`)'));
+    fireEvent.change(screen.getByPlaceholderText('Type a command...'), { target: { value: 'standalone draft' } });
+    fireEvent.click(screen.getByTitle('Close'));
+    fireEvent.click(screen.getByText('Terminal (Ctrl+`)'));
+    expect(screen.getByPlaceholderText('Type a command...')).toHaveValue('standalone draft');
+  });
+
   it('runs a typed command against the real /api/terminal endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce({
       ok: true,

@@ -1,8 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { API_HEADERS } from '../config';
-import { useTabStore, openWorkspacePanel, focusWorkspace, closeWorkspace, pinWorkspace, type WorkspacePanel } from '../superbrain/lib/tabStore';
+import { useTabStore, getTabStoreSnapshot, openWorkspacePanel, focusWorkspace, closeWorkspace, clearMaterializedTab, pinWorkspace, type WorkspacePanel } from '../superbrain/lib/tabStore';
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
+import { getSovereignStatus, subscribeSovereignStatus } from '../superbrain/lib/sovereignIdentity';
 import { WorkspaceHostContext } from './WorkspaceHostContext';
+import { PersistentWorkspaceBody } from './PersistentWorkspaceBody';
 import { EmergencyControl } from './EmergencyControl';
 import { MirrorConnectionNotice } from './MirrorConnectionNotice';
 import { ResourceNotice } from './ResourceNotice';
@@ -130,7 +132,7 @@ function PanelContent({ panel, experienceMode }: { panel: WorkspacePanel; experi
     case 'vulture': return <Vulture onClose={onClose} />;
     case 'ecosystem': return <Ecosystem onClose={onClose} />;
     case 'deliberation': return <Deliberation onClose={onClose} />;
-    case 'terminal': return <Terminal embedded />;
+    case 'terminal': return <Terminal embedded onClose={onClose} />;
     case 'history': return <History guided={experienceMode === 'beginner'} />;
     default: return <p>This workspace is unavailable.</p>;
   }
@@ -154,6 +156,11 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   const workspaceContent = useRef<HTMLDivElement>(null);
   const workspaceToggle = useRef<HTMLButtonElement>(null);
   const conversationButton = useRef<HTMLButtonElement>(null);
+  const navigation = useRef<HTMLElement>(null);
+  const workspaceRail = useRef<HTMLElement>(null);
+  const mobileMenu = useRef<HTMLDetailsElement>(null);
+  const previousNarrowViewport = useRef(narrowViewport);
+  const focusNavigationAfterResize = useRef(false);
   const returnFocus = useRef<HTMLElement | null>(null);
   const panels = snapshot.panels ?? [];
   const focusedPanel = panels.find((panel) => panel.id === snapshot.focusId && panel.open);
@@ -166,12 +173,41 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   const working = !!focused || !!artifact;
   const compactWorkspace = experienceMode === 'expert' && compactWorkspaceViewport;
   const workspaceCollapsed = compactWorkspace && expandedWorkspaceId !== snapshot.focusId;
+  useLayoutEffect(() => {
+    // Desktop can scroll its long toolbar. Do not carry that offset into the
+    // phone's two-control layout; workspace content owns its own scroll state.
+    if (navigation.current) navigation.current.scrollLeft = 0;
+    if (focusNavigationAfterResize.current) {
+      conversationButton.current?.focus({ preventScroll: true });
+      focusNavigationAfterResize.current = false;
+    }
+  }, [narrowViewport]);
   const wasWorking = useRef(working);
+  const workspaceOwner = useRef(getSovereignStatus());
+  useEffect(() => subscribeSovereignStatus((status) => {
+    // An outage is not sign-out. Keep the last measured owner through unknown
+    // readings; release retained private views on a measured identity change.
+    if (status.measured !== 'measured') return;
+    const previous = workspaceOwner.current;
+    workspaceOwner.current = status;
+    if (previous.measured !== 'measured' || (previous.operatorId === status.operatorId
+      && previous.sessionActive === status.sessionActive)) return;
+    const current = getTabStoreSnapshot();
+    for (const panel of current.panels ?? []) if (panel.open) closeWorkspace(panel.id);
+    clearMaterializedTab();
+  }), []);
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
     const narrowMedia = window.matchMedia(NARROW_VIEWPORT_QUERY);
     const compactMedia = window.matchMedia(COMPACT_WORKSPACE_QUERY);
     const sync = () => {
+      if (narrowMedia.matches !== previousNarrowViewport.current) {
+        // Responsive navigation replaces its controls. Preserve keyboard
+        // access only when focus was there; never steal focus from a draft.
+        focusNavigationAfterResize.current = !!(navigation.current?.contains(document.activeElement)
+          || workspaceRail.current?.contains(document.activeElement));
+        previousNarrowViewport.current = narrowMedia.matches;
+      }
       setNarrowViewport(narrowMedia.matches);
       setCompactWorkspaceViewport(compactMedia.matches);
     };
@@ -197,7 +233,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   };
   const closeMobileExpertMenus = (trigger?: HTMLElement | null) => {
     const groupMenu = trigger?.closest<HTMLDetailsElement>('.lm-expert-mobile-surface-group');
-    const surfacesMenu = trigger?.closest<HTMLDetailsElement>('.lm-expert-mobile-surfaces');
+    const surfacesMenu = trigger?.closest<HTMLDetailsElement>('.lm-expert-mobile-surfaces') ?? mobileMenu.current;
     if (groupMenu) groupMenu.open = false;
     if (surfacesMenu) surfacesMenu.open = false;
   };
@@ -212,27 +248,39 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
     }
     conversationButton.current?.focus({ preventScroll: true });
   };
+  const focusSelectedWorkspace = useCallback(() => {
+    if (working) {
+      if (workspaceCollapsed) workspaceToggle.current?.focus({ preventScroll: true });
+      else heading.current?.focus({ preventScroll: true });
+    } else {
+      conversationButton.current?.focus({ preventScroll: true });
+    }
+  }, [working, workspaceCollapsed]);
   const open = (id: string, title: string, trigger?: HTMLElement | null) => {
     closeMobileExpertMenus(trigger);
     rememberReturnFocus(trigger);
     openWorkspacePanel(id, title);
+    if (id === snapshot.focusId) focusSelectedWorkspace();
   };
   const focusFromControl = (id: string, trigger: HTMLElement) => {
+    closeMobileExpertMenus(trigger);
     returnFocus.current = trigger;
     focusWorkspace(id);
+    if (id === snapshot.focusId) focusSelectedWorkspace();
   };
   const dismiss = () => {
     if (snapshot.focusId) closeWorkspace(snapshot.focusId);
   };
   useEffect(() => {
     if (working) {
-      if (workspaceCollapsed) workspaceToggle.current?.focus({ preventScroll: true });
-      else heading.current?.focus({ preventScroll: true });
+      focusSelectedWorkspace();
     } else if (wasWorking.current) {
       restoreWorkspaceFocus();
+    } else if (returnFocus.current?.closest('details:not([open])')) {
+      conversationButton.current?.focus({ preventScroll: true });
     }
     wasWorking.current = working;
-  }, [snapshot.focusId, working, workspaceCollapsed]);
+  }, [snapshot.focusId, working, workspaceCollapsed, focusSelectedWorkspace]);
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (experienceMode !== 'expert' || event.defaultPrevented || event.key !== '`' || !event.ctrlKey) return;
@@ -251,16 +299,41 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       ? <div className="lm-expert-group lm-expert-group--primary" key={group.id} aria-label={group.label}><span className="lm-expert-group__label">{group.label}</span>{buttons}</div>
       : <details className="lm-expert-group" key={group.id}><summary>{group.label}</summary><div className="lm-expert-group__items">{buttons}</div></details>;
   });
+  const renderMotionControl = () => (
+    <button
+      type="button"
+      disabled={systemReducedMotion}
+      aria-pressed={motionPaused}
+      onClick={() => {
+        const next = !motionPaused;
+        setManualMotionPaused(next);
+        setAmbientMotionPaused(next);
+      }}
+    >{systemReducedMotion ? 'Motion reduced by system' : motionPaused ? 'Resume ambient motion' : 'Pause ambient motion'}</button>
+  );
   const renderMobileExpertGroups = () => (
-    <details className="lm-expert-mobile-surfaces">
-      <summary>Expert surfaces</summary>
+    <details ref={mobileMenu} className="lm-expert-mobile-surfaces" onKeyDown={(event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.open = false;
+      event.currentTarget.querySelector('summary')?.focus({ preventScroll: true });
+    }}>
+      <summary><span>Workspaces</span>{handles.length > 0 && <span className="lm-expert-mobile-surfaces__count" aria-label={`${handles.length} open`}>{handles.length}</span>}</summary>
       <div className="lm-expert-mobile-surfaces__groups">
+        {handles.length > 0 && <section className="lm-expert-mobile-open" aria-label="Open workspaces">
+          <h3>Open workspaces</h3>
+          {handles.map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'page' : undefined} onClick={(event) => focusFromControl(handle.id, event.currentTarget)}>
+            {handle.title}{handle.pinned ? ' · pinned' : ''}
+          </button>)}
+        </section>}
         {expertSurfaceGroups.map((group) => (
           <details className="lm-expert-mobile-surface-group" key={group.id}>
             <summary>{group.label}</summary>
             <div className="lm-expert-mobile-surface-group__items">{renderExpertButtons(group)}</div>
           </details>
         ))}
+        {renderMotionControl()}
       </div>
     </details>
   );
@@ -269,7 +342,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       <div className="lm-brand lm-expert-only"><h1>GAGOS</h1><span className="lm-subtitle">Local-first intelligence. Human authority.</span></div>
       <EmergencyControl guided={experienceMode === 'beginner'} />
     </header>
-    <nav className="lm-navigation" aria-label="Workspaces">
+    <nav ref={navigation} className="lm-navigation" aria-label="Workspaces">
       <button ref={conversationButton} type="button" aria-current={!working ? 'page' : undefined} onClick={(event) => {
         closeMobileExpertMenus(event.currentTarget);
         returnFocus.current = event.currentTarget;
@@ -278,27 +351,16 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       {experienceMode === 'expert'
         ? narrowViewport ? renderMobileExpertGroups() : renderDesktopExpertGroups()
         : guidedSurfaces.map(([id, title]) => <button key={id} type="button" aria-current={focused?.id === id ? 'page' : undefined} onClick={(event) => open(id, title, event.currentTarget)}>{title}</button>)}
-      <button
-        type="button"
-        disabled={systemReducedMotion}
-        aria-pressed={motionPaused}
-        onClick={() => {
-          const next = !motionPaused;
-          setManualMotionPaused(next);
-          setAmbientMotionPaused(next);
-        }}
-      >
-        {systemReducedMotion ? 'Motion reduced by system' : motionPaused ? 'Resume ambient motion' : 'Pause ambient motion'}
-      </button>
+      {!(narrowViewport && experienceMode === 'expert') && renderMotionControl()}
     </nav>
     <MirrorConnectionNotice experienceMode={experienceMode} onOpenAuthority={experienceMode === 'expert' ? (trigger) => open('governance', 'Governance', trigger) : undefined} />
-    <aside className="lm-workspace-rail" aria-label="Spinal workspace anchors">
+    {!(narrowViewport && experienceMode === 'expert') && <aside ref={workspaceRail} className="lm-workspace-rail" aria-label="Spinal workspace anchors">
       {handles.slice(0, 4).map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'true' : undefined} onClick={(event) => focusFromControl(handle.id, event.currentTarget)}>
         <span className="lm-vertebra" aria-hidden="true" />{handle.title}{handle.pinned ? ' · pinned' : ''}
       </button>)}
       {handles.length > 0 && <button type="button" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>All {handles.length} workspaces</button>}
       {listOpen && <div className="lm-workspace-list">{handles.map((handle) => <button key={handle.id} type="button" onClick={(event) => { focusFromControl(handle.id, event.currentTarget); setListOpen(false); }}>{handle.title} · Anchor {handle.seat ?? 'unassigned'}</button>)}</div>}
-    </aside>
+    </aside>}
     <section className="lm-surface" data-workspace-collapsed={workspaceCollapsed ? 'true' : undefined} hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
       if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('.monaco-editor')) { event.stopPropagation(); dismiss(); }
     }}>
@@ -327,13 +389,22 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
         hidden={workspaceCollapsed}
       >
         <WorkspaceHostContext.Provider value={true}>
-          {focused && <div key={focused.id} className="lm-surface__body">
-            <Suspense fallback={<p role="status">Loading {focused.title}…</p>}><PanelContent panel={focused} experienceMode={experienceMode} /></Suspense>
-          </div>}
+          {panels.filter((panel) => panel.open).map((panel) => <PersistentWorkspaceBody
+            key={panel.id}
+            className={panel.kind === 'terminal' ? 'lm-surface__body--terminal' : undefined}
+            selected={focused?.id === panel.id}
+            visible={focused?.id === panel.id && !workspaceCollapsed}
+          >
+            <Suspense fallback={<p role="status">Loading {panel.title}…</p>}><PanelContent panel={panel} experienceMode={experienceMode} /></Suspense>
+          </PersistentWorkspaceBody>)}
         </WorkspaceHostContext.Provider>
-        {artifact?.content && <div className="lm-surface__body"><p>Generated artifact · Project effects require separate receipts.</p><pre className="lm-artifact" tabIndex={0}>{artifact.content.code}</pre>
-          {artifact.content.verifyOutput && <details><summary>Reported check output</summary><pre>{artifact.content.verifyOutput}</pre></details>}
-        </div>}
+        {snapshot.tabs.filter((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting' && tab.content).map((tab) => <PersistentWorkspaceBody
+          key={tab.id}
+          selected={artifact?.id === tab.id}
+          visible={artifact?.id === tab.id && !workspaceCollapsed}
+        ><p>Generated artifact · Project effects require separate receipts.</p><pre className="lm-artifact" tabIndex={0}>{tab.content!.code}</pre>
+          {tab.content!.verifyOutput && <details><summary>Reported check output</summary><pre>{tab.content!.verifyOutput}</pre></details>}
+        </PersistentWorkspaceBody>)}
       </div>
     </section>
   </div>;

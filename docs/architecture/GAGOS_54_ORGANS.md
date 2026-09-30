@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `d30d12c7c8b85371fc3b6909bcfa4a115946f37cf7ec5b15fae30da4c789df6b`
+- **Source ledger sha256:** `d96702947bedc089f0bcb572453b72be682b5486e7e0e328780bdcf469263dcc`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -845,7 +845,7 @@ re-audits recorded above.
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `cdfd7d16d2f6` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `2ea0586c90b3` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `12253c9ed17e` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `56f3cd7019f2` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `cb19e19ef2c7` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `cb19e19ef2c7` | live |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `cb19e19ef2c7` | live |
@@ -861,7 +861,7 @@ re-audits recorded above.
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `cb19e19ef2c7` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `cb19e19ef2c7` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `cb19e19ef2c7` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `12253c9ed17e` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `56f3cd7019f2` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `cb19e19ef2c7` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `2ea0586c90b3` | live |

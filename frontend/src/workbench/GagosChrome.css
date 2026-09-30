@@ -206,6 +206,16 @@
   gap: 6px;
   pointer-events: auto;
 }
+
+/* Guided desktop controls belong to the conversation rail, leaving the
+   cortex clear. Expert keeps its navigation band; phones keep their dock. */
+@media (min-width: 1200px) {
+  .lm-app[data-experience-mode="beginner"] .gagos-experience-switch {
+    top: 76px;
+    left: 28px;
+    transform: none;
+  }
+}
 .gagos-focus-toggle {
   min-height: 44px;
   padding: 8px 12px;
@@ -1663,5 +1673,52 @@
   .approval-panel--guided .approval-human-facts > div {
     grid-template-columns: 1fr;
     gap: 0.18rem;
+  }
+}
+
+/* On a phone in Guided resting mode, the tall onboarding/story rail used to
+   cover the being's lower spine. Keep the composer docked and let its context
+   remain scrollable, but return the excess vertical space to the organism.
+   Work surfaces and the open-keyboard layout keep their dedicated geometry. */
+@media (max-width: 767px) {
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-chat {
+    height: clamp(168px, 26dvh, 210px);
+    max-height: clamp(168px, 26dvh, 210px);
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-welcome {
+    gap: 6px;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-welcome__greeting {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-welcome__eyebrow {
+    display: none;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starters--paths {
+    gap: 5px;
+    margin-top: 5px;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starter--path {
+    min-height: 44px;
+    padding: 7px 10px;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starter--featured {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(123, 245, 251, 0.08);
+    border-color: rgba(123, 245, 251, 0.38);
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starter--featured .gagos-starter__description {
+    display: none;
   }
 }
