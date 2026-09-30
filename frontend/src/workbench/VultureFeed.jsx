@@ -4,18 +4,21 @@ import { ShieldAlert, Activity, CheckCircle, Shield } from 'lucide-react';
 import { API_HEADERS } from '../config';
 import { useResource } from '../livingMirror/resource';
 import { parseV10VultureStatus } from '../livingMirror/v10Status';
+import { useWorkspaceActive } from '../livingMirror/WorkspaceActivityContext';
 
 const V10_READ = Object.freeze({ headers: API_HEADERS });
 const neverEmpty = () => false;
 
 export default function VultureFeed({ onClose }) {
+  const workspaceActive = useWorkspaceActive();
   const resource = useResource('/api/v1/v10/status', parseV10VultureStatus, neverEmpty, V10_READ);
   const vulture = resource.data;
 
   useEffect(() => {
+    if (!workspaceActive) return;
     const interval = setInterval(resource.refresh, 15000);
     return () => clearInterval(interval);
-  }, [resource.refresh]);
+  }, [resource.refresh, workspaceActive]);
 
   const lastScan = vulture?.lastScan;
   const findings = lastScan?.topFindings;

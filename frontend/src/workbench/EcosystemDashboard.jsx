@@ -4,19 +4,22 @@ import { Activity, Server, Cpu, Database, Network } from 'lucide-react';
 import { API_HEADERS } from '../config';
 import { useResource } from '../livingMirror/resource';
 import { parseV10EcosystemStatus } from '../livingMirror/v10Status';
+import { useWorkspaceActive } from '../livingMirror/WorkspaceActivityContext';
 
 const V10_READ = Object.freeze({ headers: API_HEADERS });
 const neverEmpty = () => false;
 const count = (value, label) => value === null ? `${label} unavailable` : `${value} ${label}`;
 
 export default function EcosystemDashboard({ onClose }) {
+  const workspaceActive = useWorkspaceActive();
   const resource = useResource('/api/v1/v10/status', parseV10EcosystemStatus, neverEmpty, V10_READ);
   const status = resource.data;
 
   useEffect(() => {
+    if (!workspaceActive) return;
     const interval = setInterval(resource.refresh, 15000);
     return () => clearInterval(interval);
-  }, [resource.refresh]);
+  }, [resource.refresh, workspaceActive]);
 
   const ecosystem = status?.ecosystem;
   const ecosystemScan = ecosystem?.lastScan;

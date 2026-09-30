@@ -51,6 +51,14 @@ vi.mock('../workbench/SuperbrainReactiveEffects', () => ({
   default: () => null,
 }));
 
+// WorkspaceCanvas above is a DOM fault harness, not an R3F root. Keep the
+// real overlay; its actual projection/lifecycle is covered by the connection
+// integration tests with a frame driver and real camera/seat transforms.
+vi.mock('../livingMirror/being/WorkspaceConnectionOverlay', async (importOriginal) => ({
+  ...await importOriginal(),
+  WorkspaceConnectionProjection: () => null,
+}));
+
 vi.mock('../livingMirror/LivingWorkspaceShell', () => ({
   LivingWorkspaceShell: () => null,
 }));
@@ -86,7 +94,7 @@ vi.mock('../livingMirror/observability/contextRecovery', () => ({
 vi.mock('../livingMirror/observability/frontendMetrics', () => ({
   createMirrorReconnectTracker: () => () => {},
   recordFrontendMetric: vi.fn(),
-  startFrameTimeSampler: () => () => {},
+  startRafIntervalSampler: () => () => {},
 }));
 
 vi.mock('./lib/aiosMirror', () => ({

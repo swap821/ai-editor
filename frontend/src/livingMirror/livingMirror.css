@@ -58,6 +58,11 @@
 .lm-renderer-fallback__retry:hover { border-color: var(--lm-orange); }
 .lm-renderer-fallback__retry:focus-visible { outline: 2px solid var(--lm-cyan); outline-offset: 3px; }
 .lm-scene { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+/* A static spatial connection, beneath all readable/control surfaces. No flow,
+   pulse or easing: keyboard/focus and reduced-motion remain immediate. */
+.lm-workspace-connection { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; color: var(--lm-cyan); opacity: .65; }
+.lm-workspace-connection path { stroke: currentColor; stroke-width: 1.5; fill: none; }
+.lm-workspace-connection circle { fill: currentColor; }
 /* The canon scene owns a full-screen fixed root. Inside the Living Mirror it
    must follow this shell's scene pane so workspaces can claim readable space;
    the override is scoped to this product-owned host and does not affect the
@@ -124,6 +129,7 @@
 .lm-surface__header h2 { flex: 1; min-width: 0; font-size: 23px; margin: 0; overflow-wrap: anywhere; }
 .lm-surface__header button { background: transparent; font-size: 14px; }
 .lm-surface__body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px; }
+.lm-surface__body.lm-surface__body--terminal { padding: 0; }
 .lm-surface__body h3 { font-size: 23px; }
 .lm-surface__body small { font-size: 14px; color: var(--lm-muted); }
 .lm-surface__body li { margin-bottom: 20px; }
@@ -620,14 +626,49 @@
     padding-bottom: 8px;
     flex-wrap: wrap;
   }
-  .lm-shell[data-experience-mode="expert"] .lm-navigation { top: calc(122px + var(--lm-safe-area-top)); }
+  /* Expert phones have one full-width route: conversation + a disclosure
+     containing open workspaces, launchers and motion control. */
+  .lm-shell[data-experience-mode="expert"] .lm-navigation {
+    --lm-mobile-navigation-top: calc(122px + var(--lm-safe-area-top));
+    top: var(--lm-mobile-navigation-top);
+    z-index: 40;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    padding: 0;
+  }
+  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-header { top: calc(70px + var(--lm-safe-area-top)); }
+  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-navigation { --lm-mobile-navigation-top: calc(120px + var(--lm-safe-area-top)); }
   .lm-navigation > * { flex-shrink: 0; }
   .lm-expert-group { align-items: stretch; }
   .lm-expert-group__label, .lm-expert-group > summary { font-size: 11px; }
-  .lm-expert-mobile-surfaces { display: block; position: relative; flex: 1 1 auto; min-width: 0; }
-  .lm-expert-mobile-surfaces > summary { border: 1px solid var(--lm-line); border-radius: 8px; padding: 8px 12px; background: var(--lm-canvas); white-space: nowrap; }
+  .lm-expert-mobile-surfaces { display: block; min-width: 0; }
+  .lm-expert-mobile-surfaces > summary { box-sizing: border-box; justify-content: center; gap: 8px; border: 1px solid var(--lm-line); border-radius: 8px; padding: 8px; background: var(--lm-canvas); font-size: 14px; letter-spacing: normal; text-transform: none; }
+  .lm-expert-mobile-surfaces__count { color: var(--lm-cyan); font-size: 12px; font-variant-numeric: tabular-nums; }
   .lm-expert-mobile-surfaces[open] > summary { border-color: var(--lm-cyan); color: var(--lm-cyan); }
-  .lm-expert-mobile-surfaces__groups { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; min-width: min(280px, calc(100vw - 24px)); max-height: min(60dvh, 420px); overflow-y: auto; padding: 8px 10px; border: 1px solid var(--lm-line); border-radius: 12px; background: rgba(3, 1, 8, .97); box-shadow: 0 18px 44px rgba(0, 0, 0, .42); }
+  .lm-expert-mobile-surfaces__groups {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    min-width: 0;
+    box-sizing: border-box;
+    /* The existing measured dock already includes its 12px breathing gap.
+       Subtract the 44px navigation row + 6px disclosure gap; scroll inside
+       this space instead of letting lower controls fall behind the composer. */
+    max-height: max(44px, min(60dvh, 420px, calc(100dvh - var(--lm-workspace-dock-clearance, 238px) - var(--lm-mobile-navigation-top) - 50px)));
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 8px 10px;
+    border: 1px solid var(--lm-line);
+    border-radius: 12px;
+    background: rgba(3, 1, 8, .97);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .42);
+  }
+  .lm-expert-mobile-surfaces__groups button { width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+  .lm-expert-mobile-open { display: grid; gap: 4px; padding-bottom: 8px; }
+  .lm-expert-mobile-open h3 { margin: 4px; color: var(--lm-muted); font-size: 12px; font-weight: 500; }
   .lm-expert-mobile-surface-group > summary { padding-inline: 4px; }
   /* Leave the body canvas full-sized beneath chrome; only interactive DOM
      surfaces move clear of the cutout. */
@@ -746,58 +787,7 @@
   }
 }
 @media (min-width: 361px) and (max-width: 767px) {
-  /* On phone portrait, make the navigation and workspace picker a single
-     control row. The work sheet starts beneath the compact presence band. */
-  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-header {
-    top: calc(70px + var(--lm-safe-area-top));
-  }
-  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-navigation {
-    top: calc(120px + var(--lm-safe-area-top));
-    left: max(12px, var(--lm-safe-area-left));
-    right: auto;
-    width: calc(50% - 18px);
-    height: 44px;
-    box-sizing: border-box;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 2px;
-    padding: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    scrollbar-width: thin;
-    white-space: nowrap;
-  }
-  .lm-app[data-working="true"] .lm-navigation > * {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-  .lm-app[data-working="true"] .lm-navigation > button { padding-inline: 6px; font-size: 11px; }
-  .lm-app[data-working="true"] .lm-expert-mobile-surfaces { flex: 0 0 auto; }
-  .lm-app[data-working="true"] .lm-expert-mobile-surfaces > summary { padding-inline: 7px; font-size: 10px; }
-  .lm-app[data-working="true"] .lm-workspace-rail {
-    z-index: 35;
-    top: calc(120px + var(--lm-safe-area-top));
-    right: max(12px, var(--lm-safe-area-right));
-    left: auto;
-    width: calc(50% - 18px);
-    max-width: none;
-    flex-direction: row;
-    justify-content: flex-end;
-    gap: 0;
-  }
-  .lm-app[data-working="true"] .lm-workspace-rail > button:last-of-type {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    justify-content: center;
-    padding-inline: 7px;
-    overflow: hidden;
-    font-size: 11px;
-    text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  /* Keep a compact presence band between navigation and phone work. */
   .lm-app[data-working="true"] .lm-surface {
     z-index: 10;
     top: calc(222px + var(--lm-safe-area-top));
@@ -919,85 +909,8 @@
     bottom: -14px;
   }
 
-  /* At 320px, stack the controls into a single paired row. The previous
-     Expert nav wrapped to two lines while the workspace selector occupied
-     the same coordinates, and its 286px panel start sat below the composer
-     clearance. Keep the body scrollable in the small remaining band. */
-  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-header {
-    top: calc(70px + var(--lm-safe-area-top));
-  }
-  .lm-app[data-working="true"] .lm-shell[data-experience-mode="expert"] .lm-navigation {
-    top: calc(120px + var(--lm-safe-area-top));
-    left: max(12px, var(--lm-safe-area-left));
-    right: auto;
-    width: calc(50% - 18px);
-    height: 44px;
-    box-sizing: border-box;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 2px;
-    padding: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    scrollbar-width: thin;
-    white-space: nowrap;
-  }
-  .lm-app[data-working="true"] .lm-navigation > * {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-  .lm-app[data-working="true"] .lm-navigation > button {
-    padding-inline: 6px;
-    font-size: 11px;
-  }
-  .lm-app[data-working="true"] .lm-expert-mobile-surfaces { flex: 0 0 auto; }
-  .lm-app[data-working="true"] .lm-expert-mobile-surfaces > summary {
-    box-sizing: border-box;
-    min-height: 44px;
-    padding-inline: 7px;
-    font-size: 10px;
-  }
-  .lm-app[data-working="true"] .lm-expert-mobile-surfaces__groups {
-    position: fixed;
-    z-index: 70;
-    top: calc(172px + var(--lm-safe-area-top));
-    left: max(12px, var(--lm-safe-area-left));
-    right: max(12px, var(--lm-safe-area-right));
-    min-width: 0;
-    max-height: min(55dvh, 300px);
-  }
-  .lm-app[data-working="true"] .lm-workspace-rail {
-    z-index: 35;
-    top: calc(120px + var(--lm-safe-area-top));
-    right: max(12px, var(--lm-safe-area-right));
-    left: auto;
-    width: calc(50% - 18px);
-    max-width: none;
-    flex-direction: row;
-    justify-content: flex-end;
-    gap: 0;
-  }
-  .lm-app[data-working="true"] .lm-workspace-rail > button:last-of-type {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    justify-content: center;
-    padding-inline: 4px;
-    overflow: hidden;
-    font-size: 10px;
-    text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .lm-app[data-working="true"] .lm-workspace-list {
-    position: fixed;
-    z-index: 70;
-    top: calc(172px + var(--lm-safe-area-top));
-    left: max(12px, var(--lm-safe-area-left));
-    right: max(12px, var(--lm-safe-area-right));
-    max-height: min(55dvh, 300px);
-  }
+  /* At 320px keep the collapsible work plane immediately below navigation;
+     retained content scrolls inside the small remaining band. */
   .lm-app[data-working="true"] .lm-surface {
     z-index: 10;
     top: calc(172px + var(--lm-safe-area-top));
@@ -1019,6 +932,7 @@
   }
   .lm-app[data-working="true"] .lm-surface__header h2 { font-size: 16px; }
   .lm-app[data-working="true"] .lm-surface__header button {
+    min-width: 44px;
     padding-inline: 6px;
     font-size: 11px;
   }
@@ -1065,6 +979,14 @@
   animation: none !important;
   transition: none !important;
   scroll-behavior: auto !important;
+}
+
+/* Taller phones can retain an exposed body/seat band above the work plane.
+   Keep short/keyboard-constrained viewports on the compact, composer-safe
+   layout; this is one layout settle, never an animated canvas resize. */
+@media (min-width: 361px) and (max-width: 767px) and (min-height: 740px) {
+  .lm-app[data-working="true"]:not([data-keyboard-open="true"]) .lm-scene { top: 164px; bottom: calc(100% - 332px); }
+  .lm-app[data-working="true"]:not([data-keyboard-open="true"]) .lm-surface { top: 332px; }
 }
 
 /* A deliberate presentation posture: let the same full scene breathe behind

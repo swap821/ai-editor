@@ -61,3 +61,7 @@ On desktop, the current split composition keeps the DOM plane at approximately 6
 ## Self-critique
 
 This deliberately avoids the generic “brain beside neon cards” treatment: it changes only the relationship between the existing focused DOM surface and the real composer. The next useful review is visual, at both agreed composition sizes, with an actual focused surface and truthful state copy. If the measured mobile plane becomes too short around the keyboard, the answer is a reviewed responsive composition change—not hiding controls or inventing another activity animation.
+
+## 2026-09-30 local implementation follow-up (not a rewrite of the capture above)
+
+390×844 now exposes the existing body between164–332px, with the selected workplane starting332px and its composer clearance preserved. A static connection projects the actual selected seat to the measured plane edge; it is not an activity animation. At320×568, compact44px controls and scrollable content are reachable, but body presence remains mostly occluded and the connection hides. Desktop1440×900 was captured as well. The managed publisher's one-frame Float lag is an open P3; no port/art/hardware/live/operator acceptance. Frontend1,079 tests and build pass; full accepted ledger stays3/100. Exact evidence and publication scope: `LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md`.

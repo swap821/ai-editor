@@ -1561,13 +1561,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 12253c9ed17ebbc0236a1ea41155ecf988d62bd3: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 12253c9ed17ebbc0236a1ea41155ecf988d62bd3 exit=0; artifact=release/phase4/live-evidence-12253c9ed17e.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "12253c9ed17ebbc0236a1ea41155ecf988d62bd3",
+        "description": "Fresh scoped Phase4 production-authority/real-SQLite run: command=\"C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe\" scripts/phase4_boundary_skill_evidence.py exit=0; artifact=release/phase4/live-evidence-boundary-skill-efee8d6aa118.json; real SQLite controller accepted; non-checkable dependency refused; no worker/hook termination claimed. Backend clean at recorded HEAD before/after; no model/network/Docker or release-readiness claim.",
+        "commit_sha": "efee8d6aa1188b24eb55389e863c49e39ead5912",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "12253c9ed17ebbc0236a1ea41155ecf988d62bd3",
+    "last_verified_sha": "efee8d6aa1188b24eb55389e863c49e39ead5912",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 EmergencyStopHardWiringAuthority class defined in production_entrypoints ['aios/runtime/intelligence_gateway.py', 'aios/application/learning/service.py', 'aios/application/maintenance/service.py'] (Decision A / enforce_owner_attestation)",
@@ -1579,9 +1579,9 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_governance.py', 'tests/test_maintenance_api.py', 'tests/test_council_origination.py', 'tests/test_routes_gaps.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
-      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
-      "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 8 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C10": "PASS - fresh scoped live proof for this organ at efee8d6aa1188b24eb55389e863c49e39ead5912; historical evidence artifact preserved, not re-stamped.",
+      "C11": "PASS - last_verified_sha=efee8d6aa1188b24eb55389e863c49e39ead5912 (actual fresh production-authority/SQLite probe).",
+      "C12": "PASS - fresh evidence SHA efee8d6aa1188b24eb55389e863c49e39ead5912 is HEAD/ancestor; backend entrypoints unchanged. Ordinary ancestry check, not strict tagged-release acceptance."
     }
   },
   {
@@ -2522,13 +2522,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 12253c9ed17ebbc0236a1ea41155ecf988d62bd3: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 12253c9ed17ebbc0236a1ea41155ecf988d62bd3 exit=0; artifact=release/phase4/live-evidence-12253c9ed17e.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "12253c9ed17ebbc0236a1ea41155ecf988d62bd3",
+        "description": "Fresh scoped Phase4 production-authority/real-SQLite run: command=\"C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe\" scripts/phase4_boundary_skill_evidence.py exit=0; artifact=release/phase4/live-evidence-boundary-skill-efee8d6aa118.json; direct active birth refused; candidate\u2192human_reviewed\u2192active (synthetic probe transition, NOT operator approval); reopen SQLite success_count=1 confidence=0.55 state=active. Backend clean at recorded HEAD before/after; no model/network/Docker or release-readiness claim.",
+        "commit_sha": "efee8d6aa1188b24eb55389e863c49e39ead5912",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "12253c9ed17ebbc0236a1ea41155ecf988d62bd3",
+    "last_verified_sha": "efee8d6aa1188b24eb55389e863c49e39ead5912",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SkillLifecycleAuthority class defined in production_entrypoints ['aios/domain/learning/skill_contracts.py', 'aios/domain/learning/repository.py', 'aios/application/learning/skill_lifecycle.py'] (Decision A / enforce_owner_attestation)",
@@ -2540,9 +2540,9 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/domain/test_skill_library.py', 'tests/test_learning_application.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
-      "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
-      "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
-      "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 4 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C10": "PASS - fresh scoped live proof for this organ at efee8d6aa1188b24eb55389e863c49e39ead5912; historical evidence artifact preserved, not re-stamped.",
+      "C11": "PASS - last_verified_sha=efee8d6aa1188b24eb55389e863c49e39ead5912 (actual fresh production-authority/SQLite probe).",
+      "C12": "PASS - fresh evidence SHA efee8d6aa1188b24eb55389e863c49e39ead5912 is HEAD/ancestor; backend entrypoints unchanged. Ordinary ancestry check, not strict tagged-release acceptance."
     }
   },
   {

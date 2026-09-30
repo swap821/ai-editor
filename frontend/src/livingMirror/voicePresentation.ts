@@ -18,6 +18,21 @@ const GUIDED_STATUS: Readonly<Record<string, string>> = {
   'requesting microphone permission': 'Microphone permission needed',
 };
 
+const SETTLED_VOICE_STATES = new Set([
+  'checking local voice',
+  'ready · local transcription',
+  'local transcription unavailable',
+]);
+
+/** Keep active, failed, or unfamiliar voice states ahead of onboarding. */
+export function voiceStatusNeedsAttention({
+  state,
+  error,
+}: Pick<VoicePresentationInput, 'state' | 'error'>): boolean {
+  if (error) return true;
+  return !SETTLED_VOICE_STATES.has(state || 'local transcription unavailable');
+}
+
 function guidedErrorCopy(error: string): string {
   const normalized = error.toLowerCase();
   if (normalized.includes('local transcription is unavailable')) {

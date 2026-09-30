@@ -65,10 +65,10 @@ describe('LivingWorkspaceShell experience boundaries', () => {
 
     render(<LivingWorkspaceShell experienceMode="expert" />);
 
-    const expertSurfaces = screen.getByText('Expert surfaces').closest('details');
+    const expertSurfaces = screen.getByText('Workspaces').closest('details');
     expect(expertSurfaces).toBeTruthy();
     expect(expertSurfaces).not.toHaveAttribute('open');
-    act(() => fireEvent.click(screen.getByText('Expert surfaces')));
+    act(() => fireEvent.click(screen.getByText('Workspaces')));
     expect(expertSurfaces).toHaveAttribute('open');
     const task = screen.getByText('Task', { exact: true }).closest('details');
     expect(task).toBeTruthy();

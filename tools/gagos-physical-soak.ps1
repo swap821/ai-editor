@@ -1,6 +1,9 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$BrowserPath,
+  [Parameter(Mandatory = $true)]
+  [ValidateSet('idle', 'typing', 'materialization', 'streaming', 'eight-worker', 'verification', 'failure', 'reabsorption', 'stale', 'stop')]
+  [string]$ScenarioLabel,
   [string]$Url = 'http://localhost:5186/',
   [int]$Samples = 150,
   [int]$IntervalsPerSample = 4,
@@ -22,19 +25,28 @@ $probeTemplate = @'
 (()=>{
   const samples = window.__getFrontendMetrics?.() ?? [];
   const values = (name) => samples.filter((sample) => sample.name === name).map((sample) => sample.value);
-  const p50 = values('frame-time-p50');
-  const p95 = values('frame-time-p95');
-  const dropped = values('dropped-frame-period');
+  const p50 = values('raf-interval-p50');
+  const p95 = values('raf-interval-p95');
+  const longGaps = values('raf-gap-over-50ms');
   const sceneSamples = window.__getFrontendSceneDiagnostics?.() ?? [];
   const scene = sceneSamples.at(-1) ?? null;
   return JSON.stringify({
     soakBatch: __BATCH__,
+    scenarioLabel: '__SCENARIO__',
+    scenarioLabelScope: 'caller-declared; collector does not create or verify fixture state',
     sampleCount: samples.length,
     perf: window.__getPerf?.() ?? null,
-    frameP50: p50.at(-1) ?? null,
-    frameP95: p95.at(-1) ?? null,
-    droppedCount: dropped.length,
-    droppedMax: dropped.length ? Math.max(...dropped) : null,
+    rafIntervalP50Ms: p50.at(-1) ?? null,
+    rafIntervalP95Ms: p95.at(-1) ?? null,
+    retainedRafGapOver50MsCount: longGaps.length,
+    retainedRafGapOver50MsMax: longGaps.length ? Math.max(...longGaps) : null,
+    metricScope: {
+      rafInterval: 'visible-page requestAnimationFrame callback spacing; not render cost or displayed FPS',
+      rendererDrawCalls: 'Three renderer render-call submissions aggregated through the post-processing frame; not GPU time',
+      rendererCpuTime: 'unavailable',
+      gpuTime: 'unavailable',
+      inputLatency: 'unavailable'
+    },
     sceneSampleCount: sceneSamples.length,
     scene,
     domNodes: document.getElementsByTagName("*").length,
@@ -61,7 +73,7 @@ for ($batch = 1; $batch -le $Samples; $batch += 1) {
     )
     $steps += , @('wait', "[data-gagos-soak-$id=ready]")
     if ($interval -eq $IntervalsPerSample) {
-      $probe = $probeTemplate.Replace('__BATCH__', $batch.ToString())
+      $probe = $probeTemplate.Replace('__BATCH__', $batch.ToString()).Replace('__SCENARIO__', $ScenarioLabel)
       $steps += , @('js', $probe)
     } else {
       $steps += , @('js', "'heartbeat'")
@@ -105,7 +117,7 @@ foreach ($line in $probeLines) {
   }
   $records += $record
   if ($batch -eq 1 -or $batch % 10 -eq 0) {
-    Write-Output ("SOAK_PROGRESS batch=$batch sampleCount=$($record.sampleCount) dom=$($record.domNodes) canvas=$($record.canvas) scene=$($record.scene.sceneObjects) pool=$($record.scene.transientPoolSize) p50=$($record.frameP50) p95=$($record.frameP95) factor=$($record.perf.factor) dpr=$($record.perf.dpr)")
+    Write-Output ("SOAK_PROGRESS batch=$batch scenario=$($record.scenarioLabel) sampleCount=$($record.sampleCount) dom=$($record.domNodes) canvas=$($record.canvas) scene=$($record.scene.sceneObjects) drawCalls=$($record.scene.drawCalls) pool=$($record.scene.transientPoolSize) rafP50Ms=$($record.rafIntervalP50Ms) rafP95Ms=$($record.rafIntervalP95Ms) factor=$($record.perf.factor) dpr=$($record.perf.dpr)")
   }
 }
 
@@ -124,16 +136,20 @@ $dom = @($records | ForEach-Object { [double]$_.domNodes })
 $canvas = @($records | ForEach-Object { [double]$_.canvas })
 $factors = @($records | Where-Object { $_.perf } | ForEach-Object { [double]$_.perf.factor })
 $dprs = @($records | Where-Object { $_.perf } | ForEach-Object { [double]$_.perf.dpr })
-$drops = @($records | Where-Object { $null -ne $_.droppedMax } | ForEach-Object { [double]$_.droppedMax })
+$longGaps = @($records | Where-Object { $null -ne $_.retainedRafGapOver50MsMax } | ForEach-Object { [double]$_.retainedRafGapOver50MsMax })
+$longGapCounts = @($records | ForEach-Object { [double]$_.retainedRafGapOver50MsCount })
 $sceneObjects = @($records | Where-Object { $_.scene } | ForEach-Object { [double]$_.scene.sceneObjects })
 $transientPools = @($records | Where-Object { $_.scene } | ForEach-Object { [double]$_.scene.transientPoolSize })
-$geometries = @($records | Where-Object { $_.scene } | ForEach-Object { [double]$_.scene.geometries })
-$textures = @($records | Where-Object { $_.scene } | ForEach-Object { [double]$_.scene.textures })
-$renderCalls = @($records | Where-Object { $_.scene } | ForEach-Object { [double]$_.scene.renderCalls })
+$geometries = @($records | Where-Object { $_.scene -and $null -ne $_.scene.geometries } | ForEach-Object { [double]$_.scene.geometries })
+$textures = @($records | Where-Object { $_.scene -and $null -ne $_.scene.textures } | ForEach-Object { [double]$_.scene.textures })
+$drawCalls = @($records | Where-Object { $_.scene -and $null -ne $_.scene.drawCalls } | ForEach-Object { [double]$_.scene.drawCalls })
 $summary = [ordered]@{
   requestedSamples = $Samples
   completedSamples = $records.Count
   invalidBatch = $invalidBatch
+  scenarioLabel = $ScenarioLabel
+  scenarioLabelScope = 'caller-declared; collector does not create or verify fixture state'
+  metricScope = $records[-1].metricScope
   domMin = ($dom | Measure-Object -Minimum).Minimum
   domMax = ($dom | Measure-Object -Maximum).Maximum
   canvasMin = ($canvas | Measure-Object -Minimum).Minimum
@@ -142,7 +158,8 @@ $summary = [ordered]@{
   factorMax = if ($factors.Count) { ($factors | Measure-Object -Maximum).Maximum } else { $null }
   dprMin = if ($dprs.Count) { ($dprs | Measure-Object -Minimum).Minimum } else { $null }
   dprMax = if ($dprs.Count) { ($dprs | Measure-Object -Maximum).Maximum } else { $null }
-  droppedMax = if ($drops.Count) { ($drops | Measure-Object -Maximum).Maximum } else { $null }
+  retainedRafGapOver50MsCountMax = if ($longGapCounts.Count) { ($longGapCounts | Measure-Object -Maximum).Maximum } else { $null }
+  retainedRafGapOver50MsMax = if ($longGaps.Count) { ($longGaps | Measure-Object -Maximum).Maximum } else { $null }
   sceneObjectsMin = if ($sceneObjects.Count) { ($sceneObjects | Measure-Object -Minimum).Minimum } else { $null }
   sceneObjectsMax = if ($sceneObjects.Count) { ($sceneObjects | Measure-Object -Maximum).Maximum } else { $null }
   transientPoolMin = if ($transientPools.Count) { ($transientPools | Measure-Object -Minimum).Minimum } else { $null }
@@ -151,9 +168,9 @@ $summary = [ordered]@{
   geometriesMax = if ($geometries.Count) { ($geometries | Measure-Object -Maximum).Maximum } else { $null }
   texturesMin = if ($textures.Count) { ($textures | Measure-Object -Minimum).Minimum } else { $null }
   texturesMax = if ($textures.Count) { ($textures | Measure-Object -Maximum).Maximum } else { $null }
-  renderCallsMin = if ($renderCalls.Count) { ($renderCalls | Measure-Object -Minimum).Minimum } else { $null }
-  renderCallsMax = if ($renderCalls.Count) { ($renderCalls | Measure-Object -Maximum).Maximum } else { $null }
-  lastFrameP50 = $records[-1].frameP50
-  lastFrameP95 = $records[-1].frameP95
+  drawCallsMin = if ($drawCalls.Count) { ($drawCalls | Measure-Object -Minimum).Minimum } else { $null }
+  drawCallsMax = if ($drawCalls.Count) { ($drawCalls | Measure-Object -Maximum).Maximum } else { $null }
+  lastRafIntervalP50Ms = $records[-1].rafIntervalP50Ms
+  lastRafIntervalP95Ms = $records[-1].rafIntervalP95Ms
 }
 Write-Output ("SOAK_END " + ($summary | ConvertTo-Json -Compress))

@@ -59,7 +59,7 @@ import { BootstrapReadiness } from '../livingMirror/BootstrapReadiness';
 import { StarterPaths } from '../livingMirror/StarterPaths';
 import GuidedApprovalPanel from '../livingMirror/GuidedApprovalPanel';
 import { GuidedAccountPanel } from '../livingMirror/GuidedAccountPanel';
-import { presentVoiceStatus } from '../livingMirror/voicePresentation';
+import { presentVoiceStatus, voiceStatusNeedsAttention } from '../livingMirror/voicePresentation';
 import { ReceiptCard } from '../livingMirror/experience/ReceiptCard';
 import { deriveReceipt } from '../livingMirror/experience/receipts';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
@@ -544,6 +544,26 @@ export default function GagosChrome({
     error: voiceError,
     guided,
   });
+  const voiceNeedsAttention = listening || voiceStatusNeedsAttention({ state: voiceState, error: voiceError });
+  const showWelcomeBeforeVoiceStatus = guided && messages.length === 0 && !busy && !voiceNeedsAttention;
+  const voiceStatusNode = (
+    <div className="gagos-voice-state" role="status">
+      {voicePresentation.status}{voicePresentation.error ? ` · ${voicePresentation.error}` : ''}
+    </div>
+  );
+  const voiceDetailsNode = !backendVoice.stt && browserVoiceAvailable ? (
+    <details className="gagos-voice-options">
+      <summary>{experienceMode === 'beginner' ? 'Voice options (optional)' : 'Voice route'}</summary>
+      <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
+        Use browser recognition. Audio may be processed by your browser's speech service.
+      </label>
+      {experienceMode === 'beginner' ? (
+        <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
+      ) : null}
+    </details>
+  ) : experienceMode === 'beginner' ? (
+    <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
+  ) : null;
   // Streaming is already a reply in flight, not model-thought. Keep the
   // visible progress cue aligned with the same distinction used by the live
   // status announcement and the presentation kernel.
@@ -771,29 +791,14 @@ export default function GagosChrome({
 
       <section className="gagos-chat" aria-label="Conversation">
         <div id="gagos-chat-context" className="gagos-chat__context" ref={chatContextRef}>
-          <div className="gagos-voice-state" role="status">
-            {voicePresentation.status}{voicePresentation.error ? ` · ${voicePresentation.error}` : ''}
-          </div>
-          {!backendVoice.stt && browserVoiceAvailable ? (
-            <details className="gagos-voice-options">
-              <summary>{experienceMode === 'beginner' ? 'Voice options (optional)' : 'Voice route'}</summary>
-              <label className="gagos-voice-route"><input type="checkbox" checked={browserVoiceAllowed} onChange={(event) => { stopMic(); setBrowserVoiceAllowed(event.target.checked); }} />
-                Use browser recognition. Audio may be processed by your browser's speech service.
-              </label>
-              {experienceMode === 'beginner' ? (
-                <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
-              ) : null}
-            </details>
-          ) : experienceMode === 'beginner' ? (
-            <p className="gagos-voice-note">Voice is for conversation; actions still need your approval.</p>
-          ) : null}
+          {!showWelcomeBeforeVoiceStatus ? voiceStatusNode : null}
+          {!showWelcomeBeforeVoiceStatus ? voiceDetailsNode : null}
           {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
           {messages.length === 0 && !busy ? (
             <div className="gagos-welcome" role="group" aria-label="Getting started with GAGOS">
               <p className="gagos-welcome__eyebrow">{listening ? 'Microphone capturing' : 'Begin a conversation'}</p>
               <p className="gagos-welcome__greeting">
-                I'm <span className="gagos-welcome__name">GAGOS</span>. I remember useful context.
-                What would you like to get done?
+                I'm <span className="gagos-welcome__name">GAGOS</span>. What would you like to get done?
               </p>
               {experienceMode === 'beginner' ? (
                 <p className="gagos-welcome__guidance">
@@ -824,6 +829,8 @@ export default function GagosChrome({
               {integrated && experienceMode === 'beginner' ? <BootstrapReadiness /> : null}
             </div>
           ) : null}
+          {showWelcomeBeforeVoiceStatus ? voiceStatusNode : null}
+          {showWelcomeBeforeVoiceStatus ? voiceDetailsNode : null}
 
           <div className="gagos-thread" role="log" aria-label="Conversation with GAGOS" tabIndex={0}>
             {messages.map((m, i) => {

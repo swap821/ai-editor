@@ -4,9 +4,9 @@
 export type FrontendMetricName =
   | 'boot-to-input-ready'
   | '3d-initialization'
-  | 'frame-time-p50'
-  | 'frame-time-p95'
-  | 'dropped-frame-period'
+  | 'raf-interval-p50'
+  | 'raf-interval-p95'
+  | 'raf-gap-over-50ms'
   | 'workspace-materialization'
   | 'approval-render'
   | 'mirror-reconnect'
@@ -226,7 +226,12 @@ export function createMirrorReconnectTracker(
   };
 }
 
-export function startFrameTimeSampler(): () => void {
+/**
+ * Measures visible-page requestAnimationFrame callback intervals in
+ * milliseconds. This is scheduling/cadence evidence, not renderer CPU time,
+ * GPU time, displayed FPS, or input latency. Those require separate probes.
+ */
+export function startRafIntervalSampler(): () => void {
   if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return () => {};
   let active = true;
   let previous = performance.now();
@@ -261,11 +266,12 @@ export function startFrameTimeSampler(): () => void {
     const delta = Math.max(0, now - previous);
     previous = now;
     deltas.push(delta);
-    if (delta >= 50) recordFrontendMetric('dropped-frame-period', delta);
+    if (delta > 50) recordFrontendMetric('raf-gap-over-50ms', delta);
     if (deltas.length >= 120) {
       const sorted = [...deltas].sort((a, b) => a - b);
-      recordFrontendMetric('frame-time-p50', sorted[Math.floor(sorted.length * 0.5)] ?? 0);
-      recordFrontendMetric('frame-time-p95', sorted[Math.floor(sorted.length * 0.95)] ?? 0);
+      // Nearest-rank percentile: rank = ceil(p * n), converted to zero-based.
+      recordFrontendMetric('raf-interval-p50', sorted[Math.max(0, Math.ceil(sorted.length * 0.5) - 1)] ?? 0);
+      recordFrontendMetric('raf-interval-p95', sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)] ?? 0);
       deltas.length = 0;
     }
     raf = window.requestAnimationFrame(sample);

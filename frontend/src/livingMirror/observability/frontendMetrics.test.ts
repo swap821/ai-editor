@@ -7,7 +7,7 @@ import {
   getFrontendSceneDiagnostics,
   recordFrontendSceneDiagnostic,
   recordFrontendMetric,
-  startFrameTimeSampler,
+  startRafIntervalSampler,
 } from './frontendMetrics';
 
 describe('frontend metrics', () => {
@@ -38,14 +38,14 @@ describe('frontend metrics', () => {
       __getFrontendMetrics?: () => readonly { name: string; value: number; at: number }[];
     };
     expect(host.__getFrontendMetrics?.()).toEqual([]);
-    recordFrontendMetric('frame-time-p95', 18.5);
+    recordFrontendMetric('raf-interval-p95', 18.5);
     expect(host.__getFrontendMetrics?.()).toEqual([
-      expect.objectContaining({ name: 'frame-time-p95', value: 18.5 }),
+      expect.objectContaining({ name: 'raf-interval-p95', value: 18.5 }),
     ]);
   });
 
   it('publishes only bounded content-free probes on the localhost document root', () => {
-    recordFrontendMetric('frame-time-p95', 18.5);
+    recordFrontendMetric('raf-interval-p95', 18.5);
     recordFrontendSceneDiagnostic({
       sceneObjects: 58,
       drawCalls: 1,
@@ -58,14 +58,14 @@ describe('frontend metrics', () => {
       lightningCount: 0,
     });
 
-    expect(document.documentElement.getAttribute('data-gagos-metric-frame-time-p95')).toBe('18.5');
+    expect(document.documentElement.getAttribute('data-gagos-metric-raf-interval-p95')).toBe('18.5');
     expect(document.documentElement.getAttribute('data-gagos-scene-objects')).toBe('58');
     expect(document.documentElement.getAttribute('data-gagos-scene-worker-branches')).toBe('2');
     expect(document.documentElement.getAttribute('data-gagos-scene-materialization-surfaces')).toBe('1');
     expect(document.documentElement.outerHTML).not.toMatch(/prompt|filepath|workerId|authority/);
 
     clearFrontendMetricSamples();
-    expect(document.documentElement.getAttribute('data-gagos-metric-frame-time-p95')).toBeNull();
+    expect(document.documentElement.getAttribute('data-gagos-metric-raf-interval-p95')).toBeNull();
     expect(document.documentElement.getAttribute('data-gagos-scene-objects')).toBeNull();
   });
 
@@ -177,7 +177,7 @@ describe('frontend metrics', () => {
     ]);
   });
 
-  it('records frame percentiles and dropped-frame periods from the bounded sampler', () => {
+  it('records RAF-interval percentiles and long RAF gaps from the bounded sampler', () => {
     const callbacks: FrameRequestCallback[] = [];
     const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callbacks.push(callback);
@@ -186,7 +186,7 @@ describe('frontend metrics', () => {
     const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
     vi.spyOn(performance, 'now').mockReturnValue(0);
 
-    const stop = startFrameTimeSampler();
+    const stop = startRafIntervalSampler();
     let timestamp = 0;
     for (let index = 0; index < 120; index += 1) {
       timestamp += index === 10 ? 60 : 16;
@@ -195,11 +195,55 @@ describe('frontend metrics', () => {
     stop();
 
     const names = getFrontendMetricSamples().map((sample) => sample.name);
-    expect(names).toContain('dropped-frame-period');
-    expect(names).toContain('frame-time-p50');
-    expect(names).toContain('frame-time-p95');
+    expect(names).toContain('raf-gap-over-50ms');
+    expect(names).toContain('raf-interval-p50');
+    expect(names).toContain('raf-interval-p95');
+    expect(getFrontendMetricSamples().filter((sample) => sample.name === 'raf-gap-over-50ms').map((sample) => sample.value)).toEqual([60]);
+    expect(getFrontendMetricSamples().filter((sample) => sample.name === 'raf-interval-p50').map((sample) => sample.value)).toEqual([16]);
+    expect(getFrontendMetricSamples().filter((sample) => sample.name === 'raf-interval-p95').map((sample) => sample.value)).toEqual([16]);
     expect(request).toHaveBeenCalledTimes(121);
     expect(cancel).toHaveBeenCalledWith(121);
+  });
+
+  it('does not label an exact 50ms RAF interval as over the 50ms gap threshold', () => {
+    const callbacks: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+
+    const stop = startRafIntervalSampler();
+    let timestamp = 0;
+    for (let index = 0; index < 120; index += 1) {
+      timestamp += index === 10 ? 50 : 16;
+      callbacks[callbacks.length - 1]?.(timestamp);
+    }
+    stop();
+
+    expect(getFrontendMetricSamples().some((sample) => sample.name === 'raf-gap-over-50ms')).toBe(false);
+  });
+
+  it('uses nearest-rank percentiles for one complete 120-interval window', () => {
+    const callbacks: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+
+    const stop = startRafIntervalSampler();
+    let timestamp = 0;
+    for (let index = 0; index < 120; index += 1) {
+      timestamp += index < 60 ? 16 : index < 114 ? 24 : 100;
+      callbacks[callbacks.length - 1]?.(timestamp);
+    }
+    stop();
+
+    expect(getFrontendMetricSamples().find((sample) => sample.name === 'raf-interval-p50')?.value).toBe(16);
+    expect(getFrontendMetricSamples().find((sample) => sample.name === 'raf-interval-p95')?.value).toBe(24);
   });
 
   it('does not classify a background-tab pause as a dropped frame', () => {
@@ -213,7 +257,7 @@ describe('frontend metrics', () => {
     const visibility = { value: 'visible' as DocumentVisibilityState };
     const visibilitySpy = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility.value);
 
-    const stop = startFrameTimeSampler();
+    const stop = startRafIntervalSampler();
     visibility.value = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
     callbacks[callbacks.length - 1]?.(2_000);
@@ -222,7 +266,7 @@ describe('frontend metrics', () => {
     callbacks[callbacks.length - 1]?.(2_016);
     stop();
 
-    expect(getFrontendMetricSamples().some((sample) => sample.name === 'dropped-frame-period')).toBe(false);
+    expect(getFrontendMetricSamples().some((sample) => sample.name === 'raf-gap-over-50ms')).toBe(false);
     visibilitySpy.mockRestore();
   });
 });
