@@ -273,6 +273,11 @@ not validated on before.
 
   The eight 5a mutations were re-run against the converted 5a tests: all
   killed.
+- **The structural reel on a05d4217 holds 14, with 0 breached**
+  (`docs/learning/redteam_phase5b_structural.json`). 5a held 13; RT-09 is
+  newly held. Not counted as held:
+  - 6 missions are blocked: behavioural, or not yet built.
+  - 1 is not reached: RT-10, principal scoping, the next slice.
 
 ### Stated residuals
 
