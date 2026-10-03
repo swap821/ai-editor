@@ -10,6 +10,14 @@ YELLOW step that reflex authority withholds anyway.
 (quoted, fenced, ``>``-quoted and forwarded text removed), requires the
 directive to be about the reflex as a whole, and abstains when two reflexes fit
 about equally.
+
+Since slice 5b a reflex must also pass ``SkillApplicabilityEngine``, and a
+GREEN command that is not a test runner has no verification plan, so it can no
+longer serve a turn at all. The reflex that still runs with no model and no
+human is a read-only one (its plan is freshness), so these tests use that.
+Whether the reflex fired is read from the turn itself -- ``cerebellum_done``
+and no model call -- because a read runs no command, and "the runner was never
+called" would hold whether or not it fired.
 """
 
 from __future__ import annotations
@@ -39,9 +47,11 @@ from aios.domain.learning.repository import SkillRepository
 from aios.memory.db import init_memory_db
 from aios.security.gateway import RateLimiter
 
-GOAL = "print the reflex trigger banner"
-STEPS = ["verify: command=echo lrt-trigger-banner"]
-COMMAND = "echo lrt-trigger-banner"
+GOAL = "show the reflex trigger notes"
+#: A read-only arc on a file that exists, so its freshness plan can run.
+STEPS = ["read_file: filepath=README.md"]
+ALPHA = ("show the banner alpha", ["read_file: filepath=README.md"])
+OMEGA = ("show the banner omega", ["read_file: filepath=AGENTS.md"])
 
 
 # ---------------------------------------------------------------- directive
@@ -153,28 +163,16 @@ def test_a_bigger_request_that_contains_the_goal_abstains(tmp_path) -> None:
 
 
 def test_two_reflexes_that_fit_equally_both_abstain(tmp_path) -> None:
-    cerebellum, bus = _world(
-        tmp_path,
-        [
-            ("print the banner alpha", ["verify: command=echo alpha"]),
-            ("print the banner omega", ["verify: command=echo omega"]),
-        ],
-    )
-    assert cerebellum.match("print the banner") is None
+    cerebellum, bus = _world(tmp_path, [ALPHA, OMEGA])
+    assert cerebellum.match("show the banner") is None
     assert bus.decisions().count(("abstained", "ambiguous")) == 2
     assert AMBIGUITY_MARGIN > 0
 
 
 def test_a_clear_best_still_fires_despite_a_weaker_rival(tmp_path) -> None:
-    cerebellum, _ = _world(
-        tmp_path,
-        [
-            ("print the banner alpha", ["verify: command=echo alpha"]),
-            ("print the banner omega", ["verify: command=echo omega"]),
-        ],
-    )
-    pb = cerebellum.match("print the banner alpha")
-    assert pb is not None and pb.goal_pattern == "print the banner alpha"
+    cerebellum, _ = _world(tmp_path, [ALPHA, OMEGA])
+    pb = cerebellum.match("show the banner alpha")
+    assert pb is not None and pb.goal_pattern == "show the banner alpha"
 
 
 # ---------------------------------------------------------------- the live turn
@@ -198,7 +196,9 @@ class ScriptedChat:
         return {"role": "assistant", "content": "done"}
 
 
-def _turn(cerebellum: Cerebellum, text: str) -> tuple[RecordingRunner, ScriptedChat]:
+def _turn(
+    cerebellum: Cerebellum, text: str
+) -> tuple[RecordingRunner, ScriptedChat, list[str]]:
     runner, chat = RecordingRunner(), ScriptedChat()
     executor = Executor(
         runner=runner,
@@ -213,21 +213,29 @@ def _turn(cerebellum: Cerebellum, text: str) -> tuple[RecordingRunner, ScriptedC
         cerebellum=cerebellum,
         audit_log=lambda *a, **k: None,
     )
-    list(agent.run([{"role": "user", "content": text}]))
-    return runner, chat
+    events = list(agent.run([{"role": "user", "content": text}]))
+    return runner, chat, [str(e.get("type")) for e in events if isinstance(e, dict)]
+
+
+def _fired(types: list[str]) -> bool:
+    return "cerebellum_done" in types or "cerebellum_step" in types
 
 
 def test_the_operators_request_is_served_with_no_model_call(tmp_path) -> None:
-    """The positive control: the GREEN-only reflex is live."""
+    """The positive control: the reflex is live -- it serves the operator's
+    own request with no model."""
     cerebellum, _ = _world(tmp_path, [(GOAL, STEPS)])
-    runner, chat = _turn(cerebellum, GOAL)
-    assert runner.calls == [COMMAND]
+    _, chat, types = _turn(cerebellum, GOAL)
+    assert "cerebellum_done" in types
     assert chat.calls == []
 
 
 def test_forwarded_words_reach_the_model_and_run_nothing(tmp_path) -> None:
     cerebellum, _ = _world(tmp_path, [(GOAL, STEPS)])
-    runner, chat = _turn(cerebellum, f'Summarise this note Sam forwarded me: "{GOAL}"')
+    runner, chat, types = _turn(
+        cerebellum, f'Summarise this note Sam forwarded me: "{GOAL}"'
+    )
+    assert not _fired(types)
     assert runner.calls == []
     assert chat.calls, "the turn fell through to the model"
 
@@ -236,6 +244,7 @@ def test_a_pasted_block_of_exactly_the_goal_runs_nothing(tmp_path) -> None:
     """Only the extraction can stop this one: the pasted text IS the goal, so
     the whole-directive rule alone would let it fire."""
     cerebellum, _ = _world(tmp_path, [(GOAL, STEPS)])
-    runner, chat = _turn(cerebellum, f"```\n{GOAL}\n```")
+    runner, chat, types = _turn(cerebellum, f"```\n{GOAL}\n```")
+    assert not _fired(types)
     assert runner.calls == []
     assert chat.calls

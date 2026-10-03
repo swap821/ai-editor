@@ -788,8 +788,33 @@ class Cerebellum:
                         "abstained", pb, score, user_message, "ambiguous"
                     )
             return None
+        refusal = self._inapplicable(best)
+        if refusal is not None:
+            # Plan Phase 5b: the skill must pass SkillApplicabilityEngine --
+            # scope, tools, the code it touches unchanged since it was
+            # verified, an executable plan, and policy. Otherwise the model
+            # answers.
+            self._record_decision(
+                "abstained",
+                best,
+                best_score,
+                user_message,
+                f"not applicable: {refusal}",
+            )
+            return None
         self._record_decision("replayed", best, best_score, user_message, "matched")
         return best
+
+    def _inapplicable(self, playbook: "CompiledPlaybook") -> Optional[str]:
+        """The library's reason this reflex does not apply here, or None.
+        No library that can say means it does not apply: fail closed."""
+        check = getattr(self._reflex_gate, "reflex_applicability", None)
+        if check is None:
+            return "no skill library can vouch for it"
+        try:
+            return check(int(playbook.skill_id))
+        except Exception as exc:  # noqa: BLE001 - unreadable refuses
+            return f"applicability unreadable: {exc}"
 
     def _record_decision(
         self,
