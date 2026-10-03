@@ -211,7 +211,6 @@ _CONTRACT_CHANGES: dict[str, object] = {
     ),
     "escalation_conditions": ["e"],
     "source_trajectory_ids": ["another-trajectory"],
-    "last_validated_versions": ["9.9"],
     "provenance": {"source": "forged"},
     "created_at": "2000-01-01T00:00:00",
 }
@@ -230,13 +229,28 @@ class TestAReviewedContractIsNeverRewritten:
         )
         assert classified == set(SkillRecord.model_fields)
 
-    def test_evidence_is_only_counts_confidence_and_time(self) -> None:
+    def test_evidence_is_counts_confidence_time_and_validated_versions(self) -> None:
+        """Plan Phase 5b: the code states a skill was verified to succeed on
+        are evidence, appended as it is re-verified -- not the reviewed
+        contract. Everything else about a reviewed skill stays immutable."""
         assert _EVIDENCE_FIELDS == {
             "confidence",
             "success_count",
             "failure_count",
             "updated_at",
+            "last_validated_versions",
         }
+
+    @pytest.mark.parametrize("state", ["human_reviewed", "active", "suspended"])
+    def test_a_reviewed_skill_may_record_a_new_validated_version(
+        self, tmp_path: Path, state: str
+    ) -> None:
+        repo = SkillRepository(tmp_path / "skills.db")
+        stored = seed_skill(repo, _record(state=state))
+        repo.save(stored.model_copy(update={"last_validated_versions": ["abc123"]}))
+        assert repo.get("skill-1", 1).last_validated_versions == ["abc123"]
+        with pytest.raises(ValueError, match="rewrite the contract"):
+            repo.save(stored.model_copy(update={"procedure": "forged"}))
 
     @pytest.mark.parametrize("field", sorted(_CONTRACT_CHANGES))
     @pytest.mark.parametrize("state", ["human_reviewed", "active", "suspended"])
