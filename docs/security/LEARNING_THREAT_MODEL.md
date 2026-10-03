@@ -97,7 +97,7 @@ and the test that proves the control. Test IDs `RT-*` are missions in
 |---|---|---|---|---|---|
 | T1 | **Chat-index poisoning.** Text in any turn is stored unverified and recalled into later prompts. | X1 X2 | **Yes** (A1, 232 rows) | Unverified chat excluded from recall (0b); envelope + provenance (3, 4) | RT-01 (S: stored + reaches prompt), RT-02 (B: executed) |
 | T2 | **Tool-output → lesson poisoning.** Reflection turns attacker-authored output into a lesson; a later identical success verifies it. | X1 | **Yes** (A2) | Provenance + `source_kind`; envelope; lessons carry no authority (3, 4) | RT-03 (S), RT-04 (B), RT-19 (B: does a real model act on the recalled lesson?) |
-| T3 | **Reflex hijack by pasted text.** A playbook's goal text inside forwarded content triggers replay with auto-approved commands, before any model. | X2 | **Yes** (A4, B3) | Match on authored directive only; applicability; abstain on ambiguity (5) | RT-05 (S) |
+| T3 | **Reflex hijack by pasted text.** A playbook's goal text inside forwarded content triggers replay with auto-approved commands, before any model. | X2 | **Yes** (A4, B3) | Match on authored directive only; applicability; abstain on ambiguity (5) | RT-05 (S), RT-21 (S: GREEN-only reflex) |
 | T4 | **Harness-grant laundering.** A skill learned under harness grants (or no human at all) compiles into a reflex that auto-approves in live turns. | X4 | **Yes** (playbooks 9, 10, 14) | Per-step approval provenance; harness grants never cross into live (0b, 5) | RT-06 (S) |
 | T5 | **Learning during an emergency stop.** Memory writes, promotion and compilation continue while authority is revoked. | X4 X6 | **Yes** (F7) | Stop boundaries on every learning write (0b, 6); the institutional skill, trajectory and reuse-outcome stores refuse too, withdrawals excepted (2.2); legacy reuse credit (`skills.record_reuse`) refuses too -- Phase 0b had missed it (2.4b) | RT-07 (S) |
 | T6 | **Revoked memory resurfaces.** A superseded lesson or decompiled reflex is still recalled or replayed. | X6 | Partly | Retrieval-time guard; cascade over derivations (4, 6); a machine-retired reflex returns only by operator re-activation (6c) | RT-08 (S: human revocation), RT-20 (S: machine retirement) |
@@ -437,3 +437,24 @@ not a control.
   - there was no match after three unattended successes.
 - **Positive control:** on master before 6c, the reflex came back: breached.
 - **Design:** `docs/learning/PHASE6_DESIGN.md`.
+
+## Phase 5a, 2026-09-29: a reflex fires only on the operator's own words
+
+*Design: `docs/learning/PHASE5_DESIGN.md`.*
+
+- **RT-21 (T3, new) goes from breached on the tree before 5a to held here, by
+  `reflex_trigger`.**
+  - Before 5a, forwarded words the operator asked to have summarised fired a
+    GREEN-only reflex. It ran its command with no model and no human.
+  - Reflex authority cannot stop that, because it withholds only steps that
+    need approval.
+  - Now `Cerebellum.match` reads only the operator's authored directive
+    (quoted, fenced, `>`-quoted and forwarded text removed). It requires the
+    directive to be about the reflex as a whole, and abstains on ambiguity.
+- **RT-05 still holds.** It now names `reflex_trigger`, which stops the
+  forwarded sentence before reflex authority sees it.
+- **Residuals:**
+  - unmarked forwarded text is indistinguishable from the operator's own
+    words;
+  - `SkillApplicabilityEngine` is not wired, which is an operator decision (see
+    the design).
