@@ -25,13 +25,16 @@ from aios.application.memory.institutional_skills import (
 from aios.core.cerebellum import Cerebellum
 from aios.core.verification_strength import VerificationStrength
 from aios.domain.learning.repository import SkillRepository
+from aios.application.memory.reflex_contract import stamp_for_activation
 from aios.memory import learning_freeze
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.skills import SkillMemory
 from tools import migrate_skills_to_institutional as mig
 
 GOAL = "run the parser tests and report the result"
-STEPS = ["verify: command=pytest tests/test_parser.py -q"]
+#: A test file that exists: since plan Phase 5b a reflex's verification plan
+#: must be executable, so its target must be real.
+STEPS = ["verify: command=pytest tests/test_cerebellum.py -q"]
 
 
 class Bus:
@@ -105,7 +108,10 @@ def _migrated(repository: SkillRepository):
 
 
 def _activate(repository: SkillRepository, record) -> None:
-    """The operator's act, in a test. Live, only the capability route does it."""
+    """The operator's act, in a test. Live, only the capability route does it,
+    and it stamps the reflex contract first (plan Phase 5b), as here."""
+    stamped = stamp_for_activation(repository.get(record.skill_id, record.version))
+    repository.save(stamped)
     repository.transition_state(record.skill_id, record.version, "human_reviewed")
     repository.transition_state(record.skill_id, record.version, "active")
 
@@ -225,8 +231,8 @@ class TestTheGate:
         with get_connection(legacy_db) as conn:
             conn.execute("DELETE FROM compiled_playbooks")
         library_id = slot.record_attempt(
-            "read CHANGELOG.md and report it",
-            ["read_file: filepath=CHANGELOG.md"],
+            "read README.md and report it",
+            ["read_file: filepath=README.md"],
             success=True,
         )
         live = next(
@@ -237,7 +243,7 @@ class TestTheGate:
         assert library_id in slot.active_procedures()
         assert cerebellum.try_compile_all() == 1
         assert [skill for skill, _, _ in _playbooks(legacy_db)] == [library_id]
-        assert cerebellum.match("read CHANGELOG.md and report it") is not None
+        assert cerebellum.match("read README.md and report it") is not None
 
     def test_an_unreadable_library_activates_nothing(self, world) -> None:
         _, cerebellum, _, repository, _ = world

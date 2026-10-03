@@ -8,9 +8,15 @@ retire rule compares). Production answers them from the library
 (``InstitutionalSkillAdapter``).
 
 Tests of matching, replay, decompilation and file confirmation need a compiled
-reflex and nothing about how it was activated, so this answers the same two
+reflex and nothing about how it was activated, so this answers the same
 questions from a dict. Tests of the gate ITSELF -- what activates, what
 demotes -- use the real library instead (``tests/test_phase2_reflex_gate.py``).
+
+Since plan Phase 5b the cerebellum also asks ``reflex_applicability`` (does
+``SkillApplicabilityEngine`` accept the skill?). A mechanism test's reflex
+applies unless the test says otherwise (``make_inapplicable``); applicability
+itself is tested against the real library in
+``tests/test_phase5b_reflex_applicability.py``.
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ class ActivatedSkills:
     def __init__(self) -> None:
         self._entries: dict[int, dict[str, Any]] = {}
         self._counts: dict[int, int] = {}
+        self._inapplicable: dict[int, str] = {}
         self._next_id = 1
 
     def activate(
@@ -64,6 +71,12 @@ class ActivatedSkills:
 
     def successes(self, skill_id: int) -> int | None:
         return self._counts.get(int(skill_id))
+
+    def reflex_applicability(self, skill_id: int) -> str | None:
+        return self._inapplicable.get(int(skill_id))
+
+    def make_inapplicable(self, skill_id: int, reason: str) -> None:
+        self._inapplicable[int(skill_id)] = reason
 
 
 def gated(gate: ActivatedSkills, *args: Any, **kwargs: Any) -> Cerebellum:

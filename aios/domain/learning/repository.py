@@ -29,8 +29,18 @@ def _utc_now() -> str:
 #: and the provenance the reviewer was shown. Rewriting any of it in place
 #: would run something nobody approved under an approval given for something
 #: else; a changed contract is a new version, born a candidate.
+#: What a verified outcome may update after review. ``last_validated_versions``
+#: is evidence too: the code states a skill was verified to succeed on (plan
+#: Phase 5b), appended as it is re-verified -- not the procedure that was
+#: reviewed, which stays immutable.
 _EVIDENCE_FIELDS = frozenset(
-    {"confidence", "success_count", "failure_count", "updated_at"}
+    {
+        "confidence",
+        "success_count",
+        "failure_count",
+        "updated_at",
+        "last_validated_versions",
+    }
 )
 
 
