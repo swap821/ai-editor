@@ -807,3 +807,15 @@ and would have failed.
 - **Most of what a turn costs with an empty store is not learning.** Stores
   re-run `init_memory_db` per call (about 28 a turn, before the gate too), and
   the bus write path also costs. Pre-existing, and outside this slice.
+
+### Evidence on the final tree (70467860: 4c-2 and 4c-3 together)
+
+- **The structural reel holds 18, with 0 breached and 0 not reached**
+  (`docs/learning/redteam_phase4c3_structural.json`). The fact gate's new
+  batch keeps RT-18 (unapproved facts) and RT-10/RT-23 (scoping) held.
+- **The swallowed-error log sweep is clean.** The only error left is RT-07's
+  emergency-stop refusal.
+- **The full backend suite, in eight foreground batches:** 6,886 passed, 31
+  skipped, 4 failed. All four failures are organ-evidence checks:
+  - three are master's own after #438's squash (#439);
+  - the fourth is the currency check that this PR's re-gather clears.
