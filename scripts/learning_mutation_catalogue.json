@@ -4451,9 +4451,10 @@
    "new": "        approved_by = scan_and_redact((approved_by or \"\").strip()).scrubbed or None\n        if (False):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.add_fact line 118 condition forced False: not (subject and predicate and obj)"
@@ -4521,9 +4522,10 @@
    "new": "                if (True):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.add_fact line 148 condition forced True: approved_by is not None"
@@ -4535,9 +4537,10 @@
    "new": "                if (False):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.add_fact line 148 condition forced False: approved_by is not None"
@@ -4563,9 +4566,10 @@
    "new": "        if (False):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.approve_proposal line 538 condition forced False: not approver"
@@ -4591,9 +4595,10 @@
    "new": "        if (False):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.approve_proposal line 545 condition forced False: row is None or str(row[\"status\"]) != \"pending\""
@@ -4605,9 +4610,10 @@
    "new": "        if (True):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.approve_proposal line 558 condition forced True: result.committed"
@@ -4619,9 +4625,10 @@
    "new": "        if (False):\n",
    "tests": [
     "tests/test_facts.py",
+    "tests/test_memory_authority.py",
     "tests/test_phase3c2_fact_gate.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_memory_authority.py"
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFacts.approve_proposal line 558 condition forced False: result.committed"
@@ -5445,11 +5452,12 @@
    "new": "        RED is refused exactly as before; nothing here approves anything.\n        \"\"\"\n        if (False):\n",
    "tests": [
     "tests/test_agents_pkg_gaps.py",
-    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase4a_recall_envelope.py",
+    "tests/test_phase4b_approval_provenance.py",
     "tests/test_phase5a_reflex_trigger.py",
     "tests/test_phase5b_reflex_applicability.py",
-    "tests/test_phase4a_recall_envelope.py",
-    "tests/test_phase4b_approval_provenance.py"
+    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: ToolAgent._dispatch_approved line 2168 condition forced False: self.allowed_tools is not None and name not in self.allowed_tools"
@@ -5509,11 +5517,12 @@
    "new": "            return output, status, failed\n        if (False):\n",
    "tests": [
     "tests/test_agents_pkg_gaps.py",
-    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase4a_recall_envelope.py",
+    "tests/test_phase4b_approval_provenance.py",
     "tests/test_phase5a_reflex_trigger.py",
     "tests/test_phase5b_reflex_applicability.py",
-    "tests/test_phase4a_recall_envelope.py",
-    "tests/test_phase4b_approval_provenance.py"
+    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: ToolAgent._dispatch_approved line 2180 condition forced False: name == \"create_file\""
@@ -5541,11 +5550,12 @@
    "new": "            return self._replay_create_file(args)\n        if (False):\n",
    "tests": [
     "tests/test_agents_pkg_gaps.py",
-    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase4a_recall_envelope.py",
+    "tests/test_phase4b_approval_provenance.py",
     "tests/test_phase5a_reflex_trigger.py",
     "tests/test_phase5b_reflex_applicability.py",
-    "tests/test_phase4a_recall_envelope.py",
-    "tests/test_phase4b_approval_provenance.py"
+    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: ToolAgent._dispatch_approved line 2182 condition forced False: name == \"edit_file\""
@@ -5573,11 +5583,12 @@
    "new": "        \"\"\"\n        if (False):\n",
    "tests": [
     "tests/test_agents_pkg_gaps.py",
-    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase4a_recall_envelope.py",
+    "tests/test_phase4b_approval_provenance.py",
     "tests/test_phase5a_reflex_trigger.py",
     "tests/test_phase5b_reflex_applicability.py",
-    "tests/test_phase4a_recall_envelope.py",
-    "tests/test_phase4b_approval_provenance.py"
+    "tests/test_phase5c_composition_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: ToolAgent._composition_capped line 2004 condition forced False: name not in (\"execute_terminal\", \"verify\")"

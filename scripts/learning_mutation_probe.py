@@ -68,6 +68,17 @@ INERT: dict[str, str] = {
         "returns before caching a turn that names no principal. The answer is "
         "None either way; the early return is defence in depth."
     ),
+    "gen:tool_agent:ToolAgent._recall_taint:2044:never": (
+        "with no taintable argument or no recalled memory, recall_envelope."
+        "recall_taint finds nothing to match and returns [] -- the early return "
+        "is a shortcut (checked directly: recall_taint('', m, o) == [] and "
+        "recall_taint(c, '', o) == [])."
+    ),
+    "gen:tool_agent:ToolAgent._composition_capped:2004:never": (
+        "a read carries no command, and the gateway refuses an empty one "
+        "(_gateway_refuses({}) is True), so a read is never held at the cap "
+        "even without the early return; the return states the rule."
+    ),
 }
 
 

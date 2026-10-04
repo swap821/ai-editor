@@ -179,3 +179,150 @@ def test_the_probe_file_names_this_module() -> None:
     )
     named = {t for e in catalogue["entries"] for t in e["tests"]}
     assert any("test_phase7_guard_branches.py" in t for t in named)
+
+
+# ------------------------------------------------------------ facts (T16)
+
+
+@pytest.fixture
+def facts_store(frozen_latch):
+    from aios.memory.facts import SemanticFacts
+
+    db = frozen_latch / "memory.db"
+    init_memory_db(db)
+    return SemanticFacts(db)
+
+
+def _fact_rows(store) -> list[tuple]:
+    with sqlite3.connect(store.db_path) as conn:
+        return conn.execute(
+            "SELECT subject, predicate, object, approved_by, confidence FROM semantic_facts"
+        ).fetchall()
+
+
+class TestTheHumanApprovedFactsChannel:
+    def test_an_empty_triple_is_never_written(self, facts_store) -> None:
+        for triple in (
+            ("", "uses", "x"),
+            ("router", "", "x"),
+            ("router", "uses", "   "),
+        ):
+            result = facts_store.add_fact(*triple, approved_by="op")
+            assert (result.committed, result.reason) == (
+                False,
+                "empty subject/predicate/object",
+            )
+        assert _fact_rows(facts_store) == []
+
+    def test_approving_a_known_fact_records_its_approver(self, facts_store) -> None:
+        """Recall admits only human-approved facts: approving one that was
+        learned unapproved must record WHO approved it, on the same row."""
+        facts_store.add_fact("router", "uses", "FastAPI", confidence=0.3)
+        again = facts_store.add_fact("router", "uses", "FastAPI", confidence=0.4)
+        assert again.reason == "already present"
+        assert _fact_rows(facts_store) == [("router", "uses", "FastAPI", None, 0.3)], (
+            "an unapproved repeat changes nothing"
+        )
+        approved = facts_store.add_fact(
+            "router", "uses", "FastAPI", approved_by="op", confidence=0.9
+        )
+        assert approved.committed
+        assert _fact_rows(facts_store) == [("router", "uses", "FastAPI", "op", 0.9)]
+
+    def test_a_proposal_needs_an_approver(self, facts_store) -> None:
+        proposal = facts_store.propose("operator", "prefers", "tea")
+        for nobody in ("", "   "):
+            refused = facts_store.approve_proposal(
+                proposal.proposal_id, approved_by=nobody
+            )
+            assert (refused.committed, refused.reason) == (False, "approver required")
+        assert [p["status"] for p in facts_store.pending_proposals()] == ["pending"]
+        assert _fact_rows(facts_store) == []
+
+    def test_only_a_pending_proposal_can_be_approved(self, facts_store) -> None:
+        proposal = facts_store.propose("operator", "prefers", "tea")
+        assert facts_store.reject_proposal(proposal.proposal_id, rejected_by="op")
+        late = facts_store.approve_proposal(proposal.proposal_id, approved_by="op")
+        assert (late.committed, late.reason) == (False, "not pending")
+        missing = facts_store.approve_proposal(99999, approved_by="op")
+        assert (missing.committed, missing.reason) == (False, "not pending")
+        assert _fact_rows(facts_store) == []
+
+    def test_a_contradicting_proposal_stays_pending(self, facts_store) -> None:
+        """A contradiction is returned, not committed, and the proposal waits
+        for an explicit human reconcile; a committed one is marked approved."""
+        facts_store.add_fact("project", "uses", "FastAPI", approved_by="op")
+        clash = facts_store.propose("project", "uses", "Flask")
+        result = facts_store.approve_proposal(clash.proposal_id, approved_by="op")
+        assert (result.committed, result.reason) == (False, "contradiction")
+        assert [p["object"] for p in facts_store.pending_proposals()] == ["Flask"]
+        fine = facts_store.propose("project", "serves", "api")
+        assert facts_store.approve_proposal(
+            fine.proposal_id, approved_by="op"
+        ).committed
+        assert [p["object"] for p in facts_store.pending_proposals()] == ["Flask"]
+
+
+# ------------------------------------------------------------ reflex replay
+
+
+def _agent(**kwargs):
+    from aios.agents.tool_agent import ToolAgent
+    from aios.core.autonomy import UNGOVERNED_FIXTURE
+    from aios.core.executor import Executor
+    from aios.security.gateway import RateLimiter
+
+    return ToolAgent(
+        object(),
+        Executor(
+            runner=lambda *a, **k: ("", "", 0),
+            rate_limiter=RateLimiter(),
+            audit_log=lambda *a, **k: None,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        ),
+        max_iters=1,
+        audit_log=lambda *a, **k: None,
+        **kwargs,
+    )
+
+
+class TestAReplayedWriteHasOnePath:
+    WRITE = {"filepath": "notes.md", "content_sha256": "0" * 64, "content": "x"}
+
+    def test_a_replayed_write_goes_through_the_approved_bytes_check(self) -> None:
+        """Not the ordinary write path, which would ask a human mid-reflex:
+        a replayed write runs only on a human approval of these exact bytes."""
+        output, status, _ = _agent()._dispatch_approved("create_file", dict(self.WRITE))
+        assert status == "blocked" and "no human has approved" in output
+
+    def test_a_replayed_edit_goes_through_its_own_check(self) -> None:
+        """The same for an edit: the replay's own check refuses it (by name),
+        not the ordinary edit path."""
+        output, status, _ = _agent()._dispatch_approved(
+            "edit_file", {"filepath": "notes.md", "old_string": "a", "new_string": "b"}
+        )
+        assert status == "blocked"
+        assert "replayed edit" in output or "this exact edit" in output, output
+
+    def test_a_role_restricted_agent_never_reaches_the_write_replay(self) -> None:
+        """The replay writes through its own path, not ``_dispatch``, so the
+        role's tool list must be enforced before it."""
+        output, status, _ = _agent(
+            allowed_tools=frozenset({"read_file"})
+        )._dispatch_approved("create_file", dict(self.WRITE))
+        assert status == "blocked" and "not permitted for the current role" in output
+
+
+def test_after_the_composition_cap_reads_still_run() -> None:
+    """Plan Phase 5c: the cap holds COMMANDS that would run unattended. A read
+    runs no command and is never held, however many commands ran."""
+    from aios.agents import recall_envelope
+
+    agent = _agent()
+    agent._reflex_in_turn = True
+    agent._unattended_commands = recall_envelope.UNATTENDED_COMMAND_CAP
+    assert agent._composition_capped("execute_terminal", {"command": "echo hi"}), (
+        "positive control: a GREEN command is held at the cap"
+    )
+    assert not agent._composition_capped("read_file", {"filepath": "README.md"})
+    assert not agent._composition_capped("read_directory", {"path": "."})
