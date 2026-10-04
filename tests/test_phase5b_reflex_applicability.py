@@ -11,6 +11,10 @@ What follows from it, and is pinned here: a GREEN command that is not a test
 runner has no plan, so it never serves a turn; a test-runner reflex passes the
 engine but its YELLOW step is still withheld by reflex authority; a read-only
 reflex runs with no model -- only on code it was validated on.
+
+Operator decision, 2026-10-04: re-validation is his act only. A reflex
+that matches stale code is withdrawn (skill suspended, row retired) and
+returns only by his re-activation, which records the code as it is.
 """
 
 from __future__ import annotations
@@ -43,13 +47,17 @@ from aios.core.executor import Executor
 from aios.core.verification_strength import VerificationStrength
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.governance.contracts import EmergencyStopRequest
+from aios.domain.learning.applicability import (
+    ApplicabilityError,
+    SkillApplicabilityEngine,
+)
 from aios.domain.learning.repository import SkillRepository
 from aios.domain.learning.trajectory_repository import TrajectoryRepository
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
 from aios.memory import learning_freeze
-from aios.memory.db import init_memory_db
+from aios.memory.db import get_connection, init_memory_db
 from aios.security import scope_lock
 from aios.security.gateway import RateLimiter
 
@@ -113,6 +121,13 @@ class World:
         )
         self.repository.transition_state(record.skill_id, record.version, "active")
         self.cerebellum.try_compile_all()
+
+    def playbook_statuses(self) -> list[str]:
+        with get_connection(self.memory_db) as conn:
+            return [
+                str(row["status"])
+                for row in conn.execute("SELECT status FROM compiled_playbooks")
+            ]
 
     def live(self, goal: str = GOAL, steps: list[str] = STEPS) -> int:
         trail = self.earn(goal, steps)
@@ -233,11 +248,15 @@ def test_a_live_read_only_reflex_fires(world) -> None:
     assert world.cerebellum.match(GOAL) is not None
 
 
-def test_a_changed_file_refuses_the_reflex_as_stale(world) -> None:
+def test_a_changed_file_refuses_the_reflex_and_withdraws_it(world) -> None:
+    """Operator decision, 2026-10-04: re-validation is his act only, so a
+    stale reflex is taken out of service like a retired one."""
     world.live()
     world.write("notes.md", "release notes v2: someone edited this\n")
     assert world.cerebellum.match(GOAL) is None
     assert any(STALE in reason for reason in world.bus.reasons())
+    assert world.record().state == "suspended"
+    assert world.playbook_statuses() == ["retired"]
 
 
 def test_a_listing_goes_stale_when_an_entry_is_added(world) -> None:
@@ -248,36 +267,123 @@ def test_a_listing_goes_stale_when_an_entry_is_added(world) -> None:
     assert world.cerebellum.match("list the docs") is not None
     world.write("docs/b.md", "b\n")
     assert world.cerebellum.match("list the docs") is None
-    (world.project / "docs" / "b.md").unlink()
-    assert world.cerebellum.match("list the docs") is not None
+    assert world.record("list the docs").state == "suspended"
 
 
-def test_a_validated_version_restored_restores_the_reflex(world) -> None:
+def test_an_edit_undone_before_any_match_withdraws_nothing(world) -> None:
+    """Only a stale MATCH withdraws: what counts is the code it would run on."""
     world.live()
     world.write("notes.md", "release notes v2\n")
-    assert world.cerebellum.match(GOAL) is None
     world.write("notes.md", "release notes v1\n")
     assert world.cerebellum.match(GOAL) is not None
 
 
-def test_a_verified_success_on_the_new_code_revalidates_it(world) -> None:
+def test_reverting_the_file_does_not_bring_a_withdrawn_reflex_back(world) -> None:
     world.live()
     world.write("notes.md", "release notes v2\n")
     assert world.cerebellum.match(GOAL) is None
+    world.write("notes.md", "release notes v1\n")
+    world.cerebellum.try_compile_all()
+    assert world.cerebellum.match(GOAL) is None
+
+
+def test_a_verified_success_does_not_revalidate_a_reviewed_skill(world) -> None:
+    world.live()
+    world.write("notes.md", "release notes v2\n")
+    before = world.record().last_validated_versions
     world.library.record_attempt(
         GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
     )
-    assert len(world.record().last_validated_versions) == 2
+    assert world.record().last_validated_versions == before
+    assert world.cerebellum.match(GOAL) is None
+    assert world.record().state == "suspended"
+
+
+def test_a_stale_reflex_returns_only_by_reactivation(world, tmp_path) -> None:
+    world.live()
+    world.write("notes.md", "release notes v2\n")
+    assert world.cerebellum.match(GOAL) is None
+    for _ in range(3):
+        world.library.record_attempt(
+            GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+        )
+    world.cerebellum.try_compile_all()
+    assert world.cerebellum.match(GOAL) is None
+    record = world.record()
+    _service(world, tmp_path).activate_skill(
+        _authorization(record.skill_id, record.version)
+    )
+    world.cerebellum.try_compile_all()
     assert world.cerebellum.match(GOAL) is not None
+
+
+def test_the_stop_freezes_the_withdrawal(world, tmp_path) -> None:
+    """While learning is frozen nothing about a reflex moves, as for
+    decompilation: it is refused, not withdrawn."""
+    world.live()
+    _engage(tmp_path)
+    world.write("notes.md", "release notes v2\n")
+    assert world.cerebellum.match(GOAL) is None
+    assert world.record().state == "active"
+
+
+def test_a_refusal_that_is_not_staleness_withdraws_nothing(world, tmp_path) -> None:
+    world.live()
+    other = tmp_path / "elsewhere" / "training_ground"
+    other.mkdir(parents=True)
+    scope_lock.set_scope_roots([other])
+    assert world.cerebellum.match(GOAL) is None
+    assert any("scope does not match" in r for r in world.bus.reasons())
+    assert world.record().state == "active"
+
+
+def test_staleness_is_the_engines_own_refusal(world) -> None:
+    """``STALE_REFUSAL`` is pinned to the engine's wording, so a reworded
+    engine cannot silently turn staleness into an ordinary refusal."""
+    world.live()
+    record = world.record()
+    with pytest.raises(ApplicabilityError) as refused:
+        SkillApplicabilityEngine().check_applicability(
+            record,
+            {},
+            {},
+            current_scope=record.allowed_scope_pattern,
+            mission_allowed_tools=sorted(reflex_contract.REFLEX_TOOLS),
+            validated_version="not-a-validated-version",
+            verification_plan_executable=True,
+            policy_allows=True,
+        )
+    assert str(refused.value) == reflex_contract.STALE_REFUSAL
+    assert world.library.is_stale(str(refused.value))
+    assert not world.library.is_stale("Policy does not allow skill reuse")
+
+
+# ------------------------------------------------------------ re-validation
+
+
+def _stale_candidate(world: World) -> list[str]:
+    """An earned skill the operator has NOT activated, whose file then moved."""
+    world.earn()
+    world.write("notes.md", "release notes v2\n")
+    return world.record().last_validated_versions
+
+
+def test_a_candidates_verified_success_records_the_code_it_ran_on(world) -> None:
+    before = _stale_candidate(world)
+    world.library.record_attempt(
+        GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+    )
+    assert world.record().last_validated_versions == [
+        *before,
+        reflex_contract.validated_version(STEPS),
+    ]
 
 
 def test_a_success_elsewhere_vouches_for_nothing_here(world) -> None:
     """Arc identity ignores arguments, so this success lands on the same skill;
     it verified other.md, not notes.md, so it may not vouch for notes.md."""
-    world.live()
     world.write("other.md", "other\n")
-    world.write("notes.md", "release notes v2\n")
-    before = world.record().last_validated_versions
+    before = _stale_candidate(world)
     world.library.record_attempt(
         GOAL,
         ["read_file: filepath=other.md"],
@@ -285,27 +391,20 @@ def test_a_success_elsewhere_vouches_for_nothing_here(world) -> None:
         strength=VerificationStrength.STRONG,
     )
     assert world.record().last_validated_versions == before
-    assert world.cerebellum.match(GOAL) is None
 
 
 def test_a_failure_revalidates_nothing(world) -> None:
-    world.live()
-    world.write("notes.md", "release notes v2\n")
-    before = world.record().last_validated_versions
+    before = _stale_candidate(world)
     world.library.record_attempt(GOAL, STEPS, success=False)
     assert world.record().last_validated_versions == before
-    assert world.cerebellum.match(GOAL) is None
 
 
 def test_a_weak_success_revalidates_nothing(world) -> None:
-    world.live()
-    world.write("notes.md", "release notes v2\n")
-    before = world.record().last_validated_versions
+    before = _stale_candidate(world)
     world.library.record_attempt(
         GOAL, STEPS, success=True, strength=VerificationStrength.WEAK
     )
     assert world.record().last_validated_versions == before
-    assert world.cerebellum.match(GOAL) is None
 
 
 # ------------------------------------------------------------ the other gates
@@ -375,11 +474,10 @@ def test_another_scope_refuses_it(world, tmp_path) -> None:
     assert refusal is not None and "scope does not match" in refusal
 
 
-def test_the_stop_refuses_reuse(world, tmp_path) -> None:
-    trail = world.live()
-    assert world.library.reflex_applicability(trail) is None
+def _engage(data: Path) -> None:
+    """Engage the real learning latch (its path is the test's own)."""
     EmergencyStopController(
-        tmp_path / "emergency_stop.db",
+        data / "emergency_stop.db",
         hooks=EmergencyStopHooks(
             revoke_capabilities=lambda *a, **k: None,
             cancel_queued_missions=lambda *a, **k: None,
@@ -394,6 +492,12 @@ def test_the_stop_refuses_reuse(world, tmp_path) -> None:
             reason="5b policy test",
         )
     )
+
+
+def test_the_stop_refuses_reuse(world, tmp_path) -> None:
+    trail = world.live()
+    assert world.library.reflex_applicability(trail) is None
+    _engage(tmp_path)
     assert world.library.reflex_applicability(trail) == (
         "Policy does not allow skill reuse"
     )

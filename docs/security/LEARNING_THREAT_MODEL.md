@@ -101,7 +101,7 @@ and the test that proves the control. Test IDs `RT-*` are missions in
 | T4 | **Harness-grant laundering.** A skill learned under harness grants (or no human at all) compiles into a reflex that auto-approves in live turns. | X4 | **Yes** (playbooks 9, 10, 14) | Per-step approval provenance; harness grants never cross into live (0b, 5) | RT-06 (S) |
 | T5 | **Learning during an emergency stop.** Memory writes, promotion and compilation continue while authority is revoked. | X4 X6 | **Yes** (F7) | Stop boundaries on every learning write (0b, 6); the institutional skill, trajectory and reuse-outcome stores refuse too, withdrawals excepted (2.2); legacy reuse credit (`skills.record_reuse`) refuses too -- Phase 0b had missed it (2.4b) | RT-07 (S) |
 | T6 | **Revoked memory resurfaces.** A superseded lesson or decompiled reflex is still recalled or replayed. | X6 | Partly | Retrieval-time guard; cascade over derivations (4, 6); a machine-retired reflex returns only by operator re-activation (6c) | RT-08 (S: human revocation), RT-20 (S: machine retirement) |
-| T7 | **Stale reflex.** A reflex replays after the code it was verified against changed. | X6 | **Yes** | Content-hash freshness (5b): a stale reflex is refused at match and the model answers -- no `probation` transition, see `docs/learning/PHASE5_DESIGN.md` | RT-09 (S) |
+| T7 | **Stale reflex.** A reflex replays after the code it was verified against changed. | X6 | **Yes** | Content-hash freshness (5b): the first match on stale code refuses the reflex and withdraws it (skill suspended, row retired); only the operator's re-activation brings it back (decision 2026-10-04) | RT-09 (S) |
 | T8 | **Cross-principal recall.** One principal's memory governs another's turns. | X3 | **Yes** (no scoping) | Principal scoping on every recall (4) | RT-10 (S) |
 | T9 | **Forged or hollow verification.** Evidence rated STRONG without real behaviour being asserted. `derive_strength` already defeats the two cheap forms: `echo "5 passed"` stays WEAK (program-position check) and a runner that collected nothing stays WEAK (`passed_count > 0`). **Open:** counts are parsed from stdout the test itself can write to, and a real runner over a vacuous test (`assert True`, possibly attacker-authored) mints STRONG. | X1 X6 | Partly | Existing derivation re-proven; counts from the runner's own report (junit/exit status), not free stdout; vacuous-assertion detection is **not** claimed (3, 7) | RT-11 (S) |
 | T10 | **Flooding.** Many low-value writes crowd recall or bury a malicious record near the top (MINJA/MAFIA placement). | X1 X2 | **Yes** (no caps) | Per-principal/run rate and size caps (6) | RT-12 (S) |
@@ -496,9 +496,13 @@ not a control.
   - On 5a and on this tree it is held, by `reflex_trigger`.
 - **The reel on a05d4217 holds 14, with 0 breached.** 6 missions are
   blocked; 1 is not reached (RT-10).
-- **Deviation:** there is no `probation` transition on drift. Whether
-  re-validation by a verified success should instead be the operator's act
-  only is **the operator's decision**.
+- **Drift withdraws (operator decision, 2026-10-04).** Re-validation is the
+  operator's act only.
+  - The first match on stale code suspends the skill and retires its row,
+    through 6c's path.
+  - Only his re-activation, which records the code as it is then, brings
+    it back. Neither more successes nor reverting the file do.
+  - After review, the machine never appends a validated version.
 - **Residuals:**
   - a directory is hashed by its listing, not its contents;
   - a test-runner reflex's version covers the test file it names, not the

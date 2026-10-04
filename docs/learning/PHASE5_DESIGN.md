@@ -165,13 +165,17 @@ The contract lives in `aios/application/memory/reflex_contract.py`.
     the code as it is.
   - A suspended skill's reviewed contract is not touched. Only its evidence
     grows.
-- **On re-validation.** An eligible success of the same arc, on exactly the
-  same targets, appends the code state it ran against. Arc identity ignores
+- **Re-validation by the machine: candidates only.** While a skill is still a
+  candidate, an eligible success of the same arc, on exactly the same
+  targets, appends the code state it ran against. Arc identity ignores
   arguments, so a success on other files would otherwise vouch for files it
   never touched. Three kinds of attempt append nothing:
   - a success on other targets;
   - a weak success;
   - a failure.
+
+  After review, nothing the machine does appends a version. That is the
+  operator's act (decision 2026-10-04; see below).
 
 ### What can run now
 
@@ -180,34 +184,38 @@ The contract lives in `aios/application/memory/reflex_contract.py`.
 | GREEN command that is not a test runner (`echo …`) | refused: no plan | — | **no** |
 | Test runner (`pytest …`) | applies while fresh | always withholds the YELLOW step before anything runs; per-step approval provenance, which could re-authorise it, is not built | **no**: the model answers, and its proposal pauses for a human |
 | Writes (with a test step) | applies while fresh | replays only the operator's exact approved bytes; test step withheld | **no** |
-| Read-only (`read_file`, `read_directory`) | applies only on a validated version | nothing to withhold | **yes**, only on code it was validated on |
+| Read-only (`read_file`, `read_directory`) | applies only on a validated version | nothing to withhold | **yes**, only on code it was validated on; the first stale match withdraws it |
 
-### A deviation from the plan, stated
+### Drift: withdrawn, and back only by the operator (decision 2026-10-04)
 
-The plan says "drift → `probation` → re-verify". As built, there is no
-`probation` transition:
+The plan says "drift → `probation` → re-verify". The operator decided that
+re-validation is his act only. A stale reflex reaches him the way a retired
+one does (6c).
 
-- A stale reflex is refused at match. The model answers, and the skill stays
-  `active`.
-- It fires again in three cases:
-  - the code returns to a validated version;
-  - a verified success on the same targets re-validates it;
-  - the operator re-activates it.
+- **The first match on stale code withdraws the reflex.**
+  - It is refused, so the model answers.
+  - `Cerebellum.match` sees the engine's version-mismatch refusal. The
+    library's `is_stale` compares it with `reflex_contract.STALE_REFUSAL`,
+    which a test pins to the engine's own wording.
+  - The reflex is then taken out of service through 6c's path
+    (`decompile(reason="stale")`): its skill is suspended (a withdrawal the
+    stop allows) and its row is retired.
+  - While learning is frozen, nothing moves, as for any decompilation.
+- **It comes back only by the operator's re-activation** (`--reactivate`),
+  which records the code as it is then. Neither more successes nor reverting
+  the file restores it.
+- **Only a stale match withdraws.** An edit undone before any match changes
+  nothing. Any other refusal also withdraws nothing: scope, plan, policy or
+  ambiguity.
+- **The cost, accepted by the operator:** any edit to a file a reflex touches
+  parks it until he re-activates it.
+- **Why `suspended`, not `probation`:** 6c already made `suspended` the
+  state of a machine-withdrawn skill, with the operator's re-activation as
+  the only way back. A second state would be a second way back to review.
 
-Reasons:
-
-- A state write on the read path for every drift would put a learning write
-  into `match`.
-- A reverted file would leave the skill parked for nothing.
-
-In practice the automatic path is narrow. A read-only turn is rarely
-STRONG-verified, and a test-runner reflex is withheld by reflex authority
-anyway. Even so, it is the machine restoring a reflex's reach to code it was
-not validated on before.
-
-**Whether re-validation should be the operator's act only, as retirement is
-(6c), is the operator's decision.** It is one call site:
-`_record_validation` on a reviewed skill.
+An earlier draft of this slice instead kept a stale skill active, so that
+reverting the file or a matching verified success restored it. It was put to
+the operator, who chose this.
 
 ### Evidence
 
@@ -253,12 +261,18 @@ not validated on before.
     (`test_targets_are_read_where_the_replay_touches_them`).
   - A directory was hashed as the constant `directory`, so a listing reflex
     never went stale (`test_a_listing_goes_stale_when_an_entry_is_added`).
-- **Mutations: 29, all killed** (`tests/test_phase5b_reflex_applicability.py`,
-  `tests/test_learning_redteam_runner.py`). They cover:
+- **Mutations: 34, all killed** (`tests/test_phase5b_reflex_applicability.py`,
+  `tests/test_learning_redteam_runner.py`,
+  `tests/test_phase2_institutional_store.py`). They cover:
   - every engine input taken from the record instead of the world;
   - fail-open on no library and on an unreadable verdict;
   - birth, refresh, activation and re-activation stamping;
-  - re-validation by a success elsewhere, by a weak success and by a failure;
+  - re-validation by a success elsewhere, by a weak success, by a failure,
+    and by a reviewed skill;
+  - a stale match that withdraws nothing;
+  - every refusal treated as staleness;
+  - a withdrawal that ignores the stop;
+  - staleness reworded away from the engine;
   - evidence versus contract;
   - plan derivation (an `echo` naming a real file gets no plan);
   - hashing (content, listing, base);
@@ -273,6 +287,15 @@ not validated on before.
 
   The eight 5a mutations were re-run against the converted 5a tests: all
   killed.
+- **The mutation harness itself was too weak, and is fixed.** It scored any
+  non-zero pytest exit as a kill, so a mistyped test ID (exit 4, "not found")
+  counted as a kill. That happened once here: the reactivation test genuinely
+  killed the mutation, and a second ID was wrong. The fix:
+  - every named test must pass on the unmutated tree first;
+  - a kill now requires exit code 1, meaning a test failed.
+
+  Every test ID in the earlier slices' harnesses was checked. Each existed
+  when its harness ran: two classes were removed later, by 2.4c-B and 6c.
 - **The structural reel on a05d4217 holds 14, with 0 breached**
   (`docs/learning/redteam_phase5b_structural.json`). 5a held 13; RT-09 is
   newly held. Not counted as held:

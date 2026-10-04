@@ -801,9 +801,37 @@ class Cerebellum:
                 user_message,
                 f"not applicable: {refusal}",
             )
+            if self._stale(refusal):
+                self._withdraw_stale(best)
             return None
         self._record_decision("replayed", best, best_score, user_message, "matched")
         return best
+
+    def _stale(self, refusal: str) -> bool:
+        """Whether the library calls this refusal staleness. A library that
+        cannot say withdraws nothing: the reflex is refused either way."""
+        check = getattr(self._reflex_gate, "is_stale", None)
+        try:
+            return bool(check(refusal)) if check is not None else False
+        except Exception:  # noqa: BLE001 - unknown is not stale
+            return False
+
+    def _withdraw_stale(self, playbook: "CompiledPlaybook") -> None:
+        """The code this reflex touches moved since it was validated.
+
+        Operator decision, 2026-10-04: re-validation is the operator's act
+        only. So a stale reflex is taken out of service like a retired one --
+        its skill suspended, its row retired -- and only his re-activation,
+        which records the code as it is then, brings it back. Reverting the
+        file does not. Best-effort: if the withdrawal fails, the reflex is
+        still refused on every match while it is stale.
+        """
+        try:
+            self.decompile(int(playbook.id), reason="stale")
+        except Exception:  # noqa: BLE001 - refused regardless; never break match
+            logging.getLogger(__name__).warning(
+                "stale reflex %s could not be withdrawn", playbook.id, exc_info=True
+            )
 
     def _inapplicable(self, playbook: "CompiledPlaybook") -> Optional[str]:
         """The library's reason this reflex does not apply here, or None.
@@ -1315,13 +1343,13 @@ class Cerebellum:
         ).fetchone()
         return None if row is None else self._successes(int(row["skill_id"]))
 
-    def decompile(self, playbook_id: int) -> None:
+    def decompile(self, playbook_id: int, reason: str = "explicit") -> None:
         """Retire one playbook immediately, without waiting for a threshold.
 
         Distinct from `_record_replay_failure`, which counts toward
-        `max_consecutive_failures`: a PERMANENT abstention retires at once.
-        Either way the reflex returns only by the operator's re-activation
-        (``_take_out_of_service``).
+        `max_consecutive_failures`: a PERMANENT abstention retires at once, and
+        so does a stale one (``_withdraw_stale``). Either way the reflex returns
+        only by the operator's re-activation (``_take_out_of_service``).
         """
         if not learning_permitted():
             # The stop freezes learned state: a replay the stop refused is not
@@ -1333,7 +1361,7 @@ class Cerebellum:
             return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
-            self._take_out_of_service(conn, playbook_id, "explicit")
+            self._take_out_of_service(conn, playbook_id, reason)
 
     # ------------------------------------------------------------------
     # Replay bookkeeping

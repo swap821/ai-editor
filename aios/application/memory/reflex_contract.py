@@ -60,6 +60,11 @@ MAX_VALIDATED_VERSIONS = 20
 #: was validated on (operator decision, 2026-09-29).
 FRESHNESS_OBSERVATION = "read targets match a validated version"
 
+#: ``SkillApplicabilityEngine``'s refusal when the code a skill touches is not
+#: a version it was validated on -- the one way to tell staleness from every
+#: other refusal. Pinned to the engine's own wording by a test.
+STALE_REFUSAL = "Validated project version does not match the skill"
+
 _FILE = "file"
 _COMMAND = "command"
 _READ_TOOLS = ("read_file", "read_directory")
@@ -288,6 +293,7 @@ __all__ = [
     "REFLEX_TOOLS",
     "FRESHNESS_OBSERVATION",
     "REUSE_OBSERVATION",
+    "STALE_REFUSAL",
     "created_targets",
     "plan_executable",
     "procedure_steps",
