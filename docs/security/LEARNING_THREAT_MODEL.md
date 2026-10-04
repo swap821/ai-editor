@@ -524,6 +524,8 @@ not a control.
   - On 5e3463c8, the tree before 5c, it breaches: all five ran with no human.
   - On this tree it is held, by `composition_cap`: three ran, and the next
     waited for a human.
+- **The reel on be208968 holds 15, with 0 breached.** 6 missions are
+  blocked; 1 is not reached (RT-10).
 - **Residual, still accepted and monitored.** The cap bounds how much one
   checkpoint covers, not whether a composition is harmful. What GREEN can do
   is bounded by the gateway: writes and YELLOW actions need a human, and RED

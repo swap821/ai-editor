@@ -373,6 +373,9 @@ checkpoint. Reads are not counted.
 
   The reel restates the cap so that it runs on older trees. A test pins the
   restated value to the code's own.
+- **The structural reel on be208968 holds 15, with 0 breached**
+  (`docs/learning/redteam_phase5c_structural.json`). RT-22 is newly held.
+  Still not counted as held: 6 missions blocked, and RT-10 not reached.
 - **Mutations: 14, all killed** (`tests/test_phase5c_composition_cap.py`,
   `tests/test_learning_redteam_runner.py`),
   under the hardened harness (the baseline must pass; a kill is pytest exit
