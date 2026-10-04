@@ -79,6 +79,31 @@ INERT: dict[str, str] = {
         "(_gateway_refuses({}) is True), so a read is never held at the cap "
         "even without the early return; the return states the rule."
     ),
+    "gen:adapters:MistakeMemoryAdapter.promote:931:always": (
+        "prior is read only for the attestation, and _attest returns at once "
+        "when the adapter has no provenance writer: the value is never used."
+    ),
+    "gen:adapters:SemanticFactsAdapter._admitted_triples:396:never": (
+        "an empty triple set joins nothing in json_each: the query returns no "
+        "rows and the result is the same empty set; the return saves a query."
+    ),
+    "gen:adapters:SemanticFactsAdapter._admitted_triples:416:never": (
+        "'the newest row decides': duplicate ACTIVE rows of one principal's "
+        "triple cannot be written through the store (add_fact refuses them), "
+        "and an older signed row of the same triple vouches for the same "
+        "content (plan Phase 4c-3)."
+    ),
+    "gen:adapters:SemanticFactsAdapter.traverse_weighted:634:never": (
+        "ungated, _admitted_triples admits every asked triple, and the store's "
+        "walk returns only edges on paths from the start: sorted by depth, "
+        "each edge's subject is already reached, so the filter keeps exactly "
+        "the edges the shortcut returns."
+    ),
+    "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:715:never": (
+        "forces the reason to 'verification' on a success too, and "
+        "SkillLifecycleAuthority.apply_reuse_outcome reads the reason only on "
+        "a failure (record_success takes none; demotion is skipped on success)."
+    ),
 }
 
 

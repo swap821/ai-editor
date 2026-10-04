@@ -2870,13 +2870,14 @@
    "old": "        if mem_id is None or self.gate is None:\n",
    "new": "        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter._admits line 75 condition forced True: mem_id is None or self.gate is None"
@@ -2887,13 +2888,14 @@
    "old": "        if mem_id is None or self.gate is None:\n",
    "new": "        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter._admits line 75 condition forced False: mem_id is None or self.gate is None"
@@ -2904,13 +2906,14 @@
    "old": "        if context.project_id:\n",
    "new": "        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 145 condition forced True: context.project_id"
@@ -2921,13 +2924,14 @@
    "old": "        if context.project_id:\n",
    "new": "        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 145 condition forced False: context.project_id"
@@ -2938,13 +2942,14 @@
    "old": "        top_k = context.limit * (_GATED_OVERFETCH if self.gate is not None else 1)\n",
    "new": "        top_k = context.limit * (_GATED_OVERFETCH if (True) else 1)\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 147 condition forced True: self.gate is not None"
@@ -2955,13 +2960,14 @@
    "old": "        top_k = context.limit * (_GATED_OVERFETCH if self.gate is not None else 1)\n",
    "new": "        top_k = context.limit * (_GATED_OVERFETCH if (False) else 1)\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 147 condition forced False: self.gate is not None"
@@ -2972,13 +2978,14 @@
    "old": "        if self.gate is not None:\n",
    "new": "        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 149 condition forced True: self.gate is not None"
@@ -2989,13 +2996,14 @@
    "old": "        if self.gate is not None:\n",
    "new": "        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 149 condition forced False: self.gate is not None"
@@ -3006,13 +3014,14 @@
    "old": "            results = [r for r in results if self._admits(r, context.principal_id)][\n",
    "new": "            results = [r for r in results if (True)][\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 150 condition forced True: self._admits(r, context.principal_id)"
@@ -3023,13 +3032,14 @@
    "old": "            results = [r for r in results if self._admits(r, context.principal_id)][\n",
    "new": "            results = [r for r in results if (False)][\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 150 condition forced False: self._admits(r, context.principal_id)"
@@ -3040,13 +3050,14 @@
    "old": "            stable_id = external_id if external_id is not None else position\n",
    "new": "            stable_id = external_id if (True) else position\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 156 condition forced True: external_id is not None"
@@ -3057,13 +3068,14 @@
    "old": "            stable_id = external_id if external_id is not None else position\n",
    "new": "            stable_id = external_id if (False) else position\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: LegacySemanticMemoryAdapter.recall line 156 condition forced False: external_id is not None"
@@ -3074,13 +3086,14 @@
    "old": "                item[\"mistake_id\"] if \"mistake_id\" in item.keys() else item[\"id\"]\n",
    "new": "                item[\"mistake_id\"] if (True) else item[\"id\"]\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter._admitted line 779 condition forced True: \"mistake_id\" in item.keys()"
@@ -3091,13 +3104,14 @@
    "old": "                item[\"mistake_id\"] if \"mistake_id\" in item.keys() else item[\"id\"]\n",
    "new": "                item[\"mistake_id\"] if (False) else item[\"id\"]\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter._admitted line 779 condition forced False: \"mistake_id\" in item.keys()"
@@ -3108,13 +3122,14 @@
    "old": "            if row is not None and self.gate.admits(\n                \"mistake_pool\", mistake_id, lesson_digest(row), principal=principal\n            ):\n",
    "new": "            if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter._admitted line 782 condition forced True: row is not None and self.gate.admits(\n                \"mistake_pool\", mistake_id"
@@ -3125,13 +3140,14 @@
    "old": "            if row is not None and self.gate.admits(\n                \"mistake_pool\", mistake_id, lesson_digest(row), principal=principal\n            ):\n",
    "new": "            if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter._admitted line 782 condition forced False: row is not None and self.gate.admits(\n                \"mistake_pool\", mistake_id"
@@ -3142,13 +3158,14 @@
    "old": "            if len(kept) >= limit:\n",
    "new": "            if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter._admitted line 786 condition forced True: len(kept) >= limit"
@@ -3159,13 +3176,14 @@
    "old": "            if len(kept) >= limit:\n",
    "new": "            if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter._admitted line 786 condition forced False: len(kept) >= limit"
@@ -3176,13 +3194,14 @@
    "old": "        prior = row if self.provenance is not None else None\n",
    "new": "        prior = row if (True) else None\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter.promote line 931 condition forced True: self.provenance is not None"
@@ -3193,13 +3212,14 @@
    "old": "        prior = row if self.provenance is not None else None\n",
    "new": "        prior = row if (False) else None\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: MistakeMemoryAdapter.promote line 931 condition forced False: self.provenance is not None"
@@ -3210,13 +3230,14 @@
    "old": "    def _admits_row(self, row: Any, principal: Optional[str]) -> bool:\n        if self.gate is None:\n",
    "new": "    def _admits_row(self, row: Any, principal: Optional[str]) -> bool:\n        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admits_row line 368 condition forced True: self.gate is None"
@@ -3227,13 +3248,14 @@
    "old": "    def _admits_row(self, row: Any, principal: Optional[str]) -> bool:\n        if self.gate is None:\n",
    "new": "    def _admits_row(self, row: Any, principal: Optional[str]) -> bool:\n        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admits_row line 368 condition forced False: self.gate is None"
@@ -3244,13 +3266,14 @@
    "old": "        wanted = {(str(s), str(p), str(o)) for s, p, o in triples}\n        if self.gate is None:\n",
    "new": "        wanted = {(str(s), str(p), str(o)) for s, p, o in triples}\n        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admitted_triples line 394 condition forced True: self.gate is None"
@@ -3261,13 +3284,14 @@
    "old": "        wanted = {(str(s), str(p), str(o)) for s, p, o in triples}\n        if self.gate is None:\n",
    "new": "        wanted = {(str(s), str(p), str(o)) for s, p, o in triples}\n        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admitted_triples line 394 condition forced False: self.gate is None"
@@ -3278,13 +3302,14 @@
    "old": "        if not wanted:\n",
    "new": "        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admitted_triples line 396 condition forced True: not wanted"
@@ -3295,13 +3320,14 @@
    "old": "        if not wanted:\n",
    "new": "        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admitted_triples line 396 condition forced False: not wanted"
@@ -3312,13 +3338,14 @@
    "old": "            if key in newest:\n",
    "new": "            if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admitted_triples line 416 condition forced True: key in newest"
@@ -3329,13 +3356,14 @@
    "old": "            if key in newest:\n",
    "new": "            if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter._admitted_triples line 416 condition forced False: key in newest"
@@ -3346,13 +3374,14 @@
    "old": "        )\n        if self.gate is None:\n",
    "new": "        )\n        if (True):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter.traverse_weighted line 634 condition forced True: self.gate is None"
@@ -3363,13 +3392,14 @@
    "old": "        )\n        if self.gate is None:\n",
    "new": "        )\n        if (False):\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter.traverse_weighted line 634 condition forced False: self.gate is None"
@@ -3380,13 +3410,14 @@
    "old": "        return [edge for index, edge in enumerate(edges) if index in kept]\n",
    "new": "        return [edge for index, edge in enumerate(edges) if (True)]\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter.traverse_weighted line 654 condition forced True: index in kept"
@@ -3397,13 +3428,14 @@
    "old": "        return [edge for index, edge in enumerate(edges) if index in kept]\n",
    "new": "        return [edge for index, edge in enumerate(edges) if (False)]\n",
    "tests": [
-    "tests/test_phase3b_write_provenance.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_phase3c2_fact_gate.py",
-    "tests/test_phase4c_principal_scope.py",
     "tests/test_learning_latency_budget.py",
     "tests/test_memory_authority.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c2_fact_gate.py",
+    "tests/test_phase3c_recall_gate.py",
+    "tests/test_phase4c_principal_scope.py",
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: SemanticFactsAdapter.traverse_weighted line 654 condition forced False: index in kept"
@@ -3420,7 +3452,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: skill_identity line 362 condition forced True: not principal"
@@ -3437,7 +3470,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: skill_identity line 362 condition forced False: not principal"
@@ -3454,7 +3488,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.relevant_verified line 732 condition forced True: not query or limit <= 0"
@@ -3471,7 +3506,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.relevant_verified line 732 condition forced False: not query or limit <= 0"
@@ -3488,7 +3524,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.relevant_verified line 738 condition forced True: record.state != ACTIVE"
@@ -3505,7 +3542,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.relevant_verified line 738 condition forced False: record.state != ACTIVE"
@@ -3522,7 +3560,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.relevant_verified line 746 condition forced True: row is None"
@@ -3539,7 +3578,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.relevant_verified line 746 condition forced False: row is None"
@@ -3556,7 +3596,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.active_procedures line 768 condition forced True: record.state != ACTIVE"
@@ -3573,7 +3614,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.active_procedures line 768 condition forced False: record.state != ACTIVE"
@@ -3590,7 +3632,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.record_reuse line 700 condition forced True: self.migration_pending"
@@ -3607,7 +3650,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.record_reuse line 700 condition forced False: self.migration_pending"
@@ -3624,7 +3668,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.record_reuse line 706 condition forced True: key is None"
@@ -3641,7 +3686,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.record_reuse line 706 condition forced False: key is None"
@@ -3658,7 +3704,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.record_reuse line 715 condition forced True: success"
@@ -3675,7 +3722,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.record_reuse line 715 condition forced False: success"
@@ -3692,7 +3740,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.attest_activation line 449 condition forced True: record is None or record.state != ACTIVE"
@@ -3709,7 +3758,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.attest_activation line 449 condition forced False: record is None or record.state != ACTIVE"
@@ -3726,7 +3776,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.attest_activation line 452 condition forced True: record is None"
@@ -3743,7 +3794,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.attest_activation line 452 condition forced False: record is None"
@@ -3760,7 +3812,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.attest_activation line 454 condition forced True: self.provenance is None"
@@ -3777,7 +3830,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.attest_activation line 454 condition forced False: self.provenance is None"
@@ -5605,7 +5659,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.reflex_applicability line 660 condition forced True: record is None"
@@ -5622,7 +5677,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.reflex_applicability line 660 condition forced False: record is None"
@@ -6115,7 +6171,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.withdraw_reflex_source line 804 condition forced True: key is None"
@@ -6132,7 +6189,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.withdraw_reflex_source line 804 condition forced False: key is None"
@@ -6149,7 +6207,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.withdraw_reflex_source line 805 condition forced True: record is None"
@@ -6166,7 +6225,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.withdraw_reflex_source line 805 condition forced False: record is None"
@@ -6183,7 +6243,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.withdraw_reflex_source line 807 condition forced True: record.state != ACTIVE"
@@ -6200,7 +6261,8 @@
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase2_reflex_gate.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
-    "tests/test_phase6b_write_cap.py"
+    "tests/test_phase6b_write_cap.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: InstitutionalSkillAdapter.withdraw_reflex_source line 807 condition forced False: record.state != ACTIVE"

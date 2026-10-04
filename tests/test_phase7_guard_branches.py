@@ -326,3 +326,299 @@ def test_after_the_composition_cap_reads_still_run() -> None:
     )
     assert not agent._composition_capped("read_file", {"filepath": "README.md"})
     assert not agent._composition_capped("read_directory", {"path": "."})
+
+
+# ------------------------------------------------------------ recall adapters
+
+
+@pytest.fixture
+def stores(frozen_latch):
+    """Real stores in one database, signing and gating like production."""
+    from types import SimpleNamespace
+
+    from aios.application.memory.adapters import (
+        LegacySemanticMemoryAdapter,
+        MistakeMemoryAdapter,
+        SemanticFactsAdapter,
+    )
+    from aios.application.memory.provenance_policy import RecallGate
+    from aios.memory.facts import SemanticFacts
+    from aios.memory.mistake import MistakeMemory
+    from aios.memory.semantic import SemanticMemory
+
+    class Embedder:
+        def encode(self, text):
+            return [[0.0, 1.0]]
+
+    class Index:
+        def reload(self):
+            pass
+
+        def add(self, *a):
+            pass
+
+        def persist(self):
+            pass
+
+    db = frozen_latch / "memory.db"
+    init_memory_db(db)
+    signer = LearningSigner({"live": _seed()})
+    verifier = LearningVerifier({"live": [signer.public_keys()["live"]]})
+    store = ProvenanceStore(db)
+    writer = ProvenanceWriter(store, signer, source_kind="live", verifier=verifier)
+    gate = RecallGate(store, verifier, context="live")
+    semantic_store = SemanticMemory(db, index=Index(), embedder=Embedder())
+    return SimpleNamespace(
+        db=db,
+        semantic=LegacySemanticMemoryAdapter(
+            semantic_store, provenance=writer, gate=gate
+        ),
+        ungated_semantic=LegacySemanticMemoryAdapter(semantic_store),
+        lessons=MistakeMemoryAdapter(
+            MistakeMemory(db_path=db), provenance=writer, gate=gate
+        ),
+        facts=SemanticFactsAdapter(SemanticFacts(db), provenance=writer, gate=gate),
+        ungated_facts=SemanticFactsAdapter(SemanticFacts(db)),
+    )
+
+
+PRINCIPAL = "principal:branches"
+
+
+class TestSemanticRecall:
+    def _memory(self, stores, text: str) -> int:
+        mem = stores.semantic.add(
+            text,
+            memory_type="fact",
+            verification_status="verified",
+            principal=PRINCIPAL,
+        )
+        stores.semantic.promote(mem, principal=PRINCIPAL)
+        return int(mem)
+
+    def test_an_id_less_hit_is_skipped_not_fatal(self, stores) -> None:
+        """A retrieval hit with no row id cannot prove where it came from: it
+        is refused -- and the rest of the recall still happens."""
+        from types import SimpleNamespace
+
+        from aios.domain.memory import MemoryRecallContext
+
+        mem = self._memory(stores, "release notes live in docs")
+        hits = stores.semantic.recall(
+            "release notes",
+            MemoryRecallContext(limit=5, principal_id=PRINCIPAL),
+            retrieval_fn=lambda q, top_k: [
+                SimpleNamespace(id=None, text="no row"),
+                SimpleNamespace(id=mem, text="release notes live in docs"),
+            ],
+        )
+        assert [h.external_id for h in hits] == [mem]
+
+    def test_a_project_scoped_recall_returns_no_semantic_memory(self, stores) -> None:
+        from types import SimpleNamespace
+
+        from aios.domain.memory import MemoryRecallContext
+
+        mem = self._memory(stores, "release notes live in docs")
+        hits = stores.semantic.recall(
+            "release notes",
+            MemoryRecallContext(limit=5, principal_id=PRINCIPAL, project_id="p1"),
+            retrieval_fn=lambda q, top_k: [SimpleNamespace(id=mem, text="x")],
+        )
+        assert hits == ()
+
+    def test_the_gate_overfetches_and_cuts_back_to_the_limit(self, stores) -> None:
+        from types import SimpleNamespace
+
+        from aios.application.memory.adapters import _GATED_OVERFETCH
+        from aios.domain.memory import MemoryRecallContext
+
+        mems = [self._memory(stores, f"release note {i}") for i in range(5)]
+        asked: list[int] = []
+
+        def retrieval(q, top_k):
+            asked.append(top_k)
+            return [SimpleNamespace(id=m, text="x") for m in mems]
+
+        context = MemoryRecallContext(limit=2, principal_id=PRINCIPAL)
+        gated = stores.semantic.recall("release", context, retrieval_fn=retrieval)
+        assert asked[-1] == 2 * _GATED_OVERFETCH and len(gated) == 2
+        ungated = stores.ungated_semantic.recall(
+            "release", context, retrieval_fn=retrieval
+        )
+        assert asked[-1] == 2, "no gate, no overfetch"
+        assert [h.external_id for h in ungated] == mems, (
+            "no gate: unfiltered, as before"
+        )
+
+    def test_a_hit_names_its_row(self, stores) -> None:
+        """``content_reference`` is how a recalled line maps back to its row
+        (the approval surface's provenance, T15): the row id when there is one,
+        the position only when there is none."""
+        from types import SimpleNamespace
+
+        from aios.domain.memory import MemoryRecallContext
+
+        hits = stores.ungated_semantic.recall(
+            "x",
+            MemoryRecallContext(limit=5),
+            retrieval_fn=lambda q, top_k: [
+                SimpleNamespace(id=41, text="a"),
+                SimpleNamespace(id=None, text="b"),
+            ],
+        )
+        assert [h.content_reference for h in hits] == [
+            "semantic_memory:41",
+            "semantic_memory:1",
+        ]
+
+
+def test_lesson_recall_never_returns_more_than_its_limit(stores) -> None:
+    from aios.core.verification_strength import VerificationStrength
+
+    for i in range(5):
+        lid, _ = stores.lessons.record_or_increment(
+            task_id="t",
+            error_type=f"PinError{i}",
+            root_cause="the pin missed an edge",
+            fix_applied="pin the edge",
+            lesson_text=f"pin the parser edge {i}",
+            confidence_delta=-0.1,
+            failed_command="",
+            principal=PRINCIPAL,
+        )
+        stores.lessons.promote(
+            lid, strength=VerificationStrength.STRONG, principal=PRINCIPAL
+        )
+    assert (
+        len(
+            stores.lessons.relevant_verified(
+                "pin the parser edge", 2, principal=PRINCIPAL
+            )
+        )
+        == 2
+    )
+
+
+class TestFactsWithoutAGate:
+    """A unit test's adapter (no gate) reads as before: ungated."""
+
+    def test_facts_for_reads_every_row(self, stores) -> None:
+        stores.ungated_facts.add_fact("router", "uses", "FastAPI", principal=PRINCIPAL)
+        rows = stores.ungated_facts.facts_for("router", principal=PRINCIPAL)
+        assert [r["object"] for r in rows] == ["FastAPI"]
+
+    def test_every_asked_triple_is_admitted(self, stores) -> None:
+        asked = [("router", "uses", "FastAPI"), ("router", "never", "written")]
+        assert stores.ungated_facts._admitted_triples(asked, PRINCIPAL) == set(asked)
+
+
+# ------------------------------------------------------------ the skill library
+
+
+def _library(root: Path):
+    from aios.application.memory.institutional_skills import (
+        InstitutionalSkillAdapter,
+        SkillTrailIndex,
+    )
+
+    repository = SkillRepository(root / "op.sqlite")
+    return InstitutionalSkillAdapter(repository, SkillTrailIndex(root / "op.sqlite"))
+
+
+def _active_skill_without_a_trail(
+    library, principal: str, skill_id: str = "arc-notrail"
+) -> None:
+    """An ACTIVE skill written outside the adapter (a mission-trajectory
+    candidate, activated): it has no trail id until a read assigns one."""
+    record = _record().model_copy(
+        update={"skill_id": skill_id, "provenance": {"principal": principal}}
+    )
+    library.repository.save(record)
+    library.repository.transition_state(skill_id, 1, "human_reviewed")
+    library.repository.transition_state(skill_id, 1, "active")
+
+
+class TestTheSkillLibraryReads:
+    def test_a_non_positive_limit_recalls_nothing(self, frozen_latch) -> None:
+        # Two skills: a negative limit sliced as ranked[:-1] would still
+        # return one, so the guard (not the slice) is what this pins.
+        library = _library(frozen_latch)
+        _active_skill_without_a_trail(library, PRINCIPAL)
+        _active_skill_without_a_trail(library, PRINCIPAL, "arc-notrail-2")
+        assert (
+            len(
+                library.relevant_verified(
+                    "run the parser tests", 3, principal=PRINCIPAL
+                )
+            )
+            == 2
+        )
+        for limit in (0, -1):
+            assert (
+                library.relevant_verified(
+                    "run the parser tests", limit, principal=PRINCIPAL
+                )
+                == []
+            )
+
+    def test_a_read_under_the_stop_skips_what_it_cannot_number(
+        self, frozen_latch
+    ) -> None:
+        """Numbering a skill (its trail id) is a write, which the stop
+        refuses; a READ must not fail under the stop (#375), so the skill is
+        left out of this recall rather than blinding it."""
+        from aios.application.governance.emergency_stop import (
+            EmergencyStopController,
+            EmergencyStopHooks,
+        )
+        from aios.domain.governance.contracts import EmergencyStopRequest
+
+        library = _library(frozen_latch)
+        _active_skill_without_a_trail(library, PRINCIPAL)
+
+        def noop(*_a, **_k):
+            return None
+
+        stop = EmergencyStopController(
+            frozen_latch / "emergency_stop.db",
+            hooks=EmergencyStopHooks(
+                revoke_capabilities=noop,
+                cancel_queued_missions=noop,
+                kill_active_workers=noop,
+                disable_autonomy=noop,
+                preserve_evidence=noop,
+            ),
+        )
+        stop.engage(
+            EmergencyStopRequest(
+                operator_id="operator:test",
+                authentication_event_id="event:engage",
+                reason="a read under the stop",
+            )
+        )
+        assert stop.is_engaged()
+        assert (
+            library.relevant_verified("run the parser tests", 3, principal=PRINCIPAL)
+            == []
+        )
+
+    def test_positive_control_without_the_stop_it_is_recalled(
+        self, frozen_latch
+    ) -> None:
+        library = _library(frozen_latch)
+        _active_skill_without_a_trail(library, PRINCIPAL)
+        assert (
+            len(
+                library.relevant_verified(
+                    "run the parser tests", 3, principal=PRINCIPAL
+                )
+            )
+            == 1
+        )
+
+    def test_reuse_credit_for_an_unknown_trail_is_nothing(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        assert (
+            library.record_reuse([123456789], success=True, principal=PRINCIPAL) == []
+        )
