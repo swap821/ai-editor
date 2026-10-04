@@ -537,3 +537,11 @@ The operator made three decisions:
   held. Six missions remain blocked: they are behavioural, or not yet built.
   The first reel, on f7f73e8c, held 15 with RT-01 `not_reached`. That was the
   indexing break described above, not a defence.
+- **Commit ids above are from before the rebase onto e3989071** (master after
+  #436):
+  - f7f73e8c became a7273438;
+  - f98f5ef1 became c2976c59;
+  - 2949dad6 became 8a11666c.
+
+  The rebase changed no file under `aios/`, `tools/`, `tests/` or `scripts/`.
+  The reel report's `aios_tree`, 305b8918, is c2976c59's.
