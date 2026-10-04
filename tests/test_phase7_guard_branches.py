@@ -622,3 +622,45 @@ class TestTheSkillLibraryReads:
         assert (
             library.record_reuse([123456789], success=True, principal=PRINCIPAL) == []
         )
+
+
+class TestSigningAnActivation:
+    def test_an_unknown_skill_is_refused_by_name(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        with pytest.raises(ValueError, match=r"'arc-missing' v1 is None"):
+            library.attest_activation("arc-missing", 1, approver="operator:test")
+
+    def test_an_inactive_skill_is_refused_by_its_state(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        library.repository.save(_record())
+        with pytest.raises(ValueError, match=r"v1 is 'candidate'"):
+            library.attest_activation("arc-branch", 1, approver="operator:test")
+
+    def test_without_a_writer_nothing_is_signed(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        assert library.provenance is None
+        _active_skill_without_a_trail(library, PRINCIPAL)
+        assert (
+            library.attest_activation("arc-notrail", 1, approver="operator:test")
+            is False
+        )
+
+
+class TestWithdrawingAReflexSource:
+    def test_an_unknown_trail_withdraws_nothing(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        assert library.withdraw_reflex_source(987654) is False
+
+    def test_a_skill_already_out_of_active_is_left_as_it_is(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        library.repository.save(_record())
+        trail = library.trails.trail_for("arc-branch", 1)
+        assert library.withdraw_reflex_source(trail) is True
+        assert library.repository.get("arc-branch", 1).state == "candidate"
+
+    def test_positive_control_an_active_skill_is_suspended(self, frozen_latch) -> None:
+        library = _library(frozen_latch)
+        _active_skill_without_a_trail(library, PRINCIPAL)
+        trail = library.trails.trail_for("arc-notrail", 1)
+        assert library.withdraw_reflex_source(trail) is True
+        assert library.repository.get("arc-notrail", 1).state == "suspended"
