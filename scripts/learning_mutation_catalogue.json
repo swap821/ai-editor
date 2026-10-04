@@ -5719,7 +5719,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: plan_executable line 218 condition forced True: plan is None"
@@ -5732,7 +5733,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: plan_executable line 218 condition forced False: plan is None"
@@ -5745,7 +5747,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: plan_executable line 220 condition forced True: FRESHNESS_OBSERVATION in plan.required_observations"
@@ -5758,7 +5761,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: plan_executable line 220 condition forced False: FRESHNESS_OBSERVATION in plan.required_observations"
@@ -5771,7 +5775,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: validated_version line 159 condition forced True: path.is_file()"
@@ -5784,7 +5789,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: validated_version line 159 condition forced False: path.is_file()"
@@ -5797,7 +5803,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: validated_version line 161 condition forced True: path.is_dir()"
@@ -5810,7 +5817,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: validated_version line 161 condition forced False: path.is_dir()"
@@ -5823,7 +5831,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 275 condition forced True: record.state == \"candidate\"\n        and activator\n        and not (record.proven"
@@ -5836,7 +5845,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 275 condition forced False: record.state == \"candidate\"\n        and activator\n        and not (record.proven"
@@ -5849,7 +5859,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 288 condition forced True: steps is None"
@@ -5862,7 +5873,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 288 condition forced False: steps is None"
@@ -5875,7 +5887,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 295 condition forced True: record.state == \"candidate\""
@@ -5888,7 +5901,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 295 condition forced False: record.state == \"candidate\""
@@ -5901,7 +5915,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 296 condition forced True: record.verification_plan is None"
@@ -5914,7 +5929,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 296 condition forced False: record.verification_plan is None"
@@ -5927,7 +5943,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 298 condition forced True: not record.allowed_scope_pattern"
@@ -5940,7 +5957,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 298 condition forced False: not record.allowed_scope_pattern"
@@ -5953,7 +5971,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 300 condition forced True: not record.source_trajectory_ids"
@@ -5966,7 +5985,8 @@
    "tests": [
     "tests/test_phase5b_reflex_applicability.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_phase2_skill_activation_route.py"
+    "tests/test_phase2_skill_activation_route.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: stamp_for_activation line 300 condition forced False: not record.source_trajectory_ids"

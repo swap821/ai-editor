@@ -115,6 +115,13 @@ INERT: dict[str, str] = {
         "None for step in steps)`, so there every step is not None and the "
         "filter is already always true."
     ),
+    "gen:reflex_contract:validated_version:161:always": (
+        "a missing target is hashed through read_directory's deterministic "
+        "refusal ('[ERROR] Not a directory: <target>', blocked) instead of "
+        "'missing'. A version is only ever compared with one computed by the "
+        "same function, so it stays a pure function of the target and its "
+        "absence: staleness is unchanged."
+    ),
 }
 
 

@@ -877,3 +877,85 @@ class TestTakingAReflexOutOfService:
         assert other._cache == {}
         other.decompile(playbook_id, reason="test")
         assert _playbook_rows(frozen_latch / "memory.sqlite")[0][0] == "retired"
+
+
+# --------------------------------------------------------- the reflex contract
+
+
+class TestTheReflexContract:
+    def test_no_plan_is_never_executable(self) -> None:
+        from aios.application.memory.reflex_contract import plan_executable
+
+        assert plan_executable(None, ["read_file: filepath=README.md"]) is False
+
+    def test_an_activation_fills_only_what_a_candidate_lacks(self) -> None:
+        """The operator reviewed this contract; activating it must not
+        rewrite the parts it already has."""
+        from aios.application.memory.reflex_contract import (
+            REUSE_OBSERVATION,
+            stamp_for_activation,
+        )
+        from aios.core.verification_strength import VerificationStrength
+        from aios.domain.verification.contracts import SkillVerifierSpec
+
+        plan = SkillVerifierSpec(
+            target_pattern="tests/test_other.py",
+            required_observations=(REUSE_OBSERVATION,),
+            minimum_strength=int(VerificationStrength.STRONG),
+        )
+        reviewed = _record().model_copy(
+            update={
+                "verification_plan": plan,
+                "allowed_scope_pattern": "custom/scope",
+                "source_trajectory_ids": ["trajectory:reviewed"],
+            }
+        )
+        stamped = stamp_for_activation(reviewed)
+        assert stamped.verification_plan == plan
+        assert stamped.allowed_scope_pattern == "custom/scope"
+        assert stamped.source_trajectory_ids == ["trajectory:reviewed"]
+        assert len(stamped.last_validated_versions) == 1
+
+    def test_positive_control_a_bare_candidate_is_filled_in(self) -> None:
+        from aios.application.memory.reflex_contract import stamp_for_activation
+
+        stamped = stamp_for_activation(_record())
+        assert stamped.verification_plan is not None
+        assert stamped.verification_plan.target_pattern == "tests/test_parser.py"
+        assert stamped.allowed_scope_pattern
+        assert stamped.source_trajectory_ids
+
+    def test_a_reviewed_skills_contract_is_not_rewritten(self) -> None:
+        """Past candidate the contract is no longer writable: re-activating a
+        suspended or reviewed skill appends the code state, nothing else."""
+        from aios.application.memory.reflex_contract import stamp_for_activation
+
+        for state in ("human_reviewed", "suspended"):
+            stamped = stamp_for_activation(_record(state))
+            assert stamped.verification_plan is None
+            assert stamped.allowed_scope_pattern == ""
+            assert stamped.source_trajectory_ids == []
+            assert len(stamped.last_validated_versions) == 1
+
+    def test_a_freshness_plan_is_checked_where_the_read_happens(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Live, commands run in the first scope root's PARENT, not in the
+        project a read_file touches. A read-only arc's plan names a file
+        path, so it is found under the project; a test runner's plan names a
+        command token, found where the command runs."""
+        from aios.application.memory import reflex_contract
+        from aios.core.verification_strength import VerificationStrength
+        from aios.domain.verification.contracts import SkillVerifierSpec
+
+        monkeypatch.setattr(reflex_contract, "command_cwd", lambda: tmp_path)
+        steps = ["read_file: filepath=README.md"]
+        freshness = reflex_contract.verification_plan(steps)
+        assert reflex_contract.FRESHNESS_OBSERVATION in freshness.required_observations
+        assert reflex_contract.plan_executable(freshness, steps) is True
+        runner = SkillVerifierSpec(
+            target_pattern="README.md",
+            required_observations=(reflex_contract.REUSE_OBSERVATION,),
+            minimum_strength=int(VerificationStrength.STRONG),
+        )
+        assert reflex_contract.plan_executable(runner, steps) is False
