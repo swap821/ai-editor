@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
 import hashlib
 import json
 import subprocess
@@ -327,6 +328,27 @@ def _dirty(files: Iterable[str]) -> list[str]:
     return [line[3:] for line in out.splitlines() if line.strip()]
 
 
+def _journal() -> Path:
+    """Where an in-flight mutation is recorded, with the file's original bytes,
+    BEFORE the file is written: a run killed mid-mutation (a timeout, a closed
+    terminal -- on Windows no handler runs) is restored by the next start."""
+    return REPO_ROOT / ".aios" / "tmp" / "learning_probe_inflight.json"
+
+
+def recover() -> Optional[str]:
+    """Restore a mutation a killed run left on disk; the file restored, or None."""
+    journal = _journal()
+    if not journal.is_file():
+        return None
+    record = json.loads(journal.read_text(encoding="utf-8"))
+    path = REPO_ROOT / record["file"]
+    original = base64.b64decode(record["original"])
+    if path.read_bytes() != original:
+        path.write_bytes(original)
+    journal.unlink()
+    return str(record["file"])
+
+
 def run(
     entries: Sequence[Entry],
     *,
@@ -335,7 +357,20 @@ def run(
     on_result: Optional[Callable[[Result], None]] = None,
 ) -> list[Result]:
     run_tests = runner or (lambda nodes: _pytest(nodes, python))
-    dirty = _dirty(e.file for e in entries)
+    restored = recover()
+    if restored is not None:
+        raise ProbeError(
+            f"a previous run was killed mid-mutation; {restored} has been restored. "
+            "Its results are void: re-run."
+        )
+    # EVERY catalogue target, not just this batch's: a file another run left
+    # mutated would otherwise skew the tests this batch runs.
+    targets = {e.file for e in entries}
+    try:
+        targets |= {e.file for e in load()}
+    except FileNotFoundError:
+        pass
+    dirty = _dirty(targets)
     if dirty:
         raise ProbeError(
             f"refusing to mutate files with uncommitted changes: {dirty[:5]}"
@@ -369,12 +404,25 @@ def run(
             continue
         if crlf:
             mutated = mutated.replace("\n", "\r\n")
+        journal = _journal()
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text(
+            json.dumps(
+                {
+                    "file": entry.file,
+                    "id": entry.id,
+                    "original": base64.b64encode(original).decode("ascii"),
+                }
+            ),
+            encoding="utf-8",
+        )
         try:
             path.write_bytes(mutated.encode("utf-8"))
             result.applied = True
             result.returncode = run_tests(entry.tests)
         finally:
             path.write_bytes(original)
+            journal.unlink(missing_ok=True)
         result.killed = killed(result.returncode)
         if not result.killed and entry.id in INERT:
             result.note = f"INERT -- {INERT[entry.id]}"

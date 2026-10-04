@@ -136,3 +136,37 @@ def test_the_committed_catalogue_applies_to_this_tree() -> None:
     report = probe.coverage(probe.load(), [], probe.load_guards())
     assert report["missing_guards"] == []
     assert all(r["reason"] for r in data["retired"])
+
+
+def test_a_run_killed_mid_mutation_is_restored_and_voided(sandbox) -> None:
+    """On Windows a killed process runs no handler, so the in-flight journal
+    is what puts the file back -- and the killed run's results are void."""
+    import base64
+
+    original = sandbox.read_bytes()
+    sandbox.write_bytes(b"mutated")
+    journal = probe._journal()
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    journal.write_text(
+        json.dumps(
+            {
+                "file": "guard.py",
+                "id": "t:x",
+                "original": base64.b64encode(original).decode(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(probe.ProbeError, match="killed mid-mutation"):
+        probe.run([_entry(old="if row.signed:", new="if True:")], runner=lambda n: 0)
+    assert sandbox.read_bytes() == original
+    assert not journal.exists()
+
+
+def test_every_catalogue_target_must_be_clean(sandbox, monkeypatch) -> None:
+    """Not just this batch's: another file left mutated would skew its tests."""
+    seen: list[set] = []
+    monkeypatch.setattr(probe, "_dirty", lambda files: seen.append(set(files)) or [])
+    monkeypatch.setattr(probe, "load", lambda path=None: [_entry(file="elsewhere.py")])
+    probe.run([_entry(old="if row.signed:", new="if True:")], runner=lambda n: 0)
+    assert seen and {"guard.py", "elsewhere.py"} <= seen[0]
