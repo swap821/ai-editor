@@ -127,6 +127,21 @@ INERT: dict[str, str] = {
         "empty content empty, and on failure returns the text), so an empty "
         "text yields [text] either way."
     ),
+    "gen:service:LearningService.activate_skill:381:always": (
+        "stamp_for_activation returns the skill itself only when it changed "
+        "nothing; saving that unchanged record is a no-op write "
+        "SkillRepository.save allows in every activatable state (same state, "
+        "no contract field rewritten)."
+    ),
+    "gen:service:LearningService.activate_skill:386:never": (
+        "SkillRepository.transition_state returns the record in the target "
+        "state or raises (KeyError, or check_transition's refusal); it never "
+        "returns None or another state."
+    ),
+    "gen:service:LearningService.activate_skill:391:never": (
+        "as activate_skill:386 -- transition_state returns the record in the "
+        "target state or raises."
+    ),
 }
 
 
