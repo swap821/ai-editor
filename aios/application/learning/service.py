@@ -75,6 +75,7 @@ from aios.domain.promotion import PromotionResult, PromotionStatus
 
 
 from aios.application.promotion.authority import PromotionAuthority
+from aios.application.memory.reflex_contract import stamp_for_activation
 
 
 #: What the operator's capability-backed activation accepts: a first activation
@@ -370,6 +371,13 @@ class LearningService:
                 f"consumed capability proof http_method mismatch: {proof.http_method}"
             )
 
+        # Plan Phase 5b: the activation gives the skill the reflex contract
+        # SkillApplicabilityEngine demands (a candidate's missing plan, scope
+        # and trail from its own steps) and records the code state now as a
+        # validated version -- the operator's judgment that it applies as is.
+        stamped = stamp_for_activation(skill)
+        if stamped is not skill:
+            self.skill_repository.save(stamped)
         reviewed = self.skill_repository.transition_state(
             target_skill_id, ver, "human_reviewed"
         )

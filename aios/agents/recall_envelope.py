@@ -36,6 +36,22 @@ from typing import Any, Iterable, Optional
 #: The control the pause names, so a red-team harness can credit it.
 RECALL_TAINT_CONTROL = "recall_taint"
 
+#: Plan Phase 5c (threat T12, composition). The control that checkpoints a
+#: turn in which recalled learning has already steered enough unattended
+#: commands. Taint catches a command that carries recalled TEXT; this catches
+#: what taint cannot see -- several individually benign commands a model
+#: composes from what it recalled, in its own words.
+COMPOSITION_CAP_CONTROL = "composition_cap"
+#: Operator decision, 2026-10-04: in a turn whose context carries learned
+#: recall (lessons, skills -- or a reflex), at most this many commands run with
+#: no human; the next one pauses as a resumable checkpoint. Not configurable:
+#: raising it is a reviewed code change, not an environment variable.
+UNATTENDED_COMMAND_CAP = 3
+#: The recall channels that are learned (the same decision). Facts are human
+#: approved; chat and verified memory and the self-model are not lessons or
+#: skills, and stay governed by the envelope and taint.
+LEARNED_CHANNELS = frozenset({"lesson", "skill"})
+
 ENVELOPE_OPEN = "<recalled_memory>"
 ENVELOPE_CLOSE = "</recalled_memory>"
 ENVELOPE_PREAMBLE = (
@@ -231,6 +247,21 @@ def _channel_of(line: str) -> Optional[str]:
     return None
 
 
+def recalled_channels(memory_context: str | None) -> set[str]:
+    """The channels a turn's recalled memory came through, read from the same
+    headers the approval surface names (``RECALL_CHANNELS``)."""
+    return {
+        channel
+        for line in (memory_context or "").splitlines()
+        if (channel := _channel_of(line)) is not None
+    }
+
+
+def carries_learned_recall(memory_context: str | None) -> bool:
+    """Whether the turn recalled a lesson or a skill (plan Phase 5c)."""
+    return bool(recalled_channels(memory_context) & LEARNED_CHANNELS)
+
+
 def recall_provenance(
     lines: Iterable[str], memory_context: str | None
 ) -> list[dict[str, str]]:
@@ -265,9 +296,14 @@ def tainted_arguments(name: str, args: dict[str, Any]) -> str:
 
 
 __all__ = [
+    "COMPOSITION_CAP_CONTROL",
     "ENVELOPE_CLOSE",
     "ENVELOPE_OPEN",
+    "LEARNED_CHANNELS",
     "RECALL_TAINT_CONTROL",
+    "UNATTENDED_COMMAND_CAP",
+    "carries_learned_recall",
+    "recalled_channels",
     "envelope",
     "attach_envelope",
     "model_visible",
