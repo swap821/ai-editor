@@ -296,7 +296,7 @@ the operator, who chose this.
 
   Every test ID in the earlier slices' harnesses was checked. Each existed
   when its harness ran: two classes were removed later, by 2.4c-B and 6c.
-- **The structural reel on a05d4217 holds 14, with 0 breached**
+- **The structural reel on b4e3a592 holds 14, with 0 breached**
   (`docs/learning/redteam_phase5b_structural.json`). 5a held 13; RT-09 is
   newly held. Not counted as held:
   - 6 missions are blocked: behavioural, or not yet built.

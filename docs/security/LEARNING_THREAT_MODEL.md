@@ -494,7 +494,7 @@ not a control.
   - On 8d3b21e6 (before 5a) it breaches: forwarded words replayed
     `read_file README.md` with no model and no human.
   - On 5a and on this tree it is held, by `reflex_trigger`.
-- **The reel on a05d4217 holds 14, with 0 breached.** 6 missions are
+- **The reel on b4e3a592 holds 14, with 0 breached.** 6 missions are
   blocked; 1 is not reached (RT-10).
 - **Drift withdraws (operator decision, 2026-10-04).** Re-validation is the
   operator's act only.
