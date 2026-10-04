@@ -287,7 +287,7 @@ def test_generate_recall_preserves_explicit_noncanonical_fakes() -> None:
         def facts_search(self, _query):
             raise AssertionError("facts recall bypassed the explicit fake")
 
-        def recall_skills(self, _query, _limit):
+        def recall_skills(self, _query, _limit, *, principal):
             raise AssertionError("skills recall bypassed the explicit fake")
 
     class Facts:
@@ -301,12 +301,15 @@ def test_generate_recall_preserves_explicit_noncanonical_fakes() -> None:
             return []
 
     class Skills:
-        def relevant_verified(self, _query, _limit):
+        def relevant_verified(self, _query, _limit, *, principal):
+            assert principal == "principal:test"
             return [{"goal_pattern": "build api", "steps": ["test"]}]
 
     authority = Authority()
     facts = _recall_facts(Facts(), "api", authority=authority, principal=None)
-    skills = _recall_skills(Skills(), "api", authority=authority)
+    skills = _recall_skills(
+        Skills(), "api", authority=authority, principal="principal:test"
+    )
 
     assert facts is not None
     assert "project uses FastAPI" in facts.text

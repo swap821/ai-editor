@@ -161,6 +161,11 @@ def _library(tmp: Path):
     )
 
 
+#: Plan Phase 4c-2: a skill belongs to a principal, and a reflex replays only
+#: in that principal's turn. Every mission learns, and acts, as this one.
+CONFORMANCE_PRINCIPAL = "principal:conformance"
+
+
 def _earn(adapter, goal: str, steps: list[str], times: int = 3) -> int:
     """Earn evidence the way production earns it: repeated STRONG successes.
 
@@ -170,7 +175,11 @@ def _earn(adapter, goal: str, steps: list[str], times: int = 3) -> int:
     """
     for _ in range(times):
         trail = adapter.record_attempt(
-            goal, steps, success=True, strength=VerificationStrength.STRONG
+            goal,
+            steps,
+            success=True,
+            strength=VerificationStrength.STRONG,
+            principal=CONFORMANCE_PRINCIPAL,
         )
     return trail
 
@@ -317,6 +326,7 @@ def mission_4_replay_serves_a_turn_with_no_llm(tmp: Path) -> MissionResult:
         ),
         max_iters=3,
         cerebellum=cerebellum,
+        principal=CONFORMANCE_PRINCIPAL,
     )
 
     events = list(agent.run([{"role": "user", "content": goal}]))
@@ -468,6 +478,7 @@ def refusal_9_below_floor_cannot_promote(tmp: Path) -> MissionResult:
             ["read_file: a.py", "verify: ruff"],
             success=True,
             strength=VerificationStrength.WEAK,
+            principal=CONFORMANCE_PRINCIPAL,
         )
     records = repository.list_skills()
     ready = bool(records) and adapter.trail_map()["trails"][0]["review_ready"]
@@ -492,6 +503,7 @@ def refusal_10_evidence_cannot_activate(tmp: Path) -> MissionResult:
             ["verify: pytest tests/test_pin.py -q"],
             success=True,
             strength=VerificationStrength.STRONG,
+            principal=CONFORMANCE_PRINCIPAL,
         )
     (record,) = repository.list_skills()
     forged = record.model_copy(update={"state": "active"})

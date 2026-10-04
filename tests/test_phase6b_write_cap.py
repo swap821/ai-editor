@@ -138,6 +138,7 @@ def test_a_refused_skill_attempt_writes_nothing(tmp_path: Path) -> None:
         ["verify: pytest"],
         success=True,
         strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     with pytest.raises(LearningWriteCapExceeded):
         skills.record_attempt(
@@ -145,6 +146,7 @@ def test_a_refused_skill_attempt_writes_nothing(tmp_path: Path) -> None:
             ["verify: pytest -q"],
             success=True,
             strength=VerificationStrength.STRONG,
+            principal="principal:test",
         )
     assert len(repository.list_skills()) == 1
 

@@ -117,6 +117,7 @@ from aios.agents.reflection_agent import ReflectionAgent  # noqa: E402
 from aios.core.cerebellum import Cerebellum  # noqa: E402
 from aios.core.verification_strength import VerificationStrength  # noqa: E402
 from aios.memory.db import get_connection, init_memory_db  # noqa: E402
+from aios.memory.skills import scoped_skill_attempt  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
 from tools.self_corpus_grading import (  # noqa: E402
@@ -583,7 +584,11 @@ def _verify_only_cycle(
             failed_count=0 if passed else 1,
             command=command,
         )
-        skill_id = skills.record_attempt(goal, steps, success=passed, strength=strength)
+        # Plan Phase 4c-2: harness learning names no principal. The skill is a
+        # candidate, and the operator's activation makes it his.
+        skill_id = scoped_skill_attempt(
+            skills, goal, steps, success=passed, strength=strength, principal=None
+        )
         detail = f"{attempt} turn(s), last strength={strength.name}, passed={passed}"
         print(
             f"    verify-only turn {attempt}: passed={passed} "

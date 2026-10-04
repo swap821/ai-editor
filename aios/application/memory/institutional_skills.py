@@ -41,6 +41,7 @@ Every write asks the emergency stop first, the ranking counters included.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -53,13 +54,21 @@ from typing import Any, Iterator, Optional, Sequence
 from aios import config
 from aios.application.governance.emergency_stop import EmergencyStopError
 from aios.application.memory import reflex_contract, write_budget
+from aios.application.memory.provenance_policy import ProvenanceWriter, RecallGate
 from aios.domain.learning.applicability import (
     ApplicabilityError,
     SkillApplicabilityEngine,
 )
 from aios.application.learning.skill_lifecycle import SkillLifecycleAuthority
 from aios.core.verification_strength import VerificationStrength, meets_learning_floor
-from aios.domain.learning.repository import SkillRecord, SkillRepository
+from aios.domain.learning.repository import (
+    SKILL_PROVENANCE_TABLE,
+    SkillRecord,
+    SkillRepository,
+    skill_digest,
+    skill_principal,
+    skill_row_id,
+)
 from aios.domain.learning.skill_contracts import BIRTH_STATE
 from aios.domain.memory.contracts import MemoryHit, MemoryRecallContext
 from aios.memory.construction_ledger import record_construction
@@ -340,8 +349,45 @@ class SkillTrailIndex:
             connection.close()
 
 
+def skill_identity(signature: str, principal: Optional[str]) -> str:
+    """The library ``skill_id`` of an arc learned by *principal* (plan Phase
+    4c-2).
+
+    The same arc learned by two principals is two skills: one principal's
+    attempts never grow, demote or refresh another's. An unattributed write
+    keeps the pre-scoping identity, ``arc-<signature>`` -- the one a migrated
+    skill carries -- and stays withheld from everyone. The principal is hashed
+    in, so the id keeps its shape (routes and tools parse ``arc-<hex>@<v>``).
+    """
+    if not principal:
+        return f"arc-{signature}"
+    scoped = hashlib.sha256(f"{principal}||{signature}".encode("utf-8")).hexdigest()
+    return f"arc-{scoped}"
+
+
+class _EveryPrincipal:
+    """The reflex compiler's view: every principal's skill, each still only on
+    its own signed activation."""
+
+    def __repr__(self) -> str:
+        return "EVERY_PRINCIPAL"
+
+
+#: Passed as ``principal`` by readers that serve no one turn: compiling
+#: reflexes and the retirement tool. A replay still matches per principal.
+EVERY_PRINCIPAL: Any = _EveryPrincipal()
+
+
 class InstitutionalSkillAdapter:
-    """The ``skills`` authority slot, served by the institutional library."""
+    """The ``skills`` authority slot, served by the institutional library.
+
+    Plan Phase 4c-2: a skill belongs to a principal, and an ACTIVE skill is
+    recalled or replayed only if its newest provenance record is the
+    operator's signed activation (``attest_activation``) of exactly its
+    current contract and state, naming the principal asking. Every transition
+    journals an unsigned record (``SkillRepository.transition_state``), so a
+    database edit that activates, re-activates or rewrites a skill is refused.
+    """
 
     memory_types = ("skill", "workflow")
 
@@ -354,6 +400,8 @@ class InstitutionalSkillAdapter:
         min_successes: int = 3,
         min_success_rate: float = 0.8,
         migration_pending: Optional[str] = None,
+        provenance: Optional[ProvenanceWriter] = None,
+        gate: Optional[RecallGate] = None,
     ) -> None:
         self.repository = repository
         self.trails = trails
@@ -365,6 +413,57 @@ class InstitutionalSkillAdapter:
         self.migration_pending = migration_pending
         self.min_successes = max(min_successes, 1)
         self.min_success_rate = max(0.0, min(1.0, min_success_rate))
+        #: Signs the operator's activations. None: nothing is signed.
+        self.provenance = provenance
+        #: Admits an active skill only on a signed activation naming the
+        #: principal asking. None (a unit test's adapter): the record's own
+        #: principal is checked, unsigned.
+        self.gate = gate
+
+    # -- principal scoping ---------------------------------------------- #
+
+    def _admits(self, record: SkillRecord, principal: Any) -> bool:
+        """Whether *record* may be recalled or replayed for *principal*."""
+        owner = skill_principal(record)
+        asking = owner if principal is EVERY_PRINCIPAL else principal
+        if self.gate is not None:
+            return self.gate.admits(
+                SKILL_PROVENANCE_TABLE,
+                skill_row_id(record.skill_id, record.version),
+                skill_digest(record),
+                principal=asking,
+            )
+        return bool(asking) and owner == asking
+
+    def attest_activation(self, skill_id: str, version: int, *, approver: str) -> bool:
+        """Sign the operator's activation of an ACTIVE skill (plan Phase 4c-2);
+        True only if the skill's newest record is now signed.
+
+        Called by the activation route once the capability-backed activation
+        has moved the skill to ``active``. The record covers the skill's
+        current contract and state, names its principal, and names the
+        approver. Without a writer, or without the live key, nothing is signed
+        and the skill is never recalled or replayed: fail-closed.
+        """
+        record = self.repository.get(skill_id, int(version))
+        if record is None or record.state != ACTIVE:
+            raise ValueError(
+                f"only an active skill's activation is signed: {skill_id!r} "
+                f"v{version} is {None if record is None else record.state!r}"
+            )
+        if self.provenance is None:
+            return False
+        row_id = skill_row_id(record.skill_id, record.version)
+        self.provenance.attest_approval(
+            SKILL_PROVENANCE_TABLE,
+            row_id,
+            skill_digest(record),
+            "activated",
+            approver=approver,
+            principal=skill_principal(record),
+        )
+        # The fact, not the intent: an append without the key is unsigned.
+        return self.provenance.store.latest(SKILL_PROVENANCE_TABLE, row_id) is not None
 
     # -- writes ---------------------------------------------------------- #
 
@@ -374,10 +473,12 @@ class InstitutionalSkillAdapter:
         steps: list[str],
         *,
         success: bool,
+        principal: Optional[str],
         strength: VerificationStrength = VerificationStrength.STRONG,
         legacy_id: Optional[int] = None,
     ) -> int:
-        """Record one verification-backed attempt of an arc; return its trail id.
+        """Record one verification-backed attempt of an arc, as *principal*'s;
+        return its trail id.
 
         A success below the learning floor is not evidence for the arc (as in
         the legacy store); it neither counts nor refreshes the recipe.
@@ -395,7 +496,7 @@ class InstitutionalSkillAdapter:
             raise ValueError("skill attempt requires a goal and workflow steps")
         eligible = success and meets_learning_floor(strength)
         signature = skill_signature_v2(goal, clean_steps)
-        skill_id = f"arc-{signature}"
+        skill_id = skill_identity(signature, principal)
         steps_json = json.dumps(clean_steps, separators=(",", ":"))
 
         versions = [r for r in self.repository.list_skills() if r.skill_id == skill_id]
@@ -411,6 +512,8 @@ class InstitutionalSkillAdapter:
                 "procedure_format": _STEPS_JSON,
                 "first_strength": strength.name if success else "",
             }
+            if principal:
+                provenance["principal"] = str(principal)
             if legacy_id is not None:
                 provenance["legacy_id"] = str(int(legacy_id))
             self.repository.save(
@@ -586,9 +689,14 @@ class InstitutionalSkillAdapter:
         skill_ids: Sequence[int],
         *,
         success: bool,
+        principal: Optional[str],
         now: Optional[datetime] = None,
     ) -> list[int]:
-        """Credit or stain recalled ACTIVE skills after a verifier-judged turn."""
+        """Credit or stain recalled ACTIVE skills after a verifier-judged turn.
+
+        Only *principal*'s own admitted skills (plan Phase 4c-2): one
+        principal's turn can neither earn credit for, nor demote, another's.
+        """
         if self.migration_pending:
             raise SkillMigrationPendingError(self.migration_pending)
         moment = now or _utc_now()
@@ -600,6 +708,8 @@ class InstitutionalSkillAdapter:
             record = self.repository.get(*key)
             if record is None or record.state != ACTIVE:
                 continue
+            if not self._admits(record, principal):
+                continue
             self.trails.record_reuse(int(trail_id), success=success, now=moment)
             self.lifecycle.apply_reuse_outcome(
                 *key, success=success, reason=None if success else "verification"
@@ -610,9 +720,15 @@ class InstitutionalSkillAdapter:
     # -- reads ----------------------------------------------------------- #
 
     def relevant_verified(
-        self, query: str, limit: int = 3, *, now: Optional[datetime] = None
+        self,
+        query: str,
+        limit: int = 3,
+        *,
+        principal: Optional[str],
+        now: Optional[datetime] = None,
     ) -> list[dict[str, Any]]:
-        """ACTIVE skills relevant to *query*, in the legacy recall row shape."""
+        """*principal*'s ACTIVE, admitted skills relevant to *query*, in the
+        legacy recall row shape."""
         if not query or limit <= 0:
             return []
         moment = now or _utc_now()
@@ -623,6 +739,8 @@ class InstitutionalSkillAdapter:
                 continue
             score = relevance(query, record.problem_signature)
             if score <= 0:
+                continue
+            if not self._admits(record, principal):
                 continue
             row = self._row(record, stats, moment)
             if row is None:
@@ -635,8 +753,10 @@ class InstitutionalSkillAdapter:
         )
         return ranked[:limit]
 
-    def active_procedures(self) -> dict[int, dict[str, Any]]:
-        """The only reflex source: ACTIVE skills by trail id.
+    def active_procedures(self, *, principal: Any) -> dict[int, dict[str, Any]]:
+        """The only reflex source: *principal*'s ACTIVE, admitted skills by
+        trail id (plan Phase 4c-2). ``EVERY_PRINCIPAL`` -- the compiler's view
+        -- admits each skill on its own principal's signed activation.
 
         Read-only. An active skill with no trail yet is left out rather than
         assigned one, because a read must not write (the #375 lesson): it gets a
@@ -650,6 +770,8 @@ class InstitutionalSkillAdapter:
             trail = stats.get((record.skill_id, record.version))
             if trail is None:
                 continue
+            if not self._admits(record, principal):
+                continue
             steps = _steps(record)
             activated[int(trail["trail_id"])] = {
                 "skill_id": record.skill_id,
@@ -659,8 +781,15 @@ class InstitutionalSkillAdapter:
                 "success_count": record.success_count,
                 "signature_v2": record.provenance.get("signature_v2")
                 or skill_signature_v2(record.problem_signature, steps),
+                "principal": skill_principal(record),
             }
         return activated
+
+    def compilable_procedures(self) -> dict[int, dict[str, Any]]:
+        """Every principal's activated skills, for the reflex compiler and the
+        retirement tool: each only on its own principal's signed activation.
+        A replay still matches per principal (``active_procedures``)."""
+        return self.active_procedures(principal=EVERY_PRINCIPAL)
 
     def withdraw_reflex_source(self, trail_id: int) -> bool:
         """Suspend the ACTIVE skill behind a trail whose reflex the machine
@@ -752,7 +881,9 @@ class InstitutionalSkillAdapter:
         }
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
-        rows = self.relevant_verified(query, context.limit)
+        rows = self.relevant_verified(
+            query, context.limit, principal=context.principal_id
+        )
         return tuple(
             MemoryHit(
                 record_id=f"skill:{row['skill_id']}",
@@ -834,6 +965,7 @@ class InstitutionalSkillAdapter:
                 "version": record.version,
                 "state": record.state,
             },
+            "principal": skill_principal(record),
         }
 
 
@@ -870,6 +1002,8 @@ def build_skills_slot(
     repository: SkillRepository,
     trails: SkillTrailIndex,
     history: Optional[SkillMemory],
+    provenance: Optional[ProvenanceWriter] = None,
+    gate: Optional[RecallGate] = None,
 ) -> InstitutionalSkillAdapter:
     """The memory authority's ``skills`` slot: the institutional library, alone.
 
@@ -901,11 +1035,17 @@ def build_skills_slot(
     except EmergencyStopError:
         logger.warning("stop engaged at startup: migrated trail ids assigned lazily")
     return InstitutionalSkillAdapter(
-        repository, trails, legacy=history, migration_pending=pending
+        repository,
+        trails,
+        legacy=history,
+        migration_pending=pending,
+        provenance=provenance,
+        gate=gate,
     )
 
 
 __all__ = [
+    "EVERY_PRINCIPAL",
     "InstitutionalSkillAdapter",
     "ReadOnlySkillHistoryError",
     "SkillMigrationPendingError",
@@ -913,4 +1053,5 @@ __all__ = [
     "build_skills_slot",
     "is_review_ready",
     "library_summary",
+    "skill_identity",
 ]

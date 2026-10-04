@@ -80,6 +80,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -87,7 +88,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -149,6 +150,17 @@ DB = REPO_ROOT / "data" / "aios_memory.db"
 #: The institutional skill library beside it (D3): the SAME data directory as
 #: the memory store measured, never a separately configured one.
 LIBRARY_DB = DB.with_name("aios_operational_state.db")
+#: Plan Phase 4c-2: an activated skill is recalled only for the principal it
+#: belongs to -- the operator, for a skill he activated. This harness recalls
+#: skills as the principal named here (the operator's principal id), and as
+#: no one when it is unset: then the ON arm recalls no skill. Read per call.
+PAYOFF_PRINCIPAL_ENV = "AIOS_PAYOFF_PRINCIPAL"
+
+
+def payoff_principal() -> Optional[str]:
+    return os.environ.get(PAYOFF_PRINCIPAL_ENV, "").strip() or None
+
+
 GUARD_SELECTION = ["tests/test_code_chunking.py"]
 
 
@@ -508,19 +520,141 @@ def live_skills_slot() -> Any:
     recall through a `SkillMemory` of its own. It recalls through the slot
     production builds, whose recall answers from the institutional library's
     ACTIVE skills only. Since slice 2.4c-B that is the only slot there is:
-    what the benchmark measures follows what the turn does.
+    what the benchmark measures follows what the turn does. Since plan Phase
+    4c-2 that includes the recall gate: an active skill is recalled only on
+    the operator's signed activation, under the pinned live key, for the
+    principal it names (``payoff_principal``).
     """
     from aios.application.memory.institutional_skills import (
         SkillTrailIndex,
         build_skills_slot,
     )
+    from aios.application.memory.provenance_policy import RecallGate
     from aios.domain.learning.repository import SkillRepository
+    from aios.memory.provenance import LearningVerifier, ProvenanceStore
 
     repository = SkillRepository(LIBRARY_DB)
     return build_skills_slot(
         repository=repository,
         trails=SkillTrailIndex(repository.database),
         history=SkillMemory(db_path=DB, read_only=True),
+        gate=RecallGate(
+            ProvenanceStore(repository.database),
+            LearningVerifier.from_pinned_file(),
+            context="live",
+        ),
+    )
+
+
+def live_lessons_slot(mistakes: MistakeMemory) -> Any:
+    """The `lessons` slot a live turn recalls from, built the same way
+    (deviation D8, docs/learning/PAYOFF_PREREGISTRATION.md).
+
+    A live turn recalls lessons through the memory authority, a passthrough
+    to this adapter: ``recall_relevant`` admits a lesson only if its newest
+    provenance record verifies under the pinned live key and names the
+    principal asking (plan Phases 3c, 4c-1). Until D8 the ON arm read the raw
+    store, ungated, as no one -- what the benchmark measured was not what the
+    turn does. The gate reads a READ-ONLY provenance store: recall writes
+    nothing, so the harness cannot change the store it measures.
+    """
+    from aios.application.memory.adapters import MistakeMemoryAdapter
+    from aios.application.memory.provenance_policy import RecallGate
+    from aios.memory.provenance import LearningVerifier, ReadOnlyProvenanceStore
+
+    return MistakeMemoryAdapter(
+        mistakes,
+        gate=RecallGate(
+            ReadOnlyProvenanceStore(DB),
+            LearningVerifier.from_pinned_file(),
+            context="live",
+        ),
+    )
+
+
+def gate_census(principal: Optional[str]) -> dict[str, Any]:
+    """What the production recall gate would admit for *principal*, READ-ONLY.
+
+    D8's preflight. The databases are opened ``mode=ro`` and the gate reads a
+    read-only provenance store, so the census changes nothing, migrates
+    nothing, and runs BEFORE anything that does. It counts the lessons
+    (verified or pending) and the ACTIVE skills the gate admits -- through the
+    gate's own derivation, not a second one.
+    """
+    from aios.application.memory.provenance_policy import RecallGate, lesson_digest
+    from aios.domain.learning.repository import (
+        SKILL_PROVENANCE_TABLE,
+        SkillRecord,
+        skill_digest,
+        skill_row_id,
+    )
+    from aios.memory.provenance import LearningVerifier, ReadOnlyProvenanceStore
+
+    pinned = LearningVerifier.from_pinned_file()
+    census: dict[str, Any] = {
+        "principal": principal,
+        "lessons": 0,
+        "skills": 0,
+        "candidates": {"lessons": 0, "skills": 0},
+    }
+
+    def rows(db: Path, sql: str) -> list[sqlite3.Row]:
+        if not db.is_file():
+            return []
+        conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            return conn.execute(sql).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        finally:
+            conn.close()
+
+    lesson_gate = RecallGate(ReadOnlyProvenanceStore(DB), pinned, context="live")
+    for row in rows(
+        DB,
+        "SELECT * FROM mistake_pool "
+        "WHERE verification_status IN ('verified', 'pending')",
+    ):
+        census["candidates"]["lessons"] += 1
+        if lesson_gate.admits(
+            "mistake_pool", row["id"], lesson_digest(row), principal=principal
+        ):
+            census["lessons"] += 1
+    skill_gate = RecallGate(ReadOnlyProvenanceStore(LIBRARY_DB), pinned, context="live")
+    for row in rows(LIBRARY_DB, "SELECT payload_json FROM institutional_skills"):
+        record = SkillRecord.model_validate(json.loads(row["payload_json"]))
+        if record.state != "active":
+            continue
+        census["candidates"]["skills"] += 1
+        if skill_gate.admits(
+            SKILL_PROVENANCE_TABLE,
+            skill_row_id(record.skill_id, record.version),
+            skill_digest(record),
+            principal=principal,
+        ):
+            census["skills"] += 1
+    census["refused"] = {
+        "lessons": dict(lesson_gate.refused),
+        "skills": dict(skill_gate.refused),
+    }
+    return census
+
+
+def refuse_if_nothing_is_recallable(census: Mapping[str, Any]) -> None:
+    """D8: a run whose ON arm can recall nothing has no judged number (the
+    pre-registration's own rule), so it is refused before a model is asked
+    anything, with the census as the reason."""
+    if census["lessons"] or census["skills"]:
+        return
+    raise CorpusError(
+        "D8: no judged number -- through the production recall gate nothing is "
+        f"recallable for principal {census['principal']!r} (of "
+        f"{census['candidates']['lessons']} lessons and "
+        f"{census['candidates']['skills']} active skills, the gate admits none; "
+        f"refused: {census['refused']}). Every pair would be NOT COMPARABLE. "
+        f"Set {PAYOFF_PRINCIPAL_ENV}, pin the live key, and re-admit reviewed "
+        "lessons with tools/readmit_learning.py --principal, then re-run."
     )
 
 
@@ -584,7 +718,32 @@ def store_fingerprint(
     return out
 
 
-def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str):
+class _LessonsOnly:
+    """The memory authority's lesson recall, and nothing else: a passthrough
+    to the gated slot, as ``MemoryAuthority.recall_lessons`` is (D8)."""
+
+    def __init__(self, slot: Any) -> None:
+        self.slot = slot
+
+    def owns_store(self, name: str, store: Any) -> bool:
+        return name == "lessons" and store is getattr(self.slot, "store", None)
+
+    def recall_lessons(
+        self, query: str, task_id: str, limit: int = 5, *, principal: Optional[str]
+    ) -> list[dict[str, Any]]:
+        return list(
+            self.slot.recall_relevant(query, task_id, limit, principal=principal)
+        )
+
+
+def recalled_context(
+    reflector,
+    skills: SkillMemory,
+    query: str,
+    session_id: str,
+    *,
+    lessons_slot: Any,
+):
     """What this system actually remembers about a task like this one.
 
     Calls `_recall_lessons` and `_recall_skills` -- the same two functions the
@@ -603,12 +762,19 @@ def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str
     a store error reads here as "recalled nothing" rather than as "memory is
     worthless", and the pair is then reported NOT COMPARABLE.
     """
-    # Plan Phase 4c: this harness learns and recalls through raw stores, as
-    # no principal, so its rows are unattributed and the store matches them
-    # (NULL-safe). It never went through the recall gate; scoping changes
-    # nothing it measures.
-    lessons = _recall_lessons(reflector, session_id, query, principal=None) or []
-    verified = _recall_skills(skills, query) or []
+    # D8: lessons and skills both through the production gate, as the
+    # principal named in AIOS_PAYOFF_PRINCIPAL -- the path a live turn takes.
+    lessons = (
+        _recall_lessons(
+            reflector,
+            session_id,
+            query,
+            authority=_LessonsOnly(lessons_slot),
+            principal=payoff_principal(),
+        )
+        or []
+    )
+    verified = _recall_skills(skills, query, principal=payoff_principal()) or []
     blocks = [
         block
         for block in (lessons_prompt_block(lessons), skills_prompt_block(verified))
@@ -848,9 +1014,19 @@ def run_benchmark(
     exclude_labels: Optional[list[str]] = None,
 ) -> tuple[list[Pair], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
+    # D8: read-only, before anything that writes or migrates the store.
+    census = gate_census(payoff_principal())
+    print(
+        f"census  : principal={census['principal']!r} recallable lessons="
+        f"{census['lessons']}/{census['candidates']['lessons']} skills="
+        f"{census['skills']}/{census['candidates']['skills']}"
+    )
+    refuse_if_nothing_is_recallable(census)
     init_memory_db(DB)
     memory_before = store_fingerprint(DB)
     mistakes = MistakeMemory(db_path=DB)
+    # D8: lessons through the gated slot, over this run's own store.
+    lessons_slot = live_lessons_slot(mistakes)
     # D3: recall through the live slot. Fingerprinted AFTER it is built, so its
     # one-time setup (adopting migrated trail ids) is not read as learning.
     skills = live_skills_slot()
@@ -955,7 +1131,11 @@ def run_benchmark(
             # manufacturing lexical matches no real turn would get.
             query = queries[index]
             context, lessons, verified = recalled_context(
-                reflector, skills, query, f"payoff-{run_id}-{index}"
+                reflector,
+                skills,
+                query,
+                f"payoff-{run_id}-{index}",
+                lessons_slot=lessons_slot,
             )
             n_lessons, n_skills = len(lessons), len(verified)
             # SEEN if ANY recalled item was recorded on this very target, read
@@ -1355,7 +1535,16 @@ def main(argv: list[str] | None = None) -> int:
         default=PREREGISTRATION,
         help="the pre-registration this run is bound to; its sha256 is recorded.",
     )
+    parser.add_argument(
+        "--census",
+        action="store_true",
+        help="D8: print what the production recall gate would admit for "
+        f"${PAYOFF_PRINCIPAL_ENV}, read-only, and exit. Asks no model.",
+    )
     args = parser.parse_args(argv)
+    if args.census:
+        print(json.dumps(gate_census(payoff_principal()), indent=2))
+        return 0
 
     labels: Optional[list[str]] = None
     if args.target_labels is not None:

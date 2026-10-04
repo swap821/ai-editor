@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from aios.api.action_guard import enforce_action_boundary
-from aios.api.deps import get_learning_service, get_skill_repository
+from aios.api.deps import (
+    get_learning_service,
+    get_memory_authority,
+    get_skill_repository,
+)
 from aios.application.learning.service import (
     LearningService,
     SkillActivationAuthorization,
@@ -16,6 +21,8 @@ from aios.application.learning.service import (
 )
 from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.domain.learning.repository import SkillRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     tags=["skill-library"], dependencies=[Depends(enforce_action_boundary)]
@@ -64,8 +71,15 @@ def activate_skill_route(
     request: Request,
     body: ActivateSkillRequest | None = None,
     service: LearningService = Depends(get_learning_service),
+    memory_authority: Any = Depends(get_memory_authority),
 ) -> dict[str, Any]:
-    """Operator capability-backed skill activation route."""
+    """Operator capability-backed skill activation route.
+
+    Plan Phase 4c-2: the activation is then SIGNED, naming the skill's
+    principal and the operator as approver. A skill is recalled or replayed
+    only on that signature, so the response says whether it was signed: an
+    activation without the live key leaves the skill active and inert.
+    """
     proof = getattr(request.state, "consumed_capability_proof", None)
     if proof is None or not isinstance(proof, ConsumedCapabilityProof):
         raise HTTPException(
@@ -86,12 +100,24 @@ def activate_skill_route(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    adapter = getattr(memory_authority, "adapters", {}).get("skills")
+    attest = getattr(adapter, "attest_activation", None)
+    signed = False
+    if callable(attest):
+        try:
+            signed = bool(
+                attest(skill.skill_id, skill.version, approver=proof.operator_id)
+            )
+        except Exception as exc:  # noqa: BLE001 - reported, and the skill stays inert
+            logger.warning("skill activation not signed", exc_info=exc)
     return {
         "skill_id": skill.skill_id,
         "version": skill.version,
         "state": skill.state,
         "status": "activated",
         "source": "capability_backed_human_activation",
+        "principal": (skill.provenance or {}).get("principal"),
+        "signed": signed,
     }
 
 

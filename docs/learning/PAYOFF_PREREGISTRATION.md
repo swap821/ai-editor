@@ -427,3 +427,42 @@ switch would therefore have looked never-practised, inflating NOVEL.
 `docs/learning/payoff_targets_cloud_baseline.txt` (D4), so no selection runs
 and this has no effect on it. D3's statement about the skill channel stands:
 an ON arm recalls only skills the operator activated before the run.
+
+### D8 — 2026-10-04 — the ON arm recalls through the production gate; a run with nothing recallable is refused
+
+- **What changed.** The ON arm recalls lessons through `live_lessons_slot`,
+  the adapter a live turn's lesson recall passes through:
+  - a lesson is admitted only if its newest provenance record verifies under
+    the pinned live key and names the principal asking (plan Phases 3c and
+    4c-1);
+  - the gate reads a read-only provenance store, so recall cannot change the
+    store being measured;
+  - the principal is `AIOS_PAYOFF_PRINCIPAL`;
+  - skills were already recalled through the gated library slot (4c-2).
+- **The census.** Before anything migrates or writes the store, a read-only
+  census (`gate_census`) counts what the gate would admit. A run whose ON arm
+  could recall nothing is refused with the census as the reason. That is the
+  existing rule ("NOVEL has no comparable pairs: no judged number"), applied
+  before any model time is spent rather than after.
+  `python tools/learning_payoff.py --census` prints it and asks no model.
+- **Why.** What the benchmark measures must follow what the turn does: D3's
+  reason, for lessons now. After Phases 3c and 4c a live turn recalls only
+  signed rows that name the principal asking. Until D8 the ON arm read the raw
+  store, ungated, as no one, so it measured memory no live turn can see.
+- **The census on the live store (2026-10-04, read-only; both files'
+  sha256 unchanged):** 23 candidate lessons (8 verified, 15 pending) and 0
+  active skills. **Admitted: 0.** With no principal set, all 23 are refused as
+  `no principal`. As `operator:swap`, all 23 are refused as `unsigned`.
+- **Consequence: no D8 run produces a number yet.** Three things are needed,
+  all the operator's acts:
+  1. pin the live learning key (`AIOS_LEARNING_KEY_LIVE` in his environment,
+     `LEARNING_PUBLIC_KEYS.json` committed);
+  2. review and re-admit lessons with
+     `tools/readmit_learning.py --apply --principal <his principal>`;
+  3. set `AIOS_PAYOFF_PRINCIPAL`.
+
+  Until then H3 ("hardening preserves utility") has one honest reading. The
+  hardening withholds all legacy memory by design (operator decisions
+  2026-09-25 and 2026-10-04), so the ON arm has nothing to recall. What
+  re-admitted memory is worth through the gates is not yet measured.
+- **Applies to** every run from this commit on.

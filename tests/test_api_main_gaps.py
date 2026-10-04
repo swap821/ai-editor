@@ -1716,20 +1716,21 @@ def test_recall_lessons_swallows_exception() -> None:
 
 def test_recall_skills_swallows_exception() -> None:
     class BoomSkills:
-        def relevant_verified(self, query, limit):
+        def relevant_verified(self, query, limit, *, principal):
             raise RuntimeError("boom")
 
-    assert _recall_skills(BoomSkills(), "query") == []
+    assert _recall_skills(BoomSkills(), "query", principal="principal:test") == []
 
 
 def test_recall_skills_returns_relevant_workflows() -> None:
     class Skills:
-        def relevant_verified(self, query, limit):
+        def relevant_verified(self, query, limit, *, principal):
+            assert principal == "principal:test"
             return [
                 {"goal_pattern": "build x", "steps": ["a", "b"], "success_rate": 0.8}
             ]
 
-    result = _recall_skills(Skills(), "query")
+    result = _recall_skills(Skills(), "query", principal="principal:test")
     assert result[0]["goal_pattern"] == "build x"
 
 

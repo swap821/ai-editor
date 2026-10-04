@@ -83,19 +83,6 @@ def build_memory_authority() -> MemoryAuthority:
     # approver, laundering learned text into the channel recall presents as
     # "RELEVANT APPROVED FACTS" (threat T16, red-team RT-18).
     cerebellum = Cerebellum(config.MEMORY_DB_PATH)
-    # Phase 2 slice 2.4c-B (docs/learning/PHASE2_DESIGN.md): the institutional
-    # library, which organ 43 governs, is the only skill store. The legacy
-    # `procedural_skills` store is attached READ-ONLY, as history, and nothing
-    # promotes itself: activation is the operator's act.
-    repository = SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
-    skills = build_skills_slot(
-        repository=repository,
-        trails=SkillTrailIndex(repository.database),
-        history=SkillMemory(read_only=True),
-    )
-    # Reflexes compile and replay only from skills the operator activated, with
-    # exactly the activated steps. Always attached: there is no ungated mode.
-    cerebellum.attach_reflex_gate(skills)
     # Plan Phase 3b (docs/learning/PHASE3_DESIGN.md): learned rows this process
     # writes carry signed provenance, as LIVE rows. The seed is read from the
     # environment once, here; without it every record is unsigned, and an
@@ -104,12 +91,38 @@ def build_memory_authority() -> MemoryAuthority:
     # verifies under a PINNED key, so an unsigned row is never laundered into
     # a signed one by the next real event that touches it.
     pinned = LearningVerifier.from_pinned_file()
+    signer = LearningSigner.from_env()
     provenance = ProvenanceWriter(
         ProvenanceStore(config.MEMORY_DB_PATH),
-        LearningSigner.from_env(),
+        signer,
         source_kind="live",
         verifier=pinned,
     )
+    # Phase 2 slice 2.4c-B (docs/learning/PHASE2_DESIGN.md): the institutional
+    # library, which organ 43 governs, is the only skill store. The legacy
+    # `procedural_skills` store is attached READ-ONLY, as history, and nothing
+    # promotes itself: activation is the operator's act.
+    #
+    # Plan Phase 4c-2: the library's own provenance table (in its database)
+    # holds the operator's signed activations; a skill is recalled or replayed
+    # only on one that names the principal asking, under a pinned LIVE key.
+    repository = SkillRepository(config.OPERATIONAL_STATE_DB_PATH)
+    skill_provenance = ProvenanceWriter(
+        ProvenanceStore(repository.database),
+        signer,
+        source_kind="live",
+        verifier=pinned,
+    )
+    skills = build_skills_slot(
+        repository=repository,
+        trails=SkillTrailIndex(repository.database),
+        history=SkillMemory(read_only=True),
+        provenance=skill_provenance,
+        gate=RecallGate(skill_provenance.store, pinned, context="live"),
+    )
+    # Reflexes compile and replay only from skills the operator activated, with
+    # exactly the activated steps. Always attached: there is no ungated mode.
+    cerebellum.attach_reflex_gate(skills)
     # Plan Phase 3c: recall into a live turn admits only rows whose newest
     # record verifies under a pinned LIVE key. With no pinned key nothing is
     # admitted: recall is quiet until rows are re-earned or re-admitted.

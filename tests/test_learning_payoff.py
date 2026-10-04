@@ -459,6 +459,20 @@ class TestTheInstrumentIsProvenBeforeUse:
         monkeypatch.setattr(payoff, "MistakeMemory", lambda db_path: object())
         monkeypatch.setattr(payoff, "SkillMemory", lambda db_path, **kw: object())
         monkeypatch.setattr(payoff, "ReflectionAgent", lambda *a, **k: object())
+        # D8's census and gated slot are collaborators here too (their own
+        # behaviour is TestD8TheOnArmRecallsThroughTheProductionGate's).
+        monkeypatch.setattr(
+            payoff,
+            "gate_census",
+            lambda principal: {
+                "principal": principal,
+                "lessons": 1,
+                "skills": 0,
+                "candidates": {"lessons": 1, "skills": 0},
+                "refused": {"lessons": {}, "skills": {}},
+            },
+        )
+        monkeypatch.setattr(payoff, "live_lessons_slot", lambda mistakes: object())
         monkeypatch.setattr(
             payoff, "resolve_client", lambda spec, timeout_s: (object(), spec)
         )
@@ -469,7 +483,7 @@ class TestTheInstrumentIsProvenBeforeUse:
         monkeypatch.setattr(payoff, "collect_targets", lambda root: [_target()])
         monkeypatch.setattr(payoff, "practice_history", lambda db: "")
 
-        def _recall(reflector, skills, query, session_id):
+        def _recall(reflector, skills, query, session_id, *, lessons_slot):
             captured.append(query)
             return "", [], []
 
@@ -773,12 +787,18 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
     ) -> None:
         from aios.application.memory.institutional_skills import (
             InstitutionalSkillAdapter,
+            SkillTrailIndex,
+            build_skills_slot,
         )
+        from aios.application.memory.provenance_policy import ProvenanceWriter
+        from aios.application.memory.reflex_contract import stamp_for_activation
         from aios.core.verification_strength import VerificationStrength
         from aios.domain.learning.repository import SkillRepository
+        from aios.memory.provenance import LearningSigner, ProvenanceStore
         from aios.memory.skills import SkillMemory
         from tools import migrate_skills_to_institutional as mig
 
+        OPERATOR = "operator:payoff-test"
         db = self._stores(tmp_path, monkeypatch)
         goal = "run the parser tests and report the result"
         steps = ["verify: command=pytest tests/test_parser.py -q"]
@@ -796,15 +816,38 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
         slot = payoff.live_skills_slot()
         assert isinstance(slot, InstitutionalSkillAdapter)
         assert legacy.relevant_verified(goal, 3), "the legacy store calls it verified"
-        assert payoff._recall_skills(slot, goal) == [], (
+        assert payoff._recall_skills(slot, goal, principal=OPERATOR) == [], (
             "nothing activated, nothing recalled"
         )
         assert payoff.library_active_count() == 0
         (record,) = SkillRepository(payoff.LIBRARY_DB).list_skills()
         repo = SkillRepository(payoff.LIBRARY_DB)
+        # The operator's activation, as the route makes it (plan Phase 4c-2):
+        # the migrated skill becomes his, and the activation is signed.
+        repo.save(stamp_for_activation(record, activator=OPERATOR))
         repo.transition_state(record.skill_id, record.version, "human_reviewed")
         repo.transition_state(record.skill_id, record.version, "active")
-        assert [r["goal_pattern"] for r in payoff._recall_skills(slot, goal)] == [goal]
+        assert payoff._recall_skills(slot, goal, principal=OPERATOR) == [], (
+            "transitions alone are not an activation"
+        )
+        signer = build_skills_slot(
+            repository=repo,
+            trails=SkillTrailIndex(payoff.LIBRARY_DB),
+            history=None,
+            provenance=ProvenanceWriter(
+                ProvenanceStore(payoff.LIBRARY_DB),
+                LearningSigner.from_env(),
+                source_kind="live",
+            ),
+        )
+        assert signer.attest_activation(
+            record.skill_id, record.version, approver=OPERATOR
+        )
+        assert [
+            r["goal_pattern"]
+            for r in payoff._recall_skills(slot, goal, principal=OPERATOR)
+        ] == [goal]
+        assert payoff._recall_skills(slot, goal, principal="principal:other") == []
         assert payoff.library_active_count() == 1
 
     def test_a_goal_learned_only_in_the_library_is_practised(
@@ -820,6 +863,7 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
             ["read_file: parser.py"],
             success=True,
             strength=VerificationStrength.STRONG,
+            principal=None,
         )
         assert "summarise the parser module" in payoff.practice_history(db)
 
@@ -874,3 +918,175 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
             "the ON arm bypasses the live slot"
         )
         assert "LIBRARY_TABLES" in source and "refuse_if_moved" in source
+
+
+class TestD8TheOnArmRecallsThroughTheProductionGate:
+    """Deviation D8: the ON arm's lessons go through the gate a live turn's go
+    through (signed provenance, the principal asking); a run whose ON arm
+    could recall nothing is refused before any model is asked; the census
+    that decides it changes nothing."""
+
+    PRINCIPAL = "operator:payoff-test"
+
+    def _store(self, tmp_path, monkeypatch, *, provenance_table: bool = True):
+        from aios.memory import learning_freeze
+
+        monkeypatch.setattr(
+            learning_freeze, "_latch_path", lambda: tmp_path / "emergency_stop.db"
+        )
+        monkeypatch.setattr(learning_freeze, "_controllers", {})
+        db = tmp_path / "aios_memory.db"
+        from aios.memory.db import init_memory_db
+
+        init_memory_db(db)
+        monkeypatch.setattr(payoff, "DB", db)
+        monkeypatch.setattr(
+            payoff, "LIBRARY_DB", db.with_name("aios_operational_state.db")
+        )
+        monkeypatch.setenv(payoff.PAYOFF_PRINCIPAL_ENV, self.PRINCIPAL)
+        return db
+
+    def _learn(self, db, *, signed: bool, principal: str, text: str) -> int:
+        """A verified lesson, signed through the adapter (as live learning
+        signs it) or written raw (legacy: unsigned)."""
+        from aios.application.memory.adapters import MistakeMemoryAdapter
+        from aios.application.memory.provenance_policy import ProvenanceWriter
+        from aios.core.verification_strength import VerificationStrength
+        from aios.memory.mistake import MistakeMemory
+        from aios.memory.provenance import (
+            LearningSigner,
+            LearningVerifier,
+            ProvenanceStore,
+        )
+
+        # A distinct error type per lesson: the same one would RECUR onto the
+        # first row, and a transition from an unsigned state is never signed.
+        record = dict(
+            task_id="payoff-task",
+            error_type=f"PinError{'Signed' if signed else 'Raw'}",
+            root_cause="the pin missed an edge",
+            fix_applied="pin the edge",
+            lesson_text=text,
+            confidence_delta=-0.1,
+            failed_command="",
+        )
+        store = MistakeMemory(db_path=db)
+        if not signed:
+            lid, _ = store.record_or_increment(**record, principal_id=principal)
+            store.promote(
+                lid, strength=VerificationStrength.STRONG, principal_id=principal
+            )
+            return lid
+        adapter = MistakeMemoryAdapter(
+            store,
+            # The pinned verifier, as production's writer has: a promotion is
+            # signed only if the state it extends verifies (no laundering).
+            provenance=ProvenanceWriter(
+                ProvenanceStore(db),
+                LearningSigner.from_env(),
+                source_kind="live",
+                verifier=LearningVerifier.from_pinned_file(),
+            ),
+        )
+        lid, _ = adapter.record_or_increment(**record, principal=principal)
+        adapter.promote(lid, strength=VerificationStrength.STRONG, principal=principal)
+        return lid
+
+    def test_the_census_counts_only_what_the_gate_admits(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        db = self._store(tmp_path, monkeypatch)
+        self._learn(db, signed=False, principal=self.PRINCIPAL, text="raw lesson")
+        census = payoff.gate_census(self.PRINCIPAL)
+        assert (census["lessons"], census["candidates"]["lessons"]) == (0, 1)
+        assert census["refused"]["lessons"] == {"unsigned": 1}
+        self._learn(db, signed=True, principal=self.PRINCIPAL, text="signed lesson")
+        assert payoff.gate_census(self.PRINCIPAL)["lessons"] == 1, "positive control"
+        assert payoff.gate_census("principal:someone-else")["lessons"] == 0
+
+    def test_a_run_that_could_recall_nothing_is_refused(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        db = self._store(tmp_path, monkeypatch)
+        self._learn(db, signed=False, principal=self.PRINCIPAL, text="raw lesson")
+        with pytest.raises(CorpusError, match="D8: no judged number"):
+            payoff.refuse_if_nothing_is_recallable(payoff.gate_census(self.PRINCIPAL))
+        self._learn(db, signed=True, principal=self.PRINCIPAL, text="signed lesson")
+        payoff.refuse_if_nothing_is_recallable(payoff.gate_census(self.PRINCIPAL))
+
+    def test_the_census_changes_nothing(self, tmp_path, monkeypatch) -> None:
+        """Run on a store with no provenance table: it must not create one."""
+        import hashlib
+
+        db = tmp_path / "aios_memory.db"
+        monkeypatch.setattr(payoff, "DB", db)
+        monkeypatch.setattr(
+            payoff, "LIBRARY_DB", db.with_name("aios_operational_state.db")
+        )
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "CREATE TABLE mistake_pool (id INTEGER PRIMARY KEY, task_id TEXT, "
+                "error_type TEXT, root_cause TEXT, fix_applied TEXT, lesson_text TEXT, "
+                "confidence_delta REAL, verification_status TEXT, superseded_by INTEGER, "
+                "occurrence_count INTEGER, failed_command TEXT)"
+            )
+            conn.execute(
+                "INSERT INTO mistake_pool VALUES (1, 't', 'e', 'r', 'f', 'l', -0.1, "
+                "'verified', NULL, 1, '')"
+            )
+        before = hashlib.sha256(db.read_bytes()).hexdigest()
+        census = payoff.gate_census(self.PRINCIPAL)
+        assert (census["lessons"], census["candidates"]["lessons"]) == (0, 1)
+        assert hashlib.sha256(db.read_bytes()).hexdigest() == before
+        assert not db.with_name("aios_operational_state.db").exists()
+
+    def test_the_on_arm_recalls_only_what_the_gate_admits(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        from aios.memory.mistake import MistakeMemory
+
+        db = self._store(tmp_path, monkeypatch)
+        self._learn(
+            db, signed=False, principal=self.PRINCIPAL, text="raw lesson about pins"
+        )
+        self._learn(
+            db, signed=True, principal=self.PRINCIPAL, text="signed lesson about pins"
+        )
+        mistakes = MistakeMemory(db_path=db)
+        reflector = payoff.ReflectionAgent(object(), mistakes=mistakes, db_path=db)
+        _, lessons, _ = payoff.recalled_context(
+            reflector,
+            payoff.live_skills_slot(),
+            "pin the edge of the parser",
+            "payoff-test-session",
+            lessons_slot=payoff.live_lessons_slot(mistakes),
+        )
+        assert [item["lesson_text"] for item in lessons] == ["signed lesson about pins"]
+
+    def test_the_benchmark_refuses_before_asking_any_model(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        captured: list = []
+        TestTheInstrumentIsProvenBeforeUse()._wire(
+            tmp_path, monkeypatch, control_ok=True, captured=captured
+        )
+        asked: list = []
+        monkeypatch.setattr(
+            payoff,
+            "resolve_client",
+            lambda spec, timeout_s: asked.append(spec) or (object(), spec),
+        )
+        monkeypatch.setattr(
+            payoff,
+            "gate_census",
+            lambda principal: {
+                "principal": principal,
+                "lessons": 0,
+                "skills": 0,
+                "candidates": {"lessons": 8, "skills": 0},
+                "refused": {"lessons": {"unsigned": 8}, "skills": {}},
+            },
+        )
+        with pytest.raises(CorpusError, match="D8: no judged number"):
+            payoff.run_benchmark(models="x", targets=1, model_timeout=1)
+        assert asked == [] and captured == []

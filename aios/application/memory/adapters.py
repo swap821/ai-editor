@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import inspect
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
@@ -358,6 +359,10 @@ class SemanticFactsAdapter:
         #: Maintenance reads (rows_by_status) and the UI graph (traverse) are
         #: not recall, and stay ungated.
         self.gate = gate
+        #: Plan Phase 4c-3: the gate checks every recalled triple, and running
+        #: the whole schema script + migrations on each check was the largest
+        #: single cost a learned store added to a turn. Ensured once.
+        self._schema_ready = False
 
     def _admits_row(self, row: Any, principal: Optional[str]) -> bool:
         if self.gate is None:
@@ -372,17 +377,48 @@ class SemanticFactsAdapter:
         """An ACTIVE triple is unique per principal (add_fact refuses duplicates
         and contradictions within one principal's facts), so a triple and a
         principal name one row to verify."""
+        key = (str(subject), str(predicate), str(obj))
+        return key in self._admitted_triples([key], principal)
+
+    def _admitted_triples(
+        self, triples: Iterable[tuple[Any, Any, Any]], principal: Optional[str]
+    ) -> set[tuple[str, str, str]]:
+        """Of *triples*, those whose newest ACTIVE row of *principal* verifies.
+
+        Plan Phase 4c-3: one query for all of a walk's triples, where each used
+        to re-read its row on its own connection. The triples travel as ONE
+        JSON parameter, so the statement is static. Every row is still
+        verified, one by one, by the gate.
+        """
+        wanted = {(str(s), str(p), str(o)) for s, p, o in triples}
         if self.gate is None:
-            return True
-        init_memory_db(self.store.db_path)
+            return wanted
+        if not wanted:
+            return set()
+        if not self._schema_ready:
+            init_memory_db(self.store.db_path)
+            self._schema_ready = True
         with get_connection(self.store.db_path) as conn:
-            row = conn.execute(
-                "SELECT * FROM semantic_facts WHERE subject = ? AND predicate = ? "
-                "AND object = ? AND status = 'active' AND principal_id IS ? "
-                "ORDER BY id DESC LIMIT 1",
-                (str(subject), str(predicate), str(obj), principal),
-            ).fetchone()
-        return row is not None and self._admits_row(row, principal)
+            rows = conn.execute(
+                "SELECT f.* FROM semantic_facts AS f "
+                "JOIN json_each(?) AS t "
+                "ON f.subject = json_extract(t.value, '$[0]') "
+                "AND f.predicate = json_extract(t.value, '$[1]') "
+                "AND f.object = json_extract(t.value, '$[2]') "
+                "WHERE f.status = 'active' AND f.principal_id IS ? "
+                "ORDER BY f.id DESC",
+                (json.dumps(sorted(wanted)), principal),
+            ).fetchall()
+        admitted: set[tuple[str, str, str]] = set()
+        newest: set[tuple[str, str, str]] = set()
+        for row in rows:
+            key = (row["subject"], row["predicate"], row["object"])
+            if key in newest:
+                continue  # an older row of the same triple: the newest decides
+            newest.add(key)
+            if self._admits_row(row, principal):
+                admitted.add(key)
+        return admitted
 
     def _attest(self, result: Any, transition: str, principal: Optional[str]) -> Any:
         fact_id = getattr(result, "fact_id", None)
@@ -441,12 +477,15 @@ class SemanticFactsAdapter:
 
     def search(self, query: str, *, principal: Optional[str]) -> list[Any]:
         init_memory_db(self.store.db_path)
+        rows = self.store.search(query, principal_id=principal)
+        admitted = self._admitted_triples(
+            ((r["subject"], r["predicate"], r["object"]) for r in rows), principal
+        )
         return [
             row
-            for row in self.store.search(query, principal_id=principal)
-            if self._admits_triple(
-                row["subject"], row["predicate"], row["object"], principal
-            )
+            for row in rows
+            if (str(row["subject"]), str(row["predicate"]), str(row["object"]))
+            in admitted
         ]
 
     def strengthen_or_propose(
@@ -504,12 +543,15 @@ class SemanticFactsAdapter:
 
     def neighbors(self, subject: str, *, principal: Optional[str]) -> list[Any]:
         init_memory_db(self.store.db_path)
+        rows = self.store.neighbors(subject, principal_id=principal)
+        admitted = self._admitted_triples(
+            ((r["subject"], r["predicate"], r["object"]) for r in rows), principal
+        )
         return [
             row
-            for row in self.store.neighbors(subject, principal_id=principal)
-            if self._admits_triple(
-                row["subject"], row["predicate"], row["object"], principal
-            )
+            for row in rows
+            if (str(row["subject"]), str(row["predicate"]), str(row["object"]))
+            in admitted
         ]
 
     def facts_for(
@@ -596,11 +638,16 @@ class SemanticFactsAdapter:
         # verifies AND an admitted edge already reached its subject from the
         # start. Every kept edge is verified, and connected to the start
         # through verified edges only.
+        admitted = self._admitted_triples(
+            ((e.subject, e.predicate, e.object) for e in edges), principal
+        )
         reached = {str(subject).strip()}
         kept: set[int] = set()
         for index, edge in sorted(enumerate(edges), key=lambda pair: pair[1].depth):
-            if edge.subject in reached and self._admits_triple(
-                edge.subject, edge.predicate, edge.object, principal
+            if (
+                edge.subject in reached
+                and (str(edge.subject), str(edge.predicate), str(edge.object))
+                in admitted
             ):
                 kept.add(index)
                 reached.add(edge.object)

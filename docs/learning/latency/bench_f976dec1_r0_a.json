@@ -1,0 +1,47 @@
+{
+  "schema": "learning-latency-bench/1",
+  "commit": "f976dec1a9f59f300bf69463462ade009a359537",
+  "aios_tree": "289b4c3fa61aa71aba3273baa9c9de62a16451a7",
+  "aios_dirty": false,
+  "bench_sha256": "624936689738543afb4ec624825e275978ac9a443cb7f99c0a9f5571e37e0093",
+  "runner_sha256": "2e9643d0dc971f05de7495501c783a6ca122da1ce8c9ec984e225eda871a3db8",
+  "python": "3.14.5",
+  "rows_per_channel": 0,
+  "skills": 0,
+  "seeded": {
+    "lessons": 0,
+    "facts": 0,
+    "memories": 0,
+    "skills": 0
+  },
+  "seed_seconds": 0.04,
+  "turn_ms": [
+    814.35,
+    788.58,
+    761.82,
+    758.28,
+    827.06,
+    802.74,
+    769.01,
+    888.58,
+    767.25,
+    768.43,
+    728.65,
+    787.67,
+    756.67,
+    787.25,
+    898.11,
+    775.73,
+    743.28,
+    795.46,
+    775.65,
+    794.54
+  ],
+  "http_status": [
+    200
+  ],
+  "turns_with_recall": 0,
+  "p50_ms": 781.5,
+  "p95_ms": 888.6,
+  "max_ms": 898.1
+}

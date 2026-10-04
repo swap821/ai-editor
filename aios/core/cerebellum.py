@@ -499,11 +499,14 @@ class Cerebellum:
     def attach_reflex_gate(self, gate: Any) -> None:
         """Make reflexes read the same store as recall: the skill library.
 
-        *gate* answers ``active_procedures()``: ``{trail_id: {"steps": [...],
-        "success_count": n, ...}}`` for every skill the operator ACTIVATED in
-        the institutional library, and ``successes(trail_id)`` for any skill. A
-        playbook replays only if its skill is active and its steps are exactly
-        the activated procedure, and compiling reads only active skills.
+        *gate* answers ``active_procedures(principal=...)``: ``{trail_id:
+        {"steps": [...], "success_count": n, ...}}`` for every skill the
+        operator ACTIVATED in the institutional library for that principal
+        (plan Phase 4c-2); ``compilable_procedures()``, the same for every
+        principal, each on its own signed activation; and
+        ``successes(trail_id)`` for any skill. A playbook replays only if its
+        skill is active FOR THE PRINCIPAL ASKING and its steps are exactly the
+        activated procedure, and compiling reads only active skills.
 
         Since slice 2.4c-B there is no other source: a cerebellum with no gate
         compiles and replays nothing. ``bootstrap.py`` always attaches the
@@ -519,12 +522,19 @@ class Cerebellum:
         The live gate in `match` and the retirement tool
         (`tools/retire_legacy_playbooks.py`) both ask this, through this one
         method, so the two can never disagree about which reflexes are backed.
-        Without a gate attached nothing is backed.
+        Without a gate attached nothing is backed. Asked for no one turn, so
+        any principal's signed activation backs it; ``match`` asks per
+        principal.
         """
-        return _backed(playbook, self._activated())
+        return _backed(playbook, self._activated(compiling=True))
 
-    def _activated(self) -> dict[int, dict[str, Any]]:
+    def _activated(
+        self, *, principal: Optional[str] = None, compiling: bool = False
+    ) -> dict[int, dict[str, Any]]:
         """Activated procedures by trail id; empty when no gate is attached.
+
+        *principal*'s own (plan Phase 4c-2), or -- *compiling* -- every
+        principal's, each on its own signed activation.
 
         Fails CLOSED: no library, or one that cannot be read, activates
         nothing. A reflex is the one learned behaviour that runs with no model
@@ -533,7 +543,11 @@ class Cerebellum:
         if self._reflex_gate is None:
             return {}
         try:
-            raw = self._reflex_gate.active_procedures()
+            raw = (
+                self._reflex_gate.compilable_procedures()
+                if compiling
+                else self._reflex_gate.active_procedures(principal=principal)
+            )
         except Exception as exc:  # noqa: BLE001 - unreadable means nothing is active
             logging.getLogger(__name__).warning(
                 "reflex gate unreadable; no reflex replays or compiles", exc_info=exc
@@ -569,7 +583,7 @@ class Cerebellum:
                 "learning frozen; cerebellum.compile sweep skipped"
             )
             return 0
-        return len(self._compile_activated(self._activated()))
+        return len(self._compile_activated(self._activated(compiling=True)))
 
     def try_compile_skill(self, skill_id: int) -> Optional[CompiledPlaybook]:
         """Attempt to compile a single skill by id.  Returns the playbook
@@ -580,7 +594,7 @@ class Cerebellum:
                 "learning frozen; cerebellum.compile skipped"
             )
             return None
-        activated = self._activated()
+        activated = self._activated(compiling=True)
         if skill_id not in activated:
             return None
         fresh = self._compile_activated({skill_id: activated[skill_id]})
@@ -720,17 +734,21 @@ class Cerebellum:
     # Matching
     # ------------------------------------------------------------------
 
-    def match(self, user_message: str) -> Optional[CompiledPlaybook]:
+    def match(
+        self, user_message: str, *, principal: Optional[str]
+    ) -> Optional[CompiledPlaybook]:
         """Match user message against compiled playbooks.
 
         Uses deterministic lexical relevance (same algorithm as skill
         recall).  Returns the best match above *match_threshold*, or
-        ``None``.
+        ``None``. Only *principal*'s own activated skills can replay (plan
+        Phase 4c-2); another principal's reflex is never a candidate, so it
+        cannot make a match ambiguous either.
         """
         self._refresh_cache()
         if not self._cache:
             return None
-        activated = self._activated()
+        activated = self._activated(principal=principal)
         # Plan Phase 5a: only the operator's own words can fire a reflex.
         directive = authored_directive(user_message)
         if not directive:

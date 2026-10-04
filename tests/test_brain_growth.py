@@ -431,7 +431,8 @@ def test_planner_rewards_matching_verified_skill() -> None:
             return None
 
     class TrustedTrail:
-        def relevant_verified(self, query: str, limit: int = 3):
+        def relevant_verified(self, query: str, limit: int = 3, *, principal):
+            assert principal == "principal:test"
             return [{"skill_id": 4, "strength": 0.9, "relevance": 1.0}]
 
     plan = Planner(
@@ -439,6 +440,7 @@ def test_planner_rewards_matching_verified_skill() -> None:
         mistakes=NoLessons(),
         development=NoHistory(),
         skills=TrustedTrail(),
+        principal="principal:test",
     ).plan("deploy the api")
 
     # 0.6 raw + min(0.2, 0.9 * 1.0) -> 0.8, lifting the step over the gate.
@@ -458,7 +460,8 @@ def test_planner_skill_reward_is_bounded() -> None:
             return None
 
     class ManyStrongTrails:
-        def relevant_verified(self, query: str, limit: int = 3):
+        def relevant_verified(self, query: str, limit: int = 3, *, principal):
+            assert principal == "principal:test"
             return [
                 {"skill_id": 1, "strength": 1.0, "relevance": 1.0},
                 {"skill_id": 2, "strength": 1.0, "relevance": 1.0},
@@ -469,6 +472,7 @@ def test_planner_skill_reward_is_bounded() -> None:
         mistakes=NoLessons(),
         development=NoHistory(),
         skills=ManyStrongTrails(),
+        principal="principal:test",
     ).plan("deploy the api")
 
     # sum(strength * relevance) = 2.0, capped at SKILL_CONFIDENCE_BONUS_MAX.

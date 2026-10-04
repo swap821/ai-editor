@@ -102,10 +102,10 @@ and the test that proves the control. Test IDs `RT-*` are missions in
 | T5 | **Learning during an emergency stop.** Memory writes, promotion and compilation continue while authority is revoked. | X4 X6 | **Yes** (F7) | Stop boundaries on every learning write (0b, 6); the institutional skill, trajectory and reuse-outcome stores refuse too, withdrawals excepted (2.2); legacy reuse credit (`skills.record_reuse`) refuses too -- Phase 0b had missed it (2.4b) | RT-07 (S) |
 | T6 | **Revoked memory resurfaces.** A superseded lesson or decompiled reflex is still recalled or replayed. | X6 | Partly | Retrieval-time guard; cascade over derivations (4, 6); a machine-retired reflex returns only by operator re-activation (6c) | RT-08 (S: human revocation), RT-20 (S: machine retirement) |
 | T7 | **Stale reflex.** A reflex replays after the code it was verified against changed. | X6 | **Yes** | Content-hash freshness (5b): the first match on stale code refuses the reflex and withdraws it (skill suspended, row retired); only the operator's re-activation brings it back (decision 2026-10-04) | RT-09 (S) |
-| T8 | **Cross-principal recall.** One principal's memory governs another's turns. | X3 | Lessons, memory, facts and the self-model: **closed (4c-1)**. Skills and reflexes: **yes**, shared until 4c-2 | Principal scoping (4c): every learned row records its principal as row identity and under its signature; recall admits a row only for the principal its SIGNED provenance names; unattributed rows are withheld from everyone (operator decision 2026-10-04) | RT-10 (S: a verified, signed lesson of principal A must reach A's prompt and never B's) |
+| T8 | **Cross-principal recall.** One principal's memory governs another's turns. | X3 | Lessons, memory, facts and the self-model: **closed (4c-1)**. Skills and reflexes: **closed (4c-2)** | Principal scoping (4c): every learned row records its principal as row identity and under its signature; recall admits a row only for the principal its SIGNED provenance names; unattributed rows are withheld from everyone (operator decision 2026-10-04). A skill's identity includes its principal, and recall, reuse credit and reflex replay admit it only for the principal the operator's signed activation names (4c-2) | RT-10 (S: a verified, signed lesson of principal A must reach A's prompt and never B's), RT-23 (S: A's activated skill must serve A's turn, recalled or as a reflex, and never B's) |
 | T9 | **Forged or hollow verification.** Evidence rated STRONG without real behaviour being asserted. `derive_strength` already defeats the two cheap forms: `echo "5 passed"` stays WEAK (program-position check) and a runner that collected nothing stays WEAK (`passed_count > 0`). **Open:** counts are parsed from stdout the test itself can write to, and a real runner over a vacuous test (`assert True`, possibly attacker-authored) mints STRONG. | X1 X6 | Partly | Existing derivation re-proven; counts from the runner's own report (junit/exit status), not free stdout; vacuous-assertion detection is **not** claimed (3, 7) | RT-11 (S) |
 | T10 | **Flooding.** Many low-value writes crowd recall or bury a malicious record near the top (MINJA/MAFIA placement). | X1 X2 | **Yes** (no caps) | Per-principal/run rate and size caps (6) | RT-12 (S) |
-| T11 | **Direct DB tampering.** A row inserted or edited outside the authority. | X5 | **Yes** (unsigned) | Ed25519 per-source signatures, verify-on-read refuses (3) | RT-13 (S) |
+| T11 | **Direct DB tampering.** A row inserted or edited outside the authority. | X5 | **Yes** (unsigned). Lessons, memory and facts: closed (3). Skills and reflexes: **open until 4c-2** -- Phase 3b deferred signing the library and it was not built, so a database edit could activate a skill | Ed25519 per-source signatures, verify-on-read refuses (3). Skills (4c-2): the operator's activation is signed over the contract and state, every transition journals an unsigned record, and recall and replay admit only on the activation's signature | RT-13 (S), RT-24 (S: a skill made active by a database edit must not serve a turn) |
 | T12 | **Benign composition.** Individually harmless skills/lessons chain into a harmful unattended action. | X1 X6 | Unknown | Per-turn composition cap (5c): in a turn that recalled a lesson, a skill or a reflex, at most 3 commands run with no human, then a resumable checkpoint; human checkpoint (5) — **residual risk accepted and monitored** | RT-14 (B), RT-22 (S: unattended commands composed from a recalled lesson) |
 | T13 | **Legitimate-but-harmful memory.** A fully provenanced lesson or reflex that is simply wrong. | X6 | **Yes** | Negative-transfer quarantine with a named statistical rule; first-harm suspension for reflexes (6) | RT-15 (B), payoff H2 |
 | T14 | **Self-model poisoning.** Poisoned lessons shape the self-description injected into prompts. | X1 | **Yes** (A7) | Self-model built only from signed, non-quarantined rows; enveloped (3, 4) | RT-16 (S) |
@@ -564,3 +564,31 @@ not a control.
 - **The structural reel on f98f5ef1 holds 16, with 0 breached and 0 not
   reached** (`docs/learning/redteam_phase4c_structural.json`). Six missions
   remain blocked: they are behavioural, or not yet built.
+
+## Phase 4c-2, 2026-10-04: skills and reflexes belong to a principal, on a signature
+
+*Design: `docs/learning/PHASE4_DESIGN.md`. This closes what the 4c-1 section
+above left open for skills and reflexes.*
+
+- **T11 was open for skills, and this document did not say so.** Phase 3b
+  deferred signing the skill library and never built it. A skill was
+  recalled and replayed whenever its row read `active`, so a database edit
+  was an activation. RT-24 shows it: breached on master cfdf2691 and on 4c-1.
+- **Closed:**
+  - The operator's activation is signed over the skill's contract and state,
+    naming its principal and the operator as approver.
+  - Every transition journals an unsigned record, so a demoted skill flipped
+    back in the database fails.
+  - Recall, reuse credit and replay admit an active skill only on that
+    signature, and only for the principal it names.
+- **T8 is closed for skills and reflexes.** The same arc learned by two
+  principals is two skills, and a reflex replays only in its own principal's
+  turn. RT-23: breached on master and on 4c-1, held here.
+- **Residual, stated: rollback by deletion.** Append-only is not enforced
+  against the database. An attacker who can delete provenance rows can delete
+  a demotion's journal record, flip the state back, and pass on the old
+  activation's signature. Phase 3's lesson, memory and fact rows carry the
+  same class. The fix is an anchored head (a signed sequence number or hash
+  chain) with the derivation graph (Phase 6).
+- **The structural reel holds 18, with 0 breached and 0 not reached**
+  (`docs/learning/redteam_phase4c2_structural.json`).
