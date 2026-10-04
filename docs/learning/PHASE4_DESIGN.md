@@ -718,3 +718,92 @@ withheld from everyone until it is re-earned or re-admitted (2026-10-04).
   - **Three are master's own** after #438's squash: organs citing 8a690dea.
     #439 re-gathers them.
   - **One** is the currency check that this PR's re-gather clears.
+
+## 4c-3 as built (2026-10-04): what learning costs a turn
+
+The plan asks for a per-turn latency budget measured against the Phase 0
+baseline. No Phase 0 latency baseline existed, so this slice built the
+instrument, measured the trees, and fixed what the measurement found.
+
+### The instrument
+
+`tools/learning_latency_bench.py` times whole `/api/generate` turns: the real
+app and the production memory authority, with the model replaced by an
+instant recorder. The model dominates a live turn by seconds, so what remains
+is everything else.
+
+- **Isolation.** Each run is one child process in a throwaway root, built by
+  the red-team runner's `Harness`. The same tool therefore runs on older
+  trees: the runner's shims absorb the API differences, and the trees compare
+  on one machine.
+- **The store.** It is seeded through each tree's own adapters, as the
+  harness's operator, so every row is signed and recall does its real work.
+- **The load.** The reference load is 50 verified lessons, 50 approved facts,
+  50 verified memories and 8 activated skills. Each run makes 3 warm-up turns,
+  then 20 timed turns whose questions overlap what was seeded. Every timed
+  seeded turn recalled.
+- **Reports** are in `docs/learning/latency/`.
+
+### Measured (one laptop, p50 per turn, ms)
+
+| Tree | Empty store | Seeded | What the store costs |
+|---|---|---|---|
+| f976dec1, before the recall gate (3c) | 782 | 1,341 / 1,407 | ~592 |
+| cfdf2691, the gate, before 4c | 855 | 2,103 / 2,197 | ~1,295 (2.19x) |
+| 4c-2 (987b3f79) | 914 | 1,932 | ~1,018 |
+| 4c-3, schema ensured once (57e06c43) | 840 / 849 | 1,720 / 1,671 | ~850 |
+| 4c-3, a walk's triples in one lookup (9493c428) | 856 | 1,495 / 1,523 | ~653 (1.10x) |
+
+Run-to-run noise is about +/-7%.
+
+- **The hardening had more than doubled what a learned store costs a turn.**
+- **Principal scoping (4c-1, 4c-2) added nothing measurable.**
+
+### What the profile found, and what changed
+
+1. **The schema on every check.** The fact gate (3c-2) re-ran
+   `init_memory_db` on every recalled triple it verified: the whole schema
+   script and every migration, about 20 ms, about 23 times a turn. The
+   adapter now ensures the schema once.
+2. **One connection per triple.** The gate re-read each triple's row on its
+   own connection, because a walk's rows carry only subject, predicate and
+   object. `_admitted_triples` now reads all of a walk's rows in one static
+   query (the triples travel as one JSON parameter through `json_each`).
+   Each row is still verified on its own, and the newest active row of the
+   principal still decides.
+
+### The budget
+
+At the reference load, the learned store's per-turn cost (seeded p50 minus
+empty p50, same tree, same machine) must stay **within 1.25x** what it cost
+the tree before the recall gate. It is **1.10x** now. The gate era was 2.19x
+and would have failed.
+
+- **Why the budget is a ratio of costs, not a CI assertion.** Wall-clock
+  depends on the machine, and a CI runner's numbers are not this laptop's. So
+  the budget is checked with the bench, on one machine, across trees.
+- **What CI pins instead** (`tests/test_learning_latency_budget.py`) is the
+  work that does not depend on the machine:
+  - the schema is ensured once for 20 checks (it failed at 20 for 20 without
+    the fix);
+  - one lookup per walk;
+  - the batch admits exactly what each row proves;
+  - another principal's newer row never shadows yours.
+- **Mutations: 5, all killed.** They cover: the schema on every check; a
+  batched row admitted unverified; the batch ignoring the principal; a walk
+  keeping an edge the gate refused; neighbours keeping a refused row. One is
+  equivalent by design and was not run: dropping "the newest row decides".
+  Duplicate active rows of one principal's triple cannot be written through
+  the store, and an older signed row vouches for the same triple.
+
+### What remains (stated)
+
+- **About 90 ms a turn over the pre-gate tree, at the reference load.** It is
+  mostly the gate opening one SQLite connection per verified row to read its
+  newest record (about 68 a turn). A shared connection was rejected: on
+  Windows an open SQLite handle blocks deleting a temporary directory, which
+  would break every test's teardown. Batching `latest` per recall is the next
+  lever, if needed.
+- **Most of what a turn costs with an empty store is not learning.** Stores
+  re-run `init_memory_db` per call (about 28 a turn, before the gate too), and
+  the bus write path also costs. Pre-existing, and outside this slice.
