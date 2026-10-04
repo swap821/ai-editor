@@ -170,3 +170,103 @@ def test_every_catalogue_target_must_be_clean(sandbox, monkeypatch) -> None:
     monkeypatch.setattr(probe, "load", lambda path=None: [_entry(file="elsewhere.py")])
     probe.run([_entry(old="if row.signed:", new="if True:")], runner=lambda n: 0)
     assert seen and {"guard.py", "elsewhere.py"} <= seen[0]
+
+
+# -------------------------------------------------------------- the ledger
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+def _three(tmp_path):
+    return [
+        probe.Entry(f"t:{name}", "guard.py", "if row.signed:", "if True:", ["t"])
+        for name in ("one", "two", "three")
+    ]
+
+
+def test_a_ledger_resumes_and_starts_nothing_after_its_budget(
+    sandbox, tmp_path, monkeypatch
+) -> None:
+    clock = _Clock()
+    monkeypatch.setattr(probe, "time", clock)
+    original = sandbox.read_bytes()
+    calls: list[str] = []
+
+    def runner(nodes):
+        mutated = sandbox.read_bytes() != original
+        calls.append("mutation" if mutated else "baseline")
+        if mutated and calls.count("mutation") == 2:
+            clock.now = 100.0  # the budget runs out DURING the second mutation
+        return 1 if mutated else 0
+
+    ledger = tmp_path / "ledger.json"
+    entries = _three(tmp_path)
+    state = probe.run_ledger(
+        entries, ledger, budget=50.0, runner=runner, identity=lambda: "tree-a"
+    )
+    assert calls == ["baseline", "mutation", "mutation"]
+    assert sorted(state["results"]) == ["t:one", "t:two"]
+    assert sandbox.read_bytes() == original
+
+    calls.clear()
+    clock.now = 0.0
+    state = probe.run_ledger(
+        entries, ledger, budget=50.0, runner=runner, identity=lambda: "tree-a"
+    )
+    assert calls == ["mutation"], "no baseline again, nothing recorded re-run"
+    assert sorted(state["results"]) == ["t:one", "t:three", "t:two"]
+    assert all(r["killed"] for r in state["results"].values())
+
+
+def test_a_ledger_from_another_tree_is_refused(sandbox, tmp_path) -> None:
+    ledger = tmp_path / "ledger.json"
+    probe.run_ledger(
+        _three(tmp_path),
+        ledger,
+        budget=0.0,
+        runner=lambda nodes: 0,
+        identity=lambda: "tree-a",
+    )
+    with pytest.raises(probe.ProbeError, match="start a new ledger"):
+        probe.run_ledger(
+            _three(tmp_path),
+            ledger,
+            budget=0.0,
+            runner=lambda nodes: 0,
+            identity=lambda: "tree-b",
+        )
+
+
+def test_a_ledger_needs_a_clean_tree(monkeypatch) -> None:
+    monkeypatch.setattr(probe, "_dirty", lambda paths: ["tests/test_x.py"])
+    with pytest.raises(probe.ProbeError, match="clean tree"):
+        probe.tree_identity()
+
+
+def test_the_cli_reports_only_a_complete_ledger(tmp_path, monkeypatch) -> None:
+    entries = _three(tmp_path)
+    monkeypatch.setattr(probe, "load", lambda path=probe.CATALOGUE: entries)
+    monkeypatch.setattr(probe, "load_guards", lambda path=probe.CATALOGUE: {})
+    monkeypatch.setattr(probe, "tree_identity", lambda: "tree-a")
+    killed = {"applied": True, "returncode": 1, "killed": True}
+    partial = {"t:one": {"id": "t:one", "file": "guard.py", **killed}}
+    monkeypatch.setattr(probe, "run_ledger", lambda *a, **k: {"results": dict(partial)})
+    assert probe.main(["--ledger", str(tmp_path / "l.json")]) == 3
+
+    full = {e.id: {"id": e.id, "file": "guard.py", **killed} for e in entries}
+    monkeypatch.setattr(probe, "run_ledger", lambda *a, **k: {"results": full})
+    monkeypatch.setattr(
+        probe,
+        "coverage",
+        lambda *a, **k: {"attacked": 0, "decision_points": 0, "guard_functions": 0},
+    )
+    out = tmp_path / "report.json"
+    assert probe.main(["--ledger", str(tmp_path / "l.json"), "--json", str(out)]) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["mutations_killed"] == 3 and report["tree"] == "tree-a"

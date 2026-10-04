@@ -48,8 +48,10 @@ import ast
 import base64
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Sequence
@@ -459,7 +461,13 @@ def run(
     python: str = sys.executable,
     runner: Optional[Callable[[Sequence[str]], int]] = None,
     on_result: Optional[Callable[[Result], None]] = None,
+    baseline: bool = True,
+    deadline: Optional[float] = None,
 ) -> list[Result]:
+    """Apply each mutation, run its tests, restore. *baseline* False is only
+    for a caller that ran (and recorded) the baseline itself -- the ledger.
+    With a *deadline* (``time.monotonic()``), no mutation STARTS after it, so a
+    run never has to be killed mid-mutation to stop."""
     run_tests = runner or (lambda nodes: _pytest(nodes, python))
     restored = recover()
     if restored is not None:
@@ -479,21 +487,16 @@ def run(
         raise ProbeError(
             f"refusing to mutate files with uncommitted changes: {dirty[:5]}"
         )
-    nodes = sorted({t for e in entries for t in e.tests})
-    for start in range(0, len(nodes), _NODE_BATCH):
-        batch = nodes[start : start + _NODE_BATCH]
-        code = run_tests(batch)
-        if code != 0:
-            raise ProbeError(
-                f"baseline failed (pytest exit {code}) for {batch[:3]}...: a test "
-                "that fails unmutated cannot score a kill"
-            )
+    if baseline:
+        _baseline(sorted({t for e in entries for t in e.tests}), run_tests)
     before = {
         e.file: hashlib.sha256((REPO_ROOT / e.file).read_bytes()).hexdigest()
         for e in entries
     }
     results: list[Result] = []
     for entry in entries:
+        if deadline is not None and time.monotonic() >= deadline:
+            break
         path = REPO_ROOT / entry.file
         original, text, crlf = _normalised(path)
         result = Result(entry.id, entry.file, applied=False)
@@ -544,6 +547,109 @@ def run(
     return results
 
 
+def _baseline(nodes: Sequence[str], run_tests: Callable[[Sequence[str]], int]) -> None:
+    for start in range(0, len(nodes), _NODE_BATCH):
+        batch = list(nodes[start : start + _NODE_BATCH])
+        code = run_tests(batch)
+        if code != 0:
+            raise ProbeError(
+                f"baseline failed (pytest exit {code}) for {batch[:3]}...: a test "
+                "that fails unmutated cannot score a kill"
+            )
+
+
+# -- the ledger: one run, resumed across processes ----------------------- #
+
+LEDGER_SCHEMA = "learning-mutation-ledger/1"
+#: Everything a probe run reads: the code it mutates, the tests that judge it,
+#: the catalogue and this probe (with its INERT reasons), and pytest's config.
+TREE_PATHS = ("aios", "tests", "scripts", "tools", "pyproject.toml", "pytest.ini")
+
+
+def tree_identity() -> str:
+    """The committed state a ledger's results belong to, which must also be
+    the state on disk: results from two trees never mix in one score."""
+    dirty = _dirty(TREE_PATHS)
+    if dirty:
+        raise ProbeError(f"a ledger needs a clean tree; uncommitted: {dirty[:5]}")
+    out = subprocess.run(
+        ["git", "rev-parse", *(f"HEAD:{p}" for p in TREE_PATHS)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return hashlib.sha256(out.encode("ascii")).hexdigest()
+
+
+def _save_ledger(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(state, indent=1) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def run_ledger(
+    entries: Sequence[Entry],
+    ledger: Path,
+    *,
+    budget: float,
+    python: str = sys.executable,
+    runner: Optional[Callable[[Sequence[str]], int]] = None,
+    on_result: Optional[Callable[[Result], None]] = None,
+    identity: Optional[Callable[[], str]] = None,
+) -> dict:
+    """Run what *ledger* has not recorded yet, for at most *budget* seconds.
+
+    A full probe outlives any one process on a machine that reaps long runs,
+    so the run is resumable -- and bound: the ledger names the tree it was
+    started on, and a ledger from another tree is refused, never extended. The
+    baseline runs once per ledger (each passing test recorded); each result is
+    written the moment it lands; no mutation starts after the budget, so no
+    run is killed mid-mutation to stop.
+    """
+    tree = (identity or tree_identity)()
+    if ledger.exists():
+        state = json.loads(ledger.read_text(encoding="utf-8"))
+        if state.get("schema") != LEDGER_SCHEMA or state.get("tree") != tree:
+            raise ProbeError(
+                f"{ledger} holds results for tree {state.get('tree')!r}, not this "
+                f"tree {tree!r}: start a new ledger"
+            )
+    else:
+        state = {"schema": LEDGER_SCHEMA, "tree": tree, "baseline": [], "results": {}}
+        _save_ledger(ledger, state)  # bound to its tree from the first moment
+    deadline = time.monotonic() + budget
+    run_tests = runner or (lambda nodes: _pytest(nodes, python))
+    passed = set(state["baseline"])
+    missing = sorted({t for e in entries for t in e.tests} - passed)
+    for start in range(0, len(missing), _NODE_BATCH):
+        if time.monotonic() >= deadline:
+            return state
+        batch = missing[start : start + _NODE_BATCH]
+        _baseline(batch, run_tests)
+        state["baseline"] = sorted(passed.union(batch))
+        passed = set(state["baseline"])
+        _save_ledger(ledger, state)
+
+    def record(result: Result) -> None:
+        state["results"][result.id] = asdict(result)
+        _save_ledger(ledger, state)
+        if on_result:
+            on_result(result)
+
+    pending = [e for e in entries if e.id not in state["results"]]
+    run(
+        pending,
+        python=python,
+        runner=runner,
+        on_result=record,
+        baseline=False,
+        deadline=deadline,
+    )
+    return state
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument(
@@ -558,6 +664,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--coverage",
         action="store_true",
         help="report coverage as if every entry were killed",
+    )
+    parser.add_argument(
+        "--ledger",
+        type=Path,
+        help="resume the run recorded in PATH (bound to this tree); exit 3 "
+        "until every selected entry has a result",
+    )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=480.0,
+        help="with --ledger: start no mutation after this many seconds",
     )
     args = parser.parse_args(argv)
 
@@ -586,7 +704,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         print(f"[{status:8}] {r.id}  (exit {r.returncode}) {r.note}", flush=True)
 
-    results = run(entries, on_result=show)
+    if args.ledger:
+        state = run_ledger(entries, args.ledger, budget=args.budget, on_result=show)
+        done = state["results"]
+        if any(e.id not in done for e in entries):
+            print(
+                f"\n{sum(e.id in done for e in entries)}/{len(entries)} recorded in "
+                f"{args.ledger}; run again to continue"
+            )
+            return 3
+        results = [Result(**done[e.id]) for e in entries]
+    else:
+        results = run(entries, on_result=show)
     survivors = [r for r in results if r.survived]
     report = coverage(entries, [r.id for r in results if r.killed], load_guards())
     print()
@@ -608,6 +737,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                         text=True,
                     ).stdout.strip(),
                     "only": args.only,
+                    "tree": tree_identity() if args.ledger else None,
                     "mutations_total": len(results),
                     "mutations_killed": sum(r.killed for r in results),
                     "survivors": [r.id for r in survivors],
