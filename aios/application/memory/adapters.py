@@ -358,6 +358,10 @@ class SemanticFactsAdapter:
         #: Maintenance reads (rows_by_status) and the UI graph (traverse) are
         #: not recall, and stay ungated.
         self.gate = gate
+        #: Plan Phase 4c-3: the gate checks every recalled triple, and running
+        #: the whole schema script + migrations on each check was the largest
+        #: single cost a learned store added to a turn. Ensured once.
+        self._schema_ready = False
 
     def _admits_row(self, row: Any, principal: Optional[str]) -> bool:
         if self.gate is None:
@@ -374,7 +378,9 @@ class SemanticFactsAdapter:
         principal name one row to verify."""
         if self.gate is None:
             return True
-        init_memory_db(self.store.db_path)
+        if not self._schema_ready:
+            init_memory_db(self.store.db_path)
+            self._schema_ready = True
         with get_connection(self.store.db_path) as conn:
             row = conn.execute(
                 "SELECT * FROM semantic_facts WHERE subject = ? AND predicate = ? "

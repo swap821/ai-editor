@@ -2894,19 +2894,24 @@ def _throwaway_learning_key(root: Path) -> dict[str, str]:
         PublicFormat,
     )
 
-    from aios.memory.provenance import KEY_ENV, PUBLIC_KEYS_ENV
+    from aios.memory import provenance
 
     key = Ed25519PrivateKey.generate()
     pins = root / "learning_public_keys.json"
     pins.parent.mkdir(parents=True, exist_ok=True)
     public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
     pins.write_text(json.dumps({"keys": {"live": [public]}}), encoding="utf-8")
-    return {
-        KEY_ENV["live"]: key.private_bytes(
+    env = {
+        provenance.KEY_ENV["live"]: key.private_bytes(
             Encoding.Raw, PrivateFormat.Raw, NoEncryption()
         ).hex(),
-        PUBLIC_KEYS_ENV: str(pins),
     }
+    # A tree from before the recall gate (3c) has no pin override, and gates
+    # nothing, so it needs no pin (the latency bench measures such a tree).
+    public_env = getattr(provenance, "PUBLIC_KEYS_ENV", None)
+    if public_env is not None:
+        env[public_env] = str(pins)
+    return env
 
 
 def run_child(key: str, root: Path, out: Path) -> int:
