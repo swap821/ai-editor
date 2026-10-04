@@ -37,14 +37,14 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional, Sequence
 
 from aios.memory.construction_ledger import record_construction
 from aios.memory.learning_freeze import learning_permitted
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
 from aios.memory.learning_journal import record as journal
-from aios.memory.relevance import relevance
+from aios.memory.relevance import relevance, tokens
 from aios.core.replay_writes import load_content as load_write_content
 from aios.security.scope_lock import is_path_in_scope
 from aios.security.secret_scanner import scan_and_redact
@@ -386,6 +386,65 @@ def _step_targets_are_clean(step: "PlaybookStep") -> bool:
     return True
 
 
+#: Plan Phase 5a (threat T3): a reflex fires only on the operator's OWN words.
+#: The share of the directive's tokens that must belong to the reflex's goal:
+#: a larger request that merely contains the goal ("summarise the note that
+#: says <goal>") is not a request to run it, so it abstains to the model.
+DIRECTIVE_COVERAGE = 0.75
+#: Two reflexes this close in score are ambiguous; neither fires.
+AMBIGUITY_MARGIN = 0.05
+
+_FENCED = re.compile(r"```.*?(?:```|\Z)", re.S)
+_QUOTED = re.compile(r'"[^"\n]*"|\u201c[^\u201d\n]*\u201d|\u00ab[^\u00bb\n]*\u00bb')
+_FORWARDED = re.compile(
+    r"^[ \t]*(?:-{2,}[ \t]*forwarded message[ \t]*-{2,}|begin forwarded message:?"
+    r"|-{2,}[ \t]*original message[ \t]*-{2,})[ \t]*$",
+    re.I | re.M,
+)
+
+
+def authored_directive(message: str) -> str:
+    """The part of a user message the operator wrote as an instruction.
+
+    Removed, because they are someone else's words the operator is showing,
+    not asking the system to act on:
+
+    * fenced blocks (pasted code, logs, documents);
+    * lines quoted with ``>``;
+    * double-quoted spans (straight, curly or guillemets);
+    * everything from a forwarded- or original-message header to the end.
+
+    Deterministic and deliberately conservative: an operator who quotes their
+    own words loses the reflex for that turn and the model answers instead,
+    which costs a model call, never a wrong action.
+    """
+    text = message or ""
+    header = _FORWARDED.search(text)
+    if header is not None:
+        text = text[: header.start()]
+    text = _FENCED.sub(" ", text)
+    text = "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith(">")
+    )
+    text = _QUOTED.sub(" ", text)
+    return " ".join(text.split())
+
+
+def directive_coverage(
+    directive: str, goal: str, steps: Sequence["PlaybookStep"] = ()
+) -> float:
+    """The share of the directive's tokens that belong to the reflex: its goal
+    or its own steps (naming the file a reflex verifies is not asking for
+    more than it does; "summarise the note that says <goal>" is)."""
+    words = tokens(directive)
+    if not words:
+        return 0.0
+    own = tokens(goal)
+    for step in steps:
+        own |= tokens(" ".join([step.tool_name, *map(str, step.args.values())]))
+    return len(words & own) / len(words)
+
+
 def _backed(playbook: "CompiledPlaybook", activated: dict[int, dict[str, Any]]) -> bool:
     """The playbook's skill is ACTIVE and its steps are exactly the activated ones."""
     entry = activated.get(playbook.skill_id)
@@ -672,15 +731,27 @@ class Cerebellum:
         if not self._cache:
             return None
         activated = self._activated()
+        # Plan Phase 5a: only the operator's own words can fire a reflex.
+        directive = authored_directive(user_message)
+        if not directive:
+            return None
 
-        best: Optional[CompiledPlaybook] = None
-        best_score = 0.0
+        candidates: list[tuple[float, CompiledPlaybook]] = []
 
         for pb in list(self._cache.values()):
             if pb.status != "compiled":
                 continue
-            score = relevance(user_message, pb.goal_pattern)
+            score = relevance(directive, pb.goal_pattern)
             if score < self.match_threshold:
+                continue
+            if (
+                directive_coverage(directive, pb.goal_pattern, pb.steps)
+                < DIRECTIVE_COVERAGE
+            ):
+                # The directive asks for more than this reflex does.
+                self._record_decision(
+                    "abstained", pb, score, user_message, "directive exceeds goal"
+                )
                 continue
             if not _backed(pb, activated):
                 # Withheld, not retired: the playbook is untouched, and an
@@ -702,13 +773,76 @@ class Cerebellum:
                     "abstained", pb, score, user_message, "conflicting targets"
                 )
                 continue
-            if score > best_score:
-                best = pb
-                best_score = score
+            candidates.append((score, pb))
 
-        if best is not None:
-            self._record_decision("replayed", best, best_score, user_message, "matched")
+        if not candidates:
+            return None
+        candidates.sort(key=lambda c: c[0], reverse=True)
+        best_score, best = candidates[0]
+        if len(candidates) > 1 and best_score - candidates[1][0] < AMBIGUITY_MARGIN:
+            # Two reflexes fit about equally: guessing which one is not a
+            # decision a reflex gets to make. The model answers instead.
+            for score, pb in candidates:
+                if best_score - score < AMBIGUITY_MARGIN:
+                    self._record_decision(
+                        "abstained", pb, score, user_message, "ambiguous"
+                    )
+            return None
+        refusal = self._inapplicable(best)
+        if refusal is not None:
+            # Plan Phase 5b: the skill must pass SkillApplicabilityEngine --
+            # scope, tools, the code it touches unchanged since it was
+            # verified, an executable plan, and policy. Otherwise the model
+            # answers.
+            self._record_decision(
+                "abstained",
+                best,
+                best_score,
+                user_message,
+                f"not applicable: {refusal}",
+            )
+            if self._stale(refusal):
+                self._withdraw_stale(best)
+            return None
+        self._record_decision("replayed", best, best_score, user_message, "matched")
         return best
+
+    def _stale(self, refusal: str) -> bool:
+        """Whether the library calls this refusal staleness. A library that
+        cannot say withdraws nothing: the reflex is refused either way."""
+        check = getattr(self._reflex_gate, "is_stale", None)
+        try:
+            return bool(check(refusal)) if check is not None else False
+        except Exception:  # noqa: BLE001 - unknown is not stale
+            return False
+
+    def _withdraw_stale(self, playbook: "CompiledPlaybook") -> None:
+        """The code this reflex touches moved since it was validated.
+
+        Operator decision, 2026-10-04: re-validation is the operator's act
+        only. So a stale reflex is taken out of service like a retired one --
+        its skill suspended, its row retired -- and only his re-activation,
+        which records the code as it is then, brings it back. Reverting the
+        file does not. Best-effort: if the withdrawal fails, the reflex is
+        still refused on every match while it is stale.
+        """
+        try:
+            self.decompile(int(playbook.id), reason="stale")
+        except Exception:  # noqa: BLE001 - refused regardless; never break match
+            logging.getLogger(__name__).warning(
+                "stale reflex %s could not be withdrawn", playbook.id, exc_info=True
+            )
+
+    def _inapplicable(self, playbook: "CompiledPlaybook") -> Optional[str]:
+        """The library's reason this reflex does not apply here, or None.
+        No library that can say means it does not apply: fail closed."""
+        check = getattr(self._reflex_gate, "reflex_applicability", None)
+        if check is None:
+            return "no skill library can vouch for it"
+        try:
+            return check(int(playbook.skill_id))
+        except Exception as exc:  # noqa: BLE001 - unreadable refuses
+            return f"applicability unreadable: {exc}"
 
     def _record_decision(
         self,
@@ -1209,13 +1343,13 @@ class Cerebellum:
         ).fetchone()
         return None if row is None else self._successes(int(row["skill_id"]))
 
-    def decompile(self, playbook_id: int) -> None:
+    def decompile(self, playbook_id: int, reason: str = "explicit") -> None:
         """Retire one playbook immediately, without waiting for a threshold.
 
         Distinct from `_record_replay_failure`, which counts toward
-        `max_consecutive_failures`: a PERMANENT abstention retires at once.
-        Either way the reflex returns only by the operator's re-activation
-        (``_take_out_of_service``).
+        `max_consecutive_failures`: a PERMANENT abstention retires at once, and
+        so does a stale one (``_withdraw_stale``). Either way the reflex returns
+        only by the operator's re-activation (``_take_out_of_service``).
         """
         if not learning_permitted():
             # The stop freezes learned state: a replay the stop refused is not
@@ -1227,7 +1361,7 @@ class Cerebellum:
             return
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
-            self._take_out_of_service(conn, playbook_id, "explicit")
+            self._take_out_of_service(conn, playbook_id, reason)
 
     # ------------------------------------------------------------------
     # Replay bookkeeping

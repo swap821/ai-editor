@@ -787,6 +787,10 @@ class ToolAgent:
         #: latest message, never in the system message, and a tool call that
         #: carries its text pauses for a human (``recall_envelope``).
         self.memory_context = memory_context
+        #: Plan Phase 5c: commands run in this turn with no human, and whether
+        #: a reflex was matched in it. See `_composition_capped`.
+        self._unattended_commands = 0
+        self._reflex_in_turn = False
         #: Optional context that is NOT recalled memory and keeps the system
         #: channel: this turn's advisory frame and plan, and the governed
         #: representative context (the operator's constraints and delegated
@@ -1076,6 +1080,9 @@ class ToolAgent:
             except Exception:
                 _playbook = None
             if _playbook is not None:
+                # Learned recall is in this turn now, whatever the reflex does
+                # next (plan Phase 5c).
+                self._reflex_in_turn = True
                 _withheld = self._withheld_reflex_step(_playbook)
                 if _withheld is not None:
                     # Nothing ran. Fall through to the model, whose proposal
@@ -1244,6 +1251,9 @@ class ToolAgent:
                 #: paused, or an auto-grant it withheld. A write that pauses
                 #: anyway still carries the provenance, not the control.
                 taint_forced = False
+                #: True when the composition cap paused a command that would
+                #: otherwise have run with no human (plan Phase 5c).
+                cap_forced = False
                 if (
                     taint
                     and name in ("execute_terminal", "verify")
@@ -1262,8 +1272,22 @@ class ToolAgent:
                         "approval",
                         False,
                     )
+                elif self._composition_capped(name, args):
+                    # Recalled lessons or skills have already steered
+                    # UNATTENDED_COMMAND_CAP commands with no human this turn:
+                    # the next is a checkpoint, resumable like any approval.
+                    cap_forced = True
+                    output, status, failed = (
+                        "[APPROVAL REQUIRED] "
+                        f"{recall_envelope.UNATTENDED_COMMAND_CAP} commands have "
+                        "already run without you in a turn that recalled "
+                        "learned memory; a human must approve the next one.",
+                        "approval",
+                        False,
+                    )
                 else:
                     output, status, failed = self._dispatch(name, args)
+                    self._count_unattended(name, args, status)
                 if status == "approval":
                     _target = str(args.get("filepath") or args.get("command") or "")
                     earned = name in (
@@ -1317,6 +1341,10 @@ class ToolAgent:
                         if taint_forced:
                             pause_event["control"] = (
                                 recall_envelope.RECALL_TAINT_CONTROL
+                            )
+                        elif cap_forced:
+                            pause_event["control"] = (
+                                recall_envelope.COMPOSITION_CAP_CONTROL
                             )
                         # S2 (approval-resume continuation, ratified option A):
                         # attach the CONVO TAIL -- everything this turn appended
@@ -1953,6 +1981,47 @@ class ToolAgent:
             return classify(str(args.get("command", ""))).zone is Zone.RED
         except Exception:  # noqa: BLE001 - uncertainty pauses, never runs
             return False
+
+    def _composition_capped(self, name: str, args: dict[str, Any]) -> bool:
+        """Whether this command must wait for a human (plan Phase 5c, T12).
+
+        Operator decision, 2026-10-04: in a turn whose context carries learned
+        recall -- a lesson, a skill, or a reflex -- at most
+        ``UNATTENDED_COMMAND_CAP`` commands run with no human. Only a command
+        that WOULD run unattended is held: GREEN, not refused, not approved by
+        a human. A YELLOW one pauses anyway, and a refused one is refused as
+        usual (RED is never offered for approval). Reads are not counted.
+        """
+        if name not in ("execute_terminal", "verify"):
+            return False
+        if self._unattended_commands < recall_envelope.UNATTENDED_COMMAND_CAP:
+            return False
+        if not self._learned_in_turn():
+            return False
+        command = str(args.get("command", ""))
+        if command in self.approved_commands or self._gateway_refuses(args):
+            return False
+        return classify(command).zone is Zone.GREEN
+
+    def _count_unattended(self, name: str, args: dict[str, Any], status: str) -> None:
+        """Count a command dispatched with no human and not held for one.
+
+        A refused or timed-out command counts too: ``"blocked"`` covers both a
+        refusal and a command that ran until its timeout, and the dispatch
+        contract cannot tell them apart. Counting too many reaches the
+        checkpoint sooner, never later."""
+        if name not in ("execute_terminal", "verify"):
+            return
+        if str(args.get("command", "")) in self.approved_commands:
+            return
+        if status == "approval":
+            return
+        self._unattended_commands += 1
+
+    def _learned_in_turn(self) -> bool:
+        return self._reflex_in_turn or recall_envelope.carries_learned_recall(
+            self.memory_context
+        )
 
     def _recall_taint(self, name: str, args: dict[str, Any]) -> list[str]:
         """The recalled lines this call's command, URL or content came from.

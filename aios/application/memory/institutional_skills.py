@@ -52,14 +52,18 @@ from typing import Any, Iterator, Optional, Sequence
 
 from aios import config
 from aios.application.governance.emergency_stop import EmergencyStopError
-from aios.application.memory import write_budget
+from aios.application.memory import reflex_contract, write_budget
+from aios.domain.learning.applicability import (
+    ApplicabilityError,
+    SkillApplicabilityEngine,
+)
 from aios.application.learning.skill_lifecycle import SkillLifecycleAuthority
 from aios.core.verification_strength import VerificationStrength, meets_learning_floor
 from aios.domain.learning.repository import SkillRecord, SkillRepository
 from aios.domain.learning.skill_contracts import BIRTH_STATE
 from aios.domain.memory.contracts import MemoryHit, MemoryRecallContext
 from aios.memory.construction_ledger import record_construction
-from aios.memory.learning_freeze import assert_learning_permitted
+from aios.memory.learning_freeze import assert_learning_permitted, learning_permitted
 from aios.memory.relevance import relevance, skill_signature_v2
 from aios.memory.skills import ReadOnlySkillHistoryError, SkillMemory, _better_recipe
 from aios.security.secret_scanner import scan_and_redact
@@ -422,15 +426,25 @@ class InstitutionalSkillAdapter:
                     allowed_tools=sorted(
                         {s.split(":", 1)[0].strip() for s in clean_steps}
                     ),
-                    allowed_scope_pattern="",
+                    # Plan Phase 5b: the contract SkillApplicabilityEngine
+                    # demands, derived from the arc's own steps at birth.
+                    allowed_scope_pattern=reflex_contract.scope_identity(),
                     expected_observations=[],
-                    verification_plan=None,
+                    verification_plan=reflex_contract.verification_plan(clean_steps),
                     escalation_conditions=[],
-                    source_trajectory_ids=[],
+                    source_trajectory_ids=(
+                        [reflex_contract.trail_reference(skill_id, version)]
+                        if eligible
+                        else []
+                    ),
                     confidence=round(min(_CONFIDENCE_CAP, ratio), 2),
                     success_count=1 if eligible else 0,
                     failure_count=0 if success else 1,
-                    last_validated_versions=[],
+                    last_validated_versions=(
+                        [reflex_contract.validated_version(clean_steps)]
+                        if eligible
+                        else []
+                    ),
                     state=BIRTH_STATE,
                     created_at=now,
                     updated_at=now,
@@ -459,8 +473,113 @@ class InstitutionalSkillAdapter:
             and refreshed.provenance.get("procedure_format") == _STEPS_JSON
             and _better_recipe(steps_json, refreshed.procedure)
         ):
-            self.repository.save(refreshed.model_copy(update={"procedure": steps_json}))
+            # A new recipe while still a candidate: its contract is re-derived
+            # from the steps that just succeeded.
+            self.repository.save(
+                refreshed.model_copy(
+                    update={
+                        "procedure": steps_json,
+                        "verification_plan": reflex_contract.verification_plan(
+                            clean_steps
+                        ),
+                        "last_validated_versions": [
+                            reflex_contract.validated_version(clean_steps)
+                        ],
+                    }
+                )
+            )
+        elif eligible and refreshed is not None and refreshed.state == BIRTH_STATE:
+            # Only a candidate re-validates itself. After review a new code
+            # state is the operator's to vouch for (decision 2026-10-04): a
+            # stale reflex is withdrawn and returns by his re-activation.
+            self._record_validation(refreshed, clean_steps)
+        if eligible:
+            self._ensure_trail_reference(current.skill_id, current.version)
         return trail
+
+    def _record_validation(self, record: SkillRecord, attempt_steps: list[str]) -> None:
+        """Append the code state this STRONG success ran against -- only when
+        the attempt verified the same targets the recipe would replay (arc
+        identity ignores targets, so a success elsewhere vouches for nothing
+        here). Called for candidates only."""
+        recipe = _steps(record)
+        if reflex_contract.step_targets(attempt_steps) != reflex_contract.step_targets(
+            recipe
+        ):
+            return
+        versions = reflex_contract.with_validated(
+            record.last_validated_versions, reflex_contract.validated_version(recipe)
+        )
+        self.repository.save(
+            record.model_copy(update={"last_validated_versions": versions})
+        )
+
+    def _ensure_trail_reference(self, skill_id: str, version: int) -> None:
+        """A candidate born from a failure gets its evidence reference with its
+        first verified success (the contract is still writable then)."""
+        record = self.repository.get(skill_id, version)
+        if (
+            record is None
+            or record.source_trajectory_ids
+            or record.state != BIRTH_STATE
+        ):
+            return
+        self.repository.save(
+            record.model_copy(
+                update={
+                    "source_trajectory_ids": [
+                        reflex_contract.trail_reference(skill_id, version)
+                    ]
+                }
+            )
+        )
+
+    @staticmethod
+    def is_stale(refusal: Optional[str]) -> bool:
+        """Whether a ``reflex_applicability`` refusal is staleness: the code
+        the skill touches is not a version it was validated on."""
+        return refusal == reflex_contract.STALE_REFUSAL
+
+    def reflex_applicability(self, trail_id: int) -> Optional[str]:
+        """Why ``SkillApplicabilityEngine`` refuses the skill behind a reflex,
+        or ``None`` when it applies here, now (plan Phase 5b; operator decision
+        2026-09-29). Fails closed: anything unreadable is a refusal.
+
+        The engine is given the reflex's real situation: the declared scope, the
+        tools a reflex may replay, the content hash of the files the skill
+        touches (freshness), whether its verification plan can run, and whether
+        policy allows learning right now.
+        """
+        try:
+            record = self.record_for_trail(trail_id)
+        except Exception as exc:  # noqa: BLE001 - unreadable refuses
+            return f"skill unreadable: {exc}"
+        if record is None:
+            return "skill not found"
+        steps = _steps(record)
+        try:
+            SkillApplicabilityEngine().check_applicability(
+                record,
+                {},
+                {},
+                current_scope=reflex_contract.scope_identity(),
+                mission_allowed_tools=sorted(reflex_contract.REFLEX_TOOLS),
+                validated_version=reflex_contract.validated_version(steps),
+                verification_plan_executable=reflex_contract.plan_executable(
+                    record.verification_plan, steps
+                ),
+                policy_allows=learning_permitted(),
+            )
+        except ApplicabilityError as exc:
+            return str(exc)
+        except Exception as exc:  # noqa: BLE001 - unreadable refuses
+            return f"applicability unreadable: {exc}"
+        return None
+
+    def record_for_trail(self, trail_id: int) -> Optional[SkillRecord]:
+        """The library record behind a trail, in any state; read-only."""
+        key = self.trails.key_for(int(trail_id))
+        return None if key is None else self.repository.get(*key)
 
     def record_reuse(
         self,
