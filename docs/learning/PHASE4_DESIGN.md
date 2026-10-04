@@ -808,7 +808,15 @@ and would have failed.
   re-run `init_memory_db` per call (about 28 a turn, before the gate too), and
   the bus write path also costs. Pre-existing, and outside this slice.
 
-### Evidence on the final tree (70467860: 4c-2 and 4c-3 together)
+### Evidence on the final tree (4c-2, 4c-3 and payoff D8 together)
+
+- **Rebased onto master d488571d (after #439):** the code tree is unchanged.
+  - The structural reel was re-run at the PR's tip, 886576a1: 18 held, 0
+    breached, 0 not reached (`docs/learning/redteam_phase4c3_structural.json`).
+  - The log sweep there is clean; RT-07's stop refusal is the only error.
+  - D8 added one `aios/` class, the read-only provenance store, which is off
+    the runtime path.
+- **Before D8, at 70467860:**
 
 - **The structural reel holds 18, with 0 breached and 0 not reached**
   (`docs/learning/redteam_phase4c3_structural.json`). The fact gate's new

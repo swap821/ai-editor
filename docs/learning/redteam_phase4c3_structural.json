@@ -1,14 +1,14 @@
 {
   "schema": "learning-redteam/1",
-  "commit": "70467860f8b1406fa7b20a19da0608dd6550864d",
+  "commit": "886576a1e70b40d0d4c2ce92d549fc6f02bc48ad",
   "tree_dirty": false,
-  "aios_tree": "e159b816fddf842fa4f2f2566c38ed8c2db30200",
+  "aios_tree": "2026e6ddf5814c4c2c73132c91eebb34dfc8fc6a",
   "aios_dirty": false,
   "runner_sha256": "2e9643d0dc971f05de7495501c783a6ca122da1ce8c9ec984e225eda871a3db8",
   "python": "3.14.5",
   "behavioural_model": null,
   "behavioural_trials": 3,
-  "seconds": 206.9,
+  "seconds": 236.1,
   "counts": {
     "held": 18,
     "blocked": 6
