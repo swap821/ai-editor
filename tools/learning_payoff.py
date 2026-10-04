@@ -149,6 +149,17 @@ DB = REPO_ROOT / "data" / "aios_memory.db"
 #: The institutional skill library beside it (D3): the SAME data directory as
 #: the memory store measured, never a separately configured one.
 LIBRARY_DB = DB.with_name("aios_operational_state.db")
+#: Plan Phase 4c-2: an activated skill is recalled only for the principal it
+#: belongs to -- the operator, for a skill he activated. This harness recalls
+#: skills as the principal named here (the operator's principal id), and as
+#: no one when it is unset: then the ON arm recalls no skill. Read per call.
+PAYOFF_PRINCIPAL_ENV = "AIOS_PAYOFF_PRINCIPAL"
+
+
+def payoff_principal() -> Optional[str]:
+    return os.environ.get(PAYOFF_PRINCIPAL_ENV, "").strip() or None
+
+
 GUARD_SELECTION = ["tests/test_code_chunking.py"]
 
 
@@ -508,19 +519,29 @@ def live_skills_slot() -> Any:
     recall through a `SkillMemory` of its own. It recalls through the slot
     production builds, whose recall answers from the institutional library's
     ACTIVE skills only. Since slice 2.4c-B that is the only slot there is:
-    what the benchmark measures follows what the turn does.
+    what the benchmark measures follows what the turn does. Since plan Phase
+    4c-2 that includes the recall gate: an active skill is recalled only on
+    the operator's signed activation, under the pinned live key, for the
+    principal it names (``payoff_principal``).
     """
     from aios.application.memory.institutional_skills import (
         SkillTrailIndex,
         build_skills_slot,
     )
+    from aios.application.memory.provenance_policy import RecallGate
     from aios.domain.learning.repository import SkillRepository
+    from aios.memory.provenance import LearningVerifier, ProvenanceStore
 
     repository = SkillRepository(LIBRARY_DB)
     return build_skills_slot(
         repository=repository,
         trails=SkillTrailIndex(repository.database),
         history=SkillMemory(db_path=DB, read_only=True),
+        gate=RecallGate(
+            ProvenanceStore(repository.database),
+            LearningVerifier.from_pinned_file(),
+            context="live",
+        ),
     )
 
 
@@ -608,7 +629,7 @@ def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str
     # (NULL-safe). It never went through the recall gate; scoping changes
     # nothing it measures.
     lessons = _recall_lessons(reflector, session_id, query, principal=None) or []
-    verified = _recall_skills(skills, query) or []
+    verified = _recall_skills(skills, query, principal=payoff_principal()) or []
     blocks = [
         block
         for block in (lessons_prompt_block(lessons), skills_prompt_block(verified))

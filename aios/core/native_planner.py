@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from aios import config
 from aios.core.confidence_filter import TaskStep
+from aios.memory.skills import scoped_skill_recall
 
 logger = logging.getLogger(__name__)
 
@@ -160,10 +161,10 @@ class NativePlanner:
             return None
         try:
             matches = (
-                self.memory_authority.recall_skills(goal, 1)
+                self.memory_authority.recall_skills(goal, 1, principal=principal)
                 if self.memory_authority is not None
                 and self.memory_authority.owns_store("skills", self._skills)
-                else self._skills.relevant_verified(goal, limit=1)
+                else scoped_skill_recall(self._skills, goal, 1, principal=principal)
             )
         except Exception:
             logger.warning("skill recall failed", exc_info=True)

@@ -22,6 +22,7 @@ from aios.application.governance.emergency_stop import (
     EmergencyStopHooks,
 )
 from aios.application.memory.bootstrap import build_memory_authority
+from aios.application.memory.reflex_contract import stamp_for_activation
 from aios.application.memory.institutional_skills import (
     LIBRARY_ID_BASE,
     SkillMigrationPendingError,
@@ -112,7 +113,13 @@ def _legacy_verified_id(legacy_db: Path) -> int:
 
 
 def _activate(repository: SkillRepository, record) -> None:
-    """The operator's act, in a test. Live, only the capability route does it."""
+    """The operator's act, in a test. Live, only the capability route does it,
+    and (plan Phase 4c-2) a migrated skill, which names no one, becomes the
+    activating operator's."""
+    stamped = stamp_for_activation(
+        repository.get(record.skill_id, record.version), activator="principal:test"
+    )
+    repository.save(stamped)
     repository.transition_state(record.skill_id, record.version, "human_reviewed")
     repository.transition_state(record.skill_id, record.version, "active")
 
@@ -160,6 +167,7 @@ class TestTheLegacyStoreIsReadOnlyHistory:
             NEW_STEPS,
             success=True,
             strength=VerificationStrength.STRONG,
+            principal="principal:test",
         )
         assert trail >= LIBRARY_ID_BASE
         assert _rows(config.MEMORY_DB_PATH) == before, "procedural_skills grew"
@@ -228,9 +236,11 @@ class TestNothingLearnsBeforeTheHistoryIsMigrated:
             adapter = slot()
         assert "has not been migrated" in caplog.text
         with pytest.raises(SkillMigrationPendingError):
-            adapter.record_attempt(NEW_GOAL, NEW_STEPS, success=True)
+            adapter.record_attempt(
+                NEW_GOAL, NEW_STEPS, success=True, principal="principal:test"
+            )
         with pytest.raises(SkillMigrationPendingError):
-            adapter.record_reuse([1], success=True)
+            adapter.record_reuse([1], success=True, principal="principal:test")
         assert not adapter.repository.list_skills()
         assert (
             "migrate_skills_to_institutional"
@@ -242,7 +252,9 @@ class TestNothingLearnsBeforeTheHistoryIsMigrated:
         migrate()
         adapter = slot()
         assert adapter.migration_pending is None
-        adapter.record_attempt(NEW_GOAL, NEW_STEPS, success=True)
+        adapter.record_attempt(
+            NEW_GOAL, NEW_STEPS, success=True, principal="principal:test"
+        )
         assert any(
             r.problem_signature == NEW_GOAL for r in adapter.repository.list_skills()
         )
@@ -257,9 +269,9 @@ class TestNothingLearnsBeforeTheHistoryIsMigrated:
             history=SkillMemory(memory, read_only=True),
         )
         assert adapter.migration_pending is None
-        assert adapter.record_attempt(NEW_GOAL, NEW_STEPS, success=True) >= (
-            LIBRARY_ID_BASE
-        )
+        assert adapter.record_attempt(
+            NEW_GOAL, NEW_STEPS, success=True, principal="principal:test"
+        ) >= (LIBRARY_ID_BASE)
 
 
 class TestTheLibraryServesTheSlot:
@@ -268,26 +280,41 @@ class TestTheLibraryServesTheSlot:
         migrate()
         adapter = slot()
         legacy_id = _legacy_verified_id(legacy_db)
+        # The migrated arc names no one, so only an unattributed write grows it.
         assert (
-            adapter.record_attempt(VERIFIED_GOAL, VERIFIED_STEPS, success=True)
+            adapter.record_attempt(
+                VERIFIED_GOAL, VERIFIED_STEPS, success=True, principal=None
+            )
             == legacy_id
+        )
+        assert _migrated(adapter.repository).success_count == 4
+        # Plan Phase 4c-2: a principal's attempt of the same arc is their own
+        # skill, and leaves the migrated history alone.
+        assert (
+            adapter.record_attempt(
+                VERIFIED_GOAL, VERIFIED_STEPS, success=True, principal="principal:test"
+            )
+            >= LIBRARY_ID_BASE
         )
         assert _migrated(adapter.repository).success_count == 4
 
     def test_a_new_arc_takes_a_library_id(self, world) -> None:
         _, migrate, slot, _ = world
         migrate()
-        assert slot().record_attempt(NEW_GOAL, NEW_STEPS, success=True) >= (
-            LIBRARY_ID_BASE
-        )
+        assert slot().record_attempt(
+            NEW_GOAL, NEW_STEPS, success=True, principal="principal:test"
+        ) >= (LIBRARY_ID_BASE)
 
     def test_recall_reads_only_what_the_operator_activated(self, world) -> None:
         legacy_db, migrate, slot, _ = world
         migrate()
         adapter = slot()
-        assert adapter.relevant_verified(VERIFIED_GOAL, 3) == [], "a candidate"
+        assert (
+            adapter.relevant_verified(VERIFIED_GOAL, 3, principal="principal:test")
+            == []
+        ), "a candidate"
         _activate(adapter.repository, _migrated(adapter.repository))
-        rows = adapter.relevant_verified(VERIFIED_GOAL, 3)
+        rows = adapter.relevant_verified(VERIFIED_GOAL, 3, principal="principal:test")
         assert [r["skill_id"] for r in rows] == [_legacy_verified_id(legacy_db)]
 
     def test_reuse_credits_only_an_active_skill(self, world) -> None:
@@ -295,9 +322,14 @@ class TestTheLibraryServesTheSlot:
         migrate()
         adapter = slot()
         legacy_id = _legacy_verified_id(legacy_db)
-        assert adapter.record_reuse([legacy_id], success=True) == []
+        assert (
+            adapter.record_reuse([legacy_id], success=True, principal="principal:test")
+            == []
+        )
         _activate(adapter.repository, _migrated(adapter.repository))
-        assert adapter.record_reuse([legacy_id], success=True) == [legacy_id]
+        assert adapter.record_reuse(
+            [legacy_id], success=True, principal="principal:test"
+        ) == [legacy_id]
 
     def test_a_weak_success_is_not_evidence(self, world) -> None:
         _, migrate, slot, _ = world
@@ -308,6 +340,7 @@ class TestTheLibraryServesTheSlot:
             VERIFIED_STEPS,
             success=True,
             strength=VerificationStrength.WEAK,
+            principal="principal:test",
         )
         assert _migrated(adapter.repository).success_count == 3
 
@@ -325,7 +358,9 @@ class TestTheLibraryServesTheSlot:
         before = (len(adapter.repository.list_skills()), _rows(legacy_db))
         engage()
         with pytest.raises(EmergencyStopError):
-            adapter.record_attempt(NEW_GOAL, NEW_STEPS, success=True)
+            adapter.record_attempt(
+                NEW_GOAL, NEW_STEPS, success=True, principal="principal:test"
+            )
         assert (len(adapter.repository.list_skills()), _rows(legacy_db)) == before
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from importlib import import_module
 from typing import Any, Iterator, Optional
 
@@ -29,6 +30,7 @@ from aios.domain.intelligence.representative_context import (
     RepresentativeContextReceiptV1,
 )
 from aios.infrastructure.identity.sqlite_store import credential_digest
+from aios.memory.skills import scoped_skill_attempt, scoped_skill_reuse
 
 _LIVE_NAMES = (
     "CanonicalEvent",
@@ -748,7 +750,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     # not depend on the interpreter being enabled.
     if user_text:
         try:
-            _cb_match = cerebellum.match(user_text)
+            _cb_match = cerebellum.match(user_text, principal=principal_id)
         except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
             logger.warning("Cerebellum match failed", exc_info=exc)
             _cb_match = None
@@ -917,6 +919,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         skills,
         user_text,
         authority=runtime.memory_authority,
+        principal=principal_id,
     )
     if recalled_skills:
         skill_block = "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
@@ -1457,13 +1460,14 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     runtime.memory_authority.record_skill_attempt
                     if runtime.memory_authority is not None
                     and runtime.memory_authority.owns_store("skills", skills)
-                    else skills.record_attempt
+                    else partial(scoped_skill_attempt, skills)
                 )
                 direct_id = record_attempt(
                     user_text,
                     workflow_steps,
                     success=passed,
                     strength=turn_strength,
+                    principal=principal_id,
                 )
             except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
                 logger.warning("Failed to record skill attempt", exc_info=exc)
@@ -1487,9 +1491,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     runtime.memory_authority.record_skill_reuse
                     if runtime.memory_authority is not None
                     and runtime.memory_authority.owns_store("skills", skills)
-                    else skills.record_reuse
+                    else partial(scoped_skill_reuse, skills)
                 )
-                record_reuse(reused_ids, success=passed)
+                record_reuse(reused_ids, success=passed, principal=principal_id)
             except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
                 logger.warning("Failed to record skill reuse credit", exc_info=exc)
         # Also dormant: `swarm_plan` can never be set while the strategy gate

@@ -71,9 +71,22 @@ class TestTheMissionsMeasureWhatTheyName:
 
         real = InstitutionalSkillAdapter.record_attempt
 
-        def weak(self, goal, steps, *, success, strength=VerificationStrength.STRONG):
+        def weak(
+            self,
+            goal,
+            steps,
+            *,
+            success,
+            principal,
+            strength=VerificationStrength.STRONG,
+        ):
             return real(
-                self, goal, steps, success=success, strength=VerificationStrength.WEAK
+                self,
+                goal,
+                steps,
+                success=success,
+                principal=principal,
+                strength=VerificationStrength.WEAK,
             )
 
         monkeypatch.setattr(InstitutionalSkillAdapter, "record_attempt", weak)

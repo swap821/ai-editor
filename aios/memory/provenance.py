@@ -307,6 +307,46 @@ _SCHEMA = (
 )
 
 
+def ensure_provenance_schema(connection: sqlite3.Connection) -> None:
+    """Create the provenance tables on a connection a store already holds."""
+    for statement in _SCHEMA:
+        connection.execute(statement)
+
+
+def _insert(
+    connection: sqlite3.Connection,
+    provenance: Provenance,
+    signed: Optional[SignedProvenance],
+) -> int:
+    cursor = connection.execute(
+        "INSERT INTO learning_provenance (row_table, row_id, content_sha256, "
+        "provenance_json, key_id, signature, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            provenance.table,
+            provenance.row_id,
+            provenance.content_sha256,
+            provenance.to_json(),
+            None if signed is None else signed.key_id,
+            None if signed is None else signed.signature,
+            _utc_now(),
+        ),
+    )
+    return int(cursor.lastrowid)
+
+
+def journal_unsigned(connection: sqlite3.Connection, provenance: Provenance) -> int:
+    """Journal one new state of a row, UNSIGNED, inside the caller's transaction.
+
+    For a store whose every state change must leave a record, so that an older
+    signature can never be re-used for a state the row left (plan Phase 4c-2:
+    ``latest`` refuses a row whose newest record is unsigned). It asks nothing
+    of the emergency stop: the caller's own write has already been through the
+    stop's policy, and a withdrawal the stop allows must still be journalled.
+    """
+    return _insert(connection, provenance, None)
+
+
 class ProvenanceStore:
     """Append-only records of provenance and derivation, beside the rows.
 
@@ -316,13 +356,13 @@ class ProvenanceStore:
     """
 
     def __init__(self, database: Path | str) -> None:
-        # R11: a physical store. Production builds exactly one, in bootstrap.py.
+        # R11: a physical store. Production builds one per database, in
+        # bootstrap.py.
         record_construction("ProvenanceStore")
         self.database = Path(database)
         self.database.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as connection:
-            for statement in _SCHEMA:
-                connection.execute(statement)
+            ensure_provenance_schema(connection)
 
     def append(self, provenance: Provenance, signed: Optional[SignedProvenance]) -> int:
         """Record one state of one row, signed or not. Returns the record id."""
@@ -330,21 +370,7 @@ class ProvenanceStore:
         if signed is not None and signed.provenance != provenance:
             raise ValueError("the signature is over a different provenance record")
         with self._connection() as connection:
-            cursor = connection.execute(
-                "INSERT INTO learning_provenance (row_table, row_id, content_sha256, "
-                "provenance_json, key_id, signature, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    provenance.table,
-                    provenance.row_id,
-                    provenance.content_sha256,
-                    provenance.to_json(),
-                    None if signed is None else signed.key_id,
-                    None if signed is None else signed.signature,
-                    _utc_now(),
-                ),
-            )
-            return int(cursor.lastrowid)
+            return _insert(connection, provenance, signed)
 
     def latest(self, table: str, row_id: str) -> Optional[SignedProvenance]:
         """The newest SIGNED record for a row, or ``None``.
@@ -424,5 +450,7 @@ __all__ = [
     "SignedProvenance",
     "Verdict",
     "content_digest",
+    "ensure_provenance_schema",
+    "journal_unsigned",
     "key_id",
 ]

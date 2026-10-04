@@ -349,7 +349,10 @@ def test_specialized_recall_reads_route_through_authority_adapters(
     class Skills:
         memory_types = ("skill",)
 
-        def relevant_verified(self, _query: str, _limit: int) -> list[dict[str, str]]:
+        def relevant_verified(
+            self, _query: str, _limit: int, *, principal: str | None
+        ) -> list[dict[str, str]]:
+            assert principal == PRINCIPAL
             return [{"goal_pattern": "ship", "steps": []}]
 
         def rebuild_derived_indexes(self) -> None:
@@ -392,7 +395,10 @@ def test_specialized_recall_reads_route_through_authority_adapters(
 
     assert authority.facts_search("GAGOS", principal=PRINCIPAL)[0]["object"] == "GAGOS"
     assert authority.facts_for("operator", principal=PRINCIPAL)
-    assert authority.recall_skills("ship", 1)[0]["goal_pattern"] == "ship"
+    assert (
+        authority.recall_skills("ship", 1, principal=PRINCIPAL)[0]["goal_pattern"]
+        == "ship"
+    )
     assert (
         authority.recall_lessons("verify", "session", 1, principal=PRINCIPAL)[0][
             "lesson_text"
@@ -885,7 +891,8 @@ def test_default_confidence_calibration_routes_memory_reads_through_authority(
             self.calls.append(("development_success_rate", query))
             return SimpleNamespace(attempts=4, success_rate=0.75, relevance=1.0)
 
-        def recall_skills(self, query: str, limit: int):
+        def recall_skills(self, query: str, limit: int, *, principal):
+            assert principal == PRINCIPAL
             self.calls.append(("recall_skills", (query, limit)))
             return [{"skill_id": 8, "strength": 0.2, "relevance": 1.0}]
 

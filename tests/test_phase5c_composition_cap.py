@@ -106,6 +106,7 @@ def _turn(
         cerebellum=cerebellum,
         approved_commands=approved,
         audit_log=lambda *a, **k: None,
+        principal="principal:test",
     )
     events = [
         e for e in agent.run([{"role": "user", "content": text}]) if isinstance(e, dict)

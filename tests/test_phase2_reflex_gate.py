@@ -110,7 +110,9 @@ def _migrated(repository: SkillRepository):
 def _activate(repository: SkillRepository, record) -> None:
     """The operator's act, in a test. Live, only the capability route does it,
     and it stamps the reflex contract first (plan Phase 5b), as here."""
-    stamped = stamp_for_activation(repository.get(record.skill_id, record.version))
+    stamped = stamp_for_activation(
+        repository.get(record.skill_id, record.version), activator="principal:test"
+    )
     repository.save(stamped)
     repository.transition_state(record.skill_id, record.version, "human_reviewed")
     repository.transition_state(record.skill_id, record.version, "active")
@@ -134,7 +136,7 @@ class TestWithoutTheLibraryNothingIsAReflex:
     ) -> None:
         legacy_db, cerebellum, _, _, _ = world
         assert [s for _, s, _ in _playbooks(legacy_db)] == ["compiled"]
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
 
     def test_nothing_compiles_without_the_gate(self, world) -> None:
         legacy_db, cerebellum, _, _, _ = world
@@ -158,7 +160,7 @@ class TestTheGate:
     def test_a_self_promoted_reflex_is_withheld_and_says_why(self, world) -> None:
         legacy_db, cerebellum, bus, _, slot = world
         cerebellum.attach_reflex_gate(slot)
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
         assert "skill not operator-activated" in bus.reasons()
         # Withheld, not retired: the playbook itself is untouched.
         assert [status for _, status, _ in _playbooks(legacy_db)] == ["compiled"]
@@ -167,7 +169,7 @@ class TestTheGate:
         _, cerebellum, _, repository, slot = world
         cerebellum.attach_reflex_gate(slot)
         _activate(repository, _migrated(repository))
-        assert cerebellum.match(GOAL) is not None
+        assert cerebellum.match(GOAL, principal="principal:test") is not None
 
     def test_it_replays_only_the_steps_that_were_activated(self, world) -> None:
         legacy_db, cerebellum, bus, repository, slot = world
@@ -188,7 +190,7 @@ class TestTheGate:
                     ),
                 ),
             )
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
         assert "skill not operator-activated" in bus.reasons()
 
     def test_evidence_alone_compiles_nothing(self, world) -> None:
@@ -200,6 +202,7 @@ class TestTheGate:
                 ["read_directory: path=docs"],
                 success=True,
                 strength=VerificationStrength.STRONG,
+                principal="principal:test",
             )
         assert cerebellum.try_compile_all() == 0
         assert len(_playbooks(legacy_db)) == 1, "only the pre-2.4c-B reflex exists"
@@ -221,7 +224,7 @@ class TestTheGate:
         (_, status, steps) = _playbooks(legacy_db)[0]
         assert status == "compiled"
         assert steps == [{"tool_name": "verify", "args": {"command": STEPS[0][16:]}}]
-        assert cerebellum.match(GOAL) is not None
+        assert cerebellum.match(GOAL, principal="principal:test") is not None
 
     def test_a_library_only_skill_compiles_once_activated(self, world) -> None:
         """A new arc has no legacy row at all. Before 2.4c-B it waited, first for
@@ -234,16 +237,20 @@ class TestTheGate:
             "read README.md and report it",
             ["read_file: filepath=README.md"],
             success=True,
+            principal="principal:test",
         )
         live = next(
             r for r in repository.list_skills() if r.provenance.get("source") == "live"
         )
         _activate(repository, live)
         cerebellum.attach_reflex_gate(slot)
-        assert library_id in slot.active_procedures()
+        assert library_id in slot.active_procedures(principal="principal:test")
         assert cerebellum.try_compile_all() == 1
         assert [skill for skill, _, _ in _playbooks(legacy_db)] == [library_id]
-        assert cerebellum.match("read README.md and report it") is not None
+        assert (
+            cerebellum.match("read README.md and report it", principal="principal:test")
+            is not None
+        )
 
     def test_an_unreadable_library_activates_nothing(self, world) -> None:
         _, cerebellum, _, repository, _ = world
@@ -254,7 +261,7 @@ class TestTheGate:
                 raise OSError("library unreadable")
 
         cerebellum.attach_reflex_gate(Broken())
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
         assert cerebellum.try_compile_all() == 0
 
     def test_the_gate_cannot_be_replaced_once_attached(self, world) -> None:
@@ -266,7 +273,7 @@ class TestTheGate:
                 return {1: {"steps": STEPS}}
 
         cerebellum.attach_reflex_gate(Everything())
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
 
 
 class TestFailingSkillsAreDemotedByTheLibrary:
@@ -282,17 +289,19 @@ class TestFailingSkillsAreDemotedByTheLibrary:
         record = _migrated(repository)
         _activate(repository, record)
         assert cerebellum.try_compile_all() == 1
-        assert cerebellum.match(GOAL) is not None, "positive control: it replays"
+        assert cerebellum.match(GOAL, principal="principal:test") is not None, (
+            "positive control: it replays"
+        )
 
-        trail = next(iter(slot.active_procedures()))
+        trail = next(iter(slot.active_procedures(principal="principal:test")))
         for _ in range(20):
-            slot.record_reuse([trail], success=False)
+            slot.record_reuse([trail], success=False, principal="principal:test")
             if repository.get(record.skill_id, record.version).state != "active":
                 break
         state = repository.get(record.skill_id, record.version).state
         assert state in {"degraded", "suspended"}, f"never demoted: {state}"
 
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
         assert "skill not operator-activated" in bus.reasons()
         with get_connection(legacy_db) as conn:
             conn.execute("DELETE FROM compiled_playbooks")
@@ -343,7 +352,11 @@ class TestARetiredReflexReturnsOnlyByReactivation:
         assert cerebellum.try_compile_all() == 0, "nothing re-activated"
         for _ in range(3):
             slot.record_attempt(
-                GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+                GOAL,
+                STEPS,
+                success=True,
+                strength=VerificationStrength.STRONG,
+                principal="principal:test",
             )
         assert cerebellum.try_compile_all() == 0, "earning is not re-activation"
         self._reactivate(repository, record)

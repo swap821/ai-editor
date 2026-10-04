@@ -2350,10 +2350,10 @@ class RecordingSkills:
     def __init__(self) -> None:
         self.attempts: list[tuple[str, list[str], bool]] = []
 
-    def relevant_verified(self, query, limit=3):
+    def relevant_verified(self, query, limit=3, *, principal):
         return []
 
-    def record_attempt(self, goal, steps, *, success, strength=None):
+    def record_attempt(self, goal, steps, *, success, strength=None, principal):
         self.attempts.append((goal, steps, success))
         return 1
 
@@ -2692,8 +2692,13 @@ class ReuseRecordingSkills:
     def __init__(self) -> None:
         self.attempts: list[tuple[str, list[str], bool]] = []
         self.reuse_calls: list[tuple[list[int], bool]] = []
+        #: Plan Phase 4c-2: whom each read and write named.
+        self.principals: list[object] = []
 
-    def relevant_verified(self, query, limit=3):
+    def relevant_verified(self, query, limit=3, *, principal):
+        self.principals.append(principal)
+        if not principal:
+            return []
         return [
             {
                 "skill_id": 1,
@@ -2713,11 +2718,13 @@ class ReuseRecordingSkills:
             },
         ]
 
-    def record_attempt(self, goal, steps, *, success, strength=None):
+    def record_attempt(self, goal, steps, *, success, strength=None, principal):
+        self.principals.append(principal)
         self.attempts.append((goal, steps, success))
         return 1  # same id as the first recalled trail: the re-walked arc
 
-    def record_reuse(self, skill_ids, *, success):
+    def record_reuse(self, skill_ids, *, success, principal):
+        self.principals.append(principal)
         self.reuse_calls.append((list(skill_ids), success))
         return list(skill_ids)
 
@@ -2749,6 +2756,10 @@ def test_record_outcome_threads_reuse_credit_excluding_direct_trail(
     # recalled trail receives a reuse tick — no double-crediting.
     assert len(skills.attempts) == 1 and skills.attempts[0][2] is True
     assert skills.reuse_calls == [([2], True)]
+    # Plan Phase 4c-2: recall, the attempt and the reuse credit are the caller's.
+    from tests.helpers import client_principal_id
+
+    assert set(skills.principals) == {client_principal_id(client)}
 
     # An unverified turn (no verify evidence) must credit nothing.
     app.dependency_overrides[get_ollama_client] = FakeOllama
@@ -3060,6 +3071,36 @@ def test_a_reflected_lesson_belongs_to_the_caller(client: TestClient) -> None:
     assert lessons.store.get(mistake_id)["principal_id"] == owner
     signed = lessons.provenance.store.latest("mistake_pool", str(mistake_id))
     assert signed is not None and signed.provenance.principal == owner
+
+
+def test_a_generate_turn_matches_reflexes_as_the_caller(client: TestClient) -> None:
+    """Plan Phase 4c-2: a reflex replays only for the principal whose skill it
+    is, so the turn asks the cerebellum as the caller -- in the pipeline's
+    pre-check and in the agent's own match alike."""
+    from aios.api.deps import get_cerebellum
+    from tests.helpers import client_principal_id
+
+    class RecordingCerebellum:
+        def __init__(self) -> None:
+            self.principals: list[object] = []
+
+        def match(self, text: str, *, principal):
+            self.principals.append(principal)
+            return None
+
+    cerebellum = RecordingCerebellum()
+    app.dependency_overrides[get_cerebellum] = lambda: cerebellum
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "make a button"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-4c2-reflex",
+        },
+    )
+    assert response.status_code == 200
+    assert cerebellum.principals
+    assert set(cerebellum.principals) == {client_principal_id(client)}
 
 
 def test_a_generate_turn_indexes_as_the_caller(client: TestClient) -> None:

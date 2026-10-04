@@ -149,9 +149,11 @@ class GovernedAutonomy:
         key: ActionClassKey,
         *,
         cerebellum: Any,
+        principal: str | None,
     ) -> CerebellumProposal | None:
-        """Use Cerebellum only as a fast proposal source."""
-        playbook = cerebellum.match(goal)
+        """Use Cerebellum only as a fast proposal source, from *principal*'s
+        own activated skills (plan Phase 4c-2)."""
+        playbook = cerebellum.match(goal, principal=principal)
         if playbook is None:
             return None
         return CerebellumProposal(

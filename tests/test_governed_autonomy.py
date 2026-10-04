@@ -131,13 +131,17 @@ def test_cerebellum_is_only_a_proposal_source(tmp_path: Path) -> None:
         status = "compiled"
 
     class Cerebellum:
-        def match(self, goal: str):
+        def match(self, goal: str, *, principal):
             assert goal == "run the verified check"
+            assert principal == "principal:operator"
             return Playbook()
 
     governed = _governed(tmp_path)
     proposal = governed.propose_cerebellum(
-        "run the verified check", _key(), cerebellum=Cerebellum()
+        "run the verified check",
+        _key(),
+        cerebellum=Cerebellum(),
+        principal="principal:operator",
     )
     assert proposal is not None
     assert proposal.requires_policy_evaluation is True

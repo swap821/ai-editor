@@ -329,7 +329,9 @@ def test_match_finds_relevant_playbook(db_path: Path) -> None:
     cerebellum = _cerebellum(db_path)
     cerebellum.try_compile_all()
 
-    pb = cerebellum.match("please run the pytest test suite")
+    pb = cerebellum.match(
+        "please run the pytest test suite", principal="principal:test"
+    )
     assert pb is not None
     assert pb.goal_pattern == "run the pytest test suite"
 
@@ -344,13 +346,16 @@ def test_match_returns_none_below_threshold(db_path: Path) -> None:
     cerebellum.try_compile_all()
 
     # Weak lexical overlap should score well under a 0.9 threshold.
-    pb = cerebellum.match("what is the weather today")
+    pb = cerebellum.match("what is the weather today", principal="principal:test")
     assert pb is None
 
 
 def test_match_returns_none_when_no_playbooks_compiled(db_path: Path) -> None:
     cerebellum = _cerebellum(db_path)
-    assert cerebellum.match("run the pytest test suite") is None
+    assert (
+        cerebellum.match("run the pytest test suite", principal="principal:test")
+        is None
+    )
 
 
 def test_match_picks_best_scoring_playbook_among_several(db_path: Path) -> None:
@@ -369,7 +374,9 @@ def test_match_picks_best_scoring_playbook_among_several(db_path: Path) -> None:
     cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
 
-    pb = cerebellum.match("run the pytest test suite now please")
+    pb = cerebellum.match(
+        "run the pytest test suite now please", principal="principal:test"
+    )
     assert pb is not None
     assert pb.goal_pattern == "run the pytest test suite now please"
 
@@ -384,8 +391,8 @@ def test_match_respects_custom_threshold(db_path: Path) -> None:
     lenient.try_compile_all()
     strict = _cerebellum(db_path, match_threshold=0.99)
 
-    assert lenient.match("pytest") is not None
-    assert strict.match("pytest") is None
+    assert lenient.match("pytest", principal="principal:test") is not None
+    assert strict.match("pytest", principal="principal:test") is None
 
 
 def test_match_rejects_request_for_a_different_concrete_file(db_path: Path) -> None:
@@ -404,13 +411,15 @@ def test_match_rejects_request_for_a_different_concrete_file(db_path: Path) -> N
     assert (
         cerebellum.match(
             "use the verify tool to run exactly this command: "
-            "pytest lab/test_probe.py -q"
+            "pytest lab/test_probe.py -q",
+            principal="principal:test",
         )
         is None
     )
     # ...but it DOES match a request naming the SAME file it would replay.
     same = cerebellum.match(
-        "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q"
+        "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q",
+        principal="principal:test",
     )
     assert same is not None
 
@@ -425,7 +434,10 @@ def test_match_concrete_target_guard_ignores_paraphrases(db_path: Path) -> None:
     )
     cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
-    assert cerebellum.match("please run the pytest test suite") is not None
+    assert (
+        cerebellum.match("please run the pytest test suite", principal="principal:test")
+        is not None
+    )
 
 
 def test_compiled_command_strips_workflow_step_key_prefix(db_path: Path) -> None:
@@ -440,7 +452,8 @@ def test_compiled_command_strips_workflow_step_key_prefix(db_path: Path) -> None
     cerebellum = _cerebellum(db_path, match_threshold=0.0)
     cerebellum.try_compile_all()
     pb = cerebellum.match(
-        "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q"
+        "use the verify tool to run exactly this command: pytest lab/test_reflex.py -q",
+        principal="principal:test",
     )
     assert pb is not None
     assert pb.steps[0].args["command"] == "pytest lab/test_reflex.py -q"
@@ -735,7 +748,7 @@ def test_decompiled_playbook_does_not_match(db_path: Path) -> None:
             )
         )
 
-    assert cerebellum.match("run the tests") is None
+    assert cerebellum.match("run the tests", principal="principal:test") is None
 
 
 def test_replay_custom_max_consecutive_failures(db_path: Path) -> None:

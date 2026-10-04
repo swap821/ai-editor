@@ -179,12 +179,20 @@ class TestAStoredRecipeCanImprove:
         old_steps = ["read_file: a.py", "create_file: t.py", "verify: pytest"]
         for _ in range(3):
             skills.record_attempt(
-                goal, old_steps, success=True, strength=VerificationStrength.STRONG
+                goal,
+                old_steps,
+                success=True,
+                strength=VerificationStrength.STRONG,
+                principal="principal:test",
             )
 
         new_steps = pin_steps("a.py", "t.py", content_digest("x"))
         skills.record_attempt(
-            goal, new_steps, success=True, strength=VerificationStrength.STRONG
+            goal,
+            new_steps,
+            success=True,
+            strength=VerificationStrength.STRONG,
+            principal="principal:test",
         )
 
         (record,) = repository.list_skills()

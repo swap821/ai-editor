@@ -325,10 +325,15 @@ class MemoryAuthority:
             )
         )
 
-    def recall_skills(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
-        """Return verified reusable workflows through the skills adapter."""
+    def recall_skills(
+        self, query: str, limit: int = 3, *, principal: str | None
+    ) -> list[dict[str, Any]]:
+        """Return *principal*'s verified reusable workflows through the skills
+        adapter (plan Phase 4c-2)."""
         return list(
-            self._adapter_operation("skills", "relevant_verified", query, limit)
+            self._adapter_operation(
+                "skills", "relevant_verified", query, limit, principal=principal
+            )
         )
 
     def recall_lessons(

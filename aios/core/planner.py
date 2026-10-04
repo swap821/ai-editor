@@ -28,7 +28,7 @@ from aios.core.confidence_filter import TaskStep, filter_steps
 from aios.core.llm import LLMClient
 from aios.memory.development import DevelopmentTracker
 from aios.memory.mistake import MistakeMemory
-from aios.memory.skills import SkillMemory
+from aios.memory.skills import SkillMemory, scoped_skill_recall
 
 
 def _authority_store(authority: Any | None, name: str) -> Any | None:
@@ -254,10 +254,12 @@ class Planner:
             pass
         try:
             verified_skills = (
-                self.memory_authority.recall_skills(query, 3)
+                self.memory_authority.recall_skills(query, 3, principal=self.principal)
                 if self.memory_authority is not None
                 and self.memory_authority.owns_store("skills", self.skills)
-                else self.skills.relevant_verified(query, limit=3)
+                else scoped_skill_recall(
+                    self.skills, query, 3, principal=self.principal
+                )
             )
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass

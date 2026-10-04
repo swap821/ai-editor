@@ -46,7 +46,7 @@ from aios.memory.retrieval import hybrid_search
 from aios.domain.memory import HumanStateHypothesis, MemoryRecallContext
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.semantic import SemanticMemory
-from aios.memory.skills import SkillMemory
+from aios.memory.skills import SkillMemory, scoped_skill_recall
 from aios.security.secret_scanner import scan_and_redact
 
 logger = get_logger(__name__)
@@ -688,13 +688,15 @@ def _recall_skills(
     limit: int = 3,
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> list[dict[str, Any]]:
-    """Best-effort recall of reusable workflows backed by repeated verification."""
+    """Best-effort recall of *principal*'s reusable workflows backed by
+    repeated verification (plan Phase 4c-2)."""
     try:
         return (
-            authority.recall_skills(query, limit)
+            authority.recall_skills(query, limit, principal=principal)
             if _authority_owns(authority, "skills", skills)
-            else skills.relevant_verified(query, limit)
+            else scoped_skill_recall(skills, query, limit, principal=principal)
         )
     except Exception as exc:  # noqa: BLE001 - skill recall is an enhancement, never fatal
         logger.warning("Failed to recall verified skills", exc_info=exc)
@@ -969,9 +971,9 @@ def _calibrate_default_confidence(
         pass
     try:
         verified_skills = (
-            authority.recall_skills(query, 3)
+            authority.recall_skills(query, 3, principal=principal)
             if _authority_owns(authority, "skills", skills)
-            else skills.relevant_verified(query, limit=3)
+            else scoped_skill_recall(skills, query, 3, principal=principal)
         )
     except Exception:  # noqa: BLE001 - default chat remains available if memory is down
         pass

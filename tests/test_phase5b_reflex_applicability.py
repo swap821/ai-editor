@@ -104,7 +104,11 @@ class World:
         trail = 0
         for _ in range(3):
             trail = self.library.record_attempt(
-                goal, steps, success=True, strength=VerificationStrength.STRONG
+                goal,
+                steps,
+                success=True,
+                strength=VerificationStrength.STRONG,
+                principal="principal:test",
             )
         return trail
 
@@ -202,7 +206,7 @@ def test_a_skill_is_born_with_its_contract(world) -> None:
 
 
 def test_an_unverified_birth_vouches_for_nothing(world) -> None:
-    world.library.record_attempt(GOAL, STEPS, success=False)
+    world.library.record_attempt(GOAL, STEPS, success=False, principal="principal:test")
     record = world.record()
     assert record.source_trajectory_ids == []
     assert record.last_validated_versions == []
@@ -210,7 +214,11 @@ def test_an_unverified_birth_vouches_for_nothing(world) -> None:
 
 def test_one_verified_success_carries_its_evidence_reference(world) -> None:
     world.library.record_attempt(
-        GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+        GOAL,
+        STEPS,
+        success=True,
+        strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     record = world.record()
     assert record.source_trajectory_ids == [
@@ -222,10 +230,14 @@ def test_one_verified_success_carries_its_evidence_reference(world) -> None:
 def test_a_failure_born_skill_gets_its_reference_with_its_first_success(
     world,
 ) -> None:
-    world.library.record_attempt(GOAL, STEPS, success=False)
+    world.library.record_attempt(GOAL, STEPS, success=False, principal="principal:test")
     assert world.record().source_trajectory_ids == []
     world.library.record_attempt(
-        GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+        GOAL,
+        STEPS,
+        success=True,
+        strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     record = world.record()
     assert record.source_trajectory_ids == [
@@ -245,7 +257,7 @@ def test_versions_are_capped_newest_last() -> None:
 
 def test_a_live_read_only_reflex_fires(world) -> None:
     world.live()
-    assert world.cerebellum.match(GOAL) is not None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is not None
 
 
 def test_a_changed_file_refuses_the_reflex_and_withdraws_it(world) -> None:
@@ -253,7 +265,7 @@ def test_a_changed_file_refuses_the_reflex_and_withdraws_it(world) -> None:
     stale reflex is taken out of service like a retired one."""
     world.live()
     world.write("notes.md", "release notes v2: someone edited this\n")
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     assert any(STALE in reason for reason in world.bus.reasons())
     assert world.record().state == "suspended"
     assert world.playbook_statuses() == ["retired"]
@@ -264,9 +276,11 @@ def test_a_listing_goes_stale_when_an_entry_is_added(world) -> None:
     (world.project / "docs").mkdir()
     world.write("docs/a.md", "a\n")
     world.live("list the docs", ["read_directory: path=docs"])
-    assert world.cerebellum.match("list the docs") is not None
+    assert (
+        world.cerebellum.match("list the docs", principal="principal:test") is not None
+    )
     world.write("docs/b.md", "b\n")
-    assert world.cerebellum.match("list the docs") is None
+    assert world.cerebellum.match("list the docs", principal="principal:test") is None
     assert world.record("list the docs").state == "suspended"
 
 
@@ -275,16 +289,16 @@ def test_an_edit_undone_before_any_match_withdraws_nothing(world) -> None:
     world.live()
     world.write("notes.md", "release notes v2\n")
     world.write("notes.md", "release notes v1\n")
-    assert world.cerebellum.match(GOAL) is not None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is not None
 
 
 def test_reverting_the_file_does_not_bring_a_withdrawn_reflex_back(world) -> None:
     world.live()
     world.write("notes.md", "release notes v2\n")
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     world.write("notes.md", "release notes v1\n")
     world.cerebellum.try_compile_all()
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
 
 
 def test_a_verified_success_does_not_revalidate_a_reviewed_skill(world) -> None:
@@ -292,29 +306,37 @@ def test_a_verified_success_does_not_revalidate_a_reviewed_skill(world) -> None:
     world.write("notes.md", "release notes v2\n")
     before = world.record().last_validated_versions
     world.library.record_attempt(
-        GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+        GOAL,
+        STEPS,
+        success=True,
+        strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     assert world.record().last_validated_versions == before
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     assert world.record().state == "suspended"
 
 
 def test_a_stale_reflex_returns_only_by_reactivation(world, tmp_path) -> None:
     world.live()
     world.write("notes.md", "release notes v2\n")
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     for _ in range(3):
         world.library.record_attempt(
-            GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+            GOAL,
+            STEPS,
+            success=True,
+            strength=VerificationStrength.STRONG,
+            principal="principal:test",
         )
     world.cerebellum.try_compile_all()
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     record = world.record()
     _service(world, tmp_path).activate_skill(
         _authorization(record.skill_id, record.version)
     )
     world.cerebellum.try_compile_all()
-    assert world.cerebellum.match(GOAL) is not None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is not None
 
 
 def test_the_stop_freezes_the_withdrawal(world, tmp_path) -> None:
@@ -323,7 +345,7 @@ def test_the_stop_freezes_the_withdrawal(world, tmp_path) -> None:
     world.live()
     _engage(tmp_path)
     world.write("notes.md", "release notes v2\n")
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     assert world.record().state == "active"
 
 
@@ -332,7 +354,7 @@ def test_a_refusal_that_is_not_staleness_withdraws_nothing(world, tmp_path) -> N
     other = tmp_path / "elsewhere" / "training_ground"
     other.mkdir(parents=True)
     scope_lock.set_scope_roots([other])
-    assert world.cerebellum.match(GOAL) is None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is None
     assert any("scope does not match" in r for r in world.bus.reasons())
     assert world.record().state == "active"
 
@@ -371,7 +393,11 @@ def _stale_candidate(world: World) -> list[str]:
 def test_a_candidates_verified_success_records_the_code_it_ran_on(world) -> None:
     before = _stale_candidate(world)
     world.library.record_attempt(
-        GOAL, STEPS, success=True, strength=VerificationStrength.STRONG
+        GOAL,
+        STEPS,
+        success=True,
+        strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     assert world.record().last_validated_versions == [
         *before,
@@ -389,20 +415,25 @@ def test_a_success_elsewhere_vouches_for_nothing_here(world) -> None:
         ["read_file: filepath=other.md"],
         success=True,
         strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     assert world.record().last_validated_versions == before
 
 
 def test_a_failure_revalidates_nothing(world) -> None:
     before = _stale_candidate(world)
-    world.library.record_attempt(GOAL, STEPS, success=False)
+    world.library.record_attempt(GOAL, STEPS, success=False, principal="principal:test")
     assert world.record().last_validated_versions == before
 
 
 def test_a_weak_success_revalidates_nothing(world) -> None:
     before = _stale_candidate(world)
     world.library.record_attempt(
-        GOAL, STEPS, success=True, strength=VerificationStrength.WEAK
+        GOAL,
+        STEPS,
+        success=True,
+        strength=VerificationStrength.WEAK,
+        principal="principal:test",
     )
     assert world.record().last_validated_versions == before
 
@@ -413,7 +444,9 @@ def test_a_weak_success_revalidates_nothing(world) -> None:
 def test_a_green_command_has_no_plan_and_never_fires(world) -> None:
     """Naming a real file does not make an ``echo`` a verification."""
     world.live("print the banner", ["verify: command=echo notes.md"])
-    assert world.cerebellum.match("print the banner") is None
+    assert (
+        world.cerebellum.match("print the banner", principal="principal:test") is None
+    )
     assert any(
         "verification plan is not an admitted structured verifier" in reason
         for reason in world.bus.reasons()
@@ -430,7 +463,10 @@ def test_a_test_runner_reflex_passes_the_engine(world) -> None:
         "run the t tests", ["verify: command=pytest training_ground/test_t.py -q"]
     )
     assert world.library.reflex_applicability(trail) is None
-    assert world.cerebellum.match("run the t tests") is not None
+    assert (
+        world.cerebellum.match("run the t tests", principal="principal:test")
+        is not None
+    )
 
 
 def test_a_plan_runs_only_on_a_target_that_exists_or_that_it_creates(world) -> None:
@@ -541,11 +577,11 @@ def test_no_verdict_is_a_refusal(world, gate, reason) -> None:
     """A gate is attached once and never replaced, so this is a second
     cerebellum over the same compiled reflex, wired to a gate without one."""
     world.live()
-    assert world.cerebellum.match(GOAL) is not None
+    assert world.cerebellum.match(GOAL, principal="principal:test") is not None
     bus = Bus()
     cerebellum = Cerebellum(world.memory_db, bus=bus)
     cerebellum.attach_reflex_gate(gate(world.library))
-    assert cerebellum.match(GOAL) is None
+    assert cerebellum.match(GOAL, principal="principal:test") is None
     assert any(reason in r for r in bus.reasons())
 
 
@@ -584,6 +620,7 @@ def _turn(cerebellum: Cerebellum, text: str) -> tuple[list[str], _Chat]:
         max_iters=2,
         cerebellum=cerebellum,
         audit_log=lambda *a, **k: None,
+        principal="principal:test",
     )
     events = list(agent.run([{"role": "user", "content": text}]))
     return [str(e.get("type")) for e in events if isinstance(e, dict)], chat

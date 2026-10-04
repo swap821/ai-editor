@@ -773,12 +773,18 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
     ) -> None:
         from aios.application.memory.institutional_skills import (
             InstitutionalSkillAdapter,
+            SkillTrailIndex,
+            build_skills_slot,
         )
+        from aios.application.memory.provenance_policy import ProvenanceWriter
+        from aios.application.memory.reflex_contract import stamp_for_activation
         from aios.core.verification_strength import VerificationStrength
         from aios.domain.learning.repository import SkillRepository
+        from aios.memory.provenance import LearningSigner, ProvenanceStore
         from aios.memory.skills import SkillMemory
         from tools import migrate_skills_to_institutional as mig
 
+        OPERATOR = "operator:payoff-test"
         db = self._stores(tmp_path, monkeypatch)
         goal = "run the parser tests and report the result"
         steps = ["verify: command=pytest tests/test_parser.py -q"]
@@ -796,15 +802,38 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
         slot = payoff.live_skills_slot()
         assert isinstance(slot, InstitutionalSkillAdapter)
         assert legacy.relevant_verified(goal, 3), "the legacy store calls it verified"
-        assert payoff._recall_skills(slot, goal) == [], (
+        assert payoff._recall_skills(slot, goal, principal=OPERATOR) == [], (
             "nothing activated, nothing recalled"
         )
         assert payoff.library_active_count() == 0
         (record,) = SkillRepository(payoff.LIBRARY_DB).list_skills()
         repo = SkillRepository(payoff.LIBRARY_DB)
+        # The operator's activation, as the route makes it (plan Phase 4c-2):
+        # the migrated skill becomes his, and the activation is signed.
+        repo.save(stamp_for_activation(record, activator=OPERATOR))
         repo.transition_state(record.skill_id, record.version, "human_reviewed")
         repo.transition_state(record.skill_id, record.version, "active")
-        assert [r["goal_pattern"] for r in payoff._recall_skills(slot, goal)] == [goal]
+        assert payoff._recall_skills(slot, goal, principal=OPERATOR) == [], (
+            "transitions alone are not an activation"
+        )
+        signer = build_skills_slot(
+            repository=repo,
+            trails=SkillTrailIndex(payoff.LIBRARY_DB),
+            history=None,
+            provenance=ProvenanceWriter(
+                ProvenanceStore(payoff.LIBRARY_DB),
+                LearningSigner.from_env(),
+                source_kind="live",
+            ),
+        )
+        assert signer.attest_activation(
+            record.skill_id, record.version, approver=OPERATOR
+        )
+        assert [
+            r["goal_pattern"]
+            for r in payoff._recall_skills(slot, goal, principal=OPERATOR)
+        ] == [goal]
+        assert payoff._recall_skills(slot, goal, principal="principal:other") == []
         assert payoff.library_active_count() == 1
 
     def test_a_goal_learned_only_in_the_library_is_practised(
@@ -820,6 +849,7 @@ class TestD3TheOnArmRecallsThroughTheLiveSlot:
             ["read_file: parser.py"],
             success=True,
             strength=VerificationStrength.STRONG,
+            principal=None,
         )
         assert "summarise the parser module" in payoff.practice_history(db)
 

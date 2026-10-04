@@ -35,10 +35,13 @@ class FakeSkillMemory:
         self._results = results or []
         self._raise = raise_on_recall
 
-    def relevant_verified(self, query: str, limit: int = 3) -> list[dict]:
+    def relevant_verified(
+        self, query: str, limit: int = 3, *, principal: str | None
+    ) -> list[dict]:
         if self._raise:
             raise RuntimeError("boom")
-        return self._results[:limit]
+        # Plan Phase 4c-2: a recall that names no one recalls no skill.
+        return self._results[:limit] if principal else []
 
 
 class FakeFacts:
@@ -97,7 +100,10 @@ def test_try_plan_matches_swarm_pattern() -> None:
 
 def test_try_plan_matches_skill_arc() -> None:
     planner = NativePlanner(skills=FakeSkillMemory([SKILL_MATCH]))
-    result = planner.try_plan("create a pytest for the router module")
+    assert planner.try_plan("create a pytest for the router module") is None
+    result = planner.try_plan(
+        "create a pytest for the router module", principal="principal:test"
+    )
     assert result is not None
     assert result.source == "skill"
     assert result.source_id == 17
@@ -159,7 +165,7 @@ def test_evidence_confidence_from_swarm() -> None:
 
 def test_evidence_confidence_from_skill() -> None:
     planner = NativePlanner(skills=FakeSkillMemory([SKILL_MATCH]))
-    result = planner.try_plan("create a pytest")
+    result = planner.try_plan("create a pytest", principal="principal:test")
     assert result is not None
     expected = round(SKILL_MATCH["strength"] * SKILL_MATCH["relevance"], 4)
     assert result.evidence_confidence == expected
