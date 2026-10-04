@@ -3846,7 +3846,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 508 condition forced True: getattr(hit, \"verification_status\", \"unverified\") == \"verified\""
@@ -3861,7 +3862,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 508 condition forced False: getattr(hit, \"verification_status\", \"unverified\") == \"verified\""
@@ -3876,7 +3878,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 512 condition forced True: hit not in trusted"
@@ -3891,7 +3894,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 512 condition forced False: hit not in trusted"
@@ -3906,7 +3910,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 514 condition forced True: withheld"
@@ -3921,7 +3926,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 514 condition forced False: withheld"
@@ -3936,7 +3942,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 521 condition forced True: config.CRAG"
@@ -3951,7 +3958,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 521 condition forced False: config.CRAG"
@@ -3966,7 +3974,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 530 condition forced True: config.CRAG_LLM_JUDGE and crag_judge is not None"
@@ -3981,7 +3990,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 530 condition forced False: config.CRAG_LLM_JUDGE and crag_judge is not None"
@@ -3996,7 +4006,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 532 condition forced True: config.CRAG_LLM_JUDGE"
@@ -4011,7 +4022,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 532 condition forced False: config.CRAG_LLM_JUDGE"
@@ -4026,7 +4038,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 539 condition forced True: config.CRAG_EXTERNAL and verdict.action in (\n                CragAction.INCORREC"
@@ -4041,7 +4054,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 539 condition forced False: config.CRAG_EXTERNAL and verdict.action in (\n                CragAction.INCORREC"
@@ -4056,7 +4070,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 546 condition forced True: crag_cloud_source is not None"
@@ -4071,7 +4086,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 546 condition forced False: crag_cloud_source is not None"
@@ -4086,7 +4102,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 550 condition forced True: ext_docs"
@@ -4101,7 +4118,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 550 condition forced False: ext_docs"
@@ -4116,7 +4134,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 555 condition forced True: verdict.action is CragAction.INCORRECT"
@@ -4131,7 +4150,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 555 condition forced False: verdict.action is CragAction.INCORRECT"
@@ -4146,7 +4166,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 558 condition forced True: external_body"
@@ -4161,7 +4182,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 558 condition forced False: external_body"
@@ -4176,7 +4198,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 561 condition forced True: trusted"
@@ -4191,7 +4214,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 561 condition forced False: trusted"
@@ -4206,7 +4230,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 565 condition forced True: unverified"
@@ -4221,7 +4246,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 565 condition forced False: unverified"
@@ -4236,7 +4262,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 569 condition forced True: trusted_body"
@@ -4251,7 +4278,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 569 condition forced False: trusted_body"
@@ -4266,7 +4294,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 571 condition forced True: unverified_body"
@@ -4281,7 +4310,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 571 condition forced False: unverified_body"
@@ -4296,7 +4326,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 573 condition forced True: external_body"
@@ -4311,7 +4342,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 573 condition forced False: external_body"
@@ -4326,7 +4358,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 575 condition forced True: crag_blocks"
@@ -4341,7 +4374,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 575 condition forced False: crag_blocks"
@@ -4356,7 +4390,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 583 condition forced True: trusted"
@@ -4371,7 +4406,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 583 condition forced False: trusted"
@@ -4386,7 +4422,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 587 condition forced True: unverified"
@@ -4401,7 +4438,8 @@
     "tests/test_phase3c_recall_gate.py",
     "tests/test_crag.py",
     "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py"
+    "tests/test_recall_blocks_match_live_path.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: _recall_memory line 587 condition forced False: unverified"

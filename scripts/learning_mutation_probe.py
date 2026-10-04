@@ -138,6 +138,36 @@ INERT: dict[str, str] = {
         "state or raises (KeyError, or check_transition's refusal); it never "
         "returns None or another state."
     ),
+    "gen:turn_pipeline:_recall_memory:550:always": (
+        "refine_context(query, []) is '' by its contract ('empty when there is "
+        "no real content'), the value the guard yields."
+    ),
+    "gen:turn_pipeline:_recall_memory:561:always": (
+        "trusted is never empty here: an empty one returned None at "
+        "`if not hits` (hits = trusted), so the condition is already always "
+        "true."
+    ),
+    "gen:turn_pipeline:_recall_memory:583:always": (
+        "as _recall_memory:561 -- trusted is never empty at the plain block."
+    ),
+    # Plan Phase 0b (#372) made `unverified` the constant empty list: no
+    # unverified memory is recalled into a prompt. The branches on it are dead
+    # code kept for the CRAG block's shape; their ALWAYS mutations add an
+    # empty unverified section and are killed by
+    # test_no_recall_block_ever_carries_unverified_memory.
+    "gen:turn_pipeline:_recall_memory:565:always": (
+        "unverified is [] (Phase 0b), and refine_context(query, []) is ''."
+    ),
+    "gen:turn_pipeline:_recall_memory:565:never": (
+        "unverified is [] (Phase 0b): the condition is already always false."
+    ),
+    "gen:turn_pipeline:_recall_memory:571:never": (
+        "unverified_body is '' because unverified is [] (Phase 0b): the "
+        "condition is already always false."
+    ),
+    "gen:turn_pipeline:_recall_memory:587:never": (
+        "unverified is [] (Phase 0b): the condition is already always false."
+    ),
     "gen:service:LearningService.activate_skill:391:never": (
         "as activate_skill:386 -- transition_state returns the record in the "
         "target state or raises."
