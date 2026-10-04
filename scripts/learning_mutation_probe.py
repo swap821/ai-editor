@@ -122,6 +122,11 @@ INERT: dict[str, str] = {
         "same function, so it stays a pure function of the target and its "
         "absence: staleness is unchanged."
     ),
+    "gen:recall_envelope:model_visible:173:never": (
+        "a short-circuit: _cloud_form('') is '' (the privacy filter leaves "
+        "empty content empty, and on failure returns the text), so an empty "
+        "text yields [text] either way."
+    ),
 }
 
 
