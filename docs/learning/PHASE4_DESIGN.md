@@ -322,3 +322,218 @@ did not show what those lines were, and an approval prompt that says
 principal, approver, signature) is not shown yet. Recall reaches the prompt as
 text, so a line cannot yet be mapped back to its row. That needs structured
 recall, which comes with principal scoping (Phase 4 remainder).
+
+## 4c-1 as built (2026-10-04): learned memory belongs to a principal (T8)
+
+The operator made three decisions:
+
+- **Principal scoping covers everything** (2026-09-29). Skills and reflexes
+  follow in 4c-2.
+- **Rows learned before scoping are withheld from everyone** (2026-10-04),
+  until re-earned or re-admitted.
+- The latency budget is slice 4c-3.
+
+### What was true before (read from the code)
+
+- **No learned row recorded a principal.** The signed provenance record had a
+  `principal` field, and nothing filled it.
+- **Rows were deduplicated by content alone.** The same lesson recurring in
+  two principals' turns incremented one shared row. One principal could
+  therefore increment, promote, supersede or contradict another's lesson,
+  memory or fact.
+- **The self-model was one global cache.** `CORTEX_BUS` is on by default, so
+  the turn read a self-model synthesised from everyone's lessons. The
+  `turn.completed` event that refreshed it named no one.
+- **RT-10 planted a chat turn.** It was `not_reached`: stopped by
+  `recall_isolation`, which withholds unverified chat, not by any scoping.
+
+### As built
+
+- **Identity.** `semantic_memory`, `mistake_pool`, `semantic_facts` and
+  `fact_proposals` each gain a `principal_id` column. The column is additive
+  and nullable.
+  - Every deduplication, recurrence, promotion, supersession, contradiction
+    check and proposal matches it NULL-safely (`principal_id IS ?`).
+  - Every graph walk, at every hop, stays inside one principal's facts.
+  - The same words from two principals are two rows.
+- **Signature.** Every learned write names its principal in its provenance
+  record, under the signature.
+- **The gate** (`RecallGate.admits`, the single choke point for lessons,
+  memory and facts) admits a row only for the principal its SIGNED provenance
+  names. It never reads the column, which anyone with the database could
+  edit. Three new refusals are counted by reason:
+
+  | Refusal | When |
+  |---|---|
+  | `no principal` | the recall did not say who is asking |
+  | `unattributed` | the row was learned before scoping |
+  | `another principal` | the row is someone else's |
+
+- **Plumbing, explicit and never ambient.** A contextvar would die across the
+  SSE generator steps.
+  - `principal` is a required keyword on every learned read and write of the
+    authority and the adapters, so a missed caller fails in tests instead of
+    writing unattributed rows.
+  - The generate pipeline carries the authenticated principal into every
+    recall, write, planner and tool agent. The chat pipeline and the memory,
+    plan, reflect and operator-model routes pass the caller's principal.
+    Council memory uses the mission contract's `operator_id`.
+  - Consolidation derives each memory's principal from its source row, never
+    from the caller.
+  - An unauthenticated caller recalls no learned row and writes unattributed
+    ones.
+- **The startup merge stays within one principal.** `init_memory_db` merges
+  duplicate active memories on every start. It now groups by text *and*
+  principal. The unique index moves from `content_hash` to
+  `(content_hash, COALESCE(principal_id, ''))`, and the old index is dropped.
+  Otherwise the next restart would have folded one principal's memory into
+  another's row.
+  `test_startup_never_merges_two_principals_memories` covers it.
+- **The self-model cache is per principal.** The turn tells the handler whose
+  turn it is (`remember`), the completion refreshes only that principal's
+  entry, and `recall(principal)` never returns another's. A completion
+  nobody named refreshes nothing.
+- **Old rows.** Existing rows keep `principal_id = NULL`, so they are withheld
+  from every principal.
+  - `tools/readmit_learning.py --principal P` is how the operator attributes a
+    reviewed row. It sets the column and signs a record naming P.
+  - A row another principal owns is never moved.
+  - `status` now lists signed but unattributed rows too.
+  - This costs nothing today: no live keys are pinned on master, so live recall
+    of lessons, memory and facts is already quiet.
+
+### What 4c-1 does not do (stated)
+
+- **Skills and reflexes are 4c-2.** The skill library and compiled reflexes
+  are still shared, because skill identity (`arc-<signature>`) must change to
+  include the principal.
+- **Semantic recall overfetches across principals, then gates.** Another
+  principal's rows can crowd a principal's own out of the fetch window. That
+  costs utility, not safety: nothing crosses the gate. The fix is a
+  principal-aware retrieval index.
+- **Uploaded documents are not learned memory.** `knowledge_sources` and
+  `knowledge_chunks` are documents the operator uploads for retrieval-augmented
+  answers, not rows the machine learned. They are outside this slice.
+- **The payoff harness is unchanged by design.** It learns and recalls
+  through raw stores as no principal, and never went through the gate, so
+  scoping changes nothing it measures.
+
+### Evidence
+
+- RT-10 (T8) is redefined. The planted row is now one recall *admits*: a
+  verified, signed lesson of principal A. A's own turn is the positive
+  control, since the lesson must reach A's prompt. Then B's turn must not see
+  it. The mission is credited only on both.
+  - On master cfdf2691 the same mission, run with the same runner, is
+    **breached**: Alice's verified lesson reached Bob's prompt
+    (`docs/learning/redteam_rt10_positive_control.json`).
+  - On this tree it is held, by `principal_scope`, and Alice's own turn saw
+    the lesson.
+- RT-13 is credited only on the `unsigned` refusal. It used to credit any gate
+  refusal, which after scoping could have been `no principal`. Its tampered
+  row now carries the victim's principal in the column, as an attacker with
+  the database would write it.
+- The reel's seeding and its floods (RT-07, RT-12) write as the harness's
+  enrolled operator. Without that, the RT-12 lesson flood would have raised a
+  `TypeError` on every write and read as "a cap refused part of the burst".
+- **Found while testing this slice, and fixed before it shipped:**
+  - The self-model handler first read `turn_id` from the event payload. The
+    bus stores `CanonicalEvent.to_dict()`, which is camelCase, and signs the row
+    with the turn id. The refresh would never have run, and the turn would
+    always have fallen back to inline synthesis. The test now appends a real
+    `CanonicalEvent` to a real bus, in the SSE layer's shape.
+  - Two legacy fallbacks were removed by mistake and restored: an indexer whose
+    `add()` takes no keywords. The restored fallback writes an unattributed
+    row, so it can never widen recall.
+- **The reel found a live-path break that every test missed.** In production
+  the turn indexer *is* the semantic adapter (`deps.get_semantic_indexer`).
+  `record_chat` wrote to it with the store's keyword, `principal_id`, but the
+  adapter's `add` takes `principal`. Both the call and its legacy fallback
+  raised `TypeError`, which `_index_turn` swallows as "Failed to index", so
+  no live turn would have been stored. The unit and API tests passed because
+  they inject a fake indexer.
+  - The reel showed it only indirectly. RT-01 went from held to
+    `not_reached`: the forwarded note was never stored, so `recall_isolation`
+    had nothing to withhold.
+  - The fix: `record_chat` writes through the adapter with `principal`. That
+    is master's exact path, where the adapter scopes, signs and budgets the
+    write itself.
+  - A test now indexes through the adapter itself, and it fails without the
+    fix (mutation P24).
+  - To look for the same class of failure elsewhere, every structural
+    mission's backend log was swept for swallowed errors (`TypeError`,
+    unexpected or missing keywords, "Failed to", tracebacks). After the fix
+    the only one left is RT-07's. It is the emergency stop refusing the
+    write, which is what RT-07 tests, and it is identical on master.
+- **Pre-existing, reported, not changed:** an indexed turn spends the
+  semantic write budget twice, once in `record_chat` and once in the
+  adapter's `add`. Master does the same, measured at 2 on both trees.
+  Counting it once would double how many chat turns a minute fit under the
+  cap. That loosens a bound, so it is the operator's call, not part of this
+  slice.
+- **Tests: 29 new.** They are spread across these files:
+  - 18 in `tests/test_phase4c_principal_scope.py`;
+  - 3 end-to-end in `tests/test_api.py`: a reflected lesson, an indexed
+    generate turn and the turn's reflector all belong to the caller;
+  - 1 for the chat turn in `tests/test_conversation_pipeline.py`;
+  - 4 for re-admission;
+  - 3 for the reel's RT-10.
+
+  Another 19 test files were updated for the required keyword.
+
+  **The full backend suite on f98f5ef1:** 6,847 passed, 31 skipped, 10 failed.
+  - **Six** were the organ-30 fixture missing the caller's principal. They
+    were fixed in 2949dad6, and that file now passes 7 of 7.
+  - **Four** are organ-evidence checks:
+    - three fail identically on master, because organs 26 and 43 cite
+      670c8e91, a commit #434's squash orphaned (#436 re-gathers them);
+    - the fourth is the currency check that this PR's re-gather clears.
+- **Mutations: 27, all killed** (`tests/test_phase4c_principal_scope.py`,
+  `tests/test_learning_redteam_runner.py`, `tests/test_api.py`,
+  `tests/test_conversation_pipeline.py`, `tests/test_phase3d_readmit.py`),
+  under the hardened harness (the 24 named
+  tests must pass unmutated; a kill is pytest exit 1). They cover:
+  - a recall naming no one admitted;
+  - an unattributed row admitted;
+  - another principal's row admitted;
+  - memory dedupe and lesson recurrence ignoring the principal;
+  - a lesson promoted by another principal;
+  - another principal's fact contradicting, and a reconcile superseding
+    everyone's;
+  - anyone approving a proposal;
+  - a graph walk crossing principals (both hop filters dropped together);
+  - a lesson signed without its principal;
+  - the self-model cache shared, and an unnamed turn refreshing it;
+  - old databases never gaining the column;
+  - RT-10 credited on a row nobody saw, and its judge ignoring the owner;
+  - the reflect route recording unattributed lessons;
+  - a generate turn indexing with no principal, and its reflector unbound;
+  - a refused readmit still attributing the row; a readmit with no principal;
+    a readmit moving another principal's row; `status` hiding unattributed
+    rows;
+  - the live indexer written to as a store (the reel's finding);
+  - a chat turn indexing, recalling or building its facts block as no one.
+
+  The first run left three survivors, each a real test gap:
+  - **Promotion.** The test planted Bob's signed row, so Alice's promotion of
+    it was refused by the gate anyway. It now asserts the row's status and
+    signature are untouched.
+  - **The graph walk.** Each hop has two principal filters, and either one
+    alone holds. The mutation now drops both, which the test kills; the
+    single-filter mutations are equivalent by design.
+  - **The pending-lesson path.** No test recalled a pending lesson by
+    principal. One does now.
+
+  The readmit stop mutation also exposed a test that had never been
+  strengthened (a patch anchor had missed). The stop now refuses before any
+  write, and the test asserts the column stays empty.
+
+  One mutation is equivalent and was not run: the SQL filter on the weighted
+  walk. The gate refuses another principal's fact on every row the walk
+  returns, so dropping the filter changes what is fetched, never what is
+  recalled.
+- **The structural reel on f98f5ef1 holds 16, with 0 breached and 0 not
+  reached** (`docs/learning/redteam_phase4c_structural.json`). RT-10 is newly
+  held. Six missions remain blocked: they are behavioural, or not yet built.
+  The first reel, on f7f73e8c, held 15 with RT-01 `not_reached`. That was the
+  indexing break described above, not a defence.
