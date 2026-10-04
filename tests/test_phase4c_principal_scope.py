@@ -214,6 +214,27 @@ class TestRecallIsPerPrincipal:
         assert [h.external_id for h in own] == [mem]
 
 
+def test_a_turn_indexed_through_the_live_indexer_is_its_principals(world) -> None:
+    """In production the turn indexer IS the semantic adapter
+    (``deps.get_semantic_indexer``, pinned in ``test_memory_architecture``), so
+    ``record_chat`` writes through it. The learning red-team reel found every
+    live turn failing to index here: the adapter takes ``principal``, not the
+    store's ``principal_id``."""
+    mem = world.semantic.record_chat(
+        "User: hi\nAssistant: hello", indexer=world.semantic, principal=ALICE
+    )
+    with sqlite3.connect(world.db) as conn:
+        row = conn.execute(
+            "SELECT memory_type, verification_status, principal_id "
+            "FROM semantic_memory WHERE id = ?",
+            (mem,),
+        ).fetchone()
+    assert row == ("chat", "unverified", ALICE)
+    assert world.store.latest("semantic_memory", str(mem)).provenance.principal == (
+        ALICE
+    )
+
+
 def _digest(world, lid: int) -> str:
     from aios.application.memory.provenance_policy import lesson_digest
 

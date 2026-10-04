@@ -185,14 +185,27 @@ class LegacySemanticMemoryAdapter:
         target = indexer if indexer is not None else self.store
         prior = self._prior(target, content, principal)
         try:
-            mem_id = int(
-                target.add(
-                    content,
-                    memory_type="chat",
-                    verification_status="unverified",
-                    principal_id=principal,
+            if isinstance(target, LegacySemanticMemoryAdapter):
+                # The live indexer IS this adapter (``deps.get_semantic_indexer``),
+                # whose ``add`` takes ``principal``: it scopes, signs and
+                # budgets the write itself, exactly as before plan Phase 4c.
+                mem_id = int(
+                    target.add(
+                        content,
+                        memory_type="chat",
+                        verification_status="unverified",
+                        principal=principal,
+                    )
                 )
-            )
+            else:
+                mem_id = int(
+                    target.add(
+                        content,
+                        memory_type="chat",
+                        verification_status="unverified",
+                        principal_id=principal,
+                    )
+                )
         except TypeError:
             # A legacy indexer that takes no keywords writes the row with no
             # principal: recall withholds it from everyone (plan Phase 4c), so
