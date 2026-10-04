@@ -446,6 +446,7 @@ __all__ = [
     "PUBLIC_KEYS_FILE",
     "Provenance",
     "ProvenanceStore",
+    "ReadOnlyProvenanceStore",
     "SOURCE_KINDS",
     "SignedProvenance",
     "Verdict",
@@ -454,3 +455,42 @@ __all__ = [
     "journal_unsigned",
     "key_id",
 ]
+
+
+class ReadOnlyProvenanceStore(ProvenanceStore):
+    """The provenance table of a database it must not change: no schema is
+    created, the connection is ``mode=ro``, and every write refuses.
+
+    For a census of what the recall gate WOULD admit in a store a tool must not
+    touch (the payoff harness's preflight, D8), through the gate's own
+    derivation rather than a second one. A database with no provenance table
+    reads as no records: nothing is signed there.
+    """
+
+    def __init__(self, database: Path | str) -> None:  # noqa: D107 - no schema
+        self.database = Path(database)
+
+    def append(self, provenance: Provenance, signed: Optional[SignedProvenance]) -> int:
+        raise PermissionError("a read-only provenance store records nothing")
+
+    def append_derivation(self, **_: Any) -> int:  # type: ignore[override]
+        raise PermissionError("a read-only provenance store records nothing")
+
+    def latest(self, table: str, row_id: str) -> Optional[SignedProvenance]:
+        if not self.database.is_file():
+            return None
+        try:
+            return super().latest(table, row_id)
+        except sqlite3.OperationalError:
+            return None  # no provenance table: nothing is signed here
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = sqlite3.connect(
+            f"file:{self.database.as_posix()}?mode=ro", uri=True, timeout=5.0
+        )
+        connection.row_factory = sqlite3.Row
+        try:
+            yield connection
+        finally:
+            connection.close()
