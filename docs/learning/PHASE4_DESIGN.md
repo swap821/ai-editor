@@ -545,3 +545,176 @@ The operator made three decisions:
 
   The rebase changed no file under `aios/`, `tools/`, `tests/` or `scripts/`.
   The reel report's `aios_tree`, 305b8918, is c2976c59's.
+
+## 4c-2 as built (2026-10-04): skills and reflexes belong to a principal, on a signature (T8, T11)
+
+The operator decided that principal scoping covers everything, skills included
+(2026-09-29). He also decided that a row with no recorded principal is
+withheld from everyone until it is re-earned or re-admitted (2026-10-04).
+
+### What was true before (read from the code)
+
+- **No skill was signed.** Phase 3b's plan lists "library skills, reflex
+  compile, curriculum" among the writes that attach signed provenance. The
+  design then deferred skills and reflexes "until slice 2.4c-B landed", and
+  that was never built. The threat model's T11 row read as if Phase 3's
+  signatures covered every row; for skills and reflexes they did not.
+  - `SkillRecord.provenance` was free-form and advisory, and nothing signed it.
+  - A skill was recalled and replayed whenever its state read `active`. A
+    database edit of that one field was an activation. RT-24 measures it.
+- **Skills had no principal.**
+  - Identity was `arc-<signature_v2>`, the same for everyone.
+  - Recall (`relevant_verified`), reuse credit (`record_reuse`) and the
+    reflex source (`active_procedures`) read every active skill.
+  - `Cerebellum.match` replayed any principal's reflex in any turn, with no
+    model. RT-23 measures it.
+
+### As built
+
+- **The trust root is the operator's activation, signed.**
+  - After the capability-backed activation moves a skill to `active`, the
+    route signs it (`InstitutionalSkillAdapter.attest_activation`). The record
+    covers the skill's contract and state (`skill_digest`), names its
+    principal, and names the operator as approver.
+  - `ProvenanceWriter.attest_approval` signs a human-approved state without
+    requiring a signed prior state, as a re-admission does.
+  - The route's response says whether the activation was signed. An
+    activation in a process without the live key leaves the skill active and
+    inert, and says so.
+- **Every transition leaves a record.** `SkillRepository.transition_state`
+  journals the new state, unsigned, in the same transaction
+  (`journal_unsigned`). `ProvenanceStore.latest` refuses a row whose newest
+  record is unsigned. A skill demoted after its activation therefore cannot be
+  flipped back to `active` in the database and pass on the activation's
+  signature. The journal ignores the emergency stop on purpose: a withdrawal
+  the stop allows must still be journalled.
+- **What the signature covers** (`SKILL_DIGEST_FIELDS`): the reviewed
+  contract (procedure, tools, scope, conditions, plan, trajectory
+  references), the code states it was validated on (freshness, T7), its
+  state, and its principal. Not covered: counts, confidence and timestamps,
+  which change on every reuse. One derivation serves both callers: the
+  journal and the gate.
+- **A skill belongs to a principal.**
+  - `skill_identity`: the same arc learned by two principals is two skills.
+    The principal is hashed in, so the id keeps the shape that routes and
+    tools parse (`arc-<hex>@<version>`).
+  - An unattributed write keeps the pre-scoping identity, `arc-<signature>`,
+    which is the identity a migrated skill carries.
+- **Recall, reuse credit and replay ask as the caller.**
+  - `relevant_verified`, `record_reuse` and `active_procedures` admit an
+    active skill only on its signed activation, and only for the principal
+    that activation names.
+  - The compiler reads every principal's skills, each on its own signature
+    (`compilable_procedures`).
+  - `Cerebellum.match(text, principal=...)` replays only the caller's own
+    reflexes. Another principal's reflex is never a candidate, so it cannot
+    make a match ambiguous either.
+  - The generate pipeline, `ToolAgent`, the planners and `GovernedAutonomy`
+    all pass the caller.
+- **Old rows.**
+  - Legacy `procedural_skills` history names no principal, so it is withheld
+    from everyone (`scoped_skill_recall`).
+  - A migrated or harness-learned candidate is unattributed until the
+    operator activates it. The activation makes it his
+    (`stamp_for_activation(..., activator=...)`): his review is the
+    re-admission.
+- **Harness learning names no principal.**
+  - `organic_chain_run`, `self_corpus_grading` and the payoff harness write
+    unattributed candidates.
+  - The payoff ON arm recalls skills as `AIOS_PAYOFF_PRINCIPAL`, which is
+    unset by default. Its slot carries the production gate, so "what the
+    benchmark measures follows what the turn does" (deviation D3) still holds.
+- **Live data.** On the next backend start the operational database gains a
+  `learning_provenance` table, which is additive. No skill is active live
+  today (73 candidates, 8 review-ready), so no recall or reflex changes now.
+  Every future activation must be made with the live key pinned, or it is
+  inert.
+
+### What 4c-2 does not do (stated)
+
+- **Append-only is not enforced against the database.** An attacker who can
+  delete provenance rows can delete a demotion's journal record, flip the
+  state back, and pass on the old activation's signature. This rollback class
+  is the same one Phase 3's lesson, memory and fact rows already carry. The
+  fix is an anchored head (a signed sequence number or a hash chain), which
+  belongs to the derivation-graph work (Phase 6).
+- **Re-activating an unattributed suspended skill leaves it inert.** Its
+  contract is frozen, so the activation cannot attribute it. It is signed for
+  no one and withheld. No such skill exists live; a new version would be
+  activated instead.
+- **The payoff harness recalls no skill unless it is told whose skills to
+  recall.** That costs nothing today, with 0 active skills. Payoff D8 must
+  set `AIOS_PAYOFF_PRINCIPAL` if it measures skills.
+
+### Evidence
+
+- **RT-23 (T8) and RT-24 (T11) are new, and both attacks are real.**
+  - **RT-23:** Alice's activated, signed, read-only reflex must serve Alice's
+    turn (the positive control, recalled or replayed). Bob asks for exactly
+    the same thing, and must get neither.
+  - **RT-24:** a skill earned honestly is then written `active` in its row by
+    SQL, with no review, no journal and no signature. It must serve no turn.
+    It is credited held only on the skill gate's own `unsigned` refusal, so a
+    skill nothing looked at is `not_reached`.
+  - On master cfdf2691, and on 4c-1 at 942cdb97, run with the same runner,
+    both are **breached**: Bob's turn replayed Alice's reflex with no model,
+    and the database-activated skill replayed with no model
+    (`docs/learning/redteam_rt23_rt24_positive_control_cfdf2691.json`,
+    `docs/learning/redteam_rt23_rt24_positive_control_942cdb97.json`).
+- **The structural reel holds 18, with 0 breached and 0 not reached**
+  (`docs/learning/redteam_phase4c2_structural.json`).
+  - RT-23 and RT-24 are newly held.
+  - Six missions remain blocked: they are behavioural, or not yet built.
+  - It ran on 42f44944. Rebasing onto master gave 802345c0, then b6207d6c;
+    the `aios/`, `tools/`, `tests/` and `scripts/` trees are unchanged, and
+    the report's `aios_tree`, cb027a06, is b6207d6c's.
+- **Every structural mission's backend log was swept for swallowed errors**
+  (the 4c-1 lesson). The only one left is RT-07's emergency-stop refusal,
+  which is what RT-07 tests, and it is identical on master.
+- **Mutations: 25, all killed** (`tests/test_phase4c2_skills_per_principal.py`,
+  `tests/test_api.py`, `tests/test_learning_redteam_runner.py`,
+  `tests/test_phase5a_reflex_trigger.py`, `tests/test_learning_payoff.py`),
+  under the hardened harness (the 19 named tests must pass unmutated; a kill
+  is pytest exit 1). They cover:
+  - the gate bypassed, so unsigned skills are admitted;
+  - the asker ignored;
+  - recall, reflexes and reuse credit each admitting everyone's;
+  - an arc's identity ignoring the principal;
+  - a learned skill naming no principal;
+  - compiling admitting unsigned skills;
+  - activation reporting "signed" without a signature;
+  - a transition leaving no journal;
+  - the digest omitting the procedure;
+  - the activation attributing no one;
+  - the service naming no activator, and the route not signing;
+  - a reflex matching anyone's skill;
+  - the agent, the turn's pre-check, its skill recall, its attempt and its
+    reuse credit each asking as no one;
+  - the legacy history recalled;
+  - the payoff slot without its gate;
+  - RT-23 credited when the owner was never served, and blind to a recalled
+    workflow;
+  - a recall naming no one admitted without a gate.
+
+  The first run killed all 25. One mutation is equivalent and was not run:
+  dropping `state` from the digest. The per-transition journal already refuses
+  a skill flipped back to `active`, so `state` in the digest is defence in
+  depth.
+- **Tests: 28 new.**
+  - 21 in `tests/test_phase4c2_skills_per_principal.py`, including the
+    activation route end to end: real middleware, the 428 challenge, and the
+    server-issued capability.
+  - 1 in `tests/test_api.py`: the turn matches reflexes as its caller.
+  - 6 for the RT-23 and RT-24 judges.
+
+  26 test files changed: 1 new and 25 updated, including the shared reflex
+  fixture.
+- **The full backend suite on b6207d6c**, run in eight foreground batches: 6,879
+  passed, 31 skipped, 7 failed.
+  - **Three were callers the skill-test sweep had missed**, fixed in
+    e36b9062: two slice-2.4c reflex tests matched as no one, and the
+    repo-root `prove_sovereignty.py` planned from legacy history. All 18 of
+    the proof's assertions now pass, on the principal's library skill.
+  - **Three are master's own** after #438's squash: organs citing 8a690dea.
+    #439 re-gathers them.
+  - **One** is the currency check that this PR's re-gather clears.

@@ -564,3 +564,31 @@ not a control.
 - **The structural reel on f98f5ef1 holds 16, with 0 breached and 0 not
   reached** (`docs/learning/redteam_phase4c_structural.json`). Six missions
   remain blocked: they are behavioural, or not yet built.
+
+## Phase 4c-2, 2026-10-04: skills and reflexes belong to a principal, on a signature
+
+*Design: `docs/learning/PHASE4_DESIGN.md`. This closes what the 4c-1 section
+above left open for skills and reflexes.*
+
+- **T11 was open for skills, and this document did not say so.** Phase 3b
+  deferred signing the skill library and never built it. A skill was
+  recalled and replayed whenever its row read `active`, so a database edit
+  was an activation. RT-24 shows it: breached on master cfdf2691 and on 4c-1.
+- **Closed:**
+  - The operator's activation is signed over the skill's contract and state,
+    naming its principal and the operator as approver.
+  - Every transition journals an unsigned record, so a demoted skill flipped
+    back in the database fails.
+  - Recall, reuse credit and replay admit an active skill only on that
+    signature, and only for the principal it names.
+- **T8 is closed for skills and reflexes.** The same arc learned by two
+  principals is two skills, and a reflex replays only in its own principal's
+  turn. RT-23: breached on master and on 4c-1, held here.
+- **Residual, stated: rollback by deletion.** Append-only is not enforced
+  against the database. An attacker who can delete provenance rows can delete
+  a demotion's journal record, flip the state back, and pass on the old
+  activation's signature. Phase 3's lesson, memory and fact rows carry the
+  same class. The fix is an anchored head (a signed sequence number or hash
+  chain) with the derivation graph (Phase 6).
+- **The structural reel holds 18, with 0 breached and 0 not reached**
+  (`docs/learning/redteam_phase4c2_structural.json`).
