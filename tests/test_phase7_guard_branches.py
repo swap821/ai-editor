@@ -664,3 +664,216 @@ class TestWithdrawingAReflexSource:
         trail = library.trails.trail_for("arc-notrail", 1)
         assert library.withdraw_reflex_source(trail) is True
         assert library.repository.get("arc-notrail", 1).state == "suspended"
+
+
+# ---------------------------------------------------------------- the reflexes
+
+REFLEX_GOAL = "show the reflex trigger notes"
+#: A read-only arc on a file that exists, so its freshness plan can run.
+REFLEX_STEPS = ["read_file: filepath=README.md"]
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.events: list = []
+
+    def append(self, event) -> int:
+        self.events.append(event)
+        return len(self.events)
+
+    def decisions(self) -> list[tuple[str, str]]:
+        return [(e.payload["decision"], e.payload["reason"]) for e in self.events]
+
+
+def _reflex_world(root: Path, *, threshold: float = 0.5, arcs=None):
+    from aios.core.cerebellum import Cerebellum
+    from aios.core.verification_strength import VerificationStrength
+    from aios.memory.db import init_memory_db
+
+    db = root / "memory.sqlite"
+    init_memory_db(db)
+    library = _library(root)
+    arcs = arcs or [(REFLEX_GOAL, REFLEX_STEPS)]
+    for goal, steps in arcs:
+        for _ in range(3):
+            library.record_attempt(
+                goal,
+                steps,
+                success=True,
+                strength=VerificationStrength.STRONG,
+                principal=PRINCIPAL,
+            )
+    for record in library.repository.list_skills():
+        library.repository.transition_state(
+            record.skill_id, record.version, "human_reviewed"
+        )
+        library.repository.transition_state(record.skill_id, record.version, "active")
+    bus = _Bus()
+    cerebellum = Cerebellum(db, match_threshold=threshold, bus=bus)
+    cerebellum.attach_reflex_gate(library)
+    assert cerebellum.try_compile_all() == len(arcs)
+    return cerebellum, library, bus
+
+
+class TestTheReflexTrigger:
+    def test_a_directive_with_no_words_covers_nothing(self) -> None:
+        from aios.core.cerebellum import directive_coverage
+
+        assert directive_coverage("", REFLEX_GOAL) == 0.0
+        assert directive_coverage("?! ...", REFLEX_GOAL) == 0.0
+
+    def test_a_turn_with_no_authored_words_is_no_decision_at_any_threshold(
+        self, frozen_latch
+    ) -> None:
+        """Only the operator's own words are considered (plan Phase 5a). A
+        wholly quoted turn is not a reflex decision at all -- not even an
+        abstention in the decision stream -- however low the threshold."""
+        cerebellum, _, bus = _reflex_world(frozen_latch, threshold=0.0)
+        assert cerebellum.match(f"> {REFLEX_GOAL}", principal=PRINCIPAL) is None
+        assert bus.decisions() == []
+
+    def test_positive_control_the_authored_goal_replays(self, frozen_latch) -> None:
+        cerebellum, _, bus = _reflex_world(frozen_latch, threshold=0.0)
+        assert cerebellum.match(REFLEX_GOAL, principal=PRINCIPAL) is not None
+        assert bus.decisions() == [("replayed", "matched")]
+
+    def test_a_reflex_retired_during_the_match_is_not_replayed(
+        self, frozen_latch, monkeypatch
+    ) -> None:
+        """A retirement that lands between loading the playbooks and choosing
+        one -- whose skill could not be suspended, so the library would still
+        vouch for it -- is honoured: the playbook is no longer compiled."""
+        cerebellum, library, _ = _reflex_world(frozen_latch)
+        [playbook_id] = list(cerebellum._cache)
+        monkeypatch.setattr(library, "withdraw_reflex_source", lambda _trail: False)
+        loaded = cerebellum._activated
+
+        def retired_meanwhile(**kwargs):
+            activated = loaded(**kwargs)
+            cerebellum.decompile(playbook_id, reason="a concurrent retirement")
+            return activated
+
+        monkeypatch.setattr(cerebellum, "_activated", retired_meanwhile)
+        assert cerebellum.match(REFLEX_GOAL, principal=PRINCIPAL) is None
+        assert library.repository.list_skills()[0].state == "active"
+
+    def test_only_the_reflexes_that_tie_are_called_ambiguous(
+        self, frozen_latch
+    ) -> None:
+        """Two reflexes fit equally and a third clearly less: none fires, and
+        the decision stream names exactly the two that tied (M5 counts these)."""
+        banner = "show the banner alpha beta"
+        cerebellum, _, bus = _reflex_world(
+            frozen_latch,
+            arcs=[
+                (f"{banner} north", ["read_file: filepath=README.md"]),
+                (f"{banner} south", ["read_file: filepath=AGENTS.md"]),
+                (f"{banner} east west river", ["read_file: filepath=CLAUDE.md"]),
+            ],
+        )
+        assert cerebellum.match(banner, principal=PRINCIPAL) is None
+        assert bus.decisions() == [("abstained", "ambiguous")] * 2
+
+
+class TestWhatAnActivationBacks:
+    def test_a_skill_with_a_step_no_reflex_can_replay_backs_nothing(
+        self, frozen_latch
+    ) -> None:
+        """The retirement tool keeps a legacy playbook only if an activation
+        backs exactly its steps. A skill with a step a reflex cannot replay
+        (create_file) is no reflex source at all, so a playbook replaying just
+        its readable half is not backed: dropping the unreplayable step would
+        make it look like it is."""
+        from aios.application.memory.institutional_skills import _STEPS_JSON
+        from aios.core.cerebellum import Cerebellum, CompiledPlaybook, PlaybookStep
+        from aios.memory.db import init_memory_db
+
+        steps = ["read_file: filepath=README.md", "create_file: notes.md"]
+        library = _library(frozen_latch)
+        record = _record().model_copy(
+            update={
+                "skill_id": "arc-mixed",
+                "provenance": {"principal": PRINCIPAL, "procedure_format": _STEPS_JSON},
+                "procedure": json.dumps(steps),
+            }
+        )
+        library.repository.save(record)
+        library.repository.transition_state("arc-mixed", 1, "human_reviewed")
+        library.repository.transition_state("arc-mixed", 1, "active")
+        trail = library.trails.trail_for("arc-mixed", 1)
+        # Not vacuous: the library does offer it, with both of its steps.
+        assert library.compilable_procedures()[trail]["steps"] == steps
+        init_memory_db(frozen_latch / "memory.sqlite")
+        cerebellum = Cerebellum(frozen_latch / "memory.sqlite")
+        cerebellum.attach_reflex_gate(library)
+        legacy = CompiledPlaybook(
+            id=1,
+            skill_id=trail,
+            goal_pattern="show the readme",
+            signature_v2="",
+            steps=[PlaybookStep("read_file", {"filepath": "README.md"})],
+            compiled_at="",
+        )
+        assert cerebellum.activation_backs(legacy) is False
+
+
+class TestInvalidatingASkill:
+    def test_a_skill_with_no_live_reflex_invalidates_nothing(
+        self, frozen_latch
+    ) -> None:
+        cerebellum, _, _ = _reflex_world(frozen_latch)
+        assert cerebellum.invalidate_for_skill(987654) is False
+
+    def test_positive_control_a_live_reflex_is_retired(self, frozen_latch) -> None:
+        cerebellum, _, _ = _reflex_world(frozen_latch)
+        [playbook] = cerebellum._cache.values()
+        assert cerebellum.invalidate_for_skill(playbook.skill_id) is True
+        assert cerebellum.invalidate_for_skill(playbook.skill_id) is False
+
+
+def _playbook_rows(db: Path) -> list[tuple[str, object]]:
+    from aios.memory.db import get_connection
+
+    with get_connection(db) as conn:
+        return [
+            (str(r["status"]), r["retired_reason"])
+            for r in conn.execute(
+                "SELECT status, retired_reason FROM compiled_playbooks ORDER BY id"
+            ).fetchall()
+        ]
+
+
+class TestTakingAReflexOutOfService:
+    def test_a_refused_suspension_is_never_recorded_as_one(
+        self, frozen_latch, monkeypatch
+    ) -> None:
+        """The row records what happened: if the skill could not be suspended
+        it stays `decompiled` and claims no suspension."""
+        cerebellum, library, _ = _reflex_world(frozen_latch)
+        [playbook_id] = list(cerebellum._cache)
+        monkeypatch.setattr(library, "withdraw_reflex_source", lambda _trail: False)
+        cerebellum.decompile(playbook_id, reason="test")
+        assert _playbook_rows(frozen_latch / "memory.sqlite") == [("decompiled", None)]
+
+    def test_positive_control_a_recorded_suspension_says_so(self, frozen_latch) -> None:
+        cerebellum, _, _ = _reflex_world(frozen_latch)
+        [playbook_id] = list(cerebellum._cache)
+        cerebellum.decompile(playbook_id, reason="test")
+        [(status, reason)] = _playbook_rows(frozen_latch / "memory.sqlite")
+        assert status == "retired"
+        assert "skill suspended" in str(reason)
+
+    def test_a_reflex_this_instance_never_loaded_can_still_be_retired(
+        self, frozen_latch
+    ) -> None:
+        """Another process -- the retirement tool, a second worker -- retires
+        a playbook it has not cached."""
+        from aios.core.cerebellum import Cerebellum
+
+        cerebellum, library, _ = _reflex_world(frozen_latch)
+        [playbook_id] = list(cerebellum._cache)
+        other = Cerebellum(frozen_latch / "memory.sqlite")
+        other.attach_reflex_gate(library)
+        assert other._cache == {}
+        other.decompile(playbook_id, reason="test")
+        assert _playbook_rows(frozen_latch / "memory.sqlite")[0][0] == "retired"

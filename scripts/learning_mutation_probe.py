@@ -104,6 +104,17 @@ INERT: dict[str, str] = {
         "SkillLifecycleAuthority.apply_reuse_outcome reads the reason only on "
         "a failure (record_success takes none; demotion is skipped on success)."
     ),
+    "gen:cerebellum:Cerebellum.match:749:never": (
+        "a short-circuit: with no compiled playbook the loop adds no candidate "
+        "and records no decision, so match returns None either way; the only "
+        "work skipped is reading the library, and _activated swallows every "
+        "error (it cannot raise)."
+    ),
+    "gen:cerebellum:Cerebellum._activated:562:always": (
+        "the comprehension filter sits inside `if steps and all(step is not "
+        "None for step in steps)`, so there every step is not None and the "
+        "filter is already always true."
+    ),
 }
 
 

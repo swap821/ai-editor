@@ -4992,7 +4992,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: directive_coverage line 440 condition forced True: not words"
@@ -5010,7 +5011,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: directive_coverage line 440 condition forced False: not words"
@@ -5028,7 +5030,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 749 condition forced True: not self._cache"
@@ -5046,7 +5049,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 749 condition forced False: not self._cache"
@@ -5064,7 +5068,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 754 condition forced True: not directive"
@@ -5082,7 +5087,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 754 condition forced False: not directive"
@@ -5100,7 +5106,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 760 condition forced True: pb.status != \"compiled\""
@@ -5118,7 +5125,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 760 condition forced False: pb.status != \"compiled\""
@@ -5136,7 +5144,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 763 condition forced True: score < self.match_threshold"
@@ -5154,7 +5163,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 763 condition forced False: score < self.match_threshold"
@@ -5172,7 +5182,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 766 condition forced True: directive_coverage(directive, pb.goal_pattern, pb.steps)\n                < DIREC"
@@ -5190,7 +5201,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 766 condition forced False: directive_coverage(directive, pb.goal_pattern, pb.steps)\n                < DIREC"
@@ -5208,7 +5220,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 785 condition forced True: _conflicting_targets(user_message, pb.steps)"
@@ -5226,7 +5239,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 785 condition forced False: _conflicting_targets(user_message, pb.steps)"
@@ -5244,7 +5258,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 796 condition forced True: not candidates"
@@ -5262,7 +5277,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 796 condition forced False: not candidates"
@@ -5280,7 +5296,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 804 condition forced True: best_score - score < AMBIGUITY_MARGIN"
@@ -5298,7 +5315,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 804 condition forced False: best_score - score < AMBIGUITY_MARGIN"
@@ -5316,7 +5334,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 810 condition forced True: refusal is not None"
@@ -5334,7 +5353,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.match line 810 condition forced False: refusal is not None"
@@ -5352,7 +5372,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._activated line 548 condition forced True: compiling"
@@ -5370,7 +5391,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._activated line 548 condition forced False: compiling"
@@ -5388,7 +5410,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._activated line 559 condition forced True: steps and all(step is not None for step in steps)"
@@ -5406,7 +5429,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._activated line 559 condition forced False: steps and all(step is not None for step in steps)"
@@ -5424,7 +5448,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._activated line 562 condition forced True: step is not None"
@@ -5442,7 +5467,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._activated line 562 condition forced False: step is not None"
@@ -5460,7 +5486,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._inapplicable line 858 condition forced True: check is None"
@@ -5478,7 +5505,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._inapplicable line 858 condition forced False: check is None"
@@ -5956,7 +5984,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.invalidate_for_skill line 1458 condition forced True: not learning_permitted()"
@@ -5974,7 +6003,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.invalidate_for_skill line 1458 condition forced False: not learning_permitted()"
@@ -5992,7 +6022,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.invalidate_for_skill line 1478 condition forced True: live"
@@ -6010,7 +6041,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.invalidate_for_skill line 1478 condition forced False: live"
@@ -6028,7 +6060,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.decompile line 1372 condition forced True: not learning_permitted()"
@@ -6046,7 +6079,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum.decompile line 1372 condition forced False: not learning_permitted()"
@@ -6064,7 +6098,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._take_out_of_service line 1305 condition forced True: withdrawn"
@@ -6082,7 +6117,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._take_out_of_service line 1305 condition forced False: withdrawn"
@@ -6100,7 +6136,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._take_out_of_service line 1317 condition forced True: withdrawn"
@@ -6118,7 +6155,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._take_out_of_service line 1317 condition forced False: withdrawn"
@@ -6136,7 +6174,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._take_out_of_service line 1330 condition forced True: pb is not None"
@@ -6154,7 +6193,8 @@
     "tests/test_phase2_slice24c_reflexes.py",
     "tests/test_retired_reflex_returns_only_by_reactivation.py",
     "tests/test_phase4c2_skills_per_principal.py",
-    "tests/test_learning_freeze.py"
+    "tests/test_learning_freeze.py",
+    "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
    "note": "generated: Cerebellum._take_out_of_service line 1330 condition forced False: pb is not None"
