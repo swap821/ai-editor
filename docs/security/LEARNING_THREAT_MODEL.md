@@ -592,3 +592,43 @@ above left open for skills and reflexes.*
   chain) with the derivation graph (Phase 6).
 - **The structural reel holds 18, with 0 breached and 0 not reached**
   (`docs/learning/redteam_phase4c2_structural.json`).
+
+## Phase 7, 2026-10-05: the guards bite, measured
+
+*Design: `docs/learning/PHASE7_DESIGN.md`.*
+
+- **The standing mutation probe holds.**
+  - Report: `docs/learning/mutation/phase7_probe.json`.
+  - Every slice's hand-written mutations are kept, plus an `always` and a
+    `never` mutation for each decision point of the 61 named guard
+    functions.
+  - **521 mutations: 499 killed, 22 INERT (each with a checked reason), 0
+    survivors.**
+  - **192 of 193 guard decision points** are attacked by a killed mutation.
+    The one that isn't is dead code since Phase 0b, stated as such.
+- **The triage found untested branches, not defects.** No production code
+  changed. The branches that mattered most to this model:
+  - **T1/T2:** a model's echo of a recalled command is still memory's, not
+    the operator's.
+  - **T17:** the activation service refuses each unfit capability proof on
+    its own, behind the route's gateway.
+  - **Outside this table (governance and privacy of recall):** with the LLM
+    judge on, the governed judge is asked, never the ungoverned default.
+    `CRAG_EXTERNAL` off means nothing leaves the machine.
+- **Six invariants hold as properties** on generated cases against
+  independent models (`tests/test_learning_properties.py`):
+  - the gate (T1, T2, T8, T11);
+  - a skill's signature through random lifecycle walks and database state
+    flips (T11, T17);
+  - authored words only, for the reflex trigger (T3) and for the operator's
+    text (T1, T2);
+  - the write cap (T10);
+  - skill identity per principal (T8).
+
+  Ten hand mutations of the code they guard were all killed.
+- **The structural reel is unchanged.** It holds 18 with 0 breached
+  (`redteam_phase4c3_structural.json`), on the same `aios` tree and runner.
+- **Still open:**
+  - the behavioural missions (model and credentials: operator);
+  - RT-11 (needs a sandboxed run);
+  - the human campaign (operator).
