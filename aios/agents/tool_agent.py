@@ -743,6 +743,7 @@ class ToolAgent:
         audit_log: Optional[Callable[..., object]] = None,
         planner_llm: Optional[LLMClient] = None,
         self_analysis_llm: Optional[LLMClient] = None,
+        principal: Optional[str] = None,
         system_prompt: Optional[str] = None,
         allowed_tools: Optional[frozenset[str]] = None,
         autonomy: Optional[AutonomyLedger] = None,
@@ -859,6 +860,7 @@ class ToolAgent:
                 development=development,
                 skills=skills,
                 memory_authority=memory_authority,
+                principal=principal,
             )
             if planner_llm is not None
             else None

@@ -9,24 +9,29 @@ and project context. The output is consumed by system-prompt builders and
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any
+from typing import Any, Optional
 
 from aios.memory.facts import SemanticFacts
 
 
-def render_operator_model(facts: SemanticFacts) -> dict[str, Any]:
-    """Produce a structured snapshot grouped by subject category."""
+def render_operator_model(
+    facts: SemanticFacts, principal_id: Optional[str] = None
+) -> dict[str, Any]:
+    """Produce a structured snapshot of *principal_id*'s facts, grouped by
+    subject category (plan Phase 4c)."""
     from aios.memory.db import get_connection, init_memory_db
 
     init_memory_db(facts.db_path)
-    operator_facts = facts.facts_for("operator")
-    project_facts = facts.facts_for("project")
+    operator_facts = facts.facts_for("operator", principal_id=principal_id)
+    project_facts = facts.facts_for("project", principal_id=principal_id)
 
     with get_connection(facts.db_path) as conn:
         attr_rows = conn.execute(
             "SELECT * FROM semantic_facts "
             "WHERE subject LIKE 'operator.%' AND status = 'active' "
+            "AND principal_id IS ? "
             "ORDER BY id DESC",
+            (principal_id,),
         ).fetchall()
 
     preferences: list[dict[str, str]] = []

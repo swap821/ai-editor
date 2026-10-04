@@ -15,6 +15,7 @@ Safeguards (Blueprint Q6):
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import re
@@ -117,14 +118,27 @@ class ReflectionAgent:
         mistakes: Optional[MistakeMemory] = None,
         db_path: Path = config.MEMORY_DB_PATH,
         memory_authority: Optional[Any] = None,
+        principal: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.memory_authority = memory_authority
+        #: Plan Phase 4c: whose lessons this agent records, promotes and
+        #: recalls. A turn binds its authenticated principal (``bound_to``);
+        #: None writes unattributed lessons, which recall withholds from
+        #: everyone, and reads only those.
+        self.principal = principal
         self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
         if memory_authority is None and self.mistakes is None:
             raise RuntimeError(
                 "MemoryAuthority or an explicit mistake store is required"
             )
+
+    def bound_to(self, principal: Optional[str]) -> "ReflectionAgent":
+        """This agent, recording and recalling as *principal* (a shallow copy:
+        the model, stores and authority are shared)."""
+        bound = copy.copy(self)
+        bound.principal = principal
+        return bound
 
     #: How many times to ask the model for a parseable lesson before giving up.
     #: ``json_mode`` makes a valid JSON object the norm, but a small local model
@@ -227,10 +241,12 @@ class ReflectionAgent:
         }
         if self._authority_owns_lessons():
             mistake_id, recurrence = self.memory_authority.record_lesson_or_increment(
-                **record_kwargs
+                **record_kwargs, principal=self.principal
             )
         else:
-            mistake_id, recurrence = self.mistakes.record_or_increment(**record_kwargs)
+            mistake_id, recurrence = self.mistakes.record_or_increment(
+                **record_kwargs, principal_id=self.principal
+            )
 
         # Re-read the stored (clamped) delta so the return value is accurate.
         stored = (
@@ -259,9 +275,13 @@ class ReflectionAgent:
     ) -> None:
         """Promote a lesson after it proves itself with strong enough evidence."""
         if self._authority_owns_lessons():
-            self.memory_authority.promote_lesson(mistake_id, strength=strength)
+            self.memory_authority.promote_lesson(
+                mistake_id, strength=strength, principal=self.principal
+            )
         else:
-            self.mistakes.promote(mistake_id, strength=strength)
+            self.mistakes.promote(
+                mistake_id, strength=strength, principal_id=self.principal
+            )
 
     def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
         """``(mistake_id, failed_command)`` for this task's pending lessons.
@@ -270,8 +290,10 @@ class ReflectionAgent:
         so a lesson recorded before an approval pause is still promoted when its
         exact command later succeeds (the in-memory tracker is per-run())."""
         if self._authority_owns_lessons():
-            return self.memory_authority.pending_lesson_commands(task_id)
-        return self.mistakes.pending_command_pairs(task_id)
+            return self.memory_authority.pending_lesson_commands(
+                task_id, principal=self.principal
+            )
+        return self.mistakes.pending_command_pairs(task_id, principal_id=self.principal)
 
     def recall_pending(self, task_id: str, limit: int = 5) -> list[dict[str, Any]]:
         """Return this task's pending lessons as plain dicts for injection.
@@ -281,9 +303,13 @@ class ReflectionAgent:
         ``error_type`` and ``lesson_text``.
         """
         rows = (
-            self.memory_authority.pending_lessons_for_task(task_id, limit)
+            self.memory_authority.pending_lessons_for_task(
+                task_id, limit, principal=self.principal
+            )
             if self._authority_owns_lessons()
-            else self.mistakes.pending_for_task(task_id, limit)
+            else self.mistakes.pending_for_task(
+                task_id, limit, principal_id=self.principal
+            )
         )
         return [
             {
@@ -299,13 +325,17 @@ class ReflectionAgent:
     ) -> list[dict[str, Any]]:
         """Recall same-task pending lessons plus verified cross-session lessons."""
         if self._authority_owns_lessons():
-            return self.memory_authority.recall_lessons(task_text, task_id, limit)
+            return self.memory_authority.recall_lessons(
+                task_text, task_id, limit, principal=self.principal
+            )
         pending = [
             {**lesson, "verification_status": "pending", "relevance": 1.0}
             for lesson in self.recall_pending(task_id, limit)
         ]
         remaining = max(limit - len(pending), 0)
-        verified = self.mistakes.relevant_verified(task_text, remaining)
+        verified = self.mistakes.relevant_verified(
+            task_text, remaining, principal_id=self.principal
+        )
         pending_ids = {lesson["mistake_id"] for lesson in pending}
         return pending + [
             lesson for lesson in verified if lesson["mistake_id"] not in pending_ids

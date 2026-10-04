@@ -58,7 +58,9 @@ class FakeFacts:
     def __init__(self, rows: Optional[list[dict]] = None) -> None:
         self._rows = rows or []
 
-    def facts_for(self, subject: str, predicate: Optional[str] = None) -> list[dict]:
+    def facts_for(
+        self, subject: str, predicate: Optional[str] = None, principal_id=None
+    ) -> list[dict]:
         return self._rows
 
 

@@ -20,6 +20,10 @@ from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.facts import FactWriteResult
 
 
+#: Plan Phase 4c: every learned read and write names its principal.
+PRINCIPAL = "principal:test"
+
+
 def _evidence(
     *,
     evidence_id: str = "evidence-1",
@@ -310,6 +314,7 @@ def test_memory_search_event_uses_authority_trust(
         MemorySearchRequest(query="unverified", top_k=1),
         request=None,
         authority=FakeAuthority(),
+        principal=None,
     )
 
     assert result["results"][0]["verification_status"] == "unverified"
@@ -322,16 +327,20 @@ def test_specialized_recall_reads_route_through_authority_adapters(
     class Facts:
         memory_types = ("fact",)
 
-        def search(self, _query: str) -> list[dict[str, str]]:
+        def search(self, _query: str, principal=None) -> list[dict[str, str]]:
+            assert principal == PRINCIPAL
             return [{"subject": "operator", "predicate": "uses", "object": "GAGOS"}]
 
-        def facts_for(self, _subject: str) -> list[dict[str, str]]:
+        def facts_for(
+            self, _subject: str, _predicate=None, principal=None
+        ) -> list[dict[str, str]]:
+            assert principal == PRINCIPAL
             return [{"subject": "operator"}]
 
-        def neighbors(self, _subject: str) -> list[dict[str, str]]:
+        def neighbors(self, _subject: str, principal=None) -> list[dict[str, str]]:
             return []
 
-        def traverse_weighted(self, _subject: str) -> list[object]:
+        def traverse_weighted(self, _subject: str, principal=None) -> list[object]:
             return []
 
         def rebuild_derived_indexes(self) -> None:
@@ -350,11 +359,13 @@ def test_specialized_recall_reads_route_through_authority_adapters(
         memory_types = ("lesson",)
 
         def recall_relevant(
-            self, _query: str, _task_id: str, _limit: int
+            self, _query: str, _task_id: str, _limit: int, principal=None
         ) -> list[dict[str, str]]:
+            assert principal == PRINCIPAL
             return [{"lesson_text": "verify first"}]
 
-        def recurring(self, limit: int = 3) -> list[dict[str, str]]:
+        def recurring(self, limit: int = 3, principal=None) -> list[dict[str, str]]:
+            assert principal == PRINCIPAL
             return []
 
         def rebuild_derived_indexes(self) -> None:
@@ -379,14 +390,16 @@ def test_specialized_recall_reads_route_through_authority_adapters(
         },
     )
 
-    assert authority.facts_search("GAGOS")[0]["object"] == "GAGOS"
-    assert authority.facts_for("operator")
+    assert authority.facts_search("GAGOS", principal=PRINCIPAL)[0]["object"] == "GAGOS"
+    assert authority.facts_for("operator", principal=PRINCIPAL)
     assert authority.recall_skills("ship", 1)[0]["goal_pattern"] == "ship"
     assert (
-        authority.recall_lessons("verify", "session", 1)[0]["lesson_text"]
+        authority.recall_lessons("verify", "session", 1, principal=PRINCIPAL)[0][
+            "lesson_text"
+        ]
         == "verify first"
     )
-    assert authority.self_model() == ""
+    assert authority.self_model(principal=PRINCIPAL) == ""
 
 
 def test_trusted_workflow_event_uses_canonical_phase(
@@ -432,6 +445,7 @@ def test_trusted_workflow_event_uses_canonical_phase(
         MemorySearchRequest(query="workflow", top_k=1),
         request=None,
         authority=FakeAuthority(),
+        principal=None,
     )
 
     assert bus.events[1]["phase"] == "wonder"
@@ -545,7 +559,8 @@ def test_specialized_write_operations_dispatch_through_authority() -> None:
         def promote(self, mistake_id, **kwargs):
             return None
 
-        def pending_command_pairs(self, task_id):
+        def pending_command_pairs(self, task_id, principal=None):
+            assert principal == PRINCIPAL
             return [(1, task_id)]
 
         def rebuild_derived_indexes(self) -> None:
@@ -580,14 +595,19 @@ def test_specialized_write_operations_dispatch_through_authority() -> None:
         },
     )
 
-    assert authority.facts_strengthen_or_propose("s", "p", "o")[0] == "fact"
+    assert (
+        authority.facts_strengthen_or_propose("s", "p", "o", principal=PRINCIPAL)[0]
+        == "fact"
+    )
     assert authority.record_skill_attempt("goal", ["step"], success=True) == 7
     assert authority.record_skill_reuse([7], success=True) == [8]
     assert authority.record_lesson_or_increment(
         "task", "error", "root", "fix", "lesson", -0.1
     ) == (9, True)
     assert authority.lesson_get(9) == 9
-    assert authority.pending_lesson_commands("task") == [(1, "task")]
+    assert authority.pending_lesson_commands("task", principal=PRINCIPAL) == [
+        (1, "task")
+    ]
     assert authority.record_development("task", "unverified") == 10
     assert authority.consolidate_lesson(9) == 9
 
@@ -636,8 +656,26 @@ def test_consolidator_routes_fact_reconciliation_and_supersession_through_author
             # row, verified or not; facts_for is the gated recall read.
             self.calls.append(("facts_by_status", status))
             return [
-                {"subject": "service", "predicate": "host", "object": "old"},
-                {"subject": "other", "predicate": "host", "object": "kept"},
+                {
+                    "subject": "service",
+                    "predicate": "host",
+                    "object": "old",
+                    "principal_id": PRINCIPAL,
+                },
+                {
+                    "subject": "other",
+                    "predicate": "host",
+                    "object": "kept",
+                    "principal_id": PRINCIPAL,
+                },
+                # Plan Phase 4c: another principal's fact on the same
+                # subject+predicate is theirs; reconciling ours never touches it.
+                {
+                    "subject": "service",
+                    "predicate": "host",
+                    "object": "theirs",
+                    "principal_id": "principal:other",
+                },
             ]
 
         def facts_reconcile(self, *args, **kwargs) -> FactWriteResult:
@@ -648,7 +686,7 @@ def test_consolidator_routes_fact_reconciliation_and_supersession_through_author
             self.calls.append(("semantic_add_verified", (args, kwargs)))
             return 3
 
-        def semantic_supersede_text(self, text: str) -> int:
+        def semantic_supersede_text(self, text: str, principal=None) -> int:
             self.calls.append(("semantic_supersede_text", text))
             return 1
 
@@ -662,11 +700,11 @@ def test_consolidator_routes_fact_reconciliation_and_supersession_through_author
     )
 
     assert consolidator.promote_fact(
-        "service", "host", "local", approved_by="op"
+        "service", "host", "local", approved_by="op", principal=PRINCIPAL
     ).committed
     assert (
         consolidator.reconcile_fact(
-            "service", "host", "remote", approved_by="op"
+            "service", "host", "remote", approved_by="op", principal=PRINCIPAL
         ).reason
         == "reconciled"
     )
@@ -716,6 +754,7 @@ def test_consolidator_bulk_run_routes_status_reads_through_authority(
         "root_cause": "slow dependency",
         "lesson_text": "bound the wait",
         "verification_status": "verified",
+        "principal_id": PRINCIPAL,
     }
     superseded_lesson = {
         **verified_lesson,
@@ -728,6 +767,7 @@ def test_consolidator_bulk_run_routes_status_reads_through_authority(
         "predicate": "host",
         "object": "local",
         "approved_by": "operator",
+        "principal_id": PRINCIPAL,
     }
     superseded_fact = {
         **active_fact,
@@ -756,7 +796,7 @@ def test_consolidator_bulk_run_routes_status_reads_through_authority(
             self.calls.append(("lesson_get", mistake_id))
             return verified_lesson
 
-        def semantic_supersede_text(self, text: str) -> int:
+        def semantic_supersede_text(self, text: str, principal=None) -> int:
             self.calls.append(("semantic_supersede_text", text))
             return 1
 
@@ -830,7 +870,8 @@ def test_default_confidence_calibration_routes_memory_reads_through_authority(
         def owns_store(name: str, store: object) -> bool:
             return name in {"lessons", "development", "skills"}
 
-        def recall_verified_lessons(self, query: str, limit: int):
+        def recall_verified_lessons(self, query: str, limit: int, principal=None):
+            assert principal == PRINCIPAL
             self.calls.append(("recall_verified_lessons", (query, limit)))
             return [
                 {
@@ -856,6 +897,7 @@ def test_default_confidence_calibration_routes_memory_reads_through_authority(
         development=Development(),
         skills=Skills(),
         authority=authority,
+        principal=PRINCIPAL,
     )
 
     assert final == 0.675
@@ -886,11 +928,11 @@ def test_reflection_recall_routes_pending_and_relevant_lessons_through_authority
         def __init__(self) -> None:
             self.calls: list[tuple[str, object]] = []
 
-        def pending_lessons_for_task(self, task_id: str, limit: int):
+        def pending_lessons_for_task(self, task_id: str, limit: int, principal=None):
             self.calls.append(("pending_lessons_for_task", (task_id, limit)))
             return [{"id": 3, "error_type": "PathNotFound", "lesson_text": "verify"}]
 
-        def recall_lessons(self, query: str, task_id: str, limit: int):
+        def recall_lessons(self, query: str, task_id: str, limit: int, principal=None):
             self.calls.append(("recall_lessons", (query, task_id, limit)))
             return [{"mistake_id": 3, "lesson_text": "verify"}]
 

@@ -265,3 +265,16 @@ def seed_skill(repository: Any, record: Any) -> Any:
     for state in paths[record.state]:
         repository.transition_state(record.skill_id, record.version, state)
     return repository.get(record.skill_id, record.version)
+
+
+def client_principal_id(client: Any) -> str:
+    """The principal a TestClient is authenticated as. Plan Phase 4c: learned
+    rows and fact proposals belong to a principal, so a test that seeds them
+    for a request to see seeds them as the request's own principal."""
+    from aios.api.deps import get_identity_service
+
+    principal = get_identity_service().get_authenticated_principal(
+        client.cookies.get("session_id")
+    )
+    assert principal is not None, "the test client is not authenticated"
+    return str(principal.principal_id)

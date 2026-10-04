@@ -152,6 +152,18 @@ def test_resolving_a_non_pending_proposal_fails_closed(tmp_path: Path) -> None:
     assert result.reason == "not pending"
 
 
+def _principal_of(client) -> str:
+    """The principal the endpoint client is authenticated as (plan Phase 4c:
+    fact proposals are that principal's)."""
+    from aios.api.deps import get_identity_service
+
+    principal = get_identity_service().get_authenticated_principal(
+        client.cookies.get("session_id")
+    )
+    assert principal is not None
+    return str(principal.principal_id)
+
+
 # ── endpoints: pending queue + human-gated resolution ─────────────────────────
 
 
@@ -160,7 +172,9 @@ def test_pending_facts_endpoints_roundtrip(tmp_path: Path) -> None:
     app.dependency_overrides[get_semantic_facts] = lambda: facts
     try:
         client = _client()
-        pid = facts.propose("operator", "prefers", "dark mode").proposal_id
+        pid = facts.propose(
+            "operator", "prefers", "dark mode", principal_id=_principal_of(client)
+        ).proposal_id
 
         listed = client.get("/api/v1/memory/facts/pending")
         assert listed.status_code == 200
@@ -183,8 +197,17 @@ def test_approve_endpoint_surfaces_contradiction_as_409(tmp_path: Path) -> None:
     app.dependency_overrides[get_semantic_facts] = lambda: facts
     try:
         client = _client()
-        facts.add_fact("operator", "prefers", "light mode", approved_by="operator")
-        pid = facts.propose("operator", "prefers", "dark mode").proposal_id
+        owner = _principal_of(client)
+        facts.add_fact(
+            "operator",
+            "prefers",
+            "light mode",
+            approved_by="operator",
+            principal_id=owner,
+        )
+        pid = facts.propose(
+            "operator", "prefers", "dark mode", principal_id=owner
+        ).proposal_id
         response = client.post(
             f"/api/v1/memory/facts/pending/{pid}/approve",
             json={"resolvedBy": "operator"},

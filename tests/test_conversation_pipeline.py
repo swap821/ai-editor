@@ -54,6 +54,8 @@ def _make_context(**overrides: object) -> TurnContext:
 
 def _make_runtime(*, extra_overrides: dict[str, object] | None = None) -> RuntimeDeps:
     recorded_human_state: list[tuple[str, str, HumanStateHypothesis]] = []
+    #: (channel, principal) for every learned read/write the turn makes.
+    principals: list[tuple[str, object]] = []
     extra: dict[str, object] = {
         "user_text": "still not working, ugh, this is broken again",
         "model_id": None,
@@ -78,9 +80,18 @@ def _make_runtime(*, extra_overrides: dict[str, object] | None = None) -> Runtim
         "record_human_state": lambda sid, tid, hyp: recorded_human_state.append(
             (sid, tid, hyp)
         ),
-        "index_turn": lambda indexer, user_text, answer, *, authority=None: None,
-        "operator_facts_block": lambda facts, *, authority=None: "",
-        "recall_memory": lambda user_text: "",
+        "index_turn": lambda indexer, user_text, answer, *, authority=None, principal: (
+            principals.append(("index", principal))
+        ),
+        "operator_facts_block": lambda facts, *, authority=None, principal: (
+            principals.append(("facts", principal)) or ""
+        ),
+        "recall_memory": lambda user_text, *, principal: (
+            principals.append(("recall", principal)) or ""
+        ),
+        # Plan Phase 4c: production populates this in aios/api/main.py::chat()
+        # (None when unauthenticated, which recalls no learned row).
+        "principal_id": None,
         "chat_system_prompt": "system prompt",
         "facts_auto_extract": False,
         "facts_auto_extract_max": 0,
@@ -94,6 +105,7 @@ def _make_runtime(*, extra_overrides: dict[str, object] | None = None) -> Runtim
         extra.update(extra_overrides)
     runtime = RuntimeDeps(extra=extra)
     runtime.extra["_recorded_human_state"] = recorded_human_state
+    runtime.extra["_principals"] = principals
     return runtime
 
 
@@ -236,9 +248,8 @@ def test_stream_conversation_authenticated_representation_uses_gateway_before_ro
     assert text == "governed reply"
 
 
-def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -> None:
-    context = _make_context(session_id="session-compat")
-    calls: list[str] = []
+def _compatibility_overrides(calls: list[str]) -> dict[str, object]:
+    """A cloud-selected chat that the compatibility gateway keeps local."""
 
     class _Client:
         def __init__(self, label: str) -> None:
@@ -270,15 +281,19 @@ def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -
     def _stream_chat_chunks(chat_client, messages, *, model):
         yield from chat_client.stream_chat(messages, tools=None, model=model)
 
-    runtime = _make_runtime(
-        extra_overrides={
-            "select_chat_client": lambda task: (cloud_client, "cloud-model"),
-            "active_route": _active_route,
-            "stream_chat_chunks": _stream_chat_chunks,
-            "ollama_client": local_client,
-            "ollama_model": "local-model",
-        }
-    )
+    return {
+        "select_chat_client": lambda task: (cloud_client, "cloud-model"),
+        "active_route": _active_route,
+        "stream_chat_chunks": _stream_chat_chunks,
+        "ollama_client": local_client,
+        "ollama_model": "local-model",
+    }
+
+
+def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -> None:
+    context = _make_context(session_id="session-compat")
+    calls: list[str] = []
+    runtime = _make_runtime(extra_overrides=_compatibility_overrides(calls))
 
     frames = list(stream_conversation(context, runtime))
     route_frame = next(frame for frame in frames if frame.startswith("route:"))
@@ -293,3 +308,23 @@ def test_stream_conversation_anonymous_compatibility_uses_local_gateway_path() -
     assert "'model': 'local-model'" in route_frame
     assert "'privacy': 'local'" in route_frame
     assert text == "local reply"
+
+
+def test_a_chat_turn_reads_and_writes_learned_memory_as_its_caller() -> None:
+    """Plan Phase 4c: the chat turn's facts block, recall and indexing all
+    name the caller's principal -- the one ``chat()`` put in ``extra``."""
+    calls: list[str] = []
+    runtime = _make_runtime(
+        extra_overrides={
+            **_compatibility_overrides(calls),
+            "principal_id": "principal:alice",
+        }
+    )
+
+    list(stream_conversation(_make_context(session_id="session-4c"), runtime))
+
+    assert sorted(runtime.extra["_principals"]) == [
+        ("facts", "principal:alice"),
+        ("index", "principal:alice"),
+        ("recall", "principal:alice"),
+    ]

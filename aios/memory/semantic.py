@@ -30,9 +30,13 @@ _LOCK_TIMEOUT_S = 30
 
 #: The active row an add consolidates into: one derivation for the write and
 #: for the read that captures the state it extends (``duplicate_of``).
+#: An active row of the same text AND the same principal (plan Phase 4c): the
+#: same words from another principal are another principal's memory. NULL-safe
+#: (``IS``), so an unattributed write matches only unattributed rows.
 _DUPLICATE_MATCH = (
     "SELECT id FROM semantic_memory "
-    "WHERE content_hash = ? AND verification_status != 'superseded'"
+    "WHERE content_hash = ? AND verification_status != 'superseded' "
+    "AND principal_id IS ?"
 )
 
 
@@ -78,13 +82,16 @@ class SemanticMemory:
         memory_type: str = "chat",
         verification_status: str = "unverified",
         count_occurrence: bool = True,
+        principal_id: Optional[str] = None,
     ) -> int:
         """Persist *text*, embed it, and add the vector to the index.
 
         Exact active duplicates are consolidated into the existing row without
         adding a second vector. New observations increment ``occurrence_count``;
         maintenance callers can disable that with ``count_occurrence=False``.
-        Repetition never upgrades verification status.
+        Repetition never upgrades verification status. *principal_id* is the
+        principal the row belongs to (plan Phase 4c): part of its identity, so
+        the same words from two principals are two rows.
 
         The SQLite row supplies the stable vector id. If embedding, vector add,
         or index persistence fails afterward, the row is deleted again so the
@@ -110,7 +117,9 @@ class SemanticMemory:
         ):
             with get_connection(self.db_path) as conn:
                 conn.execute("BEGIN IMMEDIATE")
-                existing = conn.execute(_DUPLICATE_MATCH, (digest,)).fetchone()
+                existing = conn.execute(
+                    _DUPLICATE_MATCH, (digest, principal_id)
+                ).fetchone()
                 if existing is not None:
                     mem_id = int(existing["id"])
                     if count_occurrence:
@@ -123,9 +132,9 @@ class SemanticMemory:
                     return mem_id
                 cur = conn.execute(
                     "INSERT INTO semantic_memory "
-                    "(text_content, content_hash, memory_type, verification_status) "
-                    "VALUES (?, ?, ?, ?)",
-                    (text, digest, memory_type, verification_status),
+                    "(text_content, content_hash, memory_type, verification_status, "
+                    "principal_id) VALUES (?, ?, ?, ?, ?)",
+                    (text, digest, memory_type, verification_status, principal_id),
                 )
                 mem_id = int(cur.lastrowid)
                 # Denormalise vector_id == id for legacy-tool compatibility.
@@ -153,7 +162,9 @@ class SemanticMemory:
                 raise
         return mem_id
 
-    def duplicate_of(self, text: str) -> Optional[sqlite3.Row]:
+    def duplicate_of(
+        self, text: str, principal_id: Optional[str] = None
+    ) -> Optional[sqlite3.Row]:
         """The active row an ``add`` of *text* would consolidate into, or ``None``.
 
         The same scrub, hash and query as ``add``, so a caller can read the state
@@ -162,7 +173,7 @@ class SemanticMemory:
         digest = content_hash(scan_and_redact(text).scrubbed)
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
-            row = conn.execute(_DUPLICATE_MATCH, (digest,)).fetchone()
+            row = conn.execute(_DUPLICATE_MATCH, (digest, principal_id)).fetchone()
             if row is None:
                 return None
             return conn.execute(
@@ -189,15 +200,17 @@ class SemanticMemory:
                 "ORDER BY id ASC"
             ).fetchall()
 
-    def promote(self, mem_id: int) -> None:
-        """Mark an active semantic memory verified without changing its content."""
+    def promote(self, mem_id: int, principal_id: Optional[str] = None) -> None:
+        """Mark an active semantic memory verified without changing its content.
+        Only a row of *principal_id* (plan Phase 4c)."""
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE semantic_memory SET verification_status = 'verified', "
                 "last_seen_at = CURRENT_TIMESTAMP "
-                "WHERE id = ? AND verification_status = 'unverified'",
-                (mem_id,),
+                "WHERE id = ? AND verification_status = 'unverified' "
+                "AND principal_id IS ?",
+                (mem_id, principal_id),
             )
 
     def supersede(self, mem_id: int) -> None:
@@ -210,16 +223,18 @@ class SemanticMemory:
                 (mem_id,),
             )
 
-    def supersede_text(self, text: str) -> int:
-        """Supersede active memories matching normalized *text*; return row count."""
+    def supersede_text(self, text: str, principal_id: Optional[str] = None) -> int:
+        """Supersede active memories of *principal_id* matching normalized *text*
+        (plan Phase 4c: never another principal's); return row count."""
         digest = content_hash(scan_and_redact(text).scrubbed)
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             cur = conn.execute(
                 "UPDATE semantic_memory SET verification_status = 'superseded', "
                 "last_seen_at = CURRENT_TIMESTAMP "
-                "WHERE content_hash = ? AND verification_status != 'superseded'",
-                (digest,),
+                "WHERE content_hash = ? AND verification_status != 'superseded' "
+                "AND principal_id IS ?",
+                (digest, principal_id),
             )
             return int(cur.rowcount)
 

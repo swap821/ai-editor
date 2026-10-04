@@ -447,6 +447,33 @@ def _rebuild_playbooks_table(conn: sqlite3.Connection, db_path: Path) -> None:
     )
 
 
+#: Plan Phase 4c (principal scoping): the principal a learned row belongs to,
+#: added to tables that predate it. One static statement per table, so no
+#: identifier is interpolated. Additive and nullable: a row learned before
+#: scoping stays NULL -- unattributed, withheld from every principal (operator
+#: decision 2026-10-04) until re-earned or readmitted. The column is row
+#: IDENTITY, so one principal's write never increments, promotes or supersedes
+#: another's row; recall trusts the signed provenance, never this column.
+_PRINCIPAL_COLUMNS = (
+    (
+        "PRAGMA table_info(semantic_memory)",
+        "ALTER TABLE semantic_memory ADD COLUMN principal_id TEXT",
+    ),
+    (
+        "PRAGMA table_info(mistake_pool)",
+        "ALTER TABLE mistake_pool ADD COLUMN principal_id TEXT",
+    ),
+    (
+        "PRAGMA table_info(semantic_facts)",
+        "ALTER TABLE semantic_facts ADD COLUMN principal_id TEXT",
+    ),
+    (
+        "PRAGMA table_info(fact_proposals)",
+        "ALTER TABLE fact_proposals ADD COLUMN principal_id TEXT",
+    ),
+)
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """Idempotent, in-place schema migrations for already-existing databases.
 
@@ -461,6 +488,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE mistake_pool ADD COLUMN failed_command TEXT NOT NULL DEFAULT ''"
         )
+
+    for pragma, alter in _PRINCIPAL_COLUMNS:
+        columns = {row[1] for row in conn.execute(pragma)}
+        if columns and "principal_id" not in columns:
+            conn.execute(alter)
 
     # compiled_playbooks.decompiled_at_successes — the skill's promotable
     # success_count when a playbook was retired, so "re-earned since" is a
@@ -569,16 +601,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
                 raise ValueError(f"invalid column name: {name}")
             conn.execute(f"ALTER TABLE semantic_memory ADD COLUMN {name} {ddl}")  # noqa: S608
 
+    # Plan Phase 4c: duplicates are merged within one principal only -- the
+    # same words from two principals are two principals' memories, and a merge
+    # across them would hand one principal's row to the other at startup.
     semantic_rows = conn.execute(
-        "SELECT id, text_content, occurrence_count FROM semantic_memory "
+        "SELECT id, text_content, occurrence_count, principal_id FROM semantic_memory "
         "WHERE verification_status != 'superseded' ORDER BY id"
     ).fetchall()
-    keeper_by_hash: dict[str, int] = {}
+    keeper_by_hash: dict[tuple[str, object], int] = {}
     for row in semantic_rows:
         digest = content_hash(str(row["text_content"]))
-        keeper = keeper_by_hash.get(digest)
+        key = (digest, row["principal_id"])
+        keeper = keeper_by_hash.get(key)
         if keeper is None:
-            keeper_by_hash[digest] = int(row["id"])
+            keeper_by_hash[key] = int(row["id"])
             conn.execute(
                 "UPDATE semantic_memory SET content_hash = ?, "
                 "last_seen_at = COALESCE(last_seen_at, timestamp) WHERE id = ?",
@@ -591,9 +627,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
             (int(row["occurrence_count"] or 1), keeper),
         )
         conn.execute("DELETE FROM semantic_memory WHERE id = ?", (int(row["id"]),))
+    # One active row per text PER PRINCIPAL. COALESCE so unattributed rows are
+    # unique among themselves too (SQLite treats NULLs as distinct). The
+    # pre-4c index (text alone) is replaced.
+    conn.execute("DROP INDEX IF EXISTS idx_semantic_active_hash")
     conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_semantic_active_hash "
-        "ON semantic_memory(content_hash) WHERE verification_status != 'superseded'"
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_semantic_active_hash_principal "
+        "ON semantic_memory(content_hash, COALESCE(principal_id, '')) "
+        "WHERE verification_status != 'superseded'"
     )
 
     fact_cols = {row[1] for row in conn.execute("PRAGMA table_info(semantic_facts)")}
