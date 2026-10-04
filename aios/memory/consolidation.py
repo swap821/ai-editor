@@ -51,8 +51,17 @@ class MemoryConsolidator:
         owns_store = getattr(authority, "owns_store", None)
         return bool(callable(owns_store) and owns_store(name, store))
 
+    # Plan Phase 4c: a memory derived from a lesson or a fact belongs to the
+    # principal its source row belongs to -- read from that row, never from the
+    # caller -- so a maintenance pass never moves learning between principals.
+
     def _add_verified(
-        self, text: str, memory_type: str, *, count_occurrence: bool = True
+        self,
+        text: str,
+        memory_type: str,
+        *,
+        count_occurrence: bool = True,
+        principal: Optional[str],
     ) -> int:
         """Index trusted content and explicitly promote an existing exact match."""
         if self._authority_owns("semantic", self.semantic):
@@ -61,6 +70,7 @@ class MemoryConsolidator:
                     text,
                     memory_type=memory_type,
                     count_occurrence=count_occurrence,
+                    principal=principal,
                 )
             )
         mem_id = self.semantic.add(
@@ -68,14 +78,17 @@ class MemoryConsolidator:
             memory_type=memory_type,
             verification_status="verified",
             count_occurrence=count_occurrence,
+            principal_id=principal,
         )
-        self.semantic.promote(mem_id)
+        self.semantic.promote(mem_id, principal_id=principal)
         return mem_id
 
-    def _supersede_semantic_text(self, text: str) -> int:
+    def _supersede_semantic_text(self, text: str, principal: Optional[str]) -> int:
         if self._authority_owns("semantic", self.semantic):
-            return int(self.memory_authority.semantic_supersede_text(text))
-        return int(self.semantic.supersede_text(text))
+            return int(
+                self.memory_authority.semantic_supersede_text(text, principal=principal)
+            )
+        return int(self.semantic.supersede_text(text, principal_id=principal))
 
     def consolidate_lesson(
         self, mistake_id: int, *, count_occurrence: bool = True
@@ -89,7 +102,12 @@ class MemoryConsolidator:
         if row is None or row["verification_status"] != "verified":
             return None
         text = self._lesson_text(row)
-        return self._add_verified(text, "lesson", count_occurrence=count_occurrence)
+        return self._add_verified(
+            text,
+            "lesson",
+            count_occurrence=count_occurrence,
+            principal=row["principal_id"],
+        )
 
     @staticmethod
     def _lesson_text(row: Any) -> str:
@@ -99,29 +117,42 @@ class MemoryConsolidator:
         )
 
     def promote_fact(
-        self, subject: str, predicate: str, obj: str, *, approved_by: str
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        *,
+        approved_by: str,
+        principal: Optional[str],
     ) -> FactWriteResult:
         """Commit and index a human-approved fact, surfacing contradictions."""
         if not approved_by or not approved_by.strip():
             return FactWriteResult(False, None, "human approval required")
         if self._authority_owns("facts", self.facts):
             result = self.memory_authority.facts_add_fact(
-                subject, predicate, obj, approved_by=approved_by
+                subject, predicate, obj, approved_by=approved_by, principal=principal
             )
         else:
             result = self.facts.add_fact(
-                subject, predicate, obj, approved_by=approved_by
+                subject, predicate, obj, approved_by=approved_by, principal_id=principal
             )
         if result.committed:
             memory_type = "preference" if subject.strip().lower() == "user" else "fact"
             self._add_verified(
                 f"VERIFIED FACT\n{subject.strip()} {predicate.strip()} {obj.strip()}",
                 memory_type,
+                principal=principal,
             )
         return result
 
     def reconcile_fact(
-        self, subject: str, predicate: str, obj: str, *, approved_by: str
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        *,
+        approved_by: str,
+        principal: Optional[str],
     ) -> FactWriteResult:
         """Human-approved contradiction resolution with vector supersession."""
         if not approved_by or not approved_by.strip():
@@ -135,24 +166,28 @@ class MemoryConsolidator:
                 for row in self.memory_authority.facts_by_status("active")
                 if row["subject"] == subject.strip()
                 and row["predicate"] == predicate.strip()
+                and row["principal_id"] == principal
             ]
             result = self.memory_authority.facts_reconcile(
-                subject, predicate, obj, approved_by=approved_by
+                subject, predicate, obj, approved_by=approved_by, principal=principal
             )
         else:
-            old_rows = self.facts.facts_for(subject.strip(), predicate.strip())
+            old_rows = self.facts.facts_for(
+                subject.strip(), predicate.strip(), principal_id=principal
+            )
             result = self.facts.reconcile(
-                subject, predicate, obj, approved_by=approved_by
+                subject, predicate, obj, approved_by=approved_by, principal_id=principal
             )
         if not result.committed:
             return result
         for row in old_rows:
             text = f"VERIFIED FACT\n{row['subject']} {row['predicate']} {row['object']}"
-            self._supersede_semantic_text(text)
+            self._supersede_semantic_text(text, principal)
         memory_type = "preference" if subject.strip().lower() == "user" else "fact"
         self._add_verified(
             f"VERIFIED FACT\n{subject.strip()} {predicate.strip()} {obj.strip()}",
             memory_type,
+            principal=principal,
         )
         return result
 
@@ -184,17 +219,21 @@ class MemoryConsolidator:
         else:
             with get_connection(self.db_path) as conn:
                 facts = conn.execute(
-                    "SELECT id, subject, predicate, object FROM semantic_facts "
+                    "SELECT id, subject, predicate, object, principal_id "
+                    "FROM semantic_facts "
                     "WHERE status = 'active' AND approved_by IS NOT NULL"
                 ).fetchall()
                 superseded_facts = conn.execute(
                     "SELECT * FROM semantic_facts WHERE status = 'superseded'"
                 ).fetchall()
         for row in superseded_lessons:
-            superseded_memories += self._supersede_semantic_text(self._lesson_text(row))
+            superseded_memories += self._supersede_semantic_text(
+                self._lesson_text(row), row["principal_id"]
+            )
         for row in superseded_facts:
             superseded_memories += self._supersede_semantic_text(
-                f"VERIFIED FACT\n{row['subject']} {row['predicate']} {row['object']}"
+                f"VERIFIED FACT\n{row['subject']} {row['predicate']} {row['object']}",
+                row["principal_id"],
             )
         for row in lessons:
             mem_id = self.consolidate_lesson(int(row["id"]), count_occurrence=False)
@@ -209,6 +248,7 @@ class MemoryConsolidator:
                     f"VERIFIED FACT\n{row['subject']} {row['predicate']} {row['object']}",
                     memory_type,
                     count_occurrence=False,
+                    principal=row["principal_id"],
                 )
             )
         return {

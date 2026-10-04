@@ -34,10 +34,13 @@ logger = logging.getLogger(__name__)
 
 #: The row a recurrence increments: one derivation for the write and for the
 #: read that captures the state it extends (``recurrence_candidate``).
+#: The same task, error AND principal (plan Phase 4c): one principal's
+#: recurrence never increments another's lesson. NULL-safe (``IS``).
 _RECURRENCE_MATCH = (
     "SELECT id FROM mistake_pool "
     "WHERE task_id = ? AND error_type = ? "
     "AND verification_status != 'superseded' "
+    "AND principal_id IS ? "
     "ORDER BY timestamp DESC LIMIT 1"
 )
 
@@ -55,7 +58,9 @@ class MistakeMemory:
         self.db_path = db_path
         self._facts = facts
 
-    def recurring(self, *, limit: int = 5) -> list[dict]:
+    def recurring(
+        self, *, limit: int = 5, principal_id: Optional[str] = None
+    ) -> list[dict]:
         """Return VERIFIED lessons that have recurred (``occurrence_count > 1``).
 
         The narrative self-model's cautions: a lesson must be BOTH verified AND
@@ -67,8 +72,9 @@ class MistakeMemory:
             rows = conn.execute(
                 "SELECT id, lesson_text, error_type, occurrence_count FROM mistake_pool "
                 "WHERE verification_status = 'verified' AND occurrence_count > 1 "
+                "AND principal_id IS ? "
                 "ORDER BY occurrence_count DESC, id DESC LIMIT ?",
-                (max(int(limit), 1),),
+                (principal_id, max(int(limit), 1)),
             ).fetchall()
         return [
             {
@@ -89,6 +95,7 @@ class MistakeMemory:
         fix_applied: str,
         lesson_text: str,
         confidence_delta: float,
+        principal_id: Optional[str] = None,
     ) -> int:
         """Insert a new post-mortem and return its id.
 
@@ -107,7 +114,7 @@ class MistakeMemory:
             cur = conn.execute(
                 "INSERT INTO mistake_pool "
                 "(task_id, error_type, root_cause, fix_applied, lesson_text, "
-                " confidence_delta) VALUES (?, ?, ?, ?, ?, ?)",
+                " confidence_delta, principal_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     task_id,
                     error_type,
@@ -115,6 +122,7 @@ class MistakeMemory:
                     fix_applied,
                     lesson_text,
                     clamped_delta,
+                    principal_id,
                 ),
             )
             return int(cur.lastrowid)
@@ -139,7 +147,9 @@ class MistakeMemory:
         with get_connection(self.db_path) as conn:
             return conn.execute(sql, params).fetchall()
 
-    def relevant_verified(self, query: str, limit: int = 5) -> list[dict]:
+    def relevant_verified(
+        self, query: str, limit: int = 5, principal_id: Optional[str] = None
+    ) -> list[dict]:
         """Return verified lessons relevant to *query*, regardless of session.
 
         The score is deterministic lexical overlap. A lesson must already be
@@ -150,7 +160,9 @@ class MistakeMemory:
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
-                "SELECT * FROM mistake_pool WHERE verification_status = 'verified'"
+                "SELECT * FROM mistake_pool WHERE verification_status = 'verified' "
+                "AND principal_id IS ?",
+                (principal_id,),
             ).fetchall()
         ranked: list[dict] = []
         for row in rows:
@@ -182,7 +194,9 @@ class MistakeMemory:
         )
         return ranked[:limit]
 
-    def pending_for_task(self, task_id: str, limit: int = 5) -> list[sqlite3.Row]:
+    def pending_for_task(
+        self, task_id: str, limit: int = 5, principal_id: Optional[str] = None
+    ) -> list[sqlite3.Row]:
         """Return this task's still-``pending`` lessons, newest first.
 
         Used to carry a session's unverified lessons forward into later turns so
@@ -205,11 +219,14 @@ class MistakeMemory:
                 "SELECT * FROM mistake_pool "
                 "WHERE task_id = ? AND verification_status = 'pending' "
                 "  AND failed_command IS NOT NULL AND TRIM(failed_command) != '' "
+                "  AND principal_id IS ? "
                 "ORDER BY timestamp DESC, id DESC LIMIT ?",
-                (task_id, limit),
+                (task_id, principal_id, limit),
             ).fetchall()
 
-    def find_recurrence(self, task_id: str, error_type: str) -> Optional[sqlite3.Row]:
+    def find_recurrence(
+        self, task_id: str, error_type: str, principal_id: Optional[str] = None
+    ) -> Optional[sqlite3.Row]:
         """Return an existing non-superseded lesson for the same task+error.
 
         Used to detect repeated failures so :meth:`increment_occurrence` can be
@@ -220,8 +237,9 @@ class MistakeMemory:
                 "SELECT * FROM mistake_pool "
                 "WHERE task_id = ? AND error_type = ? "
                 "AND verification_status != 'superseded' "
+                "AND principal_id IS ? "
                 "ORDER BY timestamp DESC LIMIT 1",
-                (task_id, error_type),
+                (task_id, error_type, principal_id),
             ).fetchone()
 
     def record_or_increment(
@@ -233,6 +251,7 @@ class MistakeMemory:
         lesson_text: str,
         confidence_delta: float,
         failed_command: str = "",
+        principal_id: Optional[str] = None,
     ) -> tuple[int, bool]:
         """Atomically record a lesson or increment its active recurrence.
 
@@ -259,7 +278,9 @@ class MistakeMemory:
         failed_command = scan_and_redact(failed_command).scrubbed
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
-            existing = conn.execute(_RECURRENCE_MATCH, (task_id, error_type)).fetchone()
+            existing = conn.execute(
+                _RECURRENCE_MATCH, (task_id, error_type, principal_id)
+            ).fetchone()
             if existing is not None:
                 mistake_id = int(existing["id"])
                 # Refresh failed_command to the MOST RECENT recurrence so the
@@ -275,8 +296,8 @@ class MistakeMemory:
             cur = conn.execute(
                 "INSERT INTO mistake_pool "
                 "(task_id, error_type, root_cause, fix_applied, lesson_text, "
-                " confidence_delta, failed_command) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " confidence_delta, failed_command, principal_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     task_id,
                     error_type,
@@ -285,12 +306,13 @@ class MistakeMemory:
                     lesson_text,
                     clamped_delta,
                     failed_command,
+                    principal_id,
                 ),
             )
             return int(cur.lastrowid), False
 
     def recurrence_candidate(
-        self, task_id: str, error_type: str
+        self, task_id: str, error_type: str, principal_id: Optional[str] = None
     ) -> Optional[sqlite3.Row]:
         """The row ``record_or_increment`` would increment now, or ``None``.
 
@@ -302,24 +324,30 @@ class MistakeMemory:
         error_type = scan_and_redact(error_type).scrubbed
         init_memory_db(self.db_path)
         with get_connection(self.db_path) as conn:
-            row = conn.execute(_RECURRENCE_MATCH, (task_id, error_type)).fetchone()
+            row = conn.execute(
+                _RECURRENCE_MATCH, (task_id, error_type, principal_id)
+            ).fetchone()
             if row is None:
                 return None
             return conn.execute(
                 "SELECT * FROM mistake_pool WHERE id = ?", (int(row["id"]),)
             ).fetchone()
 
-    def increment_occurrence(self, mistake_id: int) -> None:
-        """Bump the occurrence counter for a repeated mistake."""
+    def increment_occurrence(
+        self, mistake_id: int, principal_id: Optional[str] = None
+    ) -> None:
+        """Bump the occurrence counter for a repeated mistake of *principal_id*."""
         assert_learning_permitted("lessons.increment_occurrence")
         with get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE mistake_pool SET occurrence_count = occurrence_count + 1 "
-                "WHERE id = ?",
-                (mistake_id,),
+                "WHERE id = ? AND principal_id IS ?",
+                (mistake_id, principal_id),
             )
 
-    def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
+    def pending_command_pairs(
+        self, task_id: str, principal_id: Optional[str] = None
+    ) -> list[tuple[int, str]]:
         """Return ``(mistake_id, failed_command)`` for this task's still-pending
         lessons that carry a command.
 
@@ -334,8 +362,8 @@ class MistakeMemory:
             rows = conn.execute(
                 "SELECT id, failed_command FROM mistake_pool "
                 "WHERE task_id = ? AND verification_status = 'pending' "
-                "AND failed_command != '' ORDER BY id",
-                (task_id,),
+                "AND failed_command != '' AND principal_id IS ? ORDER BY id",
+                (task_id, principal_id),
             ).fetchall()
         return [(int(row["id"]), str(row["failed_command"])) for row in rows]
 
@@ -344,8 +372,10 @@ class MistakeMemory:
         mistake_id: int,
         *,
         strength: VerificationStrength = VerificationStrength.STRONG,
+        principal_id: Optional[str] = None,
     ) -> None:
-        """Promote a lesson from ``pending`` to ``verified``.
+        """Promote a lesson of *principal_id* from ``pending`` to ``verified``
+        (plan Phase 4c: never another principal's).
 
         Below-floor evidence leaves the lesson pending. Verified mistake lessons
         feed planner confidence, so a weak green must not graduate into that
@@ -362,15 +392,21 @@ class MistakeMemory:
         if not meets_learning_floor(strength):
             return
         with get_connection(self.db_path) as conn:
-            conn.execute(
+            promoted = conn.execute(
                 "UPDATE mistake_pool SET verification_status = 'verified' "
-                "WHERE id = ? AND verification_status = 'pending'",
-                (mistake_id,),
+                "WHERE id = ? AND verification_status = 'pending' "
+                "AND principal_id IS ?",
+                (mistake_id, principal_id),
+            ).rowcount
+            row = (
+                conn.execute(
+                    "SELECT error_type, root_cause, lesson_text FROM mistake_pool "
+                    "WHERE id = ?",
+                    (mistake_id,),
+                ).fetchone()
+                if promoted
+                else None
             )
-            row = conn.execute(
-                "SELECT error_type, root_cause, lesson_text FROM mistake_pool WHERE id = ?",
-                (mistake_id,),
-            ).fetchone()
 
         # S2: ingest verified mistake edges into the knowledge graph.
         # OUTSIDE the `with` block — same SQLite deadlock avoidance as
@@ -384,20 +420,26 @@ class MistakeMemory:
                     str(row["root_cause"]),
                     str(row["lesson_text"]),
                 ):
-                    self._facts.add_fact(s, p, o, confidence=conf)
+                    self._facts.add_fact(
+                        s, p, o, confidence=conf, principal_id=principal_id
+                    )
             except Exception:
                 logger.warning(
                     "graph ingestion from mistake failed (swallowed)", exc_info=True
                 )
 
-    def supersede(self, old_id: int, new_id: int) -> None:
-        """Mark *old_id* as superseded by *new_id*."""
+    def supersede(
+        self, old_id: int, new_id: int, principal_id: Optional[str] = None
+    ) -> None:
+        """Mark *old_id* as superseded by *new_id* -- both of *principal_id*."""
         with get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE mistake_pool "
                 "SET verification_status = 'superseded', superseded_by = ? "
-                "WHERE id = ?",
-                (new_id, old_id),
+                "WHERE id = ? AND principal_id IS ? "
+                "AND EXISTS (SELECT 1 FROM mistake_pool AS n "
+                "            WHERE n.id = ? AND n.principal_id IS ?)",
+                (new_id, old_id, principal_id, new_id, principal_id),
             )
 
     def count(self) -> int:

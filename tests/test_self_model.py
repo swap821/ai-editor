@@ -156,13 +156,15 @@ def test_recall_self_model_helper_integrates_real_stores(tmp_path: Path) -> None
             "do the coding task", "verified_success", metadata={"task": "coding"}
         )
 
-    text = _recall_self_model(dev, MistakeMemory(db_path=db))
+    text = _recall_self_model(dev, MistakeMemory(db_path=db), principal=None)
     assert text and "coding" in text
 
     empty = tmp_path / "empty.db"
     assert (
         _recall_self_model(
-            DevelopmentTracker(db_path=empty), MistakeMemory(db_path=empty)
+            DevelopmentTracker(db_path=empty),
+            MistakeMemory(db_path=empty),
+            principal=None,
         )
         is None
     )

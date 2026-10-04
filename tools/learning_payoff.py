@@ -603,7 +603,11 @@ def recalled_context(reflector, skills: SkillMemory, query: str, session_id: str
     a store error reads here as "recalled nothing" rather than as "memory is
     worthless", and the pair is then reported NOT COMPARABLE.
     """
-    lessons = _recall_lessons(reflector, session_id, query) or []
+    # Plan Phase 4c: this harness learns and recalls through raw stores, as
+    # no principal, so its rows are unattributed and the store matches them
+    # (NULL-safe). It never went through the recall gate; scoping changes
+    # nothing it measures.
+    lessons = _recall_lessons(reflector, session_id, query, principal=None) or []
     verified = _recall_skills(skills, query) or []
     blocks = [
         block

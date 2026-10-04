@@ -153,6 +153,18 @@ def client() -> Iterator[TestClient]:
     app.dependency_overrides.clear()
 
 
+def _client_principal(client: TestClient) -> str:
+    """The principal the test client is authenticated as (plan Phase 4c:
+    learned rows and fact proposals are that principal's)."""
+    from aios.api.deps import get_identity_service
+
+    principal = get_identity_service().get_authenticated_principal(
+        client.cookies.get("session_id")
+    )
+    assert principal is not None
+    return str(principal.principal_id)
+
+
 # --------------------------------------------------------------------------- #
 # _is_private_ip / _real_client_ip  (lines 397-444)
 # --------------------------------------------------------------------------- #
@@ -676,7 +688,9 @@ def test_clear_conversation_correction_without_frame_returns_409(
 def test_memory_facts_pending_lists_proposals(client: TestClient) -> None:
     facts = SemanticFacts()
     app.dependency_overrides[get_semantic_facts] = lambda: facts
-    facts.strengthen_or_propose("operator", "likes", "coffee")
+    facts.strengthen_or_propose(
+        "operator", "likes", "coffee", principal_id=_client_principal(client)
+    )
     response = client.get("/api/v1/memory/facts/pending")
     assert response.status_code == 200
     body = response.json()
@@ -704,7 +718,9 @@ def test_reject_fact_proposal_not_pending_returns_404(client: TestClient) -> Non
 def test_reject_fact_proposal_success(client: TestClient) -> None:
     facts = SemanticFacts()
     app.dependency_overrides[get_semantic_facts] = lambda: facts
-    facts.strengthen_or_propose("operator", "prefers", "dark mode")
+    facts.strengthen_or_propose(
+        "operator", "prefers", "dark mode", principal_id=_client_principal(client)
+    )
     pending = client.get("/api/v1/memory/facts/pending").json()["proposals"]
     proposal_id = pending[0]["id"]
     response = client.post(
@@ -730,7 +746,7 @@ def test_promote_fact_success(client: TestClient) -> None:
     # asdict) is what's under test here, not MemoryConsolidator's internals
     # (which have their own dedicated coverage).
     class FakePromotingConsolidator:
-        def promote_fact(self, subject, predicate, obj, *, approved_by):
+        def promote_fact(self, subject, predicate, obj, *, approved_by, principal=None):
             return FactWriteResult(True, 1, "committed")
 
     from aios.api.main import get_memory_consolidator
@@ -753,7 +769,7 @@ def test_promote_fact_success(client: TestClient) -> None:
 
 def test_promote_fact_contradiction_returns_409(client: TestClient) -> None:
     class ContradictingConsolidator:
-        def promote_fact(self, subject, predicate, obj, *, approved_by):
+        def promote_fact(self, subject, predicate, obj, *, approved_by, principal=None):
             return FactWriteResult(
                 False, None, "contradiction", conflict_id=5, conflict_object="water"
             )
@@ -778,7 +794,9 @@ def test_promote_fact_contradiction_returns_409(client: TestClient) -> None:
 
 def test_reconcile_fact_not_committed_returns_422(client: TestClient) -> None:
     class RefusingConsolidator:
-        def reconcile_fact(self, subject, predicate, obj, *, approved_by):
+        def reconcile_fact(
+            self, subject, predicate, obj, *, approved_by, principal=None
+        ):
             return FactWriteResult(False, None, "no prior fact to reconcile")
 
     from aios.api.main import get_memory_consolidator
@@ -801,7 +819,9 @@ def test_reconcile_fact_success(client: TestClient) -> None:
     # the HTTP-level contract (validation -> consolidator.reconcile_fact ->
     # asdict) is exercised without loading the real embedder.
     class FakeReconcilingConsolidator:
-        def reconcile_fact(self, subject, predicate, obj, *, approved_by):
+        def reconcile_fact(
+            self, subject, predicate, obj, *, approved_by, principal=None
+        ):
             return FactWriteResult(True, 1, "reconciled")
 
     from aios.api.main import get_memory_consolidator
@@ -1475,18 +1495,23 @@ def test_workflow_step_with_no_useful_keys_returns_bare_name() -> None:
 # _index_turn (2838-2858)
 # --------------------------------------------------------------------------- #
 def test_index_turn_noop_when_indexer_none() -> None:
-    _index_turn(None, "question", "answer")  # must not raise
+    _index_turn(None, "question", "answer", principal=None)  # must not raise
 
 
 def test_index_turn_noop_when_answer_empty() -> None:
     indexer = FakeIndexer()
-    _index_turn(indexer, "question", "   ")
+    _index_turn(indexer, "question", "   ", principal=None)
     assert indexer.added == []
 
 
 def test_index_turn_adds_payload_with_question_and_answer() -> None:
     indexer = FakeIndexer()
-    _index_turn(indexer, "how do I write a login page", "use a form with two fields")
+    _index_turn(
+        indexer,
+        "how do I write a login page",
+        "use a form with two fields",
+        principal=None,
+    )
     assert len(indexer.added) == 1
     assert "UNVERIFIED_CHAT" in indexer.added[0]
     assert "login page" in indexer.added[0]
@@ -1503,7 +1528,7 @@ def test_index_turn_falls_back_when_add_rejects_kwargs() -> None:
             return 1
 
     indexer = LegacyIndexer()
-    _index_turn(indexer, "q", "a")
+    _index_turn(indexer, "q", "a", principal=None)
     assert len(indexer.added) == 1
 
 
@@ -1512,7 +1537,7 @@ def test_index_turn_swallows_indexer_exception() -> None:
         def add(self, text, **kwargs):
             raise RuntimeError("index write failed")
 
-    _index_turn(BoomIndexer(), "q", "a")  # must not raise
+    _index_turn(BoomIndexer(), "q", "a", principal=None)  # must not raise
 
 
 # --------------------------------------------------------------------------- #
@@ -1660,7 +1685,7 @@ def test_record_human_state_is_best_effort_and_never_raises() -> None:
 
 
 def test_recall_lessons_none_reflector_returns_empty() -> None:
-    assert _recall_lessons(None, "session", "query") == []
+    assert _recall_lessons(None, "session", "query", principal=None) == []
 
 
 def test_recall_lessons_uses_recall_relevant_when_available() -> None:
@@ -1668,7 +1693,7 @@ def test_recall_lessons_uses_recall_relevant_when_available() -> None:
         def recall_relevant(self, query, session_id, limit):
             return [{"mistake_id": 1, "error_type": "Bug", "lesson_text": "fix it"}]
 
-    result = _recall_lessons(Reflector(), "session", "query")
+    result = _recall_lessons(Reflector(), "session", "query", principal=None)
     assert result[0]["mistake_id"] == 1
 
 
@@ -1677,7 +1702,7 @@ def test_recall_lessons_falls_back_to_recall_pending() -> None:
         def recall_pending(self, task_id, limit):
             return [{"mistake_id": 2, "error_type": "Bug", "lesson_text": "fix it too"}]
 
-    result = _recall_lessons(Reflector(), "session", "query")
+    result = _recall_lessons(Reflector(), "session", "query", principal=None)
     assert result[0]["mistake_id"] == 2
 
 
@@ -1686,7 +1711,7 @@ def test_recall_lessons_swallows_exception() -> None:
         def recall_relevant(self, query, session_id, limit):
             raise RuntimeError("boom")
 
-    assert _recall_lessons(BoomReflector(), "session", "query") == []
+    assert _recall_lessons(BoomReflector(), "session", "query", principal=None) == []
 
 
 def test_recall_skills_swallows_exception() -> None:
@@ -1712,15 +1737,15 @@ def test_recall_skills_returns_relevant_workflows() -> None:
 # _recall_facts exception branches (2479-2559)
 # --------------------------------------------------------------------------- #
 def test_recall_facts_empty_query_returns_none() -> None:
-    assert _recall_facts(SemanticFacts(), "   ") is None
+    assert _recall_facts(SemanticFacts(), "   ", principal=None) is None
 
 
 def test_recall_facts_swallows_search_exception() -> None:
     class BoomFacts:
-        def search(self, text):
+        def search(self, text, principal_id=None):
             raise RuntimeError("db down")
 
-    assert _recall_facts(BoomFacts(), "query") is None
+    assert _recall_facts(BoomFacts(), "query", principal=None) is None
 
 
 def test_recall_facts_no_matches_returns_none() -> None:
@@ -1728,7 +1753,7 @@ def test_recall_facts_no_matches_returns_none() -> None:
 
     init_memory_db()
     facts = SemanticFacts()
-    assert _recall_facts(facts, "nothing matches this at all") is None
+    assert _recall_facts(facts, "nothing matches this at all", principal=None) is None
 
 
 def test_recall_facts_returns_text_for_matched_facts() -> None:
@@ -1737,39 +1762,43 @@ def test_recall_facts_returns_text_for_matched_facts() -> None:
     init_memory_db()
     facts = SemanticFacts()
     facts.add_fact("operator", "likes", "coffee", approved_by="operator")
-    result = _recall_facts(facts, "coffee")
+    result = _recall_facts(facts, "coffee", principal=None)
     assert result is not None
     assert "operator likes coffee" in result.text
 
 
 def test_recall_facts_swallows_neighbor_lookup_exception() -> None:
     class PartialBoomFacts:
-        def search(self, text):
+        def search(self, text, principal_id=None):
             return [{"subject": "operator", "predicate": "likes", "object": "coffee"}]
 
-        def neighbors(self, node):
+        def neighbors(self, node, principal_id=None):
             raise RuntimeError("neighbor lookup failed")
 
-        def traverse_weighted(self, node, max_depth, min_path_confidence):
+        def traverse_weighted(
+            self, node, max_depth, min_path_confidence, principal_id=None
+        ):
             return []
 
-    result = _recall_facts(PartialBoomFacts(), "coffee")
+    result = _recall_facts(PartialBoomFacts(), "coffee", principal=None)
     assert result is not None
     assert "operator likes coffee" in result.text
 
 
 def test_recall_facts_swallows_traverse_weighted_exception() -> None:
     class TraverseBoomFacts:
-        def search(self, text):
+        def search(self, text, principal_id=None):
             return [{"subject": "operator", "predicate": "likes", "object": "coffee"}]
 
-        def neighbors(self, node):
+        def neighbors(self, node, principal_id=None):
             return []
 
-        def traverse_weighted(self, node, max_depth, min_path_confidence):
+        def traverse_weighted(
+            self, node, max_depth, min_path_confidence, principal_id=None
+        ):
             raise RuntimeError("traverse failed")
 
-    result = _recall_facts(TraverseBoomFacts(), "coffee")
+    result = _recall_facts(TraverseBoomFacts(), "coffee", principal=None)
     assert result is not None
 
 
@@ -1836,14 +1865,14 @@ def test_recall_memory_swallows_hybrid_search_exception(monkeypatch) -> None:
         raise RuntimeError("index corrupted")
 
     monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", boom)
-    assert _recall_memory("query") is None
+    assert _recall_memory("query", principal=None) is None
 
 
 def test_recall_memory_returns_none_when_no_hits(monkeypatch) -> None:
     monkeypatch.setattr(
         "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: []
     )
-    assert _recall_memory("query") is None
+    assert _recall_memory("query", principal=None) is None
 
 
 def test_recall_memory_uses_injected_authority(monkeypatch) -> None:
@@ -1864,7 +1893,7 @@ def test_recall_memory_uses_injected_authority(monkeypatch) -> None:
     )
     monkeypatch.setattr(config, "CRAG", False)
 
-    result = _recall_memory("query", authority=Authority())
+    result = _recall_memory("query", authority=Authority(), principal=None)
 
     assert result is not None
     assert "injected semantic memory" in result
@@ -1895,7 +1924,7 @@ def test_recall_memory_without_crag_recalls_trusted_and_withholds_unverified(
         "aios.api.turn_pipeline._announce_recall_withheld",
         lambda recalled, withheld, **_: announced.append((recalled, withheld)),
     )
-    result = _recall_memory("query")
+    result = _recall_memory("query", principal=None)
     assert result is not None
     assert "trusted fact" in result
     assert "unverified fact" not in result
@@ -1921,7 +1950,7 @@ def test_recall_memory_of_only_unverified_hits_recalls_nothing(monkeypatch) -> N
         "aios.api.turn_pipeline._announce_recall_withheld",
         lambda recalled, withheld, **_: announced.append((recalled, withheld)),
     )
-    assert _recall_memory("query") is None
+    assert _recall_memory("query", principal=None) is None
     assert announced == [(0, 1)]
 
 
@@ -1981,7 +2010,7 @@ def test_recall_asks_retrieval_for_verified_rows_only(monkeypatch) -> None:
         return []
 
     monkeypatch.setattr("aios.api.turn_pipeline.hybrid_search", _spy)
-    _recall_memory("query")
+    _recall_memory("query", principal=None)
     assert calls[0] == {"verification_statuses": ("verified",)}, (
         "the prompt-bound retrieval must filter by status inside retrieval"
     )
@@ -2064,7 +2093,7 @@ def test_recall_memory_crag_incorrect_verdict_drops_local_retrieval(
     monkeypatch.setattr(
         "aios.api.turn_pipeline.evaluate_retrieval", lambda *a, **k: Verdict()
     )
-    assert _recall_memory("query") is None
+    assert _recall_memory("query", principal=None) is None
 
 
 def test_recall_memory_crag_evaluation_exception_falls_back_to_unrefined(
@@ -2086,7 +2115,7 @@ def test_recall_memory_crag_evaluation_exception_falls_back_to_unrefined(
         "aios.api.turn_pipeline.hybrid_search", lambda query, top_k=3, **_: [Hit()]
     )
     monkeypatch.setattr("aios.api.turn_pipeline.evaluate_retrieval", boom_evaluate)
-    result = _recall_memory("query")
+    result = _recall_memory("query", principal=None)
     assert result is not None
     assert "some fact" in result
 

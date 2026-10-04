@@ -190,15 +190,34 @@ def test_operator_model_returns_approved_facts(
 ) -> None:
     from aios.memory.db import init_memory_db
 
+    from tests.helpers import client_principal_id
+
     init_memory_db(tmp_facts.db_path)
+    # Plan Phase 4c: the operator model is the caller's own facts.
+    owner = client_principal_id(operator_model_client)
     tmp_facts.add_fact(
-        "operator", "prefers", "dark mode", approved_by="human", confidence=0.9
+        "operator",
+        "prefers",
+        "dark mode",
+        approved_by="human",
+        confidence=0.9,
+        principal_id=owner,
     )
     tmp_facts.add_fact(
-        "operator.role", "is", "engineer", approved_by="human", confidence=0.9
+        "operator.role",
+        "is",
+        "engineer",
+        approved_by="human",
+        confidence=0.9,
+        principal_id=owner,
     )
     tmp_facts.add_fact(
-        "project", "uses", "FastAPI", approved_by="human", confidence=0.9
+        "project",
+        "uses",
+        "FastAPI",
+        approved_by="human",
+        confidence=0.9,
+        principal_id=owner,
     )
 
     resp = operator_model_client.get("/api/v1/operator/model")

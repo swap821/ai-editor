@@ -230,6 +230,12 @@ class RecallGate:
     else is refused, never "included with a warning": Phase 0b showed that a
     header is advice, not a boundary.
 
+    Plan Phase 4c (principal scoping; operator decision 2026-10-04): a row is
+    admitted only for the principal its SIGNED provenance names -- never on a
+    column, which anyone with the database could edit. A recall that does not
+    say who is asking is refused; so is a row learned before scoping, which
+    names nobody (withheld until re-earned or readmitted by the operator).
+
     Refusals are counted by reason for the operator and logged once per row.
     Nothing here writes, so a recall under the emergency stop still reads.
     """
@@ -250,7 +256,13 @@ class RecallGate:
         self.refused_by_table: dict[str, dict[str, int]] = {}
         self._logged: set[tuple[str, str]] = set()
 
-    def admits(self, table: str, row_id: Any, digest: str) -> bool:
+    def admits(
+        self, table: str, row_id: Any, digest: str, *, principal: Optional[str]
+    ) -> bool:
+        if not principal:
+            return self._refuse(
+                table, row_id, "no principal: the recall did not say who is asking"
+            )
         try:
             signed = self.store.latest(table, str(row_id))
         except Exception as exc:  # noqa: BLE001 - unreadable proves nothing
@@ -258,8 +270,15 @@ class RecallGate:
         verdict = self.verifier.verify(
             signed, content_sha256=digest, context=self.context
         )
-        if not verdict.admitted:
+        if not verdict.admitted or signed is None:
             return self._refuse(table, row_id, verdict.reason)
+        owner = signed.provenance.principal
+        if not owner:
+            return self._refuse(
+                table, row_id, "unattributed: learned before principal scoping"
+            )
+        if owner != principal:
+            return self._refuse(table, row_id, "another principal")
         self.admitted += 1
         return True
 

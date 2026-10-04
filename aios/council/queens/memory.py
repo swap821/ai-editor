@@ -63,7 +63,11 @@ class MemoryQueen:
         unacceptable for *granting*, but retrieval failure must not block work)."""
         assert self._retriever is not None
         try:
-            result = self._retriever.retrieve(contract.goal)
+            # Plan Phase 4c: the mission's operator is the principal whose
+            # verified failures are consulted.
+            result = self._retriever.retrieve(
+                contract.goal, principal=getattr(contract, "operator_id", None)
+            )
         except Exception as exc:  # noqa: BLE001 - retrieval must not break deliberation
             _LOGGER.warning("memory_queen_retrieval_fallback", exc_info=exc)
             return QueenVerdict(

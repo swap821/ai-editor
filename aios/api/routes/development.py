@@ -22,6 +22,7 @@ from aios.api.deps import (
     get_semantic_facts,
     get_skill_memory,
     get_memory_authority,
+    get_optional_principal,
 )
 from aios.core.autonomy import AutonomyLedger
 from aios.memory.curriculum import CurriculumManager
@@ -61,13 +62,16 @@ def development_metrics(
 def operator_model(
     facts: SemanticFacts = Depends(get_semantic_facts),
     authority: MemoryAuthority = Depends(get_memory_authority),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
-    """Structured snapshot of what the system knows about the operator."""
+    """Structured snapshot of what the system knows about the operator -- the
+    caller's own facts only (plan Phase 4c)."""
+    principal_id = principal.principal_id if principal is not None else None
     if authority.owns_store("facts", facts):
-        return authority.operator_model()
+        return authority.operator_model(principal=principal_id)
     from aios.memory.operator_model import render_operator_model
 
-    return render_operator_model(facts)
+    return render_operator_model(facts, principal_id=principal_id)
 
 
 @router.get("/api/v1/development/skills")

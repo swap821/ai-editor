@@ -201,10 +201,14 @@ class Planner:
         skills: Optional[SkillMemory] = None,
         native: Optional["NativePlanner"] = None,
         memory_authority: Optional[Any] = None,
+        principal: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.threshold = threshold
         self.memory_authority = memory_authority
+        #: Plan Phase 4c: whose verified experience calibrates this plan. None
+        #: calibrates from no learned row.
+        self.principal = principal
         # Production callers pass the authority without specialist stores. Reuse
         # its registered stores so calibration cannot open parallel databases.
         self.mistakes = mistakes or _authority_store(memory_authority, "lessons")
@@ -228,10 +232,14 @@ class Planner:
         verified_skills: list[dict[str, Any]] = []
         try:
             lessons = (
-                self.memory_authority.recall_verified_lessons(query, 5)
+                self.memory_authority.recall_verified_lessons(
+                    query, 5, principal=self.principal
+                )
                 if self.memory_authority is not None
                 and self.memory_authority.owns_store("lessons", self.mistakes)
-                else self.mistakes.relevant_verified(query, limit=5)
+                else self.mistakes.relevant_verified(
+                    query, limit=5, principal_id=self.principal
+                )
             )
         except Exception:  # noqa: BLE001 - planning remains available if memory is down
             pass
@@ -326,7 +334,9 @@ class Planner:
 
         # ── Sovereignty S3: native planning from verified experience ──
         if self._native is not None:
-            native_result = self._native.try_plan(goal.strip())
+            native_result = self._native.try_plan(
+                goal.strip(), principal=self.principal
+            )
             if native_result is not None:
                 self._last_native_source = native_result
                 partition = filter_steps(native_result.steps, self.threshold)

@@ -912,7 +912,7 @@ class TestNativePlanEvent:
             steps = [object(), object()]
 
         class FakeNative:
-            def try_plan(self, goal):
+            def try_plan(self, goal, *, principal=None):
                 return FakeNativeSource()
 
         planner_llm = FakePlannerLLM("unused")

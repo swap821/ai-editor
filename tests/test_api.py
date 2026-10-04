@@ -1093,7 +1093,9 @@ def test_generate_verified_mistake_calibrates_default_confidence_gate(
             )
 
     class FakeMistakes:
-        def relevant_verified(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        def relevant_verified(
+            self, query: str, limit: int = 5, principal_id=None
+        ) -> list[dict[str, Any]]:
             return [
                 {
                     "mistake_id": 77,
@@ -2395,10 +2397,10 @@ class RecordingConsolidator:
     def consolidate_lesson(self, mistake_id):
         return mistake_id
 
-    def promote_fact(self, subject, predicate, obj, *, approved_by):
+    def promote_fact(self, subject, predicate, obj, *, approved_by, principal=None):
         return FactWriteResult(True, 7, "committed")
 
-    def reconcile_fact(self, subject, predicate, obj, *, approved_by):
+    def reconcile_fact(self, subject, predicate, obj, *, approved_by, principal=None):
         return FactWriteResult(True, 8, "reconciled")
 
 
@@ -3036,3 +3038,91 @@ def test_an_orphaned_grant_does_not_ride_into_the_next_turn(
         "the command should have been re-escalated for approval rather than "
         "silently inherited"
     )
+
+
+# ── Plan Phase 4c: a turn's learning belongs to the turn's principal ─────────
+
+
+def test_a_reflected_lesson_belongs_to_the_caller(client: TestClient) -> None:
+    """The write side, end to end: the lesson the reflection route records is
+    the authenticated caller's -- in its column AND under its signature."""
+    from aios.api.deps import get_memory_authority
+    from tests.helpers import client_principal_id
+
+    response = client.post(
+        "/api/v1/reflect",
+        json={"command": "fetch url", "error_output": "timed out", "task_id": "4c"},
+    )
+    assert response.status_code == 200
+    mistake_id = response.json()["mistake_id"]
+    owner = client_principal_id(client)
+    lessons = get_memory_authority().adapters["lessons"]
+    assert lessons.store.get(mistake_id)["principal_id"] == owner
+    signed = lessons.provenance.store.latest("mistake_pool", str(mistake_id))
+    assert signed is not None and signed.provenance.principal == owner
+
+
+def test_a_generate_turn_indexes_as_the_caller(client: TestClient) -> None:
+    """A completed turn is written into memory as the caller's, so it can only
+    ever be recalled for them."""
+    from tests.helpers import client_principal_id
+
+    class CapturingIndexer:
+        def __init__(self) -> None:
+            self.principals: list[object] = []
+
+        def add(self, text: str, **kwargs) -> int:
+            self.principals.append(kwargs.get("principal_id"))
+            return len(self.principals)
+
+        def duplicate_of(self, text: str, principal_id=None):
+            return None
+
+        def get(self, mem_id: int):
+            return None
+
+    indexer = CapturingIndexer()
+    app.dependency_overrides[get_semantic_indexer] = lambda: indexer
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "make a button"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-4c-index",
+        },
+    )
+    assert response.status_code == 200
+    assert indexer.principals == [client_principal_id(client)]
+
+
+def test_a_generate_turn_reflects_as_the_caller(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The turn's reflection agent -- whose lessons a tool failure records and
+    a later success promotes -- is bound to the caller (plan Phase 4c)."""
+    from aios.agents.reflection_agent import ReflectionAgent
+    from aios.api import main as api_main
+    from aios.api.deps import get_memory_authority
+    from tests.helpers import client_principal_id
+
+    app.dependency_overrides[get_reflection_agent] = lambda: ReflectionAgent(
+        FakeLLM(), memory_authority=get_memory_authority()
+    )
+    seen: list[object] = []
+    real_hook = api_main._make_failure_hook
+
+    def capturing(reflector, session_id):
+        seen.append(getattr(reflector, "principal", "missing"))
+        return real_hook(reflector, session_id)
+
+    monkeypatch.setattr(api_main, "_make_failure_hook", capturing)
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "make a button"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": "test-4c-reflect",
+        },
+    )
+    assert response.status_code == 200
+    assert seen and set(seen) == {client_principal_id(client)}

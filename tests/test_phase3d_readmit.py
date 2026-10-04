@@ -26,6 +26,8 @@ from aios.memory.provenance import LearningSigner, LearningVerifier, ProvenanceS
 from tools import readmit_learning as tool
 
 APPROVER = "operator:swap"
+#: Plan Phase 4c: a re-admitted row is someone's.
+PRINCIPAL = "operator:swap"
 
 
 def _seed() -> str:
@@ -90,6 +92,7 @@ class TestItReadmitsOnlyWhatTheOperatorNamed:
             table="mistake_pool",
             ids=[legacy],
             approver=APPROVER,
+            principal=PRINCIPAL,
         ) == [legacy]
         assert _verdict(world, legacy).admitted
         record = world.store.latest("mistake_pool", str(legacy)).provenance
@@ -111,6 +114,7 @@ class TestItReadmitsOnlyWhatTheOperatorNamed:
             table="mistake_pool",
             ids=[a],
             approver=APPROVER,
+            principal=PRINCIPAL,
         )
         assert _verdict(world, a).admitted and not _verdict(world, b).admitted
 
@@ -124,6 +128,7 @@ class TestItReadmitsOnlyWhatTheOperatorNamed:
             table="mistake_pool",
             ids=[lid],
             approver=APPROVER,
+            principal=PRINCIPAL,
         )
         with sqlite3.connect(world.db) as conn:
             conn.execute(
@@ -150,6 +155,7 @@ class TestItRefusesBeforeSigningAnything:
                 table="mistake_pool",
                 ids=[lid],
                 approver=APPROVER,
+                principal=PRINCIPAL,
             )
         assert self._count(world) == 0
 
@@ -163,6 +169,7 @@ class TestItRefusesBeforeSigningAnything:
                 table="mistake_pool",
                 ids=[lid],
                 approver="  ",
+                principal=PRINCIPAL,
             )
         assert self._count(world) == 0
 
@@ -177,6 +184,7 @@ class TestItRefusesBeforeSigningAnything:
                 table="mistake_pool",
                 ids=[good, superseded, 9999],
                 approver=APPROVER,
+                principal=PRINCIPAL,
             )
         assert self._count(world) == 0
 
@@ -189,6 +197,7 @@ class TestItRefusesBeforeSigningAnything:
                 table="compiled_playbooks",
                 ids=[1],
                 approver=APPROVER,
+                principal=PRINCIPAL,
             )
 
     def test_the_stop_refuses_it(self, world, monkeypatch) -> None:
@@ -208,7 +217,16 @@ class TestItRefusesBeforeSigningAnything:
                 table="mistake_pool",
                 ids=[lid],
                 approver=APPROVER,
+                principal=PRINCIPAL,
             )
+        # Plan Phase 4c: refused before ANY write -- the row is not left
+        # attributed but unsigned.
+        with sqlite3.connect(world.db) as conn:
+            owner = conn.execute(
+                "SELECT principal_id FROM mistake_pool WHERE id = ?", (lid,)
+            ).fetchone()[0]
+        assert owner is None
+        assert world.store.latest("mistake_pool", str(lid)) is None
 
 
 class TestTheCommandLine:
@@ -253,3 +271,86 @@ class TestTheCommandLine:
             ]
         )
         assert seed not in capsys.readouterr().out
+
+
+class TestTheReadmittedRowIsSomeones:
+    """Plan Phase 4c: recall returns a row only to the principal its signed
+    provenance names, so re-admission says whose it is."""
+
+    def test_the_row_and_its_signature_name_the_principal(self, world) -> None:
+        lid = _lesson(world.db, "lesson a")
+        tool.readmit(
+            world.db,
+            world.store,
+            world.signer,
+            table="mistake_pool",
+            ids=[lid],
+            approver=APPROVER,
+            principal=PRINCIPAL,
+        )
+        with sqlite3.connect(world.db) as conn:
+            owner = conn.execute(
+                "SELECT principal_id FROM mistake_pool WHERE id = ?", (lid,)
+            ).fetchone()[0]
+        assert owner == PRINCIPAL
+        assert world.store.latest("mistake_pool", str(lid)).provenance.principal == (
+            PRINCIPAL
+        )
+
+    def test_without_a_principal_nothing_is_signed(self, world) -> None:
+        lid = _lesson(world.db, "lesson a")
+        with pytest.raises(tool.ReadmitError, match="principal is required"):
+            tool.readmit(
+                world.db,
+                world.store,
+                world.signer,
+                table="mistake_pool",
+                ids=[lid],
+                approver=APPROVER,
+                principal="  ",
+            )
+        assert world.store.latest("mistake_pool", str(lid)) is None
+
+    def test_a_row_another_principal_owns_is_never_moved(self, world) -> None:
+        lid = _lesson(world.db, "lesson a")
+        with sqlite3.connect(world.db) as conn:
+            conn.execute(
+                "UPDATE mistake_pool SET principal_id = 'operator:other' WHERE id = ?",
+                (lid,),
+            )
+        with pytest.raises(tool.ReadmitError, match="another principal owns"):
+            tool.readmit(
+                world.db,
+                world.store,
+                world.signer,
+                table="mistake_pool",
+                ids=[lid],
+                approver=APPROVER,
+                principal=PRINCIPAL,
+            )
+        assert world.store.latest("mistake_pool", str(lid)) is None
+
+    def test_status_lists_a_signed_but_unattributed_row(self, world) -> None:
+        """Signed before scoping, so it names no one: withheld from everyone
+        until attributed (operator decision 2026-10-04)."""
+        from aios.memory.provenance import Provenance
+
+        lid = _lesson(world.db, "lesson a")
+        with sqlite3.connect(world.db) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM mistake_pool WHERE id = ?", (lid,)
+            ).fetchone()
+        record = Provenance(
+            table="mistake_pool",
+            row_id=str(lid),
+            content_sha256=lesson_digest(row),
+            source_kind="live",
+            transition="readmitted",
+            approver=APPROVER,
+        )
+        world.store.append(record, world.signer.sign(record))
+        listed = tool.status(world.db, world.store, world.verifier)["mistake_pool"]
+        assert [(r["id"], r["reason"]) for r in listed] == [
+            (lid, "unattributed: learned before principal scoping")
+        ]

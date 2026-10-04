@@ -175,16 +175,16 @@ def test_operator_model_route_uses_authority_when_facts_store_owned() -> None:
         def owns_store(self, name, candidate):
             return name == "facts"
 
-        def operator_model(self):
+        def operator_model(self, *, principal=None):
             return {"source": "authority"}
 
     class LegacyFacts:
         def facts_for(self, *args, **kwargs):
             raise AssertionError("operator model bypassed MemoryAuthority")
 
-    assert operator_model(facts=LegacyFacts(), authority=Authority()) == {
-        "source": "authority"
-    }
+    assert operator_model(
+        facts=LegacyFacts(), authority=Authority(), principal=None
+    ) == {"source": "authority"}
 
 
 def test_system_metrics_route_uses_authority_when_tracker_store_owned(
@@ -291,10 +291,10 @@ def test_generate_recall_preserves_explicit_noncanonical_fakes() -> None:
             raise AssertionError("skills recall bypassed the explicit fake")
 
     class Facts:
-        def search(self, _query):
+        def search(self, _query, principal_id=None):
             return [{"subject": "project", "predicate": "uses", "object": "FastAPI"}]
 
-        def neighbors(self, _node):
+        def neighbors(self, _node, principal_id=None):
             return []
 
         def traverse_weighted(self, _node, **_kwargs):
@@ -305,7 +305,7 @@ def test_generate_recall_preserves_explicit_noncanonical_fakes() -> None:
             return [{"goal_pattern": "build api", "steps": ["test"]}]
 
     authority = Authority()
-    facts = _recall_facts(Facts(), "api", authority=authority)
+    facts = _recall_facts(Facts(), "api", authority=authority, principal=None)
     skills = _recall_skills(Skills(), "api", authority=authority)
 
     assert facts is not None
@@ -320,10 +320,10 @@ def test_reflection_recall_preserves_noncanonical_lesson_fake() -> None:
     class Lessons:
         db_path = "explicit-fake"
 
-        def pending_for_task(self, _task_id, _limit):
+        def pending_for_task(self, _task_id, _limit, principal_id=None):
             return []
 
-        def relevant_verified(self, _query, _limit):
+        def relevant_verified(self, _query, _limit, principal_id=None):
             return [{"mistake_id": 7, "error_type": "Bug", "lesson_text": "verify"}]
 
     class Authority:
@@ -339,5 +339,9 @@ def test_reflection_recall_preserves_noncanonical_lesson_fake() -> None:
     )
 
     assert _recall_lessons(
-        reflector, "session", "query", authority=reflector.memory_authority
+        reflector,
+        "session",
+        "query",
+        authority=reflector.memory_authority,
+        principal=None,
     ) == [{"mistake_id": 7, "error_type": "Bug", "lesson_text": "verify"}]

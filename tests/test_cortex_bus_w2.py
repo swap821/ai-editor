@@ -23,6 +23,10 @@ from aios.runtime.cortex_bus import BusEvent, CortexBus
 from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
 from tests.cortex_event_helpers import append_event
 
+#: Plan Phase 4c: the self-model cache is per principal.
+OWNER = "principal:owner"
+OTHER = "principal:other"
+
 
 # ── Slice A: CortexBusDispatcher lifecycle ────────────────────────────────────
 
@@ -244,6 +248,8 @@ class TestSelfModelConsumer:
         dev = self._fake_dev()
         mistakes = self._fake_mistakes()
         handler = SelfModelHandler(dev, mistakes)
+        # Plan Phase 4c: the turn says whose it is before it completes.
+        handler.remember("session-1", OWNER)
 
         event = BusEvent(
             id=1,
@@ -253,7 +259,8 @@ class TestSelfModelConsumer:
         )
         handler(event)
 
-        model_text = handler.recall()
+        model_text = handler.recall(OWNER)
+        assert handler.recall(OTHER) is None, "never another principal's"
         assert model_text is not None
         assert "reliable" in model_text.lower() or "coding" in model_text.lower(), (
             f"Expected self-model text about strengths, got: {model_text!r}"
@@ -273,9 +280,10 @@ class TestSelfModelConsumer:
             signature="operator",
             payload={},
         )
+        handler.remember("operator", OWNER)
         handler(event)
         # recall returns None because no turn.completed has been processed.
-        assert handler.recall() is None
+        assert handler.recall(OWNER) is None
 
     def test_handler_recall_is_none_before_first_event(self, tmp_path: Path) -> None:
         from aios.runtime.self_model_handler import SelfModelHandler
@@ -283,7 +291,7 @@ class TestSelfModelConsumer:
         dev = self._fake_dev()
         mistakes = self._fake_mistakes()
         handler = SelfModelHandler(dev, mistakes)
-        assert handler.recall() is None
+        assert handler.recall(OWNER) is None
 
     def test_handler_is_idempotent_on_replay(self, tmp_path: Path) -> None:
         """Delivering the same event twice must not raise (at-least-once contract)."""
@@ -292,6 +300,7 @@ class TestSelfModelConsumer:
         dev = self._fake_dev()
         mistakes = self._fake_mistakes()
         handler = SelfModelHandler(dev, mistakes)
+        handler.remember("session-1", OWNER)
 
         event = BusEvent(
             id=1,
@@ -301,15 +310,18 @@ class TestSelfModelConsumer:
         )
         handler(event)
         handler(event)  # replay — must not raise
+        assert handler.recall(OWNER) is not None
 
     def test_handler_uses_authority_self_model_when_bound(self) -> None:
         from aios.runtime.self_model_handler import SelfModelHandler
 
         class Authority:
-            def self_model(self) -> str:
+            def self_model(self, *, principal) -> str:
+                assert principal == OWNER
                 return "authority-grounded self-model"
 
         handler = SelfModelHandler(memory_authority=Authority())
+        handler.remember("session-authority", OWNER)
         handler(
             BusEvent(
                 id=3,
@@ -319,7 +331,8 @@ class TestSelfModelConsumer:
             )
         )
 
-        assert handler.recall() == "authority-grounded self-model"
+        assert handler.recall(OWNER) == "authority-grounded self-model"
+        assert handler.recall(OTHER) is None
 
 
 # ── W3 guard: observation-type contract + latency ────────────────────────────
@@ -376,17 +389,18 @@ class TestW3Guard:
         dispatcher = CortexBusDispatcher(bus, poll_interval=0.05)
         dispatcher.start()
 
+        handler.remember("session-w3", OWNER)
         t0 = time.monotonic()
         append_event(bus, "turn.completed", "session-w3", {})
 
         deadline = t0 + 2.0
-        while handler.recall() is None and time.monotonic() < deadline:
+        while handler.recall(OWNER) is None and time.monotonic() < deadline:
             time.sleep(0.02)
 
         dispatcher.stop()
 
         elapsed = time.monotonic() - t0
-        assert handler.recall() is not None, "self-model cache was not populated"
+        assert handler.recall(OWNER) is not None, "self-model cache was not populated"
         assert elapsed < 1.0, (
             f"self-model took {elapsed:.2f}s to reflect — > 1 s budget"
         )

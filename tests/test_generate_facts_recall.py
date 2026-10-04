@@ -18,13 +18,13 @@ def facts(tmp_path: Path) -> SemanticFacts:
 
 def test_recall_facts_returns_none_when_no_match(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
-    block = _recall_facts(facts, "tell me about deployments")
+    block = _recall_facts(facts, "tell me about deployments", principal=None)
     assert block is None
 
 
 def test_recall_facts_includes_matched_triple(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
-    result = _recall_facts(facts, "how is FastAPI used")
+    result = _recall_facts(facts, "how is FastAPI used", principal=None)
     assert result is not None
     assert "project uses FastAPI" in result.text
 
@@ -32,7 +32,7 @@ def test_recall_facts_includes_matched_triple(facts: SemanticFacts) -> None:
 def test_recall_facts_includes_neighbors(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
     facts.add_fact("FastAPI", "needs", "uvicorn")
-    result = _recall_facts(facts, "project")
+    result = _recall_facts(facts, "project", principal=None)
     assert result is not None
     assert "project uses FastAPI" in result.text
     assert "FastAPI needs uvicorn" in result.text
@@ -41,7 +41,7 @@ def test_recall_facts_includes_neighbors(facts: SemanticFacts) -> None:
 def test_recall_facts_ignores_superseded_facts(facts: SemanticFacts) -> None:
     facts.add_fact("project", "uses", "FastAPI")
     facts.reconcile("project", "uses", "Django")
-    result = _recall_facts(facts, "project")
+    result = _recall_facts(facts, "project", principal=None)
     assert result is not None
     assert "FastAPI" not in result.text
     assert "project uses Django" in result.text
@@ -50,5 +50,5 @@ def test_recall_facts_ignores_superseded_facts(facts: SemanticFacts) -> None:
 def test_recall_facts_degrades_gracefully_on_store_error(facts: SemanticFacts) -> None:
     # Point at a non-existent / invalid path so the store raises.
     bad_facts = SemanticFacts(Path("/nonexistent/aios/facts.db"))
-    block = _recall_facts(bad_facts, "project")
+    block = _recall_facts(bad_facts, "project", principal=None)
     assert block is None
