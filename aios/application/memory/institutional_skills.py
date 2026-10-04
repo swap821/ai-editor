@@ -488,7 +488,10 @@ class InstitutionalSkillAdapter:
                     }
                 )
             )
-        elif eligible and refreshed is not None:
+        elif eligible and refreshed is not None and refreshed.state == BIRTH_STATE:
+            # Only a candidate re-validates itself. After review a new code
+            # state is the operator's to vouch for (decision 2026-10-04): a
+            # stale reflex is withdrawn and returns by his re-activation.
             self._record_validation(refreshed, clean_steps)
         if eligible:
             self._ensure_trail_reference(current.skill_id, current.version)
@@ -498,7 +501,7 @@ class InstitutionalSkillAdapter:
         """Append the code state this STRONG success ran against -- only when
         the attempt verified the same targets the recipe would replay (arc
         identity ignores targets, so a success elsewhere vouches for nothing
-        here). Evidence, so allowed after review."""
+        here). Called for candidates only."""
         recipe = _steps(record)
         if reflex_contract.step_targets(attempt_steps) != reflex_contract.step_targets(
             recipe
@@ -530,6 +533,12 @@ class InstitutionalSkillAdapter:
                 }
             )
         )
+
+    @staticmethod
+    def is_stale(refusal: Optional[str]) -> bool:
+        """Whether a ``reflex_applicability`` refusal is staleness: the code
+        the skill touches is not a version it was validated on."""
+        return refusal == reflex_contract.STALE_REFUSAL
 
     def reflex_applicability(self, trail_id: int) -> Optional[str]:
         """Why ``SkillApplicabilityEngine`` refuses the skill behind a reflex,
