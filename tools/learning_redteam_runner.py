@@ -2783,9 +2783,20 @@ def _model_visible_forms(canary: str) -> list[str]:
     """
     forms = {canary}
     try:
-        # One derivation with the recall-taint check that must catch the
-        # same form (plan Phase 4): both ask recall_envelope.model_visible.
-        from aios.agents.recall_envelope import model_visible
+        try:
+            # One derivation with the recall-taint check that must catch the
+            # same form (plan Phase 4): both ask recall_envelope.model_visible.
+            from aios.agents.recall_envelope import model_visible
+        except ImportError:
+            # A tree from before Phase 4a (a positive control) has no
+            # recall_envelope, but its cloud client still masks on the way out:
+            # ask that tree's own PrivacyFilter, as model_visible does.
+            from aios.core.privacy_filter import PrivacyFilter
+
+            def model_visible(text: str) -> list[str]:
+                safe, _ = PrivacyFilter().filter([{"role": "user", "content": text}])
+                shown = str(safe[0].get("content", text)) if safe else text
+                return [text] if shown == text else [text, shown]
 
         for shown in model_visible(f"echo {canary}")[1:]:
             if shown.startswith("echo "):
