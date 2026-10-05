@@ -1260,3 +1260,95 @@ class TestPrincipalScope:
         )
         verdict = reel.adjudicate(reel.MISSIONS_BY_KEY["RT-10"], obs)
         assert verdict.outcome == "breached" and verdict.injected is True
+
+
+class TestTheBehaviouralSeat:
+    """Plan Phase 7: the local model and the strongest model are reported
+    separately, so the reel can seat either -- through production's clients."""
+
+    def test_a_local_model_sits_through_productions_ollama_client(self) -> None:
+        from aios.core.llm import OllamaClient
+
+        chat = reel.behavioural_chat("ollama:qwen2.5-coder:7b")
+        assert isinstance(chat.client, OllamaClient)
+        assert chat.model_id == "qwen2.5-coder:7b"
+
+    def test_any_other_name_is_a_bedrock_model(self, monkeypatch) -> None:
+        import aios.core.bedrock as bedrock
+
+        built: list[dict] = []
+
+        class FakeBedrock:
+            def __init__(self, **kwargs) -> None:
+                built.append(kwargs)
+
+        monkeypatch.setattr(bedrock, "BedrockClient", FakeBedrock)
+        chat = reel.behavioural_chat("deepseek.v3.2")
+        assert isinstance(chat.client, FakeBedrock)
+        assert chat.model_id == "deepseek.v3.2"
+        assert built and built[0]["model"] == "deepseek.v3.2"
+
+    def test_an_openai_compatible_model_sits_through_productions_client(
+        self,
+    ) -> None:
+        from aios.core.openai_compat import OpenAICompatClient
+
+        chat = reel.behavioural_chat("openai:moonshotai/kimi-k2-instruct")
+        assert isinstance(chat.client, OpenAICompatClient)
+        assert chat.model_id == "moonshotai/kimi-k2-instruct"
+
+    def test_the_local_model_never_falls_through_to_the_cloud(
+        self, monkeypatch
+    ) -> None:
+        import aios.core.bedrock as bedrock
+
+        def refuse(**_kwargs):
+            raise AssertionError("a local model was sent to Bedrock")
+
+        monkeypatch.setattr(bedrock, "BedrockClient", refuse)
+        assert reel.behavioural_chat("ollama:qwen2.5:3b").model_id == "qwen2.5:3b"
+
+
+def _observable(chat) -> object:
+    """The least a Harness needs for ``observe``: its recorders, no app."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        chat=chat,
+        runner=SimpleNamespace(ran=[]),
+        status={"victim-1": 200},
+        frames={},
+        refusals=[],
+        state={},
+        turn_digests={},
+        _bus_events=lambda: [],
+    )
+
+
+class TestTheSeatIsRecorded:
+    def test_a_named_model_the_scripted_chat_stood_in_for_is_an_error(
+        self, monkeypatch
+    ) -> None:
+        """A hollow run -- a model named, the script answering -- must never be
+        scored: every trial would read as a model that declined."""
+        monkeypatch.setenv(reel.BEHAVIOURAL_MODEL_ENV, "deepseek.v3.2")
+        obs = reel.Harness.observe(_observable(reel.RecordingChat()), canary="x")
+        assert obs.error and "never seated" in obs.error
+        assert obs.state["seat"] is None
+
+    def test_positive_control_a_seated_model_is_recorded_and_scored(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv(reel.BEHAVIOURAL_MODEL_ENV, "ollama:qwen2.5:3b")
+        chat = reel.RecordingModelChat(object(), "qwen2.5:3b")
+        obs = reel.Harness.observe(_observable(chat), canary="x")
+        assert obs.error is None
+        assert obs.state["seat"] == "qwen2.5:3b"
+
+    def test_a_structural_run_names_no_model_and_needs_no_seat(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.delenv(reel.BEHAVIOURAL_MODEL_ENV, raising=False)
+        obs = reel.Harness.observe(_observable(reel.RecordingChat()), canary="x")
+        assert obs.error is None
+        assert obs.state["seat"] is None
