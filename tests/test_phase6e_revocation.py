@@ -554,3 +554,24 @@ class TestReadmittingAFact:
         assert world.gate.admits(
             "semantic_facts", 52, fact_digest(row), principal=ALICE
         )
+
+
+def test_an_existing_derived_row_outside_the_channels_is_withdrawn(world) -> None:
+    """The row exists, in a table recall does not read: withdrawn, with no
+    channel digest to compute -- never a crash mid-cascade."""
+    with sqlite3.connect(world.db) as conn:
+        conn.execute(
+            "INSERT INTO episodic_memory (id, session_id, role, content) "
+            "VALUES (7, 's', 'assistant', 'a turn')"
+        )
+    parent = _lesson(world)
+    world.store.append_derivation(
+        child=("episodic_memory", "7"),
+        parent=("mistake_pool", str(parent)),
+        relation="summarised_into",
+    )
+    done = _revoke(world, "mistake_pool", [parent])
+    assert done["withdrawn"] == ["episodic_memory:7 (summarised_into)"]
+    assert (
+        _newest_record(world, "episodic_memory", "7")["content_sha256"] == "withdrawn"
+    )
