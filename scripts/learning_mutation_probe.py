@@ -650,6 +650,23 @@ def run_ledger(
     return state
 
 
+def shard(entries: Sequence[Entry], spec: str) -> list[Entry]:
+    """Shard ``I/N`` of *entries*: every Nth, from the Ith (0-based).
+
+    The N shards of one selection are disjoint and together are the whole
+    selection, so a matrix of them is the full probe -- no entry run twice,
+    none skipped. A malformed spec refuses rather than running a guess.
+    """
+    index, sep, count = spec.partition("/")
+    try:
+        i, n = int(index), int(count)
+    except ValueError:
+        raise ProbeError(f"--shard wants I/N, not {spec!r}") from None
+    if not sep or n < 1 or not 0 <= i < n:
+        raise ProbeError(f"--shard wants I/N with 0 <= I < N, not {spec!r}")
+    return list(entries)[i::n]
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument(
@@ -659,6 +676,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--check", action="store_true", help="exit 1 if any mutation survived"
     )
     parser.add_argument("--match", help="only entries whose id contains this text")
+    parser.add_argument(
+        "--shard",
+        help="I/N: only every Nth selected entry, starting at the Ith (0-based) -- "
+        "N shards partition the selection, so a CI matrix runs it in parallel",
+    )
     parser.add_argument("--json", type=Path, help="write an evidence artifact to PATH")
     parser.add_argument(
         "--coverage",
@@ -685,6 +707,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         entries = [e for e in entries if e.phase in wanted]
     if args.match:
         entries = [e for e in entries if args.match in e.id]
+    if args.shard:
+        entries = shard(entries, args.shard)
     if args.coverage:
         report = coverage(entries, [e.id for e in entries], load_guards())
         print(json.dumps({k: v for k, v in report.items() if k != "unattacked"}))

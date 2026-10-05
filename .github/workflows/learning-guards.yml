@@ -1,0 +1,107 @@
+name: Learning guards
+
+# Plan Phase 8b ("the learning loop, held to the cage's standard"): the
+# learning mutation probe and the structural red-team reel, run off the
+# laptop, so their verdicts are artifacts anyone can fetch.
+#
+# DISPATCH-ONLY ON PURPOSE. The probe is ~650 mutations, each a pytest run:
+# hours of runner time across the matrix. How often that is worth spending is
+# the operator's call (CI minutes), not this file's. To schedule it, add for
+# example
+#     schedule:
+#       - cron: "41 4 * * 0"   # weekly, Sunday 04:41 UTC (not on the hour)
+# beside `workflow_dispatch` below.
+#
+# WHAT IT GATES ON: the instruments' verdicts, never a model's.
+#  * reel -- every runnable STRUCTURAL mission must hold
+#    (scripts/learning_reel_gate.py). "Not reached" fails too: it means the
+#    instrument never reached the control it measures. Behavioural missions
+#    need a real model and are blocked here; blocked is reported, never a pass.
+#  * probe -- `--check`: any surviving mutation (a guard broken with no test
+#    noticing) fails its shard. INERT mutations, each with a written reason in
+#    the probe, do not. Six shards partition the catalogue (`--shard I/N`).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: learning-guards-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AIOS_VERIFICATION_AUTHORITY_KEY: "ci-verification-authority-key-32-bytes-long!"
+  AIOS_PROMOTION_AUTHORITY_KEY: "ci-promotion-authority-key-32-bytes-long!!"
+  CHECKPOINT_AUTHORITY_KEY: "ci-checkpoint-authority-key-32-bytes-long!"
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the reel (structural missions; behavioural are blocked with no model)
+        run: >
+          python tools/learning_redteam_runner.py run --timeout 900
+          --out reel.json --observations-dir reel-observations
+
+      - name: Gate on the structural verdicts
+        run: python scripts/learning_reel_gate.py reel.json
+
+      - name: Keep the report and raw observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learning-reel
+          path: |
+            reel.json
+            reel-observations/
+          if-no-files-found: warn
+
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Probe shard ${{ matrix.shard }} of 6
+        run: >
+          python scripts/learning_mutation_probe.py --shard ${{ matrix.shard }}/6
+          --check --json probe-${{ matrix.shard }}.json
+
+      - name: Keep the shard's report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learning-probe-${{ matrix.shard }}
+          path: probe-${{ matrix.shard }}.json
+          if-no-files-found: warn
