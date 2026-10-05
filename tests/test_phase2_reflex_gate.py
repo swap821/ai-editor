@@ -146,6 +146,19 @@ class TestWithoutTheLibraryNothingIsAReflex:
         assert cerebellum.try_compile_skill(_playbooks_skill(legacy_db)) is None
         assert _playbooks(legacy_db) == []
 
+    def test_without_the_gate_no_playbook_is_backed(self, world) -> None:
+        """``activation_backs`` is what the retirement tool keeps reflexes by.
+        Replay is guarded twice without a gate (``_inapplicable`` refuses
+        too), so only this read sees a gate-less cerebellum vouch for a
+        playbook nobody activated (learning mutation probe, Phase 7)."""
+        _, cerebellum, _, _, _ = world
+        cerebellum._refresh_cache()
+        playbooks = list(cerebellum._cache.values())
+        assert playbooks, "positive control: the legacy reflex is compiled"
+        assert not any(cerebellum.activation_backs(pb) for pb in playbooks)
+        assert cerebellum._activated(compiling=True) == {}
+        assert cerebellum._activated(principal="principal:test") == {}
+
 
 def _playbooks_skill(legacy_db: Path) -> int:
     with get_connection(legacy_db) as conn:
