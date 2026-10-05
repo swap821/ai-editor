@@ -85,33 +85,60 @@ def _latch() -> Any:
     return controller
 
 
-def learning_permitted() -> bool:
-    """Non-raising form for BOOKKEEPING inside a replay.
+class LearningFreezeAuthority:
+    """Organ 59 (plan Phase 8): the emergency stop's reach into learning.
 
-    A replay the stop refused must not be counted against its playbook (two
-    such refusals would decompile a reflex for a reason that is not about it),
-    and raising mid-replay would crash the turn instead of refusing cleanly.
-    Engaged or unreadable both answer False: "could not tell" is not "clear".
+    Every learning write, promotion, compilation and replay asks this one
+    object whether learning may proceed. It owns no latch: it reads the
+    operator's durable latch through the canonical controller (organ 19's
+    ``EmergencyStopController``), so there is one stop rule, not a second
+    spelling of it. Fail-closed: a latch that cannot be read is frozen.
     """
-    try:
-        _latch().assert_operational()
-    except Exception:  # noqa: BLE001 - engaged OR unreadable: both mean frozen
-        return False
-    return True
+
+    control = LEARNING_FREEZE_CONTROL
+
+    def permitted(self) -> bool:
+        """Non-raising form for BOOKKEEPING inside a replay.
+
+        A replay the stop refused must not be counted against its playbook
+        (two such refusals would decompile a reflex for a reason that is not
+        about it), and raising mid-replay would crash the turn instead of
+        refusing cleanly. Engaged or unreadable both answer False: "could not
+        tell" is not "clear".
+        """
+        try:
+            _latch().assert_operational()
+        except Exception:  # noqa: BLE001 - engaged OR unreadable: both mean frozen
+            return False
+        return True
+
+    def assert_permitted(self, boundary: str) -> None:
+        """Refuse a learning write while the emergency stop is engaged.
+
+        Raises ``EmergencyStopError`` (engaged) or whatever reading the latch
+        raises (unreadable) -- both refuse. *boundary* names the write, for
+        the operator reading why it did not land.
+        """
+        from aios.application.governance.emergency_stop import EmergencyStopError
+
+        try:
+            _latch().assert_operational()
+        except EmergencyStopError as exc:
+            raise EmergencyStopError(
+                f"{exc} -- learning is frozen too; refused: {boundary}"
+            ) from exc
+
+
+#: The one instance every learning boundary consults, through the two module
+#: functions below (callers import those by name).
+LEARNING_FREEZE = LearningFreezeAuthority()
+
+
+def learning_permitted() -> bool:
+    """``LEARNING_FREEZE.permitted()``: may learning bookkeeping proceed?"""
+    return LEARNING_FREEZE.permitted()
 
 
 def assert_learning_permitted(boundary: str) -> None:
-    """Refuse a learning write while the emergency stop is engaged.
-
-    Raises ``EmergencyStopError`` (engaged) or whatever reading the latch
-    raises (unreadable) -- both refuse. *boundary* names the write, for the
-    operator reading why it did not land.
-    """
-    from aios.application.governance.emergency_stop import EmergencyStopError
-
-    try:
-        _latch().assert_operational()
-    except EmergencyStopError as exc:
-        raise EmergencyStopError(
-            f"{exc} -- learning is frozen too; refused: {boundary}"
-        ) from exc
+    """``LEARNING_FREEZE.assert_permitted(boundary)``: refuse a frozen write."""
+    LEARNING_FREEZE.assert_permitted(boundary)

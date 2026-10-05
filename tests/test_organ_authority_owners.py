@@ -2099,7 +2099,7 @@ def test_release_conformance_authority_is_the_manifest_builder() -> None:
     )
     authority = module["ReleaseConformanceAuthority"]()
     fresh = authority.build_manifest()
-    assert fresh["organ_summary"]["total"] == 55
+    assert fresh["organ_summary"]["total"] == 59
 
 
 # --------------------------------------------------------------------------- #

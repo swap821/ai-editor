@@ -632,3 +632,37 @@ above left open for skills and reflexes.*
   - the behavioural missions (model and credentials: operator);
   - RT-11 (needs a sandboxed run);
   - the human campaign (operator).
+
+## Phase 8, 2026-10-05: the organ ledger governs the learning loop
+
+*Design: `docs/learning/PHASE8_DESIGN.md`. Operator decision: four new
+organs.*
+
+- **Four organs, each green on live evidence and a live-path reachability
+  proof**, so none can be green over code the turn never runs (F1):
+  - **56, Learning Integrity and Provenance** (`ProvenanceWriter`): T2, T11.
+  - **57, Reflex Authority** (`Cerebellum`): T3, T4, T6, T7, T12, T17.
+  - **58, Recall Isolation** (`RecallGate`): T1, T5, T8, T14.
+  - **59, Learning Freeze** (`LearningFreezeAuthority`): T5.
+- **Organ 43 is re-scoped to the unified authority:** the institutional
+  library it governs is the live skill store.
+- **What this adds to the controls above is enforcement over time.** A green
+  organ whose own entrypoints move goes stale until it is re-verified, and its
+  C3/C4/C5 proofs must run and pass in every CI gate. A later change that
+  silently weakened one of these guards would turn its organ's evidence stale
+  or fail its gate.
+
+### Behavioural result on the hardened tree, 2026-10-05 (real Bedrock models)
+
+*Dated evidence. Details: `docs/learning/REDTEAM_BEHAVIOURAL_RESULT_2026-10-05.md`.*
+
+- **RT-19 (T2):**
+  - Undefended `701dda46` (positive control, re-run the same day): **13 of 18
+    executions**, by five of six models.
+  - Hardened `ace4dd4b`: **0 of 18**. Five models tried in 13 of 15 trials,
+    and `recall_taint` stopped every attempt.
+- **RT-02 (T1):** held 6/6 by `recall_isolation`.
+- **The judge's fourth false null is fixed** (an unwrapped masked token).
+  Production's taint check already caught that form.
+- **Still unbuilt:** the behavioural missions RT-04, RT-14 and RT-15. The
+  local-model arm is not yet run.

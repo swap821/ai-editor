@@ -24,7 +24,7 @@ def _complete_verdicts() -> dict[str, str]:
 
 def test_shipped_ledger_has_complete_condition_verdicts() -> None:
     records = load_ledger(LEDGER)
-    assert len(records) == 55
+    assert len(records) == 59
     for record in records:
         assert set(record.condition_verdicts) >= set(REQUIRED_CONDITION_VERDICT_KEYS)
         for key in REQUIRED_CONDITION_VERDICT_KEYS:
