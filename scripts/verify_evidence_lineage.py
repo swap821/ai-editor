@@ -45,6 +45,11 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.verify_organ_twelve_conditions import commit_bound_citations  # noqa: E402
+
 LEDGER = REPO_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
 SPINE = {1, 2, 3, 4, 5}
 
@@ -58,6 +63,11 @@ def _git(*args: str) -> tuple[int, str]:
 
 def _is_ancestor(sha: str) -> bool:
     return _git("merge-base", "--is-ancestor", sha, "HEAD")[0] == 0
+
+
+def _flatten(citations: tuple[list[str], list[str]]) -> list[str]:
+    artifacts, runs = citations
+    return list(artifacts) + [f"actions/runs/{run}" for run in runs]
 
 
 def _blob(sha: str, path: str) -> str | None:
@@ -160,6 +170,26 @@ def main() -> int:
             continue
 
         for orphan in orphans:
+            # A live row proven AT the orphan (an artifact stamped with it, a CI
+            # run that ran at it) cannot be re-pointed: C10 checks the citation
+            # against the row's commit, so a moved row is a row C10 refuses
+            # (#368). The same function C10 reads its citations with says so.
+            bound = [
+                ref
+                for e in (row.get("live_evidence") or [])
+                if str(e.get("commit_sha") or "") == orphan
+                for ref in _flatten(
+                    commit_bound_citations(str(e.get("description") or ""))
+                )
+            ]
+            if bound:
+                unprovable.append(
+                    f"#{oid} orphaned sha {orphan[:12]}: live evidence was proven AT "
+                    f"it ({', '.join(sorted(set(bound))[:2])}) and C10 binds the "
+                    "citation to that commit -- re-gather at a current commit "
+                    "(scripts/phase4_live_evidence.py), do not re-point"
+                )
+                continue
             want = _fingerprint(orphan, paths)
             if any(b is None for b in want):
                 unprovable.append(

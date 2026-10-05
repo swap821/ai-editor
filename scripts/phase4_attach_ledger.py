@@ -120,9 +120,10 @@ def main(argv: list[str] | None = None) -> int:
             "    straight afterwards -- the squash commit now carries the code:\n"
             "      python scripts/phase4_live_evidence.py --tip $(git rev-parse origin/master)\n"
             "      python scripts/phase4_attach_ledger.py\n"
-            "    Do NOT use verify_evidence_lineage.py --update for live rows: it\n"
-            "    re-points the row's commit but the row's ARTIFACT still records the\n"
-            "    orphaned sha, and C10 checks that the two agree (observed: #368).",
+            "    verify_evidence_lineage.py --update will NOT rescue these rows: the\n"
+            "    row's ARTIFACT records the orphaned sha and C10 checks that the two\n"
+            "    agree (observed: #368), so it refuses to re-point them and says\n"
+            "    re-gather.",
             file=sys.stderr,
         )
         return 1
