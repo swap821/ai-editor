@@ -617,3 +617,127 @@ def test_a_verified_turn_credits_the_verified_lessons_it_recalled(
     )
     assert response.status_code == 200
     assert _window(mistake_id) == (1, 1), "a judged failure stains the lesson"
+
+
+# ------------------------------------------------- branches the probe found
+
+
+class TestTheRuleEdges:
+    def test_an_explicit_level_is_honoured(self) -> None:
+        # 8/10 against 0.98: p ~ 0.016 -- quarantined at 0.05, not at 0.01.
+        assert (
+            ntq.assess(8, 10, 0.98, min_observations=10, alpha=0.05).action
+            == "quarantine"
+        )
+        assert ntq.assess(8, 10, 0.98, min_observations=10, alpha=0.01).action == "none"
+
+    def test_impossible_inputs_to_the_tail_are_refused(self) -> None:
+        for args in ((-1, 5, 0.5), (2, -1, 0.5), (5, 5, 1.5), (5, 5, -0.1)):
+            with pytest.raises(ValueError):
+                ntq.binomial_lower_tail(*args)
+
+    def test_more_successes_than_attempts_is_the_whole_distribution(self) -> None:
+        assert ntq.binomial_lower_tail(7, 5, 0.3) == 1.0
+
+    def test_impossible_counts_have_no_smoothed_rate(self) -> None:
+        for args in ((5, 3), (-1, 3), (1, -1)):
+            with pytest.raises(ValueError):
+                ntq.smoothed_rate(*args)
+
+
+class TestTheQuarantineLeavesAlone:
+    def test_a_skill_the_confidence_floor_already_demoted(
+        self, own_latch, skill_journal
+    ) -> None:
+        """Organ 43's own floor took it out of use: the quarantine neither
+        suspends it again nor flags it."""
+        library = _library(own_latch)
+        trail = _active_skill(library, successes=9, failures=1)
+        record = library.repository.get("arc-ntq", 1)
+        library.repository.save(record.model_copy(update={"confidence": 0.55}))
+        _reuse(library, trail, "F")
+        assert library.repository.get("arc-ntq", 1).state == "degraded"
+        assert not skill_journal.entries
+
+    def test_an_unenforced_quarantine_is_said_and_not_claimed(
+        self, own_latch, monkeypatch
+    ) -> None:
+        """No provenance writer, so no withdrawal: the journal says the
+        quarantine was NOT enforced, and the caller is not told it was."""
+        from aios.application.memory import adapters
+        from aios.application.memory.adapters import MistakeMemoryAdapter
+        from aios.memory.db import init_memory_db
+        from aios.memory.mistake import MistakeMemory
+
+        journal = _Journal()
+        monkeypatch.setattr(adapters, "journal", journal)
+        db = own_latch / "memory.sqlite"
+        init_memory_db(db)
+        bare = MistakeMemoryAdapter(MistakeMemory(db_path=db))
+        mistake_id = bare.record(
+            "t", "e", "c", "f", "a lesson", 0.1, principal=PRINCIPAL
+        )
+        bare.promote(mistake_id, principal=PRINCIPAL)
+        quarantined = []
+        for _ in range(10):
+            quarantined += bare.record_recall_outcome(
+                [mistake_id],
+                success=False,
+                principal=PRINCIPAL,
+                baseline=lambda _t: 0.9,
+            )
+        assert quarantined == []
+        [detail] = journal.of("quarantined")
+        assert detail["enforced"] is False
+
+    def test_readmitting_another_channel_never_touches_a_lessons_window(
+        self, lessons
+    ) -> None:
+        """Ids are per table: re-admitting semantic memory 1 is not lesson 1."""
+        from tools import readmit_learning
+
+        mistake_id = _verified_lesson(lessons)
+        _outcomes(lessons, mistake_id, "FF")
+        with sqlite3.connect(lessons.db) as conn:
+            conn.execute(
+                "INSERT INTO semantic_memory (id, text_content, memory_type, "
+                "verification_status) VALUES (?, 'a note', 'chat', 'verified')",
+                (mistake_id,),
+            )
+        readmit_learning.readmit(
+            lessons.db,
+            lessons.store,
+            lessons.signer,
+            table="semantic_memory",
+            ids=[mistake_id],
+            approver="operator:test",
+            principal=PRINCIPAL,
+        )
+        with sqlite3.connect(lessons.db) as conn:
+            assert (
+                conn.execute(
+                    "SELECT failures FROM lesson_outcomes WHERE mistake_id = ?",
+                    (mistake_id,),
+                ).fetchone()[0]
+                == 2
+            )
+
+
+class TestAnotherProcessRecordsAFailure:
+    def test_a_cerebellum_that_never_loaded_the_reflex_counts_its_failure(
+        self, own_latch
+    ) -> None:
+        from aios.core.cerebellum import Cerebellum
+        from aios.memory.db import get_connection
+
+        cerebellum, library, playbook, _ = _reflex(own_latch)
+        other = Cerebellum(own_latch / "memory.sqlite")
+        other.attach_reflex_gate(library)
+        assert other._cache == {}
+        list(other.replay(playbook, dispatch_fn=_dispatch("", "blocked", False)))
+        with get_connection(own_latch / "memory.sqlite") as conn:
+            row = conn.execute(
+                "SELECT consecutive_failures FROM compiled_playbooks WHERE id = ?",
+                (playbook.id,),
+            ).fetchone()
+        assert int(row[0]) == 1
