@@ -1341,13 +1341,13 @@
     ],
     "live_evidence": [
       {
-        "description": "tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest and tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest both ran and PASSED in this gate run -- the two that re-derive the SHIPPED ledger and manifest rather than a fixture. command=`python -m pytest tests/test_organ_release_conformance.py` => 56 passed, 0 failed at the current tip. Re-gathered because this organ's own entrypoint tests/test_organ_release_conformance.py moved after the previous rows. Worth recording how it went: run twice against a ledger whose doc and manifest had not yet been regenerated, BOTH of those tests failed -- the organ detected its own inconsistency before I did, which is exactly the behaviour it claims. Passing only after build_organ_ledger_doc.py then build_release_manifest.py, in that order, because the manifest hash-pins the doc.",
-        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+        "description": "tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest and tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest both ran and PASSED in this gate run -- the two that re-derive the SHIPPED ledger and manifest rather than a fixture. command=`python -m pytest tests/test_organ_release_conformance.py` => 56 passed, 0 failed at f35b03511cf1830efe46a8d66520f3ee7be84c96. Re-gathered because this organ's own entrypoint tests/test_organ_release_conformance.py moved: plan Phase 8 added organs 56-59 and moved its count pins from 55 to 59 (and the out-of-range and missing-organ cases with them). The previous row (cdfd7d16d2f6) no longer describes that file and is dropped as a claim; git keeps it as history.",
+        "commit_sha": "f35b03511cf1830efe46a8d66520f3ee7be84c96",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+    "last_verified_sha": "f35b03511cf1830efe46a8d66520f3ee7be84c96",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReleaseConformanceAuthority class defined in production_entrypoints ['scripts/build_release_manifest.py', 'tests/test_organ_release_conformance.py'] (Decision A / enforce_owner_attestation)",
@@ -1359,8 +1359,8 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_organ_release_conformance.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS - known_blockers is empty. The single blocker, 'Phase 6 gate - organ 23 stays yellow until every below-organ is honestly green', was discharged by its own condition being met: organ 44 went green on 2026-08-19 (#254) and it was the last one. The condition being satisfied is NOT the same as the organ having done the work, so the flip waited until C3/C4/C5 named real proofs, C10 held resolvable live evidence and C11/C12 had a stamp. Adversarial/failure-path coverage is dense in this organ's own suite: tests/test_organ_release_conformance.py carries 30 adversarial-named tests of 54, and this organ is proven mostly by what it refuses.",
-      "C10": "PASS - two proof_level=live rows, both machine-checkable, neither resting on operator attestation. One cites CI run 32246180129 (conclusion success, head_sha matching its commit_sha) in which release-authority re-derived every green claim in this ledger. The other cites a test node that runs the real conformance script against the real on-disk artifacts. Unlike organ 44, organ 23 needs no OPERATOR-ATTESTED row: its evidence is re-derivable by anyone with the repo.",
-      "C11": "PASS - last_verified_sha=cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+      "C10": "PASS - one proof_level=live row, machine-checkable and resting on no operator attestation: it cites the test nodes that run the real conformance script against the real on-disk ledger and manifest, at f35b03511cf1830efe46a8d66520f3ee7be84c96. Organ 23 needs no OPERATOR-ATTESTED row: its evidence is re-derivable by anyone with the repo.",
+      "C11": "PASS - last_verified_sha=f35b03511cf1830efe46a8d66520f3ee7be84c96",
       "C12": "PASS - cdfd7d16d2f64601b9275e0382f44a3981c14e03 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2e5d89807fbb -> cdfd7d16d2f6 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
   },
