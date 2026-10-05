@@ -460,3 +460,97 @@ class TestTheToolRefusesBeforeWriting:
                 approver="operator:test",
             )
         assert _recalled(world) == [mistake_id], "nothing was revoked"
+
+
+# ------------------------------------------------- branches the probe found
+
+
+def _newest_record(world, table: str, row_id) -> dict:
+    """The newest provenance record of a row, signed or not."""
+    import json as _json
+
+    with sqlite3.connect(world.db) as conn:
+        row = conn.execute(
+            "SELECT provenance_json, signature FROM learning_provenance "
+            "WHERE row_table = ? AND row_id = ? ORDER BY id DESC LIMIT 1",
+            (table, str(row_id)),
+        ).fetchone()
+    return {**_json.loads(row[0]), "signed": bool(row[1])}
+
+
+class TestTheCascadeRecord:
+    def test_a_withdrawn_child_names_its_digest_principal_and_parent(
+        self, world
+    ) -> None:
+        from aios.application.memory.provenance_policy import lesson_digest
+
+        parent = _lesson(world)
+        child = _lesson(
+            world, task="task-b", text="the parser migration needs a warm cache"
+        )
+        world.store.append_derivation(
+            child=("mistake_pool", str(child)),
+            parent=("mistake_pool", str(parent)),
+            relation="derived_from",
+        )
+        _revoke(world, "mistake_pool", [parent])
+        record = _newest_record(world, "mistake_pool", child)
+        assert record["transition"] == "withdrawn" and not record["signed"]
+        assert record["principal"] == ALICE
+        assert record["content_sha256"] == lesson_digest(world.lessons.store.get(child))
+        assert record["parents"] == [f"mistake_pool:{parent}"]
+
+    def test_a_derived_row_outside_the_channels_is_withdrawn_too(self, world) -> None:
+        """A derived artifact recall does not read (a compiled reflex, say) is
+        still withdrawn by the cascade -- and it does not break it."""
+        parent = _lesson(world)
+        world.store.append_derivation(
+            child=("compiled_playbooks", "7"),
+            parent=("mistake_pool", str(parent)),
+            relation="compiled_from",
+        )
+        done = _revoke(world, "mistake_pool", [parent])
+        assert done["withdrawn"] == ["compiled_playbooks:7 (compiled_from)"]
+        record = _newest_record(world, "compiled_playbooks", "7")
+        assert record["transition"] == "withdrawn" and record["principal"] is None
+
+    def test_a_shared_descendant_is_withdrawn_once(self, world) -> None:
+        a = _lesson(world)
+        b = _lesson(
+            world, task="task-b", text="the parser migration needs a warm cache"
+        )
+        c = _lesson(world, task="task-c", text="warm the parser cache before migration")
+        d = _lesson(
+            world, task="task-d", text="parser migrations want a warm cache first"
+        )
+        for child, parent in ((b, a), (c, a), (d, b), (d, c)):
+            world.store.append_derivation(
+                child=("mistake_pool", str(child)),
+                parent=("mistake_pool", str(parent)),
+                relation="derived_from",
+            )
+        done = _revoke(world, "mistake_pool", [a])
+        assert sorted(done["withdrawn"]) == sorted(
+            f"mistake_pool:{i} (derived_from)" for i in (b, c, d)
+        )
+
+
+class TestReadmittingAFact:
+    def test_a_fact_is_readmitted_without_touching_tombstones(self, world) -> None:
+        from aios.application.memory.provenance_policy import fact_digest
+
+        with sqlite3.connect(world.db) as conn:
+            conn.execute(
+                "INSERT INTO semantic_facts (id, subject, predicate, object, "
+                "approved_by, status, principal_id) VALUES (52, 'a', 'b', 'c', "
+                "'operator:test', 'active', ?)",
+                (ALICE,),
+            )
+        _revoke(world, "semantic_facts", [52])
+        assert _readmit(world, "semantic_facts", [52]) == [52]
+        with sqlite3.connect(world.db) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM semantic_facts WHERE id = 52").fetchone()
+        assert world.gate.admits(
+            "semantic_facts", 52, fact_digest(row), principal=ALICE
+        )
