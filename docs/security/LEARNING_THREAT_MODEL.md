@@ -632,3 +632,22 @@ above left open for skills and reflexes.*
   - the behavioural missions (model and credentials: operator);
   - RT-11 (needs a sandboxed run);
   - the human campaign (operator).
+
+## Phase 8, 2026-10-05: the organ ledger governs the learning loop
+
+*Design: `docs/learning/PHASE8_DESIGN.md`. Operator decision: four new
+organs.*
+
+- **Four organs, each green on live evidence and a live-path reachability
+  proof**, so none can be green over code the turn never runs (F1):
+  - **56, Learning Integrity and Provenance** (`ProvenanceWriter`): T2, T11.
+  - **57, Reflex Authority** (`Cerebellum`): T3, T4, T6, T7, T12, T17.
+  - **58, Recall Isolation** (`RecallGate`): T1, T5, T8, T14.
+  - **59, Learning Freeze** (`LearningFreezeAuthority`): T5.
+- **Organ 43 is re-scoped to the unified authority:** the institutional
+  library it governs is the live skill store.
+- **What this adds to the controls above is enforcement over time.** A green
+  organ whose own entrypoints move goes stale until it is re-verified, and its
+  C3/C4/C5 proofs must run and pass in every CI gate. A later change that
+  silently weakened one of these guards would turn its organ's evidence stale
+  or fail its gate.
