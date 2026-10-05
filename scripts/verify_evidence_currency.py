@@ -90,22 +90,42 @@ def is_reachable(sha: str, head: str) -> bool:
     )
 
 
-def changed_since(sha: str, paths: list[str], head: str) -> list[str]:
+def changed_since(
+    sha: str, paths: list[str], head: str, *, root: Path = REPO_ROOT
+) -> list[str]:
     """Which of *paths* changed between *sha* and HEAD.
 
     `git diff --name-only A..B -- <paths>` rather than walking the log: the
     question is whether the FILE differs, not how many commits touched it. A
     file edited and reverted has not changed, and claiming otherwise would
     invent staleness that does not exist.
+
+    THE ONE DERIVATION (plan Phase 9). The organ gate's C10/C12 staleness check
+    (`_entrypoint_drift` in scripts/verify_organ_twelve_conditions.py) asked
+    the same question by walking the log, so the two answered it differently:
+
+    * an entrypoint edited and reverted was stale to the gate and current here;
+    * evidence gathered on a branch that a squash orphaned, whose own edits to
+      an entrypoint never reached HEAD, was CURRENT to the gate -- no commit
+      between it and HEAD touched the file -- although HEAD's file is not the
+      file it attested. Here it is stale, as it should be.
+
+    Content is the question both ask, so both now call this.
     """
     if not sha or not paths:
         return []
-    result = subprocess.run(
-        ["git", "diff", "--name-only", f"{sha}..{head}", "--", *paths],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{sha}..{head}", "--", *paths],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        # Unreadable history is not evidence of freshness: reported, so the
+        # organ is examined rather than waved through.
+        return [f"<unresolvable: git unavailable: {str(exc)[:60]}>"]
     if result.returncode != 0:
         # An unresolvable sha (orphaned by a squash merge, most often) cannot be
         # compared. Reported as unknown rather than guessed in either direction.
