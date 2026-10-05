@@ -293,6 +293,20 @@ _SCHEMA = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_learning_provenance_row "
     "ON learning_provenance(row_table, row_id, id)",
+    # Plan Phase 6e: revoked content, by a key over what recall SHOWS (not the
+    # signed digest, which also covers counts and status), per principal.
+    """
+    CREATE TABLE IF NOT EXISTS learning_tombstones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        row_table TEXT NOT NULL,
+        content_key TEXT NOT NULL,
+        principal_id TEXT,
+        approver TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_learning_tombstones_key "
+    "ON learning_tombstones(row_table, content_key)",
     """
     CREATE TABLE IF NOT EXISTS learning_derivations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -347,6 +361,16 @@ def journal_unsigned(connection: sqlite3.Connection, provenance: Provenance) -> 
     return _insert(connection, provenance, None)
 
 
+#: Transitions that take a learned row OUT of use (plan Phase 6e). They are
+#: never refused by the emergency stop, and a signed "revoked" record is never
+#: a credential: the recall gate refuses it and no machine transition extends
+#: it -- only the operator's re-admission signs the row again.
+REVOKED = "revoked"
+WITHDRAWAL_TRANSITIONS: frozenset[str] = frozenset(
+    {REVOKED, "quarantined", "tombstoned", "withdrawn"}
+)
+
+
 class ProvenanceStore:
     """Append-only records of provenance and derivation, beside the rows.
 
@@ -365,8 +389,15 @@ class ProvenanceStore:
             ensure_provenance_schema(connection)
 
     def append(self, provenance: Provenance, signed: Optional[SignedProvenance]) -> int:
-        """Record one state of one row, signed or not. Returns the record id."""
-        assert_learning_permitted("learning_provenance.append")
+        """Record one state of one row, signed or not. Returns the record id.
+
+        A WITHDRAWAL (plan Phase 6e: revoked, quarantined, tombstoned) is the
+        exception to the stop, as a skill's withdrawal states are: it takes a
+        row out of use, and a stop that refused it would protect the row, not
+        the operator.
+        """
+        if provenance.transition not in WITHDRAWAL_TRANSITIONS:
+            assert_learning_permitted("learning_provenance.append")
         if signed is not None and signed.provenance != provenance:
             raise ValueError("the signature is over a different provenance record")
         with self._connection() as connection:
@@ -416,6 +447,53 @@ class ProvenanceStore:
                 ),
             )
             return int(cursor.lastrowid)
+
+    def children_of(self, table: str, row_id: str) -> list[tuple[str, str, str]]:
+        """Rows recorded as derived from ``(table, row_id)`` -- what a revocation
+        of it cascades to (plan Phase 6e)."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT child_table, child_id, relation FROM learning_derivations "
+                "WHERE parent_table = ? AND parent_id = ? ORDER BY id",
+                (table, str(row_id)),
+            ).fetchall()
+        return [(str(r[0]), str(r[1]), str(r[2])) for r in rows]
+
+    def tombstone(
+        self, table: str, content_key: str, *, principal: Optional[str], approver: str
+    ) -> None:
+        """Plan Phase 6e: revoked CONTENT stays revoked. A new row of *table*
+        whose content key matches is withdrawn at birth for *principal*, until
+        the operator re-admits it. A withdrawal: allowed under the stop."""
+        with self._connection() as connection:
+            connection.execute(
+                "INSERT INTO learning_tombstones (row_table, content_key, "
+                "principal_id, approver, created_at) VALUES (?, ?, ?, ?, ?)",
+                (table, content_key, principal, approver, _utc_now()),
+            )
+
+    def is_tombstoned(
+        self, table: str, content_key: str, *, principal: Optional[str]
+    ) -> bool:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM learning_tombstones WHERE row_table = ? "
+                "AND content_key = ? AND principal_id IS ? LIMIT 1",
+                (table, content_key, principal),
+            ).fetchone()
+        return row is not None
+
+    def lift_tombstone(
+        self, table: str, content_key: str, *, principal: Optional[str]
+    ) -> None:
+        """The operator re-admitted this content: it may be learned again."""
+        assert_learning_permitted("learning_tombstones.lift")
+        with self._connection() as connection:
+            connection.execute(
+                "DELETE FROM learning_tombstones WHERE row_table = ? "
+                "AND content_key = ? AND principal_id IS ?",
+                (table, content_key, principal),
+            )
 
     def parents_of(self, table: str, row_id: str) -> list[tuple[str, str, str]]:
         with self._connection() as connection:

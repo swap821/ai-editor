@@ -11,7 +11,9 @@ from aios.application.learning import negative_transfer
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
     fact_digest,
+    lesson_content_key,
     lesson_digest,
+    semantic_content_key,
     semantic_digest,
 )
 from aios.domain.memory import MemoryHit, MemoryRecallContext
@@ -115,6 +117,7 @@ class LegacySemanticMemoryAdapter:
                 mem_id,
                 semantic_digest(row),
                 transition,
+                content_key=semantic_content_key(row),
                 principal=principal,
             )
             return
@@ -816,6 +819,7 @@ class MistakeMemoryAdapter:
                 mistake_id,
                 lesson_digest(row),
                 transition,
+                content_key=lesson_content_key(row),
                 session_id=row["task_id"],
                 principal=principal,
             )

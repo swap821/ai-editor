@@ -1433,6 +1433,8 @@ RT07_MEMORY_TABLES: tuple[str, ...] = (
     "learning_derivations",
     # Phase 6d: the negative-transfer quarantine's outcome windows.
     "lesson_outcomes",
+    # Phase 6e: revoked content, by key.
+    "learning_tombstones",
 )
 RT07_OPERATIONAL_TABLES: tuple[str, ...] = (
     "institutional_skills",

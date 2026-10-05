@@ -213,6 +213,20 @@ def readmit(
         )
         store.append(provenance, signer.sign(provenance))
         done.append(row_id)
+    # Plan Phase 6e: re-admission is the operator's judgment that this
+    # content is sound -- a tombstone on it is lifted, so it may be learned
+    # again.
+    from aios.application.memory.provenance_policy import (
+        lesson_content_key,
+        semantic_content_key,
+    )
+
+    keys = {"mistake_pool": lesson_content_key, "semantic_memory": semantic_content_key}
+    if table in keys:
+        for row_id in done:
+            store.lift_tombstone(
+                table, keys[table](attributed[row_id]), principal=owner
+            )
     if table == "mistake_pool" and done:
         # Plan Phase 6d: re-admission is the operator's judgment; outcomes
         # counted before it do not overrule it. The negative-transfer window

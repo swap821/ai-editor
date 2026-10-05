@@ -755,8 +755,8 @@
   {
    "id": "4c:P12 the self-model cache is shared",
    "file": "aios/runtime/self_model_handler.py",
-   "old": "            return self._cache.get(principal)\n",
-   "new": "            return next(iter(self._cache.values()), None)\n",
+   "old": "            if principal not in self._cache:\n                return None\n            text, mark = self._cache[principal], self._marks.get(principal)\n",
+   "new": "            if not self._cache:\n                return None\n            text, mark = next(iter(self._cache.values())), next(\n                iter(self._marks.values()), None\n            )\n",
    "tests": [
     "tests/test_phase4c_principal_scope.py::test_the_self_model_cache_is_per_principal"
    ],
@@ -765,8 +765,8 @@
   {
    "id": "4c:P13 an unnamed turn refreshes the self-model",
    "file": "aios/runtime/self_model_handler.py",
-   "old": "        if principal is None:\n            return\n        try:\n",
-   "new": "        try:\n",
+   "old": "        if principal is None:\n            return\n        mark = last_withdrawal_id()\n        try:\n",
+   "new": "        mark = last_withdrawal_id()\n        try:\n",
    "tests": [
     "tests/test_phase4c_principal_scope.py::test_a_turn_nobody_named_refreshes_nothing"
    ],
@@ -7692,6 +7692,395 @@
    ],
    "also": [],
    "note": "generated (6d): Cerebellum._record_replay_failure line 1466 condition forced False: pb is not None"
+  },
+  {
+   "id": "6e:gate admits a revocation",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "        if signed.provenance.transition == REVOKED:\n            return self._refuse(",
+   "new": "        if False:\n            return self._refuse(",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:a machine transition extends a revocation",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "        if prior is not None and prior.provenance.transition == REVOKED:\n",
+   "new": "        if False:\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:tombstones ignored at birth",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "        if content_key is not None and self._tombstoned(\n",
+   "new": "        if False and self._tombstoned(\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:unreadable tombstone check admits",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "        except Exception:  # noqa: BLE001 - unreadable: withdraw (fail-closed)\n            return True\n",
+   "new": "        except Exception:  # noqa: BLE001 - unreadable: withdraw (fail-closed)\n            return False\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:the stop refuses a withdrawal",
+   "file": "aios/memory/provenance.py",
+   "old": "        if provenance.transition not in WITHDRAWAL_TRANSITIONS:\n            assert_learning_permitted",
+   "new": "        if True:\n            assert_learning_permitted",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:tombstones not per principal",
+   "file": "aios/memory/provenance.py",
+   "old": "                \"AND content_key = ? AND principal_id IS ? LIMIT 1\",\n                (table, content_key, principal),",
+   "new": "                \"AND content_key = ? LIMIT 1\",\n                (table, content_key),",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:revocation writes no tombstone",
+   "file": "tools/revoke_learning.py",
+   "old": "        if table in CONTENT_KEYS:\n            store.tombstone(",
+   "new": "        if False:\n            store.tombstone(",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:revocation does not cascade",
+   "file": "tools/revoke_learning.py",
+   "old": "    withdrawn = _cascade(db, store, [(table, str(i)) for i in rows])\n",
+   "new": "    withdrawn = []\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:cascade stops at one level",
+   "file": "tools/revoke_learning.py",
+   "old": "            queue.append(child)\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:readmission keeps the tombstone",
+   "file": "tools/readmit_learning.py",
+   "old": "            store.lift_tombstone(\n                table, keys[table](attributed[row_id]), principal=owner\n            )\n",
+   "new": "            pass\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:stale self-model served",
+   "file": "aios/runtime/self_model_handler.py",
+   "old": "        if current is not None and mark is not None and current == mark:\n            return text\n",
+   "new": "        if True:\n            return text\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:stale self-model served without an authority",
+   "file": "aios/runtime/self_model_handler.py",
+   "old": "        if self._memory_authority is None:\n            return None\n        try:\n            fresh",
+   "new": "        if self._memory_authority is None:\n            return text\n        try:\n            fresh",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "6e:unreadable journal reads as nothing new",
+   "file": "aios/memory/learning_journal.py",
+   "old": "    except sqlite3.Error:\n        return None\n    return int(row[0] or 0)",
+   "new": "    except sqlite3.Error:\n        return 0\n    return int(row[0] or 0)",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6e"
+  },
+  {
+   "id": "gen:readmit_learning:readmit:225:always",
+   "file": "tools/readmit_learning.py",
+   "old": "    if table in keys:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py",
+    "tests/test_phase3d_readmit.py",
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6e): readmit line 225 condition forced True: table in keys"
+  },
+  {
+   "id": "gen:readmit_learning:readmit:225:never",
+   "file": "tools/readmit_learning.py",
+   "old": "    if table in keys:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py",
+    "tests/test_phase3d_readmit.py",
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6e): readmit line 225 condition forced False: table in keys"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:97:always",
+   "file": "tools/revoke_learning.py",
+   "old": "    if table not in CHANNELS:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 97 condition forced True: table not in CHANNELS"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:97:never",
+   "file": "tools/revoke_learning.py",
+   "old": "    if table not in CHANNELS:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 97 condition forced False: table not in CHANNELS"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:99:always",
+   "file": "tools/revoke_learning.py",
+   "old": "    if not approver.strip():\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 99 condition forced True: not approver.strip()"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:99:never",
+   "file": "tools/revoke_learning.py",
+   "old": "    if not approver.strip():\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 99 condition forced False: not approver.strip()"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:101:always",
+   "file": "tools/revoke_learning.py",
+   "old": "    if \"live\" not in signer.kinds:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 101 condition forced True: \"live\" not in signer.kinds"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:101:never",
+   "file": "tools/revoke_learning.py",
+   "old": "    if \"live\" not in signer.kinds:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 101 condition forced False: \"live\" not in signer.kinds"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:108:always",
+   "file": "tools/revoke_learning.py",
+   "old": "    unknown = [i for i, r in rows.items() if r is None]\n",
+   "new": "    unknown = [i for i, r in rows.items() if (True)]\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 108 condition forced True: r is None"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:108:never",
+   "file": "tools/revoke_learning.py",
+   "old": "    unknown = [i for i, r in rows.items() if r is None]\n",
+   "new": "    unknown = [i for i, r in rows.items() if (False)]\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 108 condition forced False: r is None"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:109:always",
+   "file": "tools/revoke_learning.py",
+   "old": "    if unknown:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 109 condition forced True: unknown"
+  },
+  {
+   "id": "gen:revoke_learning:revoke:109:never",
+   "file": "tools/revoke_learning.py",
+   "old": "    if unknown:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): revoke line 109 condition forced False: unknown"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:156:always",
+   "file": "tools/revoke_learning.py",
+   "old": "    while queue:\n",
+   "new": "    while (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 156 condition forced True: queue"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:156:never",
+   "file": "tools/revoke_learning.py",
+   "old": "    while queue:\n",
+   "new": "    while (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 156 condition forced False: queue"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:160:always",
+   "file": "tools/revoke_learning.py",
+   "old": "            if child in seen:\n",
+   "new": "            if (True):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 160 condition forced True: child in seen"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:160:never",
+   "file": "tools/revoke_learning.py",
+   "old": "            if child in seen:\n",
+   "new": "            if (False):\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 160 condition forced False: child in seen"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:165:always",
+   "file": "tools/revoke_learning.py",
+   "old": "                if child_table in CHANNELS and child_id.isdigit()\n",
+   "new": "                if (True)\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 165 condition forced True: child_table in CHANNELS and child_id.isdigit()"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:165:never",
+   "file": "tools/revoke_learning.py",
+   "old": "                if child_table in CHANNELS and child_id.isdigit()\n",
+   "new": "                if (False)\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 165 condition forced False: child_table in CHANNELS and child_id.isdigit()"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:168:always",
+   "file": "tools/revoke_learning.py",
+   "old": "            digest = CHANNELS[child_table][0](row) if row is not None else \"withdrawn\"\n",
+   "new": "            digest = CHANNELS[child_table][0](row) if (True) else \"withdrawn\"\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 168 condition forced True: row is not None"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:168:never",
+   "file": "tools/revoke_learning.py",
+   "old": "            digest = CHANNELS[child_table][0](row) if row is not None else \"withdrawn\"\n",
+   "new": "            digest = CHANNELS[child_table][0](row) if (False) else \"withdrawn\"\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 168 condition forced False: row is not None"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:177:always",
+   "file": "tools/revoke_learning.py",
+   "old": "                    principal=row[\"principal_id\"] if row is not None else None,\n",
+   "new": "                    principal=row[\"principal_id\"] if (True) else None,\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 177 condition forced True: row is not None"
+  },
+  {
+   "id": "gen:revoke_learning:_cascade:177:never",
+   "file": "tools/revoke_learning.py",
+   "old": "                    principal=row[\"principal_id\"] if row is not None else None,\n",
+   "new": "                    principal=row[\"principal_id\"] if (False) else None,\n",
+   "tests": [
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (6e): _cascade line 177 condition forced False: row is not None"
   }
  ],
  "retired": [
@@ -8134,7 +8523,15 @@
    "aios/domain/learning/skill_contracts.py::check_transition",
    "aios/domain/learning/repository.py::SkillRepository.save",
    "aios/domain/learning/repository.py::SkillRepository.transition_state",
-   "aios/application/learning/service.py::LearningService.activate_skill"
+   "aios/application/learning/service.py::LearningService.activate_skill",
+   "aios/application/memory/provenance_policy.py::ProvenanceWriter.attest_new",
+   "aios/application/memory/provenance_policy.py::ProvenanceWriter._tombstoned",
+   "aios/memory/provenance.py::ProvenanceStore.is_tombstoned",
+   "aios/memory/provenance.py::ProvenanceStore.children_of",
+   "aios/memory/learning_journal.py::last_withdrawal_id",
+   "aios/runtime/self_model_handler.py::SelfModelHandler.recall",
+   "tools/revoke_learning.py::revoke",
+   "tools/revoke_learning.py::_cascade"
   ],
   "T5 T10 stop and bounds": [
    "aios/memory/learning_freeze.py::assert_learning_permitted",

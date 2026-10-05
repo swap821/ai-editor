@@ -241,6 +241,10 @@ CREATE TABLE IF NOT EXISTS learning_events (
 );
 CREATE INDEX IF NOT EXISTS idx_learning_events_faculty
     ON learning_events(faculty, id);
+-- Plan Phase 6e: every turn asks for the newest withdrawal (a cached
+-- self-model is stale after one), so the question is indexed.
+CREATE INDEX IF NOT EXISTS idx_learning_events_transition
+    ON learning_events(transition, id);
 
 -- == Swarm decomposition patterns =============================================
 -- Cached subtask plans keyed by goal-pattern. A plan is promoted to 'verified'

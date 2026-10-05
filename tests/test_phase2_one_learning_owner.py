@@ -162,6 +162,8 @@ _OWNERS: dict[str, set[str]] = {
     "learning_derivations": {"aios/memory/provenance.py"},
     # Phase 6d: the negative-transfer quarantine's outcome windows.
     "lesson_outcomes": {"aios/memory/mistake.py"},
+    # Phase 6e: revoked content, by key.
+    "learning_tombstones": {"aios/memory/provenance.py"},
     "skill_transfer_outcomes": {"aios/application/memory/institutional_skills.py"},
 }
 
