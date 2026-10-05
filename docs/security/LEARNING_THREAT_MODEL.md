@@ -595,7 +595,7 @@ above left open for skills and reflexes.*
 
 ## Phase 6d, 2026-10-05: the negative-transfer quarantine
 
-- **RT-26 (T13, new) is held (`negative_transfer`).**
+- **RT-26 (T13, new) is held (`negative_transfer_quarantine`).**
   - The lesson is signed and verified, and it reaches the prompt.
   - Ten recalled turns then fail, against similar tasks that succeed 8 times
     in 10. The outcomes go through the authority's `record_lesson_outcome`, as

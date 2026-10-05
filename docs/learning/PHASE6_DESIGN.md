@@ -326,7 +326,7 @@ failure at the minimum count.
   `skill_transfer_outcomes` (`institutional_skills.py`) are in
   `test_phase2_one_learning_owner`'s map. RT-07 counts them as learning
   writes the stop must freeze.
-- **RT-26 (T13, new, structural): held (`negative_transfer`).**
+- **RT-26 (T13, new, structural): held (`negative_transfer_quarantine`).**
   - A signed, verified lesson reaches the prompt. Then ten recalled turns
     fail, against a similar-task history of 8 successes in 10.
   - The outcomes go through `record_lesson_outcome` with the route's own
