@@ -808,8 +808,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 47 green / 8 yellow / 55 total
-- **Source ledger sha256:** `3df279e41799507e02d6913ccbbfa5b033c03ebe2b44ebea4e111832d19baba0`
+- **Counts:** 51 green / 8 yellow / 59 total
+- **Source ledger sha256:** `db6f27f110a84f9b3e15ba1d79e98acc499d2101468815798e9937fefe9465ff`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -817,7 +817,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (47)
+### Green (51)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -861,13 +861,17 @@ re-audits recorded above.
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `cb19e19ef2c7` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `cb19e19ef2c7` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `1d431850fc5e` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `f40b80908442` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `77d62129ebb5` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `cb19e19ef2c7` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `2ea0586c90b3` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `1d431850fc5e` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `210e56e61151` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `210e56e61151` | live |
+| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `77d62129ebb5` | live |
+| 57 | Reflex Authority | `Cerebellum` | `77d62129ebb5` | live |
+| 58 | Recall Isolation | `RecallGate` | `77d62129ebb5` | live |
+| 59 | Learning Freeze | `LearningFreezeAuthority` | `77d62129ebb5` | live |
 
 ### Yellow (8) — exact residual, from the ledger's own `known_blockers`
 
