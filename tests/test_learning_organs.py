@@ -50,6 +50,27 @@ def own_latch(tmp_path, monkeypatch):
     return tmp_path
 
 
+def _probe_text(marker: str) -> str:
+    return f"when the {marker} build breaks, rerun the {marker} migration first"
+
+
+def _probe_marker() -> str:
+    """A unique word for one probe lesson that the secret scanner leaves alone.
+
+    The lesson is recalled BY this word, and every lesson write is scrubbed. A
+    random hex suffix reads as a HIGH_ENTROPY secret about 1.8% of the time
+    (356 of 20,000, measured 2026-10-05), and a redacted marker is never
+    recalled: organ 58's live-recall test failed on one in CI, on a commit
+    whose other run was green. So draw until the scrubbed text is the text.
+    """
+    from aios.security.secret_scanner import scan_and_redact
+
+    while True:
+        marker = f"organprobe{uuid4().hex[:10]}"
+        if scan_and_redact(_probe_text(marker)).scrubbed == _probe_text(marker):
+            return marker
+
+
 def _live_lesson(principal: str) -> tuple[object, int, str]:
     """A verified lesson written through the PROCESS authority's adapter."""
     from aios.api.deps import get_memory_authority
@@ -57,8 +78,8 @@ def _live_lesson(principal: str) -> tuple[object, int, str]:
 
     init_memory_db()  # what the app's startup does (aios/api/main.py)
     lessons = get_memory_authority().adapters["lessons"]
-    marker = f"organprobe{uuid4().hex[:10]}"
-    text = f"when the {marker} build breaks, rerun the {marker} migration first"
+    marker = _probe_marker()
+    text = _probe_text(marker)
     mistake_id = lessons.record(
         f"task-{marker}",
         "organ_probe",
@@ -232,6 +253,16 @@ def test_organ_58_live_recall_admits_through_the_authoritys_gate() -> None:
     assert [int(r["mistake_id"]) for r in owner] == [mistake_id]
     assert gate.admitted > admitted, "the live gate admitted it"
     assert lessons.relevant_verified(marker, 5, principal=BOB) == []
+
+
+def test_a_probe_marker_survives_the_secret_scanner() -> None:
+    """The flake `_probe_marker` closes: drawn plainly, about 1 marker in 56
+    was redacted, and organ 58's recall-by-marker found nothing."""
+    from aios.security.secret_scanner import scan_and_redact
+
+    for _ in range(2000):
+        text = _probe_text(_probe_marker())
+        assert scan_and_redact(text).scrubbed == text
 
 
 def test_organ_58_a_new_gate_over_the_same_store_admits_only_what_was_signed(
