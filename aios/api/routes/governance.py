@@ -138,6 +138,47 @@ def _record_emergency_stop_engaged(principal: Principal, reason: str) -> None:
         logging.getLogger(__name__).warning(
             "Failed to record emergency-stop engagement", exc_info=exc
         )
+    _record_learning_freeze(principal, frozen=True)
+
+
+def _record_learning_freeze(principal: Principal, *, frozen: bool) -> None:
+    """Plan Phase 6f: put the learning loop's freeze (or thaw) on the bus.
+
+    The same latch freezes learning (``aios/memory/learning_freeze.py``); this
+    says so as its own event, naming what stopped, so an observer of learning
+    need not know that the stop and the freeze are one. Best-effort, as the
+    stop's own events are.
+    """
+    try:
+        from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
+        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE
+
+        bus = get_cortex_observation_bus()
+        if bus is None:
+            return
+        bus.append(
+            CanonicalEvent(
+                event_type=(
+                    CanonicalEventType.LEARNING_FROZEN
+                    if frozen
+                    else CanonicalEventType.LEARNING_THAWED
+                ).value,
+                phase=EventPhase.REFLEX.value,
+                status="frozen" if frozen else "thawed",
+                trust="verified",
+                source="aios.api.routes.governance",
+                session_id=getattr(principal, "session_id", "") or "emergency-stop",
+                payload={
+                    "control": LEARNING_FREEZE.control,
+                    "boundaries": dict(FROZEN_BOUNDARIES) if frozen else {},
+                    "operator_id": principal.principal_id,
+                },
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - never let an observation block the latch
+        logging.getLogger(__name__).warning(
+            "Failed to record the learning freeze", exc_info=exc
+        )
 
 
 def _record_emergency_stop_cleared(principal: Principal) -> None:
@@ -180,6 +221,7 @@ def _record_emergency_stop_cleared(principal: Principal) -> None:
         logging.getLogger(__name__).warning(
             "Failed to record emergency-stop clear", exc_info=exc
         )
+    _record_learning_freeze(principal, frozen=False)
 
 
 @router.post("/api/v1/governance/emergency-stop/clear")

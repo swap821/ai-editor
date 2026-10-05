@@ -235,6 +235,12 @@ MEMORY_COMPACT_EPISODIC_DAYS: Final[float] = _env_float(
 MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE: Final[int] = _env_int(
     "AIOS_MEMORY_COMPACT_SEMANTIC_MAX_PER_TYPE", 5_000
 )
+#: Plan Phase 6f: a pending lesson is recalled only into its own task and
+#: promoted only by that task's success; one still pending after this many days
+#: will never be either, and the operator's compaction forgets it.
+MEMORY_COMPACT_PENDING_LESSON_DAYS: Final[float] = _env_float(
+    "AIOS_MEMORY_COMPACT_PENDING_LESSON_DAYS", 30.0
+)
 MEMORY_COMPACT_WORKING_IDLE_MINUTES: Final[int] = _env_int(
     "AIOS_MEMORY_COMPACT_WORKING_IDLE_MINUTES", 60
 )

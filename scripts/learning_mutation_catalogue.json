@@ -124,8 +124,8 @@
   {
    "id": "3a:newest unsigned is not inherited",
    "file": "aios/memory/provenance.py",
-   "old": "                \"WHERE row_table = ? AND row_id = ? ORDER BY id DESC LIMIT 1\",",
-   "new": "                \"WHERE row_table = ? AND row_id = ? AND signature IS NOT NULL ORDER BY id DESC LIMIT 1\",",
+   "old": "                \"SELECT provenance_json, key_id, signature FROM learning_provenance \"\n                \"WHERE row_table = ? AND row_id = ? ORDER BY id DESC LIMIT 1\",",
+   "new": "                \"SELECT provenance_json, key_id, signature FROM learning_provenance \"\n                \"WHERE row_table = ? AND row_id = ? AND signature IS NOT NULL ORDER BY id DESC LIMIT 1\",",
    "tests": [
     "tests/test_phase3a_provenance.py"
    ],
@@ -8081,6 +8081,325 @@
    ],
    "also": [],
    "note": "generated (6e): _cascade line 177 condition forced False: row is not None"
+  },
+  {
+   "id": "6f:engage never freezes",
+   "file": "aios/api/routes/governance.py",
+   "old": "    _record_learning_freeze(principal, frozen=True)\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:clear never thaws",
+   "file": "aios/api/routes/governance.py",
+   "old": "    _record_learning_freeze(principal, frozen=False)\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:frozen and thawed swapped",
+   "file": "aios/api/routes/governance.py",
+   "old": "                    CanonicalEventType.LEARNING_FROZEN\n                    if frozen\n",
+   "new": "                    CanonicalEventType.LEARNING_FROZEN\n                    if not frozen\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:frozen names nothing",
+   "file": "aios/api/routes/governance.py",
+   "old": "\"boundaries\": dict(FROZEN_BOUNDARIES) if frozen else {},",
+   "new": "\"boundaries\": {},",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:learning event blocks the latch",
+   "file": "aios/api/routes/governance.py",
+   "old": "            \"Failed to record the learning freeze\", exc_info=exc\n        )\n",
+   "new": "            \"Failed to record the learning freeze\", exc_info=exc\n        )\n        raise\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:a family left out",
+   "file": "aios/memory/learning_freeze.py",
+   "old": "    \"skills\": \"legacy skill attempts and reuse\",\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:zero days forgets",
+   "file": "aios/memory/mistake.py",
+   "old": "        if older_than_days <= 0:\n            return []\n        cutoff = (",
+   "new": "        if False:\n            return []\n        cutoff = (",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:stale read ignores status",
+   "file": "aios/memory/mistake.py",
+   "old": "\"SELECT id FROM mistake_pool WHERE verification_status = 'pending' \"\n                    \"AND timestamp < ? ORDER BY id\",",
+   "new": "\"SELECT id FROM mistake_pool WHERE \"\n                    \"timestamp < ? ORDER BY id\",",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:stale read ignores age",
+   "file": "aios/memory/mistake.py",
+   "old": "\"AND timestamp < ? ORDER BY id\",",
+   "new": "\"AND timestamp > ? OR 1 ORDER BY id\",",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:forget select ignores status",
+   "file": "aios/memory/mistake.py",
+   "old": "f\"SELECT id FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                    \"AND verification_status = 'pending' ORDER BY id\",",
+   "new": "f\"SELECT id FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                    \"ORDER BY id\",",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:forget delete ignores status",
+   "file": "aios/memory/mistake.py",
+   "old": "f\"DELETE FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                \"AND verification_status = 'pending'\",",
+   "new": "f\"DELETE FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                \"\",",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:recent activity ignored",
+   "file": "aios/application/memory/adapters.py",
+   "old": "            if not self._active_since(mistake_id, cutoff)\n",
+   "new": "            if True\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:dry run deletes",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        if dry_run or not idle:\n",
+   "new": "        if not idle:\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:removal not journalled",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        journal(\n            \"L2\",\n            \"forgotten\",",
+   "new": "        (lambda *a, **k: None)(\n            \"L2\",\n            \"forgotten\",",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:no writer means active",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        if self.provenance is None:\n            return False\n        try:",
+   "new": "        if self.provenance is None:\n            return True\n        try:",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:unreadable forgets",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        except Exception:  # noqa: BLE001 - unreadable: keep it (forgetting is final)\n            return True\n",
+   "new": "        except Exception:  # noqa: BLE001 - unreadable: keep it (forgetting is final)\n            return False\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:no record means active",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        if last is None:\n            return False\n",
+   "new": "        if last is None:\n            return True\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:activity compared backwards",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        return datetime.fromisoformat(last) >= cutoff\n",
+   "new": "        return datetime.fromisoformat(last) <= cutoff\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:last record is the first",
+   "file": "aios/memory/provenance.py",
+   "old": "\"SELECT created_at FROM learning_provenance \"\n                \"WHERE row_table = ? AND row_id = ? ORDER BY id DESC LIMIT 1\",",
+   "new": "\"SELECT created_at FROM learning_provenance \"\n                \"WHERE row_table = ? AND row_id = ? ORDER BY id ASC LIMIT 1\",",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:last record of any row",
+   "file": "aios/memory/provenance.py",
+   "old": "\"SELECT created_at FROM learning_provenance \"\n                \"WHERE row_table = ? AND row_id = ? ORDER BY id DESC LIMIT 1\",\n                (table, str(row_id)),",
+   "new": "\"SELECT created_at FROM learning_provenance \"\n                \"WHERE row_table = ? ORDER BY id DESC LIMIT 1\",\n                (table,),",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:compaction skips lessons",
+   "file": "aios/application/memory/authority.py",
+   "old": "        forgotten = self._adapter_operation(\n            \"lessons\",\n            \"forget_stale_pending\",\n            config.MEMORY_COMPACT_PENDING_LESSON_DAYS,\n            dry_run=dry_run,\n        )\n",
+   "new": "        forgotten = []\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:compaction ignores config days",
+   "file": "aios/application/memory/authority.py",
+   "old": "            config.MEMORY_COMPACT_PENDING_LESSON_DAYS,\n",
+   "new": "            30.0,\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "6f:compaction always applies",
+   "file": "aios/application/memory/authority.py",
+   "old": "            config.MEMORY_COMPACT_PENDING_LESSON_DAYS,\n            dry_run=dry_run,\n",
+   "new": "            config.MEMORY_COMPACT_PENDING_LESSON_DAYS,\n            dry_run=False,\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f"
+  },
+  {
+   "id": "gen:governance:_record_learning_freeze:157:always",
+   "file": "aios/api/routes/governance.py",
+   "old": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if bus is None:\n",
+   "new": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if (True):\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "generated (6f): _record_learning_freeze line 157 condition forced True: bus is None"
+  },
+  {
+   "id": "gen:governance:_record_learning_freeze:157:never",
+   "file": "aios/api/routes/governance.py",
+   "old": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if bus is None:\n",
+   "new": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if (False):\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "generated (6f): _record_learning_freeze line 157 condition forced False: bus is None"
+  },
+  {
+   "id": "gen:governance:_record_learning_freeze:167:always",
+   "file": "aios/api/routes/governance.py",
+   "old": "                status=\"frozen\" if frozen else \"thawed\",\n",
+   "new": "                status=\"frozen\" if (True) else \"thawed\",\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "generated (6f): _record_learning_freeze line 167 condition forced True: frozen"
+  },
+  {
+   "id": "gen:governance:_record_learning_freeze:167:never",
+   "file": "aios/api/routes/governance.py",
+   "old": "                status=\"frozen\" if frozen else \"thawed\",\n",
+   "new": "                status=\"frozen\" if (False) else \"thawed\",\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "generated (6f): _record_learning_freeze line 167 condition forced False: frozen"
+  },
+  {
+   "id": "gen:provenance:last_recorded_at:460:always",
+   "file": "aios/memory/provenance.py",
+   "old": "        return None if row is None else str(row[0])\n",
+   "new": "        return None if (True) else str(row[0])\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "generated (6f): ProvenanceStore.last_recorded_at line 460 condition forced True: row is None"
+  },
+  {
+   "id": "gen:provenance:last_recorded_at:460:never",
+   "file": "aios/memory/provenance.py",
+   "old": "        return None if row is None else str(row[0])\n",
+   "new": "        return None if (False) else str(row[0])\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "generated (6f): ProvenanceStore.last_recorded_at line 460 condition forced False: row is None"
   }
  ],
  "retired": [
@@ -8536,7 +8855,14 @@
   "T5 T10 stop and bounds": [
    "aios/memory/learning_freeze.py::assert_learning_permitted",
    "aios/memory/learning_freeze.py::learning_permitted",
-   "aios/application/memory/write_budget.py::LearningWriteBudget.spend"
+   "aios/application/memory/write_budget.py::LearningWriteBudget.spend",
+   "aios/api/routes/governance.py::_record_learning_freeze",
+   "aios/memory/mistake.py::MistakeMemory.stale_pending",
+   "aios/memory/mistake.py::MistakeMemory.forget_pending",
+   "aios/application/memory/adapters.py::MistakeMemoryAdapter.forget_stale_pending",
+   "aios/application/memory/adapters.py::MistakeMemoryAdapter._active_since",
+   "aios/memory/provenance.py::ProvenanceStore.last_recorded_at",
+   "aios/application/memory/authority.py::MemoryAuthority.compact_memory"
   ],
   "T13 negative-transfer quarantine": [
    "aios/application/learning/negative_transfer.py::assess",

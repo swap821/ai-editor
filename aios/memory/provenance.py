@@ -448,6 +448,17 @@ class ProvenanceStore:
             )
             return int(cursor.lastrowid)
 
+    def last_recorded_at(self, table: str, row_id: str) -> Optional[str]:
+        """When the newest record for a row was written, signed or not (plan
+        Phase 6f: a lesson's last activity, for the GC). ``None``: no record."""
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT created_at FROM learning_provenance "
+                "WHERE row_table = ? AND row_id = ? ORDER BY id DESC LIMIT 1",
+                (table, str(row_id)),
+            ).fetchone()
+        return None if row is None else str(row[0])
+
     def children_of(self, table: str, row_id: str) -> list[tuple[str, str, str]]:
         """Rows recorded as derived from ``(table, row_id)`` -- what a revocation
         of it cascades to (plan Phase 6e)."""

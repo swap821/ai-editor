@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -497,6 +498,55 @@ class MistakeMemory:
                 conn.execute(
                     "DELETE FROM lesson_outcomes WHERE mistake_id = ?", (mistake_id,)
                 )
+
+    def stale_pending(self, older_than_days: float) -> list[int]:
+        """Plan Phase 6f (GC): pending lessons CREATED over *older_than_days* ago.
+
+        Read-only. Creation is not last activity -- a recurrence leaves the
+        timestamp alone -- so the caller decides, from provenance, which of
+        these are really idle. Zero (or fewer) days: none.
+        """
+        if older_than_days <= 0:
+            return []
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        with get_connection(self.db_path) as conn:
+            return [
+                int(r["id"])
+                for r in conn.execute(
+                    "SELECT id FROM mistake_pool WHERE verification_status = 'pending' "
+                    "AND timestamp < ? ORDER BY id",
+                    (cutoff,),
+                ).fetchall()
+            ]
+
+    def forget_pending(self, mistake_ids: Any) -> list[int]:
+        """Delete the named lessons that are STILL pending; return those removed.
+
+        Verified, superseded and quarantined lessons are never touched: they
+        are recalled, are lineage, or are evidence. A lesson promoted between
+        the read and this delete stays. Their provenance records stay, as
+        history. Forgetting is the safe direction, so the stop does not refuse it.
+        """
+        ids = sorted({int(i) for i in mistake_ids})
+        marks = ",".join("?" * len(ids))
+        with get_connection(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            removed = [
+                int(r["id"])
+                for r in conn.execute(
+                    f"SELECT id FROM mistake_pool WHERE id IN ({marks}) "  # noqa: S608
+                    "AND verification_status = 'pending' ORDER BY id",
+                    tuple(ids),
+                ).fetchall()
+            ]
+            conn.execute(
+                f"DELETE FROM mistake_pool WHERE id IN ({marks}) "  # noqa: S608
+                "AND verification_status = 'pending'",
+                tuple(ids),
+            )
+        return removed
 
     def count(self) -> int:
         """Return the total number of recorded mistakes."""

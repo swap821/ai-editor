@@ -263,6 +263,12 @@ class CanonicalEventType(str, Enum):
     # could not be answered by ordering the record either. A halt with no
     # recorded end is not a timeline, it is a cliff.
     GOVERNANCE_EMERGENCY_STOP_CLEARED = "governance.emergency_stop.cleared"
+    # Plan Phase 6f: the stop's reach into LEARNING, on the same timeline. The
+    # engagement says authority was revoked; these say the learning loop stopped
+    # -- and which boundaries -- and when it resumed, so "was anything learned
+    # while frozen?" can be checked against the record, not inferred.
+    LEARNING_FROZEN = "learning.frozen"
+    LEARNING_THAWED = "learning.thawed"
     # What the cerebellum DID with a compiled playbook: replayed it, or declined
     # to. Organ 55's M5 turns on exactly that distinction -- a skill that
     # abstains on a materially different task versus one that replays blindly --

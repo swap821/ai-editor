@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 
@@ -915,6 +916,46 @@ class MistakeMemoryAdapter:
 
     def get(self, mistake_id: int) -> Any:
         return self.store.get(mistake_id)
+
+    def forget_stale_pending(
+        self, older_than_days: float, *, dry_run: bool
+    ) -> list[int]:
+        """Plan Phase 6f (GC): forget pending lessons idle for *older_than_days*.
+
+        Idle means no provenance record since the cutoff -- a recurrence or a
+        promotion appends one, while the row's timestamp is only its creation.
+        Returns the ids (removed unless *dry_run*), and journals a removal.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        idle = [
+            mistake_id
+            for mistake_id in self.store.stale_pending(older_than_days)
+            if not self._active_since(mistake_id, cutoff)
+        ]
+        if dry_run or not idle:
+            return idle
+        removed = list(self.store.forget_pending(idle))
+        journal(
+            "L2",
+            "forgotten",
+            detail={"ids": removed, "older_than_days": older_than_days},
+            db_path=self.store.db_path,
+        )
+        return removed
+
+    def _active_since(self, mistake_id: int, cutoff: datetime) -> bool:
+        """Has this lesson been recorded (recurred, promoted) since *cutoff*?"""
+        if self.provenance is None:
+            return False
+        try:
+            last = self.provenance.store.last_recorded_at(
+                "mistake_pool", str(mistake_id)
+            )
+        except Exception:  # noqa: BLE001 - unreadable: keep it (forgetting is final)
+            return True
+        if last is None:
+            return False
+        return datetime.fromisoformat(last) >= cutoff
 
     def record_recall_outcome(
         self,
