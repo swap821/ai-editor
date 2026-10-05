@@ -213,6 +213,13 @@ def readmit(
         )
         store.append(provenance, signer.sign(provenance))
         done.append(row_id)
+    if table == "mistake_pool" and done:
+        # Plan Phase 6d: re-admission is the operator's judgment; outcomes
+        # counted before it do not overrule it. The negative-transfer window
+        # of each re-admitted lesson starts again here.
+        from aios.memory.mistake import MistakeMemory
+
+        MistakeMemory(db_path=db).reset_recall_outcomes(done)
     return done
 
 

@@ -215,6 +215,21 @@ class ProvenanceWriter:
             **{k: (None if v is None else str(v)) for k, v in context.items()},
         )
 
+    def withdraw(
+        self, table: str, row_id: Any, digest: str, transition: str, **context: Any
+    ) -> Optional[int]:
+        """A machine WITHDRAWAL of a row (plan Phase 6d): recorded, never signed.
+
+        The row's newest record is then unsigned, so recall refuses it until the
+        operator re-admits it (``tools/readmit_learning.py`` signs a new state).
+        A withdrawal the machine could sign, it could also undo. Returns the
+        record id, or None if it could not be written -- then the row is NOT
+        withdrawn, and the caller must say so.
+        """
+        return self._write(
+            self._provenance(table, row_id, digest, transition, context), sign=False
+        )
+
     def _append(self, provenance: Provenance, *, sign: bool) -> Optional[int]:
         """Append one record. A failure is counted and logged, never raised: the
         row is then unsigned, and an unsigned row is never recalled. The
@@ -224,6 +239,10 @@ class ProvenanceWriter:
         """
         if not sign:
             self.unsigned_transitions += 1
+        return self._write(provenance, sign=sign)
+
+    def _write(self, provenance: Provenance, *, sign: bool) -> Optional[int]:
+        """The one write path for every record, signed or not."""
         try:
             return self.store.append(
                 provenance, self.signer.sign(provenance) if sign else None

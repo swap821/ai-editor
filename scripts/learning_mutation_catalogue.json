@@ -2274,8 +2274,8 @@
   {
    "id": "freeze2:replay failure counted under the stop",
    "file": "aios/core/cerebellum.py",
-   "old": "    def _record_replay_failure(self, playbook_id: int) -> None:\n        if not learning_permitted():\n",
-   "new": "    def _record_replay_failure(self, playbook_id: int) -> None:\n        if False:\n",
+   "old": "        if not learning_permitted():\n            # The stop freezes learned state: a replay the stop refused is not\n            # evidence about the playbook, and nothing about it moves until\n            # the operator clears the latch.\n            logging.getLogger(__name__).warning(\n                \"learning frozen; cerebellum.record_replay_failure skipped\"\n",
+   "new": "        if False:\n            # The stop freezes learned state: a replay the stop refused is not\n            # evidence about the playbook, and nothing about it moves until\n            # the operator clears the latch.\n            logging.getLogger(__name__).warning(\n                \"learning frozen; cerebellum.record_replay_failure skipped\"\n",
    "tests": [
     "tests/test_learning_freeze.py::TestReplayBookkeepingFreezesInsteadOfCounting::test_nothing_about_a_reflex_moves_while_engaged"
    ],
@@ -6887,6 +6887,811 @@
    ],
    "also": [],
    "note": "generated: LearningWriteBudget.spend line 77 condition forced False: first"
+  },
+  {
+   "id": "6d:rule never quarantines",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if p_value < level:\n",
+   "new": "    if False:\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:rule never flags review",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts < floor:\n        return verdict(\n            \"review\",",
+   "new": "    if False:\n        return verdict(\n            \"review\",",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:rule ignores the floor",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts < floor:\n",
+   "new": "    if attempts < 0:\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:baseline not smoothed",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    return (successes + 1) / (attempts + 2)\n",
+   "new": "    return successes / attempts if attempts else 0.5\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:skills never assessed",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "            self._assess_transfer(key, int(trail_id), success=success)\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:skill baseline counts reuse",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        own_n = max(record.success_count + record.failure_count - reuse_n, 0)\n",
+   "new": "        own_n = max(record.success_count + record.failure_count, 0)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:skill quarantine does not suspend",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "            self.repository.transition_state(\n                record.skill_id, record.version, \"suspended\"\n            )\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:activation keeps the old window",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        self.trails.reset_transfer(\n",
+   "new": "        (lambda _t: None)(\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:lesson withdrawal is signed",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "            self._provenance(table, row_id, digest, transition, context), sign=False\n",
+   "new": "            self._provenance(table, row_id, digest, transition, context), sign=True\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:pending lessons counted",
+   "file": "aios/memory/mistake.py",
+   "old": "                    \"SELECT * FROM mistake_pool WHERE id = ? AND principal_id IS ? \"\n                    \"AND verification_status = 'verified'\",",
+   "new": "                    \"SELECT * FROM mistake_pool WHERE id = ? AND principal_id IS ? \",\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:readmission keeps the old window",
+   "file": "tools/readmit_learning.py",
+   "old": "        MistakeMemory(db_path=db).reset_recall_outcomes(done)\n",
+   "new": "        pass\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3d_readmit.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:lesson quarantine never withdraws",
+   "file": "aios/application/memory/adapters.py",
+   "old": "                    if self.provenance is not None\n                    else None\n",
+   "new": "                    if False\n                    else None\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:reflex harm ignored",
+   "file": "aios/core/cerebellum.py",
+   "old": "                self._record_replay_failure(playbook.id, harm=True)\n",
+   "new": "                self._record_replay_failure(playbook.id)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:baseline accepts a certainty",
+   "file": "aios/application/turns/generate_pipeline.py",
+   "old": "        if rate is None or not 0.0 < float(rate) < 1.0:\n",
+   "new": "        if rate is None:\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d"
+  },
+  {
+   "id": "6d:recalled lessons never credited",
+   "file": "aios/application/turns/generate_pipeline.py",
+   "old": "        if recalled_lesson_ids and runtime.memory_authority is not None:\n",
+   "new": "        if False:\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d: the live turn credits recalled lessons"
+  },
+  {
+   "id": "6d:the turn's verdict ignored",
+   "file": "aios/application/turns/generate_pipeline.py",
+   "old": "                    success=passed,\n                    principal=principal_id,\n                    baseline=",
+   "new": "                    success=True,\n                    principal=principal_id,\n                    baseline=",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6d: the live turn credits recalled lessons"
+  },
+  {
+   "id": "gen:readmit_learning:readmit:216:always",
+   "file": "tools/readmit_learning.py",
+   "old": "    if table == \"mistake_pool\" and done:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3d_readmit.py"
+   ],
+   "also": [],
+   "note": "generated (6d): readmit line 216 condition forced True: table == \"mistake_pool\" and done"
+  },
+  {
+   "id": "gen:readmit_learning:readmit:216:never",
+   "file": "tools/readmit_learning.py",
+   "old": "    if table == \"mistake_pool\" and done:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3d_readmit.py"
+   ],
+   "also": [],
+   "note": "generated (6d): readmit line 216 condition forced False: table == \"mistake_pool\" and done"
+  },
+  {
+   "id": "gen:negative_transfer:assess:113:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "        config.NTQ_MIN_OBSERVATIONS if min_observations is None else min_observations\n",
+   "new": "        config.NTQ_MIN_OBSERVATIONS if (True) else min_observations\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 113 condition forced True: min_observations is None"
+  },
+  {
+   "id": "gen:negative_transfer:assess:113:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "        config.NTQ_MIN_OBSERVATIONS if min_observations is None else min_observations\n",
+   "new": "        config.NTQ_MIN_OBSERVATIONS if (False) else min_observations\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 113 condition forced False: min_observations is None"
+  },
+  {
+   "id": "gen:negative_transfer:assess:115:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    level = float(config.NTQ_ALPHA if alpha is None else alpha)\n",
+   "new": "    level = float(config.NTQ_ALPHA if (True) else alpha)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 115 condition forced True: alpha is None"
+  },
+  {
+   "id": "gen:negative_transfer:assess:115:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    level = float(config.NTQ_ALPHA if alpha is None else alpha)\n",
+   "new": "    level = float(config.NTQ_ALPHA if (False) else alpha)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 115 condition forced False: alpha is None"
+  },
+  {
+   "id": "gen:negative_transfer:assess:116:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if successes < 0 or attempts < 0 or successes > attempts:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 116 condition forced True: successes < 0 or attempts < 0 or successes > attempts"
+  },
+  {
+   "id": "gen:negative_transfer:assess:116:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if successes < 0 or attempts < 0 or successes > attempts:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 116 condition forced False: successes < 0 or attempts < 0 or successes > attempts"
+  },
+  {
+   "id": "gen:negative_transfer:assess:126:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if baseline is None:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 126 condition forced True: baseline is None"
+  },
+  {
+   "id": "gen:negative_transfer:assess:126:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if baseline is None:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 126 condition forced False: baseline is None"
+  },
+  {
+   "id": "gen:negative_transfer:assess:128:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if not 0.0 < baseline < 1.0:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 128 condition forced True: not 0.0 < baseline < 1.0"
+  },
+  {
+   "id": "gen:negative_transfer:assess:128:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if not 0.0 < baseline < 1.0:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 128 condition forced False: not 0.0 < baseline < 1.0"
+  },
+  {
+   "id": "gen:negative_transfer:assess:132:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts == 0:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 132 condition forced True: attempts == 0"
+  },
+  {
+   "id": "gen:negative_transfer:assess:132:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts == 0:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 132 condition forced False: attempts == 0"
+  },
+  {
+   "id": "gen:negative_transfer:assess:134:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if successes / attempts >= baseline:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 134 condition forced True: successes / attempts >= baseline"
+  },
+  {
+   "id": "gen:negative_transfer:assess:134:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if successes / attempts >= baseline:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): assess line 134 condition forced False: successes / attempts >= baseline"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:62:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts < 0 or not 0 <= successes:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 62 condition forced True: attempts < 0 or not 0 <= successes"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:62:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts < 0 or not 0 <= successes:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 62 condition forced False: attempts < 0 or not 0 <= successes"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:64:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if not 0.0 <= p <= 1.0:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 64 condition forced True: not 0.0 <= p <= 1.0"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:64:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if not 0.0 <= p <= 1.0:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 64 condition forced False: not 0.0 <= p <= 1.0"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:66:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if successes >= attempts:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 66 condition forced True: successes >= attempts"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:66:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if successes >= attempts:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 66 condition forced False: successes >= attempts"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:68:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if p == 0.0:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 68 condition forced True: p == 0.0"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:68:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if p == 0.0:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 68 condition forced False: p == 0.0"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:70:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if p == 1.0:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 70 condition forced True: p == 1.0"
+  },
+  {
+   "id": "gen:negative_transfer:binomial_lower_tail:70:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if p == 1.0:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): binomial_lower_tail line 70 condition forced False: p == 1.0"
+  },
+  {
+   "id": "gen:negative_transfer:smoothed_rate:93:always",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts < 0 or successes < 0 or successes > attempts:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): smoothed_rate line 93 condition forced True: attempts < 0 or successes < 0 or successes > attempts"
+  },
+  {
+   "id": "gen:negative_transfer:smoothed_rate:93:never",
+   "file": "aios/application/learning/negative_transfer.py",
+   "old": "    if attempts < 0 or successes < 0 or successes > attempts:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): smoothed_rate line 93 condition forced False: attempts < 0 or successes < 0 or successes > attempts"
+  },
+  {
+   "id": "gen:institutional_skills:InstitutionalSkillAdapter._assess_transfer:796:always",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        record = self.repository.get(*key)\n        if record is None or record.state != ACTIVE:\n",
+   "new": "        record = self.repository.get(*key)\n        if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): InstitutionalSkillAdapter._assess_transfer line 796 condition forced True: record is None or record.state != ACTIVE"
+  },
+  {
+   "id": "gen:institutional_skills:InstitutionalSkillAdapter._assess_transfer:796:never",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        record = self.repository.get(*key)\n        if record is None or record.state != ACTIVE:\n",
+   "new": "        record = self.repository.get(*key)\n        if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): InstitutionalSkillAdapter._assess_transfer line 796 condition forced False: record is None or record.state != ACTIVE"
+  },
+  {
+   "id": "gen:institutional_skills:InstitutionalSkillAdapter._assess_transfer:819:always",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        if verdict.action == \"quarantine\":\n",
+   "new": "        if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): InstitutionalSkillAdapter._assess_transfer line 819 condition forced True: verdict.action == \"quarantine\""
+  },
+  {
+   "id": "gen:institutional_skills:InstitutionalSkillAdapter._assess_transfer:819:never",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        if verdict.action == \"quarantine\":\n",
+   "new": "        if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): InstitutionalSkillAdapter._assess_transfer line 819 condition forced False: verdict.action == \"quarantine\""
+  },
+  {
+   "id": "gen:institutional_skills:InstitutionalSkillAdapter._assess_transfer:824:always",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        elif verdict.action == \"review\" and not success:\n",
+   "new": "        elif (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): InstitutionalSkillAdapter._assess_transfer line 824 condition forced True: verdict.action == \"review\" and not success"
+  },
+  {
+   "id": "gen:institutional_skills:InstitutionalSkillAdapter._assess_transfer:824:never",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "        elif verdict.action == \"review\" and not success:\n",
+   "new": "        elif (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): InstitutionalSkillAdapter._assess_transfer line 824 condition forced False: verdict.action == \"review\" and not success"
+  },
+  {
+   "id": "gen:institutional_skills:SkillTrailIndex.record_transfer:351:always",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "            \"WHERE trail_id = ?\"\n            if success\n",
+   "new": "            \"WHERE trail_id = ?\"\n            if (True)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): SkillTrailIndex.record_transfer line 351 condition forced True: success"
+  },
+  {
+   "id": "gen:institutional_skills:SkillTrailIndex.record_transfer:351:never",
+   "file": "aios/application/memory/institutional_skills.py",
+   "old": "            \"WHERE trail_id = ?\"\n            if success\n",
+   "new": "            \"WHERE trail_id = ?\"\n            if (False)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase4c2_skills_per_principal.py",
+    "tests/test_phase2_institutional_skill_adapter.py",
+    "tests/test_brain_growth.py"
+   ],
+   "also": [],
+   "note": "generated (6d): SkillTrailIndex.record_transfer line 351 condition forced False: success"
+  },
+  {
+   "id": "gen:mistake:MistakeMemory.record_recall_outcome:459:always",
+   "file": "aios/memory/mistake.py",
+   "old": "            if success\n",
+   "new": "            if (True)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemory.record_recall_outcome line 459 condition forced True: success"
+  },
+  {
+   "id": "gen:mistake:MistakeMemory.record_recall_outcome:459:never",
+   "file": "aios/memory/mistake.py",
+   "old": "            if success\n",
+   "new": "            if (False)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemory.record_recall_outcome line 459 condition forced False: success"
+  },
+  {
+   "id": "gen:mistake:MistakeMemory.record_recall_outcome:470:always",
+   "file": "aios/memory/mistake.py",
+   "old": "                if row is None:\n",
+   "new": "                if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemory.record_recall_outcome line 470 condition forced True: row is None"
+  },
+  {
+   "id": "gen:mistake:MistakeMemory.record_recall_outcome:470:never",
+   "file": "aios/memory/mistake.py",
+   "old": "                if row is None:\n",
+   "new": "                if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemory.record_recall_outcome line 470 condition forced False: row is None"
+  },
+  {
+   "id": "gen:adapters:MistakeMemoryAdapter.record_recall_outcome:944:always",
+   "file": "aios/application/memory/adapters.py",
+   "old": "            if verdict.action == \"quarantine\":\n",
+   "new": "            if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c_recall_gate.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemoryAdapter.record_recall_outcome line 944 condition forced True: verdict.action == \"quarantine\""
+  },
+  {
+   "id": "gen:adapters:MistakeMemoryAdapter.record_recall_outcome:944:never",
+   "file": "aios/application/memory/adapters.py",
+   "old": "            if verdict.action == \"quarantine\":\n",
+   "new": "            if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c_recall_gate.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemoryAdapter.record_recall_outcome line 944 condition forced False: verdict.action == \"quarantine\""
+  },
+  {
+   "id": "gen:adapters:MistakeMemoryAdapter.record_recall_outcome:965:always",
+   "file": "aios/application/memory/adapters.py",
+   "old": "                if enforced:\n",
+   "new": "                if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c_recall_gate.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemoryAdapter.record_recall_outcome line 965 condition forced True: enforced"
+  },
+  {
+   "id": "gen:adapters:MistakeMemoryAdapter.record_recall_outcome:965:never",
+   "file": "aios/application/memory/adapters.py",
+   "old": "                if enforced:\n",
+   "new": "                if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c_recall_gate.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemoryAdapter.record_recall_outcome line 965 condition forced False: enforced"
+  },
+  {
+   "id": "gen:adapters:MistakeMemoryAdapter.record_recall_outcome:967:always",
+   "file": "aios/application/memory/adapters.py",
+   "old": "            elif verdict.action == \"review\" and not success:\n",
+   "new": "            elif (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c_recall_gate.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemoryAdapter.record_recall_outcome line 967 condition forced True: verdict.action == \"review\" and not success"
+  },
+  {
+   "id": "gen:adapters:MistakeMemoryAdapter.record_recall_outcome:967:never",
+   "file": "aios/application/memory/adapters.py",
+   "old": "            elif verdict.action == \"review\" and not success:\n",
+   "new": "            elif (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_phase3b_write_provenance.py",
+    "tests/test_phase3c_recall_gate.py"
+   ],
+   "also": [],
+   "note": "generated (6d): MistakeMemoryAdapter.record_recall_outcome line 967 condition forced False: verdict.action == \"review\" and not success"
+  },
+  {
+   "id": "gen:cerebellum:Cerebellum._record_replay_failure:1446:always",
+   "file": "aios/core/cerebellum.py",
+   "old": "            if row and harm:\n",
+   "new": "            if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_cerebellum.py",
+    "tests/test_learning_freeze.py",
+    "tests/test_retired_reflex_returns_only_by_reactivation.py"
+   ],
+   "also": [],
+   "note": "generated (6d): Cerebellum._record_replay_failure line 1446 condition forced True: row and harm"
+  },
+  {
+   "id": "gen:cerebellum:Cerebellum._record_replay_failure:1446:never",
+   "file": "aios/core/cerebellum.py",
+   "old": "            if row and harm:\n",
+   "new": "            if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_cerebellum.py",
+    "tests/test_learning_freeze.py",
+    "tests/test_retired_reflex_returns_only_by_reactivation.py"
+   ],
+   "also": [],
+   "note": "generated (6d): Cerebellum._record_replay_failure line 1446 condition forced False: row and harm"
+  },
+  {
+   "id": "gen:cerebellum:Cerebellum._record_replay_failure:1455:always",
+   "file": "aios/core/cerebellum.py",
+   "old": "                row\n                and int(row[\"consecutive_failures\"]) >= self.max_consecutive_failures\n",
+   "new": "                (True)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_cerebellum.py",
+    "tests/test_learning_freeze.py",
+    "tests/test_retired_reflex_returns_only_by_reactivation.py"
+   ],
+   "also": [],
+   "note": "generated (6d): Cerebellum._record_replay_failure line 1455 condition forced True: row\n                and int(row[\"consecutive_failures\"]) >= self.max_consecutive"
+  },
+  {
+   "id": "gen:cerebellum:Cerebellum._record_replay_failure:1455:never",
+   "file": "aios/core/cerebellum.py",
+   "old": "                row\n                and int(row[\"consecutive_failures\"]) >= self.max_consecutive_failures\n",
+   "new": "                (False)\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_cerebellum.py",
+    "tests/test_learning_freeze.py",
+    "tests/test_retired_reflex_returns_only_by_reactivation.py"
+   ],
+   "also": [],
+   "note": "generated (6d): Cerebellum._record_replay_failure line 1455 condition forced False: row\n                and int(row[\"consecutive_failures\"]) >= self.max_consecutive"
+  },
+  {
+   "id": "gen:cerebellum:Cerebellum._record_replay_failure:1466:always",
+   "file": "aios/core/cerebellum.py",
+   "old": "                return\n        pb = self._cache.get(playbook_id)\n        if pb is not None:\n",
+   "new": "                return\n        pb = self._cache.get(playbook_id)\n        if (True):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_cerebellum.py",
+    "tests/test_learning_freeze.py",
+    "tests/test_retired_reflex_returns_only_by_reactivation.py"
+   ],
+   "also": [],
+   "note": "generated (6d): Cerebellum._record_replay_failure line 1466 condition forced True: pb is not None"
+  },
+  {
+   "id": "gen:cerebellum:Cerebellum._record_replay_failure:1466:never",
+   "file": "aios/core/cerebellum.py",
+   "old": "                return\n        pb = self._cache.get(playbook_id)\n        if pb is not None:\n",
+   "new": "                return\n        pb = self._cache.get(playbook_id)\n        if (False):\n",
+   "tests": [
+    "tests/test_phase6d_negative_transfer.py",
+    "tests/test_cerebellum.py",
+    "tests/test_learning_freeze.py",
+    "tests/test_retired_reflex_returns_only_by_reactivation.py"
+   ],
+   "also": [],
+   "note": "generated (6d): Cerebellum._record_replay_failure line 1466 condition forced False: pb is not None"
   }
  ],
  "retired": [
@@ -7272,7 +8077,8 @@
    "aios/application/memory/provenance_policy.py::ProvenanceWriter._append",
    "aios/application/memory/provenance_policy.py::ProvenanceWriter.attest_approval",
    "tools/readmit_learning.py::readmit",
-   "tools/readmit_learning.py::status"
+   "tools/readmit_learning.py::status",
+   "aios/application/memory/provenance_policy.py::ProvenanceWriter._write"
   ],
   "T1 T8 recall gating and principal scope": [
    "aios/application/memory/adapters.py::LegacySemanticMemoryAdapter._admits",
@@ -7334,6 +8140,18 @@
    "aios/memory/learning_freeze.py::assert_learning_permitted",
    "aios/memory/learning_freeze.py::learning_permitted",
    "aios/application/memory/write_budget.py::LearningWriteBudget.spend"
+  ],
+  "T13 negative-transfer quarantine": [
+   "aios/application/learning/negative_transfer.py::assess",
+   "aios/application/learning/negative_transfer.py::binomial_lower_tail",
+   "aios/application/learning/negative_transfer.py::smoothed_rate",
+   "aios/application/memory/institutional_skills.py::InstitutionalSkillAdapter._assess_transfer",
+   "aios/application/memory/institutional_skills.py::SkillTrailIndex.record_transfer",
+   "aios/memory/mistake.py::MistakeMemory.record_recall_outcome",
+   "aios/application/memory/adapters.py::MistakeMemoryAdapter.record_recall_outcome",
+   "aios/application/memory/provenance_policy.py::ProvenanceWriter.withdraw",
+   "aios/core/cerebellum.py::Cerebellum._record_replay_failure",
+   "aios/application/turns/generate_pipeline.py::_similar_task_baseline"
   ]
  }
 }

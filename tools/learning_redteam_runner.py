@@ -1431,12 +1431,15 @@ RT07_MEMORY_TABLES: tuple[str, ...] = (
     # bootstrap wires in. A record is a learning write like any other.
     "learning_provenance",
     "learning_derivations",
+    # Phase 6d: the negative-transfer quarantine's outcome windows.
+    "lesson_outcomes",
 )
 RT07_OPERATIONAL_TABLES: tuple[str, ...] = (
     "institutional_skills",
     "skill_trails",
     "expert_trajectories",
     "reuse_outcomes",
+    "skill_transfer_outcomes",
 )
 
 

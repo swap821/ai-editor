@@ -160,6 +160,9 @@ _OWNERS: dict[str, set[str]] = {
     # Phase 3b: signed provenance and derivations, append-only.
     "learning_provenance": {"aios/memory/provenance.py"},
     "learning_derivations": {"aios/memory/provenance.py"},
+    # Phase 6d: the negative-transfer quarantine's outcome windows.
+    "lesson_outcomes": {"aios/memory/mistake.py"},
+    "skill_transfer_outcomes": {"aios/application/memory/institutional_skills.py"},
 }
 
 _WRITE = re.compile(

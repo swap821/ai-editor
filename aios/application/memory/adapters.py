@@ -5,8 +5,9 @@ from __future__ import annotations
 import inspect
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 
+from aios.application.learning import negative_transfer
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
     fact_digest,
@@ -15,6 +16,7 @@ from aios.application.memory.provenance_policy import (
 )
 from aios.domain.memory import MemoryHit, MemoryRecallContext
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.learning_journal import record as journal
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.compaction import MemoryCompactor
 from aios.memory.development import DevelopmentTracker
@@ -909,6 +911,62 @@ class MistakeMemoryAdapter:
 
     def get(self, mistake_id: int) -> Any:
         return self.store.get(mistake_id)
+
+    def record_recall_outcome(
+        self,
+        mistake_ids: Any,
+        *,
+        success: bool,
+        principal: Optional[str],
+        baseline: Callable[[str], Optional[float]],
+    ) -> list[int]:
+        """Plan Phase 6d (T13): the negative-transfer quarantine for lessons.
+
+        A verified, signed lesson can still make the turns that recall it
+        worse. Each verifier-judged outcome of a turn that recalled it is
+        counted; *baseline* gives the verified success rate of similar tasks
+        (the planner's own evidence), and the named rule decides. Quarantine is
+        a WITHDRAWAL in the lesson's provenance -- recorded unsigned -- so the
+        recall gate refuses it until the operator re-admits it. Returns the
+        ids quarantined.
+        """
+        quarantined: list[int] = []
+        for item in self.store.record_recall_outcome(
+            mistake_ids, success=success, principal_id=principal
+        ):
+            row = item["row"]
+            mistake_id = int(row["id"])
+            successes, failures = item["successes"], item["failures"]
+            verdict = negative_transfer.assess(
+                successes, successes + failures, baseline(str(row["lesson_text"]))
+            )
+            detail = {"principal": principal, **verdict.as_detail()}
+            if verdict.action == "quarantine":
+                record = (
+                    self.provenance.withdraw(
+                        "mistake_pool",
+                        mistake_id,
+                        lesson_digest(row),
+                        "quarantined",
+                        principal=principal,
+                    )
+                    if self.provenance is not None
+                    else None
+                )
+                # Enforced only if the withdrawal was recorded AND recall is
+                # gated on provenance; otherwise the next outcome tries again.
+                enforced = record is not None and self.gate is not None
+                journal(
+                    "L2",
+                    "quarantined",
+                    subject_id=mistake_id,
+                    detail={**detail, "enforced": enforced},
+                )
+                if enforced:
+                    quarantined.append(mistake_id)
+            elif verdict.action == "review" and not success:
+                journal("L2", "review_flagged", subject_id=mistake_id, detail=detail)
+        return quarantined
 
     def rows_by_status(self, status: str) -> list[Any]:
         init_memory_db(self.store.db_path)

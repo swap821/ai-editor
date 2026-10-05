@@ -399,6 +399,12 @@ class MemoryAuthority:
     def lesson_get(self, mistake_id: int) -> Any:
         return self._adapter_operation("lessons", "get", mistake_id)
 
+    def record_lesson_outcome(self, *args: Any, **kwargs: Any) -> list[int]:
+        """Plan Phase 6d: a recalled lesson's outcome, into the quarantine."""
+        return list(
+            self._adapter_operation("lessons", "record_recall_outcome", *args, **kwargs)
+        )
+
     def lessons_by_status(self, status: str) -> list[Any]:
         return list(self._adapter_operation("lessons", "rows_by_status", status))
 

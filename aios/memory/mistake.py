@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from aios.memory.learning_freeze import assert_learning_permitted
 from aios import config
@@ -441,6 +441,62 @@ class MistakeMemory:
                 "            WHERE n.id = ? AND n.principal_id IS ?)",
                 (new_id, old_id, principal_id, new_id, principal_id),
             )
+
+    def record_recall_outcome(
+        self,
+        mistake_ids: Any,
+        *,
+        success: bool,
+        principal_id: Optional[str],
+    ) -> list[dict[str, Any]]:
+        """Count a verifier-judged outcome into each recalled VERIFIED lesson
+        of *principal_id* (plan Phase 6d). Returns, per lesson counted, its row
+        and its (successes, failures) since its last re-admission. Pending,
+        superseded and other principals' lessons are not counted."""
+        assert_learning_permitted("lessons.record_recall_outcome")
+        column_sql = (
+            "UPDATE lesson_outcomes SET successes = successes + 1 WHERE mistake_id = ?"
+            if success
+            else "UPDATE lesson_outcomes SET failures = failures + 1 WHERE mistake_id = ?"
+        )
+        counted: list[dict[str, Any]] = []
+        with get_connection(self.db_path) as conn:
+            for mistake_id in dict.fromkeys(int(i) for i in mistake_ids):
+                row = conn.execute(
+                    "SELECT * FROM mistake_pool WHERE id = ? AND principal_id IS ? "
+                    "AND verification_status = 'verified'",
+                    (mistake_id, principal_id),
+                ).fetchone()
+                if row is None:
+                    continue
+                conn.execute(
+                    "INSERT INTO lesson_outcomes (mistake_id, principal_id) "
+                    "VALUES (?, ?) ON CONFLICT(mistake_id) DO NOTHING",
+                    (mistake_id, principal_id),
+                )
+                conn.execute(column_sql, (mistake_id,))
+                counts = conn.execute(
+                    "SELECT successes, failures FROM lesson_outcomes "
+                    "WHERE mistake_id = ?",
+                    (mistake_id,),
+                ).fetchone()
+                counted.append(
+                    {
+                        "row": row,
+                        "successes": int(counts["successes"]),
+                        "failures": int(counts["failures"]),
+                    }
+                )
+        return counted
+
+    def reset_recall_outcomes(self, mistake_ids: Any) -> None:
+        """The operator re-admitted these lessons: their windows start now."""
+        assert_learning_permitted("lessons.reset_recall_outcomes")
+        with get_connection(self.db_path) as conn:
+            for mistake_id in dict.fromkeys(int(i) for i in mistake_ids):
+                conn.execute(
+                    "DELETE FROM lesson_outcomes WHERE mistake_id = ?", (mistake_id,)
+                )
 
     def count(self) -> int:
         """Return the total number of recorded mistakes."""

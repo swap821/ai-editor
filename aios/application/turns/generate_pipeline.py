@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from importlib import import_module
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional
 
 from fastapi import HTTPException
 
@@ -91,6 +91,24 @@ _LIVE_NAMES = (
     "telemetry",
     "turn_state",
 )
+
+
+def _similar_task_baseline(authority: Any) -> Callable[[str], Optional[float]]:
+    """A lesson's baseline for the negative-transfer quarantine (plan Phase 6d):
+    the verified success rate of similar past tasks -- the planner's own
+    evidence. None (too few similar tasks) leaves the lesson unassessed."""
+
+    def baseline(text: str) -> Optional[float]:
+        try:
+            evidence = authority.development_success_rate(text)
+        except Exception:  # noqa: BLE001 - no baseline, not assessed
+            return None
+        rate = getattr(evidence, "success_rate", None)
+        if rate is None or not 0.0 < float(rate) < 1.0:
+            return None
+        return float(rate)
+
+    return baseline
 
 
 def _refresh_main_bindings() -> None:
@@ -1496,6 +1514,26 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 record_reuse(reused_ids, success=passed, principal=principal_id)
             except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
                 logger.warning("Failed to record skill reuse credit", exc_info=exc)
+        # Plan Phase 6d (threat T13): every VERIFIED lesson recalled into this
+        # turn shares its verifier verdict -- the evidence the negative-transfer
+        # quarantine decides from. A pending same-task lesson is this turn's
+        # own work, not a recalled one. Through the authority only.
+        recalled_lesson_ids = [
+            int(le["mistake_id"])
+            for le in lessons
+            if le.get("verification_status") == "verified"
+            and le.get("mistake_id") is not None
+        ]
+        if recalled_lesson_ids and runtime.memory_authority is not None:
+            try:
+                runtime.memory_authority.record_lesson_outcome(
+                    recalled_lesson_ids,
+                    success=passed,
+                    principal=principal_id,
+                    baseline=_similar_task_baseline(runtime.memory_authority),
+                )
+            except Exception as exc:  # noqa: BLE001 - outcome evidence is best-effort
+                logger.warning("Failed to record lesson outcomes", exc_info=exc)
         # Also dormant: `swarm_plan` can never be set while the strategy gate
         # above stands, so this swarm-pattern write is unreachable in production.
         if swarm_plan:

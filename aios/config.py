@@ -254,6 +254,14 @@ SKILL_REUSE_DEMOTE_NET_FAILURES: Final[int] = _env_int("AIOS_SKILL_REUSE_DEMOTE_
 LEARNING_WRITE_CAP_PER_MINUTE: Final[int] = _env_int(
     "AIOS_LEARNING_WRITE_CAP_PER_MINUTE", 60
 )
+#: Plan Phase 6d (threat T13): the negative-transfer quarantine. A learned
+#: skill or lesson whose outcomes, when it is recalled, fall below its own
+#: baseline is auto-suspended only after this many outcomes AND an exact
+#: one-sided binomial test at this level; below the count it is flagged for
+#: human review instead, so the rule neither never fires nor fires on noise.
+#: See ``aios/application/learning/negative_transfer.py``.
+NTQ_MIN_OBSERVATIONS: Final[int] = _env_int("AIOS_NTQ_MIN_OBSERVATIONS", 10)
+NTQ_ALPHA: Final[float] = _env_float("AIOS_NTQ_ALPHA", 0.05)
 
 #: There is no ``AIOS_SKILL_STORE_MODE`` any more. Since Phase 2 slice 2.4c-B
 #: the institutional skill library is the only skill store
