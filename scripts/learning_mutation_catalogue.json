@@ -144,8 +144,8 @@
   {
    "id": "3a:append asks the stop",
    "file": "aios/memory/provenance.py",
-   "old": "        assert_learning_permitted(\"learning_provenance.append\")\n",
-   "new": "",
+   "old": "        if provenance.transition not in WITHDRAWAL_TRANSITIONS:\n            assert_learning_permitted(\"learning_provenance.append\")\n",
+   "new": "        if provenance.transition not in WITHDRAWAL_TRANSITIONS:\n            pass\n",
    "tests": [
     "tests/test_phase3a_provenance.py"
    ],
