@@ -14,6 +14,7 @@ const VERTEX = /* glsl */ `
   uniform float uPixelRatio; // device pixel ratio — DPR-correct on-screen size
   uniform float uRefDist;    // reference camera distance (~ brain distance) for weak depth
   uniform float uSize;       // base point size in CSS px
+  uniform float uViewportScale; // compact-canvas footprint; 1 at normal sizes
   uniform float uAttenK;     // 0 = flat poster (constant size), ~0.3 = weak depth
   uniform float uTime;       // shared scene clock — drives breathe/flow
   uniform float uBreath;     // shared organism breath (asymmetric systole) — phase-lock
@@ -83,7 +84,7 @@ const VERTEX = /* glsl */ `
     // shrinks to nothing as uSprayHide -> 1. (Operator call 2026-06-23.)
     float tailMask = smoothstep(uSprayBand * 0.25, uSprayBand, aBand);
     float sprayFactor = mix(1.0, tailMask, clamp(uSprayHide, 0.0, 1.0));
-    gl_PointSize = min(uSize * aSize * uPixelRatio * atten * (1.0 + band * 0.2) * vAlpha * sprayFactor, 64.0);
+    gl_PointSize = min(uSize * uViewportScale * aSize * uPixelRatio * atten * (1.0 + band * 0.2) * vAlpha * sprayFactor, 64.0);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -100,6 +101,8 @@ const FRAGMENT = /* glsl */ `
   uniform vec3 uPostureColor;
   uniform float uPostureTint;
   uniform float uGlowMul;
+  uniform float uViewportScale;
+  uniform float uProjectionEnergy; // accumulated light budget, independent of legible point footprint
   uniform float uFogDensity;
   uniform float uTime;
   uniform float uBodyOpacity; // 1 = solid; <1 dims the cloud so inner memory-nodes show through
@@ -200,6 +203,11 @@ const FRAGMENT = /* glsl */ `
     // at uArrivalDark; luminance only (hue preserved, sacred palette).
     float arrivalLight = mix(uArrivalDark, 1.0, smoothstep(vAxis * 0.45, 0.82, uArrival));
     emissive *= arrivalLight;
+    // A subpixel punctum can be rasterized at the device's minimum point size.
+    // Preserve light per projected area in a tiny presence band, rather than
+    // adding the full-size cloud's energy into a handful of white pixels.
+    // Scalar-only: region/posture hues, sampled colors and textures stay intact.
+    emissive *= uProjectionEnergy;
     // P2.1 DEPTH HAZE (poster depth-slab): distant points recede toward zero so the
     // being reads as a VOLUME in space, not a flat decal. Additive-correct (dim, not
     // alpha-blend). uFogStart/Density/Strength are live __POINTFIELD dials; strength 0
@@ -232,6 +240,8 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uPixelRatio: { value: 1.5 }, // set per-frame from the renderer DPR
       uRefDist: { value: 15.0 },   // ~ camera→brain distance (points-mode poster camera z)
       uSize: { value: 2.8 },       // finer puncta (poster's dense fine-dot read; pairs with the 200k+ count on the RTX 3050)
+      uViewportScale: { value: 1 }, // set by the mounted canvas; authored uSize stays tunable
+      uProjectionEnergy: { value: 1 }, // mounted presence owner sets product light allocation
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.12 },// depth-haze falloff rate (was 0.02 + unused); pairs with uFogStart/uHazeStrength for the poster depth slab. Dial: window.__POINTFIELD.uFogDensity
       uGlowMul: { value: 1.35 },   // RTX-tuned crisp (was 2.55): lower emission so the dense cortex shows folds + the node lattice instead of a white-haze bloom. Still >1 so PostFX Bloom catches the brightest cores. Dial: window.__POINTFIELD.uGlowMul
@@ -269,6 +279,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v20';
+  material.customProgramCacheKey = () => 'pointfield_v21';
   return material;
 }

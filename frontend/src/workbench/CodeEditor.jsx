@@ -128,6 +128,7 @@ export default function CodeEditor({ file, onClose }) {
         onChange={(val) => setContent(val)}
         onMount={handleEditorDidMount}
         options={{
+          automaticLayout: true,
           readOnly: file?.readonly || false,
           minimap: { enabled: false },
           fontSize: 14,

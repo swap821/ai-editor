@@ -45,7 +45,8 @@ function mirrorVerification(mirror: CortexMirrorState): VerificationState {
   const verdict = payload && typeof payload.verdict === 'string' ? payload.verdict.toLowerCase() : '';
   if (verdict === 'pass' || verdict === 'passed' || verdict === 'green') return 'pass';
   if (verdict === 'fail' || verdict === 'failed' || verdict === 'red') return 'fail';
-  if (mirror.phase === 'active' && (mirror.pendingEvents > 0 || mirror.approvalRequired)) return 'pending';
+  // Active work, queued mirror events and permission holds do not establish
+  // that a verifier is running. An inconclusive receipt stays inconclusive.
   return 'unknown';
 }
 
@@ -61,12 +62,29 @@ function verificationFromStores(
   // the current turn's result once a newer turn boundary has been observed.
   // Prefer that turn's measured mirror verdict before consulting an older tab.
   if (currentTurnStarted) {
-    if (currentTurnHasVerification) return mirrorVerification(mirror);
-    return focused?.kind === 'content' && focused.content?.streaming ? 'pending' : 'unknown';
+    if (!currentTurnHasVerification) return 'unknown';
+    const verdict = mirrorVerification(mirror);
+    if (verdict === 'unknown') return verdict;
+    const artifacts = [...tabs.tabs, ...(tabs.recoverableTabs ?? [])]
+      .filter((tab) => tab.kind === 'content' && tab.content);
+    const cursor = mirror.lastVerificationEventId;
+    // Consume the artifact owner's event-time decision, not a second path
+    // matcher. Closing/forgetting an older version must never retroactively
+    // attach a previously ambiguous check to whichever reader remains.
+    if (cursor !== null && artifacts.some((tab) => tab.content?.verifyEventId === cursor
+      && tab.content.verifyVerdict === verdict)) return verdict;
+    const payload = mirror.lastVerification ? eventPayload(mirror.lastVerification) : null;
+    const target = String(payload?.target ?? '');
+    // An untargeted turn-level check can still report overall failure, or a
+    // verdict on a turn with no artifacts. It cannot certify an unbound result.
+    if (!target && (verdict === 'fail' || artifacts.length === 0)) return verdict;
+    return 'unknown';
   }
 
   if (focused?.kind === 'content') {
-    if (focused.content?.streaming) return 'pending';
+    // Streaming is action activity, not verification activity. Do not reuse
+    // a retained surface verdict while that surface is still being replaced.
+    if (focused.content?.streaming) return 'unknown';
     if (focused.content?.verifyVerdict === 'pass') return 'pass';
     if (focused.content?.verifyVerdict === 'fail') return 'fail';
     // A retained mirror verification belongs to an earlier observation unless
@@ -154,7 +172,19 @@ export function beingFactsFromStores(
   const reabsorbingSurface = tabs.tabs.some((tab) => tab.kind === 'content' && tab.lifecycle === 'retracting');
   const contentTabs = tabs.tabs.filter((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting');
   const hasStreamingSurface = contentTabs.some((tab) => tab.content?.streaming === true);
-  const hasResultSurface = contentTabs.some((tab) => tab.content?.streaming === false);
+  const hasResultSurface = contentTabs.some((tab) => tab.content?.streaming === false && !tab.content.completion);
+  const focusedPartial = contentTabs.some((tab) => tab.id === tabs.focusId && Boolean(tab.content?.completion));
+  const onlyPartialResults = contentTabs.length > 0 && !hasResultSurface
+    && contentTabs.some((tab) => Boolean(tab.content?.completion));
+  // Explicit null means a newer local request superseded that settled outcome.
+  // An older partial reader may stay selected; it is not the new task's result.
+  // Legacy/untracked surfaces still get conservative content-based semantics.
+  const localApprovalHeld = tabs.workResultOutcome?.completion === 'awaiting-approval';
+  const localReplayPending = tabs.workResultOutcome?.completion === 'awaiting-replay';
+  const localDeclined = tabs.workResultOutcome?.completion === 'declined';
+  const localIncompleteResult = tabs.workResultOutcome === undefined
+    ? focusedPartial || onlyPartialResults
+    : Boolean(tabs.workResultOutcome) && !localApprovalHeld && !localReplayPending && !localDeclined;
   // Recent events are bounded history, not current-task state. Keep the
   // monotonic turn cursor separately so a long turn remains attributable after
   // its `turn.started` entry rolls out of the 256-event display buffer.
@@ -186,18 +216,25 @@ export function beingFactsFromStores(
   const rollbackObserved = currentTurnTypes.has('mission.rolled_back')
     || currentTurnTypes.has('worker.rolled_back')
     || currentTurnTypes.has('rollback');
-  const taskActivity: BeingFacts['taskActivity'] = refusalObserved
+  const taskActivity: BeingFacts['taskActivity'] = refusalObserved || localDeclined
     ? 'refused'
     : rollbackObserved
       ? 'restored'
       : failureObserved || conversation === 'error'
         ? 'failed'
+    : localApprovalHeld
+      ? 'idle'
+    : localReplayPending
+      ? 'awaiting-replay'
     : hasStreamingSurface || mirror.phase === 'active' || conversation === 'thinking' || conversation === 'streaming'
       ? 'streaming'
+      : localIncompleteResult
+        ? 'failed'
       : hasResultSurface || conversation === 'complete'
         ? 'complete'
         : 'idle';
-  const verification = verificationFromStores(
+  // A waiting decision/replay is not the older reader's verified result.
+  const verification = localApprovalHeld || localReplayPending ? 'unknown' : verificationFromStores(
     mirror,
     tabs,
     currentTurnStarted,
@@ -220,7 +257,7 @@ export function beingFactsFromStores(
     hasUnderstanding: conversation === 'complete' && !hasResultSurface,
     hasPlan: mirror.phase === 'planning' || currentTurnTypes.has('plan.created') || currentTurnTypes.has('plan'),
     taskActivity,
-    approvalPending: mirror.approvalRequired || tabs.tabs.some((tab) => tab.kind === 'approval' && tab.lifecycle !== 'retracting'),
+    approvalPending: localApprovalHeld || mirror.approvalRequired || tabs.tabs.some((tab) => tab.kind === 'approval' && tab.lifecycle !== 'retracting'),
     verification,
     // Route is turn-local evidence. A new measured turn without its own route
     // event must not inherit the previous turn's local/cloud label.
@@ -260,6 +297,7 @@ export function beingStatusText(presentation: BeingPresentation): string {
   }
   switch (presentation.phase) {
     case 'awaiting-human': return 'GAGOS is waiting for your decision.';
+    case 'awaiting-response': return 'GAGOS is waiting for the replay response; completion is unconfirmed.';
     case 'acting': return 'GAGOS is working.';
     case 'verifying': return 'GAGOS is checking the result.';
     case 'learning': return 'GAGOS is recording a verified lesson.';

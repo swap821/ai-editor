@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Terminal, Copy, Trash2, X, ChevronUp } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
 import { getSessionIdForBody } from '../superbrain/lib/sessionId';
+import { useWorkspaceActive } from '../livingMirror/WorkspaceActivityContext';
 
 async function runTerminalCommand(command) {
   const bodySessionId = getSessionIdForBody();
@@ -19,13 +20,15 @@ async function runTerminalCommand(command) {
   return response.json();
 }
 
-export default function TerminalPanel({ embedded = false }) {
+export default function TerminalPanel({ embedded = false, onClose }) {
+  const workspaceActive = useWorkspaceActive();
   const [isOpen, setIsOpen] = useState(embedded);
   // Lazy initializer — avoids calling setState synchronously inside an effect
   const [logs, setLogs] = useState([]);
   const [commandInput, setCommandInput] = useState('');
   const [running, setRunning] = useState(false);
   const bottomRef = useRef(null);
+  const lastScrolledLogs = useRef(logs);
 
   const runCommand = async (command) => {
     const trimmed = command.trim();
@@ -77,10 +80,11 @@ export default function TerminalPanel({ embedded = false }) {
 
 
   useEffect(() => {
-    if (isOpen && bottomRef.current) {
+    if (workspaceActive && isOpen && bottomRef.current && logs !== lastScrolledLogs.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      lastScrolledLogs.current = logs;
     }
-  }, [logs, isOpen]);
+  }, [logs, isOpen, workspaceActive]);
 
   const copyAll = () => {
     const text = logs.map(l => `$ ${l.command}\n${l.output}`).join('\n\n');
@@ -102,6 +106,8 @@ export default function TerminalPanel({ embedded = false }) {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          height: embedded ? '100%' : undefined,
+          minHeight: 0,
         }}
       >
         {/* Toggle Tab */}
@@ -134,12 +140,13 @@ export default function TerminalPanel({ embedded = false }) {
         {/* Panel */}
         {isOpen && (
           <motion.div
-            initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }}
-            exit={{ y: '100%', opacity: 0, transition: { duration: 0.3 } }}
+            initial={embedded ? false : { y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1, transition: { duration: embedded ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] } }}
+            exit={embedded ? undefined : { y: '100%', opacity: 0, transition: { duration: 0.3 } }}
             style={{
               width: '100%',
-              height: embedded ? '60vh' : '35vh',
+              height: embedded ? '100%' : '35vh',
+              minHeight: 0,
               background: 'var(--ag-surface-base)',
               borderTop: 'var(--hairline)',
               backdropFilter: 'var(--ag-blur-lg) var(--ag-saturate)',
@@ -154,7 +161,8 @@ export default function TerminalPanel({ embedded = false }) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: '8px 16px',
+              padding: embedded ? '0 12px' : '8px 16px',
+              flexShrink: 0,
               borderBottom: 'var(--hairline)',
               background: 'rgba(10,11,16,0.5)',
             }}>
@@ -169,7 +177,7 @@ export default function TerminalPanel({ embedded = false }) {
                 <button onClick={clearAll} style={{ background:'transparent', border:'none', color:'var(--text-2)' }} title="Clear">
                   <Trash2 size={14} />
                 </button>
-                <button onClick={() => setIsOpen(false)} style={{ background:'transparent', border:'none', color:'var(--text-2)' }} title="Close">
+                <button onClick={() => embedded && onClose ? onClose() : setIsOpen(false)} style={{ background:'transparent', border:'none', color:'var(--text-2)' }} title="Close">
                   <X size={14} />
                 </button>
               </div>
@@ -178,6 +186,7 @@ export default function TerminalPanel({ embedded = false }) {
             {/* Output Area */}
             <div style={{
               flex: 1,
+              minHeight: 0,
               overflowY: 'auto',
               padding: '12px 16px',
               fontFamily: 'var(--font-mono)',
@@ -215,7 +224,8 @@ export default function TerminalPanel({ embedded = false }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 16px',
+                padding: embedded ? '0 12px' : '8px 16px',
+                flexShrink: 0,
                 borderTop: 'var(--hairline)',
                 fontFamily: 'var(--font-mono)',
               }}

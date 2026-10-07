@@ -1,0 +1,51 @@
+/* Development-only frame; product palette, composition and motion stay owned
+   by the real app. The honest fixture label is never a floating occluder. */
+.fixture-journey {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: #030108;
+  color: #e8e6ee;
+  font: 400 12px/1.4 var(--font-inter), sans-serif;
+}
+.fixture-journey__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(232,230,238,.16);
+  background: #0c0916;
+}
+.fixture-journey__identity { display: grid; gap: 2px; flex: 1 1 260px; }
+.fixture-journey__identity strong { color: #7bf5fb; }
+.fixture-journey__identity span, .fixture-journey__step { color: #aaa5b8; }
+.fixture-journey__controls label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.fixture-journey__controls select, .fixture-journey__controls button {
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid rgba(232,230,238,.16);
+  border-radius: 6px;
+  background: #030108;
+  color: inherit;
+  font: inherit;
+}
+.fixture-journey__controls :focus-visible { outline: 2px solid #7bf5fb; outline-offset: 2px; }
+.fixture-journey__controls :disabled { opacity: .5; }
+.fixture-journey__step { flex: 1 1 220px; overflow-wrap: anywhere; }
+.fixture-journey__app {
+  min-height: 0;
+  /* Fixed product controls stay inside the real app's allotted viewport,
+     not over the honest fixture label. No transform, filter or new motion. */
+  contain: layout;
+}
+.fixture-journey__app > .lm-app { height: 100%; min-height: 0; }
+@media (max-width: 600px) {
+  /* Compact only the fixture driver; don't spend the phone viewport on a
+     test toolbar or alter the product's own layout. Targets remain 44px. */
+  .fixture-journey__controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; padding: 6px 10px; }
+  .fixture-journey__identity { grid-column: 1 / -1; }
+  .fixture-journey__controls label { min-width: 0; flex-wrap: nowrap; gap: 4px; }
+  .fixture-journey__controls select { min-width: 0; width: 100%; padding-inline: 4px; }
+  .fixture-journey__step { min-width: 0; }
+}

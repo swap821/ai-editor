@@ -51,6 +51,14 @@ vi.mock('../workbench/SuperbrainReactiveEffects', () => ({
   default: () => null,
 }));
 
+// WorkspaceCanvas above is a DOM fault harness, not an R3F root. Keep the
+// real overlay; its actual projection/lifecycle is covered by the connection
+// integration tests with a frame driver and real camera/seat transforms.
+vi.mock('../livingMirror/being/WorkspaceConnectionOverlay', async (importOriginal) => ({
+  ...await importOriginal(),
+  WorkspaceConnectionProjection: () => null,
+}));
+
 vi.mock('../livingMirror/LivingWorkspaceShell', () => ({
   LivingWorkspaceShell: () => null,
 }));
@@ -86,7 +94,7 @@ vi.mock('../livingMirror/observability/contextRecovery', () => ({
 vi.mock('../livingMirror/observability/frontendMetrics', () => ({
   createMirrorReconnectTracker: () => () => {},
   recordFrontendMetric: vi.fn(),
-  startFrameTimeSampler: () => () => {},
+  startRafIntervalSampler: () => () => {},
 }));
 
 vi.mock('./lib/aiosMirror', () => ({
@@ -146,13 +154,19 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     expect(app.style.getPropertyValue('--lm-visible-viewport-height')).toBe('');
   });
 
-  it('toggles the organism-first presentation without unmounting the conversation shell', () => {
+  it('toggles the organism-first presentation without unmounting the conversation shell', async () => {
     render(<SuperbrainApp />);
 
     const app = document.querySelector('.lm-app');
     if (!app) throw new Error('Expected the GAGOS app root to mount.');
     expect(app).toHaveAttribute('data-being-focus', 'false');
     expect(screen.getByTestId('gagos-chrome')).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.scene-layer canvas')).toBeInTheDocument());
+    const canvas = document.querySelector('.scene-layer canvas');
+    const shell = screen.getByTestId('gagos-chrome');
+    expect(canvas.closest('.lm-stage')).toBeInTheDocument();
+    expect(canvas.closest('.lm-scene')).toBeNull();
+    expect(document.querySelector('.lm-scene')).toHaveAttribute('aria-hidden', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Focus on the being' }));
     expect(app).toHaveAttribute('data-being-focus', 'true');
@@ -161,6 +175,9 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Return to full workspace controls' }));
     expect(app).toHaveAttribute('data-being-focus', 'false');
     expect(screen.getByTestId('gagos-chrome')).toBeInTheDocument();
+    expect(document.querySelectorAll('.scene-layer canvas')).toHaveLength(1);
+    expect(document.querySelector('.scene-layer canvas')).toBe(canvas);
+    expect(screen.getByTestId('gagos-chrome')).toBe(shell);
   });
 
   it('measures keyboard occlusion from the app bounds when its minimum height exceeds the viewport', async () => {

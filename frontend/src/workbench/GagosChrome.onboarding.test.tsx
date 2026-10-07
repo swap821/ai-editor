@@ -78,6 +78,23 @@ describe('GagosChrome onboarding coach', () => {
     expect(context?.contains(composer ?? null)).toBe(false);
   });
 
+  it('leads an empty Guided conversation with the welcome before settled voice status', async () => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { container } = render(<GagosChrome experienceMode="beginner" />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('group', { name: 'Getting started with GAGOS' })).toBeInTheDocument();
+    });
+
+    const context = container.querySelector('.gagos-chat__context');
+    const welcome = context?.querySelector('.gagos-welcome');
+    const voiceState = context?.querySelector('.gagos-voice-state');
+
+    expect(welcome).not.toBeNull();
+    expect(voiceState).not.toBeNull();
+    expect(welcome!.compareDocumentPosition(voiceState!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
   it('keeps the primary send path separate from horizontally scrollable composer accessories', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     const { container } = render(<GagosChrome experienceMode="expert" />);

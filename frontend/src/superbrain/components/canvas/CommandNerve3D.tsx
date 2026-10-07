@@ -126,8 +126,8 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
 
     // the -> button's screen centre -> NDC at the conus depth -> world point
     const r = (sendBtn as HTMLElement).getBoundingClientRect();
-    const ndcX = ((r.left + r.width * 0.5) / state.size.width) * 2 - 1;
-    const ndcY = -(((r.top + r.height * 0.5) / state.size.height) * 2 - 1);
+    const ndcX = ((r.left + r.width * 0.5 - state.size.left) / state.size.width) * 2 - 1;
+    const ndcY = -(((r.top + r.height * 0.5 - state.size.top) / state.size.height) * 2 - 1);
     _btn.set(ndcX, ndcY, _convNdc.z).unproject(state.camera);
 
     // CHANNEL GLOW scales with the phase drive: present+calm at rest, ablaze at intake.
@@ -157,7 +157,8 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
     // COMMAND-BEADS: while the being is receiving you, pulses pour down the nerve from
     // the -> button (u=0) INTO the socket (u=1) — "my words travel into its body."
     if (beadGroup) {
-      const beadsLive = flow > 0.02;
+      // Pause takes effect immediately, not after the damped flow fades out.
+      const beadsLive = !reducedMotion && flow > 0.02;
       beadGroup.visible = beadsLive;
       if (beadsLive) {
         beadTRef.current = (beadTRef.current + delta * (0.35 + flow * 0.95)) % 1;

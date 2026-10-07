@@ -18,10 +18,12 @@ export interface CameraFrameInput {
   aspect: number;
   /** materialized work surfaces in play (orchestration widens fov to fit them). */
   activeSurfaceCount: number;
+  /** Phone Focus has a measured control-free pane, not a whole-screen zoom. */
+  phoneFocus?: boolean;
 }
 
 export interface OrganismCameraFrame {
-  /** vertical field of view (deg) — NARROWER on portrait to enlarge the being. */
+  /** Vertical FOV: portrait zoom except in the measured phone Focus pane. */
   fov: number;
   /** OrbitControls target height — RAISED on portrait so the organism climbs up. */
   targetY: number;
@@ -38,16 +40,23 @@ export const LANDSCAPE_ASPECT = 1.5;
 export const PORTRAIT_ASPECT = 0.62;
 /** Max fov widening when surfaces are seated (so they aren't cropped). */
 const ORCHESTRATE_FOV_GAIN = 5;
+/** Side/rear roots also need width. Preserve at least this horizontal lens in
+ * the measured phone Focus pane; a taller pane must not imply a tighter crop. */
+const PHONE_FOCUS_HORIZONTAL_FOV = 30;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const round3 = (v: number) => Math.round(v * 1000) / 1000;
 
-export function deriveOrganismCameraFrame({ aspect, activeSurfaceCount }: CameraFrameInput): OrganismCameraFrame {
+export function deriveOrganismCameraFrame({ aspect, activeSurfaceCount, phoneFocus = false }: CameraFrameInput): OrganismCameraFrame {
   // 1 at landscape, 0 at portrait.
   const wide = clamp((aspect - PORTRAIT_ASPECT) / (LANDSCAPE_ASPECT - PORTRAIT_ASPECT), 0, 1);
-  const fovBase = lerp(PORTRAIT.fov, LANDSCAPE.fov, wide);
-  const targetY = lerp(PORTRAIT.targetY, LANDSCAPE.targetY, wide);
+  // Fit both axes, not just vertical height. The authored vertical lens alone
+  // clips the fused roots at actual side/rear orbit angles in a tall Focus pane.
+  const focusAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : LANDSCAPE_ASPECT;
+  const horizontalFloor = 2 * Math.atan(Math.tan(PHONE_FOCUS_HORIZONTAL_FOV * Math.PI / 360) / focusAspect) * 180 / Math.PI;
+  const fovBase = phoneFocus ? Math.max(LANDSCAPE.fov, horizontalFloor) : lerp(PORTRAIT.fov, LANDSCAPE.fov, wide);
+  const targetY = phoneFocus ? LANDSCAPE.targetY : lerp(PORTRAIT.targetY, LANDSCAPE.targetY, wide);
   // Orchestration: widen fov a touch so seated surfaces around the being aren't
   // cropped (capped at ~3 surfaces of effect).
   const orchestrateFov = (Math.min(activeSurfaceCount, 3) / 3) * ORCHESTRATE_FOV_GAIN;

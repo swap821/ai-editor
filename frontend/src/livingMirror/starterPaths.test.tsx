@@ -20,4 +20,17 @@ describe('StarterPaths', () => {
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose).toHaveBeenCalledWith('Guide me through one safe first task');
   });
+
+  it('marks the safe first path as the compact-layout entry action', () => {
+    const onChoose = vi.fn();
+    render(<StarterPaths onChoose={onChoose} />);
+
+    const firstPath = screen.getByRole('button', { name: /Ask & understand/i });
+    expect(firstPath).toHaveClass('gagos-starter--featured');
+    expect(firstPath).toHaveAccessibleName(/will not be sent automatically/i);
+
+    fireEvent.click(firstPath);
+    expect(onChoose).toHaveBeenCalledTimes(1);
+    expect(onChoose).toHaveBeenCalledWith('What can you help me with?');
+  });
 });

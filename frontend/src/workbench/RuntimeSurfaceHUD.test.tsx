@@ -103,15 +103,14 @@ describe('RuntimeSurfaceHUD', () => {
     });
 
     render(<RuntimeSurfaceHUD />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('progress-update')).toBeInTheDocument();
-    });
+    // 'progress-update' already exists in the emit form's option list before
+    // the surface loads. Wait for the actual action's readiness, not that text.
+    const sweepBtn = screen.getByRole('button', { name: /Sweep Surface/ });
+    await waitFor(() => expect(sweepBtn).toBeEnabled());
 
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ signals: [] }) });
     
-    const sweepBtn = screen.getByText(/Sweep Surface/);
     fireEvent.click(sweepBtn);
 
     await waitFor(() => {

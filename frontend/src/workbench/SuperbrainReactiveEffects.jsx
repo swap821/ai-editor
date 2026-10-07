@@ -834,9 +834,11 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
   const heldForApproval = physical.membrane.state === 'held';
   const cortexCurrentColor = heldForApproval ? CONDUCTOR_COLORS.held : cortexPostureColor;
   const attentionOnInput = inputDraftPresent && !heldForApproval;
-  const focusedPanelSeat = panels.find((panel) => panel.open && panel.id === focusId)?.seatIndex;
-  const focusSeatIndex = heldApprovalSeat ?? (Number.isInteger(focusedPanelSeat)
-    ? focusedPanelSeat
+  const focusedPanel = panels.find((panel) => panel.open && panel.id === focusId);
+  // A readable-only History has no spatial target. Do not imply a connection
+  // to another result by falling back to that result's conductor anchor.
+  const focusSeatIndex = heldApprovalSeat ?? (focusedPanel
+    ? focusedPanel.seatIndex
     : conductor.activeSeatIndex);
   const cortexCurrentPaths = useMemo(() => {
     if (physical.cortex.posture === 'stopped') return [];

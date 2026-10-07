@@ -80,6 +80,7 @@ function cortexPosture(presentation: BeingPresentation): PhysicalCortexPosture {
     case 'understanding':
     case 'planning':
     case 'learning':
+    case 'awaiting-response':
       return 'attention';
     case 'acting':
     case 'reflex':
@@ -115,6 +116,7 @@ function activityLevel(phase: BeingPhase): number {
     case 'listening':
     case 'understanding':
     case 'awaiting-human':
+    case 'awaiting-response':
       return 0.5;
     case 'arriving':
       return 0.38;

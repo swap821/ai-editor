@@ -3,6 +3,8 @@ import { __resetConversationPhaseForTests, setConversationPhase } from '../../su
 import type { CortexMirrorState } from '../../superbrain/lib/mirrorStore';
 import type { TabSnapshot } from '../../superbrain/lib/tabStore';
 import { beingFactsFromStores, beingPresentationFromStores, beingStatusText } from './presentationFromStores';
+import { derivePhysicalSnapshot } from './physicalSnapshot';
+import { bodyHoldForProjection, bodyMotionProfileForPosture, deriveBodyPosture } from '../../superbrain/lib/bodyPosture';
 
 const tabs = { tabs: [], focusId: null, attention: null } as TabSnapshot;
 
@@ -40,6 +42,77 @@ function mirror(overrides: Partial<CortexMirrorState> = {}): CortexMirrorState {
 }
 
 describe('presentation facts from admitted stores', () => {
+  const replayTabs = () => ({ ...tabs, focusId: 'older', workResultOutcome: { tabId: 'current', completion: 'awaiting-replay' }, tabs: [
+    { id: 'older', kind: 'content', lifecycle: 'live', content: { code: 'older', streaming: false, verifyVerdict: 'pass' } },
+    { id: 'current', kind: 'content', lifecycle: 'live', content: { code: 'partial', streaming: false, completion: 'awaiting-replay' } },
+  ] } as unknown as TabSnapshot);
+
+  it('keeps submitted permission awaiting a response, not resting, working, checking or asking again', () => {
+    // A prior active mirror or focused checked reader cannot fill the gap
+    // between this operator submission and this replay's first wire frame.
+    const state = mirror({ phase: 'active' });
+    const snapshot = replayTabs();
+    expect(beingFactsFromStores(state, snapshot, 'thinking')).toMatchObject({
+      taskActivity: 'awaiting-replay', verification: 'unknown', approvalPending: false,
+    });
+    const presentation = beingPresentationFromStores(state, snapshot, 'thinking');
+    expect(presentation).toMatchObject({
+      phase: 'awaiting-response', taskState: 'waiting-response', motion: 'attention', attention: 'workspace',
+    });
+    expect(presentation.signals).not.toContain('verification-pass');
+    expect(beingStatusText(presentation)).toBe('GAGOS is waiting for the replay response; completion is unconfirmed.');
+    const physical = derivePhysicalSnapshot(presentation);
+    expect(physical).toMatchObject({ cortex: { posture: 'attention' }, conductor: { posture: 'idle', travel: 'none' },
+      verification: { state: 'none', settlement: 'unsettled' }, membrane: { state: 'clear' } });
+    // Reuse the existing uncertain body palette/profile, not Thinking,
+    // Streaming, Holding or completion-green. This remains projection only.
+    const posture = deriveBodyPosture({ phase: 'rest', physical });
+    expect(posture.key).toBe('unconfirmed');
+    expect(bodyHoldForProjection(physical, true)).toBe(false);
+    expect(bodyMotionProfileForPosture(posture)).toEqual({ pulseRate: 1.8, breathGain: 0, rootExcitation: 0 });
+  });
+
+  it.each([
+    ['approval', { approvalRequired: true }, 'awaiting-human', 'needs-permission'],
+    ['stale', { projection: 'stale', status: 'stale' }, 'stale', 'stale'],
+    ['stop', { recentEvents: [{ id: 1, type: 'governance.emergency_stop.engaged' }] }, 'stopped', 'stopped'],
+    ['refusal', { recentEvents: [{ id: 1, type: 'security.refusal.recorded' }] }, 'recovering', 'refused'],
+    ['failure', { recentEvents: [{ id: 1, type: 'mission.failed' }] }, 'recovering', 'failed'],
+    ['rollback', { recentEvents: [{ id: 1, type: 'mission.rolled_back' }] }, 'recovering', 'restored'],
+  ] as const)('keeps the observed %s boundary ahead of an outstanding local replay', (_, state, phase, taskState) => {
+    expect(beingPresentationFromStores(mirror(state as Partial<CortexMirrorState>), replayTabs(), 'idle'))
+      .toMatchObject({ phase, taskState });
+  });
+
+  it('does not imply a live response while the replay projection is unavailable', () => {
+    const presentation = beingPresentationFromStores(mirror({
+      connection: 'disconnected', projection: 'unavailable', status: 'offline', snapshotReceivedAt: null,
+    }), replayTabs(), 'idle');
+    expect(presentation).toMatchObject({ phase: 'degraded', coherence: 'degraded' });
+    expect(deriveBodyPosture({ phase: 'rest', physical: derivePhysicalSnapshot(presentation) }).key).toBe('unconfirmed');
+  });
+
+  it.each([true, false])('releases response waiting only when its owner replaces the marker (streaming=%s)', (streaming) => {
+    const snapshot = replayTabs();
+    snapshot.workResultOutcome = null;
+    snapshot.focusId = 'current';
+    snapshot.tabs[1].content = { code: 'replayed', language: 'python', filepath: 'current.py', streaming };
+    expect(beingPresentationFromStores(mirror(), snapshot, streaming ? 'streaming' : 'complete')).toMatchObject({
+      phase: streaming ? 'acting' : 'resting', taskState: streaming ? 'working' : 'done-unverified',
+    });
+  });
+
+  it.each(['incomplete', 'cancelled'])('does not promote a %s result to completed or verified', (completion) => {
+    const partialTabs = { ...tabs, focusId: 'partial', tabs: [
+      { id: 'older', kind: 'content', lifecycle: 'live', content: { code: 'older', streaming: false, verifyVerdict: 'pass' } },
+      { id: 'partial', kind: 'content', lifecycle: 'live', content: { code: 'partial', streaming: false, completion } },
+    ] } as unknown as TabSnapshot;
+    expect(beingFactsFromStores(mirror(), partialTabs, 'idle')).toMatchObject({ taskActivity: 'failed', verification: 'unknown', stop: 'unknown' });
+    expect(beingPresentationFromStores(mirror(), partialTabs, 'idle')).toMatchObject({ taskState: 'failed', phase: 'recovering' });
+    // Local cancellation is not evidence that the backend has stopped.
+    expect(beingFactsFromStores(mirror({ phase: 'active' }), partialTabs, 'idle').taskActivity).toBe('streaming');
+  });
+
   beforeEach(() => {
     __resetConversationPhaseForTests();
     setConversationPhase('idle');
@@ -216,6 +289,41 @@ describe('presentation facts from admitted stores', () => {
     expect(unverified).toMatchObject({ taskState: 'done-unverified', coherence: 'unverified' });
   });
 
+  it.each([false, true])('does not present streaming content as an active check (turn=%s)', (currentTurn) => {
+    const streamingTabs = {
+      ...tabs,
+      focusId: 'streaming-work',
+      tabs: [{ id: 'streaming-work', kind: 'content', lifecycle: 'live', content: { streaming: true } }],
+    } as unknown as TabSnapshot;
+    const active = mirror({
+      phase: 'active',
+      pendingEvents: 3,
+      recentEvents: currentTurn
+        ? [{ id: 1, type: 'turn.started', summary: 'current turn', occurredAt: null, receivedAt: '2026-09-22T00:00:01.000Z' }]
+        : [],
+    });
+
+    expect(beingFactsFromStores(active, streamingTabs, 'streaming').verification).toBe('unknown');
+    const presentation = beingPresentationFromStores(active, streamingTabs, 'streaming');
+    expect(presentation).toMatchObject({ taskState: 'working', phase: 'acting', motion: 'conduct' });
+    expect(beingStatusText(presentation)).toBe('GAGOS is working.');
+  });
+
+  it('does not turn an inconclusive verifier receipt and queued events into an active check', () => {
+    const active = mirror({
+      phase: 'active',
+      pendingEvents: 3,
+      lastVerification: { verdict: 'unavailable' },
+      recentEvents: [
+        { id: 1, type: 'turn.started', summary: 'current turn', occurredAt: null, receivedAt: '2026-09-22T00:00:01.000Z' },
+        { id: 2, type: 'verify_result', summary: 'inconclusive result', occurredAt: null, receivedAt: '2026-09-22T00:00:02.000Z' },
+      ],
+    });
+
+    expect(beingFactsFromStores(active, tabs, 'thinking').verification).toBe('unknown');
+    expect(beingPresentationFromStores(active, tabs, 'thinking')).toMatchObject({ taskState: 'working', phase: 'acting', motion: 'conduct' });
+  });
+
   it('does not carry a retained mirror verification into a new turn', () => {
     const mirrorState = mirror({
       lastVerification: { verdict: 'pass', evidenceId: 'older-result' },
@@ -366,6 +474,47 @@ describe('presentation facts from admitted stores', () => {
     }), tabs);
 
     expect(nextTurn).toMatchObject({ phase: 'resting', taskState: 'idle', coherence: 'fresh' });
+  });
+
+  it.each(['active', 'closed', 'forgotten', 'missing', 'targetless'] as const)('does not promote an unbound current pass after a %s artifact observation', (location) => {
+    const older = { id: 'older', kind: 'content', lifecycle: 'live', content: {
+      code: 'older', filepath: 'fixture/hello.py', streaming: false, verifyVerdict: 'pass', verifyEventId: 2,
+    } };
+    const current = { id: 'current', kind: 'content', lifecycle: 'live', content: {
+      code: 'current', filepath: 'fixture/hello.py', streaming: false,
+    } };
+    const snapshot = { ...tabs, focusId: current.id, tabs: [current, ...(location === 'active' ? [older] : [])],
+      recoverableTabs: location === 'closed' ? [older] : [],
+    } as unknown as TabSnapshot;
+    const state = mirror({ lastTurnStartedEventId: 10, lastVerificationEventId: 12,
+      lastVerification: { payload: { verdict: 'pass', ...(location === 'targetless' ? {} : {
+        target: location === 'missing' ? 'other/hello.py' : 'fixture/hello.py',
+      }) } },
+    });
+    expect(beingFactsFromStores(state, snapshot, 'complete').verification).toBe('unknown');
+    const presentation = beingPresentationFromStores(state, snapshot, 'complete');
+    expect(presentation.taskState).toBe('done-unverified');
+    expect(presentation.signals).not.toContain('verification-pass');
+  });
+
+  it.each(['pass', 'fail'] as const)('uses the current %s cursor bound by the artifact owner, even when another reader is selected', (verdict) => {
+    const snapshot = { ...tabs, focusId: 'older', tabs: [
+      { id: 'older', kind: 'content', lifecycle: 'live', content: { streaming: false, verifyVerdict: 'pass', verifyEventId: 2 } },
+    ], recoverableTabs: [
+      { id: 'current', kind: 'content', lifecycle: 'live', content: { filepath: 'fixture/hello.py', streaming: false, verifyVerdict: verdict, verifyEventId: 12 } },
+    ] } as unknown as TabSnapshot;
+    const state = mirror({ lastTurnStartedEventId: 10, lastVerificationEventId: 12,
+      lastVerification: { payload: { verdict, target: 'fixture/hello.py' } },
+    });
+    expect(beingFactsFromStores(state, snapshot, 'complete').verification).toBe(verdict);
+    expect(beingPresentationFromStores(state, snapshot, 'complete').taskState).toBe(verdict === 'pass' ? 'done-verified' : 'failed');
+  });
+
+  it('does not turn a targeted pass without any retained recipient into whole-turn proof', () => {
+    const state = mirror({ lastTurnStartedEventId: 10, lastVerificationEventId: 12,
+      lastVerification: { payload: { verdict: 'pass', target: 'missing.py' } },
+    });
+    expect(beingPresentationFromStores(state, tabs, 'complete').taskState).toBe('done-unverified');
   });
 
   it('does not carry a prior route label into a new measured turn', () => {

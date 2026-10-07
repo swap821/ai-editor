@@ -2,7 +2,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { Float, PerspectiveCamera, OrbitControls } from '@react-three/drei';
+import { PerspectiveCamera, OrbitControls } from '@react-three/drei';
 import { useBrainScene, preloadBrainScene } from '@/lib/brainScene';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -20,7 +20,9 @@ import { useReducedMotion } from '@/lib/reducedMotion';
 import NeuralAura from './NeuralAura';
 import NervousSystem from './NervousSystem';
 import CosmicBackground from './CosmicBackground';
+import AmbientFloat from './AmbientFloat';
 import CommandNerve3D from './CommandNerve3D';
+import BodyIntakeAnchors from './BodyIntakeAnchors';
 import KnowledgeHorizon from './KnowledgeHorizon';
 import MemoryGalaxy from './MemoryGalaxy';
 import OrganSurface from './OrganSurface';
@@ -34,19 +36,17 @@ import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveVoyageDrift } from '@/lib/voyageDrift';
 import { deriveOrganismCameraFrame } from '@/lib/organismCameraFrame';
-import { setStemAnchor } from '@/lib/stemAnchorBus';
-import { setFunnelAnchor } from '@/lib/funnelAnchorBus';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
 import { deriveBodyPosture, lifecyclePhaseForPhysicalProjection, postureColor01, POSTURE_DIAL, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
-import { intakeNerveDrive } from '@/lib/intakeNerveDrive';
 import { getConversationPhase, getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
-import { setBodyGroupWorldMatrix, setBrainDockScale } from '@/lib/spineFusionBus';
+import { setBrainDockScale } from '@/lib/spineFusionBus';
+import { useBodyWorldFrame } from '@/lib/useBodyWorldFrame';
 import BrainPointField from './BrainPointField';
 import MemoryHalo from './MemoryHalo';
 import {
@@ -285,16 +285,6 @@ function brainDriftVelocityX(time: number): number {
 const BANK_GAIN = 0.633;
 /** Constant forward lean — nose pitched into the voyage. */
 const FORWARD_LEAN = 0.05;
-/** Reused scratch for projecting the brainstem to screen px (NeuralCommandDock tether). */
-const STEM_SCRATCH = new THREE.Vector3();
-/** Reused scratch for projecting the TAIL INTAKE FUNNEL (the dock's new mouth, operator idea). */
-const FUNNEL_SCRATCH = new THREE.Vector3();
-/** Group-local Y of the intake-funnel mouth — the CONUS NECK: the narrow bottom end
- *  of the cord where the willow nerve-roots converge/branch out (placed by live dial
- *  sweep — the socket tracks the cord rigidly, so this lands exactly at the splay apex).
- *  The command nerve plugs in HERE so it reads as another root coming out of the
- *  brainstem's bottom end (operator). Tunable live via window.__FUNNEL_Y. */
-const FUNNEL_LOCAL_Y = -0.85;
 
 /* ---------- mode-reactive core tint targets (lerped into uModeTint) ---------- */
 export const MODE_EMISSIVE: Record<CognitiveMode, THREE.Color> = {
@@ -721,6 +711,7 @@ export function BrainModel({
   arrival: MutableRefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  useBodyWorldFrame(groupRef);
   const brainVisualRef = useRef<THREE.Group>(null);
   const dockYRef = useRef(0); // SOUL P1: eased rise so the brain crowns the top while orchestrating
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
@@ -851,7 +842,7 @@ export function BrainModel({
   }, []);
 
   useFrame((state, delta) => {
-    const time = state.clock.elapsedTime;
+    const time = uniforms.uTime.value;
     const burstPow = burst.current.intensity;
 
     /* ── Brain group animation ── */
@@ -953,49 +944,6 @@ export function BrainModel({
         );
         groupRef.current.rotation.z = voyage.roll * voyageGain;
         voyageRef.current = { ...voyage, gain: Math.round(voyageGain * 10000) / 10000 };
-        // NeuralCommandDock bridge: project the brainstem (group-local (0,-0.35,0) —
-        // where the cord meets the head) to screen px so the DOM dock can grow a
-        // nerve up into the living stem. Rides the voyage/orbit/crown for free.
-        STEM_SCRATCH.set(0, -0.35, 0);
-        groupRef.current.localToWorld(STEM_SCRATCH);
-        STEM_SCRATCH.project(state.camera);
-        setStemAnchor({
-          x: (STEM_SCRATCH.x * 0.5 + 0.5) * state.size.width,
-          y: (1 - (STEM_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
-          visible: STEM_SCRATCH.z < 1,
-        });
-        // INTAKE FUNNEL bridge (operator idea): project the tail intake mouth (low on
-        // the spine, where the "you speak here" rings live) so the dock grows its nerve
-        // DOWN into the being's intake instead of up to the brainstem. Tunable Y while
-        // we dial the mouth in.
-        {
-          const funnelDial =
-            typeof window !== 'undefined' ? (window as { __FUNNEL_Y?: number }).__FUNNEL_Y : undefined;
-          const funnelY = typeof funnelDial === 'number' ? funnelDial : FUNNEL_LOCAL_Y;
-          FUNNEL_SCRATCH.set(0, funnelY, 0);
-          groupRef.current.localToWorld(FUNNEL_SCRATCH);
-          const fwx = FUNNEL_SCRATCH.x;
-          const fwy = FUNNEL_SCRATCH.y;
-          const fwz = FUNNEL_SCRATCH.z;
-          FUNNEL_SCRATCH.project(state.camera);
-          // PHASE-AWARE channel: the intake nerve blazes while the being receives you
-          // and recedes as it tucks its tail to work (mirrors uSprayHide). reduced
-          // motion zeroes the bead flow (the only travelling motion in the nerve).
-          // A pure CHAT turn never touches the organism-lifecycle phase (no
-          // materialized work surface), so this MUST read the same conversation-
-          // priority override the body posture uses below — otherwise the nerve
-          // never blazes for a chat turn and never resolves afterward either.
-          const nervePhase = physical ? lifecyclePhaseForPhysicalProjection(physical) : getEffectiveOrganismPhase();
-          const nerveDrive = intakeNerveDrive(nervePhase);
-          setFunnelAnchor({
-            x: (FUNNEL_SCRATCH.x * 0.5 + 0.5) * state.size.width,
-            y: (1 - (FUNNEL_SCRATCH.y * 0.5 + 0.5)) * state.size.height,
-            visible: FUNNEL_SCRATCH.z < 1,
-            world: [fwx, fwy, fwz],
-            intake: nerveDrive.drive,
-            flow: reduceMotion ? 0 : nerveDrive.flow,
-          });
-        }
       } else {
         // Hold a cinematic three-quarter silhouette instead of spinning into
         // unreadable rear angles. Restores the classic, recognizable brain shape.
@@ -1047,13 +995,6 @@ export function BrainModel({
       setBrainDockScale(scale);
     }
 
-    // Product-owned reactive effects render as scene-root siblings. Give them
-    // the same live world frame as this body group so paths stay attached during
-    // voyage, orbit, and posture transforms.
-    if (groupRef.current) {
-      groupRef.current.updateWorldMatrix(true, false);
-      setBodyGroupWorldMatrix(groupRef.current.matrixWorld);
-    }
   });
 
   return (
@@ -1379,8 +1320,10 @@ export function CameraDrift({
  *  window.__CAMFRAME = { fov, targetY }; proof: window.__getOrganismCameraFrame(). */
 export function OrganismFraming({
   controlsRef,
+  phoneFocusRef,
 }: {
   controlsRef: MutableRefObject<{ target: THREE.Vector3 } | null>;
+  phoneFocusRef?: MutableRefObject<boolean>;
 }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -1401,8 +1344,11 @@ export function OrganismFraming({
   }, []);
 
   useFrame((_s, delta) => {
-    const aspect = size.height > 0 ? size.width / size.height : 1.6;
-    const frame = deriveOrganismCameraFrame({ aspect, activeSurfaceCount: workspaceCount });
+    const view = (camera as THREE.PerspectiveCamera).view;
+    const aspect = view?.enabled ? view.fullWidth / view.fullHeight
+      : size.height > 0 ? size.width / size.height : 1.6;
+    const frame = deriveOrganismCameraFrame({ aspect, activeSurfaceCount: workspaceCount,
+      phoneFocus: phoneFocusRef?.current });
     // Dev live-tuning dial for the operator's real device (overrides the derived frame).
     const dial =
       typeof window !== 'undefined'
@@ -1736,7 +1682,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
           }
         }
         if (event.type === 'directive') {
-          directivePendingRef.current = true;
+          directivePendingRef.current = !reducedMotionRef.current;
           cameraPushRef.current.value = 1;
           // The directive lands NOW: the wires surge as the packet enters.
           burstRef.current.intensity = Math.max(burstRef.current.intensity, 0.6);
@@ -1827,7 +1773,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
   }, []);
 
   useFrame((state, delta) => {
-    const time = state.clock.elapsedTime;
+    const time = uniforms.uTime.value + (reducedMotionRef.current ? 0 : delta);
     const current = burstRef.current;
     const hold = holdRef.current;
     const metabolism = metabolismRef.current;
@@ -1860,7 +1806,9 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     const holding = uniforms.uHold.value;
     if (hold.active) idleRef.current.lastInputMs = performance.now();
 
-    if (holding < 0.5 &&
+    // Drop a visual trigger caught just before Pause; never replay old work.
+    if (reducedMotionRef.current) directivePendingRef.current = false;
+    if (!reducedMotionRef.current && holding < 0.5 &&
         (directivePendingRef.current || time - current.lastBurst > 8 + Math.sin(time * 0.13) * 2)) {
       directivePendingRef.current = false;
       current.lastBurst = time;
@@ -1939,7 +1887,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         ? -Math.sin(THREE.MathUtils.clamp(sinceRest / 0.9, 0, 1) * Math.PI) * 0.16
         : 0;
     // The approval hold freezes the breath exactly where it was caught.
-    uniforms.uBreath.value = Math.max(
+    uniforms.uBreath.value = reducedMotionRef.current ? 0.5 : Math.max(
       0,
       THREE.MathUtils.lerp(metabolicBreath, hold.breathAtHold, holding) + restExhale,
     );
@@ -2010,7 +1958,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;
     if (waves.nextAuto < 0) waves.nextAuto = time + 2 + waves.random() * 3;
-    if (holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
+    if (!reducedMotionRef.current && holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
       waves.pending.push(randomWaveOrigin(waves.random));
       waves.nextAuto = time + 3 + waves.random() * 5;
     }
@@ -2023,7 +1971,7 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       idle.lastInputMs = performance.now();
     }
     const idleForS = (performance.now() - idle.lastInputMs) / 1000;
-    const isIdle = idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
+    const isIdle = !reducedMotionRef.current && idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
     idle.progress = isIdle
       ? Math.min(1, idle.progress + delta / IDLE_EASE_IN_S)
       : Math.max(0, idle.progress - delta / IDLE_EASE_OUT_S);
@@ -2110,9 +2058,6 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
         <KnowledgeHorizon activity={activeBoost} />
       )}
       <CosmicBackground tier={tier} arrival={arrivalScalarRef} reducedMotion={reducedMotion} />
-      {/* the command nerve as a real 3D tube (operator: "nerve should be 3D, like a
-          live") — bridges the DOM -> button to the cauda convergence in the scene. */}
-      {BEING_MODE === 'points' && <CommandNerve3D reducedMotion={reducedMotion} />}
 
       {/* The recall stream: distant glints are REAL trails from the pheromone
           map (strength = core brightness, walks = cage size, freshness =
@@ -2142,13 +2087,18 @@ export default function SuperbrainScene({ mode, activity, tier = 'high', sky = '
       <pointLight position={[3.5, 4.0, 3]} intensity={0.7} distance={12} color="#c8a8ff" />
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
-      <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
+      <AmbientFloat paused={reducedMotion} speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} />
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
           <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
         )}
-      </Float>
+      </AmbientFloat>
+
+      {BEING_MODE === 'points' && <>
+        <BodyIntakeAnchors physical={physical} reducedMotion={reducedMotion} />
+        <CommandNerve3D reducedMotion={reducedMotion} />
+      </>}
 
       {tier !== 'low' && BEING_MODE !== 'points' && (
         <PointerBrainClone uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />

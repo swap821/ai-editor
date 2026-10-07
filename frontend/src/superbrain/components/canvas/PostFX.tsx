@@ -38,7 +38,8 @@ import {
 import { BlendFunction, Effect, ToneMappingMode } from 'postprocessing';
 import { POST_FX } from '@/lib/constants';
 import { Uniform, Vector2, Vector3 } from 'three';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useThree } from '@react-three/fiber';
 import { useQualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 
@@ -143,6 +144,31 @@ const GradePre = wrapEffect(GradePreEffect);
 const GradePost = wrapEffect(GradePostEffect);
 
 export default function PostFX() {
+  // Subscribe at the guard as well as inside the composer. Drei restores the
+  // default camera during cleanup; that store update must reach this ancestor
+  // before the composer tries to construct/re-add passes on a lost context.
+  // `enabled={false}` only stops drawing, not those unsafe setup operations.
+  const { gl } = useThree();
+  const subscribe = useCallback((changed: () => void) => {
+    const canvas = gl.domElement;
+    canvas.addEventListener('webglcontextlost', changed);
+    canvas.addEventListener('webglcontextrestored', changed);
+    return () => {
+      canvas.removeEventListener('webglcontextlost', changed);
+      canvas.removeEventListener('webglcontextrestored', changed);
+    };
+  }, [gl]);
+  const contextAvailable = useCallback(() => {
+    const context = gl.getContext();
+    return !context.isContextLost() && context.getContextAttributes() !== null;
+  }, [gl]);
+  const available = useSyncExternalStore(subscribe, contextAvailable, () => false);
+  // This only tears down effects. Canvas recovery/retry and all operational
+  // state remain with their existing owners; never resubmit work from here.
+  return available ? <PostFXPipeline /> : null;
+}
+
+function PostFXPipeline() {
   // Post-FX extras follow the PERF tier (they may breathe while the model
   // thinks); the scene's geometry follows the structural tier elsewhere.
   const { perfTier: tier } = useQualityTier();

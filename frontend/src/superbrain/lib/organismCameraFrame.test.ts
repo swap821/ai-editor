@@ -46,4 +46,14 @@ describe('deriveOrganismCameraFrame', () => {
     expect(three.fov).toBeGreaterThan(none.fov);
     expect(many.fov).toBe(three.fov); // capped
   });
+
+  it('phone Focus fits horizontal roots as well as height without changing ordinary framing', () => {
+    for (const aspect of [366 / 487.25, 296 / 211.25, 366 / 384]) {
+      const frame = deriveOrganismCameraFrame({ aspect, activeSurfaceCount: 0, phoneFocus: true });
+      const horizontal = 2 * Math.atan(Math.tan(frame.fov * Math.PI / 360) * aspect) * 180 / Math.PI;
+      expect(horizontal).toBeGreaterThanOrEqual(29.999); // three-decimal lens rounding
+      expect(frame.fov).toBeGreaterThanOrEqual(26);
+      expect(frame.targetY).toBe(-0.5);
+    }
+  });
 });

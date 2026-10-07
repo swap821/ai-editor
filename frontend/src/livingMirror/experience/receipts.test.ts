@@ -48,4 +48,12 @@ describe('result receipts', () => {
     expect(deriveReceipt({ ...base, succeeded: false, verification: 'fail' }).kind).toBe('failure');
     expect(deriveReceipt({ ...base, succeeded: false, verification: 'fail', restored: true }).kind).toBe('failure-rollback');
   });
+  it.each(['pass', 'fail'] as const)('reports an observed %s without promoting incomplete work to success', (verification) => {
+    expect(deriveReceipt({ ...base, succeeded: false, verification })).toMatchObject({
+      kind: 'failure',
+      message: verification === 'fail'
+        ? 'The request did not complete. A reported check failed.'
+        : 'The request did not complete. A reported check passed, but completion is still unconfirmed.',
+    });
+  });
 });

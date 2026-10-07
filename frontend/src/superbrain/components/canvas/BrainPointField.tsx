@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { samplePointField, type PointFieldSource, type PointFieldData } from '@/lib/pointFieldSampler';
 import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePointField';
 import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
+import { pointPresenceHeight, pointViewportScale } from '@/lib/pointViewportScale';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
 import { lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
@@ -238,6 +239,17 @@ export default function BrainPointField({
     // uTime is the shared leaf (advanced by the scene); keep uPixelRatio fresh.
     setDpr();
     const u = material.uniforms;
+    const presenceHeight = pointPresenceHeight(state.camera, state.size.height);
+    u.uViewportScale.value = pointViewportScale(presenceHeight);
+    // Legible puncta and accumulated light need different budgets. The168px
+    // size reference keeps tiny dots readable, but cannot restore almost the
+    // full cloud's radiance inside a150px product pane. Preserve all anatomy
+    // and hue; budget light against the normal576px presence region instead.
+    // The existing official projection identifies product use; standalone
+    // authoring retains its previous size-squared light allocation.
+    const energyScale = physical && Number.isFinite(presenceHeight) && presenceHeight > 0
+      ? Math.min(1, presenceHeight / 576) : u.uViewportScale.value;
+    u.uProjectionEnergy.value = energyScale * energyScale;
     // Drive breathe / flow / arrival-inrush / reabsorption from the live organism
     // phase (the lifecycle gesture engine). All motion runs in the vertex shader;
     // here we only damp a few scalar uniforms via ref (zero per-point CPU).

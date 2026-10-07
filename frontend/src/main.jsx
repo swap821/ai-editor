@@ -21,12 +21,28 @@ const PhysicalStateGalleryPage = lazy(() => import('./livingMirror/being/Physica
 // route or a second semantic source of truth.
 const isPhysicalGallery = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('physical-gallery') === '1'
+// Install page-lifetime isolation BEFORE importing the real app or any of its
+// module-level transports. Never select this loader in a production build.
+const FixtureJourneyPage = import.meta.env.DEV
+  ? lazy(async () => {
+    const { installFixtureJourney } = await import('./livingMirror/being/installFixtureJourney')
+    const fixture = installFixtureJourney(window)
+    // The installed Outfit family also supplies development-only 3D glyphs
+    // locally, so Troika never needs its default remote font service.
+    const { configureTextBuilder } = await import('troika-three-text')
+    configureTextBuilder({ useWorker: false, defaultFontURL: '/fonts/fixture-outfit.ttf' })
+    const { default: Journey } = await import('./livingMirror/being/FixtureJourneyPage')
+    return { default: function IsolatedJourney() { return <Journey fixture={fixture} /> } }
+  })
+  : null
+const isFixtureJourney = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get('physical-gallery') === 'journey'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary name="App">
       <Suspense fallback={null}>
-        {isPhysicalGallery ? <PhysicalStateGalleryPage /> : <SuperbrainApp />}
+        {isFixtureJourney ? <FixtureJourneyPage /> : isPhysicalGallery ? <PhysicalStateGalleryPage /> : <SuperbrainApp />}
       </Suspense>
     </ErrorBoundary>
   </StrictMode>,

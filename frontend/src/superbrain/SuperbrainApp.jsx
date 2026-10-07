@@ -10,8 +10,9 @@ import { readExperienceMode, writeExperienceMode } from '../livingMirror/experie
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
+import { WorkspaceConnectionOverlay, WorkspaceConnectionProjection } from '../livingMirror/being/WorkspaceConnectionOverlay';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
-import { createMirrorReconnectTracker, recordFrontendMetric, startFrameTimeSampler } from '../livingMirror/observability/frontendMetrics';
+import { createMirrorReconnectTracker, recordFrontendMetric, startRafIntervalSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
 import { RendererFailureBoundary } from '../livingMirror/RendererFailureBoundary';
 import {
@@ -40,6 +41,7 @@ export default function SuperbrainApp() {
   const measuredAttentionRef = useRef(null);
   const canvasContextLostRef = useRef(false);
   const appRootRef = useRef(null);
+  const workspaceConnectionRef = useRef(null);
   const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open)
     || snapshot.tabs.some((t) => t.id === snapshot.focusId && t.kind === 'content' && t.lifecycle !== 'retracting');
   const handleBootComplete = useCallback(() => setBooted(true), []);
@@ -98,7 +100,7 @@ export default function SuperbrainApp() {
     frame = window.requestAnimationFrame(findInput);
     const organismReady = () => recordFrontendMetric('3d-initialization', performance.now() - startedAt);
     window.addEventListener('gagos:ready', organismReady, { once: true });
-    const stopFrameSampler = startFrameTimeSampler();
+    const stopRafIntervalSampler = startRafIntervalSampler();
     const trackMirrorReconnect = createMirrorReconnectTracker();
     const unsubscribeMirror = useMirrorStore.subscribe((state, previous) => {
       trackMirrorReconnect(state, previous);
@@ -143,7 +145,7 @@ export default function SuperbrainApp() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('gagos:ready', organismReady);
-      stopFrameSampler();
+      stopRafIntervalSampler();
       unsubscribeMirror();
       canvasObserver?.disconnect();
       if (boundCanvas) {
@@ -176,7 +178,8 @@ export default function SuperbrainApp() {
     <div className="lm-being-status" role="status" aria-live="polite" aria-atomic="true">{beingStatusText(being)}</div>
     <BootSequence onComplete={handleBootComplete} />
     <RendererFallbackNotice visible={rendererFallback} onRetry={handleRendererRetry} />
-    <div className="lm-scene">{canvasContextLost ? null : (
+    <div className="lm-scene" aria-hidden="true" />
+    <div className="lm-stage">{canvasContextLost ? null : (
       <RendererFailureBoundary onRetry={handleRendererRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
           <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical}>
@@ -185,10 +188,12 @@ export default function SuperbrainApp() {
             physicalOverride={physical}
             inputDraftPresent={inputDraftPresent}
           />
+          <WorkspaceConnectionProjection overlayRef={workspaceConnectionRef} snapshot={snapshot} />
           </WorkspaceCanvas>
         </Suspense>
       </RendererFailureBoundary>
     )}</div>
+    <WorkspaceConnectionOverlay overlayRef={workspaceConnectionRef} />
     <main aria-label="GAGOS conversation"><GagosChrome
       integrated
       experienceMode={experienceMode}

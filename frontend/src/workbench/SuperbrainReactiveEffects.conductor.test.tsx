@@ -4,6 +4,7 @@ import {
   beginRetractingMaterializedTab,
   __resetTabStoreForTests,
   getTabStoreSnapshot,
+  openWorkspacePanel,
   showApprovalSurface,
   showContentSurface,
   type TabSnapshot,
@@ -184,6 +185,25 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     expect(view.container.querySelector('mesh[name="cortex-attention-pulse"]')).toBe(returningPulse);
     expect(returningPulse?.visible).toBe(true);
     expect(view.container.querySelector('[data-testid="physical-conductor-path"]')).not.toBeNull();
+  });
+
+  it('does not aim at a background result when selected History has no body anchor', async () => {
+    for (let seat = 0; seat < 12; seat++) showContentSurface(
+      { code: 'background', language: 'text', filepath: `background-${seat}.txt` }, { seatIndex: seat },
+    );
+    openWorkspacePanel('history', 'Recent observations');
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects />);
+    expect(getTabStoreSnapshot().focusId).toBe('history');
+    const currents = view.container.querySelectorAll('[data-testid="cortex-current"]');
+    const physical = derivePhysicalSnapshot(mockBeing.current);
+    const origin = getCortexAnchor().map((value) => value * getBrainDockScale()) as [number, number, number];
+    const expected = deriveCortexAttentionPaths({
+      origin, target: null, activity: physical.cortex.activity,
+      convergence: physical.cortex.convergence, count: currents.length,
+    });
+    expect([...currents].map((current) => JSON.parse(current.getAttribute('data-coordinates') ?? '[]')))
+      .toEqual(expected);
   });
 
   it('holds the conductor at the sovereign boundary for approval', async () => {

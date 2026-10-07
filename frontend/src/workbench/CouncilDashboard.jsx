@@ -3,6 +3,7 @@ import { AlertTriangle, Cloud, FileText, RefreshCw, RotateCcw, ShieldCheck } fro
 import { API_BASE, API_HEADERS } from '../config';
 import { sendGuardedCommand } from '../livingMirror/commands';
 import { redactProjection } from '../livingMirror/redaction';
+import { useWorkspaceActive } from '../livingMirror/WorkspaceActivityContext';
 import SovereignStatePanel from './SovereignStatePanel';
 import KnowledgeIngestPanel from './KnowledgeIngestPanel';
 import MemoryOperationsPanel from './MemoryOperationsPanel';
@@ -232,6 +233,7 @@ function SelfAnalysisProposals() {
 }
 
 export default function CouncilDashboard() {
+  const workspaceActive = useWorkspaceActive();
   const [view, setView] = useState('missions');
   const [missions, setMissions] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -310,19 +312,24 @@ export default function CouncilDashboard() {
   }, [originGoal, originFiles, originVerification, loadMissions]);
 
   useEffect(() => {
+    if (!workspaceActive) return;
     const ctrl = new AbortController();
     void loadMissions(ctrl.signal);
+    let poll = null;
     const id = window.setInterval(() => {
-      const poll = new AbortController();
+      poll?.abort();
+      poll = new AbortController();
       void loadMissions(poll.signal);
     }, 15000);
     return () => {
       ctrl.abort();
+      poll?.abort();
       window.clearInterval(id);
     };
-  }, [loadMissions]);
+  }, [loadMissions, workspaceActive]);
 
   useEffect(() => {
+    if (!workspaceActive) return;
     if (!selectedId) {
       setDetail(EMPTY_DETAIL);
       return undefined;
@@ -346,7 +353,7 @@ export default function CouncilDashboard() {
       alive = false;
       ctrl.abort();
     };
-  }, [selectedId, detailRevision]);
+  }, [selectedId, detailRevision, workspaceActive]);
 
   const report = detail.report || selectedSummary || {};
   const ledger = detail.ledger || {};

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { presentVoiceStatus } from './voicePresentation';
+import { presentVoiceStatus, voiceStatusNeedsAttention } from './voicePresentation';
 
 describe('presentVoiceStatus', () => {
   it('uses human Guided copy for unavailable local voice input', () => {
@@ -49,5 +49,17 @@ describe('presentVoiceStatus', () => {
     expect(result.status).toBe('Voice input status unavailable');
     expect(result.status).not.toContain('ready');
     expect(result.status).not.toContain('listening');
+  });
+
+  it('treats settled availability states as secondary to the Guided welcome', async () => {
+    expect(voiceStatusNeedsAttention({ state: 'local transcription unavailable', error: null })).toBe(false);
+    expect(voiceStatusNeedsAttention({ state: 'ready · local transcription', error: null })).toBe(false);
+    expect(voiceStatusNeedsAttention({ state: 'checking local voice', error: null })).toBe(false);
+  });
+
+  it('keeps active, failed, and unknown voice states ahead of onboarding', async () => {
+    expect(voiceStatusNeedsAttention({ state: 'capturing · browser recognition', error: null })).toBe(true);
+    expect(voiceStatusNeedsAttention({ state: 'capture failed', error: 'Browser recognition failed: network' })).toBe(true);
+    expect(voiceStatusNeedsAttention({ state: 'unseen backend voice state', error: null })).toBe(true);
   });
 });

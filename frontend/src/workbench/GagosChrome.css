@@ -15,6 +15,70 @@
   color: #eaf0fb;
 }
 
+/* The real human boundary must be hit-testable above both the readable
+   workspace (shell30) and its sibling composer. Raise only while it exists;
+   positions, palette, motion and approval ownership remain unchanged. */
+.gagos-chrome[data-approval-pending="true"] { z-index: 40; }
+.gagos-chrome[data-approval-pending="true"] .approval-panel { z-index: 60; }
+
+/* The proposal owns scrolling, never the decision actions. Use the existing
+   measured intake clearance so an expanded explanation cannot hide Allow,
+   Deny or Stop, or sit on the request field. Settle layout immediately. */
+.gagos-chrome .approval-panel {
+  /* Keep the amber rim, but back a decision with the existing reader neutral.
+     Retained work stays mounted below it; blur is not text occlusion. */
+  background: var(--lm-surface);
+  /* Permission controls are immediate, not another decorative HUD entrance. */
+  animation: none;
+  bottom: var(--lm-workspace-dock-clearance, 114px);
+  margin: 0 auto;
+  max-height: min(42vh, calc(100% - var(--lm-workspace-dock-clearance, 114px) - 118px));
+}
+.gagos-chrome .approval-head,
+.gagos-chrome .approval-actions { flex: 0 0 auto; }
+.gagos-chrome .approval-head { overflow-wrap: anywhere; }
+.gagos-chrome .approval-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-inline: 14px;
+}
+.gagos-chrome .approval-body:focus-visible {
+  outline: 1px solid var(--neon-cyan);
+  outline-offset: -2px;
+}
+.gagos-chrome .approval-actions { flex-wrap: wrap; padding-top: 8px; }
+.gagos-chrome .approval-actions button { min-width: 44px; min-height: 44px; }
+@media (min-width: 768px) and (min-height: 521px) {
+  .lm-app[data-working="true"] .gagos-chrome .approval-panel {
+    left: calc(32% + 16px);
+    right: 28px;
+    max-width: none;
+  }
+}
+@media (max-width: 767px) {
+  .lm-app .gagos-chrome .approval-panel {
+    --gagos-approval-top: 118px;
+    left: 16px;
+    right: 16px;
+    /* Reserve Stop, not Expert's ordinary navigation row. A critical decision
+       may cover navigation; reserving it too leaves a9px reading viewport at
+       320x568. The same measured intake gap and stable actions still win. */
+    max-height: min(60dvh, calc(100% - var(--lm-workspace-dock-clearance, 238px) - var(--gagos-approval-top) - var(--lm-safe-area-top, 0px)));
+  }
+  /* Expert's brand/Stop row measures8px taller than Guided on compact phones. */
+  .lm-app[data-experience-mode="expert"] .gagos-chrome .approval-panel { --gagos-approval-top: 126px; }
+}
+@media (min-width: 361px) and (max-width: 767px) and (min-height: 740px) {
+  /* A decision temporarily owns the readable work area, not the body above
+     it. Reuse the same tall-phone allocation and measured dock, so expanded
+     Explain scrolls without erasing the being or moving its camera. */
+  .lm-app[data-working="true"]:not([data-keyboard-open="true"]) .gagos-chrome .approval-panel {
+    max-height: calc(100% - var(--lm-workspace-dock-clearance, 240px) - var(--lm-active-presence-top) - var(--lm-tall-presence-height));
+  }
+}
+
 /* Keyboard a11y: the first Tab jumps past the aria-hidden visualization
    straight to the chat. Hidden until focused, then a real visible affordance. */
 .gagos-skip {
@@ -205,6 +269,16 @@
   align-items: center;
   gap: 6px;
   pointer-events: auto;
+}
+
+/* Guided desktop controls belong to the conversation rail, leaving the
+   cortex clear. Expert keeps its navigation band; phones keep their dock. */
+@media (min-width: 1200px) {
+  .lm-app[data-experience-mode="beginner"] .gagos-experience-switch {
+    top: 76px;
+    left: 28px;
+    transform: none;
+  }
 }
 .gagos-focus-toggle {
   min-height: 44px;
@@ -1663,5 +1737,52 @@
   .approval-panel--guided .approval-human-facts > div {
     grid-template-columns: 1fr;
     gap: 0.18rem;
+  }
+}
+
+/* On a phone in Guided resting mode, the tall onboarding/story rail used to
+   cover the being's lower spine. Keep the composer docked and let its context
+   remain scrollable, but return the excess vertical space to the organism.
+   Work surfaces and the open-keyboard layout keep their dedicated geometry. */
+@media (max-width: 767px) {
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-chat {
+    height: clamp(168px, 26dvh, 210px);
+    max-height: clamp(168px, 26dvh, 210px);
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-welcome {
+    gap: 6px;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-welcome__greeting {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-welcome__eyebrow {
+    display: none;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starters--paths {
+    gap: 5px;
+    margin-top: 5px;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starter--path {
+    min-height: 44px;
+    padding: 7px 10px;
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starter--featured {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(123, 245, 251, 0.08);
+    border-color: rgba(123, 245, 251, 0.38);
+  }
+
+  .lm-app[data-experience-mode="beginner"][data-working="false"]:not([data-keyboard-open="true"]) .gagos-starter--featured .gagos-starter__description {
+    display: none;
   }
 }

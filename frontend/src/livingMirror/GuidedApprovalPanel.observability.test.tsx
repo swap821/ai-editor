@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import GuidedApprovalPanel from './GuidedApprovalPanel';
+import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
 
 const recordFrontendMetric = vi.hoisted(() => vi.fn());
 const approvePendingApproval = vi.hoisted(() => vi.fn());
@@ -50,7 +51,7 @@ describe('GuidedApprovalPanel observability', () => {
   it('keeps keyboard focus inside the approval boundary', async () => {
     render(<GuidedApprovalPanel pending={pending} onSettled={() => {}} />);
     const dialog = screen.getByRole('alertdialog', { name: 'GAGOS permission request' });
-    const explain = screen.getByText('Explain');
+    const readingRegion = screen.getByRole('region', { name: 'Permission request details' });
     const allow = screen.getByRole('button', { name: 'Allow once' });
     const deny = screen.getByRole('button', { name: "Don't allow" });
 
@@ -58,11 +59,24 @@ describe('GuidedApprovalPanel observability', () => {
 
     deny.focus();
     fireEvent.keyDown(dialog, { key: 'Tab' });
-    expect(explain).toHaveFocus();
+    expect(readingRegion).toHaveFocus();
 
-    explain.focus();
+    readingRegion.focus();
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
     expect(deny).toHaveFocus();
+  });
+
+  it.each([
+    { mode: 'Guided', Component: GuidedApprovalPanel, name: 'Permission request details', action: 'Allow once' },
+    { mode: 'Expert', Component: ApprovalPanel, name: 'Approval request details', action: 'AUTHORIZE' },
+  ])('$mode keeps the full proposal in a keyboard reading region separate from its decision actions', ({ Component, name, action }) => {
+    render(<Component pending={pending} onSettled={() => {}} />);
+    const readingRegion = screen.getByRole('region', { name });
+    expect(readingRegion).toHaveAttribute('tabindex', '0');
+    expect(readingRegion).toContainElement(screen.getByText(pending.explanation));
+    expect(readingRegion).toContainElement(document.querySelector('.approval-diff'));
+    expect(readingRegion).not.toContainElement(screen.getByRole('button', { name: action }));
+    expect(readingRegion).not.toContainElement(document.querySelector('.approval-head'));
   });
 
   it('reports a replay pause without presenting the first step as completed', async () => {

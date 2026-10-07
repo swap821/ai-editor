@@ -1,0 +1,377 @@
+{
+  "formatVersion": 2,
+  "capturedDate": "2026-10-07",
+  "purpose": "All current Codex branch tips and dirty-worktree source drafts re-audited for operator's nothing-left shipping request; alternatives are preserved, not activated or accepted.",
+  "incomingMaster": "126168b2ff0f50fb41c4cc11dd5f92aaf615bd98",
+  "prePublicationBranchHead": "99b88359e2e9fdcdf6f23e1bcb2a6642f20ea91a",
+  "archives": [
+    {
+      "name": "next-slice",
+      "file": "next-slice.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-next-slice-20260926/ai-editor",
+      "baseCommit": "2a63800cba24f56bae257617f0bb1bc0acb73eaa",
+      "diffHeaders": 17,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "nextgen",
+      "file": "nextgen.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-nextgen-20260929/ai-editor",
+      "baseCommit": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "diffHeaders": 23,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "p3-vertical",
+      "file": "p3-vertical.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-p3-vertical-20260929/ai-editor",
+      "baseCommit": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "diffHeaders": 14,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "mobile-presence",
+      "file": "mobile-presence.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-mobile-presence-20260928/ai-editor",
+      "baseCommit": "210e56e611516aca610ed711b791c2f2e9cf25c7",
+      "diffHeaders": 27,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "nextphase",
+      "file": "nextphase.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-nextphase-20260929/ai-editor",
+      "baseCommit": "8472b54b5726d8ea27fda436bfbfd43ce6049cab",
+      "diffHeaders": 5,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "vision",
+      "file": "vision.patch.json",
+      "sourceWorktree": "C:/Users/kumar/gagos-living-being-vision-20260925",
+      "baseCommit": "7e0f8b9c60dbb612c42bcd7e8fae43fa5811c0ce",
+      "diffHeaders": 33,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "vision-continuation",
+      "file": "vision-continuation.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-vision-continuation-20260926/ai-editor",
+      "baseCommit": "afac5cfa08a5882eb9338b9af3b8b85ae65c2892",
+      "diffHeaders": 2,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "v2",
+      "file": "v2.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-v2/ai-editor",
+      "baseCommit": "975b9fb9119f20824ad0414b4ba05a7186636c32",
+      "diffHeaders": 2,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "blueprint",
+      "file": "blueprint.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/living-being-blueprint/ai-editor",
+      "baseCommit": "4782cfa356ad23015bf090f7a671b74967a373f8",
+      "diffHeaders": 7,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "mirror-pr",
+      "file": "mirror-pr.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-frontend-living-mirror-pr",
+      "baseCommit": "6ff5410b2b39a264a597eb2d4df6cc4f480bbb4a",
+      "diffHeaders": 3,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "reference-lab",
+      "file": "reference-lab.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-lab-living-20260930",
+      "baseCommit": "e18bda54baf987cececf40b03432d178c1e15c3f",
+      "diffHeaders": 8,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
+    },
+    {
+      "name": "historical-mirror",
+      "file": "historical-mirror.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-frontend-living-mirror",
+      "baseCommit": "11b56bf7d6445d8fd9a9ee88393d31df4fbc9048",
+      "diffHeaders": 116,
+      "status": "historical draft; not integrated or accepted",
+      "attribution": "Mixed historical snapshot: underlying Claude history and later shared frontend drafts; not exclusively Codex-authored."
+    },
+    {
+      "name": "v1-review-findings",
+      "file": "v1-review-findings.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-v1-review-findings",
+      "baseCommit": "574aec0f2270a22c35ff0547b61ae75b2bbbae92",
+      "diffHeaders": 5,
+      "status": "Historical V1 draft, including ignored author progress; preserved but not integrated.",
+      "attribution": "Historical Codex-associated source; actual commit authorship retained."
+    }
+  ],
+  "selectedLocalRefs": [
+    {
+      "ref": "refs/heads/codex/authenticated-mirror-continuity",
+      "commit": "68f44fd2b4d4c4a03e93b7f7433fcccafc8b2d39"
+    },
+    {
+      "ref": "refs/heads/codex/backend-evidence-refresh",
+      "commit": "963e7293f89d5e60bad947fcaa5bb130ce631584"
+    },
+    {
+      "ref": "refs/heads/codex/fix-full-suite-memory-error",
+      "commit": "3fb4cb0482252ed90d94b7f23c538934cd8e59c0"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-2030-v1",
+      "commit": "41f2e5a958ada37bb068921f73b94573c2e1b996"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-living-mirror-pr",
+      "commit": "6ff5410b2b39a264a597eb2d4df6cc4f480bbb4a"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-physical-embodiment",
+      "commit": "fd6c464c8468c03748235ea2d49d004ac69f92d6"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-v1-closure",
+      "commit": "6af2dca453424a07c0c3cbe562bcf0f034cb55e6"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-frontend-20260927",
+      "commit": "e63f3bac6e2c592a2bb6c250c38e88f371e1ad83"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-full-20260928",
+      "commit": "0634af800a0456ac1372a0c4025067419d6cbcab"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-journey-20260929",
+      "commit": "3970d6c4217dc6ea65027306080028ac599d9718"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-organism-20260929",
+      "commit": "07a0204358572e3eb7efd0c8cf22fea219cd15d1"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-work-20260928",
+      "commit": "f27c5995336b337ebfdd36e32ab16ff1cb0ea40b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-lb-20260929",
+      "commit": "56f3cd7019f23b35e3f364d0748c81812f88c95b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-next-visible",
+      "commit": "9de1faeb62f0d578fa0eb8ddc2e266472d3e07d7"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-next-visible-premerge",
+      "commit": "5f0ebf3b17233260cc9affb79425c47d8d7d0deb"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-slice-20260926",
+      "commit": "8fa933ab9c54a8695ae890f5dafbd1ad12b8ffa0"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-file-draft-continuity",
+      "commit": "c635dabfe65cfe7e82c15a7fe07328bc71e6b38f"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-guided-file-draft-return-20260927",
+      "commit": "f27c5995336b337ebfdd36e32ab16ff1cb0ea40b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-landscape-composer-20260927",
+      "commit": "e63f3bac6e2c592a2bb6c250c38e88f371e1ad83"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb02-audit-20260926",
+      "commit": "8fa933ab9c54a8695ae890f5dafbd1ad12b8ffa0"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb03-evidence",
+      "commit": "ef8414cd08897f53b5ce522e8beab7c09edf7c7c"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb03-local-baseline-20260925",
+      "commit": "1f32a1249c0c2fa299400482b47dcdc95206fae8"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb04-a-docked-plane-20260925",
+      "commit": "9b242ed496318298661ae10f2be0ea9be5520dc3"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb05-parity",
+      "commit": "03bedee9d11100a3ba99c17b9eb3cc88b916d406"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb06-attention-20260925",
+      "commit": "a53e9f6d7c9c4e64386e8bbe40f2aa5c967d647d"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb08-file-continuity-20260927",
+      "commit": "6e0f6eb1b62c72096c11b161bffbb53092664495"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-c-identity-20260925",
+      "commit": "4d89d54d67f62146d538de2f304c8efb5f7a875f"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-continuation-20260924",
+      "commit": "e729f79e9d83b7e35b6655ecf317f462e6f96622"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-current-master-20260926",
+      "commit": "2a63800cba24f56bae257617f0bb1bc0acb73eaa"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-execution",
+      "commit": "10194b4dcff94d1b552bb9b2238766d23693002e"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-implementation-20260927",
+      "commit": "ac2bf2fc977b304731f8e11f1e4055a7122ece73"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-keyboard-safe",
+      "commit": "764fa5c53b7dd4b987f48f87f5f23a30825d67e2"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-lb01-source-restore",
+      "commit": "92e81b4e62219aa0a8fcae7a900d206894ccb30a"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-lb02-acceptance-audit",
+      "commit": "92e81b4e62219aa0a8fcae7a900d206894ccb30a"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-lb06-revival",
+      "commit": "d1ea3df783831c3f962d0e1e43ca450b348ea3b3"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-20260924",
+      "commit": "7beef139fa163ec1eb0084052016cd4388f49af0"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-20260925",
+      "commit": "67dc4bc7bfcbd87be84bb8df5c9914feae91a4a7"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-continuation-20260925",
+      "commit": "f3477170b6d512adc49cdc230500ceec410f9d80"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-fresh-20260925",
+      "commit": "9e94820bb22358f6250bbed6a176aedcd5a1e34b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-next-slice-20260926",
+      "commit": "24c7b9715c797aeac805586fab646456fa7de83b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-nextgen-20260929",
+      "commit": "56f3cd7019f23b35e3f364d0748c81812f88c95b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-run-20260930",
+      "commit": "72f18b238d684144b8158adae1e381102e7a284c"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-v2",
+      "commit": "975b9fb9119f20824ad0414b4ba05a7186636c32"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-vertical-slice",
+      "commit": "64f3e4fbf6681ff1a09c02f8cbbd7d8b9f0d2fa7"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-vision-20260925",
+      "commit": "7e0f8b9c60dbb612c42bcd7e8fae43fa5811c0ce"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-vision-continuation-20260926",
+      "commit": "afac5cfa08a5882eb9338b9af3b8b85ae65c2892"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-nextphase-20260929",
+      "commit": "8472b54b5726d8ea27fda436bfbfd43ce6049cab"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-p3-vertical-20260929",
+      "commit": "56f3cd7019f23b35e3f364d0748c81812f88c95b"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-mobile-presence-20260928",
+      "commit": "210e56e611516aca610ed711b791c2f2e9cf25c7"
+    },
+    {
+      "ref": "refs/heads/codex/living-being-blueprint",
+      "commit": "4782cfa356ad23015bf090f7a671b74967a373f8"
+    },
+    {
+      "ref": "refs/heads/codex/v1-frontend-semantic-foundation",
+      "commit": "329528655a77de466cc8ed1bd4fe1e214b16125a"
+    },
+    {
+      "ref": "refs/heads/codex/v1-review-findings",
+      "commit": "574aec0f2270a22c35ff0547b61ae75b2bbbae92"
+    }
+  ],
+  "gitBundle": "codex-history.bundle",
+  "bundleScope": "Selected Codex frontend refs, excluding only origin/master. Preserves 101 branch commits beyond master, including 33 beyond all current remotes and already-published branch history; authorship remains with actual contributors. All prerequisites are on the recorded master history, so recovery does not depend on undeleted old remote branches.",
+  "bundleCommitCountBeyondMaster": 101,
+  "bundleRefCount": 31,
+  "bundleBytes": 416505,
+  "bundlePrerequisites": [
+    "eeaa9a9ff736d9fa2737bf209965bf2cacea836c",
+    "13afb3c5d0600aa590e2e6019b81eeaed67a1abf",
+    "1e29bae7cdc5b900246362bdb40c2cb7f30da441",
+    "4782cfa356ad23015bf090f7a671b74967a373f8",
+    "1f0dd06e556066f7d9b5869c7e44dbc8a43c8e55",
+    "0740f294e512ab682e48d47a50f44ad3dedfedff",
+    "8fa933ab9c54a8695ae890f5dafbd1ad12b8ffa0",
+    "553c97ddafd58be5dfaa1111e4af9b5634292035",
+    "701dda4637dab92f568b040cf949ec82d7b4865d",
+    "210e56e611516aca610ed711b791c2f2e9cf25c7",
+    "7bfbbad2e3c36d0dc54a176c82dc16b133a14617",
+    "b3db611cc335f3affbdff7077a8c32f07c4f3f48",
+    "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+    "cfdf2691d048b6d2d8b846ef9b81606129257575"
+  ],
+  "supplementalGitBundle": {
+    "file": "codex-other-history.bundle",
+    "commitCountBeyondMaster": 29,
+    "refCount": 7,
+    "bytes": 74769,
+    "sha256": "6B5D77F1033F57C509F06C69E685D7EE7BDA0C6D3BB3DD51365BE7A6E8CCF143",
+    "prerequisites": [
+      "1d9c4556894eb90ee28be3d74f9f2a28fe05f66a",
+      "c52f621f211d52b21a40b094a6b6a4d59698ad38",
+      "ba5d433a4f074cbfab1c83b1740c4dbcd72139ee",
+      "86fc6bc49e3f53d121fd1f368e5d225c87625c01",
+      "96a3eed5000ac677dd8f903d408a843b363800dc",
+      "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
+      "13afb3c5d0600aa590e2e6019b81eeaed67a1abf",
+      "b9e9a39934304bba33a4188034ab05d29770dcb7",
+      "3394f1da16184c1fcbd649ac564714463c366a91"
+    ],
+    "scope": "The other seven Codex branches. All nine prerequisites are on the recorded master; historical authorship retained. Counts overlap the original bundle and must not be added as unique work."
+  },
+  "completenessAudit": "completeness-audit.json"
+}

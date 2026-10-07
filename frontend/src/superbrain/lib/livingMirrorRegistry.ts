@@ -30,6 +30,7 @@ export interface MirrorEventEnvelope {
 
 type ReactionSpec = {
   requiredFields?: readonly string[];
+  validPayload?: (payload: Record<string, unknown>) => boolean;
   announcement?: (payload: Record<string, unknown>) => string;
   react?: (event: MirrorEventEnvelope) => void;
   operational?: boolean;
@@ -297,9 +298,9 @@ const core: Record<string, ReactionSpec> = {
   'verify_result': {
     requiredFields: ['verdict'],
     announcement: (p) => `Verification ${text(p, 'verdict')}.`,
-    react: ({ payload }) => {
+    react: ({ id, payload }) => {
       const verdict = text(payload, 'verdict').toLowerCase();
-      publish({ type: 'verify', label: verdict === 'pass' ? 'VERIFY PASS' : 'VERIFY FAIL', detail: text(payload, 'target'), intensity: verdict === 'pass' ? 0.75 : 0.95, source: 'mirror', data: payload });
+      publish({ type: 'verify', label: verdict === 'pass' ? 'VERIFY PASS' : 'VERIFY FAIL', detail: text(payload, 'target'), intensity: verdict === 'pass' ? 0.75 : 0.95, source: 'mirror', data: payload, metadata: { mirrorEventId: id } });
     },
   },
   // NO KNOWN BACKEND EMITTER for either of the two dotted verification rows
@@ -313,11 +314,11 @@ const core: Record<string, ReactionSpec> = {
   // reaches them in production.
   'verification.passed': {
     announcement: () => 'Verification passed; evidence is available.',
-    react: ({ payload }) => publish({ type: 'verify', label: 'VERIFY PASS', detail: text(payload, 'target'), intensity: 0.75, source: 'mirror', data: payload }),
+    react: ({ id, payload }) => publish({ type: 'verify', label: 'VERIFY PASS', detail: text(payload, 'target'), intensity: 0.75, source: 'mirror', data: payload, metadata: { mirrorEventId: id } }),
   },
   'verification.failed': {
     announcement: () => 'Verification failed; promotion is guarded.',
-    react: ({ payload }) => publish({ type: 'verify', label: 'VERIFY FAIL', detail: text(payload, 'target'), intensity: 0.95, source: 'mirror', data: payload }),
+    react: ({ id, payload }) => publish({ type: 'verify', label: 'VERIFY FAIL', detail: text(payload, 'target'), intensity: 0.95, source: 'mirror', data: payload, metadata: { mirrorEventId: id } }),
   },
   'earned_autonomy': {
     announcement: () => 'A previously verified action class was reused.',
@@ -364,8 +365,15 @@ const core: Record<string, ReactionSpec> = {
     },
   },
   'code': {
+    requiredFields: ['code'],
+    validPayload: (p) => typeof p.code === 'string' && Boolean(p.code.trim()),
     announcement: (p) => `Code emitted: ${text(p, 'language') || 'text'}.`,
-    react: ({ payload }) => publish({ type: 'knowledge-acquired', label: 'CODE EMITTED', detail: `${text(payload, 'language') || 'text'} · ${text(payload, 'code').split('\n').length} line(s)`, intensity: 0.7, source: 'mirror' }),
+    react: ({ id, payload }) => publish({ type: 'knowledge-acquired', label: 'CODE EMITTED', detail: `${text(payload, 'language') || 'text'} · ${text(payload, 'code').split('\n').length} line(s)`, intensity: 0.7, source: 'mirror', data: {
+      code: payload.code,
+      language: typeof payload.language === 'string' ? payload.language : 'text',
+      filepath: typeof payload.filepath === 'string' ? payload.filepath : '',
+      eventCursor: id,
+    } }),
   },
   'alignment': {
     react: ({ payload }) => {
@@ -412,7 +420,7 @@ export class LivingMirrorAuthority {
       useMirrorStore.getState().setAnnouncement(`Unsupported event schema: ${String(schemaVersion)}`);
       return true;
     }
-    if (!required(spec.requiredFields, event.payload)) {
+    if (!required(spec.requiredFields, event.payload) || (spec.validPayload && !spec.validPayload(event.payload))) {
       useMirrorStore.getState().setAnnouncement('Incomplete backend event ignored.');
       return true;
     }

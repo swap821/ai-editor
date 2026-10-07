@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Approval layout — actual markup / production CSS</title>
+  <link rel="stylesheet" href="../../src/styles/tokens.css">
+  <link rel="stylesheet" href="../../src/superbrain/superbrain.css">
+  <link rel="stylesheet" href="../../src/workbench/GagosChrome.css">
+  <link rel="stylesheet" href="../../src/livingMirror/livingMirror.css">
+  <style>body { margin: 0; } .fixture-result { position: fixed; top: 0; left: 0; z-index: 100; font-size: 12px; background: #000; color: #fff; }</style>
+</head>
+<body>
+  <!-- Production CSS + private dock tracker. No React, organism, transport,
+       backend, real status or commands. All buttons except details are inert. -->
+  <main class="lm-app" data-working="true" data-experience-mode="expert" data-being-focus="false">
+    <div class="lm-scene" aria-hidden="true"></div>
+    <div class="lm-shell" data-experience-mode="expert">
+      <header class="lm-header">
+        <div class="lm-brand"><h1>GAGOS</h1></div>
+        <aside class="lm-stop" aria-label="Fixture emergency controls"><button type="button">Emergency stop</button><button type="button">Details</button></aside>
+      </header>
+      <aside class="lm-workspace-rail" aria-label="Fixture workspace switcher">
+        <button type="button" aria-current="true">Recent observations</button>
+        <button type="button">Project files</button>
+        <button type="button">Experience</button>
+        <button type="button">Missions</button>
+        <button type="button">All 4 workspaces</button>
+      </aside>
+      <section class="lm-surface" aria-label="Selected workspace">
+        <header class="lm-surface__header">
+          <h2 tabindex="-1">/workspace/a-long-selected-file-with-readable-persistent-content.integration.test.tsx</h2>
+          <button type="button" aria-label="Collapse workspace">Collapse</button>
+          <button type="button">Pin</button>
+          <button type="button" aria-label="Close workspace">Close</button>
+        </header>
+        <div class="lm-surface__content"><div class="lm-surface__body" tabindex="0">
+          <p>First readable work line. Fixture only, not a task receipt.</p>
+          <p>The same work and input nodes must remain through responsive layout changes.</p>
+        </div></div>
+      </section>
+      <aside class="lm-connection" data-details-open="true" aria-label="Fixture connection band">
+        <span class="lm-connection__signal" aria-hidden="true"></span>
+        <div class="lm-connection__message">
+          <strong>CSS fixture; no operational picture</strong>
+          <details class="lm-connection__details" open>
+            <summary>More connection details</summary>
+            <div class="lm-connection__detail-content">
+              <span>Long unavailable/stale explanation stress content. This is not a live connection.</span>
+              <span class="lm-connection__technical">transport unavailable; projection unavailable; cursor unavailable</span>
+              <span class="lm-connection__snapshot">Long diagnostic detail must scroll inside its own band rather than obscure retained work or intake.</span>
+            </div>
+          </details>
+        </div>
+        <div class="lm-connection__actions"><button type="button">Try again</button></div>
+      </aside>
+    </div>
+    <div class="gagos-chrome">
+      <aside class="gagos-status" aria-label="Fixture status"><span class="gagos-pill">offline</span><span class="gagos-pill">supervised</span></aside>
+      <section class="gagos-chat" aria-label="Fixture composer">
+        <div class="gagos-chat__context"><p>Optional context scrolls; all content is a CSS fixture.</p><p>Additional context cannot cover the workspace or the organism's pane.</p></div>
+        <div class="gagos-bar">
+          <input class="gagos-input" aria-label="Fixture draft" placeholder="Unsent CSS fixture draft">
+          <div class="gagos-bar__accessories"><button class="gagos-btn" type="button">Voice</button><button class="gagos-btn" type="button">EN</button></div>
+          <button class="gagos-send" type="button" disabled>Send</button>
+        </div>
+      </section>
+    </div>
+  </main>
+  <output class="fixture-result" aria-label="Active layout regression result">Checking production CSS; no live or device evidence.</output>
+  <script type="module" src="./approval-layout-check.jsx"></script>
+</body>
+</html>

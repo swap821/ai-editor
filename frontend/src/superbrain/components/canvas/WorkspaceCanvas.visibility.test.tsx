@@ -35,14 +35,20 @@ vi.mock('@react-three/fiber', async () => {
       return React.createElement('div', { 'data-testid': 'scene-canvas' }, canvasChildren);
     },
     useFrame: () => {},
+    addEffect: () => () => {},
+    addAfterEffect: () => () => {},
     useThree: (select: (state: {
       clock: typeof renderer.clock;
       frameloop: 'always' | 'demand' | 'never';
       setFrameloop: typeof renderer.setFrameLoop;
+      get: () => { frameloop: 'always' | 'demand' | 'never'; internal: { frames: number } };
+      size: { width: number; height: number; left: number; top: number };
     }) => unknown) => select({
       clock: renderer.clock,
       frameloop: renderer.getFrameLoop(),
       setFrameloop: renderer.setFrameLoop,
+      get: () => ({ frameloop: renderer.getFrameLoop(), internal: { frames: 0 } }),
+      size: { width: 500, height: 500, left: 0, top: 0 },
     }),
   };
 });
@@ -66,7 +72,7 @@ vi.mock('./WebGLErrorBoundary', async () => {
 });
 vi.mock('@/lib/aiosAdapter', () => ({ startAiosPolling: () => () => {} }));
 vi.mock('@/lib/cognitionBus', () => ({ subscribeCognition: () => () => {} }));
-vi.mock('@/lib/lifecycleStateMachine', () => ({ notifyDirective: () => {}, tickLifecycle: () => {} }));
+vi.mock('@/lib/lifecycleStateMachine', () => ({ notifyDirective: () => {}, tickLifecycle: () => {}, subscribeLifecycle: () => () => {} }));
 
 import WorkspaceCanvas from './WorkspaceCanvas';
 

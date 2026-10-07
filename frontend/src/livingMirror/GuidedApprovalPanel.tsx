@@ -13,6 +13,8 @@ import {
   approvePendingApproval,
   rejectPendingApproval,
   type PendingApproval,
+  type DirectiveResult,
+  type DirectiveReplayOptions,
 } from '@/lib/aiosAdapter';
 import { recordFrontendMetric } from './observability/frontendMetrics';
 import { measuredLatency } from './observability/latency';
@@ -77,6 +79,9 @@ export interface GuidedApprovalOutcome {
   succeeded: boolean;
   /** The replay reached another real approval boundary before completing. */
   paused: boolean;
+  emittedCode?: DirectiveResult['emittedCode'];
+  /** Request-owned text may carry the artifact when no code frame was sent. */
+  answer?: DirectiveResult['answer'];
 }
 
 function actionLabel(pending: PendingApproval): string {
@@ -108,9 +113,13 @@ function impactLabel(pending: PendingApproval): string {
 export function GuidedApprovalPanel({
   pending,
   onSettled,
+  onReplayStarted,
+  onRejectStarted,
 }: {
   pending: PendingApproval;
   onSettled: (outcome?: GuidedApprovalOutcome) => void;
+  onReplayStarted?: () => DirectiveReplayOptions;
+  onRejectStarted?: () => void;
 }) {
   const [busy, setBusy] = useState<'authorize' | 'reject' | null>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -140,7 +149,7 @@ export function GuidedApprovalPanel({
     const panel = panelRef.current;
     if (!panel) return;
     const focusable = Array.from(panel.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), summary, a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+      'button:not([disabled]), summary, a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
     )).filter((element) => element.getAttribute('aria-hidden') !== 'true');
     if (focusable.length === 0) {
       event.preventDefault();
@@ -163,9 +172,13 @@ export function GuidedApprovalPanel({
     void (async () => {
       let succeeded = false;
       let paused = false;
+      let emittedCode: DirectiveResult['emittedCode'];
+      let answer = '';
       try {
-        const result = await approvePendingApproval();
+        const result = await approvePendingApproval({ ...onReplayStarted?.(), expectedToken: pending.token });
         paused = result.paused;
+        emittedCode = result.emittedCode;
+        answer = result.answer;
         // `ok` also covers a legitimate human_required pause. That is not a
         // completed result: the next server-issued boundary must remain the
         // visible state until it is resolved.
@@ -182,17 +195,20 @@ export function GuidedApprovalPanel({
           diff: pending.diff,
           succeeded,
           paused,
+          ...(emittedCode ? { emittedCode } : {}),
+          ...(answer ? { answer } : {}),
         });
       }
     })();
-  }, [onSettled, pending.kind, pending.filepath, pending.content, pending.diff]);
+  }, [onSettled, onReplayStarted, pending.token, pending.kind, pending.filepath, pending.content, pending.diff]);
 
   const reject = useCallback(() => {
     setBusy('reject');
     void (async () => {
       let succeeded = false;
       try {
-        const result = await rejectPendingApproval();
+        onRejectStarted?.();
+        const result = await rejectPendingApproval(pending.token);
         succeeded = result.confirmed;
       } catch {
         succeeded = false;
@@ -209,7 +225,7 @@ export function GuidedApprovalPanel({
         });
       }
     })();
-  }, [onSettled, pending.kind, pending.filepath, pending.content, pending.diff]);
+  }, [onSettled, onRejectStarted, pending.token, pending.kind, pending.filepath, pending.content, pending.diff]);
 
   return (
     <section
@@ -228,25 +244,27 @@ export function GuidedApprovalPanel({
         </span>
       </header>
 
-      <dl className="approval-human-facts" aria-label="Permission details">
-        <div><dt>What</dt><dd>{actionLabel(pending)}</dd></div>
-        <div><dt>Where</dt><dd>{pending.filepath || pending.url || 'No specific location is included in this approval record.'}</dd></div>
-        <div id="guided-approval-impact"><dt>It can affect</dt><dd>{impactLabel(pending)}</dd></div>
-        <div id="guided-approval-denial"><dt>If you say no</dt><dd>GAGOS will not perform this action.</dd></div>
-      </dl>
+      <div className="approval-body" role="region" aria-label="Permission request details" tabIndex={0}>
+        <dl className="approval-human-facts" aria-label="Permission details">
+          <div><dt>What</dt><dd>{actionLabel(pending)}</dd></div>
+          <div><dt>Where</dt><dd>{pending.filepath || pending.url || 'No specific location is included in this approval record.'}</dd></div>
+          <div id="guided-approval-impact"><dt>It can affect</dt><dd>{impactLabel(pending)}</dd></div>
+          <div id="guided-approval-denial"><dt>If you say no</dt><dd>GAGOS will not perform this action.</dd></div>
+        </dl>
 
-      <details className="approval-evidence">
-        <summary>Explain</summary>
-        {pending.summary ? <p className="approval-explanation">{pending.summary}</p> : null}
-        {pending.explanation ? <p className="approval-explanation">{pending.explanation}</p> : null}
-        {pending.kind === 'browse' && pending.url ? (
-          <BrowseView url={pending.url} explanation={pending.explanation} />
-        ) : pending.diff ? (
-          <DiffView diff={pending.diff} />
-        ) : pending.command ? (
-          <pre className="approval-diff approval-command">{pending.command}</pre>
-        ) : null}
-      </details>
+        <details className="approval-evidence">
+          <summary>Explain</summary>
+          {pending.summary ? <p className="approval-explanation">{pending.summary}</p> : null}
+          {pending.explanation ? <p className="approval-explanation">{pending.explanation}</p> : null}
+          {pending.kind === 'browse' && pending.url ? (
+            <BrowseView url={pending.url} explanation={pending.explanation} />
+          ) : pending.diff ? (
+            <DiffView diff={pending.diff} />
+          ) : pending.command ? (
+            <pre className="approval-diff approval-command">{pending.command}</pre>
+          ) : null}
+        </details>
+      </div>
 
       <div className="approval-actions">
         <button
