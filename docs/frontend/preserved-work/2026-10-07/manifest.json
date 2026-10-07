@@ -1,7 +1,7 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "capturedDate": "2026-10-07",
-  "purpose": "Preserve reviewed inventory's otherwise unpublished history and unfinished drafts; no product acceptance credit.",
+  "purpose": "All current Codex branch tips and dirty-worktree source drafts re-audited for operator's nothing-left shipping request; alternatives are preserved, not activated or accepted.",
   "incomingMaster": "126168b2ff0f50fb41c4cc11dd5f92aaf615bd98",
   "prePublicationBranchHead": "99b88359e2e9fdcdf6f23e1bcb2a6642f20ea91a",
   "archives": [
@@ -10,7 +10,7 @@
       "file": "next-slice.patch.json",
       "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-next-slice-20260926/ai-editor",
       "baseCommit": "2a63800cba24f56bae257617f0bb1bc0acb73eaa",
-      "diffHeaders": 15,
+      "diffHeaders": 17,
       "status": "historical draft; not integrated or accepted",
       "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
     },
@@ -55,7 +55,7 @@
       "file": "vision.patch.json",
       "sourceWorktree": "C:/Users/kumar/gagos-living-being-vision-20260925",
       "baseCommit": "7e0f8b9c60dbb612c42bcd7e8fae43fa5811c0ce",
-      "diffHeaders": 32,
+      "diffHeaders": 33,
       "status": "historical draft; not integrated or accepted",
       "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
     },
@@ -82,7 +82,7 @@
       "file": "blueprint.patch.json",
       "sourceWorktree": "C:/Users/kumar/.codex/worktrees/living-being-blueprint/ai-editor",
       "baseCommit": "4782cfa356ad23015bf090f7a671b74967a373f8",
-      "diffHeaders": 6,
+      "diffHeaders": 7,
       "status": "historical draft; not integrated or accepted",
       "attribution": "Historical frontend draft; consult source commit authors and notes, not folder identity."
     },
@@ -112,6 +112,15 @@
       "diffHeaders": 116,
       "status": "historical draft; not integrated or accepted",
       "attribution": "Mixed historical snapshot: underlying Claude history and later shared frontend drafts; not exclusively Codex-authored."
+    },
+    {
+      "name": "v1-review-findings",
+      "file": "v1-review-findings.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-v1-review-findings",
+      "baseCommit": "574aec0f2270a22c35ff0547b61ae75b2bbbae92",
+      "diffHeaders": 5,
+      "status": "Historical V1 draft, including ignored author progress; preserved but not integrated.",
+      "attribution": "Historical Codex-associated source; actual commit authorship retained."
     }
   ],
   "selectedLocalRefs": [
@@ -120,8 +129,28 @@
       "commit": "68f44fd2b4d4c4a03e93b7f7433fcccafc8b2d39"
     },
     {
+      "ref": "refs/heads/codex/backend-evidence-refresh",
+      "commit": "963e7293f89d5e60bad947fcaa5bb130ce631584"
+    },
+    {
+      "ref": "refs/heads/codex/fix-full-suite-memory-error",
+      "commit": "3fb4cb0482252ed90d94b7f23c538934cd8e59c0"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-2030-v1",
+      "commit": "41f2e5a958ada37bb068921f73b94573c2e1b996"
+    },
+    {
       "ref": "refs/heads/codex/frontend-living-mirror-pr",
       "commit": "6ff5410b2b39a264a597eb2d4df6cc4f480bbb4a"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-physical-embodiment",
+      "commit": "fd6c464c8468c03748235ea2d49d004ac69f92d6"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-v1-closure",
+      "commit": "6af2dca453424a07c0c3cbe562bcf0f034cb55e6"
     },
     {
       "ref": "refs/heads/codex/gagos-2030-frontend-20260927",
@@ -261,7 +290,7 @@
     },
     {
       "ref": "refs/heads/codex/gagos-living-being-run-20260930",
-      "commit": "99b88359e2e9fdcdf6f23e1bcb2a6642f20ea91a"
+      "commit": "72f18b238d684144b8158adae1e381102e7a284c"
     },
     {
       "ref": "refs/heads/codex/gagos-living-being-v2",
@@ -294,6 +323,14 @@
     {
       "ref": "refs/heads/codex/living-being-blueprint",
       "commit": "4782cfa356ad23015bf090f7a671b74967a373f8"
+    },
+    {
+      "ref": "refs/heads/codex/v1-frontend-semantic-foundation",
+      "commit": "329528655a77de466cc8ed1bd4fe1e214b16125a"
+    },
+    {
+      "ref": "refs/heads/codex/v1-review-findings",
+      "commit": "574aec0f2270a22c35ff0547b61ae75b2bbbae92"
     }
   ],
   "gitBundle": "codex-history.bundle",
@@ -316,5 +353,25 @@
     "b3db611cc335f3affbdff7077a8c32f07c4f3f48",
     "56f3cd7019f23b35e3f364d0748c81812f88c95b",
     "cfdf2691d048b6d2d8b846ef9b81606129257575"
-  ]
+  ],
+  "supplementalGitBundle": {
+    "file": "codex-other-history.bundle",
+    "commitCountBeyondMaster": 29,
+    "refCount": 7,
+    "bytes": 74769,
+    "sha256": "6B5D77F1033F57C509F06C69E685D7EE7BDA0C6D3BB3DD51365BE7A6E8CCF143",
+    "prerequisites": [
+      "1d9c4556894eb90ee28be3d74f9f2a28fe05f66a",
+      "c52f621f211d52b21a40b094a6b6a4d59698ad38",
+      "ba5d433a4f074cbfab1c83b1740c4dbcd72139ee",
+      "86fc6bc49e3f53d121fd1f368e5d225c87625c01",
+      "96a3eed5000ac677dd8f903d408a843b363800dc",
+      "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
+      "13afb3c5d0600aa590e2e6019b81eeaed67a1abf",
+      "b9e9a39934304bba33a4188034ab05d29770dcb7",
+      "3394f1da16184c1fcbd649ac564714463c366a91"
+    ],
+    "scope": "The other seven Codex branches. All nine prerequisites are on the recorded master; historical authorship retained. Counts overlap the original bundle and must not be added as unique work."
+  },
+  "completenessAudit": "completeness-audit.json"
 }

@@ -1,0 +1,1059 @@
+{
+  "formatVersion": 1,
+  "capturedDate": "2026-10-07",
+  "publishedImplementationHead": "72f18b238d684144b8158adae1e381102e7a284c",
+  "scope": "Registered Codex branch worktrees, detached PR362 recovery worktree, historical frontend mirror and separate reference lab. Main checkout and unrelated collaborators' work excluded; no original tree changed.",
+  "selectedCodexBranchCount": 52,
+  "refCoverage": [
+    {
+      "ref": "refs/heads/codex/authenticated-mirror-continuity",
+      "commit": "68f44fd2b4d4c4a03e93b7f7433fcccafc8b2d39",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/backend-evidence-refresh",
+      "commit": "963e7293f89d5e60bad947fcaa5bb130ce631584",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/fix-full-suite-memory-error",
+      "commit": "3fb4cb0482252ed90d94b7f23c538934cd8e59c0",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-2030-v1",
+      "commit": "41f2e5a958ada37bb068921f73b94573c2e1b996",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-living-mirror-pr",
+      "commit": "6ff5410b2b39a264a597eb2d4df6cc4f480bbb4a",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-physical-embodiment",
+      "commit": "fd6c464c8468c03748235ea2d49d004ac69f92d6",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/frontend-v1-closure",
+      "commit": "6af2dca453424a07c0c3cbe562bcf0f034cb55e6",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-frontend-20260927",
+      "commit": "e63f3bac6e2c592a2bb6c250c38e88f371e1ad83",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-full-20260928",
+      "commit": "0634af800a0456ac1372a0c4025067419d6cbcab",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-journey-20260929",
+      "commit": "3970d6c4217dc6ea65027306080028ac599d9718",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-organism-20260929",
+      "commit": "07a0204358572e3eb7efd0c8cf22fea219cd15d1",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-2030-work-20260928",
+      "commit": "f27c5995336b337ebfdd36e32ab16ff1cb0ea40b",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-lb-20260929",
+      "commit": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-next-visible",
+      "commit": "9de1faeb62f0d578fa0eb8ddc2e266472d3e07d7",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-next-visible-premerge",
+      "commit": "5f0ebf3b17233260cc9affb79425c47d8d7d0deb",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-being-slice-20260926",
+      "commit": "8fa933ab9c54a8695ae890f5dafbd1ad12b8ffa0",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-file-draft-continuity",
+      "commit": "c635dabfe65cfe7e82c15a7fe07328bc71e6b38f",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-guided-file-draft-return-20260927",
+      "commit": "f27c5995336b337ebfdd36e32ab16ff1cb0ea40b",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-landscape-composer-20260927",
+      "commit": "e63f3bac6e2c592a2bb6c250c38e88f371e1ad83",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb02-audit-20260926",
+      "commit": "8fa933ab9c54a8695ae890f5dafbd1ad12b8ffa0",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb03-evidence",
+      "commit": "ef8414cd08897f53b5ce522e8beab7c09edf7c7c",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb03-local-baseline-20260925",
+      "commit": "1f32a1249c0c2fa299400482b47dcdc95206fae8",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb04-a-docked-plane-20260925",
+      "commit": "9b242ed496318298661ae10f2be0ea9be5520dc3",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb05-parity",
+      "commit": "03bedee9d11100a3ba99c17b9eb3cc88b916d406",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb06-attention-20260925",
+      "commit": "a53e9f6d7c9c4e64386e8bbe40f2aa5c967d647d",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-lb08-file-continuity-20260927",
+      "commit": "6e0f6eb1b62c72096c11b161bffbb53092664495",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-c-identity-20260925",
+      "commit": "4d89d54d67f62146d538de2f304c8efb5f7a875f",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-continuation-20260924",
+      "commit": "e729f79e9d83b7e35b6655ecf317f462e6f96622",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-current-master-20260926",
+      "commit": "2a63800cba24f56bae257617f0bb1bc0acb73eaa",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-execution",
+      "commit": "10194b4dcff94d1b552bb9b2238766d23693002e",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-implementation-20260927",
+      "commit": "ac2bf2fc977b304731f8e11f1e4055a7122ece73",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-keyboard-safe",
+      "commit": "764fa5c53b7dd4b987f48f87f5f23a30825d67e2",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-lb01-source-restore",
+      "commit": "92e81b4e62219aa0a8fcae7a900d206894ccb30a",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-lb02-acceptance-audit",
+      "commit": "92e81b4e62219aa0a8fcae7a900d206894ccb30a",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-lb06-revival",
+      "commit": "d1ea3df783831c3f962d0e1e43ca450b348ea3b3",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-20260924",
+      "commit": "7beef139fa163ec1eb0084052016cd4388f49af0",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-20260925",
+      "commit": "67dc4bc7bfcbd87be84bb8df5c9914feae91a4a7",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-continuation-20260925",
+      "commit": "f3477170b6d512adc49cdc230500ceec410f9d80",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-massive-fresh-20260925",
+      "commit": "9e94820bb22358f6250bbed6a176aedcd5a1e34b",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-next-slice-20260926",
+      "commit": "24c7b9715c797aeac805586fab646456fa7de83b",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-nextgen-20260929",
+      "commit": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-run-20260930",
+      "commit": "72f18b238d684144b8158adae1e381102e7a284c",
+      "coverage": "Direct published PR432 head 72f18b238d684144b8158adae1e381102e7a284c"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-v2",
+      "commit": "975b9fb9119f20824ad0414b4ba05a7186636c32",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-vertical-slice",
+      "commit": "64f3e4fbf6681ff1a09c02f8cbbd7d8b9f0d2fa7",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-vision-20260925",
+      "commit": "7e0f8b9c60dbb612c42bcd7e8fae43fa5811c0ce",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-being-vision-continuation-20260926",
+      "commit": "afac5cfa08a5882eb9338b9af3b8b85ae65c2892",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-nextphase-20260929",
+      "commit": "8472b54b5726d8ea27fda436bfbfd43ce6049cab",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-living-p3-vertical-20260929",
+      "commit": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/gagos-mobile-presence-20260928",
+      "commit": "210e56e611516aca610ed711b791c2f2e9cf25c7",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/living-being-blueprint",
+      "commit": "4782cfa356ad23015bf090f7a671b74967a373f8",
+      "coverage": "Already contained in recorded master"
+    },
+    {
+      "ref": "refs/heads/codex/v1-frontend-semantic-foundation",
+      "commit": "329528655a77de466cc8ed1bd4fe1e214b16125a",
+      "coverage": "Exact branch tip in preservation bundle"
+    },
+    {
+      "ref": "refs/heads/codex/v1-review-findings",
+      "commit": "574aec0f2270a22c35ff0547b61ae75b2bbbae92",
+      "coverage": "Exact branch tip in preservation bundle"
+    }
+  ],
+  "archivedDirtyWorktreeCount": 13,
+  "archiveCoverage": [
+    {
+      "file": "blueprint.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/living-being-blueprint/ai-editor",
+      "diffHeaders": 7,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/state/RESUME.md",
+        "docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        "docs/frontend/LIVING_BEING_RESEARCH_NOTES_2026-09-24.md",
+        "docs/frontend/LUNA_EXECUTION_PACK_2026-09-24.md",
+        ".aios/state/INDEX.md"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "historical-mirror.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-frontend-living-mirror",
+      "diffHeaders": 116,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/state/RESUME.md",
+        "frontend/package.json",
+        "frontend/src/components/HUDPanel.jsx",
+        "frontend/src/main.jsx",
+        "frontend/src/superbrain/SuperbrainApp.jsx",
+        "frontend/src/superbrain/components/canvas/FallbackScene.css",
+        "frontend/src/superbrain/components/canvas/FallbackScene.tsx",
+        "frontend/src/superbrain/components/canvas/MaterializationLayer.tsx",
+        "frontend/src/superbrain/components/canvas/MaterializedTab.tsx",
+        "frontend/src/superbrain/components/canvas/WebGLErrorBoundary.tsx",
+        "frontend/src/superbrain/components/canvas/WorkspaceCanvas.tsx",
+        "frontend/src/superbrain/components/ui/BootSequence.module.css",
+        "frontend/src/superbrain/components/ui/BootSequence.tsx",
+        "frontend/src/superbrain/lib/aiosAdapter.ts",
+        "frontend/src/superbrain/lib/aiosMirror.test.ts",
+        "frontend/src/superbrain/lib/aiosMirror.ts",
+        "frontend/src/superbrain/lib/anatomicalConductor.test.ts",
+        "frontend/src/superbrain/lib/anatomicalRootSystem.test.ts",
+        "frontend/src/superbrain/lib/livingMirrorRegistry.ts",
+        "frontend/src/superbrain/lib/livingOrchestrator.test.ts",
+        "frontend/src/superbrain/lib/mirrorStore.ts",
+        "frontend/src/superbrain/lib/openingMotion.ts",
+        "frontend/src/superbrain/lib/organismLifecycle.test.ts",
+        "frontend/src/superbrain/lib/reducedMotion.ts",
+        "frontend/src/superbrain/lib/swarmHUDStore.ts",
+        "frontend/src/superbrain/lib/tabStore.test.ts",
+        "frontend/src/superbrain/lib/tabStore.ts",
+        "frontend/src/workbench/AlignmentHUD.jsx",
+        "frontend/src/workbench/AlignmentHUD.test.tsx",
+        "frontend/src/workbench/BudgetMicroBar.jsx",
+        "frontend/src/workbench/BudgetMicroBar.test.jsx",
+        "frontend/src/workbench/CouncilDashboard.jsx",
+        "frontend/src/workbench/CouncilDashboard.sovereign.test.tsx",
+        "frontend/src/workbench/CouncilDashboard.test.tsx",
+        "frontend/src/workbench/CouncilDeliberationPanel.jsx",
+        "frontend/src/workbench/CouncilDeliberationPanel.test.jsx",
+        "frontend/src/workbench/CouncilServicesPanel.jsx",
+        "frontend/src/workbench/CouncilServicesPanel.test.tsx",
+        "frontend/src/workbench/EcosystemDashboard.jsx",
+        "frontend/src/workbench/EcosystemDashboard.test.jsx",
+        "frontend/src/workbench/ExecutionDebuggerPanel.jsx",
+        "frontend/src/workbench/ExecutionDebuggerPanel.test.tsx",
+        "frontend/src/workbench/FileTree.jsx",
+        "frontend/src/workbench/GagosChrome.jsx",
+        "frontend/src/workbench/IntelligenceHiringPanel.jsx",
+        "frontend/src/workbench/KnowledgeIngestPanel.jsx",
+        "frontend/src/workbench/KnowledgeIngestPanel.test.tsx",
+        "frontend/src/workbench/LocalWorkforcePanel.jsx",
+        "frontend/src/workbench/MaintenanceCenterPanel.jsx",
+        "frontend/src/workbench/MemoryBrowser.jsx",
+        "frontend/src/workbench/MemoryBrowser.test.jsx",
+        "frontend/src/workbench/MemoryOperationsPanel.jsx",
+        "frontend/src/workbench/MemoryOperationsPanel.test.tsx",
+        "frontend/src/workbench/MissionControlPanel.jsx",
+        "frontend/src/workbench/OperatorProfileCard.jsx",
+        "frontend/src/workbench/OperatorProfileCard.test.tsx",
+        "frontend/src/workbench/PolicyEnforcementHUD.jsx",
+        "frontend/src/workbench/PolicyEnforcementHUD.test.tsx",
+        "frontend/src/workbench/ProductSpaces.css",
+        "frontend/src/workbench/ProductSpaces.jsx",
+        "frontend/src/workbench/ProductSpaces.test.jsx",
+        "frontend/src/workbench/RuntimeSurfaceHUD.jsx",
+        "frontend/src/workbench/RuntimeSurfaceHUD.test.tsx",
+        "frontend/src/workbench/SecurityAuditPanel.jsx",
+        "frontend/src/workbench/SecurityAuditPanel.test.tsx",
+        "frontend/src/workbench/SettingsPanel.jsx",
+        "frontend/src/workbench/SettingsPanel.test.tsx",
+        "frontend/src/workbench/SkillLibraryPanel.jsx",
+        "frontend/src/workbench/SovereignStatePanel.jsx",
+        "frontend/src/workbench/SovereignStatePanel.organ49.test.jsx",
+        "frontend/src/workbench/SovereignStatePanel.organ51.test.jsx",
+        "frontend/src/workbench/SovereigntyControls.jsx",
+        "frontend/src/workbench/SovereigntyControls.test.tsx",
+        "frontend/src/workbench/StigmergyPanel.jsx",
+        "frontend/src/workbench/StigmergyPanel.test.jsx",
+        "frontend/src/workbench/TerminalPanel.jsx",
+        "frontend/src/workbench/TerminalPanel.test.jsx",
+        "frontend/src/workbench/TrustHalo.jsx",
+        "frontend/src/workbench/TrustHalo.test.tsx",
+        "frontend/src/workbench/VultureFeed.jsx",
+        "frontend/src/workbench/VultureFeed.test.jsx",
+        "frontend/src/workbench/hooks/useVoiceInput.js",
+        "frontend/src/workbench/hooks/useWorkMaterialization.js",
+        "frontend/vite.config.js",
+        "docs/frontend/LIVING_MIRROR_RENOVATION.md",
+        "frontend/src/livingMirror/EmergencyControl.test.tsx",
+        "frontend/src/livingMirror/EmergencyControl.tsx",
+        "frontend/src/livingMirror/FileWorkspace.test.tsx",
+        "frontend/src/livingMirror/LivingWorkspaceShell.tsx",
+        "frontend/src/livingMirror/MissionInspector.tsx",
+        "frontend/src/livingMirror/ResourceNotice.tsx",
+        "frontend/src/livingMirror/SkillActions.tsx",
+        "frontend/src/livingMirror/WorkspaceHostContext.ts",
+        "frontend/src/livingMirror/commands.test.ts",
+        "frontend/src/livingMirror/commands.ts",
+        "frontend/src/livingMirror/contracts.test.ts",
+        "frontend/src/livingMirror/contracts.ts",
+        "frontend/src/livingMirror/eventPayload.ts",
+        "frontend/src/livingMirror/livingMirror.css",
+        "frontend/src/livingMirror/recordCollections.ts",
+        "frontend/src/livingMirror/redaction.ts",
+        "frontend/src/livingMirror/resource.ts",
+        "frontend/src/livingMirror/v10Status.ts",
+        "frontend/src/superbrain/components/canvas/WebGLErrorBoundary.test.tsx",
+        "frontend/src/superbrain/lib/livingMirrorRegistry.admission.test.ts",
+        "frontend/src/superbrain/lib/mirrorStore.entities.test.ts",
+        "frontend/src/superbrain/lib/tabStore.attention.test.ts",
+        "frontend/src/workbench/FileTree.regression-1.test.jsx",
+        "frontend/src/workbench/MemoryBrowser.css",
+        "frontend/src/workbench/StigmergyPanel.regression-1.test.jsx",
+        "frontend/src/workbench/TrustHalo.test.jsx",
+        "frontend/superbrain-source.json",
+        "frontend/tools/sync-superbrain.mjs",
+        "frontend/tools/sync-superbrain.test.mjs"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "mirror-pr.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-frontend-living-mirror-pr",
+      "diffHeaders": 3,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/state/RESUME.md"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "mobile-presence.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-mobile-presence-20260928/ai-editor",
+      "diffHeaders": 27,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/memory/warnings.md",
+        ".aios/state/RESUME.md",
+        "docs/frontend/GAGOS_2030_IMPLEMENTATION.md",
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "docs/frontend/LUNA_EXECUTION_PACK_2026-09-24.md",
+        "frontend/src/livingMirror/EmergencyControl.test.tsx",
+        "frontend/src/livingMirror/EmergencyControl.tsx",
+        "frontend/src/livingMirror/MirrorConnectionNotice.test.tsx",
+        "frontend/src/livingMirror/MirrorConnectionNotice.tsx",
+        "frontend/src/livingMirror/MissionInspector.tsx",
+        "frontend/src/livingMirror/livingMirror.css",
+        "frontend/src/superbrain/components/canvas/BrainPointField.tsx",
+        "frontend/src/superbrain/components/canvas/CosmicBackground.tsx",
+        "frontend/src/superbrain/components/canvas/NodeLattice.tsx",
+        "frontend/src/superbrain/core/CortexEngine.tsx",
+        "frontend/src/superbrain/lib/constants.ts",
+        "frontend/superbrain-source.json",
+        "frontend/src/livingMirror/LivingWorkspaceShell.responsiveLayout.test.mjs",
+        "frontend/src/livingMirror/MissionInspector.test.tsx",
+        "frontend/src/livingMirror/being/cosmicFieldProfiles.test.ts",
+        "frontend/src/livingMirror/being/nodeLatticeBrightness.test.ts",
+        "frontend/src/livingMirror/being/pointFieldBloom.test.ts",
+        "frontend/src/livingMirror/being/pointFieldPosture.test.ts",
+        "frontend/src/superbrain/lib/cosmicFieldProfiles.ts",
+        "frontend/src/superbrain/lib/pointFieldPosture.ts"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "next-slice.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-next-slice-20260926/ai-editor",
+      "diffHeaders": 17,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/state/RESUME.md",
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        "frontend/src/livingMirror/FileWorkspace.test.tsx",
+        "frontend/src/livingMirror/LivingWorkspaceShell.tsx",
+        "frontend/src/livingMirror/LivingWorkspaceShell.visibility.test.tsx",
+        "frontend/src/livingMirror/livingMirror.css",
+        "frontend/src/livingMirror/observability/frontendMetrics.test.ts",
+        "frontend/src/livingMirror/observability/frontendMetrics.ts",
+        "frontend/src/main.jsx",
+        "frontend/src/workbench/CodeEditor.jsx",
+        "frontend/src/livingMirror/workspaceFileDrafts.test.ts",
+        "frontend/src/livingMirror/workspaceFileDrafts.ts",
+        "tools/gagos-physical-soak.ps1",
+        "tools/gagos-physical-soak.test.mjs"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "nextgen.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-nextgen-20260929/ai-editor",
+      "diffHeaders": 23,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/memory/warnings.md",
+        ".aios/state/RESUME.md",
+        "docs/frontend/GAGOS_PHYSICAL_EMBODIMENT_IMPLEMENTATION.md",
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "frontend/src/superbrain/components/canvas/BrainPointField.tsx",
+        "frontend/src/superbrain/components/canvas/CosmicBackground.tsx",
+        "frontend/src/superbrain/components/canvas/MaterializationLayer.tsx",
+        "frontend/src/superbrain/components/canvas/SuperbrainScene.LEGACY.tsx",
+        "frontend/src/superbrain/lib/anatomicalConductor.test.ts",
+        "frontend/src/superbrain/lib/anatomicalConductor.ts",
+        "frontend/src/superbrain/lib/bodyPosture.ts",
+        "frontend/src/superbrain/lib/organismCameraFrame.test.ts",
+        "frontend/src/superbrain/lib/organismCameraFrame.ts",
+        "frontend/src/workbench/GagosChrome.jsx",
+        "frontend/src/workbench/GagosChrome.status.test.tsx",
+        "frontend/src/workbench/SuperbrainReactiveEffects.conductor.test.tsx",
+        "frontend/src/workbench/SuperbrainReactiveEffects.jsx",
+        "frontend/superbrain-source.json",
+        "frontend/src/superbrain/components/canvas/WorkerNerveField.tsx",
+        "frontend/src/superbrain/lib/workerNerveLayout.test.ts",
+        "frontend/src/superbrain/lib/workerNerveLayout.ts"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "nextphase.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-nextphase-20260929/ai-editor",
+      "diffHeaders": 5,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/state/RESUME.md",
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "frontend/src/workbench/SuperbrainReactiveEffects.conductor.test.tsx",
+        "frontend/src/workbench/SuperbrainReactiveEffects.jsx"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "p3-vertical.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-p3-vertical-20260929/ai-editor",
+      "diffHeaders": 14,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/memory/warnings.md",
+        ".aios/state/RESUME.md",
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "frontend/src/livingMirror/livingMirror.css",
+        "frontend/src/superbrain/components/canvas/BrainPointField.tsx",
+        "frontend/src/superbrain/components/canvas/SuperbrainScene.LEGACY.tsx",
+        "frontend/src/superbrain/core/CortexEngine.tsx",
+        "frontend/src/superbrain/lib/bodyPosture.test.ts",
+        "frontend/src/superbrain/lib/bodyPosture.ts",
+        "frontend/src/superbrain/lib/pointFieldMaterial.test.ts",
+        "frontend/src/superbrain/lib/pointFieldMaterial.ts",
+        "frontend/superbrain-source.json"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "reference-lab.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-lab-living-20260930",
+      "diffHeaders": 8,
+      "capturedPaths": [
+        "src/app/globals.css",
+        "src/components/canvas/RegionPins.test.tsx",
+        "src/components/canvas/RegionPins.tsx",
+        "src/components/canvas/SuperbrainScene.tsx",
+        "src/components/canvas/WorkspaceCanvas.tsx",
+        "src/lib/bodySpeech.ts",
+        "src/lib/portraitCameraFrame.ts",
+        "src/test/portraitCameraFrame.test.ts"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "v1-review-findings.patch.json",
+      "sourceWorktree": "C:/Users/kumar/ai-editor-v1-review-findings",
+      "diffHeaders": 5,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/state/RESUME.md",
+        "tools/self_corpus.py",
+        ".superpowers/sdd/v1-production-gates-20260921/progress.md"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "v2.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-v2/ai-editor",
+      "diffHeaders": 2,
+      "capturedPaths": [
+        ".aios/memory/mistakes.jsonl",
+        "docs/frontend/LB04_ART_DIRECTION_SHEET_2026-09-24.md"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "vision-continuation.patch.json",
+      "sourceWorktree": "C:/Users/kumar/.codex/worktrees/gagos-living-being-vision-continuation-20260926/ai-editor",
+      "diffHeaders": 2,
+      "capturedPaths": [
+        ".aios/state/RESUME.md",
+        "frontend/src/livingMirror/livingMirror.css"
+      ],
+      "uncapturedSourcePaths": []
+    },
+    {
+      "file": "vision.patch.json",
+      "sourceWorktree": "C:/Users/kumar/gagos-living-being-vision-20260925",
+      "diffHeaders": 33,
+      "capturedPaths": [
+        ".aios/memory/experiences.jsonl",
+        ".aios/memory/mistakes.jsonl",
+        ".aios/state/RESUME.md",
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        "frontend/src/livingMirror/being/PhysicalStateGalleryPage.css",
+        "frontend/src/livingMirror/being/PhysicalStateGalleryPage.tsx",
+        "frontend/src/livingMirror/being/emergencyStopClear.integration.test.ts",
+        "frontend/src/livingMirror/being/presentationFromStores.test.ts",
+        "frontend/src/livingMirror/being/presentationFromStores.ts",
+        "frontend/src/livingMirror/being/semanticKernel.test.ts",
+        "frontend/src/livingMirror/being/semanticKernel.ts",
+        "frontend/src/livingMirror/being/useBeingPresentation.test.tsx",
+        "frontend/src/livingMirror/livingMirror.css",
+        "frontend/src/superbrain/SuperbrainApp.jsx",
+        "frontend/src/superbrain/components/canvas/SuperbrainScene.LEGACY.tsx",
+        "frontend/src/superbrain/lib/livingMirrorRegistry.test.ts",
+        "frontend/src/superbrain/lib/mirrorStore.test.ts",
+        "frontend/src/superbrain/lib/mirrorStore.ts",
+        "frontend/src/superbrain/lib/spineFusionBus.test.ts",
+        "frontend/src/superbrain/lib/spineFusionBus.ts",
+        "frontend/src/workbench/GagosChrome.approval.test.tsx",
+        "frontend/src/workbench/GagosChrome.jsx",
+        "frontend/src/workbench/GagosChrome.status.test.tsx",
+        "frontend/src/workbench/SuperbrainReactiveEffects.conductor.test.tsx",
+        "frontend/src/workbench/SuperbrainReactiveEffects.jsx",
+        "frontend/src/workbench/SuperbrainReactiveEffects.test.tsx",
+        "frontend/superbrain-source.json",
+        "frontend/src/workbench/bodyEffectsFrame.test.ts",
+        "frontend/src/workbench/bodyEffectsFrame.ts",
+        "frontend/src/workbench/cortexAttentionPaths.test.ts",
+        "frontend/src/workbench/cortexAttentionPaths.ts",
+        ".aios/state/CEO_LOG.md"
+      ],
+      "uncapturedSourcePaths": []
+    }
+  ],
+  "worktreeInventory": [
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/authenticated-mirror-continuity/ai-editor",
+      "head": "68f44fd2b4d4c4a03e93b7f7433fcccafc8b2d39",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-lab-living-20260930",
+      "head": "e18bda54baf987cececf40b03432d178c1e15c3f",
+      "changes": [
+        " M src/app/globals.css",
+        " M src/components/canvas/RegionPins.test.tsx",
+        " M src/components/canvas/RegionPins.tsx",
+        " M src/components/canvas/SuperbrainScene.tsx",
+        " M src/components/canvas/WorkspaceCanvas.tsx",
+        "?? src/lib/bodySpeech.ts",
+        "?? src/lib/portraitCameraFrame.ts",
+        "?? src/test/portraitCameraFrame.test.ts"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-continuation-20260924",
+      "head": "e729f79e9d83b7e35b6655ecf317f462e6f96622",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-lb02-audit/ai-editor",
+      "head": "92e81b4e62219aa0a8fcae7a900d206894ccb30a",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-lb06-revival/ai-editor",
+      "head": "d1ea3df783831c3f962d0e1e43ca450b348ea3b3",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-live-audit",
+      "head": "764fa5c53b7dd4b987f48f87f5f23a30825d67e2",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-20260924",
+      "head": "7beef139fa163ec1eb0084052016cd4388f49af0",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-20260925/ai-editor",
+      "head": "67dc4bc7bfcbd87be84bb8df5c9914feae91a4a7",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-continuation-20260925",
+      "head": "f3477170b6d512adc49cdc230500ceec410f9d80",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-massive-fresh-20260925/ai-editor",
+      "head": "9e94820bb22358f6250bbed6a176aedcd5a1e34b",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-next-slice-20260926/ai-editor",
+      "head": "2a63800cba24f56bae257617f0bb1bc0acb73eaa",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/state/RESUME.md",
+        " M .aios/state/bandit_budget.json",
+        " M docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        " M docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        " M frontend/src/livingMirror/FileWorkspace.test.tsx",
+        " M frontend/src/livingMirror/LivingWorkspaceShell.tsx",
+        " M frontend/src/livingMirror/LivingWorkspaceShell.visibility.test.tsx",
+        " M frontend/src/livingMirror/livingMirror.css",
+        " M frontend/src/livingMirror/observability/frontendMetrics.test.ts",
+        " M frontend/src/livingMirror/observability/frontendMetrics.ts",
+        " M frontend/src/main.jsx",
+        " M frontend/src/workbench/CodeEditor.jsx",
+        " M tools/gagos-physical-soak.ps1",
+        "?? frontend/src/livingMirror/workspaceFileDrafts.test.ts",
+        "?? frontend/src/livingMirror/workspaceFileDrafts.ts",
+        "?? tools/gagos-physical-soak.test.mjs"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-nextgen-20260929/ai-editor",
+      "head": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/memory/warnings.md",
+        " M .aios/state/RESUME.md",
+        " M .aios/state/bandit_budget.json",
+        " M docs/frontend/GAGOS_PHYSICAL_EMBODIMENT_IMPLEMENTATION.md",
+        " M docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        " M frontend/src/superbrain/components/canvas/BrainPointField.tsx",
+        " M frontend/src/superbrain/components/canvas/CosmicBackground.tsx",
+        " M frontend/src/superbrain/components/canvas/MaterializationLayer.tsx",
+        " M frontend/src/superbrain/components/canvas/SuperbrainScene.LEGACY.tsx",
+        " M frontend/src/superbrain/lib/anatomicalConductor.test.ts",
+        " M frontend/src/superbrain/lib/anatomicalConductor.ts",
+        " M frontend/src/superbrain/lib/bodyPosture.ts",
+        " M frontend/src/superbrain/lib/organismCameraFrame.test.ts",
+        " M frontend/src/superbrain/lib/organismCameraFrame.ts",
+        " M frontend/src/workbench/GagosChrome.jsx",
+        " M frontend/src/workbench/GagosChrome.status.test.tsx",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.conductor.test.tsx",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.jsx",
+        " M frontend/superbrain-source.json",
+        "?? frontend/src/superbrain/components/canvas/WorkerNerveField.tsx",
+        "?? frontend/src/superbrain/lib/workerNerveLayout.test.ts",
+        "?? frontend/src/superbrain/lib/workerNerveLayout.ts"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-run-20260930/ai-editor",
+      "head": "72f18b238d684144b8158adae1e381102e7a284c",
+      "changes": [
+        " M .aios/state/bandit_budget.json",
+        "?? .pytest-short/",
+        "?? frontend/ship-verification.json"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-v2/ai-editor",
+      "head": "975b9fb9119f20824ad0414b4ba05a7186636c32",
+      "changes": [
+        "MM .aios/memory/mistakes.jsonl",
+        "A  docs/frontend/LB04_ART_DIRECTION_SHEET_2026-09-24.md"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-vertical-slice/ai-editor",
+      "head": "64f3e4fbf6681ff1a09c02f8cbbd7d8b9f0d2fa7",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-being-vision-continuation-20260926/ai-editor",
+      "head": "afac5cfa08a5882eb9338b9af3b8b85ae65c2892",
+      "changes": [
+        " M .aios/state/RESUME.md",
+        " M frontend/src/livingMirror/livingMirror.css"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-nextphase-20260929/ai-editor",
+      "head": "8472b54b5726d8ea27fda436bfbfd43ce6049cab",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/state/RESUME.md",
+        " M docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.conductor.test.tsx",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.jsx"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-living-p3-vertical-20260929/ai-editor",
+      "head": "56f3cd7019f23b35e3f364d0748c81812f88c95b",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/memory/warnings.md",
+        " M .aios/state/RESUME.md",
+        " M docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        " M frontend/src/livingMirror/livingMirror.css",
+        " M frontend/src/superbrain/components/canvas/BrainPointField.tsx",
+        " M frontend/src/superbrain/components/canvas/SuperbrainScene.LEGACY.tsx",
+        " M frontend/src/superbrain/core/CortexEngine.tsx",
+        " M frontend/src/superbrain/lib/bodyPosture.test.ts",
+        " M frontend/src/superbrain/lib/bodyPosture.ts",
+        " M frontend/src/superbrain/lib/pointFieldMaterial.test.ts",
+        " M frontend/src/superbrain/lib/pointFieldMaterial.ts",
+        " M frontend/superbrain-source.json"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/gagos-mobile-presence-20260928/ai-editor",
+      "head": "210e56e611516aca610ed711b791c2f2e9cf25c7",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/memory/warnings.md",
+        " M .aios/state/RESUME.md",
+        " M .aios/state/bandit_budget.json",
+        " M docs/frontend/GAGOS_2030_IMPLEMENTATION.md",
+        " M docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        " M docs/frontend/LUNA_EXECUTION_PACK_2026-09-24.md",
+        " M frontend/src/livingMirror/EmergencyControl.test.tsx",
+        " M frontend/src/livingMirror/EmergencyControl.tsx",
+        " M frontend/src/livingMirror/MirrorConnectionNotice.test.tsx",
+        " M frontend/src/livingMirror/MirrorConnectionNotice.tsx",
+        " M frontend/src/livingMirror/MissionInspector.tsx",
+        " M frontend/src/livingMirror/livingMirror.css",
+        " M frontend/src/superbrain/components/canvas/BrainPointField.tsx",
+        " M frontend/src/superbrain/components/canvas/CosmicBackground.tsx",
+        " M frontend/src/superbrain/components/canvas/NodeLattice.tsx",
+        " M frontend/src/superbrain/core/CortexEngine.tsx",
+        " M frontend/src/superbrain/lib/constants.ts",
+        " M frontend/superbrain-source.json",
+        "?? frontend/src/livingMirror/LivingWorkspaceShell.responsiveLayout.test.mjs",
+        "?? frontend/src/livingMirror/MissionInspector.test.tsx",
+        "?? frontend/src/livingMirror/being/cosmicFieldProfiles.test.ts",
+        "?? frontend/src/livingMirror/being/nodeLatticeBrightness.test.ts",
+        "?? frontend/src/livingMirror/being/pointFieldBloom.test.ts",
+        "?? frontend/src/livingMirror/being/pointFieldPosture.test.ts",
+        "?? frontend/src/superbrain/lib/cosmicFieldProfiles.ts",
+        "?? frontend/src/superbrain/lib/pointFieldPosture.ts"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/living-being-blueprint/ai-editor",
+      "head": "4782cfa356ad23015bf090f7a671b74967a373f8",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/state/INDEX.md",
+        " M .aios/state/RESUME.md",
+        "?? docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        "?? docs/frontend/LIVING_BEING_RESEARCH_NOTES_2026-09-24.md",
+        "?? docs/frontend/LUNA_EXECUTION_PACK_2026-09-24.md"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/.codex/worktrees/pr-362-conflicts/ai-editor",
+      "head": "cb1bea6f88bf9dda4dbcfb2eef2f8cb52f427fc6",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/ai-editor-frontend-living-mirror",
+      "head": "11b56bf7d6445d8fd9a9ee88393d31df4fbc9048",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/state/RESUME.md",
+        " M frontend/package.json",
+        " M frontend/src/components/HUDPanel.jsx",
+        " M frontend/src/main.jsx",
+        " M frontend/src/superbrain/SuperbrainApp.jsx",
+        " M frontend/src/superbrain/components/canvas/FallbackScene.css",
+        " M frontend/src/superbrain/components/canvas/FallbackScene.tsx",
+        " M frontend/src/superbrain/components/canvas/MaterializationLayer.tsx",
+        " M frontend/src/superbrain/components/canvas/MaterializedTab.tsx",
+        " M frontend/src/superbrain/components/canvas/WebGLErrorBoundary.tsx",
+        " M frontend/src/superbrain/components/canvas/WorkspaceCanvas.tsx",
+        " M frontend/src/superbrain/components/ui/BootSequence.module.css",
+        " M frontend/src/superbrain/components/ui/BootSequence.tsx",
+        " M frontend/src/superbrain/lib/aiosAdapter.ts",
+        " M frontend/src/superbrain/lib/aiosMirror.test.ts",
+        " M frontend/src/superbrain/lib/aiosMirror.ts",
+        " M frontend/src/superbrain/lib/anatomicalConductor.test.ts",
+        " M frontend/src/superbrain/lib/anatomicalRootSystem.test.ts",
+        " M frontend/src/superbrain/lib/livingMirrorRegistry.ts",
+        " M frontend/src/superbrain/lib/livingOrchestrator.test.ts",
+        " M frontend/src/superbrain/lib/mirrorStore.ts",
+        " M frontend/src/superbrain/lib/openingMotion.ts",
+        " M frontend/src/superbrain/lib/organismLifecycle.test.ts",
+        " M frontend/src/superbrain/lib/reducedMotion.ts",
+        " M frontend/src/superbrain/lib/swarmHUDStore.ts",
+        " M frontend/src/superbrain/lib/tabStore.test.ts",
+        " M frontend/src/superbrain/lib/tabStore.ts",
+        " M frontend/src/workbench/AlignmentHUD.jsx",
+        " M frontend/src/workbench/AlignmentHUD.test.tsx",
+        " M frontend/src/workbench/BudgetMicroBar.jsx",
+        " M frontend/src/workbench/BudgetMicroBar.test.jsx",
+        " M frontend/src/workbench/CouncilDashboard.jsx",
+        " M frontend/src/workbench/CouncilDashboard.sovereign.test.tsx",
+        " M frontend/src/workbench/CouncilDashboard.test.tsx",
+        " M frontend/src/workbench/CouncilDeliberationPanel.jsx",
+        " M frontend/src/workbench/CouncilDeliberationPanel.test.jsx",
+        " M frontend/src/workbench/CouncilServicesPanel.jsx",
+        " M frontend/src/workbench/CouncilServicesPanel.test.tsx",
+        " M frontend/src/workbench/EcosystemDashboard.jsx",
+        " M frontend/src/workbench/EcosystemDashboard.test.jsx",
+        " M frontend/src/workbench/ExecutionDebuggerPanel.jsx",
+        " M frontend/src/workbench/ExecutionDebuggerPanel.test.tsx",
+        " M frontend/src/workbench/FileTree.jsx",
+        " M frontend/src/workbench/GagosChrome.jsx",
+        " M frontend/src/workbench/IntelligenceHiringPanel.jsx",
+        " M frontend/src/workbench/KnowledgeIngestPanel.jsx",
+        " M frontend/src/workbench/KnowledgeIngestPanel.test.tsx",
+        " M frontend/src/workbench/LocalWorkforcePanel.jsx",
+        " M frontend/src/workbench/MaintenanceCenterPanel.jsx",
+        " M frontend/src/workbench/MemoryBrowser.jsx",
+        " M frontend/src/workbench/MemoryBrowser.test.jsx",
+        " M frontend/src/workbench/MemoryOperationsPanel.jsx",
+        " M frontend/src/workbench/MemoryOperationsPanel.test.tsx",
+        " M frontend/src/workbench/MissionControlPanel.jsx",
+        " M frontend/src/workbench/OperatorProfileCard.jsx",
+        " M frontend/src/workbench/OperatorProfileCard.test.tsx",
+        " M frontend/src/workbench/PolicyEnforcementHUD.jsx",
+        " M frontend/src/workbench/PolicyEnforcementHUD.test.tsx",
+        " M frontend/src/workbench/ProductSpaces.css",
+        " M frontend/src/workbench/ProductSpaces.jsx",
+        " M frontend/src/workbench/ProductSpaces.test.jsx",
+        " M frontend/src/workbench/RuntimeSurfaceHUD.jsx",
+        " M frontend/src/workbench/RuntimeSurfaceHUD.test.tsx",
+        " M frontend/src/workbench/SecurityAuditPanel.jsx",
+        " M frontend/src/workbench/SecurityAuditPanel.test.tsx",
+        " M frontend/src/workbench/SettingsPanel.jsx",
+        " M frontend/src/workbench/SettingsPanel.test.tsx",
+        " M frontend/src/workbench/SkillLibraryPanel.jsx",
+        " M frontend/src/workbench/SovereignStatePanel.jsx",
+        " M frontend/src/workbench/SovereignStatePanel.organ49.test.jsx",
+        " M frontend/src/workbench/SovereignStatePanel.organ51.test.jsx",
+        " M frontend/src/workbench/SovereigntyControls.jsx",
+        " M frontend/src/workbench/SovereigntyControls.test.tsx",
+        " M frontend/src/workbench/StigmergyPanel.jsx",
+        " M frontend/src/workbench/StigmergyPanel.test.jsx",
+        " M frontend/src/workbench/TerminalPanel.jsx",
+        " M frontend/src/workbench/TerminalPanel.test.jsx",
+        " M frontend/src/workbench/TrustHalo.jsx",
+        " M frontend/src/workbench/TrustHalo.test.tsx",
+        " M frontend/src/workbench/VultureFeed.jsx",
+        " M frontend/src/workbench/VultureFeed.test.jsx",
+        " M frontend/src/workbench/hooks/useVoiceInput.js",
+        " M frontend/src/workbench/hooks/useWorkMaterialization.js",
+        " M frontend/vite.config.js",
+        "?? docs/frontend/",
+        "?? frontend/src/livingMirror/",
+        "?? frontend/src/superbrain/components/canvas/WebGLErrorBoundary.test.tsx",
+        "?? frontend/src/superbrain/lib/livingMirrorRegistry.admission.test.ts",
+        "?? frontend/src/superbrain/lib/mirrorStore.entities.test.ts",
+        "?? frontend/src/superbrain/lib/tabStore.attention.test.ts",
+        "?? frontend/src/workbench/FileTree.regression-1.test.jsx",
+        "?? frontend/src/workbench/MemoryBrowser.css",
+        "?? frontend/src/workbench/StigmergyPanel.regression-1.test.jsx",
+        "?? frontend/src/workbench/TrustHalo.test.jsx",
+        "?? frontend/superbrain-source.json",
+        "?? frontend/tools/"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/ai-editor-frontend-living-mirror-pr",
+      "head": "6ff5410b2b39a264a597eb2d4df6cc4f480bbb4a",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/state/RESUME.md"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/ai-editor-v1-memory-pr",
+      "head": "3fb4cb0482252ed90d94b7f23c538934cd8e59c0",
+      "changes": []
+    },
+    {
+      "path": "C:/Users/kumar/ai-editor-v1-review-findings",
+      "head": "574aec0f2270a22c35ff0547b61ae75b2bbbae92",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/state/RESUME.md",
+        " M .aios/state/bandit_budget.json",
+        " M tools/self_corpus.py"
+      ]
+    },
+    {
+      "path": "C:/Users/kumar/gagos-living-being-vision-20260925",
+      "head": "7e0f8b9c60dbb612c42bcd7e8fae43fa5811c0ce",
+      "changes": [
+        " M .aios/memory/experiences.jsonl",
+        " M .aios/memory/mistakes.jsonl",
+        " M .aios/state/CEO_LOG.md",
+        " M .aios/state/RESUME.md",
+        " M .aios/state/bandit_budget.json",
+        " M docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        " M docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        " M frontend/src/livingMirror/being/PhysicalStateGalleryPage.css",
+        " M frontend/src/livingMirror/being/PhysicalStateGalleryPage.tsx",
+        " M frontend/src/livingMirror/being/emergencyStopClear.integration.test.ts",
+        " M frontend/src/livingMirror/being/presentationFromStores.test.ts",
+        " M frontend/src/livingMirror/being/presentationFromStores.ts",
+        " M frontend/src/livingMirror/being/semanticKernel.test.ts",
+        " M frontend/src/livingMirror/being/semanticKernel.ts",
+        " M frontend/src/livingMirror/being/useBeingPresentation.test.tsx",
+        " M frontend/src/livingMirror/livingMirror.css",
+        " M frontend/src/superbrain/SuperbrainApp.jsx",
+        " M frontend/src/superbrain/components/canvas/SuperbrainScene.LEGACY.tsx",
+        " M frontend/src/superbrain/lib/livingMirrorRegistry.test.ts",
+        " M frontend/src/superbrain/lib/mirrorStore.test.ts",
+        " M frontend/src/superbrain/lib/mirrorStore.ts",
+        " M frontend/src/superbrain/lib/spineFusionBus.test.ts",
+        " M frontend/src/superbrain/lib/spineFusionBus.ts",
+        " M frontend/src/workbench/GagosChrome.approval.test.tsx",
+        " M frontend/src/workbench/GagosChrome.jsx",
+        " M frontend/src/workbench/GagosChrome.status.test.tsx",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.conductor.test.tsx",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.jsx",
+        " M frontend/src/workbench/SuperbrainReactiveEffects.test.tsx",
+        " M frontend/superbrain-source.json",
+        "?? frontend/src/workbench/bodyEffectsFrame.test.ts",
+        "?? frontend/src/workbench/bodyEffectsFrame.ts",
+        "?? frontend/src/workbench/cortexAttentionPaths.test.ts",
+        "?? frontend/src/workbench/cortexAttentionPaths.ts"
+      ]
+    }
+  ],
+  "additionalPreservedState": "v2.patch.json includes stagedDiffLines separately; V1 snapshot includes ignored author progress. External lab e18bda54 is already on that repo's origin/master; its eight current source changes are archived here.",
+  "excludedNonSource": [
+    "Inherited bandit_budget.json line-ending-only dirt",
+    "Generated pytest scratch directories",
+    "Dependencies, caches, build output and unrelated collaborators' trees"
+  ],
+  "testProof": {
+    "testedSourceHead": "72f18b238d684144b8158adae1e381102e7a284c",
+    "report": "../../verification/2026-10-07/frontend-final-source.xml",
+    "testFiles": 209,
+    "tests": 1351,
+    "failures": 0,
+    "errors": 0,
+    "exitCode": 0,
+    "coverage": {
+      "statements": 69.79,
+      "branches": 66.03,
+      "functions": 71.2,
+      "lines": 71.4
+    },
+    "reportSha256": "2C1D2252B9C52F502028B5A528AFFA7B73E387A2EEE1A6DB932A836D3CA75613",
+    "all209TestSourcesTrackedInPublishedHead": true,
+    "limitations": "Local source test proof, not successful CI or production acceptance. Unchanged warnings retained; high dependency audit and backend history guards remain red."
+  }
+}
