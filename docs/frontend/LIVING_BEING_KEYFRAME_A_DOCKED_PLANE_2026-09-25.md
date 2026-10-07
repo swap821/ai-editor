@@ -1,5 +1,14 @@
 # GAGOS keyframe A — the docked work plane
 
+## 2026-10-07 — frontend-only CI repair (supersedes checkpoint readiness below)
+
+The operator authorized fixing/readying PR432 and explicitly assigned backend CI to Claude. Exact `source-map-js`1.2.2 override plus registry tarball/integrity replaces vulnerable1.2.1; isolated `npm ci` succeeds, all four dependency consumers use1.2.2, HIGH audit exits0 (0 high/critical; 2 existing low DOMPurify/Monaco findings remain). No unrelated upgrade, backend/history/evidence change, audit bypass, source/test/assertion edit or threshold reduction.
+
+Fresh patched-dependency verification: **1,351 passed / 209 files**, coverage enabled, exit0,131.45s; coverage69.79/66.03/71.2/71.4% (statements/branches/functions/lines). Typecheck, lint0errors120warnings, monotonic120/124 budget, build4352modules5.15s, port203/no drift and16port tests all exit0. New external JUnit SHA256 `DE6D27131AB380FAEF7AFB7CFE4D5CE0AC7FCDB2D1DB5407662BC374C86395DE`; prior published report remains immutable. Existing warnings are retained. Publication/current-head GitHub frontend checks and ready-for-review transition are next, not yet claimed. Backend checks are delegated, not green; no merge or full-vision acceptance.
+
+The dated checkpoint below is history; its pending dependency approval/red frontend audit no longer describes this repaired local tree. Full production/operator/device and hash-pinned non-builder review gates remain open.
+
+
 ## 2026-10-07 — draft-publication checkpoint (not release acceptance)
 
 ### Post-publication verification and full work sweep
