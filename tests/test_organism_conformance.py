@@ -259,7 +259,10 @@ def test_operator_preference_lands_quarantined_never_active(
     events = [event for event, _ in frames]
     assert "done" in events, f"turn must complete; streamed: {events}"
 
-    proposals = facts_db.pending_proposals()
+    from tests.helpers import client_principal_id
+
+    # Plan Phase 4c: the turn proposes as its own principal.
+    proposals = facts_db.pending_proposals(principal_id=client_principal_id(client))
     matches = [
         row
         for row in proposals

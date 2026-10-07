@@ -113,6 +113,11 @@ const SAT_RADIUS = 0.03;
 /** EDGE_MAX_DIST proxy: satellite scatter radius around each hub. Clusters stay
  *  distinct (R2); intra-cluster k-NN only ever links within this sphere. */
 const LOBE_RADIUS = 0.11;
+/** Presentation-only radius cap: fine nodes should reveal the cortex, not
+ *  merge into filled lobes. Dense real-data regions share the same summed
+ *  node-disc area budget; topology and strength-derived radii stay intact. */
+const NODE_RENDER_SCALE = 0.25;
+const NODE_REGION_AREA_BUDGET = 0.2;
 /** GLOW levers (idle brightness; firing/burst push past the bloom knee). */
 const NODE_GAIN = 1.1; // node brightness — pushed past the PostFX bloom knee so the
                        // memory nodes POP/bloom through the translucent cortex during reveal
@@ -701,6 +706,13 @@ export default function NodeLattice({
 
   const built = useMemo(() => {
     const { nodes, edges } = buildLatticeData(tier, real);
+    // Allocate once per topology rebuild, never in the frame loop. A common
+    // regional scale preserves relative sizes while bounding even160 trails
+    // admitted to one hub. This is a geometric budget, not a bloom/pixel bound.
+    const nodeAreaByHub = HUBS.map(() => 0);
+    for (const node of nodes) nodeAreaByHub[node.hub] += node.radius * node.radius;
+    const nodeScaleByHub = nodeAreaByHub.map(area => Math.min(NODE_RENDER_SCALE,
+      area > 0 ? Math.sqrt(NODE_REGION_AREA_BUDGET * LOBE_RADIUS * LOBE_RADIUS / area) : 1));
 
     /* ---- 1. NODES → InstancedMesh ---- */
     const nodeGeo = new THREE.IcosahedronGeometry(1, 1); // unit; per-instance scale = radius
@@ -726,7 +738,7 @@ export default function NodeLattice({
     const colorArray = new Float32Array(nodes.length * 3);
     nodes.forEach((n, i) => {
       dummy.position.copy(n.pos);
-      dummy.scale.setScalar(n.radius);
+      dummy.scale.setScalar(n.radius * nodeScaleByHub[n.hub]);
       dummy.updateMatrix();
       nodeMesh.setMatrixAt(i, dummy.matrix);
       colorArray[i * 3] = n.color.r;

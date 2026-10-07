@@ -92,4 +92,15 @@ describe('body-to-workplane connection', () => {
     expect(path()).toMatch(/, 678 [\d.]+$/);
     expect(getTabStoreSnapshot().panels?.[0].seatIndex).toBe(2);
   });
+  it('draws no phantom connection for readable-only History and connects after a real seat is freed', () => {
+    __resetTabStoreForTests();
+    for (let n = 0; n < 12; n++) openWorkspacePanel(`panel-${n}`, `Panel ${n}`);
+    openWorkspacePanel('history', 'Recent observations');
+    const view = render(<Surface />); step();
+    expect(getTabStoreSnapshot().panels?.find((panel) => panel.id === 'history')?.seatIndex).toBeNull();
+    expect(path()).toBe('');
+    act(() => { closeWorkspace('panel-0'); focusWorkspace('history'); });
+    view.rerender(<Surface />); step();
+    expect(path()).not.toBe('');
+  });
 });

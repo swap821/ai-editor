@@ -282,7 +282,7 @@ class TestTheRunLoop:
         monkeypatch.setattr(payoff, "collect_targets", lambda root: list(targets))
         ids = itertools.count(100)
 
-        def recall(reflector, skills, query, session_id):
+        def recall(reflector, skills, query, session_id, *, lessons_slot):
             lessons = [_lesson(next(ids)), _lesson(next(ids))]
             return "remembered", lessons, []
 

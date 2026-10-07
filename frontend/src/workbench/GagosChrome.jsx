@@ -18,8 +18,8 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
-  getLastEmittedCode,
   cancelPendingApproval,
   getPendingApproval,
   previewIntent,
@@ -46,6 +46,10 @@ import {
   beginRetractingMaterializedTab,
   releaseWorkMaterialization,
   focusMaterializedTab,
+  getTabStoreSnapshot,
+  reopenMaterializedTab,
+  openWorkspacePanel,
+  setWorkResultOutcome,
 } from '../superbrain/lib/tabStore';
 import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
@@ -267,6 +271,7 @@ export default function GagosChrome({
   const [intentHint, setIntentHint] = useState('neutral');
   const [receipt, setReceipt] = useState(null);
   const receiptInputRef = useRef(null);
+  const approvalRunsRef = useRef(new Map());
   // Organ 30: which message's human-state correction picker is open (at most
   // one at a time -- a second tap on another message's affordance replaces it).
   const [openHumanStateMsgId, setOpenHumanStateMsgId] = useState(null);
@@ -334,6 +339,8 @@ export default function GagosChrome({
     submit,
     writingTabIdRef,
     workTabIdsRef,
+    turnTokenRef,
+    getTurnSignal,
   } = useWorkMaterialization({
     setOnline,
     setMilestones,
@@ -372,7 +379,7 @@ export default function GagosChrome({
     setDraft,
   });
 
-  const { tabs: liveTabs } = useTabStore();
+  const { tabs: liveTabs, recoverableTabs = [] } = useTabStore();
   const beingWorking = liveTabs.some((t) => t.kind !== 'input' && t.lifecycle !== 'retracting');
 
   // A completed replay is deliberately held as unverified until a real
@@ -381,12 +388,13 @@ export default function GagosChrome({
   useEffect(() => {
     const input = receiptInputRef.current;
     if (!input || !receipt || input.verification !== 'unknown' || !input.targetTabId) return;
-    const tab = liveTabs.find((candidate) => candidate.id === input.targetTabId);
+    const tab = liveTabs.find((candidate) => candidate.id === input.targetTabId)
+      ?? recoverableTabs.find((candidate) => candidate.id === input.targetTabId);
     const verdict = tab?.kind === 'content' ? tab.content?.verifyVerdict : undefined;
     if (verdict !== 'pass' && verdict !== 'fail') return;
     const next = deriveReceipt({ ...input, verification: verdict });
-    if (next.kind !== receipt.kind) setReceipt(next);
-  }, [liveTabs, receipt]);
+    if (next.kind !== receipt.kind || next.message !== receipt.message) setReceipt(next);
+  }, [liveTabs, recoverableTabs, receipt]);
 
   // Keep newest message in view
   useEffect(() => {
@@ -570,9 +578,92 @@ export default function GagosChrome({
   const showThinkingEcho = busy && !reflexActive && (convPhase === 'thinking' || convPhase === 'awakening');
   const showReplyingEcho = busy && !reflexActive && convPhase === 'streaming';
 
-  const handleApprovalSettled = (outcome) => {
+  // A receipt keeps its original artifact identity after visual retirement.
+  // Use the same recovery owner as History; never resubmit to restore reading.
+  const reviewReceiptTarget = () => {
+    const id = receipt?.targetTabId;
+    const current = getTabStoreSnapshot();
+    if (id && current.recoverableTabs?.some((tab) => tab.id === id)) {
+      if (!reopenMaterializedTab(id)) {
+        pushMessage('gagos', 'All workspace anchors are in use. Close another workspace before reopening; your saved result is unchanged.');
+      }
+    } else if (id && current.tabs.some((tab) => tab.id === id && tab.lifecycle !== 'retracting')) {
+      focusMaterializedTab(id);
+    } else {
+      pushMessage('gagos', 'This result is no longer available in this browser session. The receipt remains available.');
+      inputRef.current?.focus();
+    }
+  };
+
+  // Capture ownership at the operator's action, not during render. A late
+  // decision promise may settle only the original generation and reader.
+  const captureApprovalContext = (token) => {
+    const context = {
+      generation: turnTokenRef.current,
+      writeId: writingTabIdRef.current,
+    };
+    approvalRunsRef.current.set(token, context);
+    return context;
+  };
+  const ownsApproval = (context) => context.generation === turnTokenRef.current
+    && context.writeId === writingTabIdRef.current;
+  const approvalRecord = (id) => {
+    const snapshot = getTabStoreSnapshot();
+    return [...snapshot.tabs, ...(snapshot.recoverableTabs || [])].find((tab) => tab.id === id);
+  };
+  const retainObservedCheck = (content, previous) => {
+    // Preserve only evidence for this identical snapshot, never infer a
+    // check for a new code/path/language or borrow another reader's result.
+    const sameSnapshot = previous && previous.code === content.code
+      && previous.filepath === content.filepath && previous.language === content.language;
+    return sameSnapshot && ['pass', 'fail'].includes(previous.verifyVerdict)
+      ? { ...content, verifyVerdict: previous.verifyVerdict, verifyOutput: previous.verifyOutput, verifyEventId: previous.verifyEventId }
+      : content;
+  };
+  const settleApprovalContent = (context, completion, emittedCode) => {
+    if (!ownsApproval(context)) return;
+    const tab = approvalRecord(context.writeId);
+    if (!tab?.content) return;
+    const fresh = emittedCode?.code?.trim() ? emittedCode : null;
+    const content = fresh ? retainObservedCheck({
+      code: fresh.code, language: fresh.language || tab.content.language,
+      filepath: fresh.filepath || tab.content.filepath,
+    }, tab.content) : tab.content;
+    updateMaterializedTab(tab.id, { content: { ...content, streaming: false, completion } });
+    setWorkResultOutcome({ tabId: tab.id, completion });
+    if ((completion === 'incomplete' || completion === 'declined') && !content.code.trim()
+      && !content.verifyOutput && beginRetractingMaterializedTab(tab.id)) {
+      workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== tab.id);
+    }
+  };
+  const startApprovalReplay = (token) => {
+    const context = captureApprovalContext(token);
+    settleApprovalContent(context, 'awaiting-replay');
+    const admitCode = (code, language, filepath) => {
+      if (!ownsApproval(context) || !code?.trim()) return;
+      const tab = approvalRecord(context.writeId);
+      if (!tab?.content) return;
+      updateMaterializedTab(tab.id, { content: retainObservedCheck({
+        code, language: language || tab.content.language,
+        filepath: filepath || tab.content.filepath, streaming: true,
+      }, tab.content) });
+      setWorkResultOutcome(null);
+    };
+    return {
+      signal: getTurnSignal(),
+      onCodeChunk: admitCode,
+      onChunk: (answer) => {
+        const partial = extractStreamingCode(answer);
+        admitCode(partial.code, partial.language);
+      },
+    };
+  };
+  const handleApprovalSettled = (outcome, token) => {
+    const context = approvalRunsRef.current.get(token);
+    approvalRunsRef.current.delete(token);
+    if (!context || !ownsApproval(context)) return;
     setPendingApproval(getPendingApproval());
-    const writeId = writingTabIdRef.current;
+    const writeId = context.writeId;
     if (!outcome) {
       writingTabIdRef.current = null;
       return;
@@ -581,15 +672,15 @@ export default function GagosChrome({
     // Keep the newly captured approval as the only decision surface; do not
     // clear its work-tab identity, retract work, or emit a receipt for a turn
     // that has not completed.
-    if (outcome.action === 'authorize' && outcome.paused && getPendingApproval()) return;
-    writingTabIdRef.current = null;
+    if (outcome.action === 'authorize' && outcome.paused && getPendingApproval()) {
+      settleApprovalContent(context, 'awaiting-approval', outcome.emittedCode);
+      return;
+    }
     const target = outcome.filepath
       || (outcome.kind === 'command' ? 'the command' : outcome.kind === 'browse' ? 'the page' : 'the change');
     if (outcome.action === 'reject') {
-      if (writeId) {
-        beginRetractingMaterializedTab(writeId);
-        workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
-      }
+      settleApprovalContent(context, 'declined');
+      writingTabIdRef.current = null;
       releaseWorkMaterialization();
       receiptInputRef.current = {
         action: 'reject',
@@ -604,16 +695,15 @@ export default function GagosChrome({
       return;
     }
     if (!outcome.succeeded) {
-      if (writeId) {
-        beginRetractingMaterializedTab(writeId);
-        workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
-      }
+      settleApprovalContent(context, 'incomplete', outcome.emittedCode);
+      writingTabIdRef.current = null;
       releaseWorkMaterialization();
       receiptInputRef.current = {
         action: 'authorize',
         succeeded: false,
         target,
         verification: 'unknown',
+        targetTabId: writeId || undefined,
       };
       setReceipt(deriveReceipt(receiptInputRef.current));
       pushMessage('gagos', `↳ Failed to authorize ${target} — the request did not complete.`);
@@ -621,23 +711,35 @@ export default function GagosChrome({
     }
     if (writeId) {
       const isFileKind = outcome.kind === 'create' || outcome.kind === 'edit';
-      const emittedNow = getLastEmittedCode();
-      const code =
-        (outcome.kind === 'create' ? outcome.content : outcome.kind === 'edit' ? (outcome.content || outcome.diff) : '') ||
-        (emittedNow && emittedNow.code) ||
-        '';
+      const textArtifact = extractStreamingCode(outcome.answer);
+      const emittedNow = outcome.emittedCode?.code?.trim() ? outcome.emittedCode
+        : textArtifact.code.trim() ? { ...textArtifact, code: textArtifact.code.trim() } : null;
+      // A proposal describes requested work, not a returned artifact. Only
+      // this replay's code/text snapshot may settle its reader as finished.
+      const code = emittedNow?.code || '';
       if (isFileKind && code.trim()) {
-        const filepath = outcome.filepath ? outcome.filepath.split(/[\\/]/).pop() : 'file';
+        const filepath = emittedNow?.filepath || outcome.filepath || approvalRecord(writeId)?.content?.filepath || 'file';
         const ext = (filepath.split('.').pop() || '').toLowerCase();
         const language = (emittedNow && emittedNow.language)
           || (ext === 'py' ? 'python' : ext === 'ts' ? 'typescript' : ext === 'js' ? 'javascript' : ext || 'text');
-        updateMaterializedTab(writeId, { content: { code, language, filepath, streaming: false } });
+        updateMaterializedTab(writeId, { content: retainObservedCheck(
+          { code, language, filepath, streaming: false }, approvalRecord(writeId)?.content,
+        ) });
       } else {
-        beginRetractingMaterializedTab(writeId);
-        workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writeId);
+        settleApprovalContent(context, 'incomplete');
+        if (isFileKind) {
+          releaseWorkMaterialization();
+          writingTabIdRef.current = null;
+          receiptInputRef.current = null;
+          setReceipt(null);
+          pushMessage('gagos', 'Replay ended without a generated artifact. Partial work stays available; the file outcome is unconfirmed.');
+          return;
+        }
       }
       releaseWorkMaterialization();
     }
+    writingTabIdRef.current = null;
+    if (writeId && !approvalRecord(writeId)?.content?.completion) setWorkResultOutcome(null);
     receiptInputRef.current = {
       action: 'authorize',
       succeeded: true,
@@ -658,6 +760,7 @@ export default function GagosChrome({
     <div
       className="gagos-chrome"
       data-experience-mode={experienceMode}
+      data-approval-pending={pendingApproval && !emergencyStopped ? 'true' : 'false'}
       data-motion-reduced={reducedMotion ? 'true' : 'false'}
       aria-label="GAGOS conversation"
     >
@@ -749,7 +852,7 @@ export default function GagosChrome({
           aria-live="polite"
         >
           <span className="gagos-verify-toast__dot" aria-hidden="true" />
-          {verifyToast.verdict === 'pass' ? 'Verified' : 'Verify failed'}
+          {verifyToast.verdict === 'pass' ? 'Verified' : verifyToast.verdict === 'fail' ? 'Verify failed' : 'Check not attributed'}
         </div>
       ) : null}
 
@@ -780,11 +883,16 @@ export default function GagosChrome({
 
       {pendingApproval && !emergencyStopped ? (
         guided ? (
-          <GuidedApprovalPanel pending={pendingApproval} onSettled={handleApprovalSettled} />
+          <GuidedApprovalPanel pending={pendingApproval}
+            onReplayStarted={() => startApprovalReplay(pendingApproval.token)}
+            onRejectStarted={() => captureApprovalContext(pendingApproval.token)}
+            onSettled={(outcome) => handleApprovalSettled(outcome, pendingApproval.token)} />
         ) : (
           <ApprovalPanel
             pending={pendingApproval}
-            onSettled={handleApprovalSettled}
+            onReplayStarted={() => startApprovalReplay(pendingApproval.token)}
+            onRejectStarted={() => captureApprovalContext(pendingApproval.token)}
+            onSettled={(outcome) => handleApprovalSettled(outcome, pendingApproval.token)}
           />
         )
       ) : null}
@@ -886,21 +994,36 @@ export default function GagosChrome({
           {receipt ? (
             <ReceiptCard
               receipt={receipt}
-              onReview={() => {
-                if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
-                else inputRef.current?.focus();
-              }}
+              onReview={reviewReceiptTarget}
               onCheck={() => {
-                if (receipt.targetTabId) focusMaterializedTab(receipt.targetTabId);
-                setDraft(`Run a check for ${receipt.target}.`);
+                // Commit the restored reader and its normal heading-focus
+                // effect before this explicit composer action. No delayed
+                // focus race, new submission or competing workspace owner.
+                flushSync(() => {
+                  reviewReceiptTarget();
+                  setDraft(`Run a check for ${receipt.target}.`);
+                });
                 inputRef.current?.focus();
               }}
               onDiscard={() => {
-                if (receipt.targetTabId) {
-                  beginRetractingMaterializedTab(receipt.targetTabId);
-                  workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== receipt.targetTabId);
+                const id = receipt.targetTabId;
+                const current = getTabStoreSnapshot();
+                if (id && current.recoverableTabs?.some((tab) => tab.id === id)) {
+                  pushMessage('gagos', 'This result is already closed. Reopen it from Recent activity. No project files were deleted.');
+                  return;
                 }
-                pushMessage('gagos', 'Removed the unverified work surface. The receipt remains available.');
+                if (!id || !current.tabs.some((tab) => tab.id === id && tab.kind === 'content')) {
+                  pushMessage('gagos', 'No result is available to close. The receipt remains available; no project files were deleted.');
+                  return;
+                }
+                if (!beginRetractingMaterializedTab(id)) {
+                  pushMessage('gagos', 'Kept this result open because session-only recovery is full or this result is too large. Use Recent activity to forget a closed result, or keep this result open. No project files were deleted.');
+                  return;
+                }
+                workTabIdsRef.current = workTabIdsRef.current.filter((tabId) => tabId !== id);
+                pushMessage('gagos', getTabStoreSnapshot().recoverableTabs?.some((tab) => tab.id === id)
+                  ? 'Closed this result. Reopen it from Recent activity. The receipt remains available; no project files were deleted.'
+                  : 'Closed the work surface. No generated result was available to retain. The receipt remains available; no project files were deleted.');
               }}
               onPrimary={() => inputRef.current?.focus()}
             />
@@ -938,6 +1061,13 @@ export default function GagosChrome({
             aria-label="Talk to GAGOS"
           />
           <div className="gagos-bar__accessories">
+          {integrated && guided && recoverableTabs.length > 0 && <button
+            type="button"
+            className="gagos-btn gagos-recent"
+            aria-label="Recent activity"
+            title="Reopen closed results in Recent activity"
+            onClick={() => openWorkspacePanel('history', 'Recent activity')}
+          >Recent</button>}
           {voiceSupported || backendVoice.stt ? (
             <button
               type="button"

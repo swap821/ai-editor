@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EmergencyControl } from './EmergencyControl';
 import { getEmergencyStopPresentation, setEmergencyStopPresentation } from './emergencyStopPresentation';
+import { readLivingMirrorStylesheet } from '../test/livingMirrorStylesheet';
 
 const state = (overrides: Record<string, unknown> = {}) => ({
   engaged: false,
@@ -17,12 +18,61 @@ const state = (overrides: Record<string, unknown> = {}) => ({
 });
 
 afterEach(() => {
+  document.querySelectorAll('style[data-emergency-layout-test]').forEach((style) => style.remove());
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   setEmergencyStopPresentation('unknown');
 });
 
 describe('EmergencyControl', () => {
+  it.each([
+    { viewportHeight: 568, available: '270px' },
+    { viewportHeight: 450, available: '152px' },
+  ])('bounds details below their actual opening in a $viewportHeight px visible viewport', async ({ viewportHeight, available }) => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(state()) } as Response)));
+    vi.stubGlobal('innerHeight', 568);
+    const viewport = Object.assign(new EventTarget(), { height: viewportHeight, offsetTop: 0 });
+    vi.stubGlobal('visualViewport', viewport);
+    let panelTop = 298;
+    const originalBounds = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('lm-stop__detail')) return { top: panelTop, bottom: panelTop + 400, height: 400 } as DOMRect;
+      if (this.classList.contains('lm-app')) return { top: 182, bottom: 568, height: 386 } as DOMRect;
+      return originalBounds.call(this);
+    });
+    render(<div className="lm-app"><div className="lm-shell"><header className="lm-header"><EmergencyControl guided /></header></div></div>);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
+    const panel = await screen.findByRole('region', { name: 'Stop state and outcomes' });
+    await waitFor(() => expect(panel.style.getPropertyValue('--lm-stop-details-available-height')).toBe(available));
+    panelTop = 318;
+    viewport.dispatchEvent(new Event('scroll'));
+    await waitFor(() => expect(panel.style.getPropertyValue('--lm-stop-details-available-height')).toBe(viewportHeight === 568 ? '250px' : '132px'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
+    expect(panel.style.getPropertyValue('--lm-stop-details-available-height')).toBe('');
+  });
+
+  it.each([false, true])('anchors wide details to the full header, not the narrower Stop buttons (guided=%s)', async (guided) => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true, json: () => Promise.resolve(state()),
+    } as Response)));
+    const stylesheet = document.createElement('style');
+    stylesheet.dataset.emergencyLayoutTest = 'true';
+    stylesheet.textContent = readLivingMirrorStylesheet();
+    document.head.append(stylesheet);
+    render(<div className="lm-app"><div className="lm-shell" data-experience-mode={guided ? 'beginner' : 'expert'}>
+      <header className="lm-header"><EmergencyControl guided={guided} /></header>
+    </div></div>);
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect emergency stop' }));
+    const panel = await screen.findByRole('region', { name: 'Stop state and outcomes' });
+    // JSDOM cannot measure pixels. This checks the real CSS containing-block
+    // contract; the actual viewport/Close bounds are qualified in the browser.
+    let anchor = panel.parentElement;
+    while (anchor && !['absolute', 'relative', 'fixed', 'sticky'].includes(getComputedStyle(anchor).position)) {
+      anchor = anchor.parentElement;
+    }
+    expect(anchor).toBe(document.querySelector('.lm-header'));
+  });
+
   it('keeps an engage request pending until a fresh server read confirms the latch', async () => {
     let liveState = state();
     let resolveEngage: ((response: Response) => void) | undefined;

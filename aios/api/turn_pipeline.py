@@ -46,7 +46,7 @@ from aios.memory.retrieval import hybrid_search
 from aios.domain.memory import HumanStateHypothesis, MemoryRecallContext
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.memory.semantic import SemanticMemory
-from aios.memory.skills import SkillMemory
+from aios.memory.skills import SkillMemory, scoped_skill_recall
 from aios.security.secret_scanner import scan_and_redact
 
 logger = get_logger(__name__)
@@ -70,6 +70,7 @@ def _operator_facts_block(
     subject: str = "operator",
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> Optional[str]:
     """Build a REAL-facts-only personalization block, or ``None`` when dormant.
 
@@ -80,9 +81,9 @@ def _operator_facts_block(
     """
     try:
         rows = (
-            authority.facts_for(subject)
+            authority.facts_for(subject, principal=principal)
             if _authority_owns(authority, "facts", facts)
-            else facts.facts_for(subject)
+            else facts.facts_for(subject, principal_id=principal)
         )
     except Exception as exc:  # noqa: BLE001 - personalization is an enhancement, never fatal
         logger.warning("Failed to load operator facts block", exc_info=exc)
@@ -103,6 +104,7 @@ def _recall_self_model(
     mistakes: MistakeMemory,
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> Optional[str]:
     """Synthesize the grounded, verified-only autobiographical self-model paragraph.
 
@@ -112,7 +114,7 @@ def _recall_self_model(
     """
     try:
         text = (
-            authority.self_model()
+            authority.self_model(principal=principal)
             if _authority_owns(authority, "development", development)
             and _authority_owns(authority, "lessons", mistakes)
             else render_self_model(synthesize_self_model(development, mistakes))
@@ -136,6 +138,7 @@ def _recall_facts(
     user_text: str,
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> Optional[FactRecallResult]:
     """Recall relevant semantic facts (+ single-hop neighbors) for the forge.
 
@@ -149,9 +152,9 @@ def _recall_facts(
     authority_bound = _authority_owns(authority, "facts", facts)
     try:
         matched = (
-            authority.facts_search(user_text)
+            authority.facts_search(user_text, principal=principal)
             if authority_bound
-            else facts.search(user_text)
+            else facts.search(user_text, principal_id=principal)
         )
     except Exception as exc:  # noqa: BLE001 - recall is advisory
         logger.warning("Failed to search semantic facts", exc_info=exc)
@@ -171,9 +174,9 @@ def _recall_facts(
     for node in nodes:
         try:
             neighbor_rows = (
-                authority.facts_neighbors(node)
+                authority.facts_neighbors(node, principal=principal)
                 if authority_bound
-                else facts.neighbors(node)
+                else facts.neighbors(node, principal_id=principal)
             )
             for row in neighbor_rows:
                 expanded.add(
@@ -193,9 +196,14 @@ def _recall_facts(
     for node in list(nodes)[:5]:
         try:
             edges = (
-                authority.facts_traverse_weighted(node)
+                authority.facts_traverse_weighted(node, principal=principal)
                 if authority_bound
-                else facts.traverse_weighted(node, max_depth=3, min_path_confidence=0.3)
+                else facts.traverse_weighted(
+                    node,
+                    max_depth=3,
+                    min_path_confidence=0.3,
+                    principal_id=principal,
+                )
             )
             if edges:
                 from aios.core.inference import infer
@@ -283,7 +291,7 @@ def _crag_cloud_source(query: str, *, completion: Any | None = None) -> list[str
                 return []
             response = client.chat([{"role": "user", "content": prompt}], tools=None)
             text = str((response or {}).get("content", "")).strip()
-    except Exception as exc:  # noqa: BLE001 - a cloud miss must not break recall
+    except Exception:  # noqa: BLE001 - a cloud miss must not break recall
         logger.warning("CRAG cloud source failed", exc_info=True)
         return []
     return [text] if text else []
@@ -369,14 +377,19 @@ def _unverified_probe(query: str, top_k: int = 3) -> list[Any]:
     return hybrid_search(query, top_k=top_k, verification_statuses=("unverified",))
 
 
-def _unverified_matches(query: str, top_k: int, memory_authority: Any) -> set[str]:
+def _unverified_matches(
+    query: str, top_k: int, memory_authority: Any, principal: Optional[str]
+) -> set[str]:
     """Texts of the unverified rows this query would have recalled. Best-effort:
     the count is observation, and must never make recall itself fail."""
     try:
         probe = memory_authority.recall(
             query,
             MemoryRecallContext(
-                memory_types=("semantic",), limit=top_k, include_unverified=True
+                memory_types=("semantic",),
+                limit=top_k,
+                include_unverified=True,
+                principal_id=principal,
             ),
             retrieval_fn=_unverified_probe,
         )
@@ -446,6 +459,7 @@ def _recall_memory(
     authority: Any | None = None,
     crag_judge: Any | None = None,
     crag_cloud_source: Any | None = None,
+    principal: Optional[str],
 ) -> Optional[str]:
     """Best-effort hybrid recall of relevant semantic memories for *query*.
 
@@ -481,6 +495,7 @@ def _recall_memory(
                 memory_types=("semantic",),
                 limit=top_k,
                 include_unverified=True,
+                principal_id=principal,
             ),
             retrieval_fn=_verified_retrieval,
         )
@@ -495,7 +510,7 @@ def _recall_memory(
     # Defence in depth: retrieval already filtered, but anything unverified
     # that still arrives is dropped here and counted as withheld.
     withheld = {str(getattr(hit, "text", "")) for hit in hits if hit not in trusted}
-    withheld |= _unverified_matches(query, top_k, memory_authority)
+    withheld |= _unverified_matches(query, top_k, memory_authority, principal)
     if withheld:
         _announce_recall_withheld(len(trusted), len(withheld), query=query)
     hits = trusted
@@ -616,6 +631,7 @@ def _recall_lessons(
     limit: int = 5,
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> list[dict[str, Any]]:
     """Best-effort recall of pending same-task and verified cross-task lessons.
 
@@ -626,17 +642,24 @@ def _recall_lessons(
         authority, "lessons", reflector.mistakes
     ):
         try:
-            return authority.recall_lessons(query, session_id, limit)
+            return authority.recall_lessons(
+                query, session_id, limit, principal=principal
+            )
         except Exception as exc:  # noqa: BLE001 - lesson recall is advisory
             logger.warning("Failed to recall lessons through authority", exc_info=exc)
             return []
     if reflector is None:
         return []
     try:
-        recall_relevant = getattr(reflector, "recall_relevant", None)
+        bound = (
+            reflector.bound_to(principal)
+            if isinstance(reflector, ReflectionAgent)
+            else reflector
+        )
+        recall_relevant = getattr(bound, "recall_relevant", None)
         if callable(recall_relevant):
             return recall_relevant(query, session_id, limit)
-        return reflector.recall_pending(session_id, limit)
+        return bound.recall_pending(session_id, limit)
     except Exception as exc:  # noqa: BLE001 - lesson recall is an enhancement, never fatal
         logger.warning("Failed to recall lessons", exc_info=exc)
         return []
@@ -665,13 +688,15 @@ def _recall_skills(
     limit: int = 3,
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> list[dict[str, Any]]:
-    """Best-effort recall of reusable workflows backed by repeated verification."""
+    """Best-effort recall of *principal*'s reusable workflows backed by
+    repeated verification (plan Phase 4c-2)."""
     try:
         return (
-            authority.recall_skills(query, limit)
+            authority.recall_skills(query, limit, principal=principal)
             if _authority_owns(authority, "skills", skills)
-            else skills.relevant_verified(query, limit)
+            else scoped_skill_recall(skills, query, limit, principal=principal)
         )
     except Exception as exc:  # noqa: BLE001 - skill recall is an enhancement, never fatal
         logger.warning("Failed to recall verified skills", exc_info=exc)
@@ -808,6 +833,7 @@ def _index_turn(
     answer: str,
     *,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> None:
     """Embed a completed Q->A turn into L3 semantic memory so future recall finds it.
 
@@ -822,11 +848,19 @@ def _index_turn(
         payload = f"UNVERIFIED_CHAT\nUser: {user_text}\nAssistant: {answer}"
         clean = scan_and_redact(payload).scrubbed
         if authority is not None:
-            authority.record_semantic_chat(clean, indexer=indexer)
+            authority.record_semantic_chat(clean, indexer=indexer, principal=principal)
         else:
             try:
-                indexer.add(clean, memory_type="chat", verification_status="unverified")
+                indexer.add(
+                    clean,
+                    memory_type="chat",
+                    verification_status="unverified",
+                    principal_id=principal,
+                )
             except TypeError:
+                # A legacy indexer that takes no keywords: the row is written
+                # with no principal, so recall withholds it from everyone
+                # (plan Phase 4c) -- the fallback can never widen recall.
                 indexer.add(clean)
     except Exception as exc:  # noqa: BLE001 - indexing must not break the chat
         logger.warning(
@@ -902,6 +936,7 @@ def _calibrate_default_confidence(
     development: DevelopmentTracker,
     skills: SkillMemory,
     authority: Any | None = None,
+    principal: Optional[str],
 ) -> tuple[float, dict[str, Any]]:
     """Apply planner-style verified-memory calibration to the default chat gate."""
     started = time.perf_counter()
@@ -918,9 +953,11 @@ def _calibrate_default_confidence(
     if reflector is not None:
         try:
             lessons = (
-                authority.recall_verified_lessons(query, 5)
+                authority.recall_verified_lessons(query, 5, principal=principal)
                 if _authority_owns(authority, "lessons", reflector.mistakes)
-                else reflector.mistakes.relevant_verified(query, limit=5)
+                else reflector.mistakes.relevant_verified(
+                    query, limit=5, principal_id=principal
+                )
             )
         except Exception:  # noqa: BLE001 - default chat remains available if memory is down
             pass
@@ -934,9 +971,9 @@ def _calibrate_default_confidence(
         pass
     try:
         verified_skills = (
-            authority.recall_skills(query, 3)
+            authority.recall_skills(query, 3, principal=principal)
             if _authority_owns(authority, "skills", skills)
-            else skills.relevant_verified(query, limit=3)
+            else scoped_skill_recall(skills, query, 3, principal=principal)
         )
     except Exception:  # noqa: BLE001 - default chat remains available if memory is down
         pass

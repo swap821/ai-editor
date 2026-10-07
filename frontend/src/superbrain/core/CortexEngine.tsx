@@ -2,7 +2,7 @@
 import { subscribeCognition } from '@/lib/cognitionBus';
 
 import { useEffect, useRef } from 'react';
-import { Float, PerspectiveCamera, OrbitControls } from '@react-three/drei';
+import { PerspectiveCamera, OrbitControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { preloadBrainScene } from '@/lib/brainScene';
@@ -12,7 +12,10 @@ import CognitiveGrasp from '../components/canvas/CognitiveGrasp';
 import PostFX from '../components/canvas/PostFX';
 import NervousSystem from '../components/canvas/NervousSystem';
 import CosmicBackground from '../components/canvas/CosmicBackground';
+import AmbientFloat from '../components/canvas/AmbientFloat';
 import CommandNerve3D from '../components/canvas/CommandNerve3D';
+import BodyIntakeAnchors from '../components/canvas/BodyIntakeAnchors';
+import PresenceViewport from '../components/canvas/PresenceViewport';
 import KnowledgeHorizon from '../components/canvas/KnowledgeHorizon';
 import MemoryGalaxy from '../components/canvas/MemoryGalaxy';
 import BodySpeech from '../components/canvas/BodySpeech';
@@ -73,6 +76,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
+  const phoneFocusRef = useRef(false); // private viewport policy; no domain state
   const directivePendingRef = useRef(false);
   const replyGlowRef = useRef(0);
   const metabolismRef = useRef(getTurnMetabolismSnapshot());
@@ -183,7 +187,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
           }
         }
         if (event.type === 'directive') {
-          directivePendingRef.current = true;
+          directivePendingRef.current = !reducedMotionRef.current;
           cameraPushRef.current.value = 1;
           // The directive lands NOW: the wires surge as the packet enters.
           burstRef.current.intensity = Math.max(burstRef.current.intensity, 0.6);
@@ -273,10 +277,12 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     };
   }, []);
 
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     if (FeatureGate.isSleeping) return; // The mirror must know when the animal is sleeping
 
-    const time = state.clock.elapsedTime;
+    // Presentation time pauses; incoming semantic state still settles below.
+    // Wave timestamps use this same clock so Resume never catches up/jumps.
+    const time = uniforms.uTime.value + (reducedMotionRef.current ? 0 : delta);
     const current = burstRef.current;
     const hold = holdRef.current;
     const metabolism = metabolismRef.current;
@@ -323,7 +329,9 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     const holding = uniforms.uHold.value;
     if (bodyHoldActive) idleRef.current.lastInputMs = performance.now();
 
-    if (holding < 0.5 &&
+    // Drop a visual trigger caught just before Pause; never replay old work.
+    if (reducedMotionRef.current) directivePendingRef.current = false;
+    if (!reducedMotionRef.current && holding < 0.5 &&
         (directivePendingRef.current || time - current.lastBurst > 8 + Math.sin(time * 0.13) * 2)) {
       directivePendingRef.current = false;
       current.lastBurst = time;
@@ -402,7 +410,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
         ? -Math.sin(THREE.MathUtils.clamp(sinceRest / 0.9, 0, 1) * Math.PI) * 0.16
         : 0;
     // The approval hold freezes the breath exactly where it was caught.
-    uniforms.uBreath.value = Math.max(
+    uniforms.uBreath.value = reducedMotionRef.current ? 0.5 : Math.max(
       0,
       THREE.MathUtils.lerp(metabolicBreath, breathAtHold, holding) + restExhale,
     );
@@ -471,7 +479,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;
     if (waves.nextAuto < 0) waves.nextAuto = time + 2 + waves.random() * 3;
-    if (holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
+    if (!reducedMotionRef.current && holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
       waves.pending.push(randomWaveOrigin(waves.random));
       waves.nextAuto = time + 3 + waves.random() * 5;
     }
@@ -484,7 +492,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       idle.lastInputMs = performance.now();
     }
     const idleForS = (performance.now() - idle.lastInputMs) / 1000;
-    const isIdle = idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
+    const isIdle = !reducedMotionRef.current && idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
     idle.progress = isIdle
       ? Math.min(1, idle.progress + delta / IDLE_EASE_IN_S)
       : Math.max(0, idle.progress - delta / IDLE_EASE_OUT_S);
@@ -536,6 +544,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
               remove the translucent layer from the space). Identity/status live
               in the 2D GagosChrome layer. */}
           <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
+          <PresenceViewport phoneFocusRef={phoneFocusRef} />
           <OrbitControls
             ref={orbitRef as never}
             makeDefault
@@ -549,7 +558,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
             autoRotateSpeed={VOYAGE_SPEED}
           />
           {/* Step-1 framing: fill portrait/mobile (fov + target by aspect). */}
-          <OrganismFraming controlsRef={orbitRef} />
+          <OrganismFraming controlsRef={orbitRef} phoneFocusRef={phoneFocusRef} />
         </>
       ) : (
         <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
@@ -565,9 +574,6 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
         <KnowledgeHorizon activity={activeBoost} />
       )}
       <CosmicBackground tier={tier} arrival={arrivalScalarRef} reducedMotion={reducedMotion} />
-      {/* the command nerve as a real 3D tube (operator: "nerve should be 3D, like a
-          live") — bridges the DOM -> button to the cauda convergence in the scene. */}
-      {BEING_MODE === 'points' && <CommandNerve3D reducedMotion={reducedMotion} />}
 
       {/* The recall stream: distant glints are REAL trails from the pheromone
           map (strength = core brightness, walks = cage size, freshness =
@@ -597,7 +603,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       <pointLight position={[3.5, 4.0, 3]} intensity={0.7} distance={12} color="#c8a8ff" />
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
-      <Float speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
+      <AmbientFloat paused={reducedMotion} speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
         <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} />
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
@@ -605,7 +611,14 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
             <AccretionCore activity={activeBoost} burst={burstRef} arrival={arrivalScalarRef} sceneUniforms={uniforms} />
           </SubsystemErrorBoundary>
         )}
-      </Float>
+      </AmbientFloat>
+
+      {/* Default-priority callbacks run in mounted order: body → floating parent
+          → current socket projection → nerve. Never sample the previous pose. */}
+      {BEING_MODE === 'points' && <>
+        <BodyIntakeAnchors physical={physical} reducedMotion={reducedMotion} />
+        <CommandNerve3D reducedMotion={reducedMotion} />
+      </>}
 
       {tier !== 'low' && BEING_MODE !== 'points' && (
         <PointerBrainClone uniforms={uniforms} tier={tier} reducedMotion={reducedMotionRef.current} />

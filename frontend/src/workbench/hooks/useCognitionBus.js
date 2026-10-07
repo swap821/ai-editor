@@ -29,6 +29,28 @@ export function formatActiveBrainChip(brain) {
   return { name, meta, mode };
 }
 
+function findVerificationArtifact(rawTarget) {
+  const target = String(rawTarget ?? '').replace(/\\/g, '/');
+  const targetBase = target.split('/').pop();
+  const snap = getTabStoreSnapshot();
+  const candidates = [...new Map([...snap.tabs, ...(snap.recoverableTabs ?? [])]
+    .filter((tab) => tab.kind === 'content' && tab.content)
+    .map((tab) => [tab.id, tab])).values()];
+  const exact = candidates.filter((tab) => tab.content.filepath?.replace(/\\/g, '/') === target);
+  const byName = candidates.filter((tab) => tab.content.filepath?.split(/[\\/]/).pop() === targetBase);
+  // A backend prefix can qualify a basename-only artifact. It cannot
+  // erase a different path already known for that artifact, and basename
+  // fallback must still be unique across active and retained results.
+  const basenameCompatible = byName.length === 1 && (!target.includes('/')
+    || !byName[0].content.filepath.replace(/\\/g, '/').includes('/'));
+  const matches = exact.length > 0 ? exact : basenameCompatible ? byName : [];
+  // Never attach an explicitly targeted or ambiguous check to another
+  // focused reader. A filename is usable only when it identifies one
+  // retained version. The toast can still report the received event.
+  return target ? (matches.length === 1 ? matches[0] : null)
+    : candidates.length === 1 && candidates[0].id === snap.focusId ? candidates[0] : null;
+}
+
 export function useCognitionBus(reducedMotion = false) {
   const [brainChip, setBrainChip] = useState(() => formatActiveBrainChip(getActiveBrain()));
   const [pendingApproval, setPendingApproval] = useState(null);
@@ -93,25 +115,26 @@ export function useCognitionBus(reducedMotion = false) {
     return subscribeCognition((event) => {
       if (event.type === 'verify' && event.data?.verdict) {
         const toastToken = {};
+        const reportedVerdict = String(event.data.verdict).toLowerCase();
+        const verdict = ['pass', 'passed', 'green'].includes(reportedVerdict) ? 'pass'
+          : ['fail', 'failed', 'red'].includes(reportedVerdict) ? 'fail' : 'unknown';
+        const output = String(event.data.output ?? '');
+        const match = findVerificationArtifact(event.data.target);
+
+        const attributed = Boolean(match?.content) && verdict !== 'unknown';
         setVerifyToast({
-          verdict: event.data.verdict,
+          verdict: attributed ? verdict : 'unknown',
           detail: event.detail || '',
           leaving: false,
           token: toastToken,
         });
 
-        const verdict = String(event.data.verdict).toLowerCase() === 'pass' ? 'pass' : 'fail';
-        const output = String(event.data.output ?? '');
-        const targetBase = String(event.data.target ?? '').split(/[\\/]/).pop();
-        const snap = getTabStoreSnapshot();
-        const match =
-          snap.tabs.find(
-            (t) => t.kind === 'content' && t.content && t.content.filepath?.split(/[\\/]/).pop() === targetBase,
-          ) || snap.tabs.find((t) => t.id === snap.focusId && t.kind === 'content');
-
-        if (match && match.content) {
+        if (attributed) {
+          const cursor = event.metadata?.mirrorEventId;
+          const verifyEventId = event.source === 'mirror' && Number.isSafeInteger(cursor) && cursor >= 0
+            ? cursor : undefined;
           updateMaterializedTab(match.id, {
-            content: { ...match.content, verifyVerdict: verdict, verifyOutput: output },
+            content: { ...match.content, verifyVerdict: verdict, verifyOutput: output, verifyEventId },
           });
         }
 

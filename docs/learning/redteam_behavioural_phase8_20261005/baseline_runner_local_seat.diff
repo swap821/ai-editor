@@ -1,0 +1,43 @@
+diff --git "a/tools/learning_redteam_runner.py (fa4a3064)" b/C:/r0/tools/learning_redteam_runner.py
+index 76cdb698..8906a639 100644
+--- "a/tools/learning_redteam_runner.py (fa4a3064)"
++++ b/C:/r0/tools/learning_redteam_runner.py
+@@ -354,13 +354,32 @@ class Harness:
+         self.chat = RecordingChat()
+         behavioural_model = os.environ.get(BEHAVIOURAL_MODEL_ENV, "").strip()
+         if behavioural_model:
+-            from aios import config as _config
+-            from aios.core.bedrock import BedrockClient
++            if behavioural_model.startswith("ollama:"):
++                # A LOCAL model on this machine, through production's own
++                # Ollama client: the same seat, a different model.
++                from aios.core.llm import OllamaClient
+ 
+-            self.chat = RecordingModelChat(
+-                BedrockClient(model=behavioural_model, region=_config.BEDROCK_REGION),
+-                behavioural_model,
+-            )
++                self.chat = RecordingModelChat(
++                    OllamaClient(), behavioural_model.split(":", 1)[1]
++                )
++            elif behavioural_model.startswith("openai:"):
++                # The OpenAI-compatible endpoint the environment configures
++                # (NVIDIA here), through production's own client.
++                from aios.core.openai_compat import OpenAICompatClient
++
++                self.chat = RecordingModelChat(
++                    OpenAICompatClient(), behavioural_model.split(":", 1)[1]
++                )
++            else:
++                from aios import config as _config
++                from aios.core.bedrock import BedrockClient
++
++                self.chat = RecordingModelChat(
++                    BedrockClient(
++                        model=behavioural_model, region=_config.BEDROCK_REGION
++                    ),
++                    behavioural_model,
++                )
+         self.runner = RecordingRunner()
+         self.frames: dict[str, list[dict[str, Any]]] = {}
+         self.refusals: list[dict[str, Any]] = []

@@ -22,6 +22,12 @@ import logging
 from typing import Any, Mapping, Optional
 
 from aios.application.governance.emergency_stop import EmergencyStopError
+from aios.domain.learning.repository import (
+    SKILL_DIGEST_FIELDS,
+    SKILL_PROVENANCE_TABLE,
+    skill_digest,
+    skill_row_id,
+)
 from aios.memory.provenance import (
     LearningSigner,
     LearningVerifier,
@@ -154,6 +160,29 @@ class ProvenanceWriter:
             provenance, sign=self._extends_a_signed_state(table, row_id, prior_digest)
         )
 
+    def attest_approval(
+        self,
+        table: str,
+        row_id: Any,
+        digest: str,
+        transition: str,
+        *,
+        approver: str,
+        **context: Any,
+    ) -> Optional[int]:
+        """A state a HUMAN approved, signed if this process holds the key.
+
+        Plan Phase 4c-2: the operator's activation of a skill. No signed prior
+        state is required -- the approval vouches for exactly this content,
+        as a re-admission does -- so it must name its approver.
+        """
+        if not str(approver or "").strip():
+            raise ValueError("an approval must name its approver")
+        provenance = self._provenance(
+            table, row_id, digest, transition, {**context, "approver": approver}
+        )
+        return self._append(provenance, sign=True)
+
     def _extends_a_signed_state(
         self, table: str, row_id: Any, prior_digest: Optional[str]
     ) -> bool:
@@ -230,6 +259,12 @@ class RecallGate:
     else is refused, never "included with a warning": Phase 0b showed that a
     header is advice, not a boundary.
 
+    Plan Phase 4c (principal scoping; operator decision 2026-10-04): a row is
+    admitted only for the principal its SIGNED provenance names -- never on a
+    column, which anyone with the database could edit. A recall that does not
+    say who is asking is refused; so is a row learned before scoping, which
+    names nobody (withheld until re-earned or readmitted by the operator).
+
     Refusals are counted by reason for the operator and logged once per row.
     Nothing here writes, so a recall under the emergency stop still reads.
     """
@@ -250,7 +285,13 @@ class RecallGate:
         self.refused_by_table: dict[str, dict[str, int]] = {}
         self._logged: set[tuple[str, str]] = set()
 
-    def admits(self, table: str, row_id: Any, digest: str) -> bool:
+    def admits(
+        self, table: str, row_id: Any, digest: str, *, principal: Optional[str]
+    ) -> bool:
+        if not principal:
+            return self._refuse(
+                table, row_id, "no principal: the recall did not say who is asking"
+            )
         try:
             signed = self.store.latest(table, str(row_id))
         except Exception as exc:  # noqa: BLE001 - unreadable proves nothing
@@ -258,8 +299,15 @@ class RecallGate:
         verdict = self.verifier.verify(
             signed, content_sha256=digest, context=self.context
         )
-        if not verdict.admitted:
+        if not verdict.admitted or signed is None:
             return self._refuse(table, row_id, verdict.reason)
+        owner = signed.provenance.principal
+        if not owner:
+            return self._refuse(
+                table, row_id, "unattributed: learned before principal scoping"
+            )
+        if owner != principal:
+            return self._refuse(table, row_id, "another principal")
         self.admitted += 1
         return True
 
@@ -290,7 +338,11 @@ __all__ = [
     "LESSON_FIELDS",
     "ProvenanceWriter",
     "SEMANTIC_FIELDS",
+    "SKILL_DIGEST_FIELDS",
+    "SKILL_PROVENANCE_TABLE",
     "fact_digest",
     "lesson_digest",
     "semantic_digest",
+    "skill_digest",
+    "skill_row_id",
 ]

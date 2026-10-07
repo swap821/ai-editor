@@ -20,7 +20,6 @@ Every assertion is a falsifiable claim.
 
 from __future__ import annotations
 
-import json
 import sys
 import tempfile
 from pathlib import Path
@@ -35,7 +34,10 @@ from aios.core.planner import Planner, PlannerError
 from aios.memory.db import init_memory_db, get_connection
 from aios.memory.facts import SemanticFacts
 from aios.memory.mistake import MistakeMemory
-from aios.memory.skills import SkillMemory
+
+#: Plan Phase 4c-2: a skill belongs to a principal, and only that principal's
+#: turns plan from it or replay it. The proof learns, and acts, as this one.
+PROOF_PRINCIPAL = "principal:sovereignty-proof"
 
 
 def _separator(title: str) -> None:
@@ -50,35 +52,6 @@ def _evidence(claim: str, result: bool) -> None:
     print(f"  [{status}] {marker} {claim}")
     if not result:
         raise AssertionError(f"Sovereignty proof failed: {claim}")
-
-
-_sig_counter = 0
-
-
-def _insert_verified_skill(
-    db_path: Path,
-    goal: str,
-    steps: list[str],
-    *,
-    failure_count: int = 0,
-    sig_v2: str | None = None,
-) -> int:
-    """Insert a verified skill directly into the DB."""
-    global _sig_counter
-    _sig_counter += 1
-    sig = f"sig_{_sig_counter}"
-    if sig_v2 is None:
-        sig_v2 = f"sig_v2_{_sig_counter}"
-    init_memory_db(db_path)
-    with get_connection(db_path) as conn:
-        cur = conn.execute(
-            """INSERT INTO procedural_skills
-               (signature, signature_v2, goal_pattern, steps_json,
-                status, success_count, failure_count)
-               VALUES (?, ?, ?, ?, 'verified', 5, ?)""",
-            (sig, sig_v2, goal, json.dumps(steps), failure_count),
-        )
-        return cur.lastrowid or 0
 
 
 def _mock_dispatch_ok(name: str, args: dict) -> tuple[str, str, bool]:
@@ -116,17 +89,41 @@ def main() -> None:
         # ────────────────────────────────────────────────────────────
         _separator("Phase 1: Memory Seeding")
 
-        # 1. Insert verified skill (compilable steps)
+        # 1. A skill earned in the library -- the only skill store since Phase 2
+        # slice 2.4c-B -- by three STRONG successes, as the proof's principal,
+        # then ACTIVATED: only an operator-activated skill plans or replays.
+        # The proof stands in for the activation, in its own throwaway root.
+        from aios.application.memory.institutional_skills import (
+            InstitutionalSkillAdapter,
+            SkillTrailIndex,
+        )
+        from aios.core.verification_strength import VerificationStrength
+        from aios.domain.learning.repository import SkillRepository
+
         skill_goal = "read and verify the router module"
         skill_steps = [
             "read_file: src/router.py",
             "execute_terminal: python -m pytest tests/test_router.py",
             "verify: python -m pytest tests/test_router.py",
         ]
-        skill_id = _insert_verified_skill(db_path, skill_goal, skill_steps)
+        library_db = Path(tmp) / "operational.db"
+        repository = SkillRepository(library_db)
+        library = InstitutionalSkillAdapter(repository, SkillTrailIndex(library_db))
+        for _ in range(3):
+            skill_id = library.record_attempt(
+                skill_goal,
+                skill_steps,
+                success=True,
+                strength=VerificationStrength.STRONG,
+                principal=PROOF_PRINCIPAL,
+            )
+        (record,) = repository.list_skills()
+        repository.transition_state(record.skill_id, record.version, "human_reviewed")
+        repository.transition_state(record.skill_id, record.version, "active")
         _evidence(
-            f"verified skill inserted (id={skill_id})",
-            skill_id > 0,
+            f"skill earned and activated in the library (trail id={skill_id})",
+            skill_id > 0
+            and repository.get(record.skill_id, record.version).state == "active",
         )
 
         # 2. Insert verified swarm pattern (3 successes for promotion)
@@ -195,7 +192,7 @@ def main() -> None:
         # ────────────────────────────────────────────────────────────
         _separator("Phase 3: Native Planner")
 
-        skill_mem = SkillMemory(db_path)
+        skill_mem = library
         native = NativePlanner(
             skills=skill_mem,
             patterns=spm,
@@ -204,7 +201,9 @@ def main() -> None:
         )
 
         # 7. Skill-based plan match
-        skill_plan = native.try_plan("read and verify the router module")
+        skill_plan = native.try_plan(
+            "read and verify the router module", principal=PROOF_PRINCIPAL
+        )
         _evidence(
             "native planner matches skill arc (source='skill')",
             skill_plan is not None and skill_plan.source == "skill",
@@ -230,29 +229,7 @@ def main() -> None:
         _separator("Phase 4: Cerebellum Replay")
 
         # A reflex compiles only from a skill the OPERATOR activated in the
-        # skill library (Phase 2 slice 2.4c-B). This proof earns the skill
-        # there and stands in for the activation, in its own throwaway root.
-        from aios.application.memory.institutional_skills import (
-            InstitutionalSkillAdapter,
-            SkillTrailIndex,
-        )
-        from aios.core.verification_strength import VerificationStrength
-        from aios.domain.learning.repository import SkillRepository
-
-        library_db = Path(tmp) / "operational.db"
-        repository = SkillRepository(library_db)
-        library = InstitutionalSkillAdapter(repository, SkillTrailIndex(library_db))
-        for _ in range(3):
-            library.record_attempt(
-                skill_goal,
-                skill_steps,
-                success=True,
-                strength=VerificationStrength.STRONG,
-            )
-        (record,) = repository.list_skills()
-        repository.transition_state(record.skill_id, record.version, "human_reviewed")
-        repository.transition_state(record.skill_id, record.version, "active")
-
+        # skill library (Phase 2 slice 2.4c-B): the one Phase 1 activated.
         cb = Cerebellum(db_path)
         cb.attach_reflex_gate(library)
 
@@ -264,7 +241,9 @@ def main() -> None:
         )
 
         # 11. Matching
-        playbook = cb.match("read and verify the router module")
+        playbook = cb.match(
+            "read and verify the router module", principal=PROOF_PRINCIPAL
+        )
         _evidence(
             "compiled playbook matches goal text",
             playbook is not None,
@@ -280,7 +259,9 @@ def main() -> None:
         )
 
         # 13. Novel task does NOT match
-        no_match = cb.match("completely unrelated quantum physics question")
+        no_match = cb.match(
+            "completely unrelated quantum physics question", principal=PROOF_PRINCIPAL
+        )
         _evidence(
             "unrelated message does NOT match any playbook",
             no_match is None,
@@ -305,7 +286,12 @@ def main() -> None:
         _orig_offline = _config.OFFLINE_MODE
         try:
             _config.OFFLINE_MODE = True
-            planner = Planner(_OfflineLLM(), native=native, skills=skill_mem)
+            planner = Planner(
+                _OfflineLLM(),
+                native=native,
+                skills=skill_mem,
+                principal=PROOF_PRINCIPAL,
+            )
             plan = planner.plan("read and verify the router module")
             _evidence(
                 "planner returns native plan in offline mode",
@@ -330,7 +316,12 @@ def main() -> None:
             # 16. Planner raises PlannerError for novel task offline
             raised_planner = False
             try:
-                planner = Planner(_OfflineLLM(), native=native, skills=skill_mem)
+                planner = Planner(
+                    _OfflineLLM(),
+                    native=native,
+                    skills=skill_mem,
+                    principal=PROOF_PRINCIPAL,
+                )
                 planner.plan("completely unknown novel task xyz")
             except PlannerError:
                 raised_planner = True

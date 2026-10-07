@@ -348,8 +348,15 @@ def test_the_cerebellum_reports_both_replay_and_abstention(tmp_path: Path) -> No
     assert cerebellum.try_compile_all() == 1
 
     head = bus.head_id() if hasattr(bus, "head_id") else 0
-    assert cerebellum.match(goal) is not None, "the compiled playbook did not match"
-    assert cerebellum.match(f"run exactly this command for {divergent}") is None
+    assert cerebellum.match(goal, principal="principal:test") is not None, (
+        "the compiled playbook did not match"
+    )
+    assert (
+        cerebellum.match(
+            f"run exactly this command for {divergent}", principal="principal:test"
+        )
+        is None
+    )
 
     decisions = [
         (r.payload or {}).get("payload", {}).get("decision")

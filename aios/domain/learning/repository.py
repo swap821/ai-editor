@@ -17,10 +17,67 @@ from aios.domain.learning.skill_contracts import (
     check_transition,
 )
 from aios.memory.learning_freeze import assert_learning_permitted
+from aios.memory.provenance import (
+    Provenance,
+    content_digest,
+    ensure_provenance_schema,
+    journal_unsigned,
+)
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+#: The provenance table name a skill's records are kept under (plan Phase 3
+#: design 3.2: one ``learning_provenance`` table per database, keyed
+#: ``skill_id@version`` for skills).
+SKILL_PROVENANCE_TABLE = "institutional_skills"
+
+#: Plan Phase 4c-2: what a skill's signed provenance covers -- everything that
+#: decides whether it is recalled or replayed, and what it does when it is:
+#: the reviewed contract, the code states it was validated on (freshness), its
+#: state, and (``principal``, from ``provenance``) whose skill it is. Evidence
+#: that legitimately changes after review (counts, confidence, timestamps) is
+#: not covered, or every reuse would break the operator's signature. ONE
+#: derivation, for the journal here and the recall gate.
+SKILL_DIGEST_FIELDS = (
+    "skill_id",
+    "version",
+    "problem_signature",
+    "applicability_conditions",
+    "known_exclusions",
+    "required_inputs",
+    "required_project_state",
+    "procedure",
+    "allowed_tools",
+    "allowed_scope_pattern",
+    "expected_observations",
+    "verification_plan",
+    "escalation_conditions",
+    "source_trajectory_ids",
+    "last_validated_versions",
+    "state",
+)
+
+
+def skill_row_id(skill_id: str, version: int) -> str:
+    """The provenance row id of one skill version."""
+    return f"{skill_id}@{int(version)}"
+
+
+def skill_principal(record: "SkillRecord") -> str | None:
+    """Whose skill this is: the principal its record names, or None for one
+    learned before principal scoping (withheld from everyone)."""
+    return (record.provenance or {}).get("principal") or None
+
+
+def skill_digest(record: "SkillRecord") -> str:
+    """The digest a skill's provenance covers (``SKILL_DIGEST_FIELDS``)."""
+    payload = record.model_dump(mode="json")
+    fields = {name: payload.get(name) for name in SKILL_DIGEST_FIELDS}
+    fields["principal"] = skill_principal(record)
+    return content_digest(fields)
 
 
 #: All `save` may change on a skill that has left ``candidate``: its evidence.
@@ -49,10 +106,11 @@ class SkillRecord(SkillContract):
 
     created_at: str
     updated_at: str
-    #: Where the record came from, e.g. ``{"source": "migrated", ...}``.
-    #: Unsigned and advisory -- nothing decides on it; signed provenance is
-    #: plan Phase 3. It exists so a record can say where it came from without
-    #: borrowing ``source_trajectory_ids``, whose ids reuse lineage resolves.
+    #: Where the record came from, e.g. ``{"source": "migrated", ...}``. It
+    #: exists so a record can say where it came from without borrowing
+    #: ``source_trajectory_ids``, whose ids reuse lineage resolves. Advisory,
+    #: except ``principal`` (plan Phase 4c-2): whose skill it is, part of its
+    #: identity and covered by its signed provenance (``skill_digest``).
     provenance: Mapping[str, str] = {}
 
 
@@ -67,6 +125,12 @@ class SkillRepository:
     (``_EVIDENCE_FIELDS``); its contract is what was reviewed. Every write also
     asks the emergency stop first (``learning_freeze``), except a transition
     that withdraws a skill from use.
+
+    Plan Phase 4c-2: every transition also journals the new state in
+    ``learning_provenance``, unsigned, in the same transaction. Only the
+    operator's activation is signed, so a skill demoted after its activation
+    can never be flipped back to ``active`` in the database and pass on the
+    activation's signature: its newest record is the unsigned demotion.
     """
 
     def __init__(self, database: Path | str) -> None:
@@ -83,6 +147,7 @@ class SkillRepository:
                 )
                 """
             )
+            ensure_provenance_schema(connection)
 
     def save(self, skill: SkillRecord) -> None:
         """Write a skill's evidence: born ``candidate``, state never changed
@@ -156,6 +221,17 @@ class SkillRepository:
                 update={"state": state, "updated_at": _utc_now()}
             )
             self._write(connection, updated)
+            journal_unsigned(
+                connection,
+                Provenance(
+                    table=SKILL_PROVENANCE_TABLE,
+                    row_id=skill_row_id(skill_id, version),
+                    content_sha256=skill_digest(updated),
+                    source_kind="live",
+                    transition=f"state:{state}",
+                    principal=skill_principal(updated),
+                ),
+            )
         return updated
 
     @staticmethod

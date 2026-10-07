@@ -55,7 +55,9 @@ def library(tmp_path) -> InstitutionalSkillAdapter:
 def _earn(library, times=3, strength=VerificationStrength.STRONG) -> int:
     skill_id = 0
     for _ in range(times):
-        skill_id = library.record_attempt(GOAL, STEPS, success=True, strength=strength)
+        skill_id = library.record_attempt(
+            GOAL, STEPS, success=True, strength=strength, principal="principal:test"
+        )
     return skill_id
 
 
@@ -168,7 +170,7 @@ class TestOnlyReactivationBringsItBack:
 
     def test_a_failure_cannot_buy_it_back(self, db, library) -> None:
         _compile_then_retire(db, library)
-        library.record_attempt(GOAL, STEPS, success=False)
+        library.record_attempt(GOAL, STEPS, success=False, principal="principal:test")
         assert _cerebellum(db, library).try_compile_all() == 0
 
     def test_a_live_playbook_is_never_duplicated(self, db, library) -> None:

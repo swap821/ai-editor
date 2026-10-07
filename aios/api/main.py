@@ -1603,6 +1603,11 @@ def chat(
                 "index_turn": _index_turn,
                 "operator_facts_block": _operator_facts_block,
                 "recall_memory": _recall_memory,
+                # Plan Phase 4c: whose turn this is; None (unauthenticated)
+                # recalls no learned row and records unattributed ones.
+                "principal_id": (
+                    str(principal.principal_id) if principal is not None else None
+                ),
                 "chat_system_prompt": CHAT_SYSTEM_PROMPT,
                 "facts_auto_extract": config.FACTS_AUTO_EXTRACT,
                 "facts_auto_extract_max": config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,

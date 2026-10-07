@@ -619,3 +619,52 @@ class SkillMemory:
             }
             for row in rows
         ]
+
+
+def scoped_skill_recall(
+    skills: Any, query: str, limit: int, *, principal: Optional[str]
+) -> list[dict[str, Any]]:
+    """Recall from a skill store reached WITHOUT the memory authority (a test,
+    a tool), as *principal* (plan Phase 4c-2).
+
+    The legacy ``procedural_skills`` history names no principal, so nothing in
+    it belongs to anyone: it is withheld from everyone (operator decision
+    2026-10-04). The institutional library is asked as *principal*.
+    """
+    if isinstance(skills, SkillMemory):
+        return []
+    return list(skills.relevant_verified(query, limit, principal=principal))
+
+
+def scoped_skill_attempt(
+    skills: Any,
+    goal: str,
+    steps: list[str],
+    *,
+    success: bool,
+    strength: Any,
+    principal: Optional[str],
+) -> int:
+    """Record an attempt in a skill store reached WITHOUT the memory authority,
+    as *principal* (plan Phase 4c-2). The legacy history names no principal,
+    so it is written unattributed -- and ``scoped_skill_recall`` withholds it
+    from everyone."""
+    if isinstance(skills, SkillMemory):
+        return int(
+            skills.record_attempt(goal, steps, success=success, strength=strength)
+        )
+    return int(
+        skills.record_attempt(
+            goal, steps, success=success, strength=strength, principal=principal
+        )
+    )
+
+
+def scoped_skill_reuse(
+    skills: Any, skill_ids: Sequence[int], *, success: bool, principal: Optional[str]
+) -> list[int]:
+    """Reuse credit in a skill store reached WITHOUT the memory authority, as
+    *principal* (plan Phase 4c-2); the legacy history, unattributed."""
+    if isinstance(skills, SkillMemory):
+        return list(skills.record_reuse(skill_ids, success=success))
+    return list(skills.record_reuse(skill_ids, success=success, principal=principal))

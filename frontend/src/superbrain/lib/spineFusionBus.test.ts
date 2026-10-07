@@ -10,6 +10,7 @@ import {
   getBrainDockScale,
   setBodyGroupWorldMatrix,
   copyBodyGroupWorldMatrix,
+  clearBodyGroupWorldMatrix,
   __resetSpineFusionForTests,
 } from './spineFusionBus';
 
@@ -71,5 +72,38 @@ describe('spineFusionBus', () => {
     expect(getCortexAnchor()).toEqual([0, 0.1, 0]);
     expect(getBrainDockScale()).toBe(1);
     expect(copyBodyGroupWorldMatrix(new THREE.Matrix4())).toBe(false);
+  });
+
+  it('resolves the current parent pose instead of the matrix copied before Float runs', () => {
+    const parent = new THREE.Group();
+    const body = new THREE.Group();
+    parent.add(body);
+    body.position.set(1, 2, 3);
+    body.updateWorldMatrix(true, false);
+    setBodyGroupWorldMatrix(body.matrixWorld, body);
+
+    // Drei Float changes the ancestor later in the same frame. The sibling
+    // consumer must see that current pose, not yesterday's published snapshot.
+    parent.position.y = 4;
+    const target = new THREE.Matrix4();
+    expect(copyBodyGroupWorldMatrix(target)).toBe(true);
+    expect(new THREE.Vector3().setFromMatrixPosition(target).toArray()).toEqual([1, 6, 3]);
+    target.identity();
+    expect(copyBodyGroupWorldMatrix(target)).toBe(true);
+    expect(new THREE.Vector3().setFromMatrixPosition(target).toArray()).toEqual([1, 6, 3]);
+  });
+
+  it('releases a removed body without erasing a newer renderer binding', () => {
+    const oldBody = new THREE.Group();
+    const newBody = new THREE.Group();
+    setBodyGroupWorldMatrix(oldBody.matrixWorld, oldBody);
+    setBodyGroupWorldMatrix(newBody.matrixWorld, newBody);
+    clearBodyGroupWorldMatrix(oldBody);
+    newBody.position.x = 7;
+    const target = new THREE.Matrix4();
+    expect(copyBodyGroupWorldMatrix(target)).toBe(true);
+    expect(new THREE.Vector3().setFromMatrixPosition(target).toArray()).toEqual([7, 0, 0]);
+    clearBodyGroupWorldMatrix(newBody);
+    expect(copyBodyGroupWorldMatrix(target)).toBe(false);
   });
 });

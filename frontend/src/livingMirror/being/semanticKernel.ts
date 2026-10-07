@@ -15,6 +15,7 @@ export type BeingPhase =
   | 'understanding'
   | 'planning'
   | 'awaiting-human'
+  | 'awaiting-response'
   | 'acting'
   | 'verifying'
   | 'learning'
@@ -49,6 +50,7 @@ export type HumanTaskState =
   | 'understood'
   | 'preparing'
   | 'needs-permission'
+  | 'waiting-response'
   | 'working'
   | 'checking'
   | 'done-verified'
@@ -86,7 +88,7 @@ export interface WorkerPresentationRecord {
 export type MirrorTransport = 'disconnected' | 'connecting' | 'connected';
 export type MirrorProjection = 'unknown' | 'synchronizing' | 'snapshot' | 'fresh' | 'stale' | 'unavailable';
 export type MirrorStatus = 'offline' | 'online' | 'stale';
-export type TaskActivity = 'idle' | 'streaming' | 'checking' | 'complete' | 'failed' | 'refused' | 'restored' | 'stopped';
+export type TaskActivity = 'idle' | 'awaiting-replay' | 'streaming' | 'checking' | 'complete' | 'failed' | 'refused' | 'restored' | 'stopped';
 export type VerificationState = 'unknown' | 'pending' | 'pass' | 'fail' | 'unavailable';
 export type RouteClass = 'unknown' | 'local' | 'cloud';
 export type StopState = 'unknown' | 'clear' | 'engaged';
@@ -206,6 +208,9 @@ function deriveTaskState(facts: BeingFacts, coherence: BeingCoherence): HumanTas
   if (facts.taskActivity === 'refused') return 'refused';
   if (facts.taskActivity === 'failed' || facts.verification === 'fail') return 'failed';
   if (facts.taskActivity === 'restored' || facts.rollback) return 'restored';
+  // Submission is observed locally; response/execution/verification is not.
+  // Retain a wait distinct from both a human decision and measured work.
+  if (facts.taskActivity === 'awaiting-replay') return 'waiting-response';
   if (facts.taskActivity === 'complete') return facts.verification === 'pass' ? 'done-verified' : 'done-unverified';
   if (facts.taskActivity === 'checking' || facts.verification === 'pending') return 'checking';
   if (facts.taskActivity === 'streaming' || hasWorker(facts.workers ?? [], 'active', 'awaiting-capability')) return 'working';
@@ -226,6 +231,7 @@ function derivePhase(facts: BeingFacts, coherence: BeingCoherence, taskState: Hu
   if (coherence === 'stale') return 'stale';
   if (facts.rollback || facts.taskActivity === 'failed' || facts.taskActivity === 'refused' || facts.verification === 'fail') return 'recovering';
   if (coherence === 'degraded') return 'degraded';
+  if (facts.taskActivity === 'awaiting-replay') return 'awaiting-response';
   if (facts.verification === 'pending' || facts.taskActivity === 'checking') return 'verifying';
   if (facts.learning || facts.memoryPromoted || facts.curriculumMastered) return 'learning';
   if (facts.reflexUsed && taskState !== 'done-verified' && taskState !== 'done-unverified') return 'reflex';
@@ -250,6 +256,7 @@ function motionForPhase(phase: BeingPhase, facts: BeingFacts): BeingMotion {
     case 'listening':
     case 'understanding':
     case 'awaiting-human':
+    case 'awaiting-response':
     case 'planning':
       return 'attention';
     case 'learning':
@@ -269,6 +276,7 @@ function motionForPhase(phase: BeingPhase, facts: BeingFacts): BeingMotion {
 function attentionForPhase(phase: BeingPhase): BeingAttention {
   if (phase === 'listening' || phase === 'understanding') return 'human';
   if (phase === 'awaiting-human') return 'approval';
+  if (phase === 'awaiting-response') return 'workspace';
   if (phase === 'acting' || phase === 'verifying' || phase === 'learning' || phase === 'reflex') return 'workspace';
   return 'none';
 }

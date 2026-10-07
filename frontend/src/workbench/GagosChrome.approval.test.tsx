@@ -7,8 +7,14 @@ import {
   focusMaterializedTab,
   getTabStoreSnapshot,
   showContentSurface,
+  closeWorkspace,
+  finishMaterializedTabRetraction,
+  setMaterializedTabLifecycle,
+  openWorkspacePanel,
+  forgetRecoverableMaterializedTab,
 } from '../superbrain/lib/tabStore';
 import { setEmergencyStopPresentation } from '../livingMirror/emergencyStopPresentation';
+import { publishCognition } from '../superbrain/lib/cognitionBus';
 
 // The 3D being is not testable in jsdom; stub it so we exercise the 2D chrome —
 // specifically the DOM approval gate, the dependable supervised decision surface
@@ -217,7 +223,118 @@ describe('GagosChrome DOM approval gate', () => {
       screen.getByRole('button', { name: 'Discard' }).click();
     });
     expect(screen.getByText('Finished, but not verified')).toBeInTheDocument();
-    expect(screen.getByText(/removed the unverified work surface/i)).toBeInTheDocument();
+    expect(screen.getByText(/no result is available to close/i)).toBeInTheDocument();
+    expect(screen.queryByText(/removed the unverified work surface/i)).toBeNull();
+  });
+
+  // Drive the real submission, pending-approval adapter, decision panel,
+  // receipt, store and reading DOM. Only backend operations are substituted.
+  async function finishedWork() {
+    initialWrite.paused = true;
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const { LivingWorkspaceShell } = await import('../livingMirror/LivingWorkspaceShell');
+    render(<><GagosChrome integrated /><LivingWorkspaceShell experienceMode="beginner" /></>);
+    const input = screen.getByRole('textbox', { name: 'Talk to GAGOS' });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'create hello_loop.py' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    act(() => (window as unknown as ApprovalHost).__injectApproval?.({
+      token: 'first-write-token', kind: 'create', filepath: 'hello_loop.py',
+      summary: 'Approval required to create hello_loop.py', content: 'print("proposal")',
+    }));
+    // Only the replay response supplies the finished artifact, not its proposal.
+    approveResult.answer = '```python\nprint("final")\n```';
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /allow once/i })); });
+    const tab = getTabStoreSnapshot().tabs.find((record) => record.content?.filepath === 'hello_loop.py')!;
+    act(() => { setMaterializedTabLifecycle(tab.id, 'live'); focusMaterializedTab(tab.id); });
+    expect(screen.getByText('print("final")')).toBeVisible();
+    return tab;
+  }
+
+  function retire(id: string) {
+    finishMaterializedTabRetraction(id, getTabStoreSnapshot().tabs.find((tab) => tab.id === id)?.retractionToken);
+  }
+
+  it('keeps receipt-discarded work readable when recovery is full, then closes it after confirmed Forget frees capacity', async () => {
+    const tab = await finishedWork();
+    const output = screen.getByText('print("final")');
+    act(() => {
+      for (let n = 0; n < 12; n++) {
+        const older = showContentSurface({ filepath: `saved${n}.py`, language: 'python', code: 'saved result' });
+        closeWorkspace(older.id); retire(older.id);
+      }
+      focusMaterializedTab(tab.id);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(output).toBeVisible();
+    expect(getTabStoreSnapshot().tabs.find((record) => record.id === tab.id)?.lifecycle).toBe('live');
+    expect(getTabStoreSnapshot().recoverableTabs).toHaveLength(12);
+    expect(screen.getByText(/kept this result open/i)).toBeVisible();
+    expect(screen.queryByText(/removed the unverified work surface/i)).toBeNull();
+    fireEvent.click(within(screen.getByLabelText('GAGOS conversation')).getByRole('button', { name: 'Recent activity' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forget saved0.py' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forget permanently' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    act(() => retire(tab.id));
+    expect(getTabStoreSnapshot().recoverableTabs?.some((record) => record.id === tab.id)).toBe(true);
+    expect(screen.getByText(/closed this result.*reopen.*recent activity/i)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByText('print("final")')).toBe(output);
+    expect(output).toBeVisible();
+    expect(sendDirective).toHaveBeenCalledTimes(1); // Reopen must not submit a task.
+  });
+
+  it('Run a check restores the same closed result before drafting an explicit request without submitting it', async () => {
+    const tab = await finishedWork();
+    const output = screen.getByText('print("final")');
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    act(() => retire(tab.id));
+    fireEvent.click(screen.getByRole('button', { name: 'Run a check' }));
+    expect(getTabStoreSnapshot().focusId).toBe(tab.id);
+    expect(output).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Talk to GAGOS' })).toHaveValue('Run a check for hello_loop.py.');
+    expect(sendDirective).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Talk to GAGOS' })).toHaveFocus());
+  });
+
+  it.each(['pass', 'fail'] as const)('enriches the receipt from late %s verification of its closed result without reopening or stealing focus', async (verdict) => {
+    const tab = await finishedWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    act(() => {
+      retire(tab.id);
+      openWorkspacePanel('history', 'Recent activity');
+      publishCognition({ type: 'verify', source: 'test-fixture', data: {
+        verdict, target: 'hello_loop.py', output: `check ${verdict}`,
+      } });
+    });
+    expect(screen.getByRole('status', { name: verdict === 'pass' ? 'Done' : 'That did not work.' })).toBeVisible();
+    expect(screen.queryByRole('status', { name: 'Finished, but not verified' })).toBeNull();
+    expect(getTabStoreSnapshot().focusId).toBe('history');
+    expect(getTabStoreSnapshot().recoverableTabs?.find((record) => record.id === tab.id)?.content?.verifyVerdict).toBe(verdict);
+  });
+
+  it('keeps a closed receipt target and current selection unchanged when Review has no free anchor', async () => {
+    const tab = await finishedWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    act(() => {
+      retire(tab.id);
+      for (let n = 0; n < 12; n++) openWorkspacePanel(`occupied${n}`, `Occupied workspace ${n}`);
+    });
+    const selected = getTabStoreSnapshot().focusId;
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(getTabStoreSnapshot().focusId).toBe(selected);
+    expect(getTabStoreSnapshot().recoverableTabs?.some((record) => record.id === tab.id)).toBe(true);
+    expect(screen.getByText(/all workspace anchors are in use.*saved result is unchanged/i)).toBeVisible();
+  });
+
+  it('does not claim Discard removed a result that was already forgotten', async () => {
+    const tab = await finishedWork();
+    act(() => { closeWorkspace(tab.id); retire(tab.id); forgetRecoverableMaterializedTab(tab.id); });
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByText(/no result is available to close/i)).toBeVisible();
+    expect(screen.queryByText(/removed the unverified work surface/i)).toBeNull();
+    expect(getTabStoreSnapshot().recoverableTabs ?? []).toHaveLength(0);
   });
 
   it('never narrates success when the authorize replay does not actually complete', async () => {
@@ -284,7 +401,7 @@ describe('GagosChrome DOM approval gate', () => {
       summary: 'Approval required to finish hello_loop.py',
       filepath: 'hello_loop.py',
       kind: 'create',
-      content: 'print("final")',
+      content: 'print("proposal")',
     };
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
@@ -315,6 +432,7 @@ describe('GagosChrome DOM approval gate', () => {
     });
 
     approveResult.paused = false;
+    approveResult.answer = '```python\nprint("final")\n```';
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /allow once/i }));
     });

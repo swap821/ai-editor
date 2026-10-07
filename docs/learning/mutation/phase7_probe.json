@@ -1,0 +1,4714 @@
+{
+  "schema": "learning-mutation-probe/1",
+  "commit": "d3cbccda0857c2bd75d19a8d955d35b613eb98d0",
+  "only": null,
+  "tree": "86aa341844339f80b12c1326938de96bb29542441a61074b6fe08add1250ea90",
+  "mutations_total": 521,
+  "mutations_killed": 499,
+  "survivors": [],
+  "coverage": {
+    "guard_functions": 61,
+    "decision_points": 193,
+    "attacked": 192,
+    "unattacked": [
+      {
+        "file": "aios/api/turn_pipeline.py",
+        "function": "_recall_memory",
+        "line": 565,
+        "source": "if unverified"
+      }
+    ],
+    "missing_guards": []
+  },
+  "results": [
+    {
+      "id": "0b1:replay pre-approves commands again",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "0b1:withheld step counts as a failure",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "0b1:abort does not name the control",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "0b1:every approval abort names the control (lucky attribution)",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "0b2:unverified still recalled",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "0b2:announcement names no control",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "0b2:unverified reaches the live route",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:content hash checked",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:key kind matches record",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:context admits kind",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:signature verified",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:unknown key refused",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:newest unsigned is not inherited",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:signature matches its record",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:append asks the stop",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:parents order-free",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3a:harness key cannot sign live",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:approved proposal attested",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:fact approver covered",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:semantic text covered",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:lesson status covered",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:lesson recurrence covered",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:semantic status covered",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:stop re-raised",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:children scrub keys",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3b:failures never break the write",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:lessons are filtered",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:over-fetch",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:boot gates lessons",
+      "file": "aios/application/memory/bootstrap.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:boot gate is live",
+      "file": "aios/application/memory/bootstrap.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:RT-13 needs a refusal to hold",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:children get a throwaway key",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c:pinned-file override read at call time",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c2:boot gates facts",
+      "file": "aios/application/memory/bootstrap.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3c2:RT-18 needs its control fact",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3d:live key required",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3d:approver required",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3d:one bad id refuses all",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3d:names the approver",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "3d:dry run by default",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M1 recall back in the system message",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M2 no taint pause for commands",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M3 earned autonomy ignores taint",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M4 RED offered for approval",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M5 approved command still tainted",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M6 governance context dropped from system",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M7 pipeline sends governed context as recall",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M8 SSE payload drops the control",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M9 alignment frame moved into the envelope",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M10 attach mutates the caller's message",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M11 operator text includes the envelope",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M16 taint blind to the cloud form",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M15 recall can close the envelope",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M12 control named on a pause taint did not force",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M13 tail includes the operator message",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4a:M14 judge counts the model's echo",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4b:K1 pause carries bare lines, no channel",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4b:K2 no line ever gets a channel",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4b:K3 the farthest header wins",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4b:K4 judge accepts an unknown channel",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4b:K5 frames drop what the human was shown",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4b:K6 SSE payload drops the channel",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P1 a recall naming no one is admitted",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P2 an unattributed row is admitted",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P3 another principal's row is admitted",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P4 memory dedupe ignores the principal",
+      "file": "aios/memory/semantic.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P5 lesson recurrence ignores the principal",
+      "file": "aios/memory/mistake.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P6 a lesson promoted by another principal",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P7 another principal's fact contradicts",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P8 a reconcile supersedes everyone's",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P9 anyone approves a proposal",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P10 a graph walk crosses principals",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P11 a lesson is signed without its principal",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P12 the self-model cache is shared",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P13 an unnamed turn refreshes the self-model",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P14 old databases never gain the column",
+      "file": "aios/memory/db.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P15 RT-10 credited on a row nobody saw",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P16 RT-10 judge ignores the owner",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P17 the reflect route records unattributed lessons",
+      "file": "aios/api/routes/actions.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P18 a turn indexes with no principal",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P19 a turn's reflector is not bound",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P20 a refused readmit still attributes the row",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P21 a readmit with no principal",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P22 a readmit moves another principal's row",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P23 status hides unattributed rows",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P24 the live indexer is written to as a store",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P25 a chat turn indexes with no principal",
+      "file": "aios/application/turns/conversation_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P26 a chat turn recalls as no one",
+      "file": "aios/application/turns/conversation_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c:P27 a chat turn's facts block names no one",
+      "file": "aios/application/turns/conversation_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S1 the gate is bypassed (unsigned admitted)",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S2 the asker is ignored",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S3 recall admits everyone's",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S4 reflexes admit everyone's",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S5 reuse credits anyone's",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S6 an arc's identity ignores the principal",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S7 a learned skill names no principal",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S8 compiling admits unsigned skills",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S9 activation reports signed without a signature",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S10 a transition leaves no journal",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S11 the digest omits the procedure",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S12 the activation attributes no one",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S13 the service names no activator",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S14 the route does not sign",
+      "file": "aios/api/routes/skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S15 a reflex matches anyone's skill",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S16 the agent matches as no one",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S17 the turn's reflex pre-check matches as no one",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S18 the turn recalls skills as no one",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S19 the turn records its attempt as no one",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S20 the turn credits reuse as no one",
+      "file": "aios/application/turns/generate_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S21 the legacy history is recalled",
+      "file": "aios/memory/skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S23 RT-23 credited when the owner was never served",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S24 RT-23 blind to a recalled workflow",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c2:S25 a recall naming no one is admitted",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c3:Q1 the schema is ensured on every check",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c3:Q2 a batched row is admitted unverified",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c3:Q3 the batch ignores the principal",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c3:Q4 a walk keeps an edge the gate refused",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "4c3:Q5 neighbors keep a refused row",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y1 match reads the whole message",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y2 quoted spans kept",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y3 fenced blocks kept",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y4 quote lines kept",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y5 forwarded sections kept",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y6 no whole-directive rule",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y7 coverage ignores the reflex's own steps",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y8 ambiguity picks one",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y9 RT-21 credited without the control turn",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5a:Y10 RT-05 credited on a dead reflex",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z1 match never asks the engine",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z2 no library fails open",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z3 unreadable verdict fails open",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z4 freshness reads the record, not the code",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z5 scope read from the record",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z6 policy always allows",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z7 plan always executable (wiring)",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z8 a success elsewhere vouches",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z9 a failed attempt revalidates",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z30 a reviewed skill re-validates itself",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z29 a stale match withdraws nothing",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z31 every refusal is staleness",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z32 the withdrawal ignores the stop",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z33 staleness reworded away from the engine",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z10 born with no plan",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z11 born with no validated version",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z12 born with no evidence reference",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z13 a failure-born skill never gets its reference",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z14 validated versions are contract, not evidence",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z16 activation records no version",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z17 commands hashed under the read root",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z18 no freshness plan for reads",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z19 any command is a plan",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z20 plan always executable (function)",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z21 versions uncapped",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z22 version ignores file content",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z28 a directory is just 'directory'",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z23 RT-09 credited without a live reflex",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z24 RT-09 credits any abstention",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z25 a withheld reflex counts as fired",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z26 decisions read from any source",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Z27 RT-09 judge ignores liveness",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5b:Y9 RT-21 credited without the control turn",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C1 never capped",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C2 capped without learned recall",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C3 a human-approved command is capped",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C4 the cap claims any zone",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C6 a timed-out command is not counted",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C7 an approved command uses up the cap",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C8 a reflex is not learned recall",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C9 facts count as learned",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C10 the cap is four",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C11 nothing is counted",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C12 the pause does not name the cap",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C13 reads are counted",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C14 RT-22 breached without a lesson recalled",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "5c:C15 the reel's cap drifts from the code's",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W1 the cap never refuses",
+      "file": "aios/application/memory/write_budget.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W2 the window never rolls",
+      "file": "aios/application/memory/write_budget.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W3 one budget for all tables",
+      "file": "aios/application/memory/write_budget.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W6 skill attempt unbounded",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W9 fact strengthen unbounded",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W10 production leaves facts unbounded",
+      "file": "aios/application/memory/bootstrap.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6b:W11 production default raised",
+      "file": "aios/config.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X1 retiring never suspends",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X2 a decompiled row stops blocking",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X3 the library claims a withdrawal it never makes",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X4 re-activation refused",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X5 a revoked skill reactivatable",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X6 the sweep never retries the suspension",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X7 invalidate retires without suspending",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X8 the tool re-activates any state",
+      "file": "tools/activate_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X9 RT-20 credited on absence",
+      "file": "tools/learning_redteam_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "6c:X10 M5 lets earning count",
+      "file": "tools/learning_conformance_runner.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:boot attaches the gate",
+      "file": "aios/application/memory/bootstrap.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:history refuses writes",
+      "file": "aios/memory/skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:migration-pending refusal",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:match withholds unbacked",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:ungated cerebellum activates nothing",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:payoff history sees the library",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:prover detects a library backend",
+      "file": "tools/learning_loop_prover.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:doctor says quiet only when nothing is active",
+      "file": "aios/operations/doctor.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "b:tools build a read-only history",
+      "file": "tools/self_corpus_grading.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "chain:chain verified before signing",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "chain:prior digest must match",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "chain:recurrence is a transition",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "chain:prior row must be the written row",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "chain:unapproved fact unsigned",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "d8:R1 the census counts ungated lessons",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "d8:R2 nothing recallable is never refused",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "d8:R3 the ON arm recalls ungated",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "d8:R4 the census can write",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "d8:R5 the gated slot is never the owner",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "d8:R6 the benchmark skips the census refusal",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze:skills.record_attempt unguarded",
+      "file": "aios/memory/skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze:lessons.record unguarded",
+      "file": "aios/memory/mistake.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze:lessons.record_or_increment unguarded",
+      "file": "aios/memory/mistake.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze:semantic.add unguarded",
+      "file": "aios/memory/semantic.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze:lessons.promote unguarded",
+      "file": "aios/memory/mistake.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze:lessons.increment_occurrence unguarded",
+      "file": "aios/memory/mistake.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze2:facts.strengthen_or_propose unguarded",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze2:facts.propose unguarded",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze2:facts.add_fact unguarded",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze2:curriculum.add_task unguarded",
+      "file": "aios/memory/curriculum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze2:curriculum.record_matching unguarded",
+      "file": "aios/memory/curriculum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "freeze2:replay failure counted under the stop",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "pay:arms are not restored",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "pay:tracked edits are not reverted",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "pay:an unrestorable corpus is graded anyway",
+      "file": "tools/learning_payoff.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "preflight:pre-flight disabled",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "preflight:pre-flight withholds RED too (disagrees with dispatch)",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "preflight:pre-flight ignores verify steps",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "recall2:status filter not applied in SQL",
+      "file": "aios/memory/retrieval.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "recall2:recall retrieves the mixed pool",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "recall2:announcement unbound from its query",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s21:API builds a fresh cerebellum per request",
+      "file": "aios/api/deps.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s21:API builds a fresh curriculum per call",
+      "file": "aios/api/deps.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s21:cache refilled in place",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s21:bus never attached",
+      "file": "aios/api/deps.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s21:cerebellum not R11-tracked",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:save writes any state",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:save ignores the stop",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:transition ignores the stop",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:stop blocks withdrawal too",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:transition skips the policy",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:trajectory ignores the stop",
+      "file": "aios/domain/learning/trajectory_repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:reuse outcome ignores the stop",
+      "file": "aios/domain/learning/reuse_outcome_repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:qualified comes back",
+      "file": "aios/domain/learning/skill_contracts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:unknown state crashes with KeyError",
+      "file": "aios/domain/learning/skill_contracts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:withdrawal includes a step toward use",
+      "file": "aios/domain/learning/skill_contracts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:active reachable straight from candidate",
+      "file": "aios/domain/learning/skill_contracts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:a state leads back to birth",
+      "file": "aios/domain/learning/skill_contracts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "s22:revocation dropped from a state",
+      "file": "aios/domain/learning/skill_contracts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance:LearningVerifier.verify:258:always",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance:LearningVerifier.verify:258:never",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance:LearningSigner.sign:193:always",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance:LearningSigner.sign:193:never",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance:ProvenanceStore.latest:388:always",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance:ProvenanceStore.latest:388:never",
+      "file": "aios/memory/provenance.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:RecallGate.admits:302:always",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:RecallGate.admits:302:never",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:ProvenanceWriter._append:225:always",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:ProvenanceWriter._append:225:never",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:ProvenanceWriter._append:229:always",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:ProvenanceWriter._append:229:never",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:ProvenanceWriter.attest_approval:179:always",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:provenance_policy:ProvenanceWriter.attest_approval:179:never",
+      "file": "aios/application/memory/provenance_policy.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:readmit:164:always",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:readmit:164:never",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:readmit:183:always",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:readmit:183:never",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:readmit:189:always",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:readmit:189:never",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:status:129:always",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:readmit_learning:status:129:never",
+      "file": "tools/readmit_learning.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter._admits:75:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter._admits:75:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:145:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:145:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:147:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:147:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:149:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:149:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:150:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:150:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:156:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:LegacySemanticMemoryAdapter.recall:156:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter._admitted:779:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter._admitted:779:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter._admitted:782:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter._admitted:782:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter._admitted:786:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter._admitted:786:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter.promote:931:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- prior is read only for the attestation, and _attest returns at once when the adapter has no provenance writer: the value is never used."
+    },
+    {
+      "id": "gen:adapters:MistakeMemoryAdapter.promote:931:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admits_row:368:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admits_row:368:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admitted_triples:394:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admitted_triples:394:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admitted_triples:396:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admitted_triples:396:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- an empty triple set joins nothing in json_each: the query returns no rows and the result is the same empty set; the return saves a query."
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admitted_triples:416:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter._admitted_triples:416:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- 'the newest row decides': duplicate ACTIVE rows of one principal's triple cannot be written through the store (add_fact refuses them), and an older signed row of the same triple vouches for the same content (plan Phase 4c-3)."
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter.traverse_weighted:634:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter.traverse_weighted:634:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- ungated, _admitted_triples admits every asked triple, and the store's walk returns only edges on paths from the start: sorted by depth, each edge's subject is already reached, so the filter keeps exactly the edges the shortcut returns."
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter.traverse_weighted:654:always",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:adapters:SemanticFactsAdapter.traverse_weighted:654:never",
+      "file": "aios/application/memory/adapters.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:skill_identity:362:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:skill_identity:362:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:732:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:732:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:738:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:738:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:746:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:746:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.active_procedures:768:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.active_procedures:768:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:700:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:700:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:706:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:706:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:715:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:715:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- forces the reason to 'verification' on a success too, and SkillLifecycleAuthority.apply_reuse_outcome reads the reason only on a failure (record_success takes none; demotion is skipped on success)."
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.attest_activation:449:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.attest_activation:449:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.attest_activation:452:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.attest_activation:452:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.attest_activation:454:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.attest_activation:454:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:508:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:508:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:512:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:512:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:514:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:514:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:521:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:521:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:530:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:530:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:532:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:532:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:539:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:539:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:546:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:546:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:550:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- refine_context(query, []) is '' by its contract ('empty when there is no real content'), the value the guard yields."
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:550:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:555:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:555:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:558:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:558:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:561:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- trusted is never empty here: an empty one returned None at `if not hits` (hits = trusted), so the condition is already always true."
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:561:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:565:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- unverified is [] (Phase 0b), and refine_context(query, []) is ''."
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:565:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- unverified is [] (Phase 0b): the condition is already always false."
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:569:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:569:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:571:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:571:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- unverified_body is '' because unverified is [] (Phase 0b): the condition is already always false."
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:573:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:573:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:575:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:575:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:583:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- as _recall_memory:561 -- trusted is never empty at the plain block."
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:583:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:587:always",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:turn_pipeline:_recall_memory:587:never",
+      "file": "aios/api/turn_pipeline.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- unverified is [] (Phase 0b): the condition is already always false."
+    },
+    {
+      "id": "gen:self_model_handler:SelfModelHandler.__call__:93:always",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:self_model_handler:SelfModelHandler.__call__:93:never",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:self_model_handler:SelfModelHandler.__call__:99:always",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:self_model_handler:SelfModelHandler.__call__:99:never",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:self_model_handler:SelfModelHandler.recall:117:always",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:self_model_handler:SelfModelHandler.recall:117:never",
+      "file": "aios/runtime/self_model_handler.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- recall(None) looks up a None key, and none is ever stored: __call__ returns before caching a turn that names no principal. The answer is None either way; the early return is defence in depth."
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:118:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:118:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:133:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:133:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:147:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:147:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:148:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.add_fact:148:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.approve_proposal:538:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.approve_proposal:538:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.approve_proposal:545:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.approve_proposal:545:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.approve_proposal:558:always",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:facts:SemanticFacts.approve_proposal:558:never",
+      "file": "aios/memory/facts.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:100:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:100:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:103:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:103:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:107:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:107:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:109:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:109:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:118:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:attach_envelope:118:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:model_visible:173:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:model_visible:173:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- a short-circuit: _cloud_form('') is '' (the privacy filter leaves empty content empty, and on failure returns the text), so an empty text yields [text] either way."
+    },
+    {
+      "id": "gen:recall_envelope:operator_text:141:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:operator_text:141:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:recall_provenance:274:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:recall_provenance:274:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:recall_provenance:275:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:recall_provenance:275:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:recall_provenance:278:always",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:recall_envelope:recall_provenance:278:never",
+      "file": "aios/agents/recall_envelope.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._recall_taint:2044:always",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._recall_taint:2044:never",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- with no taintable argument or no recalled memory, recall_envelope.recall_taint finds nothing to match and returns [] -- the early return is a shortcut (checked directly: recall_taint('', m, o) == [] and recall_taint(c, '', o) == [])."
+    },
+    {
+      "id": "gen:cerebellum:directive_coverage:440:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:directive_coverage:440:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:749:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:749:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- a short-circuit: with no compiled playbook the loop adds no candidate and records no decision, so match returns None either way; the only work skipped is reading the library, and _activated swallows every error (it cannot raise)."
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:754:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:754:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:760:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:760:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:763:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:763:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:766:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:766:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:785:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:785:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:796:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:796:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:804:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:804:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:810:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.match:810:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._activated:548:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._activated:548:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._activated:559:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._activated:559:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._activated:562:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- the comprehension filter sits inside `if steps and all(step is not None for step in steps)`, so there every step is not None and the filter is already always true."
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._activated:562:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._inapplicable:858:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._inapplicable:858:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2168:always",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2168:never",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2172:always",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2172:never",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2180:always",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2180:never",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2182:always",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._dispatch_approved:2182:never",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._composition_capped:2004:always",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:tool_agent:ToolAgent._composition_capped:2004:never",
+      "file": "aios/agents/tool_agent.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- a read carries no command, and the gateway refuses an empty one (_gateway_refuses({}) is True), so a read is never held at the cap even without the early return; the return states the rule."
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.reflex_applicability:660:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.reflex_applicability:660:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:plan_executable:218:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:plan_executable:218:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:plan_executable:220:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:plan_executable:220:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:validated_version:159:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:validated_version:159:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:validated_version:161:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- a missing target is hashed through read_directory's deterministic refusal ('[ERROR] Not a directory: <target>', blocked) instead of 'missing'. A version is only ever compared with one computed by the same function, so it stays a pure function of the target and its absence: staleness is unchanged."
+    },
+    {
+      "id": "gen:reflex_contract:validated_version:161:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:275:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:275:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:288:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:288:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:295:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:295:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:296:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:296:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:298:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:298:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:300:always",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:reflex_contract:stamp_for_activation:300:never",
+      "file": "aios/application/memory/reflex_contract.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.invalidate_for_skill:1458:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.invalidate_for_skill:1458:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.invalidate_for_skill:1478:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.invalidate_for_skill:1478:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.decompile:1372:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum.decompile:1372:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._take_out_of_service:1305:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._take_out_of_service:1305:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._take_out_of_service:1317:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._take_out_of_service:1317:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._take_out_of_service:1330:always",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:cerebellum:Cerebellum._take_out_of_service:1330:never",
+      "file": "aios/core/cerebellum.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.withdraw_reflex_source:804:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.withdraw_reflex_source:804:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.withdraw_reflex_source:805:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.withdraw_reflex_source:805:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.withdraw_reflex_source:807:always",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:institutional_skills:InstitutionalSkillAdapter.withdraw_reflex_source:807:never",
+      "file": "aios/application/memory/institutional_skills.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:159:always",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:159:never",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:161:always",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:161:never",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:168:always",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:168:never",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:176:always",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:176:never",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:178:always",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.save:178:never",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.transition_state:217:always",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:repository:SkillRepository.transition_state:217:never",
+      "file": "aios/domain/learning/repository.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:328:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:328:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:338:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:338:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:341:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:341:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:348:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:348:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:352:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:352:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:356:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:356:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:365:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:365:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:369:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:369:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:381:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- stamp_for_activation returns the skill itself only when it changed nothing; saving that unchanged record is a no-op write SkillRepository.save allows in every activatable state (same state, no contract field rewritten)."
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:381:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:386:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:386:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- SkillRepository.transition_state returns the record in the target state or raises (KeyError, or check_transition's refusal); it never returns None or another state."
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:391:always",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:service:LearningService.activate_skill:391:never",
+      "file": "aios/application/learning/service.py",
+      "applied": true,
+      "returncode": 0,
+      "killed": false,
+      "survived": false,
+      "note": "INERT -- as activate_skill:386 -- transition_state returns the record in the target state or raises."
+    },
+    {
+      "id": "gen:write_budget:LearningWriteBudget.spend:77:always",
+      "file": "aios/application/memory/write_budget.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    },
+    {
+      "id": "gen:write_budget:LearningWriteBudget.spend:77:never",
+      "file": "aios/application/memory/write_budget.py",
+      "applied": true,
+      "returncode": 1,
+      "killed": true,
+      "survived": false,
+      "note": ""
+    }
+  ]
+}

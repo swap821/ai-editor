@@ -102,7 +102,7 @@ def test_a_refused_lesson_writes_nothing(tmp_path: Path) -> None:
     init_memory_db(db)
     lessons = MistakeMemoryAdapter(MistakeMemory(db))
     lessons.write_budget = LearningWriteBudget(2, clock=Clock())
-    lessons.record("t1", "e1", "c", "f", "lesson one", -0.1)
+    lessons.record("t1", "e1", "c", "f", "lesson one", -0.1, principal="principal:test")
     lessons.record_or_increment(
         task_id="t2",
         error_type="e2",
@@ -110,9 +110,12 @@ def test_a_refused_lesson_writes_nothing(tmp_path: Path) -> None:
         fix_applied="f",
         lesson_text="lesson two",
         confidence_delta=-0.1,
+        principal="principal:test",
     )
     with pytest.raises(LearningWriteCapExceeded):
-        lessons.record("t3", "e3", "c", "f", "lesson three", -0.1)
+        lessons.record(
+            "t3", "e3", "c", "f", "lesson three", -0.1, principal="principal:test"
+        )
     with pytest.raises(LearningWriteCapExceeded):
         lessons.record_or_increment(
             task_id="t4",
@@ -121,6 +124,7 @@ def test_a_refused_lesson_writes_nothing(tmp_path: Path) -> None:
             fix_applied="f",
             lesson_text="lesson four",
             confidence_delta=-0.1,
+            principal="principal:test",
         )
     assert _count(db, "mistake_pool") == 2
 
@@ -134,6 +138,7 @@ def test_a_refused_skill_attempt_writes_nothing(tmp_path: Path) -> None:
         ["verify: pytest"],
         success=True,
         strength=VerificationStrength.STRONG,
+        principal="principal:test",
     )
     with pytest.raises(LearningWriteCapExceeded):
         skills.record_attempt(
@@ -141,6 +146,7 @@ def test_a_refused_skill_attempt_writes_nothing(tmp_path: Path) -> None:
             ["verify: pytest -q"],
             success=True,
             strength=VerificationStrength.STRONG,
+            principal="principal:test",
         )
     assert len(repository.list_skills()) == 1
 
@@ -162,11 +168,11 @@ def test_a_refused_semantic_memory_writes_nothing(tmp_path: Path) -> None:
     store = _RecordingSemanticStore(tmp_path / "memory.sqlite")
     semantic = LegacySemanticMemoryAdapter(store)
     semantic.write_budget = LearningWriteBudget(1, clock=Clock())
-    semantic.record_chat("first observation")
+    semantic.record_chat("first observation", principal="principal:test")
     with pytest.raises(LearningWriteCapExceeded):
-        semantic.record_chat("second observation")
+        semantic.record_chat("second observation", principal="principal:test")
     with pytest.raises(LearningWriteCapExceeded):
-        semantic.add("third")
+        semantic.add("third", principal="principal:test")
     assert store.added == ["first observation"]
 
 
@@ -175,11 +181,25 @@ def test_a_refused_fact_writes_nothing(tmp_path: Path) -> None:
     init_memory_db(db)
     facts = SemanticFactsAdapter(SemanticFacts(db))
     facts.write_budget = LearningWriteBudget(1, clock=Clock())
-    facts.add_fact("release", "branch", "main", approved_by="operator:test")
+    facts.add_fact(
+        "release",
+        "branch",
+        "main",
+        approved_by="operator:test",
+        principal="principal:test",
+    )
     with pytest.raises(LearningWriteCapExceeded):
-        facts.add_fact("release", "tag", "v1", approved_by="operator:test")
+        facts.add_fact(
+            "release",
+            "tag",
+            "v1",
+            approved_by="operator:test",
+            principal="principal:test",
+        )
     with pytest.raises(LearningWriteCapExceeded):
-        facts.strengthen_or_propose("release", "owner", "ops")
+        facts.strengthen_or_propose(
+            "release", "owner", "ops", principal="principal:test"
+        )
     assert _count(db, "semantic_facts") == 1
 
 
@@ -188,7 +208,9 @@ def test_an_adapter_without_a_budget_is_unbounded(tmp_path: Path) -> None:
     init_memory_db(db)
     lessons = MistakeMemoryAdapter(MistakeMemory(db))
     for i in range(5):
-        lessons.record(f"t{i}", f"e{i}", "c", "f", f"lesson {i}", -0.1)
+        lessons.record(
+            f"t{i}", f"e{i}", "c", "f", f"lesson {i}", -0.1, principal="principal:test"
+        )
     assert _count(db, "mistake_pool") == 5
 
 

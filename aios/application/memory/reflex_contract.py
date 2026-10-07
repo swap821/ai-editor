@@ -258,16 +258,32 @@ def with_validated(versions: Iterable[str], version: str) -> list[str]:
     return kept[-MAX_VALIDATED_VERSIONS:]
 
 
-def stamp_for_activation(record):  # noqa: ANN001, ANN201 - SkillRecord in and out
+def stamp_for_activation(record, *, activator=None):  # noqa: ANN001, ANN201
     """The operator's activation fills in a skill's reflex contract.
 
     For a ``candidate`` (the contract is still writable): any missing plan,
     scope and trail reference are derived from its own steps, exactly as a
-    skill born on the live path gets them. For every activation: the code
-    state now is appended as a validated version -- the operator's activation
-    is the human judgment that the skill applies to the code as it is.
-    Not an arc (a procedure that is not a list of steps): returned unchanged.
+    skill born on the live path gets them, and -- plan Phase 4c-2 -- a skill
+    learned before principal scoping, which names no one, becomes
+    *activator*'s: the operator's review re-admits it, for him. For every
+    activation: the code state now is appended as a validated version -- the
+    operator's activation is the human judgment that the skill applies to the
+    code as it is. Not an arc (a procedure that is not a list of steps):
+    returned unchanged.
     """
+    if (
+        record.state == "candidate"
+        and activator
+        and not (record.provenance or {}).get("principal")
+    ):
+        record = record.model_copy(
+            update={
+                "provenance": {
+                    **dict(record.provenance or {}),
+                    "principal": str(activator),
+                }
+            }
+        )
     steps = procedure_steps(record.procedure)
     if steps is None:
         return record

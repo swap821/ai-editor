@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { API_HEADERS } from '../config';
-import { useTabStore, getTabStoreSnapshot, openWorkspacePanel, focusWorkspace, closeWorkspace, clearMaterializedTab, pinWorkspace, type WorkspacePanel } from '../superbrain/lib/tabStore';
+import { useTabStore, getTabStoreSnapshot, getMaterializedTabLabel, openWorkspacePanel, focusWorkspace, closeWorkspace, clearMaterializedTab, pinWorkspace, reopenMaterializedTab, forgetRecoverableMaterializedTab, finishMaterializedTabRetraction, type WorkspacePanel, type MaterializedTabContent } from '../superbrain/lib/tabStore';
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import { getSovereignStatus, subscribeSovereignStatus } from '../superbrain/lib/sovereignIdentity';
 import { WorkspaceHostContext } from './WorkspaceHostContext';
@@ -16,6 +16,7 @@ import { presentHistoryEvent } from './experience/historyPresentation';
 import { isWorkspacePanelVisible } from './experience/workspaceVisibility';
 import GuidedTaskPanel from './GuidedTaskPanel';
 import { detectSystemReducedMotion } from './motionPreference';
+import { useRendererFallbackPresentation } from './rendererFallbackPresentation';
 import './livingMirror.css';
 
 const Council = lazy(() => import('../workbench/CouncilDashboard'));
@@ -84,9 +85,53 @@ function readCompactWorkspaceViewport(): boolean {
     && window.matchMedia(COMPACT_WORKSPACE_QUERY).matches;
 }
 
+function PartialResultNotice({ content }: { content: MaterializedTabContent }) {
+  if (content.completion === 'awaiting-approval') {
+    return <p role="status">Generation is waiting for your permission. Partial result; no completed outcome is established.</p>;
+  }
+  if (content.completion === 'awaiting-replay') {
+    return <p role="status">Permission submitted. Waiting for the replay response; completion is unconfirmed.</p>;
+  }
+  if (content.completion === 'declined') {
+    return <p role="status">Action declined locally. Partial result retained; no completed outcome is established.</p>;
+  }
+  if (content.completion === 'cancelled') {
+    return <p role="status">Generation cancelled locally. Partial result retained; backend termination is unconfirmed.</p>;
+  }
+  if (content.completion === 'incomplete') {
+    return <p role="status">Generation interrupted. Partial result; no completed outcome is established.</p>;
+  }
+  return content.streaming ? <p>Partial result; no completed outcome is established.</p> : null;
+}
+
 function History({ guided }: { guided: boolean }) {
   const mirror = useMirrorStore();
+  const { recoverableTabs = [], recoveryIssue, panels = [], focusId } = useTabStore();
+  const [forgetId, setForgetId] = useState<string | null>(null);
   return <section><h3>{guided ? 'Recent activity' : 'Recent observations'}</h3><p>{guided ? 'A short record of what GAGOS has measured in this session.' : 'Up to 256 observations retained in this browser session. Durable mission reports are available under Missions.'}</p>
+    <section className="lm-closed-results" aria-label="Closed results">
+      <h3>Closed results</h3>
+      {panels.some((panel) => panel.id === focusId && panel.open && panel.seatIndex === null)
+        && <p role="status">Recent activity is available without a body anchor while all anchors are in use. You can still forget closed results here; reopening a result requires a free anchor.</p>}
+      <p>Up to 12 results and 4 MiB of text kept in this browser session only. Reloading, signing out or changing accounts clears them. Reopening does not run the task again.</p>
+      {recoverableTabs.length === 0 && <p>No closed results in this session.</p>}
+      {recoveryIssue === 'seats-full' && <p role="status">All workspace anchors are in use. Close another workspace before reopening; your saved result is unchanged.</p>}
+      <ul>{[...recoverableTabs].reverse().map((tab) => <li key={tab.id}>
+        <strong>{getMaterializedTabLabel(tab)}</strong>
+        {tab.content && <PartialResultNotice content={tab.content} />}
+        <div className="lm-result-actions">
+          <button type="button" aria-label={`Reopen ${getMaterializedTabLabel(tab)}`} onClick={() => { setForgetId(null); reopenMaterializedTab(tab.id); }}>Reopen</button>
+          <button type="button" aria-label={`Forget ${getMaterializedTabLabel(tab)}`} onClick={() => setForgetId(tab.id)}>Forget</button>
+        </div>
+        {forgetId === tab.id && <div role="group" aria-label="Confirm forgetting">
+          <p>Forget this browser copy permanently? This does not stop backend work or delete project files.</p>
+          <div className="lm-result-actions">
+            <button type="button" onClick={() => { forgetRecoverableMaterializedTab(tab.id); setForgetId(null); }}>Forget permanently</button>
+            <button type="button" aria-label="Cancel forgetting" onClick={() => setForgetId(null)}>Cancel</button>
+          </div>
+        </div>}
+      </li>)}</ul>
+    </section>
     {mirror.recentEvents.length === 0 && <p>No events received in this session.</p>}
     <ol className="lm-history">{[...mirror.recentEvents].reverse().map((event) => {
       const presented = presentHistoryEvent(event, guided ? 'guided' : 'expert');
@@ -140,6 +185,16 @@ function PanelContent({ panel, experienceMode }: { panel: WorkspacePanel; experi
 
 export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experienceMode?: ExperienceMode }) {
   const snapshot = useTabStore();
+  const rendererUnavailable = useRendererFallbackPresentation();
+  useEffect(() => {
+    if (!rendererUnavailable) return;
+    // No scene can complete visual retirement while the measured renderer
+    // fallback is active. Release only closing geometry/anchors, keeping
+    // retained content and the same completion-token guard.
+    for (const tab of snapshot.tabs) if (tab.lifecycle === 'retracting') {
+      finishMaterializedTabRetraction(tab.id, tab.retractionToken);
+    }
+  }, [rendererUnavailable, snapshot.tabs]);
   const [listOpen, setListOpen] = useState(false);
   const [narrowViewport, setNarrowViewport] = useState(readNarrowViewport);
   const [compactWorkspaceViewport, setCompactWorkspaceViewport] = useState(readCompactWorkspaceViewport);
@@ -168,7 +223,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
   const artifact = snapshot.tabs.find((tab) => tab.id === snapshot.focusId && tab.kind === 'content' && tab.lifecycle !== 'retracting');
   const handles = [
     ...panels.filter((p) => p.open && isWorkspacePanelVisible(p, experienceMode)).map((p) => ({ id: p.id, title: p.title, seat: p.seatIndex, pinned: p.pinned })),
-    ...snapshot.tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').map((t) => ({ id: t.id, title: t.content?.filepath ?? 'Approval review', seat: t.seatIndex, pinned: t.pinned })),
+    ...snapshot.tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').map((t) => ({ id: t.id, title: getMaterializedTabLabel(t), seat: t.seatIndex, pinned: t.pinned })),
   ];
   const working = !!focused || !!artifact;
   const compactWorkspace = experienceMode === 'expert' && compactWorkspaceViewport;
@@ -361,10 +416,10 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
       {handles.length > 0 && <button type="button" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>All {handles.length} workspaces</button>}
       {listOpen && <div className="lm-workspace-list">{handles.map((handle) => <button key={handle.id} type="button" onClick={(event) => { focusFromControl(handle.id, event.currentTarget); setListOpen(false); }}>{handle.title} · Anchor {handle.seat ?? 'unassigned'}</button>)}</div>}
     </aside>}
-    <section className="lm-surface" data-workspace-collapsed={workspaceCollapsed ? 'true' : undefined} hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
+    <section className="lm-surface" data-workspace-id={working ? snapshot.focusId ?? undefined : undefined} data-workspace-collapsed={workspaceCollapsed ? 'true' : undefined} hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
       if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('.monaco-editor')) { event.stopPropagation(); dismiss(); }
     }}>
-      <header className="lm-surface__header"><h2 ref={heading} tabIndex={-1}>{focused?.title ?? artifact?.content?.filepath}</h2>
+      <header className="lm-surface__header"><h2 ref={heading} tabIndex={-1}>{focused?.title ?? (artifact ? getMaterializedTabLabel(artifact) : '')}</h2>
         {compactWorkspace && <button
           ref={workspaceToggle}
           type="button"
@@ -388,6 +443,11 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
         className="lm-surface__content"
         hidden={workspaceCollapsed}
       >
+        {snapshot.recoveryIssue && snapshot.recoveryIssue !== 'seats-full' && <p role="status" aria-label="Result recovery">
+          {snapshot.recoveryIssue === 'capacity'
+            ? 'Closed-result storage is full or this result is too large. Your result remains open. Reopen Recent activity and explicitly forget a saved copy to free space.'
+            : 'A saved result grew beyond the closed-result text limit. Its full content remains available in the open workspaces.'}
+        </p>}
         <WorkspaceHostContext.Provider value={true}>
           {panels.filter((panel) => panel.open).map((panel) => <PersistentWorkspaceBody
             key={panel.id}
@@ -398,11 +458,15 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner' }: { experien
             <Suspense fallback={<p role="status">Loading {panel.title}…</p>}><PanelContent panel={panel} experienceMode={experienceMode} /></Suspense>
           </PersistentWorkspaceBody>)}
         </WorkspaceHostContext.Provider>
-        {snapshot.tabs.filter((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting' && tab.content).map((tab) => <PersistentWorkspaceBody
+        {[...snapshot.tabs.filter((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting' && tab.content),
+          ...(snapshot.recoverableTabs ?? [])].map((tab) => <PersistentWorkspaceBody
           key={tab.id}
           selected={artifact?.id === tab.id}
           visible={artifact?.id === tab.id && !workspaceCollapsed}
-        ><p>Generated artifact · Project effects require separate receipts.</p><pre className="lm-artifact" tabIndex={0}>{tab.content!.code}</pre>
+        ><p>Generated artifact · Project effects require separate receipts.</p>
+          <PartialResultNotice content={tab.content!} />
+          {tab.recoverySeatPending && <p role="status">No free body anchor. The full result is readable here; close another workspace and select this result to reconnect it.</p>}
+          <pre className="lm-artifact" tabIndex={0}>{tab.content!.code}</pre>
           {tab.content!.verifyOutput && <details><summary>Reported check output</summary><pre>{tab.content!.verifyOutput}</pre></details>}
         </PersistentWorkspaceBody>)}
       </div>

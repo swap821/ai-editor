@@ -178,7 +178,8 @@ export default function SuperbrainApp() {
     <div className="lm-being-status" role="status" aria-live="polite" aria-atomic="true">{beingStatusText(being)}</div>
     <BootSequence onComplete={handleBootComplete} />
     <RendererFallbackNotice visible={rendererFallback} onRetry={handleRendererRetry} />
-    <div className="lm-scene">{canvasContextLost ? null : (
+    <div className="lm-scene" aria-hidden="true" />
+    <div className="lm-stage">{canvasContextLost ? null : (
       <RendererFailureBoundary onRetry={handleRendererRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
           <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical}>

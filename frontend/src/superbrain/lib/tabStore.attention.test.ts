@@ -72,6 +72,21 @@ it('does not alias a thirteenth open workspace onto an occupied seat', () => {
   expect(new Set(before).size).toBe(12);
 });
 
+it('keeps recovery History readable without a phantom seat and connects it only after an anchor is freed', () => {
+  for (let index = 0; index < 12; index += 1) openWorkspacePanel(`panel-${index}`, `Panel ${index}`);
+  const seats = getOccupiedVertebraSeats();
+  openWorkspacePanel('history', 'Recent activity');
+  expect(getTabStoreSnapshot().panels?.find((panel) => panel.id === 'history'))
+    .toMatchObject({ open: true, seatIndex: null });
+  expect(getTabStoreSnapshot().focusId).toBe('history');
+  expect(getOccupiedVertebraSeats()).toEqual(seats);
+  closeWorkspace('panel-0');
+  focusWorkspace('history');
+  expect(getTabStoreSnapshot().panels?.find((panel) => panel.id === 'history'))
+    .toMatchObject({ open: true, seatIndex: 2 });
+  expect(new Set(getOccupiedVertebraSeats()).size).toBe(12);
+});
+
 it('does not treat transient intake as a focused workspace when no work surface exists', () => {
   upsertInputSurface('Build the living workspace');
 

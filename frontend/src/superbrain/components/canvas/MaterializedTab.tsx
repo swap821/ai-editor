@@ -21,6 +21,7 @@ import { fuseSpinePoint, getBrainDockScale } from '@/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/lib/materializedSurfaceSkin';
 import { useSurfaceDial } from '@/lib/surfaceDialBus';
+import { useDomWorkPlane } from '@/lib/useDomWorkPlane';
 import { deriveOrganMaterialState, type OrganMaterialState } from '@/lib/organMaterialState';
 import { formatMaterializedTextPreview } from '@/lib/materializedTextPreview';
 import { easeOutExpo, easeOutBack, easeInCubic, layerProgress, flashBell } from '@/lib/motionEasing';
@@ -38,8 +39,9 @@ import { deriveVertebraConductorRoots } from '@/lib/vertebraConductorRoots';
 import { BODY_POSTURES, postureColor01, POSTURE_DIAL, type BodyPosture } from '@/lib/bodyPosture';
 import {
   beginRetractingMaterializedTab,
-  clearMaterializedTab,
+  finishMaterializedTabRetraction,
   focusMaterializedTab,
+  getMaterializedTabLabel,
   REPLY_FILEPATH,
   setMaterializedTabLifecycle,
 } from '@/lib/tabStore';
@@ -90,6 +92,10 @@ const CONTENT_PREVIEW_CHARS = 44;
 const APPROVAL_PREVIEW_LINES = 12;
 const APPROVAL_PREVIEW_CHARS = 56;
 const TAU = Math.PI * 2;
+// Three's raycaster otherwise still descends through invisible groups. A
+// delegated reader must not leave a ghost hit target across the organism.
+const passSurfaceRaycast = () => undefined;
+const skipDelegatedSurfaceRaycast = () => false;
 
 const SURFACE_DIMENSIONS: Record<
   MaterializedTabKind,
@@ -226,7 +232,7 @@ function toUiLabel(value: string): string {
 function getSurfaceHeader(tab: MaterializedTabRecord): string {
   if (tab.kind === 'content') {
     if (tab.content?.filepath === REPLY_FILEPATH) return 'GAGOS';
-    return tab.content?.filepath ? baseName(tab.content.filepath) : 'materialized tab';
+    return tab.content?.filepath.trim() ? baseName(tab.content.filepath) : getMaterializedTabLabel(tab);
   }
   if (tab.kind === 'input') {
     return 'brainstem intake';
@@ -238,6 +244,11 @@ function getSurfaceHeader(tab: MaterializedTabRecord): string {
 
 function getSurfaceFooter(tab: MaterializedTabRecord): string {
   if (tab.kind === 'content') {
+    if (tab.content?.completion === 'incomplete') return 'incomplete';
+    if (tab.content?.completion === 'cancelled') return 'cancelled locally';
+    if (tab.content?.completion === 'awaiting-approval') return 'waiting for permission';
+    if (tab.content?.completion === 'awaiting-replay') return 'waiting for replay response';
+    if (tab.content?.completion === 'declined') return 'declined locally';
     if (tab.content?.filepath === REPLY_FILEPATH) return '';
     return tab.content?.language ?? 'text';
   }
@@ -860,6 +871,7 @@ export default function MaterializedTab({
   const camera = useThree((state) => state.camera);
   const viewportWidth = useThree((state) => state.size.width);
   const viewportHeight = useThree((state) => state.size.height);
+  const domWorkPlane = useDomWorkPlane(tab);
   // Operator's live surface-anatomy dial (window.__SURFACE). Default-off → the
   // points being keeps its clean-dark-glass look until he turns a knob on :5173.
   const surfaceDial = useSurfaceDial();
@@ -1128,7 +1140,7 @@ export default function MaterializedTab({
 
     if (reducedMotion) {
       if (tab.lifecycle === 'retracting') {
-        clearMaterializedTab(tab.id);
+        finishMaterializedTabRetraction(tab.id, tab.retractionToken);
         return;
       }
       if (tab.lifecycle !== 'live') {
@@ -1171,7 +1183,7 @@ export default function MaterializedTab({
         slabProgress = 1 - retractProgress;
         liveProgress = 1 - retractProgress;
         if (retractProgress >= 1) {
-          clearMaterializedTab(tab.id);
+          finishMaterializedTabRetraction(tab.id, tab.retractionToken);
           return;
         }
       }
@@ -1619,7 +1631,7 @@ export default function MaterializedTab({
     });
   });
 
-  const interactive = tab.lifecycle === 'live';
+  const interactive = tab.lifecycle === 'live' && !domWorkPlane;
   const headerLabel = getSurfaceHeader(tab);
   const footerLabel = getSurfaceFooter(tab);
   const code = tab.content?.code ?? '';
@@ -1653,7 +1665,8 @@ export default function MaterializedTab({
     [approvalText],
   );
   const contentOverflowLabel =
-    contentPreview.hiddenLines > 0 ? `+${contentPreview.hiddenLines} more lines` : footerLabel;
+    tab.content?.completion ? footerLabel
+      : contentPreview.hiddenLines > 0 ? `+${contentPreview.hiddenLines} more lines` : footerLabel;
   const approvalOverflowLabel =
     approvalPreview.hiddenLines > 0 ? `+${approvalPreview.hiddenLines} more lines` : footerLabel;
 
@@ -1717,8 +1730,10 @@ export default function MaterializedTab({
 
   return (
     <group
+      visible={!domWorkPlane}
+      raycast={domWorkPlane ? skipDelegatedSurfaceRaycast : passSurfaceRaycast}
       onClick={(event) => {
-        if (tab.kind === 'input') return;
+        if (tab.kind === 'input' || domWorkPlane) return;
         event.stopPropagation();
         focusMaterializedTab(tab.id);
       }}

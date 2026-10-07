@@ -155,11 +155,13 @@ class TestRetirement:
         cerebellum, repository, slot = world[1], world[3], world[4]
         cerebellum.attach_reflex_gate(slot)
         _activate(repository, _migrated(repository))
-        assert cerebellum.match(GOAL) is not None, "positive control: it replays"
+        assert cerebellum.match(GOAL, principal="principal:test") is not None, (
+            "positive control: it replays"
+        )
         # Retired by id: an activated reflex is one the plan KEEPS.
         ids = [row["id"] for row in cerebellum.playbook_map()]
         retire.apply(memory_db, tmp_path / "bk", ids)
-        assert cerebellum.match(GOAL) is None
+        assert cerebellum.match(GOAL, principal="principal:test") is None
 
     def test_retirement_does_not_block_a_reflex_the_operator_later_activates(
         self, world, tmp_path
@@ -171,7 +173,7 @@ class TestRetirement:
         cerebellum.attach_reflex_gate(slot)
         _activate(repository, _migrated(repository))
         assert cerebellum.try_compile_all() == 1, "a NEW reflex, from the activation"
-        assert cerebellum.match(GOAL) is not None
+        assert cerebellum.match(GOAL, principal="principal:test") is not None
 
     def test_the_stop_refuses_retirement(self, world, tmp_path, monkeypatch) -> None:
         from aios.application.governance.emergency_stop import EmergencyStopError

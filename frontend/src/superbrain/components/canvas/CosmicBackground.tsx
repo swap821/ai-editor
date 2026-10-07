@@ -4,6 +4,9 @@ import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import type { QualityTier } from '@/components/QualityTierProvider';
 import { useFrame } from '@react-three/fiber';
+import { pointPresenceHeight, pointViewportScale } from '@/lib/pointViewportScale';
+import { BACKDROP_CONTROL_LIMIT, useBackdropControlMask } from './useBackdropControlMask';
+import { copyBodyGroupWorldMatrix, getBrainDockScale, getCortexAnchor } from '@/lib/spineFusionBus';
 
 // --- KNOWLEDGE GLYPH ATLAS GENERATOR ---
 const GLYPHS = [
@@ -71,6 +74,11 @@ const STAR_COUNTS: Record<QualityTier, number> = {
   low: 900,
 };
 
+// Alphabet sprites are secondary scene objects, not cortex puncta. Preserve
+// the authored footprint in a normal desktop pane, then scale with available
+// body height so a compact reader cannot turn the backdrop into foreground.
+const PRODUCT_GLYPH_REFERENCE_HEIGHT = 576;
+
 function Starfield({
   count,
   arrival,
@@ -123,7 +131,15 @@ function Starfield({
     // Coalescence funnel strength: 1 = arriving (stars funnel hard inward),
     // 0 = settled (canon drift-by). Default 0 keeps the canon REST field.
     uArrival: { value: 0 },
+    uViewportScale: { value: 1 },
+    uPresenceClip: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uRasterViewport: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uControlRects: { value: Array.from({ length: BACKDROP_CONTROL_LIMIT }, () => new THREE.Vector4()) },
+    uControlRectCount: { value: 0 },
+    uCortexQuiet: { value: new THREE.Vector4() },
   }), []);
+  const productHost = useBackdropControlMask(uniforms);
+  const cortexFrame = useMemo(() => ({ matrix: new THREE.Matrix4(), point: new THREE.Vector3() }), []);
 
   // Approval hold: the VOYAGE ITSELF holds its breath — the field's clock
   // dilates to ~30% while the supervised mind defers to its operator, and
@@ -145,19 +161,68 @@ function Starfield({
     [],
   );
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const hold = holdRef.current;
     hold.blend = THREE.MathUtils.damp(hold.blend, hold.target, 2.5, delta);
     // A11y (motion audit, true defect): the stars stream TOWARD the camera, an
     // expanding optical flow that is a classic vestibular / migraine trigger — and
-    // it was never gated. Under OS reduced-motion, drop the stream to a near-frozen
-    // parallax drift (~4%): the cosmic field stays present, but nothing looms.
-    STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend) * (reducedMotion ? 0.04 : 1);
+    // it was never gated. Under OS reduced-motion or manual ambient Pause, stop
+    // the stream completely: the cosmic field stays present, but nothing looms.
+    STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend) * (reducedMotion ? 0 : 1);
     uniforms.uArrival.value = arrival?.current ?? 0;
+    const height = pointPresenceHeight(state.camera, state.size.height);
+    uniforms.uViewportScale.value = productHost.current && Number.isFinite(height) && height > 0
+      ? Math.min(1, height / PRODUCT_GLYPH_REFERENCE_HEIGHT)
+      : pointViewportScale(height);
   });
 
   return (
-    <points ref={pointsRef} geometry={stars}>
+    <points ref={pointsRef} geometry={stars} onBeforeRender={(renderer, _scene, camera) => {
+      // The SAME camera paints nerves across the stage, but ambient glyphs
+      // belong only to its authored presence pane. Do not scissor the scene:
+      // that would cut off the intake again. Read the actual render-target
+      // viewport here, not canvas size/DPR (the composer can render elsewhere).
+      renderer.getCurrentViewport(uniforms.uRasterViewport.value);
+      const clip = uniforms.uPresenceClip.value;
+      clip.set(0, 0, 1, 1);
+      const view = camera instanceof THREE.PerspectiveCamera ? camera.view : null;
+      if (view?.enabled && Number.isFinite(view.fullWidth) && view.fullWidth > 0
+        && Number.isFinite(view.fullHeight) && view.fullHeight > 0
+        && Number.isFinite(view.width) && view.width > 0
+        && Number.isFinite(view.height) && view.height > 0
+        && Number.isFinite(view.offsetX) && Number.isFinite(view.offsetY)) {
+        // Camera offsets are top-origin; fragment coordinates are bottom-origin.
+        clip.set(
+          THREE.MathUtils.clamp(-view.offsetX / view.width, 0, 1),
+          THREE.MathUtils.clamp((view.height + view.offsetY - view.fullHeight) / view.height, 0, 1),
+          THREE.MathUtils.clamp((view.fullWidth - view.offsetX) / view.width, 0, 1),
+          THREE.MathUtils.clamp((view.height + view.offsetY) / view.height, 0, 1),
+        );
+      }
+      // Give the moving cortex contrast, not a fixed screen-centre hole.
+      // Resolve at draw AFTER body/Float callbacks, including paused repaints
+      // and alternate composer targets. No DOM reads, scene traversal, new
+      // geometry, frame-state updates or changes to body/atlas/count/color.
+      const quiet = uniforms.uCortexQuiet.value;
+      quiet.set(0, 0, 0, 0);
+      const raster = uniforms.uRasterViewport.value;
+      const dockScale = getBrainDockScale();
+      if (productHost.current && Number.isFinite(dockScale) && dockScale > 0
+        && Number.isFinite(raster.z) && Number.isFinite(raster.w) && raster.z > 0 && raster.w > 0
+        && copyBodyGroupWorldMatrix(cortexFrame.matrix)) {
+        camera.updateWorldMatrix(true, false);
+        cortexFrame.point.fromArray(getCortexAnchor()).multiplyScalar(dockScale)
+          .applyMatrix4(cortexFrame.matrix).project(camera);
+        const point = cortexFrame.point;
+        if (Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)
+          && Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1 && Math.abs(point.z) <= 1) {
+          // A soft presentation radius within the authored presence budget,
+          // not an anatomical bound or another crop/zoom policy.
+          const radius = (clip.w - clip.y) * 0.45;
+          quiet.set(point.x * 0.5 + 0.5, point.y * 0.5 + 0.5, radius * raster.w / raster.z, radius);
+        }
+      }
+    }}>
       <pointsMaterial 
         vertexColors 
         transparent 
@@ -168,12 +233,19 @@ function Starfield({
           shader.uniforms.uTime = uniforms.uTime;
           shader.uniforms.uAtlas = uniforms.uAtlas;
           shader.uniforms.uArrival = uniforms.uArrival;
+          shader.uniforms.uViewportScale = uniforms.uViewportScale;
+          shader.uniforms.uPresenceClip = uniforms.uPresenceClip;
+          shader.uniforms.uRasterViewport = uniforms.uRasterViewport;
+          shader.uniforms.uControlRects = uniforms.uControlRects;
+          shader.uniforms.uControlRectCount = uniforms.uControlRectCount;
+          shader.uniforms.uCortexQuiet = uniforms.uCortexQuiet;
 
           shader.vertexShader = shader.vertexShader.replace(
             '#include <common>',
             `#include <common>
              uniform float uTime;
              uniform float uArrival;
+             uniform float uViewportScale;
              attribute float aSpriteIndex;
              attribute float aSize;
              varying float vAlpha;
@@ -240,7 +312,7 @@ function Starfield({
              finalSize *= (1.0 - (vPull * 0.8));
 
              // Cap so near glyphs are legible symbols, not giant rectangles
-             gl_PointSize = clamp(finalSize, 2.0, 34.0);`
+             gl_PointSize = clamp(finalSize, 2.0, 34.0) * uViewportScale;`
           );
 
           shader.fragmentShader = shader.fragmentShader.replace(
@@ -248,6 +320,11 @@ function Starfield({
             `#include <common>
              uniform sampler2D uAtlas;
              uniform float uTime;
+             uniform vec4 uPresenceClip;
+             uniform vec4 uRasterViewport;
+             uniform vec4 uControlRects[${BACKDROP_CONTROL_LIMIT}];
+             uniform int uControlRectCount;
+             uniform vec4 uCortexQuiet;
              varying float vAlpha;
              varying float vSpriteIndex;
              varying float vPull;
@@ -257,6 +334,19 @@ function Starfield({
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <color_fragment>',
             `#include <color_fragment>
+             // Clip fragments, not sprite centres: large edge glyphs must not
+             // leak into controls. Bloom/grade still use the existing full stage.
+             vec2 presenceUv = (gl_FragCoord.xy - uRasterViewport.xy) / uRasterViewport.zw;
+             if (any(lessThan(presenceUv, uPresenceClip.xy))
+               || any(greaterThan(presenceUv, uPresenceClip.zw))) discard;
+             // In-pane controls need their own quiet zones; the camera pane
+             // alone is not unobstructed. Same stage UVs at every target size.
+             if (uControlRectCount < 0) discard;
+             for (int i = 0; i < ${BACKDROP_CONTROL_LIMIT}; i++) {
+               if (i >= uControlRectCount) break;
+               if (all(greaterThanEqual(presenceUv, uControlRects[i].xy))
+                 && all(lessThanEqual(presenceUv, uControlRects[i].zw))) discard;
+             }
              float cols = 8.0;
              float rows = 8.0;
              
@@ -281,8 +371,16 @@ function Starfield({
              
              // "Dissolves it inside" -> Rapidly fade opacity to 0 as it gets pulled into the brain
              float dissolve = 1.0 - smoothstep(0.4, 1.0, vPull);
+             // Preserve the knowledge field at the edges and its actual
+             // voyage. Around the cortex only, contrast yields gradually;
+             // never a rectangular cutout or a semantic activity effect.
+             float cortexQuiet = 1.0;
+             if (uCortexQuiet.z > 0.0 && uCortexQuiet.w > 0.0) {
+               float cortexDistance = length((presenceUv - uCortexQuiet.xy) / uCortexQuiet.zw);
+               cortexQuiet = mix(0.12, 1.0, smoothstep(0.35, 1.0, cortexDistance));
+             }
              
-             diffuseColor = vec4(finalColor, alpha * vAlpha * dissolve);
+             diffuseColor = vec4(finalColor, alpha * vAlpha * dissolve * cortexQuiet);
             `
           );
         }}

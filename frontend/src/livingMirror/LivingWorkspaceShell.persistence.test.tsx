@@ -8,6 +8,7 @@ import {
   openWorkspacePanel,
   showContentSurface,
   updateMaterializedTab,
+  forgetRecoverableMaterializedTab,
 } from '../superbrain/lib/tabStore';
 import { LivingWorkspaceShell } from './LivingWorkspaceShell';
 import { __resetSovereignIdentityForTests, refreshSovereignStatus } from '../superbrain/lib/sovereignIdentity';
@@ -177,6 +178,9 @@ describe('workspace instance continuity', () => {
     expect(body.scrollTop).toBe(80);
 
     act(() => closeWorkspace(artifactId));
+    expect(output).toBeInTheDocument();
+    expect(output).not.toBeVisible();
+    act(() => forgetRecoverableMaterializedTab(artifactId));
     expect(output).not.toBeInTheDocument();
   });
 });

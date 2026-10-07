@@ -135,6 +135,9 @@ function postureKeyForPhysicalProjection(physical: PhysicalBodyProjection): Body
     || physical.verification.state === 'fail' || physical.membrane.state === 'refused') {
     return 'error';
   }
+  // A submitted capability is not a returned response. Stay quiet and
+  // uncertain rather than claiming thinking, action, a new human hold or done.
+  if (physical.phase === 'awaiting-response') return 'unconfirmed';
   if (physical.taskState === 'done-verified' && physical.verification.state === 'pass') return 'complete';
   if (physical.taskState === 'done-unverified' || physical.cortex.posture === 'unverified' || physical.coherence === 'unverified') {
     return 'unverified';

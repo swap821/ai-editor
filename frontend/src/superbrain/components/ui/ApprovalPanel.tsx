@@ -15,6 +15,8 @@ import {
   approvePendingApproval,
   rejectPendingApproval,
   type PendingApproval,
+  type DirectiveResult,
+  type DirectiveReplayOptions,
 } from '@/lib/aiosAdapter';
 
 function DiffView({ diff }: { diff: string }) {
@@ -80,17 +82,26 @@ export interface ApprovalOutcome {
    *  either way), so `false` here means "unconfirmed by the server", not
    *  "the reject failed". */
   succeeded: boolean;
+  /** A renewed permission boundary is not terminal completion. */
+  paused: boolean;
+  emittedCode?: DirectiveResult['emittedCode'];
+  /** Request-owned text may carry the artifact when no code frame was sent. */
+  answer?: DirectiveResult['answer'];
 }
 
 export default function ApprovalPanel({
   pending,
   onSettled,
+  onReplayStarted,
+  onRejectStarted,
 }: {
   pending: PendingApproval;
   /** Called after AUTHORIZE/REJECT completes (the replay may pause again —
    *  the HUD re-reads the adapter's pending state). The outcome is optional so
    *  callers that only need to refresh (e.g. SuperbrainHUD) can ignore it. */
   onSettled: (outcome?: ApprovalOutcome) => void;
+  onReplayStarted?: () => DirectiveReplayOptions;
+  onRejectStarted?: () => void;
 }) {
   const [busy, setBusy] = useState<'authorize' | 'reject' | null>(null);
 
@@ -98,9 +109,15 @@ export default function ApprovalPanel({
     setBusy('authorize');
     void (async () => {
       let succeeded = false;
+      let paused = false;
+      let emittedCode: DirectiveResult['emittedCode'];
+      let answer = '';
       try {
-        const result = await approvePendingApproval();
-        succeeded = result.ok;
+        const result = await approvePendingApproval({ ...onReplayStarted?.(), expectedToken: pending.token });
+        paused = result.paused;
+        emittedCode = result.emittedCode;
+        answer = result.answer;
+        succeeded = result.ok && !result.paused;
       } catch {
         // A thrown promise (e.g. the operator aborted mid-replay) is still a
         // real failure to authorize -- never treated as success.
@@ -114,17 +131,21 @@ export default function ApprovalPanel({
           content: pending.content,
           diff: pending.diff,
           succeeded,
+          paused,
+          ...(emittedCode ? { emittedCode } : {}),
+          ...(answer ? { answer } : {}),
         });
       }
     })();
-  }, [onSettled, pending.kind, pending.filepath, pending.content, pending.diff]);
+  }, [onSettled, onReplayStarted, pending.token, pending.kind, pending.filepath, pending.content, pending.diff]);
 
   const reject = useCallback(() => {
     setBusy('reject');
     void (async () => {
       let succeeded = false;
       try {
-        const result = await rejectPendingApproval();
+        onRejectStarted?.();
+        const result = await rejectPendingApproval(pending.token);
         succeeded = result.confirmed;
       } catch {
         succeeded = false;
@@ -137,10 +158,11 @@ export default function ApprovalPanel({
           content: pending.content,
           diff: pending.diff,
           succeeded,
+          paused: false,
         });
       }
     })();
-  }, [onSettled, pending.kind, pending.filepath, pending.content, pending.diff]);
+  }, [onSettled, onRejectStarted, pending.token, pending.kind, pending.filepath, pending.content, pending.diff]);
 
   return (
     <section className="approval-panel" role="alertdialog" aria-label="Operator approval required">
@@ -155,18 +177,20 @@ export default function ApprovalPanel({
         <span className="approval-summary">{pending.summary}</span>
       </header>
 
-      {pending.explanation ? (
-        <p className="approval-explanation">{pending.explanation}</p>
-      ) : null}
+      <div className="approval-body" role="region" aria-label="Approval request details" tabIndex={0}>
+        {pending.explanation ? (
+          <p className="approval-explanation">{pending.explanation}</p>
+        ) : null}
 
-      {pending.kind === 'browse' && pending.url ? (
-        <BrowseView url={pending.url} explanation={pending.explanation} />
-      ) : pending.diff ? (
-        <DiffView diff={pending.diff} />
-      ) : pending.command ? (
-        <pre className="approval-diff approval-command">{pending.command}</pre>
-      ) : null}
+        {pending.kind === 'browse' && pending.url ? (
+          <BrowseView url={pending.url} explanation={pending.explanation} />
+        ) : pending.diff ? (
+          <DiffView diff={pending.diff} />
+        ) : pending.command ? (
+          <pre className="approval-diff approval-command">{pending.command}</pre>
+        ) : null}
 
+      </div>
       <div className="approval-actions">
         <button
           type="button"

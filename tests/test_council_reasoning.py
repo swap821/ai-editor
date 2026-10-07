@@ -30,8 +30,11 @@ class FakeLLM:
 class FakeRetriever:
     def __init__(self, result: MemoryRetrieval) -> None:
         self._result = result
+        #: Plan Phase 4c: whose verified failures were asked for.
+        self.principals: list[object] = []
 
-    def retrieve(self, goal: str) -> MemoryRetrieval:
+    def retrieve(self, goal: str, *, principal=None) -> MemoryRetrieval:
+        self.principals.append(principal)
         return self._result
 
 
@@ -254,14 +257,15 @@ def test_planner_deterministic_when_no_llm(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_memory_allows_when_no_failures(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "COUNCIL_REASONING", True)
-    queen = MemoryQueen(
-        retriever=FakeRetriever(
-            MemoryRetrieval(hints=["reuse X"], cautions=[], block=False)
-        )
+    retriever = FakeRetriever(
+        MemoryRetrieval(hints=["reuse X"], cautions=[], block=False)
     )
-    verdict = queen.review(_contract())
+    queen = MemoryQueen(retriever=retriever)
+    verdict = queen.review(_contract(operator_id="operator:alice"))
     assert verdict.verdict == "allow"
     assert "reuse X" in verdict.constraints
+    # Plan Phase 4c: the mission's operator is whose memory is consulted.
+    assert retriever.principals == ["operator:alice"]
 
 
 def test_memory_defers_on_relevant_prior_failure(
@@ -296,10 +300,11 @@ def test_memory_deterministic_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> 
 def test_mistake_retriever_uses_memory_authority() -> None:
     class Authority:
         def recall_verified_lessons(
-            self, goal: str, limit: int
+            self, goal: str, limit: int, *, principal
         ) -> list[dict[str, object]]:
             assert goal == "Improve login page"
             assert limit == 5
+            assert principal == "operator:alice"
             return [
                 {
                     "error_type": "TestFailure",
@@ -309,7 +314,7 @@ def test_mistake_retriever_uses_memory_authority() -> None:
             ]
 
     result = MistakeBackedRetriever(authority=Authority()).retrieve(
-        "Improve login page"
+        "Improve login page", principal="operator:alice"
     )
     assert result.block is True
     assert "run the focused suite" in result.cautions[0]

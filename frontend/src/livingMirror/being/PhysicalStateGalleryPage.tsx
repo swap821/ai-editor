@@ -14,6 +14,35 @@ import {
 import './PhysicalStateGalleryPage.css';
 
 const QUALITY_TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
+// Render-only companion for the approval posture; it never touches tabStore or backend authority.
+const APPROVAL_HOLD_TAB_SNAPSHOT: TabSnapshot = {
+  tabs: [{
+    id: 'gallery-approval-surface',
+    kind: 'approval',
+    lifecycle: 'live',
+    originLocal: [0, 0.26, 0.48],
+    targetLocal: [1.18, 0.22, 0.58],
+    seatIndex: 6,
+    content: null,
+    input: null,
+    approval: {
+      requestRef: 'gallery-approval-fixture',
+      summary: 'Visual approval hold',
+      explanation: 'Deterministic renderer fixture; this does not grant permission.',
+      diff: 'Visual fixture only',
+      command: '',
+      kindLabel: 'approval',
+      filepath: 'visual-fixture.txt',
+      content: '',
+    },
+    bornAt: 0,
+    phaseStartedAt: 0,
+  }],
+  focusId: null,
+  attention: null,
+  panels: [],
+};
+
 function createFocusedWorkspaceFixture(seatIndex: number): TabSnapshot {
   return {
     tabs: [{
@@ -38,7 +67,11 @@ function createFocusedWorkspaceFixture(seatIndex: number): TabSnapshot {
 function GalleryScene({ entry, tier, focusSeatIndex }: { entry: PhysicalStateGalleryEntry; tier: QualityTier; focusSeatIndex: number }) {
   const physical = useMemo(() => derivePhysicalSnapshot(entry.presentation), [entry]);
   const tabSnapshotOverride = useMemo(
-    () => entry.id === 'acting' ? createFocusedWorkspaceFixture(focusSeatIndex) : undefined,
+    () => entry.id === 'approval-hold'
+      ? APPROVAL_HOLD_TAB_SNAPSHOT
+      : entry.id === 'acting'
+        ? createFocusedWorkspaceFixture(focusSeatIndex)
+        : undefined,
     [entry.id, focusSeatIndex],
   );
   return (
@@ -119,7 +152,7 @@ export default function PhysicalStateGalleryPage() {
         <div>
           <p className="physical-gallery__eyebrow">Development inspection · physical projection only</p>
           <h1>GAGOS physical state gallery</h1>
-          <p className="physical-gallery__lede">Deterministic fixtures rendered through the live CortexEngine and product-owned reactive seam. “Conducting admitted work” includes a visual-only focused workspace retargetable between seats 3 and 4; it does not run or imply backend work.</p>
+          <p className="physical-gallery__lede">Deterministic fixtures rendered through the live CortexEngine and product-owned reactive seam. “Awaiting a human boundary” includes a visual-only approval surface at anatomical seat 6; “Conducting admitted work” includes a visual-only focused workspace retargetable between seats 3 and 4. Neither runs or implies backend work.</p>
         </div>
         <div className="physical-gallery__controls" aria-label="Gallery controls">
           <label>

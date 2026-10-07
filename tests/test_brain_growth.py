@@ -76,7 +76,7 @@ def test_verified_lessons_recall_cross_session_but_pending_do_not(
 
 def test_planner_calibrates_with_verified_lessons_and_explains_adjustment() -> None:
     class Lessons:
-        def relevant_verified(self, query: str, limit: int = 5):
+        def relevant_verified(self, query: str, limit: int = 5, principal_id=None):
             return [
                 {
                     "mistake_id": 9,
@@ -101,7 +101,7 @@ def test_planner_calibrates_with_verified_lessons_and_explains_adjustment() -> N
 
 def test_planner_uses_verified_historical_outcomes_only() -> None:
     class NoLessons:
-        def relevant_verified(self, query: str, limit: int = 5):
+        def relevant_verified(self, query: str, limit: int = 5, principal_id=None):
             return []
 
     class StrongHistory:
@@ -119,7 +119,7 @@ def test_planner_uses_verified_historical_outcomes_only() -> None:
 
 def test_planner_scales_historical_adjustment_by_relevance() -> None:
     class NoLessons:
-        def relevant_verified(self, query: str, limit: int = 5):
+        def relevant_verified(self, query: str, limit: int = 5, principal_id=None):
             return []
 
     class WeakHistory:
@@ -199,15 +199,16 @@ def test_consolidator_promotes_only_verified_lessons_and_approved_facts(
             memory_type: str,
             verification_status: str,
             count_occurrence: bool = True,
+            principal_id=None,
         ) -> int:
             self.rows.append((text, memory_type, verification_status))
             return len(self.rows)
 
-        def supersede_text(self, text: str) -> int:
+        def supersede_text(self, text: str, principal_id=None) -> int:
             self.superseded.append(text)
             return 1
 
-        def promote(self, mem_id: int) -> None:
+        def promote(self, mem_id: int, principal_id=None) -> None:
             pass
 
     semantic = SemanticRecorder()
@@ -222,7 +223,7 @@ def test_consolidator_promotes_only_verified_lessons_and_approved_facts(
 
     facts.add_fact("service", "port", "7000")
     promoted = consolidator.promote_fact(
-        "service", "host", "localhost", approved_by="operator"
+        "service", "host", "localhost", approved_by="operator", principal=None
     )
     assert promoted.committed is True
     result = consolidator.run()
@@ -230,11 +231,11 @@ def test_consolidator_promotes_only_verified_lessons_and_approved_facts(
     assert all(row[2] == "verified" for row in semantic.rows)
 
     conflict = consolidator.promote_fact(
-        "service", "host", "remote", approved_by="operator"
+        "service", "host", "remote", approved_by="operator", principal=None
     )
     assert conflict.reason == "contradiction"
     reconciled = consolidator.reconcile_fact(
-        "service", "host", "remote", approved_by="operator"
+        "service", "host", "remote", approved_by="operator", principal=None
     )
     assert reconciled.reason == "reconciled"
     assert any("localhost" in text for text in semantic.superseded)
@@ -422,7 +423,7 @@ def test_skill_trail_evaporates_with_disuse(tmp_path: Path) -> None:
 
 def test_planner_rewards_matching_verified_skill() -> None:
     class NoLessons:
-        def relevant_verified(self, query: str, limit: int = 5):
+        def relevant_verified(self, query: str, limit: int = 5, principal_id=None):
             return []
 
     class NoHistory:
@@ -430,7 +431,8 @@ def test_planner_rewards_matching_verified_skill() -> None:
             return None
 
     class TrustedTrail:
-        def relevant_verified(self, query: str, limit: int = 3):
+        def relevant_verified(self, query: str, limit: int = 3, *, principal):
+            assert principal == "principal:test"
             return [{"skill_id": 4, "strength": 0.9, "relevance": 1.0}]
 
     plan = Planner(
@@ -438,6 +440,7 @@ def test_planner_rewards_matching_verified_skill() -> None:
         mistakes=NoLessons(),
         development=NoHistory(),
         skills=TrustedTrail(),
+        principal="principal:test",
     ).plan("deploy the api")
 
     # 0.6 raw + min(0.2, 0.9 * 1.0) -> 0.8, lifting the step over the gate.
@@ -449,7 +452,7 @@ def test_planner_rewards_matching_verified_skill() -> None:
 
 def test_planner_skill_reward_is_bounded() -> None:
     class NoLessons:
-        def relevant_verified(self, query: str, limit: int = 5):
+        def relevant_verified(self, query: str, limit: int = 5, principal_id=None):
             return []
 
     class NoHistory:
@@ -457,7 +460,8 @@ def test_planner_skill_reward_is_bounded() -> None:
             return None
 
     class ManyStrongTrails:
-        def relevant_verified(self, query: str, limit: int = 3):
+        def relevant_verified(self, query: str, limit: int = 3, *, principal):
+            assert principal == "principal:test"
             return [
                 {"skill_id": 1, "strength": 1.0, "relevance": 1.0},
                 {"skill_id": 2, "strength": 1.0, "relevance": 1.0},
@@ -468,6 +472,7 @@ def test_planner_skill_reward_is_bounded() -> None:
         mistakes=NoLessons(),
         development=NoHistory(),
         skills=ManyStrongTrails(),
+        principal="principal:test",
     ).plan("deploy the api")
 
     # sum(strength * relevance) = 2.0, capped at SKILL_CONFIDENCE_BONUS_MAX.

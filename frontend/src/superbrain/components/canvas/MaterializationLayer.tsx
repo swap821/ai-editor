@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { getLastEmittedCode, subscribePendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
+import { subscribePendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
 import { deriveAnatomicalConductor } from '@/lib/anatomicalConductor';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import {
@@ -31,12 +31,12 @@ import {
   getFocusedMaterializedTab,
   getMaterializedTabByKind,
   getOccupiedVertebraSeats,
-  getSeatForPendingApproval,
   getTabStoreSnapshot,
   clearMaterializedTab,
   isWorkMaterializationClaimed,
   showApprovalSurface,
   showContentSurface,
+  updateMaterializedTab,
   upsertInputSurface,
   useTabStore,
   type MaterializedApprovalSurface,
@@ -72,6 +72,8 @@ function normalizeContent(content: MaterializedTabContent | null): MaterializedT
     code,
     language: String(content.language ?? 'text'),
     filepath: String(content.filepath ?? 'materialized.txt'),
+    ...(Number.isSafeInteger(content.sourceEventId) && content.sourceEventId! >= 0
+      ? { sourceEventId: content.sourceEventId } : {}),
   };
 }
 
@@ -97,7 +99,10 @@ function reabsorbInputSurface(): void {
 }
 
 export default function MaterializationLayer({ reducedMotion }: { reducedMotion: boolean }) {
-  const { tabs, focusId, attention } = useTabStore();
+  const { tabs: retainedTabs, focusId, attention } = useTabStore();
+  // Readable overflow work has no free body anchor. Keep it in the DOM, not
+  // an overlapping surface or a fictitious anatomical conduction.
+  const tabs = retainedTabs.filter((tab) => !tab.recoverySeatPending);
   const metabolism = useTurnMetabolism();
   const outcome = useOutcomeImprint();
   const completion = useCompletionReflex();
@@ -117,16 +122,37 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
         // GagosChrome owns work materialization during its turn; skip so we don't
         // spawn a duplicate of the tab it will create from the same code emission.
         if (isWorkMaterializationClaimed()) return;
-        const content = normalizeContent(getLastEmittedCode());
+        // Only this admitted reaction owns its code. A shared cache may
+        // belong to another request; a lore-only signal carries no artifact.
+        const data = event.data;
+        if (typeof data?.code !== 'string') return;
+        const filepath = typeof data.filepath === 'string' ? data.filepath : '';
+        const sourceEventId = typeof data.eventCursor === 'number'
+          && Number.isSafeInteger(data.eventCursor) && data.eventCursor >= 0 ? data.eventCursor : undefined;
+        if (!filepath.trim() && sourceEventId === undefined) return;
+        const content = normalizeContent({
+          code: data.code, language: typeof data.language === 'string' ? data.language : 'text',
+          filepath, sourceEventId,
+        });
         if (!content) return;
-        const approvalSeat = getSeatForPendingApproval(content.filepath);
-        const seatIndex = approvalSeat ?? selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
-        reabsorbInputSurface();
-        showContentSurface(content, getContentSurfacePlacement(seatIndex));
-        const approval = getMaterializedTabByKind('approval');
-        if (approval && (approvalSeat === null || approval.seatIndex === approvalSeat)) {
-          beginRetractingMaterializedTab(approval.id);
+        // Passive observations may refresh a saved result, never undo Close.
+        // Intentional submissions/reopening still use the existing store paths.
+        const saved = getTabStoreSnapshot().recoverableTabs?.find((tab) => tab.kind === 'content'
+          && tab.content?.filepath === content.filepath
+          && (Boolean(content.filepath.trim()) || tab.content.sourceEventId === content.sourceEventId));
+        if (saved) {
+          updateMaterializedTab(saved.id, { content });
+          return;
         }
+        // Code is not permission settlement. Only the pending-approval owner
+        // may retire that surface; it also keeps its occupied body anchor.
+        const occupied = getOccupiedVertebraSeats();
+        const candidateSeat = selectNextAvailableVertebraSeat(occupied);
+        const seatIndex = occupied.includes(candidateSeat) ? null : candidateSeat;
+        reabsorbInputSurface();
+        showContentSurface(content, seatIndex === null
+          ? { seatIndex: null, recoverySeatPending: true }
+          : getContentSurfacePlacement(seatIndex));
       }),
     [],
   );
@@ -151,18 +177,12 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
   );
 
   useEffect(() => {
-    if (!completion.reabsorbReady || !completion.targetId) return;
-
-    const target = getTabStoreSnapshot().tabs.find((tab) => tab.id === completion.targetId);
-    if (!target || target.lifecycle === 'retracting') {
-      markCompletionReflexReabsorbing(completion.targetId);
-      return;
-    }
-    if (target.kind === 'input' || target.lifecycle !== 'live') return;
-
-    markCompletionReflexReabsorbing(target.id);
-    beginRetractingMaterializedTab(target.id);
-  }, [completion.intensity, completion.reabsorbReady, completion.targetId]);
+    if (completion.state !== 'settling' || !completion.targetId) return;
+    const target = tabs.find((tab) => tab.id === completion.targetId);
+    // Completion is a presentation cue, not permission to close a result.
+    // Follow an explicit dismissal; never let its timer remove readable work.
+    if (target?.lifecycle === 'retracting') markCompletionReflexReabsorbing(target.id);
+  }, [completion.state, completion.targetId, tabs]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return undefined;

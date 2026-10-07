@@ -40,6 +40,7 @@ from aios.api.deps import (
     get_rollback_engine,
     get_self_apply_engine,
     get_authenticated_principal,
+    get_optional_principal,
     require_privileged_operator,
 )
 from aios.core.executor import Executor
@@ -255,6 +256,7 @@ def reflect(
         governed_llm,
         mistakes=store,
         memory_authority=authority,
+        principal=principal.principal_id,
     )
     try:
         reflection = agent.reflect(req.command, req.error_output, task_id=req.task_id)
@@ -269,9 +271,15 @@ def plan(
     llm: LLMClient = Depends(get_llm_client),
     native: NativePlanner = Depends(get_native_planner),
     authority=Depends(get_memory_authority),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
     """Decompose a goal into a confidence-gated task tree."""
-    planner = Planner(llm, native=native, memory_authority=authority)
+    planner = Planner(
+        llm,
+        native=native,
+        memory_authority=authority,
+        principal=principal.principal_id if principal is not None else None,
+    )
     try:
         result = planner.plan(req.goal)
     except PlannerError as exc:

@@ -62,14 +62,30 @@ export function getBrainDockScale(): number {
 // its complete world matrix so their group-local paths inherit the same voyage,
 // orbit and scale instead of drifting away from the visible body.
 let bodyGroupWorldMatrix: THREE.Matrix4 | null = null;
+let bodyGroupSource: THREE.Object3D | null = null;
 
-export function setBodyGroupWorldMatrix(matrix: THREE.Matrix4): void {
+export function setBodyGroupWorldMatrix(matrix: THREE.Matrix4, source: THREE.Object3D | null = null): void {
   if (!bodyGroupWorldMatrix) bodyGroupWorldMatrix = new THREE.Matrix4();
   bodyGroupWorldMatrix.copy(matrix);
+  bodyGroupSource = source;
 }
 
-/** Copy the latest body transform into caller-owned scratch storage. */
+/** Release only this renderer's body; a late old-root cleanup cannot clear a replacement. */
+export function clearBodyGroupWorldMatrix(source: THREE.Object3D): void {
+  if (bodyGroupSource !== source) return;
+  bodyGroupSource = null;
+  bodyGroupWorldMatrix = null;
+}
+
+/** Resolve the mounted body's current ancestor pose into caller-owned storage.
+ * Float updates after its child callbacks; a copied child-frame matrix lags it.
+ * Matrix-only publishers retain their independent snapshot-copy contract. */
 export function copyBodyGroupWorldMatrix(target: THREE.Matrix4): boolean {
+  if (bodyGroupSource) {
+    bodyGroupSource.updateWorldMatrix(true, false);
+    target.copy(bodyGroupSource.matrixWorld);
+    return true;
+  }
   if (!bodyGroupWorldMatrix) return false;
   target.copy(bodyGroupWorldMatrix);
   return true;
@@ -98,4 +114,5 @@ export function __resetSpineFusionForTests(): void {
   brainDockScale = 1;
   cortexAnchor = [0, 0.1, 0];
   bodyGroupWorldMatrix = null;
+  bodyGroupSource = null;
 }

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from importlib import import_module
 from typing import Any, Iterator, Optional
 
@@ -29,6 +30,7 @@ from aios.domain.intelligence.representative_context import (
     RepresentativeContextReceiptV1,
 )
 from aios.infrastructure.identity.sqlite_store import credential_digest
+from aios.memory.skills import scoped_skill_attempt, scoped_skill_reuse
 
 _LIVE_NAMES = (
     "CanonicalEvent",
@@ -399,6 +401,9 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
             mistakes=reflector.mistakes,
             memory_authority=reflector.memory_authority,
         )
+    if isinstance(reflector, ReflectionAgent):
+        # Plan Phase 4c: this turn's lessons are its principal's.
+        reflector = reflector.bound_to(str(principal.principal_id))
 
     planner_llm = GovernedAdvisoryCompletionClient(
         runtime.planner_llm,
@@ -500,6 +505,9 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "emergency_stop": runtime.extra["emergency_stop"],
         "operator_identity_digest": credential_digest(principal.principal_id),
         "representative_context_store": runtime.extra["representative_context_store"],
+        # Plan Phase 4c: whose turn this is. Every learned read and write
+        # below is for this principal only.
+        "principal_id": str(principal.principal_id),
     }
 
 
@@ -558,6 +566,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     task = state["task"]
     user_text = state["user_text"]
     compactor = state["compactor"]
+    principal_id = state["principal_id"]
     constitution_digest = state["constitution_digest"]
     emergency_stop = state["emergency_stop"]
     operator_identity_digest = state["operator_identity_digest"]
@@ -741,7 +750,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     # not depend on the interpreter being enabled.
     if user_text:
         try:
-            _cb_match = cerebellum.match(user_text)
+            _cb_match = cerebellum.match(user_text, principal=principal_id)
         except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal
             logger.warning("Cerebellum match failed", exc_info=exc)
             _cb_match = None
@@ -766,6 +775,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             development=development,
             skills=skills,
             authority=runtime.memory_authority,
+            principal=principal_id,
         )
         confidence_result = confidence_gate(confidence)
         if not confidence_result.passed:
@@ -843,6 +853,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 development=development,
                 skills=skills,
                 memory_authority=runtime.memory_authority,
+                principal=principal_id,
             )
             _stage_plan = _stage_planner.plan(user_text)
         except PlannerError as exc:
@@ -854,13 +865,16 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             guidance_parts.append(plan_to_prompt_block(_stage_plan))
 
     if crag_judge is None and crag_cloud_source is None:
-        semantic = _recall_memory(user_text, authority=runtime.memory_authority)
+        semantic = _recall_memory(
+            user_text, authority=runtime.memory_authority, principal=principal_id
+        )
     else:
         semantic = _recall_memory(
             user_text,
             authority=runtime.memory_authority,
             crag_judge=crag_judge,
             crag_cloud_source=crag_cloud_source,
+            principal=principal_id,
         )
     if semantic:
         context_parts.append(semantic)
@@ -879,6 +893,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         session_id,
         user_text,
         authority=runtime.memory_authority,
+        principal=principal_id,
     )
     if lessons:
         block = (
@@ -904,6 +919,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         skills,
         user_text,
         authority=runtime.memory_authority,
+        principal=principal_id,
     )
     if recalled_skills:
         skill_block = "VERIFIED REUSABLE WORKFLOWS:\n" + "\n".join(
@@ -926,6 +942,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         facts,
         user_text,
         authority=runtime.memory_authority,
+        principal=principal_id,
     )
     if facts_result:
         context_parts.append(facts_result.text)
@@ -959,8 +976,12 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         # its cache. Fall back to inline synthesis when the bus is off
         # (default: identical to pre-W2 behavior) or before the first
         # observation has been processed.
+        # Plan Phase 4c: the cache is keyed by principal; this turn tells the
+        # handler whose it is, so its completion refreshes only theirs.
+        if config.CORTEX_BUS and _self_model_handler is not None:
+            _self_model_handler.remember(ctx.turn_id, principal_id)
         cached_self_model = (
-            _self_model_handler.recall()
+            _self_model_handler.recall(principal_id)
             if config.CORTEX_BUS and _self_model_handler is not None
             else None
         )
@@ -971,6 +992,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 development,
                 mistakes,
                 authority=runtime.memory_authority,
+                principal=principal_id,
             )
         )
         if self_model_block:
@@ -1014,6 +1036,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             session_id=session_id,
             memory_context=agent_memory_context,
             governance_context=agent_governance,
+            principal=principal_id,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(
                 reflector, consolidator, authority=runtime.memory_authority
@@ -1090,6 +1113,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             session_id=session_id,
             memory_context=memory_context,
             governance_context=guidance_context,
+            principal=principal_id,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(
                 reflector, consolidator, authority=runtime.memory_authority
@@ -1292,13 +1316,23 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     user_text,
                     max_candidates=config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
                 ):
-                    strengthen_or_propose = (
-                        runtime.memory_authority.facts_strengthen_or_propose
-                        if runtime.memory_authority is not None
+                    if (
+                        runtime.memory_authority is not None
                         and runtime.memory_authority.owns_store("facts", facts)
-                        else facts.strengthen_or_propose
-                    )
-                    r = strengthen_or_propose(fact_subject, fact_predicate, fact_object)
+                    ):
+                        r = runtime.memory_authority.facts_strengthen_or_propose(
+                            fact_subject,
+                            fact_predicate,
+                            fact_object,
+                            principal=principal_id,
+                        )
+                    else:
+                        r = facts.strengthen_or_propose(
+                            fact_subject,
+                            fact_predicate,
+                            fact_object,
+                            principal_id=principal_id,
+                        )
                     if r.proposed or r.reason == "strengthened":
                         proposed_count += 1
                 if proposed_count and _cortex_bus:
@@ -1426,13 +1460,14 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     runtime.memory_authority.record_skill_attempt
                     if runtime.memory_authority is not None
                     and runtime.memory_authority.owns_store("skills", skills)
-                    else skills.record_attempt
+                    else partial(scoped_skill_attempt, skills)
                 )
                 direct_id = record_attempt(
                     user_text,
                     workflow_steps,
                     success=passed,
                     strength=turn_strength,
+                    principal=principal_id,
                 )
             except Exception as exc:  # noqa: BLE001 - skill learning is best-effort
                 logger.warning("Failed to record skill attempt", exc_info=exc)
@@ -1456,9 +1491,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     runtime.memory_authority.record_skill_reuse
                     if runtime.memory_authority is not None
                     and runtime.memory_authority.owns_store("skills", skills)
-                    else skills.record_reuse
+                    else partial(scoped_skill_reuse, skills)
                 )
-                record_reuse(reused_ids, success=passed)
+                record_reuse(reused_ids, success=passed, principal=principal_id)
             except Exception as exc:  # noqa: BLE001 - reuse credit is best-effort
                 logger.warning("Failed to record skill reuse credit", exc_info=exc)
         # Also dormant: `swarm_plan` can never be set while the strategy gate
@@ -2017,6 +2052,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 user_text,
                 answer,
                 authority=runtime.memory_authority,
+                principal=principal_id,
             )
             # The turn's outcome is the PER-TARGET final verdict: for every
             # target that was verified this turn, its LAST verdict must be

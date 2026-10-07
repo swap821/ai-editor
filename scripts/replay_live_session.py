@@ -146,7 +146,9 @@ def main() -> int:
     repository = SkillRepository(library)
     skills = InstitutionalSkillAdapter(repository, SkillTrailIndex(library))
     for _ in range(5):
-        skills.record_attempt(_GOAL, steps, success=True)
+        # Plan Phase 4c-2: a reflex compiles only from a skill that belongs to
+        # someone; this throwaway root's skill is the script's own.
+        skills.record_attempt(_GOAL, steps, success=True, principal="principal:replay")
     (record,) = repository.list_skills()
     repository.transition_state(record.skill_id, record.version, "human_reviewed")
     repository.transition_state(record.skill_id, record.version, "active")

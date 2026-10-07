@@ -193,7 +193,9 @@ class MemoryRetrieval:
 class CouncilMemoryRetriever(Protocol):
     """Read-only adapter the Memory Queen consults before a mission."""
 
-    def retrieve(self, goal: str) -> MemoryRetrieval: ...
+    def retrieve(
+        self, goal: str, *, principal: Optional[str] = None
+    ) -> MemoryRetrieval: ...
 
 
 class MistakeBackedRetriever:
@@ -221,13 +223,20 @@ class MistakeBackedRetriever:
         self._block_relevance = block_relevance
         self._limit = limit
 
-    def retrieve(self, goal: str) -> MemoryRetrieval:
+    def retrieve(
+        self, goal: str, *, principal: Optional[str] = None
+    ) -> MemoryRetrieval:
+        """*principal*'s verified prior failures only (plan Phase 4c)."""
         try:
             if self._authority is not None:
-                lessons = self._authority.recall_verified_lessons(goal, self._limit)
+                lessons = self._authority.recall_verified_lessons(
+                    goal, self._limit, principal=principal
+                )
             else:
                 assert self._mistakes is not None
-                lessons = self._mistakes.relevant_verified(goal, limit=self._limit)
+                lessons = self._mistakes.relevant_verified(
+                    goal, limit=self._limit, principal_id=principal
+                )
         except Exception as exc:  # noqa: BLE001 - retrieval must never break deliberation
             _LOGGER.warning("council_memory_retrieval_failed", exc_info=exc)
             return MemoryRetrieval()

@@ -92,7 +92,11 @@ CREATE TABLE IF NOT EXISTS semantic_memory (
     verification_status TEXT NOT NULL DEFAULT 'unverified'
                   CHECK (verification_status IN ('unverified','verified','superseded')),
     occurrence_count INTEGER NOT NULL DEFAULT 1,
-    last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Plan Phase 4c: the principal this row belongs to (row identity, not
+    -- trust: recall trusts the signed provenance). NULL = learned before
+    -- principal scoping, withheld from every principal.
+    principal_id TEXT
 );
 
 -- == L4: Mistake pool ========================================================
@@ -116,7 +120,8 @@ CREATE TABLE IF NOT EXISTS mistake_pool (
     -- exact command finally succeeds -- the in-memory tracker is per-run() and
     -- does not survive an approval pause. Empty for lessons recorded without a
     -- command (e.g. legacy rows).
-    failed_command      TEXT NOT NULL DEFAULT ''
+    failed_command      TEXT NOT NULL DEFAULT '',
+    principal_id        TEXT                    -- plan Phase 4c, see semantic_memory
 );
 
 -- == L3b: Semantic facts (entity-relation triples) ===========================
@@ -133,7 +138,8 @@ CREATE TABLE IF NOT EXISTS semantic_facts (
     approved_by TEXT,
     confidence  REAL NOT NULL DEFAULT 1.0,
     status      TEXT NOT NULL DEFAULT 'active'
-                CHECK (status IN ('active','superseded'))
+                CHECK (status IN ('active','superseded')),
+    principal_id TEXT                       -- plan Phase 4c, see semantic_memory
 );
 
 -- Auto-extracted fact candidates awaiting human review. A SEPARATE table on
@@ -150,7 +156,8 @@ CREATE TABLE IF NOT EXISTS fact_proposals (
     status      TEXT NOT NULL DEFAULT 'pending'
                 CHECK (status IN ('pending','approved','rejected')),
     resolved_by TEXT,
-    resolved_at DATETIME
+    resolved_at DATETIME,
+    principal_id TEXT                       -- plan Phase 4c, see semantic_memory
 );
 
 -- == Self-Analysis report (the module's own-code diagnostics) =================

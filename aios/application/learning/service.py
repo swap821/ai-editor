@@ -375,7 +375,9 @@ class LearningService:
         # SkillApplicabilityEngine demands (a candidate's missing plan, scope
         # and trail from its own steps) and records the code state now as a
         # validated version -- the operator's judgment that it applies as is.
-        stamped = stamp_for_activation(skill)
+        # Plan Phase 4c-2: a candidate learned before principal scoping
+        # becomes the activating operator's.
+        stamped = stamp_for_activation(skill, activator=proof.operator_id)
         if stamped is not skill:
             self.skill_repository.save(stamped)
         reviewed = self.skill_repository.transition_state(

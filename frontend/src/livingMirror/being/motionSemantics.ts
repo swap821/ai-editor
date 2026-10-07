@@ -22,8 +22,8 @@ export const BEING_MOTION_SEMANTICS: Record<BeingMotion, BeingMotionSemantics> =
   },
   attention: {
     id: 'motion.attention',
-    meaning: 'The organism is oriented toward human input, planning, or learning.',
-    startCondition: 'Input, understanding, planning, approval, or learning is measured.',
+    meaning: 'The organism is oriented toward human input, planning, learning, or an outstanding response; this is not execution.',
+    startCondition: 'Input, understanding, planning, approval, learning, or submitted permission awaiting its replay response is measured.',
     endCondition: 'The attention source is resolved, replaced by action, or becomes stale.',
     reducedMotion: 'Use a static focus accent and an ARIA/live-text explanation.',
   },

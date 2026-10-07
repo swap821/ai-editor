@@ -31,6 +31,10 @@ class MemoryRecallContext(BaseModel):
     memory_types: tuple[str, ...] = ()
     limit: int = Field(default=10, ge=1, le=100)
     include_unverified: bool = False
+    #: Plan Phase 4c: who is asking. It only ever NARROWS a recall -- a learned
+    #: row is returned only to the principal its signed provenance names -- so
+    #: it grants nothing. None: no learned row is returned at all.
+    principal_id: str | None = None
 
 
 class MemoryRecordProvenance(BaseModel):

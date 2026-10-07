@@ -709,3 +709,83 @@ def test_a_suspended_skill_comes_back_only_through_the_operators_activation(
     )
     with pytest.raises(SkillActivationDenied, match="'revoked'"):
         service.activate_skill(auth)
+
+
+def _a_candidate_awaiting_activation(tmp_path: Path):
+    mission_repo = SqliteMissionRepository(tmp_path / "missions.db")
+    source = mission_repo.create(_mission(), state=MissionState.COMPLETED)
+    authority = VerificationAuthority()
+    service = LearningService(
+        mission_service=MissionService(mission_repo, emergency_stop=UNGOVERNED_FIXTURE),
+        trajectory_repository=TrajectoryRepository(tmp_path / "learning.db"),
+        verification_authority=authority,
+        activation_authorizer=lambda *_args: True,
+        verification_plan_validator=lambda *_args: True,
+        reuse_policy=lambda *_args: True,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+    trajectory = _capture(service, source, (_authoritative_verification(authority),))
+    candidate = service.create_skill_candidate(trajectory.trajectory_id, _candidate())
+    return service, candidate
+
+
+@pytest.mark.parametrize(
+    ("change", "refusal"),
+    [
+        ({"expires_at": 1.0}, "expired or revoked"),
+        ({"revoked_at": 2.0}, "expired or revoked"),
+        ({"operator_id": "  "}, "operator_id is invalid"),
+        ({"action_type": "read_file"}, "action_type mismatch"),
+        (
+            {"route": "/api/v1/skills/another-skill/versions/1/activate"},
+            "route mismatch",
+        ),
+        ({"http_method": "GET"}, "http_method mismatch"),
+    ],
+)
+def test_the_service_refuses_a_proof_that_does_not_fit_this_activation(
+    tmp_path: Path, change: dict, refusal: str
+) -> None:
+    """Defence in depth behind the route's gateway: the service re-checks the
+    consumed proof itself, and a refused activation moves nothing."""
+    import dataclasses
+
+    service, candidate = _a_candidate_awaiting_activation(tmp_path)
+    auth = _activation_auth(candidate.skill_id, candidate.version)
+    forged = SkillActivationAuthorization(
+        skill_id=auth.skill_id,
+        version=auth.version,
+        proof=dataclasses.replace(auth.proof, **change),
+    )
+    with pytest.raises(SkillActivationDenied, match=refusal):
+        service.activate_skill(forged)
+    stored = service.skill_repository.get(candidate.skill_id, candidate.version)
+    assert stored.state == "candidate"
+
+
+def test_an_impostor_authorization_is_refused(tmp_path: Path) -> None:
+    """Only the server-issued authorization type: an object with the same
+    fields, carrying a valid proof, is not one."""
+    from types import SimpleNamespace
+
+    service, candidate = _a_candidate_awaiting_activation(tmp_path)
+    auth = _activation_auth(candidate.skill_id, candidate.version)
+    impostor = SimpleNamespace(
+        proof=auth.proof, skill_id=auth.skill_id, version=auth.version
+    )
+    with pytest.raises(SkillActivationDenied, match="must be a"):
+        service.activate_skill(impostor)
+    stored = service.skill_repository.get(candidate.skill_id, candidate.version)
+    assert stored.state == "candidate"
+
+
+def test_activating_an_unknown_skill_names_it(tmp_path: Path) -> None:
+    service, _ = _a_candidate_awaiting_activation(tmp_path)
+    with pytest.raises(KeyError, match="'no-such-skill' version 1 not found"):
+        service.activate_skill(_activation_auth("no-such-skill", 1))
+
+
+def test_positive_control_the_fitting_proof_activates(tmp_path: Path) -> None:
+    service, candidate = _a_candidate_awaiting_activation(tmp_path)
+    auth = _activation_auth(candidate.skill_id, candidate.version)
+    assert service.activate_skill(auth).state == "active"

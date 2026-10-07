@@ -216,7 +216,7 @@ def test_recall_memory_crag_off_is_legacy_bullets(monkeypatch) -> None:
         )
     ]
     main = _patch_recall(monkeypatch, hits, crag=False)
-    out = main._recall_memory("alpha beta")
+    out = main._recall_memory("alpha beta", principal=None)
     assert out is not None
     assert (
         "- the alpha beta result is here and relevant" in out
@@ -228,7 +228,7 @@ def test_recall_memory_crag_drops_incorrect_retrieval(monkeypatch) -> None:
     # from the prompt entirely (the core anti-hallucination win of Slice 2).
     hits = [_Hit("completely unrelated banana content here", faiss=0.05)]
     main = _patch_recall(monkeypatch, hits, crag=True)
-    assert main._recall_memory("quantum physics") is None
+    assert main._recall_memory("quantum physics", principal=None) is None
 
 
 def test_recall_memory_crag_refines_and_preserves_trust(monkeypatch) -> None:
@@ -242,7 +242,7 @@ def test_recall_memory_crag_refines_and_preserves_trust(monkeypatch) -> None:
         )
     ]
     main = _patch_recall(monkeypatch, hits, crag=True)
-    out = main._recall_memory("capital of France")
+    out = main._recall_memory("capital of France", principal=None)
     assert out is not None
     assert "VERIFIED TRUSTED MEMORY" in out  # trust label preserved
     assert "Paris" in out  # golden strip kept
@@ -316,7 +316,7 @@ def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
         lambda _q: ["The quantum entanglement phenomenon links particle states."]
     ]
     main = _patch_recall_external(monkeypatch, hits, sources=sources)
-    out = main._recall_memory("quantum entanglement")
+    out = main._recall_memory("quantum entanglement", principal=None)
     assert out is not None
     assert "EXTERNAL KNOWLEDGE" in out
     assert "entanglement" in out
@@ -326,7 +326,7 @@ def test_recall_incorrect_uses_refined_external(monkeypatch) -> None:
 def test_recall_incorrect_without_external_returns_none(monkeypatch) -> None:
     hits = [_Hit("totally unrelated banana note here", faiss=0.05)]
     main = _patch_recall_external(monkeypatch, hits, sources=[lambda _q: []])
-    assert main._recall_memory("quantum entanglement") is None
+    assert main._recall_memory("quantum entanglement", principal=None) is None
 
 
 def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
@@ -341,7 +341,7 @@ def test_recall_ambiguous_combines_local_and_external(monkeypatch) -> None:
     ]
     sources = [lambda _q: ["External elaboration on the alpha topic with more detail."]]
     main = _patch_recall_external(monkeypatch, hits, sources=sources)
-    out = main._recall_memory("alpha topic")
+    out = main._recall_memory("alpha topic", principal=None)
     assert out is not None
     assert "VERIFIED TRUSTED MEMORY" in out  # local kept (ambiguous, not dropped)
     assert "EXTERNAL KNOWLEDGE" in out  # external appended
@@ -366,7 +366,7 @@ def test_an_unverified_hit_never_reaches_crag_or_the_prompt(monkeypatch) -> None
         "_announce_recall_withheld",
         lambda recalled, withheld, **_: announced.append((recalled, withheld)),
     )
-    assert main._recall_memory("alpha topic") is None
+    assert main._recall_memory("alpha topic", principal=None) is None
     assert announced == [(0, 1)]
 
 
@@ -423,7 +423,7 @@ def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
     monkeypatch.setattr(config, "CRAG_LLM_JUDGE", True)
     monkeypatch.setattr(config, "CRAG_EXTERNAL", False)
-    assert main._recall_memory("some query") is None
+    assert main._recall_memory("some query", principal=None) is None
 
 
 # ── Threshold calibration harness (tune AIOS_CRAG_UPPER/LOWER from real data) ─

@@ -423,11 +423,17 @@ def record_pin_outcome(
     cleanly", which is exactly the wrong lesson to draw from an agent that
     wrote a test incapable of failing.
     """
-    return skills.record_attempt(
+    from aios.memory.skills import scoped_skill_attempt
+
+    return scoped_skill_attempt(
+        skills,
         pin_goal(target_label, model),
         steps,
         success=verdict.earned,
         strength=(
             VerificationStrength.STRONG if verdict.earned else VerificationStrength.NONE
         ),
+        # Plan Phase 4c-2: harness learning names no principal. The skill is a
+        # candidate, and the operator's activation makes it his.
+        principal=None,
     )

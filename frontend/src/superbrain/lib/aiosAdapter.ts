@@ -66,6 +66,8 @@ export interface DirectiveResult {
   paused: boolean;
   /** Final synthesized answer text (possibly empty when paused/offline). */
   answer: string;
+  /** Latest code from THIS request, not the shared legacy visualization cache. */
+  emittedCode?: { code: string; language: string; filepath: string };
 }
 
 export interface SseFrame {
@@ -79,33 +81,41 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
   let buffer = '';
   let event = '';
   let dataLines: string[] = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let newline = buffer.indexOf('\n');
-    while (newline >= 0) {
-      const line = buffer.slice(0, newline).replace(/\r$/, '');
-      buffer = buffer.slice(newline + 1);
-      newline = buffer.indexOf('\n');
-      if (line === '') {
-        if (event) {
-          let data: Record<string, unknown> = {};
-          try {
-            data = JSON.parse(dataLines.join('\n') || '{}');
-          } catch {
-            // Malformed frame: surface nothing rather than break the stream.
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newline = buffer.indexOf('\n');
+      while (newline >= 0) {
+        const line = buffer.slice(0, newline).replace(/\r$/, '');
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf('\n');
+        if (line === '') {
+          if (event) {
+            let data: Record<string, unknown> = {};
+            try {
+              data = JSON.parse(dataLines.join('\n') || '{}');
+            } catch {
+              // Malformed frame: surface nothing rather than break the stream.
+            }
+            yield { event, data };
           }
-          yield { event, data };
+          event = '';
+          dataLines = [];
+        } else if (line.startsWith('event:')) {
+          event = line.slice('event:'.length).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice('data:'.length).trim());
         }
-        event = '';
-        dataLines = [];
-      } else if (line.startsWith('event:')) {
-        event = line.slice('event:'.length).trim();
-      } else if (line.startsWith('data:')) {
-        dataLines.push(line.slice('data:'.length).trim());
       }
     }
+  } finally {
+    // Terminal consumer return also owns cleanup. Do not wait for transport
+    // cancellation to acknowledge an already admitted terminal frame; this is
+    // local reader disposal, never a backend execution-stop receipt.
+    void reader.cancel().catch(() => { /* An errored transport may already be closed. */ });
+    reader.releaseLock();
   }
 }
 
@@ -247,13 +257,18 @@ async function streamTurn(
   tokens: string[],
   signal?: AbortSignal,
   onChunk?: (answer: string) => void,
-  onCodeChunk?: (code: string, language: string) => void,
+  onCodeChunk?: (code: string, language: string, filepath?: string) => void,
 ): Promise<DirectiveResult> {
   let answer = '';
   let paused = false;
   let completed = false;
+  let emittedCode: DirectiveResult['emittedCode'];
+  const checkAborted = () => {
+    if (signal?.aborted) throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
+  };
   try {
     const sessionFields = await sessionBodyFields();
+    checkAborted();
     const response = await fetch(`${AIOS_BASE}/api/generate`, {
       method: 'POST',
       signal,
@@ -267,10 +282,14 @@ async function streamTurn(
         ...(swarmMode ? { swarm: true } : {}),
       }),
     });
+    checkAborted();
     if (!response.ok || !response.body) {
       throw new Error(`backend responded ${response.status}`);
     }
     for await (const frame of readSse(response.body)) {
+      // Fetch can already have buffered frames when the operator cancels.
+      // Local abort is an admission boundary, not a backend-stop receipt.
+      checkAborted();
       switch (frame.event) {
         case 'text_chunk':
           answer += String(frame.data.text ?? '');
@@ -279,41 +298,44 @@ async function streamTurn(
         case 'human_required':
           paused = true;
           captureApproval(text, frame.data);
-          break;
+          return { ok: true, paused, answer, ...(emittedCode ? { emittedCode } : {}) };
         case 'code_chunk': {
           const code = String(frame.data.code ?? '');
           const language = String(frame.data.language ?? 'text');
-          lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
-          onCodeChunk?.(code, language);
+          emittedCode = { code, language, filepath: String(frame.data.filepath ?? '') || emittedCode?.filepath || '' };
+          lastEmittedCode = emittedCode;
+          onCodeChunk?.(code, language, emittedCode.filepath);
           break;
         }
         case 'code': {
           const code = String(frame.data.code ?? '');
           const language = String(frame.data.language ?? 'text');
-          lastEmittedCode = { code, language, filepath: String(frame.data.filepath ?? '') };
+          emittedCode = { code, language, filepath: String(frame.data.filepath ?? '') || emittedCode?.filepath || '' };
+          lastEmittedCode = emittedCode;
           break;
         }
         case 'done':
           completed = true;
-          break;
+          return { ok: completed, paused: false, answer, ...(emittedCode ? { emittedCode } : {}) };
         case 'error':
           throw new Error(String(frame.data.text ?? 'the backend reported an error'));
         default:
           break;
       }
     }
+    checkAborted();
     // The SSE connection closing is not itself proof the turn finished --
     // only a real terminal frame ('done') or a legitimate pause
     // ('human_required') is. A drop with neither (backend crash, proxy
     // timeout, network failure) must never be reported as success, even
     // when partial text already streamed.
-    return { ok: completed || paused, paused, answer };
+    return { ok: completed || paused, paused, answer, ...(emittedCode ? { emittedCode } : {}) };
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
     }
     
-    return { ok: false, paused: false, answer };
+    return { ok: false, paused: false, answer, ...(emittedCode ? { emittedCode } : {}) };
   }
 }
 
@@ -324,7 +346,7 @@ export async function sendDirective(
   text: string,
   signal?: AbortSignal,
   onChunk?: (answer: string) => void,
-  onCodeChunk?: (code: string, language: string) => void,
+  onCodeChunk?: (code: string, language: string, filepath?: string) => void,
 ): Promise<DirectiveResult> {
   setPendingApprovalState(null);
   resetSwarmHUD();
@@ -514,12 +536,22 @@ export async function speakText(
 /** The operator authorizes: redeem the capability by replaying the turn with
  *  the server-issued token. The replay may pause again on the NEXT caution
  *  action — a fresh PendingApproval is captured and the panel continues. */
-export async function approvePendingApproval(): Promise<DirectiveResult> {
+export interface DirectiveReplayOptions {
+  /** Bind a visible decision to its server-issued capability, never a newer ask. */
+  expectedToken?: string;
+  signal?: AbortSignal;
+  onChunk?: (answer: string) => void;
+  onCodeChunk?: (code: string, language: string, filepath?: string) => void;
+}
+
+export async function approvePendingApproval(options: DirectiveReplayOptions = {}): Promise<DirectiveResult> {
   const pending = pendingApproval;
-  if (!pending?.token) return { ok: false, paused: false, answer: '' };
+  if (!pending?.token || (options.expectedToken !== undefined && options.expectedToken !== pending.token)) {
+    return { ok: false, paused: false, answer: '' };
+  }
   setPendingApprovalState(null);
   
-  return streamTurn(pending.prompt, [pending.token]);
+  return streamTurn(pending.prompt, [pending.token], options.signal, options.onChunk, options.onCodeChunk);
 }
 
 /** The operator declines: the rejection is recorded through the real
@@ -529,9 +561,11 @@ export async function approvePendingApproval(): Promise<DirectiveResult> {
  *  whether the server actually acknowledged the decision, so an
  *  unreachable backend can be narrated honestly as unconfirmed instead of
  *  silently reported the same as a confirmed decline. */
-export async function rejectPendingApproval(): Promise<{ confirmed: boolean }> {
+export async function rejectPendingApproval(expectedToken?: string): Promise<{ confirmed: boolean }> {
   const pending = pendingApproval;
-  if (!pending?.token) return { confirmed: false };
+  if (!pending?.token || (expectedToken !== undefined && expectedToken !== pending.token)) {
+    return { confirmed: false };
+  }
   setPendingApprovalState(null);
   let confirmed = false;
   try {

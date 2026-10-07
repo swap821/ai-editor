@@ -118,7 +118,9 @@ class TestItSpeaksTheSlotsInterface:
 class TestNothingPromotesItself:
     def test_an_arc_is_born_a_candidate_with_live_provenance(self, world) -> None:
         adapter, repository, _ = world
-        trail = adapter.record_attempt(GOAL, STEPS, success=True)
+        trail = adapter.record_attempt(
+            GOAL, STEPS, success=True, principal="principal:test"
+        )
         assert isinstance(trail, int)
         record = _only(repository)
         assert record.state == "candidate"
@@ -130,35 +132,45 @@ class TestNothingPromotesItself:
     ) -> None:
         adapter, repository, _ = world
         for _ in range(10):
-            adapter.record_attempt(GOAL, STEPS, success=True)
+            adapter.record_attempt(
+                GOAL, STEPS, success=True, principal="principal:test"
+            )
         record = _only(repository)
         assert record.state == "candidate", "the adapter must never activate"
         assert record.success_count == 10
-        assert adapter.relevant_verified(GOAL, 3) == []
+        assert adapter.relevant_verified(GOAL, 3, principal="principal:test") == []
         trails = adapter.trail_map()["trails"]
         assert trails[0]["review_ready"] is True and trails[0]["status"] == "candidate"
 
     def test_the_same_arc_keeps_its_trail_id(self, world) -> None:
         adapter, _, _ = world
-        first = adapter.record_attempt(GOAL, STEPS, success=True)
-        again = adapter.record_attempt(GOAL, STEPS, success=False)
+        first = adapter.record_attempt(
+            GOAL, STEPS, success=True, principal="principal:test"
+        )
+        again = adapter.record_attempt(
+            GOAL, STEPS, success=False, principal="principal:test"
+        )
         assert first == again
 
     def test_a_weak_success_is_not_evidence(self, world) -> None:
         adapter, repository, _ = world
-        adapter.record_attempt(GOAL, STEPS, success=True)
+        adapter.record_attempt(GOAL, STEPS, success=True, principal="principal:test")
         adapter.record_attempt(
-            GOAL, STEPS, success=True, strength=VerificationStrength.WEAK
+            GOAL,
+            STEPS,
+            success=True,
+            strength=VerificationStrength.WEAK,
+            principal="principal:test",
         )
         record = _only(repository)
         assert (record.success_count, record.failure_count) == (1, 0)
 
     def test_a_retired_arc_starts_a_new_version(self, world) -> None:
         adapter, repository, _ = world
-        adapter.record_attempt(GOAL, STEPS, success=True)
+        adapter.record_attempt(GOAL, STEPS, success=True, principal="principal:test")
         first = _only(repository)
         repository.transition_state(first.skill_id, first.version, "deprecated")
-        adapter.record_attempt(GOAL, STEPS, success=True)
+        adapter.record_attempt(GOAL, STEPS, success=True, principal="principal:test")
         versions = sorted(r.version for r in repository.list_skills())
         assert versions == [1, 2]
 
@@ -166,24 +178,37 @@ class TestNothingPromotesItself:
 class TestIdentityStaysAnInteger:
     def test_a_legacy_id_is_honoured(self, world) -> None:
         adapter, _, _ = world
-        assert adapter.record_attempt(GOAL, STEPS, success=True, legacy_id=66) == 66
+        assert (
+            adapter.record_attempt(
+                GOAL, STEPS, success=True, legacy_id=66, principal="principal:test"
+            )
+            == 66
+        )
 
     def test_a_taken_id_is_never_reused(self, world) -> None:
         adapter, _, _ = world
-        first = adapter.record_attempt(GOAL, STEPS, success=True, legacy_id=66)
+        first = adapter.record_attempt(
+            GOAL, STEPS, success=True, legacy_id=66, principal="principal:test"
+        )
         other = adapter.record_attempt(
             "a different goal entirely",
             ["read_file: filepath=b.py"],
             success=True,
             legacy_id=66,
+            principal="principal:test",
         )
         assert first == 66 and other != 66
 
     def test_a_fresh_id_lands_above_every_adopted_id(self, world) -> None:
         adapter, _, _ = world
-        adapter.record_attempt(GOAL, STEPS, success=True, legacy_id=500)
+        adapter.record_attempt(
+            GOAL, STEPS, success=True, legacy_id=500, principal="principal:test"
+        )
         fresh = adapter.record_attempt(
-            "another goal", ["read_file: filepath=c.py"], success=True
+            "another goal",
+            ["read_file: filepath=c.py"],
+            success=True,
+            principal="principal:test",
         )
         assert fresh > 500
 
@@ -223,35 +248,51 @@ class TestIdentityStaysAnInteger:
 class TestRecallAndReuseReadOnlyWhatTheOperatorActivated:
     def test_an_active_skill_is_recalled_in_the_legacy_shape(self, world) -> None:
         adapter, repository, _ = world
-        trail = adapter.record_attempt(GOAL, STEPS, success=True)
+        trail = adapter.record_attempt(
+            GOAL, STEPS, success=True, principal="principal:test"
+        )
         _activate(repository, _only(repository))
-        rows = adapter.relevant_verified("run the parser tests", 3)
+        rows = adapter.relevant_verified(
+            "run the parser tests", 3, principal="principal:test"
+        )
         assert len(rows) == 1
         row = rows[0]
         assert row["skill_id"] == trail and isinstance(row["skill_id"], int)
         assert row["steps"] == STEPS and row["strength"] > 0 and row["relevance"] > 0
-        hit = adapter.recall("run the parser tests", MemoryRecallContext(limit=3))[0]
+        hit = adapter.recall(
+            "run the parser tests",
+            MemoryRecallContext(limit=3, principal_id="principal:test"),
+        )[0]
         assert hit.external_id == trail and hit.source == "institutional_skills"
 
     def test_reuse_credits_active_skills_only(self, world) -> None:
         adapter, repository, _ = world
-        trail = adapter.record_attempt(GOAL, STEPS, success=True)
-        assert adapter.record_reuse([trail], success=True) == []  # still a candidate
+        trail = adapter.record_attempt(
+            GOAL, STEPS, success=True, principal="principal:test"
+        )
+        assert (
+            adapter.record_reuse([trail], success=True, principal="principal:test")
+            == []
+        )  # still a candidate
         _activate(repository, _only(repository))
-        assert adapter.record_reuse([trail], success=True) == [trail]
+        assert adapter.record_reuse(
+            [trail], success=True, principal="principal:test"
+        ) == [trail]
         assert adapter.trail_map()["trails"][0]["reuse_success_count"] == 1
 
     def test_an_active_skill_that_keeps_failing_is_demoted_by_organ_43(
         self, world
     ) -> None:
         adapter, repository, _ = world
-        trail = adapter.record_attempt(GOAL, STEPS, success=True)
+        trail = adapter.record_attempt(
+            GOAL, STEPS, success=True, principal="principal:test"
+        )
         _activate(repository, _only(repository))
         for _ in range(4):
-            adapter.record_reuse([trail], success=False)
+            adapter.record_reuse([trail], success=False, principal="principal:test")
         record = _only(repository)
         assert record.state in {"degraded", "suspended"}
-        assert adapter.relevant_verified(GOAL, 3) == [], (
+        assert adapter.relevant_verified(GOAL, 3, principal="principal:test") == [], (
             "a demoted skill is not recalled"
         )
 
@@ -264,15 +305,19 @@ class TestAReviewedContractIsNeverRewritten:
 
     def test_a_candidate_recipe_is_still_refined(self, world) -> None:
         adapter, repository, _ = world
-        adapter.record_attempt(GOAL, self.WORSE, success=True)
-        adapter.record_attempt(GOAL, STEPS, success=True)
+        adapter.record_attempt(
+            GOAL, self.WORSE, success=True, principal="principal:test"
+        )
+        adapter.record_attempt(GOAL, STEPS, success=True, principal="principal:test")
         assert json.loads(_only(repository).procedure) == STEPS
 
     def test_an_active_skills_procedure_is_left_alone(self, world) -> None:
         adapter, repository, _ = world
-        adapter.record_attempt(GOAL, self.WORSE, success=True)
+        adapter.record_attempt(
+            GOAL, self.WORSE, success=True, principal="principal:test"
+        )
         _activate(repository, _only(repository))
-        adapter.record_attempt(GOAL, STEPS, success=True)
+        adapter.record_attempt(GOAL, STEPS, success=True, principal="principal:test")
         record = _only(repository)
         assert json.loads(record.procedure) == self.WORSE, "the approved recipe stands"
         assert record.success_count == 2, "the evidence still counts"
@@ -283,24 +328,28 @@ class TestTheStopFreezesWritesButNeverBlindsReads:
         adapter, repository, engage = world
         engage()
         with pytest.raises(EmergencyStopError):
-            adapter.record_attempt(GOAL, STEPS, success=True)
+            adapter.record_attempt(
+                GOAL, STEPS, success=True, principal="principal:test"
+            )
         assert repository.list_skills() == ()
         assert adapter.trails.all() == {}
 
     def test_reuse_is_refused_and_the_counters_do_not_move(self, world) -> None:
         adapter, repository, engage = world
-        trail = adapter.record_attempt(GOAL, STEPS, success=True)
+        trail = adapter.record_attempt(
+            GOAL, STEPS, success=True, principal="principal:test"
+        )
         _activate(repository, _only(repository))
         engage()
         with pytest.raises(EmergencyStopError):
-            adapter.record_reuse([trail], success=True)
+            adapter.record_reuse([trail], success=True, principal="principal:test")
         assert adapter.trail_map()["trails"][0]["reuse_success_count"] == 0
 
     def test_reads_still_answer_under_the_stop(self, world) -> None:
         """Including with a skill the adapter never saw (no trail yet): it is
         left out rather than written, so the read does not fail (#375)."""
         adapter, repository, engage = world
-        adapter.record_attempt(GOAL, STEPS, success=True)
+        adapter.record_attempt(GOAL, STEPS, success=True, principal="principal:test")
         tracked = _only(repository)
         repository.save(tracked.model_copy(update={"skill_id": "untracked"}))
         engage()
@@ -308,7 +357,7 @@ class TestTheStopFreezesWritesButNeverBlindsReads:
         assert [t["institutional"]["skill_id"] for t in view["trails"]] == [
             tracked.skill_id
         ]
-        assert adapter.relevant_verified(GOAL, 3) == []
+        assert adapter.relevant_verified(GOAL, 3, principal="principal:test") == []
         assert [r["institutional"]["skill_id"] for r in adapter.list()] == [
             tracked.skill_id
         ]

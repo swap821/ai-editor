@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import inspect
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
@@ -67,22 +68,23 @@ class LegacySemanticMemoryAdapter:
         #: appends a signed record of its new state. None: write as before.
         self.provenance = provenance
 
-    def _admits(self, result: Any) -> bool:
-        """A retrieved memory is admitted only if its provenance verifies."""
+    def _admits(self, result: Any, principal: Optional[str]) -> bool:
+        """A retrieved memory is admitted only if its provenance verifies, for
+        the principal it names (plan Phase 4c)."""
         mem_id = getattr(result, "id", None)
         if mem_id is None or self.gate is None:
             return False
         row = self.store.get(int(mem_id))
         return row is not None and self.gate.admits(
-            "semantic_memory", mem_id, semantic_digest(row)
+            "semantic_memory", mem_id, semantic_digest(row), principal=principal
         )
 
-    def _prior(self, target: Any, text: Any) -> Any:
+    def _prior(self, target: Any, text: Any, principal: Optional[str]) -> Any:
         """The row a write of *text* would consolidate into, read BEFORE it."""
         if self.provenance is None or not isinstance(text, str):
             return None
         finder = getattr(target, "duplicate_of", None)
-        return finder(text) if callable(finder) else None
+        return finder(text, principal_id=principal) if callable(finder) else None
 
     def _attest(
         self,
@@ -92,9 +94,12 @@ class LegacySemanticMemoryAdapter:
         prior: Any = None,
         existed: bool,
         source: Any = None,
+        principal: Optional[str],
     ) -> None:
         """A new row is attested as new; a repeat or a promotion extends the
-        prior state, and is signed only if that state verifies."""
+        prior state, and is signed only if that state verifies. The record
+        names the principal the row belongs to (plan Phase 4c), under the
+        signature."""
         if self.provenance is None:
             return
         target = source if source is not None else self.store
@@ -104,7 +109,11 @@ class LegacySemanticMemoryAdapter:
             return
         if not existed:
             self.provenance.attest_new(
-                "semantic_memory", mem_id, semantic_digest(row), transition
+                "semantic_memory",
+                mem_id,
+                semantic_digest(row),
+                transition,
+                principal=principal,
             )
             return
         prior_digest = (
@@ -118,6 +127,7 @@ class LegacySemanticMemoryAdapter:
             semantic_digest(row),
             transition,
             prior_digest=prior_digest,
+            principal=principal,
         )
 
     @property
@@ -137,7 +147,9 @@ class LegacySemanticMemoryAdapter:
         top_k = context.limit * (_GATED_OVERFETCH if self.gate is not None else 1)
         results = retrieval_fn(query, top_k=top_k)
         if self.gate is not None:
-            results = [r for r in results if self._admits(r)][: context.limit]
+            results = [r for r in results if self._admits(r, context.principal_id)][
+                : context.limit
+            ]
         hits: list[MemoryHit] = []
         for position, result in enumerate(results):
             external_id = getattr(result, "id", None)
@@ -161,40 +173,79 @@ class LegacySemanticMemoryAdapter:
             )
         return tuple(hits)
 
-    def record_chat(self, content: str, *, indexer: Any | None = None) -> int:
-        """Persist a scrubbed unverified chat observation via the semantic store."""
+    def record_chat(
+        self,
+        content: str,
+        *,
+        indexer: Any | None = None,
+        principal: Optional[str],
+    ) -> int:
+        """Persist a scrubbed unverified chat observation via the semantic store,
+        as *principal*'s (plan Phase 4c)."""
         write_budget.spend(self, "semantic_memory")
         target = indexer if indexer is not None else self.store
-        prior = self._prior(target, content)
+        prior = self._prior(target, content, principal)
         try:
-            mem_id = int(
-                target.add(
-                    content,
-                    memory_type="chat",
-                    verification_status="unverified",
+            if isinstance(target, LegacySemanticMemoryAdapter):
+                # The live indexer IS this adapter (``deps.get_semantic_indexer``),
+                # whose ``add`` takes ``principal``: it scopes, signs and
+                # budgets the write itself, exactly as before plan Phase 4c.
+                mem_id = int(
+                    target.add(
+                        content,
+                        memory_type="chat",
+                        verification_status="unverified",
+                        principal=principal,
+                    )
                 )
-            )
+            else:
+                mem_id = int(
+                    target.add(
+                        content,
+                        memory_type="chat",
+                        verification_status="unverified",
+                        principal_id=principal,
+                    )
+                )
         except TypeError:
+            # A legacy indexer that takes no keywords writes the row with no
+            # principal: recall withholds it from everyone (plan Phase 4c), so
+            # the fallback can never widen recall.
             mem_id = int(target.add(content))
         self._attest(
-            mem_id, "recorded", prior=prior, existed=prior is not None, source=target
+            mem_id,
+            "recorded",
+            prior=prior,
+            existed=prior is not None,
+            source=target,
+            principal=principal,
         )
         return mem_id
 
-    def add(self, *args: Any, **kwargs: Any) -> int:
+    def add(self, *args: Any, principal: Optional[str], **kwargs: Any) -> int:
         write_budget.spend(self, "semantic_memory")
-        prior = self._prior(self.store, args[0] if args else kwargs.get("text"))
-        mem_id = int(self.store.add(*args, **kwargs))
-        self._attest(mem_id, "recorded", prior=prior, existed=prior is not None)
+        prior = self._prior(
+            self.store, args[0] if args else kwargs.get("text"), principal
+        )
+        mem_id = int(self.store.add(*args, principal_id=principal, **kwargs))
+        self._attest(
+            mem_id,
+            "recorded",
+            prior=prior,
+            existed=prior is not None,
+            principal=principal,
+        )
         return mem_id
 
-    def promote(self, mem_id: int) -> None:
+    def promote(self, mem_id: int, *, principal: Optional[str]) -> None:
         prior = self.store.get(int(mem_id)) if self.provenance is not None else None
-        self.store.promote(mem_id)
-        self._attest(int(mem_id), "promoted", prior=prior, existed=True)
+        self.store.promote(mem_id, principal_id=principal)
+        self._attest(
+            int(mem_id), "promoted", prior=prior, existed=True, principal=principal
+        )
 
-    def supersede_text(self, text: str) -> int:
-        return int(self.store.supersede_text(text))
+    def supersede_text(self, text: str, *, principal: Optional[str]) -> int:
+        return int(self.store.supersede_text(text, principal_id=principal))
 
     def rebuild_derived_indexes(self) -> None:
         """The existing semantic store owns its index rebuild operation."""
@@ -308,27 +359,68 @@ class SemanticFactsAdapter:
         #: Maintenance reads (rows_by_status) and the UI graph (traverse) are
         #: not recall, and stay ungated.
         self.gate = gate
+        #: Plan Phase 4c-3: the gate checks every recalled triple, and running
+        #: the whole schema script + migrations on each check was the largest
+        #: single cost a learned store added to a turn. Ensured once.
+        self._schema_ready = False
 
-    def _admits_row(self, row: Any) -> bool:
+    def _admits_row(self, row: Any, principal: Optional[str]) -> bool:
         if self.gate is None:
             return True
-        return self.gate.admits("semantic_facts", row["id"], fact_digest(row))
+        return self.gate.admits(
+            "semantic_facts", row["id"], fact_digest(row), principal=principal
+        )
 
-    def _admits_triple(self, subject: Any, predicate: Any, obj: Any) -> bool:
-        """An ACTIVE triple is unique (add_fact refuses duplicates and
-        contradictions), so a triple names one row to verify."""
+    def _admits_triple(
+        self, subject: Any, predicate: Any, obj: Any, principal: Optional[str]
+    ) -> bool:
+        """An ACTIVE triple is unique per principal (add_fact refuses duplicates
+        and contradictions within one principal's facts), so a triple and a
+        principal name one row to verify."""
+        key = (str(subject), str(predicate), str(obj))
+        return key in self._admitted_triples([key], principal)
+
+    def _admitted_triples(
+        self, triples: Iterable[tuple[Any, Any, Any]], principal: Optional[str]
+    ) -> set[tuple[str, str, str]]:
+        """Of *triples*, those whose newest ACTIVE row of *principal* verifies.
+
+        Plan Phase 4c-3: one query for all of a walk's triples, where each used
+        to re-read its row on its own connection. The triples travel as ONE
+        JSON parameter, so the statement is static. Every row is still
+        verified, one by one, by the gate.
+        """
+        wanted = {(str(s), str(p), str(o)) for s, p, o in triples}
         if self.gate is None:
-            return True
-        init_memory_db(self.store.db_path)
+            return wanted
+        if not wanted:
+            return set()
+        if not self._schema_ready:
+            init_memory_db(self.store.db_path)
+            self._schema_ready = True
         with get_connection(self.store.db_path) as conn:
-            row = conn.execute(
-                "SELECT * FROM semantic_facts WHERE subject = ? AND predicate = ? "
-                "AND object = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
-                (str(subject), str(predicate), str(obj)),
-            ).fetchone()
-        return row is not None and self._admits_row(row)
+            rows = conn.execute(
+                "SELECT f.* FROM semantic_facts AS f "
+                "JOIN json_each(?) AS t "
+                "ON f.subject = json_extract(t.value, '$[0]') "
+                "AND f.predicate = json_extract(t.value, '$[1]') "
+                "AND f.object = json_extract(t.value, '$[2]') "
+                "WHERE f.status = 'active' AND f.principal_id IS ? "
+                "ORDER BY f.id DESC",
+                (json.dumps(sorted(wanted)), principal),
+            ).fetchall()
+        admitted: set[tuple[str, str, str]] = set()
+        newest: set[tuple[str, str, str]] = set()
+        for row in rows:
+            key = (row["subject"], row["predicate"], row["object"])
+            if key in newest:
+                continue  # an older row of the same triple: the newest decides
+            newest.add(key)
+            if self._admits_row(row, principal):
+                admitted.add(key)
+        return admitted
 
-    def _attest(self, result: Any, transition: str) -> Any:
+    def _attest(self, result: Any, transition: str, principal: Optional[str]) -> Any:
         fact_id = getattr(result, "fact_id", None)
         if (
             self.provenance is None
@@ -348,6 +440,7 @@ class SemanticFactsAdapter:
                 fact_digest(row),
                 transition,
                 approver=row["approved_by"],
+                principal=principal,
             )
         else:
             # No approver: recall never admits it anyway, and nothing earlier
@@ -358,12 +451,15 @@ class SemanticFactsAdapter:
                 fact_digest(row),
                 transition,
                 prior_digest=None,
+                principal=principal,
             )
         return result
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
         hits: list[MemoryHit] = []
-        for position, row in enumerate(self.search(query)[: context.limit]):
+        for position, row in enumerate(
+            self.search(query, principal=context.principal_id)[: context.limit]
+        ):
             subject = str(row["subject"])
             predicate = str(row["predicate"])
             obj = str(row["object"])
@@ -379,66 +475,111 @@ class SemanticFactsAdapter:
             )
         return tuple(hits)
 
-    def search(self, query: str) -> list[Any]:
+    def search(self, query: str, *, principal: Optional[str]) -> list[Any]:
         init_memory_db(self.store.db_path)
+        rows = self.store.search(query, principal_id=principal)
+        admitted = self._admitted_triples(
+            ((r["subject"], r["predicate"], r["object"]) for r in rows), principal
+        )
         return [
             row
-            for row in self.store.search(query)
-            if self._admits_triple(row["subject"], row["predicate"], row["object"])
+            for row in rows
+            if (str(row["subject"]), str(row["predicate"]), str(row["object"]))
+            in admitted
         ]
 
     def strengthen_or_propose(
-        self, subject: str, predicate: str, obj: str, *, source: str = "auto-extract"
+        self,
+        subject: str,
+        predicate: str,
+        obj: str,
+        *,
+        source: str = "auto-extract",
+        principal: Optional[str],
     ) -> Any:
         write_budget.spend(self, "semantic_facts")
-        return self.store.strengthen_or_propose(subject, predicate, obj, source=source)
-
-    def add_fact(self, *args: Any, **kwargs: Any) -> Any:
-        write_budget.spend(self, "semantic_facts")
-        return self._attest(self.store.add_fact(*args, **kwargs), "created")
-
-    def reconcile(self, *args: Any, **kwargs: Any) -> Any:
-        return self._attest(self.store.reconcile(*args, **kwargs), "reconciled")
-
-    def pending_proposals(self, limit: int = 100) -> list[Any]:
-        init_memory_db(self.store.db_path)
-        return self.store.pending_proposals(limit)
-
-    def approve_proposal(self, proposal_id: int, *, approved_by: str) -> Any:
-        return self._attest(
-            self.store.approve_proposal(proposal_id, approved_by=approved_by),
-            "approved",
+        return self.store.strengthen_or_propose(
+            subject, predicate, obj, source=source, principal_id=principal
         )
 
-    def reject_proposal(self, proposal_id: int, *, rejected_by: str) -> bool:
-        return self.store.reject_proposal(proposal_id, rejected_by=rejected_by)
+    def add_fact(self, *args: Any, principal: Optional[str], **kwargs: Any) -> Any:
+        write_budget.spend(self, "semantic_facts")
+        return self._attest(
+            self.store.add_fact(*args, principal_id=principal, **kwargs),
+            "created",
+            principal,
+        )
 
-    def neighbors(self, subject: str) -> list[Any]:
+    def reconcile(self, *args: Any, principal: Optional[str], **kwargs: Any) -> Any:
+        return self._attest(
+            self.store.reconcile(*args, principal_id=principal, **kwargs),
+            "reconciled",
+            principal,
+        )
+
+    def pending_proposals(
+        self, limit: int = 100, *, principal: Optional[str]
+    ) -> list[Any]:
+        init_memory_db(self.store.db_path)
+        return self.store.pending_proposals(limit, principal_id=principal)
+
+    def approve_proposal(
+        self, proposal_id: int, *, approved_by: str, principal: Optional[str]
+    ) -> Any:
+        return self._attest(
+            self.store.approve_proposal(
+                proposal_id, approved_by=approved_by, principal_id=principal
+            ),
+            "approved",
+            principal,
+        )
+
+    def reject_proposal(
+        self, proposal_id: int, *, rejected_by: str, principal: Optional[str]
+    ) -> bool:
+        return self.store.reject_proposal(
+            proposal_id, rejected_by=rejected_by, principal_id=principal
+        )
+
+    def neighbors(self, subject: str, *, principal: Optional[str]) -> list[Any]:
+        init_memory_db(self.store.db_path)
+        rows = self.store.neighbors(subject, principal_id=principal)
+        admitted = self._admitted_triples(
+            ((r["subject"], r["predicate"], r["object"]) for r in rows), principal
+        )
+        return [
+            row
+            for row in rows
+            if (str(row["subject"]), str(row["predicate"]), str(row["object"]))
+            in admitted
+        ]
+
+    def facts_for(
+        self,
+        subject: str,
+        predicate: str | None = None,
+        *,
+        principal: Optional[str],
+    ) -> list[Any]:
         init_memory_db(self.store.db_path)
         return [
             row
-            for row in self.store.neighbors(subject)
-            if self._admits_triple(row["subject"], row["predicate"], row["object"])
+            for row in self.store.facts_for(subject, predicate, principal_id=principal)
+            if self._admits_row(row, principal)
         ]
 
-    def facts_for(self, subject: str, predicate: str | None = None) -> list[Any]:
-        init_memory_db(self.store.db_path)
-        return [
-            row
-            for row in self.store.facts_for(subject, predicate)
-            if self._admits_row(row)
-        ]
-
-    def operator_model(self) -> dict[str, Any]:
-        """Build the operator snapshot from authority-owned fact reads."""
-        operator_facts = self.facts_for("operator")
-        project_facts = self.facts_for("project")
+    def operator_model(self, *, principal: Optional[str]) -> dict[str, Any]:
+        """Build *principal*'s operator snapshot from authority-owned fact reads."""
+        operator_facts = self.facts_for("operator", principal=principal)
+        project_facts = self.facts_for("project", principal=principal)
         init_memory_db(self.store.db_path)
         with get_connection(self.store.db_path) as conn:
             attr_rows = conn.execute(
                 "SELECT * FROM semantic_facts "
                 "WHERE subject LIKE 'operator.%' AND status = 'active' "
+                "AND principal_id IS ? "
                 "ORDER BY id DESC",
+                (principal,),
             ).fetchall()
 
         preferences = [
@@ -481,12 +622,14 @@ class SemanticFactsAdapter:
         *,
         max_depth: int = 3,
         min_path_confidence: float = 0.3,
+        principal: Optional[str],
     ) -> list[Any]:
         init_memory_db(self.store.db_path)
         edges = self.store.traverse_weighted(
             subject,
             max_depth=max_depth,
             min_path_confidence=min_path_confidence,
+            principal_id=principal,
         )
         if self.gate is None:
             return edges
@@ -495,19 +638,27 @@ class SemanticFactsAdapter:
         # verifies AND an admitted edge already reached its subject from the
         # start. Every kept edge is verified, and connected to the start
         # through verified edges only.
+        admitted = self._admitted_triples(
+            ((e.subject, e.predicate, e.object) for e in edges), principal
+        )
         reached = {str(subject).strip()}
         kept: set[int] = set()
         for index, edge in sorted(enumerate(edges), key=lambda pair: pair[1].depth):
-            if edge.subject in reached and self._admits_triple(
-                edge.subject, edge.predicate, edge.object
+            if (
+                edge.subject in reached
+                and (str(edge.subject), str(edge.predicate), str(edge.object))
+                in admitted
             ):
                 kept.add(index)
                 reached.add(edge.object)
         return [edge for index, edge in enumerate(edges) if index in kept]
 
-    def traverse(self, subject: str, max_depth: int = 2) -> list[Any]:
+    def traverse(
+        self, subject: str, max_depth: int = 2, *, principal: Optional[str]
+    ) -> list[Any]:
+        """The UI graph: not recall, so ungated -- but only *principal*'s graph."""
         init_memory_db(self.store.db_path)
-        return self.store.traverse(subject, max_depth=max_depth)
+        return self.store.traverse(subject, max_depth=max_depth, principal_id=principal)
 
     def rebuild_derived_indexes(self) -> None:
         return None
@@ -617,7 +768,9 @@ class MistakeMemoryAdapter:
         #: admits only a lesson whose provenance verifies. None: as before.
         self.gate = gate
 
-    def _admitted(self, items: list[Any], limit: int) -> list[Any]:
+    def _admitted(
+        self, items: list[Any], limit: int, principal: Optional[str]
+    ) -> list[Any]:
         if self.gate is None:
             return list(items)[:limit]
         kept: list[Any] = []
@@ -627,7 +780,7 @@ class MistakeMemoryAdapter:
             )
             row = self.store.get(mistake_id)
             if row is not None and self.gate.admits(
-                "mistake_pool", mistake_id, lesson_digest(row)
+                "mistake_pool", mistake_id, lesson_digest(row), principal=principal
             ):
                 kept.append(item)
             if len(kept) >= limit:
@@ -644,6 +797,7 @@ class MistakeMemoryAdapter:
         *,
         prior: Any = None,
         existed: bool,
+        principal: Optional[str],
     ) -> None:
         """A new lesson is attested as new. A recurrence or a promotion extends
         the prior state and is signed only if that state verifies: a recurrence
@@ -661,6 +815,7 @@ class MistakeMemoryAdapter:
                 lesson_digest(row),
                 transition,
                 session_id=row["task_id"],
+                principal=principal,
             )
             return
         prior_digest = (
@@ -675,9 +830,12 @@ class MistakeMemoryAdapter:
             transition,
             prior_digest=prior_digest,
             session_id=row["task_id"],
+            principal=principal,
         )
 
-    def _recurrence_prior(self, args: tuple, kwargs: dict) -> Any:
+    def _recurrence_prior(
+        self, args: tuple, kwargs: dict, principal: Optional[str]
+    ) -> Any:
         """The row a recurrence would increment, read BEFORE the write."""
         if self.provenance is None:
             return None
@@ -685,10 +843,14 @@ class MistakeMemoryAdapter:
         if not callable(finder):
             return None
         bound = inspect.signature(self.store.record_or_increment).bind(*args, **kwargs)
-        return finder(bound.arguments["task_id"], bound.arguments["error_type"])
+        return finder(
+            bound.arguments["task_id"],
+            bound.arguments["error_type"],
+            principal_id=principal,
+        )
 
     def recall_relevant(
-        self, query: str, task_id: str, limit: int
+        self, query: str, task_id: str, limit: int, *, principal: Optional[str]
     ) -> list[dict[str, Any]]:
         pending = [
             {
@@ -699,35 +861,50 @@ class MistakeMemoryAdapter:
                 "relevance": 1.0,
             }
             for row in self._admitted(
-                self.store.pending_for_task(task_id, self._fetch(limit)), limit
+                self.store.pending_for_task(
+                    task_id, self._fetch(limit), principal_id=principal
+                ),
+                limit,
+                principal,
             )
         ]
         remaining = max(limit - len(pending), 0)
-        verified = self.relevant_verified(query, remaining)
+        verified = self.relevant_verified(query, remaining, principal=principal)
         pending_ids = {lesson["mistake_id"] for lesson in pending}
         return pending + [
             lesson for lesson in verified if lesson["mistake_id"] not in pending_ids
         ]
 
-    def recurring(self, limit: int = 3) -> list[dict[str, Any]]:
-        return self._admitted(self.store.recurring(limit=self._fetch(limit)), limit)
+    def recurring(
+        self, limit: int = 3, *, principal: Optional[str]
+    ) -> list[dict[str, Any]]:
+        return self._admitted(
+            self.store.recurring(limit=self._fetch(limit), principal_id=principal),
+            limit,
+            principal,
+        )
 
-    def record_or_increment(self, *args: Any, **kwargs: Any) -> tuple[int, bool]:
+    def record_or_increment(
+        self, *args: Any, principal: Optional[str], **kwargs: Any
+    ) -> tuple[int, bool]:
         write_budget.spend(self, "mistake_pool")
-        prior = self._recurrence_prior(args, kwargs)
-        mistake_id, recurrence = self.store.record_or_increment(*args, **kwargs)
+        prior = self._recurrence_prior(args, kwargs, principal)
+        mistake_id, recurrence = self.store.record_or_increment(
+            *args, principal_id=principal, **kwargs
+        )
         self._attest(
             int(mistake_id),
             "recurred" if recurrence else "created",
             prior=prior,
             existed=bool(recurrence),
+            principal=principal,
         )
         return mistake_id, recurrence
 
-    def record(self, *args: Any, **kwargs: Any) -> int:
+    def record(self, *args: Any, principal: Optional[str], **kwargs: Any) -> int:
         write_budget.spend(self, "mistake_pool")
-        mistake_id = int(self.store.record(*args, **kwargs))
-        self._attest(mistake_id, "created", existed=False)
+        mistake_id = int(self.store.record(*args, principal_id=principal, **kwargs))
+        self._attest(mistake_id, "created", existed=False, principal=principal)
         return mistake_id
 
     def get(self, mistake_id: int) -> Any:
@@ -743,29 +920,53 @@ class MistakeMemoryAdapter:
                 ).fetchall()
             )
 
-    def promote(self, mistake_id: int, **kwargs: Any) -> None:
-        prior = self.store.get(mistake_id) if self.provenance is not None else None
-        self.store.promote(mistake_id, **kwargs)
+    def promote(
+        self, mistake_id: int, *, principal: Optional[str], **kwargs: Any
+    ) -> None:
+        row = self.store.get(mistake_id)
+        if row is None or row["principal_id"] != principal:
+            # Plan Phase 4c: never another principal's lesson. Nothing changes,
+            # so nothing is attested.
+            return
+        prior = row if self.provenance is not None else None
+        self.store.promote(mistake_id, principal_id=principal, **kwargs)
         # Attested even when the evidence was below the floor and nothing
         # changed: the record then restates the same state. Signed only if the
         # state it restates, or promotes, was signed.
-        self._attest(int(mistake_id), "promoted", prior=prior, existed=True)
+        self._attest(
+            int(mistake_id), "promoted", prior=prior, existed=True, principal=principal
+        )
 
-    def pending_command_pairs(self, task_id: str) -> list[tuple[int, str]]:
-        return self.store.pending_command_pairs(task_id)
+    def pending_command_pairs(
+        self, task_id: str, *, principal: Optional[str]
+    ) -> list[tuple[int, str]]:
+        return self.store.pending_command_pairs(task_id, principal_id=principal)
 
-    def pending_for_task(self, task_id: str, limit: int = 5) -> list[Any]:
-        return self.store.pending_for_task(task_id, limit)
+    def pending_for_task(
+        self, task_id: str, limit: int = 5, *, principal: Optional[str]
+    ) -> list[Any]:
+        return self.store.pending_for_task(task_id, limit, principal_id=principal)
 
-    def relevant_verified(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    def relevant_verified(
+        self, query: str, limit: int = 5, *, principal: Optional[str]
+    ) -> list[dict[str, Any]]:
         if limit <= 0:
             return []
         return self._admitted(
-            self.store.relevant_verified(query, self._fetch(limit)), limit
+            self.store.relevant_verified(
+                query, self._fetch(limit), principal_id=principal
+            ),
+            limit,
+            principal,
         )
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:
-        rows = self.recall_relevant(query, context.session_id or "", context.limit)
+        rows = self.recall_relevant(
+            query,
+            context.session_id or "",
+            context.limit,
+            principal=context.principal_id,
+        )
         return tuple(
             MemoryHit(
                 record_id=f"lesson:{row['mistake_id']}",

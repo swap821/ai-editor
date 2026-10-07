@@ -71,7 +71,11 @@ export function deriveReceipt(input: ReceiptInput): Receipt {
       : {
           kind: 'failure',
           title: 'That did not work.',
-          message: 'The request did not complete. Its verification state is unknown.',
+          message: input.verification === 'fail'
+            ? 'The request did not complete. A reported check failed.'
+            : input.verification === 'pass'
+              ? 'The request did not complete. A reported check passed, but completion is still unconfirmed.'
+              : 'The request did not complete. Its verification state is unknown.',
           target: input.target,
           actions: ['See what failed', 'Try another approach'],
           targetTabId: input.targetTabId,

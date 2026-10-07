@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compact workspace CSS regression — no backend or organism</title>
+  <link rel="stylesheet" href="../../src/styles/tokens.css">
+  <link rel="stylesheet" href="../../src/workbench/GagosChrome.css">
+  <link rel="stylesheet" href="../../src/livingMirror/livingMirror.css">
+  <style>body { margin: 0; } .fixture-dock { position: absolute; top: 340px; height: 138px; left: 16px; right: 16px; } .fixture-label { position: absolute; bottom: 8px; left: 16px; right: 16px; font-size: 12px; }</style>
+</head>
+<body>
+  <!-- Native CSS-only test. Uses production styles and the selected-workspace
+       header/content hierarchy. The measured composer baseline is supplied;
+       this does NOT mount React, WebGL or any operational/backend state. -->
+  <main class="lm-app" data-working="true" data-experience-mode="expert" data-being-focus="false" style="--lm-workspace-dock-clearance: 240px; --lm-safe-area-top: 0px; --lm-safe-area-bottom: 0px">
+    <div class="lm-scene" aria-hidden="true"></div>
+    <div class="lm-shell" data-experience-mode="expert">
+      <section class="lm-surface" aria-label="Selected workspace">
+        <header class="lm-surface__header">
+          <h2 tabindex="-1">/workspace/packages/observability/production/desktop-and-mobile/continuous-artifact-generation/verification-and-recovery/supervised-workspace-with-a-long-readable-filepath.integration.test.tsx</h2>
+          <button type="button" aria-label="Collapse workspace">Collapse</button>
+          <button type="button">Pin</button>
+          <button type="button" aria-label="Close workspace">Close</button>
+        </header>
+        <div class="lm-surface__content">
+          <div class="lm-surface__body" tabindex="0">
+            <p>First readable work line.</p>
+            <p>Second readable work line. Content must scroll inside the retained work plane, not behind its heading or composer.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="fixture-dock" aria-label="Measured composer boundary">Composer boundary at 340px; no input submission.</div>
+    <div class="gagos-chrome fixture-expanded-context" hidden>
+      <!-- Stress content demand against real composer CSS, not a mounted chat. -->
+      <section class="gagos-chat" aria-label="CSS-only expanded composer" style="height: 320px">
+        <div class="gagos-chat__context"><p>Expanded guidance stress fixture. This is not a task receipt or real conversation.</p><p>Additional readable guidance must scroll, while input, work and controls retain space.</p><p>Extra context requested to reproduce a composer larger than its safe budget.</p></div>
+        <div class="gagos-bar">
+          <input class="gagos-input" aria-label="Fixture input" placeholder="CSS fixture; nothing is submitted">
+          <div class="gagos-bar__accessories"><button class="gagos-btn" type="button">Voice</button><button class="gagos-btn" type="button">EN</button></div>
+          <button class="gagos-send" type="button" disabled>Send</button>
+        </div>
+      </section>
+    </div>
+    <output class="fixture-label" aria-label="Compact layout regression result">CSS test fixture only. Checking layout; no organism, live state or backend.</output>
+  </main>
+  <script type="module" src="./compact-workspace-check.js"></script>
+</body>
+</html>

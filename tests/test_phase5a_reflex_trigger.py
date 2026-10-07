@@ -122,7 +122,11 @@ def _world(tmp_path, arcs: list[tuple[str, list[str]]]) -> tuple[Cerebellum, Bus
     for goal, steps in arcs:
         for _ in range(3):
             library.record_attempt(
-                goal, steps, success=True, strength=VerificationStrength.STRONG
+                goal,
+                steps,
+                success=True,
+                strength=VerificationStrength.STRONG,
+                principal="principal:test",
             )
     for record in library.repository.list_skills():
         library.repository.transition_state(
@@ -138,7 +142,7 @@ def _world(tmp_path, arcs: list[tuple[str, list[str]]]) -> tuple[Cerebellum, Bus
 
 def test_the_operators_own_request_fires_the_reflex(tmp_path) -> None:
     cerebellum, _ = _world(tmp_path, [(GOAL, STEPS)])
-    assert cerebellum.match(GOAL) is not None
+    assert cerebellum.match(GOAL, principal="principal:test") is not None
 
 
 @pytest.mark.parametrize(
@@ -152,26 +156,26 @@ def test_the_operators_own_request_fires_the_reflex(tmp_path) -> None:
 )
 def test_someone_elses_words_never_fire_it(tmp_path, message) -> None:
     cerebellum, _ = _world(tmp_path, [(GOAL, STEPS)])
-    assert cerebellum.match(message) is None
+    assert cerebellum.match(message, principal="principal:test") is None
 
 
 def test_a_bigger_request_that_contains_the_goal_abstains(tmp_path) -> None:
     cerebellum, bus = _world(tmp_path, [(GOAL, STEPS)])
     message = f"summarise the note sam sent which says {GOAL} and reply"
-    assert cerebellum.match(message) is None
+    assert cerebellum.match(message, principal="principal:test") is None
     assert ("abstained", "directive exceeds goal") in bus.decisions()
 
 
 def test_two_reflexes_that_fit_equally_both_abstain(tmp_path) -> None:
     cerebellum, bus = _world(tmp_path, [ALPHA, OMEGA])
-    assert cerebellum.match("show the banner") is None
+    assert cerebellum.match("show the banner", principal="principal:test") is None
     assert bus.decisions().count(("abstained", "ambiguous")) == 2
     assert AMBIGUITY_MARGIN > 0
 
 
 def test_a_clear_best_still_fires_despite_a_weaker_rival(tmp_path) -> None:
     cerebellum, _ = _world(tmp_path, [ALPHA, OMEGA])
-    pb = cerebellum.match("show the banner alpha")
+    pb = cerebellum.match("show the banner alpha", principal="principal:test")
     assert pb is not None and pb.goal_pattern == "show the banner alpha"
 
 
@@ -212,6 +216,7 @@ def _turn(
         max_iters=2,
         cerebellum=cerebellum,
         audit_log=lambda *a, **k: None,
+        principal="principal:test",
     )
     events = list(agent.run([{"role": "user", "content": text}]))
     return runner, chat, [str(e.get("type")) for e in events if isinstance(e, dict)]

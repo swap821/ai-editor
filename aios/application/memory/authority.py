@@ -178,13 +178,21 @@ class MemoryAuthority:
             raise MemoryAuthorityError("episodic memory adapter is unavailable")
         return int(record(session_id, role, content))
 
-    def record_semantic_chat(self, content: str, *, indexer: Any | None = None) -> int:
+    # Plan Phase 4c (principal scoping; operator decision 2026-10-04): every
+    # learned read and write below names the principal it is for. A read
+    # returns only rows whose SIGNED provenance names that principal; a write
+    # records the row as that principal's. ``principal`` is keyword-only and
+    # has no default, so a caller cannot forget it silently.
+
+    def record_semantic_chat(
+        self, content: str, *, indexer: Any | None = None, principal: str | None
+    ) -> int:
         """Index an unverified chat observation through the semantic adapter."""
         adapter = self.adapters.get("semantic")
         record = getattr(adapter, "record_chat", None)
         if not callable(record):
             raise MemoryAuthorityError("semantic memory adapter is unavailable")
-        return int(record(content, indexer=indexer))
+        return int(record(content, indexer=indexer, principal=principal))
 
     def semantic_add_verified(
         self,
@@ -192,6 +200,7 @@ class MemoryAuthority:
         *,
         memory_type: str,
         count_occurrence: bool = True,
+        principal: str | None,
     ) -> int:
         """Index and promote trusted semantic memory through its adapter."""
         mem_id = int(
@@ -202,22 +211,31 @@ class MemoryAuthority:
                 memory_type=memory_type,
                 verification_status="verified",
                 count_occurrence=count_occurrence,
+                principal=principal,
             )
         )
-        self._adapter_operation("semantic", "promote", mem_id)
+        self._adapter_operation("semantic", "promote", mem_id, principal=principal)
         return mem_id
 
-    def semantic_supersede_text(self, text: str) -> int:
+    def semantic_supersede_text(self, text: str, *, principal: str | None) -> int:
         """Preserve semantic supersession lineage through its adapter."""
-        return int(self._adapter_operation("semantic", "supersede_text", text))
+        return int(
+            self._adapter_operation(
+                "semantic", "supersede_text", text, principal=principal
+            )
+        )
 
-    def facts_search(self, query: str) -> list[Any]:
+    def facts_search(self, query: str, *, principal: str | None) -> list[Any]:
         """Read active facts through the facts adapter."""
-        return list(self._adapter_operation("facts", "search", query))
+        return list(
+            self._adapter_operation("facts", "search", query, principal=principal)
+        )
 
-    def facts_neighbors(self, subject: str) -> list[Any]:
+    def facts_neighbors(self, subject: str, *, principal: str | None) -> list[Any]:
         """Read one-hop fact context through the facts adapter."""
-        return list(self._adapter_operation("facts", "neighbors", subject))
+        return list(
+            self._adapter_operation("facts", "neighbors", subject, principal=principal)
+        )
 
     def facts_traverse_weighted(
         self,
@@ -225,6 +243,7 @@ class MemoryAuthority:
         *,
         max_depth: int = 3,
         min_path_confidence: float = 0.3,
+        principal: str | None,
     ) -> list[Any]:
         """Read confidence-weighted fact paths through the facts adapter."""
         return list(
@@ -234,6 +253,7 @@ class MemoryAuthority:
                 subject,
                 max_depth=max_depth,
                 min_path_confidence=min_path_confidence,
+                principal=principal,
             )
         )
 
@@ -244,10 +264,17 @@ class MemoryAuthority:
         obj: str,
         *,
         source: str = "auto-extract",
+        principal: str | None,
     ) -> Any:
         """Form a quarantined fact proposal or strengthen an approved fact."""
         return self._adapter_operation(
-            "facts", "strengthen_or_propose", subject, predicate, obj, source=source
+            "facts",
+            "strengthen_or_propose",
+            subject,
+            predicate,
+            obj,
+            source=source,
+            principal=principal,
         )
 
     def facts_add_fact(self, *args: Any, **kwargs: Any) -> Any:
@@ -256,44 +283,82 @@ class MemoryAuthority:
     def facts_reconcile(self, *args: Any, **kwargs: Any) -> Any:
         return self._adapter_operation("facts", "reconcile", *args, **kwargs)
 
-    def facts_pending_proposals(self, limit: int = 100) -> list[Any]:
-        return list(self._adapter_operation("facts", "pending_proposals", limit))
-
-    def facts_approve_proposal(self, proposal_id: int, *, approved_by: str) -> Any:
-        return self._adapter_operation(
-            "facts", "approve_proposal", proposal_id, approved_by=approved_by
-        )
-
-    def facts_reject_proposal(self, proposal_id: int, *, rejected_by: str) -> bool:
-        return bool(
+    def facts_pending_proposals(
+        self, limit: int = 100, *, principal: str | None
+    ) -> list[Any]:
+        return list(
             self._adapter_operation(
-                "facts", "reject_proposal", proposal_id, rejected_by=rejected_by
+                "facts", "pending_proposals", limit, principal=principal
             )
         )
 
-    def facts_traverse(self, subject: str, max_depth: int = 2) -> list[Any]:
-        return list(self._adapter_operation("facts", "traverse", subject, max_depth))
+    def facts_approve_proposal(
+        self, proposal_id: int, *, approved_by: str, principal: str | None
+    ) -> Any:
+        return self._adapter_operation(
+            "facts",
+            "approve_proposal",
+            proposal_id,
+            approved_by=approved_by,
+            principal=principal,
+        )
 
-    def recall_skills(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
-        """Return verified reusable workflows through the skills adapter."""
+    def facts_reject_proposal(
+        self, proposal_id: int, *, rejected_by: str, principal: str | None
+    ) -> bool:
+        return bool(
+            self._adapter_operation(
+                "facts",
+                "reject_proposal",
+                proposal_id,
+                rejected_by=rejected_by,
+                principal=principal,
+            )
+        )
+
+    def facts_traverse(
+        self, subject: str, max_depth: int = 2, *, principal: str | None
+    ) -> list[Any]:
         return list(
-            self._adapter_operation("skills", "relevant_verified", query, limit)
+            self._adapter_operation(
+                "facts", "traverse", subject, max_depth, principal=principal
+            )
+        )
+
+    def recall_skills(
+        self, query: str, limit: int = 3, *, principal: str | None
+    ) -> list[dict[str, Any]]:
+        """Return *principal*'s verified reusable workflows through the skills
+        adapter (plan Phase 4c-2)."""
+        return list(
+            self._adapter_operation(
+                "skills", "relevant_verified", query, limit, principal=principal
+            )
         )
 
     def recall_lessons(
-        self, query: str, task_id: str, limit: int = 5
+        self, query: str, task_id: str, limit: int = 5, *, principal: str | None
     ) -> list[dict[str, Any]]:
         """Return pending and verified lessons through the lessons adapter."""
         return list(
-            self._adapter_operation("lessons", "recall_relevant", query, task_id, limit)
+            self._adapter_operation(
+                "lessons",
+                "recall_relevant",
+                query,
+                task_id,
+                limit,
+                principal=principal,
+            )
         )
 
     def recall_verified_lessons(
-        self, query: str, limit: int = 5
+        self, query: str, limit: int = 5, *, principal: str | None
     ) -> list[dict[str, Any]]:
         """Return only verified cross-task lessons for planning calibration."""
         return list(
-            self._adapter_operation("lessons", "relevant_verified", query, limit)
+            self._adapter_operation(
+                "lessons", "relevant_verified", query, limit, principal=principal
+            )
         )
 
     def development_success_rate(self, query: str, **kwargs: Any) -> Any:
@@ -340,15 +405,23 @@ class MemoryAuthority:
     def promote_lesson(self, mistake_id: int, **kwargs: Any) -> None:
         self._adapter_operation("lessons", "promote", mistake_id, **kwargs)
 
-    def pending_lesson_commands(self, task_id: str) -> list[tuple[int, str]]:
+    def pending_lesson_commands(
+        self, task_id: str, *, principal: str | None
+    ) -> list[tuple[int, str]]:
         return list(
-            self._adapter_operation("lessons", "pending_command_pairs", task_id)
+            self._adapter_operation(
+                "lessons", "pending_command_pairs", task_id, principal=principal
+            )
         )
 
-    def pending_lessons_for_task(self, task_id: str, limit: int = 5) -> list[Any]:
+    def pending_lessons_for_task(
+        self, task_id: str, limit: int = 5, *, principal: str | None
+    ) -> list[Any]:
         """Read same-task pending lessons through the lessons adapter."""
         return list(
-            self._adapter_operation("lessons", "pending_for_task", task_id, limit)
+            self._adapter_operation(
+                "lessons", "pending_for_task", task_id, limit, principal=principal
+            )
         )
 
     def consolidate_lesson(self, *args: Any, **kwargs: Any) -> Any:
@@ -402,25 +475,38 @@ class MemoryAuthority:
     def pheromone_decay(self) -> int:
         return int(self._pheromone_operation("decay_all"))
 
-    def facts_for(self, subject: str, predicate: str | None = None) -> list[Any]:
+    def facts_for(
+        self,
+        subject: str,
+        predicate: str | None = None,
+        *,
+        principal: str | None,
+    ) -> list[Any]:
         """Read active operator facts through the facts adapter."""
-        if predicate is None:
-            return list(self._adapter_operation("facts", "facts_for", subject))
-        return list(self._adapter_operation("facts", "facts_for", subject, predicate))
+        return list(
+            self._adapter_operation(
+                "facts", "facts_for", subject, predicate, principal=principal
+            )
+        )
 
     def facts_by_status(self, status: str) -> list[Any]:
         return list(self._adapter_operation("facts", "rows_by_status", status))
 
-    def operator_model(self) -> dict[str, Any]:
+    def operator_model(self, *, principal: str | None) -> dict[str, Any]:
         """Read the structured operator model through the facts adapter."""
-        return dict(self._adapter_operation("facts", "operator_model"))
+        return dict(
+            self._adapter_operation("facts", "operator_model", principal=principal)
+        )
 
-    def self_model(self) -> str:
-        """Build the deterministic verified-only self-model through adapters."""
+    def self_model(self, *, principal: str | None) -> str:
+        """Build the deterministic verified-only self-model through adapters,
+        from *principal*'s lessons only (plan Phase 4c)."""
         from aios.memory.self_model import render, synthesize_self_model
 
         development = self._adapter_operation("development", "task_profile")
-        lessons = self._adapter_operation("lessons", "recurring", 3)
+        lessons = self._adapter_operation(
+            "lessons", "recurring", 3, principal=principal
+        )
 
         class _DevelopmentView:
             def task_profile(self) -> dict[str, tuple[int, float]]:

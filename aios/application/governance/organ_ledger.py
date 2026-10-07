@@ -1,4 +1,4 @@
-"""Organ Truth Ledger: the authoritative catalog of the 55 GAGOS organs.
+"""Organ Truth Ledger: the authoritative catalog of the 59 GAGOS organs.
 
 Slice 25 of the GAGOS Completion Plan (Slices 25-40) establishes this ledger
 as the release-conformance baseline.  It intentionally does not re-litigate
@@ -54,7 +54,7 @@ _PHASE4_NAMED_REASON = re.compile(
     re.IGNORECASE,
 )
 
-REQUIRED_ORGAN_COUNT = 55
+REQUIRED_ORGAN_COUNT = 59
 
 #: The 12-condition green contract (artifactplan.md Phase 5). Written
 #: per-organ verdicts must use these keys (C1..C12). Mechanical checks
@@ -76,7 +76,7 @@ GREEN_CONTRACT_CONDITIONS: Mapping[str, str] = {
 REQUIRED_CONDITION_VERDICT_KEYS: tuple[str, ...] = tuple(f"C{i}" for i in range(1, 13))
 
 #: organ_id -> canonical (name, authority_owner). This is the single source
-#: of truth for "which 55 organs exist"; a ledger record whose (id, name)
+#: of truth for "which 59 organs exist"; a ledger record whose (id, name)
 #: pair does not match this registry is an unknown organ.
 CANONICAL_ORGANS: Mapping[int, tuple[str, str]] = {
     1: ("Security Gateway", "SecurityGatewayAuthority"),
@@ -158,6 +158,13 @@ CANONICAL_ORGANS: Mapping[int, tuple[str, str]] = {
         "Governance Conformance Evaluation (Refusal Reel)",
         "GovernanceConformanceAuthority",
     ),
+    # Plan Phase 8 (operator decision 2026-10-05): the learning loop under the
+    # organ ledger. Each owner is the class its property flows through on the
+    # live turn path, pinned by a reachability test.
+    56: ("Learning Integrity and Provenance", "ProvenanceWriter"),
+    57: ("Reflex Authority", "Cerebellum"),
+    58: ("Recall Isolation", "RecallGate"),
+    59: ("Learning Freeze", "LearningFreezeAuthority"),
 }
 
 #: The 32 organs Slices 26-40 must close. Kept separate from CANONICAL_ORGANS

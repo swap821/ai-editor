@@ -363,13 +363,17 @@ class TestCerebellumShortCircuit:
         # Lines 859-862: cerebellum.match() raising is swallowed -> _playbook
         # stays None -> falls through to the normal LLM loop.
         class ExplodingCerebellum:
-            def match(self, user_text):
+            def match(self, user_text, *, principal):
                 raise RuntimeError("boom")
 
         chat = ScriptedChat([{"role": "assistant", "content": "handled by the LLM"}])
         events = list(
             ToolAgent(
-                chat, _executor(), max_iters=2, cerebellum=ExplodingCerebellum()
+                chat,
+                _executor(),
+                max_iters=2,
+                cerebellum=ExplodingCerebellum(),
+                principal="principal:test",
             ).run([{"role": "user", "content": "do the thing"}])
         )
         assert any(e["type"] == "text" for e in events)
@@ -394,7 +398,7 @@ class TestCerebellumShortCircuit:
         )
 
         class MatchingCerebellum:
-            def match(self, user_text):
+            def match(self, user_text, *, principal):
                 return playbook
 
             def replay(self, pb, *, dispatch_fn):
@@ -411,7 +415,11 @@ class TestCerebellumShortCircuit:
         chat = ScriptedChat([])  # the LLM must never be called
         events = list(
             ToolAgent(
-                chat, _executor(), max_iters=3, cerebellum=MatchingCerebellum()
+                chat,
+                _executor(),
+                max_iters=3,
+                cerebellum=MatchingCerebellum(),
+                principal="principal:test",
             ).run([{"role": "user", "content": "list the directory"}])
         )
         types = [e["type"] for e in events]
@@ -439,7 +447,7 @@ class TestCerebellumShortCircuit:
         )
 
         class AbortingCerebellum:
-            def match(self, user_text):
+            def match(self, user_text, *, principal):
                 return playbook
 
             def replay(self, pb, *, dispatch_fn):
@@ -448,7 +456,11 @@ class TestCerebellumShortCircuit:
         chat = ScriptedChat([{"role": "assistant", "content": "handled after abort"}])
         events = list(
             ToolAgent(
-                chat, _executor(), max_iters=2, cerebellum=AbortingCerebellum()
+                chat,
+                _executor(),
+                max_iters=2,
+                cerebellum=AbortingCerebellum(),
+                principal="principal:test",
             ).run([{"role": "user", "content": "do a risky thing"}])
         )
         assert "cerebellum_done" not in [e["type"] for e in events]
@@ -460,7 +472,7 @@ class TestCerebellumShortCircuit:
         # approved_commands/edits/creations/resume_tail -- verify it is
         # bypassed (and the LLM path used) when one is present.
         class NeverCalledCerebellum:
-            def match(self, user_text):
+            def match(self, user_text, *, principal):
                 raise AssertionError(
                     "cerebellum.match must not be called with pending approvals"
                 )
@@ -473,6 +485,7 @@ class TestCerebellumShortCircuit:
                 max_iters=2,
                 cerebellum=NeverCalledCerebellum(),
                 approved_commands=["echo hi"],
+                principal="principal:test",
             ).run([{"role": "user", "content": "go"}])
         )
         assert events[-1]["type"] == "done"
@@ -494,7 +507,7 @@ class TestCerebellumApprovedReplay:
     @staticmethod
     def _replaying_cerebellum(playbook: "CompiledPlaybook", captured: list) -> Any:
         class ReplayingCerebellum:
-            def match(self, user_text):
+            def match(self, user_text, *, principal):
                 return playbook
 
             def replay(self, pb, *, dispatch_fn):
@@ -555,6 +568,7 @@ class TestCerebellumApprovedReplay:
                 executor,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
+                principal="principal:test",
             ).run([{"role": "user", "content": "commit the change"}])
         )
 
@@ -610,6 +624,7 @@ class TestCerebellumApprovedReplay:
                 ex,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
+                principal="principal:test",
             ).run([{"role": "user", "content": "wipe everything"}])
         )
 
@@ -648,6 +663,7 @@ class TestCerebellumApprovedReplay:
                 executor,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
+                principal="principal:test",
             ).run([{"role": "user", "content": "say hello"}])
         )
 
@@ -681,6 +697,7 @@ class TestCerebellumApprovedReplay:
                 executor,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
+                principal="principal:test",
             ).run([{"role": "user", "content": "run the tests"}])
         )
 
@@ -723,6 +740,7 @@ class TestCerebellumApprovedReplay:
                 executor,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
+                principal="principal:test",
             ).run([{"role": "user", "content": "say hello then commit"}])
         )
 
@@ -813,6 +831,7 @@ class TestCerebellumApprovedReplay:
                 ex,
                 max_iters=2,
                 cerebellum=self._replaying_cerebellum(playbook, captured),
+                principal="principal:test",
             ).run([{"role": "user", "content": "verify by wiping the disk"}])
         )
 
@@ -912,7 +931,7 @@ class TestNativePlanEvent:
             steps = [object(), object()]
 
         class FakeNative:
-            def try_plan(self, goal):
+            def try_plan(self, goal, *, principal=None):
                 return FakeNativeSource()
 
         planner_llm = FakePlannerLLM("unused")

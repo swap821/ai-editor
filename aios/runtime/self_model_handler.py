@@ -9,14 +9,20 @@ Design constraints (Fable's supervisory decisions):
 - The handler is ADVISORY: synthesis errors degrade to a silent no-op.
 - The self-model is NEVER authority: it is recalled context only.
 - Idempotent: replaying the same event must not raise.
-- Thread-safe cache access (a threading.Lock guards the cached string).
+- Thread-safe cache access (a threading.Lock guards the cache).
 - Ignores event types other than "turn.completed" — forward-compatible.
+
+Plan Phase 4c (principal scoping): the self-model is built from a principal's
+own lessons, so the cache is keyed by principal and never shared. The bus
+event does not say whose turn completed, so the turn says it first
+(``remember``): the completion of a turn nobody named refreshes nothing.
 """
 
 from __future__ import annotations
 
 import logging
 import threading
+from collections import OrderedDict
 from typing import Any, Optional
 
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
@@ -25,6 +31,8 @@ from aios.runtime.cortex_bus import BusEvent
 logger = logging.getLogger(__name__)
 
 _HANDLED_EVENT_TYPE = "turn.completed"
+#: How many in-flight turns the handler remembers the principal of.
+_TURN_MEMORY = 256
 
 
 class SelfModelHandler:
@@ -34,8 +42,9 @@ class SelfModelHandler:
 
         handler = SelfModelHandler(development_tracker, mistake_memory)
         bus.subscribe(handler)
+        handler.remember(turn_id, principal_id)  # at the start of a turn
         # Later, from the per-turn recall path:
-        cached = handler.recall()  # None until the first event is processed
+        cached = handler.recall(principal_id)  # None until refreshed for them
     """
 
     def __init__(
@@ -48,16 +57,47 @@ class SelfModelHandler:
         self._development = development
         self._mistakes = mistakes
         self._memory_authority = memory_authority
-        self._cache: Optional[str] = None
+        self._cache: dict[str, Optional[str]] = {}
+        self._turns: "OrderedDict[str, str]" = OrderedDict()
         self._lock = threading.Lock()
+
+    def remember(self, turn_id: str, principal: Optional[str]) -> None:
+        """Note whose turn *turn_id* is, so its completion refreshes their
+        self-model. A turn with no principal is not remembered."""
+        if not turn_id or not principal:
+            return
+        with self._lock:
+            self._turns[str(turn_id)] = str(principal)
+            while len(self._turns) > _TURN_MEMORY:
+                self._turns.popitem(last=False)
+
+    def _principal_of(self, event: BusEvent) -> Optional[str]:
+        # The bus stores ``CanonicalEvent.to_dict()`` (camelCase) and signs the
+        # row with the turn id; read every place a turn id can be.
+        stored = event.payload if isinstance(event.payload, dict) else {}
+        keys = (
+            stored.get("turnId"),
+            stored.get("turn_id"),
+            stored.get("sessionId"),
+            stored.get("session_id"),
+            getattr(event, "signature", None),
+        )
+        with self._lock:
+            for key in keys:
+                if key and str(key) in self._turns:
+                    return self._turns.pop(str(key))
+        return None
 
     def __call__(self, event: BusEvent) -> None:
         """Handle a bus event (idempotent; errors are advisory, never raised)."""
         if event.event_type != _HANDLED_EVENT_TYPE:
             return
+        principal = self._principal_of(event)
+        if principal is None:
+            return
         try:
             if self._memory_authority is not None:
-                text = self._memory_authority.self_model() or None
+                text = self._memory_authority.self_model(principal=principal) or None
             else:
                 model = synthesize_self_model(self._development, self._mistakes)
                 text = render_self_model(model) or None
@@ -68,13 +108,16 @@ class SelfModelHandler:
             )
             return
         with self._lock:
-            self._cache = text
+            self._cache[principal] = text
         logger.debug("self_model_handler_refreshed")
 
-    def recall(self) -> Optional[str]:
-        """Return the most recently synthesized self-model text, or None."""
+    def recall(self, principal: Optional[str]) -> Optional[str]:
+        """Return *principal*'s most recently synthesized self-model, or None.
+        Never another principal's."""
+        if not principal:
+            return None
         with self._lock:
-            return self._cache
+            return self._cache.get(principal)
 
 
 __all__ = ["SelfModelHandler"]

@@ -28,6 +28,7 @@ from aios.api.deps import (
     get_memory_authority,
     get_memory_consolidator,
     get_authenticated_principal,
+    get_optional_principal,
     get_semantic_facts,
     require_privileged_operator,
 )
@@ -147,6 +148,7 @@ def memory_search(
     req: MemorySearchRequest,
     request: Request,
     authority=Depends(get_memory_authority),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
     """Route semantic recall through the canonical memory authority.
 
@@ -171,7 +173,12 @@ def memory_search(
     bus = get_cortex_bus()
     results = authority.recall(
         req.query,
-        MemoryRecallContext(limit=req.top_k, session_id=session_id),
+        MemoryRecallContext(
+            limit=req.top_k,
+            session_id=session_id,
+            # Plan Phase 4c: only the caller's own learned rows.
+            principal_id=principal.principal_id if principal is not None else None,
+        ),
     )
 
     if bus:
@@ -509,16 +516,18 @@ def clear_conversation_alignment_correction(
 def memory_facts_pending(
     facts: SemanticFacts = Depends(get_semantic_facts),
     authority=Depends(get_memory_authority),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
     """Auto-extracted fact proposals awaiting human review.
 
     Proposals are quarantined in their own table — no recall path reads them —
     so this queue is the ONLY window through which they can become knowledge.
     """
+    principal_id = principal.principal_id if principal is not None else None
     pending_proposals = (
-        authority.facts_pending_proposals()
+        authority.facts_pending_proposals(principal=principal_id)
         if _authority_owns(authority, "facts", facts)
-        else facts.pending_proposals()
+        else facts.pending_proposals(principal_id=principal_id)
     )
     proposals = [
         {
@@ -545,10 +554,16 @@ def approve_fact_proposal(
     """Human approval promotes a proposal through the contradiction check."""
     result = (
         authority.facts_approve_proposal(
-            proposal_id, approved_by=_principal.principal_id
+            proposal_id,
+            approved_by=_principal.principal_id,
+            principal=_principal.principal_id,
         )
         if _authority_owns(authority, "facts", facts)
-        else facts.approve_proposal(proposal_id, approved_by=_principal.principal_id)
+        else facts.approve_proposal(
+            proposal_id,
+            approved_by=_principal.principal_id,
+            principal_id=_principal.principal_id,
+        )
     )
     if result.reason == "contradiction":
         raise HTTPException(
@@ -577,10 +592,16 @@ def reject_fact_proposal(
     """Human rejection resolves a proposal without it ever touching recall."""
     rejected = (
         authority.facts_reject_proposal(
-            proposal_id, rejected_by=_principal.principal_id
+            proposal_id,
+            rejected_by=_principal.principal_id,
+            principal=_principal.principal_id,
         )
         if _authority_owns(authority, "facts", facts)
-        else facts.reject_proposal(proposal_id, rejected_by=_principal.principal_id)
+        else facts.reject_proposal(
+            proposal_id,
+            rejected_by=_principal.principal_id,
+            principal_id=_principal.principal_id,
+        )
     )
     if not rejected:
         raise HTTPException(status_code=404, detail="not pending")
@@ -597,11 +618,19 @@ def promote_fact(
     """Promote one human-approved fact, refusing unresolved contradictions."""
     result = (
         authority.promote_fact(
-            req.subject, req.predicate, req.object, approved_by=_principal.principal_id
+            req.subject,
+            req.predicate,
+            req.object,
+            approved_by=_principal.principal_id,
+            principal=_principal.principal_id,
         )
         if _authority_owns(authority, "consolidation", consolidator)
         else consolidator.promote_fact(
-            req.subject, req.predicate, req.object, approved_by=_principal.principal_id
+            req.subject,
+            req.predicate,
+            req.object,
+            approved_by=_principal.principal_id,
+            principal=_principal.principal_id,
         )
     )
     if result.reason == "contradiction":
@@ -628,11 +657,19 @@ def reconcile_fact(
     """Human-approved replacement of a contradictory fact and its vector."""
     result = (
         authority.reconcile_fact(
-            req.subject, req.predicate, req.object, approved_by=_principal.principal_id
+            req.subject,
+            req.predicate,
+            req.object,
+            approved_by=_principal.principal_id,
+            principal=_principal.principal_id,
         )
         if _authority_owns(authority, "consolidation", consolidator)
         else consolidator.reconcile_fact(
-            req.subject, req.predicate, req.object, approved_by=_principal.principal_id
+            req.subject,
+            req.predicate,
+            req.object,
+            approved_by=_principal.principal_id,
+            principal=_principal.principal_id,
         )
     )
     if not result.committed:
@@ -646,6 +683,7 @@ def memory_facts_graph(
     depth: int = 2,
     facts: SemanticFacts = Depends(get_semantic_facts),
     authority=Depends(get_memory_authority),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
     """Multi-hop fact-graph traversal from *start* — the transitive reasoning
     single-hop ``facts_for`` cannot do (G1). Read-only: returns the active-fact
@@ -654,10 +692,11 @@ def memory_facts_graph(
     transitive knowledge. ``depth`` is clamped to [1, 4] in ``traverse``."""
     if not start.strip():
         raise HTTPException(status_code=422, detail="start is required")
+    principal_id = principal.principal_id if principal is not None else None
     rows = (
-        authority.facts_traverse(start, max_depth=depth)
+        authority.facts_traverse(start, max_depth=depth, principal=principal_id)
         if _authority_owns(authority, "facts", facts)
-        else facts.traverse(start, max_depth=depth)
+        else facts.traverse(start, max_depth=depth, principal_id=principal_id)
     )
     edges = [
         {
@@ -682,6 +721,7 @@ def knowledge_query(
     min_confidence: float = 0.3,
     facts: SemanticFacts = Depends(get_semantic_facts),
     authority=Depends(get_memory_authority),
+    principal: Principal | None = Depends(get_optional_principal),
 ) -> dict[str, Any]:
     """Query the knowledge graph with confidence-weighted traversal.
 
@@ -690,15 +730,20 @@ def knowledge_query(
     """
     if not entity.strip():
         raise HTTPException(status_code=422, detail="entity is required")
+    principal_id = principal.principal_id if principal is not None else None
     edges = (
         authority.facts_traverse_weighted(
             entity,
             max_depth=max_depth,
             min_path_confidence=min_confidence,
+            principal=principal_id,
         )
         if _authority_owns(authority, "facts", facts)
         else facts.traverse_weighted(
-            entity, max_depth=max_depth, min_path_confidence=min_confidence
+            entity,
+            max_depth=max_depth,
+            min_path_confidence=min_confidence,
+            principal_id=principal_id,
         )
     )
     from aios.core.inference import infer

@@ -4,6 +4,7 @@ import {
   beginRetractingMaterializedTab,
   __resetTabStoreForTests,
   getTabStoreSnapshot,
+  openWorkspacePanel,
   showApprovalSurface,
   showContentSurface,
   type TabSnapshot,
@@ -186,6 +187,25 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     expect(view.container.querySelector('[data-testid="physical-conductor-path"]')).not.toBeNull();
   });
 
+  it('does not aim at a background result when selected History has no body anchor', async () => {
+    for (let seat = 0; seat < 12; seat++) showContentSurface(
+      { code: 'background', language: 'text', filepath: `background-${seat}.txt` }, { seatIndex: seat },
+    );
+    openWorkspacePanel('history', 'Recent observations');
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects />);
+    expect(getTabStoreSnapshot().focusId).toBe('history');
+    const currents = view.container.querySelectorAll('[data-testid="cortex-current"]');
+    const physical = derivePhysicalSnapshot(mockBeing.current);
+    const origin = getCortexAnchor().map((value) => value * getBrainDockScale()) as [number, number, number];
+    const expected = deriveCortexAttentionPaths({
+      origin, target: null, activity: physical.cortex.activity,
+      convergence: physical.cortex.convergence, count: currents.length,
+    });
+    expect([...currents].map((current) => JSON.parse(current.getAttribute('data-coordinates') ?? '[]')))
+      .toEqual(expected);
+  });
+
   it('holds the conductor at the sovereign boundary for approval', async () => {
     showApprovalSurface(
       {
@@ -237,6 +257,10 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
     const view = render(<SuperbrainReactiveEffects />);
 
+    expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')?.getAttribute('name'))
+      .toBe('approval-seat-boundary-6');
+    expect(view.container.querySelectorAll('[data-testid="approval-seat-boundary-loop"]'))
+      .toHaveLength(2);
     expect(getTabStoreSnapshot().focusId).toBe(work.id);
     const currents = view.container.querySelectorAll('[data-testid="cortex-current"]');
     expect(currents.length).toBeGreaterThan(0);
@@ -275,6 +299,7 @@ describe('SuperbrainReactiveEffects point conductor', () => {
       attention: 'workspace',
     };
     view.rerender(<SuperbrainReactiveEffects />);
+    expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')).toBeNull();
 
     const replayedApproval = showApprovalSurface(
       {
@@ -298,6 +323,8 @@ describe('SuperbrainReactiveEffects point conductor', () => {
       attention: 'approval',
     };
     view.rerender(<SuperbrainReactiveEffects />);
+    expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')?.getAttribute('name'))
+      .toBe('approval-seat-boundary-6');
     expect([...view.container.querySelectorAll('[data-testid="cortex-current"]')]
       .every((current) => current.getAttribute('data-color') === '#ffb06e')).toBe(true);
 
@@ -310,6 +337,7 @@ describe('SuperbrainReactiveEffects point conductor', () => {
       attention: 'workspace',
     };
     view.rerender(<SuperbrainReactiveEffects />);
+    expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')).toBeNull();
     expect(view.container.querySelector('[data-testid="cortex-current"]')?.getAttribute('data-color')).toBe('#54f0a0');
 
     __resetTabStoreForTests();
@@ -323,6 +351,22 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     view.rerender(<SuperbrainReactiveEffects />);
     expect(view.container.querySelector('[data-testid="physical-conductor-path"]')).toBeNull();
     expect(view.container.querySelector('[data-testid="cortex-current"]')?.getAttribute('data-color')).toBe('#7bf5fb');
+  });
+
+  it('does not place an approval boundary without a live approval surface', async () => {
+    mockBeing.current = {
+      ...mockBeing.current,
+      phase: 'awaiting-human',
+      taskState: 'needs-permission',
+      motion: 'attention',
+      attention: 'approval',
+    };
+    expect(derivePhysicalSnapshot(mockBeing.current).membrane.state).toBe('held');
+
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects />);
+
+    expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')).toBeNull();
   });
 
   it('renders a gallery workspace fixture without mutating the live tab store', async () => {

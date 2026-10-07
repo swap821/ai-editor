@@ -743,6 +743,7 @@ class ToolAgent:
         audit_log: Optional[Callable[..., object]] = None,
         planner_llm: Optional[LLMClient] = None,
         self_analysis_llm: Optional[LLMClient] = None,
+        principal: Optional[str] = None,
         system_prompt: Optional[str] = None,
         allowed_tools: Optional[frozenset[str]] = None,
         autonomy: Optional[AutonomyLedger] = None,
@@ -757,6 +758,9 @@ class ToolAgent:
     ) -> None:
         self.llm = llm
         self.stream_fn = stream_fn
+        #: Whose turn this is (plan Phase 4c): only their own activated
+        #: skills can replay as a reflex.
+        self.principal = principal
         #: Caste view (role-pass): an alternative system prompt and a hard tool
         #: subset. ``allowed_tools`` is enforced mechanically -- the specs
         #: advertised to the model are filtered AND ``_dispatch`` denies any
@@ -859,6 +863,7 @@ class ToolAgent:
                 development=development,
                 skills=skills,
                 memory_authority=memory_authority,
+                principal=principal,
             )
             if planner_llm is not None
             else None
@@ -1076,7 +1081,11 @@ class ToolAgent:
                 "",
             )
             try:
-                _playbook = self.cerebellum.match(_user_text) if _user_text else None
+                _playbook = (
+                    self.cerebellum.match(_user_text, principal=self.principal)
+                    if _user_text
+                    else None
+                )
             except Exception:
                 _playbook = None
             if _playbook is not None:

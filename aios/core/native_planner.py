@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from aios import config
 from aios.core.confidence_filter import TaskStep
+from aios.memory.skills import scoped_skill_recall
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,11 @@ class NativePlanner:
         self.min_confidence = min_confidence
         self.memory_authority = memory_authority
 
-    def try_plan(self, goal: str) -> NativePlanResult | None:
-        """Attempt to plan *goal* from verified experience.
+    def try_plan(
+        self, goal: str, *, principal: Optional[str] = None
+    ) -> NativePlanResult | None:
+        """Attempt to plan *goal* from verified experience -- *principal*'s
+        (plan Phase 4c: the knowledge graph it checks is theirs only).
 
         Returns NativePlanResult with TaskStep list, or None (fall through to LLM).
         """
@@ -92,17 +96,19 @@ class NativePlanner:
             return None
         goal = goal.strip()
 
-        result = self._try_swarm_patterns(goal)
+        result = self._try_swarm_patterns(goal, principal)
         if result is not None:
             return result
 
-        result = self._try_skill_arcs(goal)
+        result = self._try_skill_arcs(goal, principal)
         if result is not None:
             return result
 
         return None
 
-    def _try_swarm_patterns(self, goal: str) -> NativePlanResult | None:
+    def _try_swarm_patterns(
+        self, goal: str, principal: Optional[str] = None
+    ) -> NativePlanResult | None:
         """Match against SwarmPatternMemory verified decompositions."""
         if self._patterns is None:
             return None
@@ -135,7 +141,7 @@ class NativePlanner:
             for i, desc in enumerate(subtasks)
         ]
 
-        preconditions = self._check_preconditions(subtasks)
+        preconditions = self._check_preconditions(subtasks, principal)
 
         return NativePlanResult(
             steps=steps,
@@ -147,16 +153,18 @@ class NativePlanner:
             preconditions_met=preconditions,
         )
 
-    def _try_skill_arcs(self, goal: str) -> NativePlanResult | None:
+    def _try_skill_arcs(
+        self, goal: str, principal: Optional[str] = None
+    ) -> NativePlanResult | None:
         """Match against SkillMemory verified single-task arcs."""
         if self._skills is None:
             return None
         try:
             matches = (
-                self.memory_authority.recall_skills(goal, 1)
+                self.memory_authority.recall_skills(goal, 1, principal=principal)
                 if self.memory_authority is not None
                 and self.memory_authority.owns_store("skills", self._skills)
-                else self._skills.relevant_verified(goal, limit=1)
+                else scoped_skill_recall(self._skills, goal, 1, principal=principal)
             )
         except Exception:
             logger.warning("skill recall failed", exc_info=True)
@@ -185,7 +193,7 @@ class NativePlanner:
             for i, desc in enumerate(arc_steps)
         ]
 
-        preconditions = self._check_preconditions(arc_steps)
+        preconditions = self._check_preconditions(arc_steps, principal)
 
         return NativePlanResult(
             steps=steps,
@@ -197,7 +205,9 @@ class NativePlanner:
             preconditions_met=preconditions,
         )
 
-    def _check_preconditions(self, steps: list[str]) -> bool | None:
+    def _check_preconditions(
+        self, steps: list[str], principal: Optional[str] = None
+    ) -> bool | None:
         """Check whether entities referenced in steps exist in the knowledge graph."""
         if self._facts is None:
             return None
@@ -212,10 +222,14 @@ class NativePlanner:
 
             for entity in all_entities[:5]:
                 edges = (
-                    self.memory_authority.facts_traverse_weighted(entity, max_depth=1)
+                    self.memory_authority.facts_traverse_weighted(
+                        entity, max_depth=1, principal=principal
+                    )
                     if self.memory_authority is not None
                     and self.memory_authority.owns_store("facts", self._facts)
-                    else self._facts.traverse_weighted(entity, max_depth=1)
+                    else self._facts.traverse_weighted(
+                        entity, max_depth=1, principal_id=principal
+                    )
                 )
                 if not edges:
                     return False

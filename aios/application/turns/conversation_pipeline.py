@@ -123,13 +123,16 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
                 render=lambda: extra["operator_facts_block"](
                     runtime.facts,
                     authority=runtime.memory_authority,
+                    principal=extra["principal_id"],
                 ),
                 max_tokens=800,
             ),
             PromptSection(
                 name="recall",
                 priority=70,
-                render=lambda: extra["recall_memory"](user_text),
+                render=lambda: extra["recall_memory"](
+                    user_text, principal=extra["principal_id"]
+                ),
                 max_tokens=1500,
             ),
         ]
@@ -207,6 +210,7 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
         user_text,
         text,
         authority=runtime.memory_authority,
+        principal=extra["principal_id"],
     )
     if extra["facts_auto_extract"]:
         try:
@@ -215,13 +219,17 @@ def stream_conversation(context: TurnContext, runtime: RuntimeDeps) -> Iterator[
                 user_text,
                 max_candidates=extra["facts_auto_extract_max"],
             ):
-                strengthen_or_propose = (
-                    runtime.memory_authority.facts_strengthen_or_propose
-                    if runtime.memory_authority is not None
+                if (
+                    runtime.memory_authority is not None
                     and runtime.memory_authority.owns_store("facts", runtime.facts)
-                    else runtime.facts.strengthen_or_propose
-                )
-                result = strengthen_or_propose(subject, predicate, obj)
+                ):
+                    result = runtime.memory_authority.facts_strengthen_or_propose(
+                        subject, predicate, obj, principal=extra["principal_id"]
+                    )
+                else:
+                    result = runtime.facts.strengthen_or_propose(
+                        subject, predicate, obj, principal_id=extra["principal_id"]
+                    )
                 if result.proposed or result.reason == "strengthened":
                     proposed_count += 1
             cortex_bus = extra["cortex_bus"]

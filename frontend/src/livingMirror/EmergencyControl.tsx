@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { isRecord } from './contracts';
 import { useResource } from './resource';
 import { ResourceNotice } from './ResourceNotice';
@@ -22,6 +22,7 @@ export function EmergencyControl({ guided = false }: { guided?: boolean }) {
   const state = useResource(stopPath, parseStop, neverEmpty);
   const [expanded, expand] = useState(false);
   const detailsButtonRef = useRef<HTMLButtonElement>(null);
+  const detailsRef = useRef<HTMLElement>(null);
   const restoreDetailsFocus = useRef(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CommandResult | null>(null);
@@ -29,6 +30,45 @@ export function EmergencyControl({ guided = false }: { guided?: boolean }) {
   const displayedReason = reason === guidedDefaultReason || reason === expertDefaultReason
     ? (guided ? guidedDefaultReason : expertDefaultReason)
     : reason;
+  useLayoutEffect(() => {
+    const panel = detailsRef.current;
+    if (!expanded || !panel) return;
+    const root = panel.closest('.lm-app');
+    const header = panel.closest('.lm-header');
+    const viewport = window.visualViewport;
+    let frame: number | null = null;
+    const update = () => {
+      frame = null;
+      const top = panel.getBoundingClientRect().top;
+      const rootBounds = root?.getBoundingClientRect();
+      const bottom = Math.min(window.innerHeight,
+        viewport ? viewport.offsetTop + viewport.height : window.innerHeight,
+        rootBounds && rootBounds.height > 0 ? rootBounds.bottom : window.innerHeight);
+      if (Number.isFinite(top) && Number.isFinite(bottom)) {
+        panel.style.setProperty('--lm-stop-details-available-height', `${Math.max(0, Math.floor(bottom - top))}px`);
+      } else panel.style.removeProperty('--lm-stop-details-available-height');
+    };
+    const schedule = () => { if (frame === null) frame = window.requestAnimationFrame(update); };
+    // Read only on opening or layout events, never in the being's draw loop.
+    // Absolute content does not resize these observed containers.
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+    if (root) observer?.observe(root);
+    if (header) observer?.observe(header);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule);
+    viewport?.addEventListener('resize', schedule);
+    viewport?.addEventListener('scroll', schedule);
+    update();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', schedule);
+      viewport?.removeEventListener('resize', schedule);
+      viewport?.removeEventListener('scroll', schedule);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      panel.style.removeProperty('--lm-stop-details-available-height');
+    };
+  }, [expanded]);
   useEffect(() => {
     const observed = state.data?.engaged;
     setEmergencyStopPresentation(observed === true ? 'engaged' : observed === false ? 'clear' : 'unknown');
@@ -62,7 +102,7 @@ export function EmergencyControl({ guided = false }: { guided?: boolean }) {
       {busy ? 'Stop request pending' : confirmed && latched ? (guided ? 'Stop is on' : 'Stop latch engaged') : 'Emergency stop'}
     </button>
     <button ref={detailsButtonRef} type="button" aria-expanded={expanded} aria-controls="emergency-stop-details" onClick={toggleDetails} aria-label="Inspect emergency stop">Details</button>
-    {expanded && <section id="emergency-stop-details" className="lm-stop__detail" aria-label="Stop state and outcomes">
+    {expanded && <section ref={detailsRef} id="emergency-stop-details" className="lm-stop__detail" aria-label="Stop state and outcomes">
       <h2>Human control</h2>
       <p>{!state.data ? 'Stop state unavailable.' : latched ? `${confirmed ? 'Confirmed' : 'Last-known'} ${guided ? 'stop is on.' : 'latch engaged.'}` : `${confirmed ? 'Confirmed' : 'Last-known'} ${guided ? 'stop is off.' : 'latch disengaged.'}`}</p>
       <ResourceNotice resource={state} empty="Stop state unavailable." />

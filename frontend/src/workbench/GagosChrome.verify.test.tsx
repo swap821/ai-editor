@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { publishCognition } from '../superbrain/lib/cognitionBus';
+import { __resetTabStoreForTests, beginRetractingMaterializedTab, finishMaterializedTabRetraction, getTabStoreSnapshot, showContentSurface } from '../superbrain/lib/tabStore';
+
+beforeEach(() => __resetTabStoreForTests());
+afterEach(() => { cleanup(); __resetTabStoreForTests(); });
+function matchingArtifact(filepath = 'test_demo_module.py') {
+  return showContentSurface({ filepath, code: 'print("example")', language: 'python', streaming: false });
+}
 
 // The 3D canvas is not testable in jsdom; stub the being so we can exercise the
 // 2D chrome layer (verify toast, approval surface, etc.).
@@ -30,8 +37,9 @@ describe('GagosChrome verify toast', () => {
     mockMatchMedia(false);
   });
 
-  it('renders a transient verify PASS toast when the cognition bus fires a verify event', async () => {
+  it('renders a transient verify PASS toast for a uniquely matched artifact', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
+    matchingArtifact();
     render(<GagosChrome />);
 
     act(() => {
@@ -49,6 +57,28 @@ describe('GagosChrome verify toast', () => {
       expect(screen.getByText('Verified')).toHaveClass('gagos-verify-toast');
     });
   });
+
+  it.each(['missing', 'same-path', 'targetless', 'inconclusive'])('does not celebrate an unbound %s check', async (scenario) => {
+    const { default: GagosChrome } = await import('./GagosChrome');
+    const first = matchingArtifact();
+    if (scenario === 'same-path') {
+      beginRetractingMaterializedTab(first.id);
+      finishMaterializedTabRetraction(first.id, getTabStoreSnapshot().tabs.find((tab) => tab.id === first.id)?.retractionToken);
+      matchingArtifact();
+      expect(getTabStoreSnapshot().recoverableTabs?.[0].id).toBe(first.id);
+    } else if (scenario === 'targetless') matchingArtifact('other.py');
+    render(<GagosChrome />);
+    act(() => publishCognition({ type: 'verify', source: 'mirror', metadata: { mirrorEventId: 7 },
+      data: { verdict: scenario === 'inconclusive' ? 'unavailable' : 'pass',
+        target: scenario === 'targetless' ? '' : scenario === 'missing' ? 'missing.py' : 'test_demo_module.py' },
+    }));
+    const toast = await screen.findByText('Check not attributed');
+    expect(toast).toHaveClass('gagos-verify-toast--unknown');
+    expect(toast).not.toHaveClass('gagos-verify-toast--pass', 'gagos-verify-toast--fail');
+    expect(screen.queryByText('Verified')).not.toBeInTheDocument();
+    expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === first.id)?.content?.verifyVerdict).toBeUndefined();
+    expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === first.id)?.content?.verifyEventId).toBeUndefined();
+  });
 });
 
 describe('GagosChrome verify toast authored exit (W4.1)', () => {
@@ -64,6 +94,7 @@ describe('GagosChrome verify toast authored exit (W4.1)', () => {
 
   it('enters a leaving sub-state ~250ms before unmount, mirrored exit class applied', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
+    matchingArtifact();
     render(<GagosChrome />);
 
     act(() => {
@@ -107,6 +138,7 @@ describe('GagosChrome verify toast reduced-motion (W4.1)', () => {
 
   it('skips the leaving delay and unmounts immediately when reduced-motion is on', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
+    matchingArtifact();
     render(<GagosChrome />);
 
     act(() => {

@@ -81,9 +81,9 @@ describe('GagosChrome — live writing slab', () => {
     });
 
     // The turn finishes and the being emits the file.
-    getLastEmittedCode.mockReturnValue({ code: 'print("hi")', language: 'python', filepath: 'hello.py' });
+    getLastEmittedCode.mockReturnValue({ code: 'foreign cache', language: 'text', filepath: 'foreign.txt' });
     await act(async () => {
-      resolveDirective({ ok: true, paused: false, answer: '' });
+      resolveDirective({ ok: true, paused: false, answer: '', emittedCode: { code: 'print("hi")', language: 'python', filepath: 'hello.py' } });
     });
 
     // The SAME slab fills (streaming off, code present) — exactly one content slab.
@@ -177,7 +177,7 @@ describe('GagosChrome — live writing slab', () => {
 
     getLastEmittedCode.mockReturnValue({ code: 'print("new")', language: 'python', filepath: 'greet.py' });
     await act(async () => {
-      resolveDirective({ ok: true, paused: false, answer: '' });
+      resolveDirective({ ok: true, paused: false, answer: '', emittedCode: { code: 'print("new")', language: 'python', filepath: 'greet.py' } });
     });
 
     // The re-edit folds into the existing greet.py slab — one greet.py, updated.

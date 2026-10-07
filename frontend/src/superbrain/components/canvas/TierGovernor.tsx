@@ -34,12 +34,21 @@ const ADVISORY_COOLDOWN_MS = 120_000;
 export default function TierGovernor() {
   const { baseTier, perfTier, generating } = useQualityTier();
   const setDpr = useThree((s) => s.setDpr);
+  const get = useThree((s) => s.get);
+  const frameLoop = useThree((s) => s.frameloop);
   // DPR relief arms early (reversible); the advisory waits the full warmup.
   const [armed, setArmed] = useState(false);
   const fullyWarmedRef = useRef(false);
   const lastAdvisoryRef = useRef(0);
   // Live perf snapshot for the operator's profiling: window.__getPerf().
-  const perfRef = useRef({ fps: 0, factor: 1, dpr: dprForFactor(perfTier, 1), tier: perfTier });
+  const perfRef = useRef<{ fps: number | null; factor: number; dpr: number; tier: string }>({
+    fps: null, factor: 1, dpr: dprForFactor(perfTier, 1), tier: perfTier,
+  });
+  useEffect(() => {
+    // Demand/hidden frames are not a GPU FPS measurement. Do not expose a
+    // fabricated zero or keep calling the last foreground sample "live".
+    perfRef.current = { ...perfRef.current, fps: null };
+  }, [frameLoop]);
 
   useEffect(() => {
     const a = window.setTimeout(() => setArmed(true), DPR_WARMUP_MS);
@@ -65,10 +74,10 @@ export default function TierGovernor() {
 
   return (
     <>
-      {/* Always-on probe so __getPerf() reports live FPS + the applied DPR even
-          when the relief factor is steady (drei onChange only fires on change). */}
-      <PerfProbe perfRef={perfRef} />
-      {armed && (
+      {/* Mount a fresh sampling window on Resume; intentional demand gaps
+          must not contaminate either the probe or drei's relief history. */}
+      {frameLoop === 'always' && <PerfProbe perfRef={perfRef} />}
+      {armed && frameLoop === 'always' && (
         <PerformanceMonitor
           bounds={() => PERF_BOUNDS}
           flipflops={3}
@@ -77,7 +86,7 @@ export default function TierGovernor() {
           onChange={({ fps, factor }) => {
             // RELIEF VALVE: resolution gives to hold the framerate. A hidden tab
             // throttles RAF to ~0 fps (not a real sag) — never react to that.
-            if (FeatureGate.isSleeping) return;
+            if (FeatureGate.isSleeping || get().frameloop !== 'always') return;
             const dpr = dprForFactor(perfTier, factor);
             setDpr(dpr);
             perfRef.current = { ...perfRef.current, fps, factor, dpr, tier: perfTier };
@@ -86,7 +95,8 @@ export default function TierGovernor() {
             // Resolution couldn't save it. Dips while the model generates or the
             // tab is hidden are expected; a machine already on 'low' has nothing
             // left to advise; and boot jank must never count (fullyWarmed gate).
-            if (!fullyWarmedRef.current || generating || FeatureGate.isSleeping || baseTier === 'low') return;
+            if (!fullyWarmedRef.current || generating || FeatureGate.isSleeping
+              || get().frameloop !== 'always' || baseTier === 'low') return;
             const now = Date.now();
             if (now - lastAdvisoryRef.current < ADVISORY_COOLDOWN_MS) return;
             lastAdvisoryRef.current = now;
@@ -100,7 +110,7 @@ export default function TierGovernor() {
 
 /** Per-frame FPS + applied-DPR sampler → perfRef (read via window.__getPerf()).
  *  Rolls a ~0.5s window so the operator's profiling has a steady live number. */
-function PerfProbe({ perfRef }: { perfRef: MutableRefObject<{ fps: number; factor: number; dpr: number; tier: string }> }) {
+function PerfProbe({ perfRef }: { perfRef: MutableRefObject<{ fps: number | null; factor: number; dpr: number; tier: string }> }) {
   const gl = useThree((s) => s.gl);
   const acc = useRef({ frames: 0, t: 0 });
   useFrame((_s, delta) => {

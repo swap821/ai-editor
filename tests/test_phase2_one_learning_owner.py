@@ -88,6 +88,7 @@ class TestAReflexComesOnlyFromAnActivation:
                 ["read_file: filepath=README.md"],
                 success=True,
                 strength=VerificationStrength.STRONG,
+                principal="principal:test",
             )
         assert cerebellum.try_compile_all() == 0 and playbooks() == before
 
@@ -95,6 +96,12 @@ class TestAReflexComesOnlyFromAnActivation:
         (record,) = [r for r in repository.list_skills() if r.problem_signature == goal]
         repository.transition_state(record.skill_id, record.version, "human_reviewed")
         repository.transition_state(record.skill_id, record.version, "active")
+        # Plan Phase 4c-2: the transitions alone are not an activation -- a
+        # skill compiles only on the operator's signed one, as the route signs.
+        assert cerebellum.try_compile_all() == 0
+        assert authority.adapters["skills"].attest_activation(
+            record.skill_id, record.version, approver="operator:test"
+        )
         assert cerebellum.try_compile_all() == 1
         assert playbooks() == before + 1
 
