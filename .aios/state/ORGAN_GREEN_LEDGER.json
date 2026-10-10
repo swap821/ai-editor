@@ -1341,13 +1341,13 @@
     ],
     "live_evidence": [
       {
-        "description": "tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest and tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest both ran and PASSED in this gate run -- the two that re-derive the SHIPPED ledger and manifest rather than a fixture. command=`python -m pytest tests/test_organ_release_conformance.py` => 56 passed, 0 failed at f35b03511cf1830efe46a8d66520f3ee7be84c96. Re-gathered because this organ's own entrypoint tests/test_organ_release_conformance.py moved: plan Phase 8 added organs 56-59 and moved its count pins from 55 to 59 (and the out-of-range and missing-organ cases with them). The previous row (cdfd7d16d2f6) no longer describes that file and is dropped as a claim; git keeps it as history.",
-        "commit_sha": "f35b03511cf1830efe46a8d66520f3ee7be84c96",
+        "description": "tests/test_organ_release_conformance.py::test_verify_organ_contracts_passes_on_the_shipped_ledger_and_manifest and tests/test_organ_release_conformance.py::test_build_release_manifest_check_passes_against_the_shipped_manifest both ran and PASSED in this gate run -- the two that re-derive the SHIPPED ledger and manifest rather than a fixture. command=`python -m pytest tests/test_organ_release_conformance.py` => 56 passed, 0 failed at a696aa699e6724ee0b5cff22c13ba32aef629f16. Re-gathered at master's tip a696aa69 because #445's squash orphaned the branch commit it was last stamped at; its suite ran there on the committed tree: 56 passed, 0 failed.",
+        "commit_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "f35b03511cf1830efe46a8d66520f3ee7be84c96",
+    "last_verified_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ReleaseConformanceAuthority class defined in production_entrypoints ['scripts/build_release_manifest.py', 'tests/test_organ_release_conformance.py'] (Decision A / enforce_owner_attestation)",
@@ -1359,9 +1359,9 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_organ_release_conformance.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS - known_blockers is empty. The single blocker, 'Phase 6 gate - organ 23 stays yellow until every below-organ is honestly green', was discharged by its own condition being met: organ 44 went green on 2026-08-19 (#254) and it was the last one. The condition being satisfied is NOT the same as the organ having done the work, so the flip waited until C3/C4/C5 named real proofs, C10 held resolvable live evidence and C11/C12 had a stamp. Adversarial/failure-path coverage is dense in this organ's own suite: tests/test_organ_release_conformance.py carries 30 adversarial-named tests of 54, and this organ is proven mostly by what it refuses.",
-      "C10": "PASS - one proof_level=live row, machine-checkable and resting on no operator attestation: it cites the test nodes that run the real conformance script against the real on-disk ledger and manifest, at f35b03511cf1830efe46a8d66520f3ee7be84c96. Organ 23 needs no OPERATOR-ATTESTED row: its evidence is re-derivable by anyone with the repo.",
-      "C11": "PASS - last_verified_sha=f35b03511cf1830efe46a8d66520f3ee7be84c96",
-      "C12": "PASS - cdfd7d16d2f64601b9275e0382f44a3981c14e03 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2e5d89807fbb -> cdfd7d16d2f6 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
+      "C10": "PASS - one proof_level=live row, machine-checkable and resting on no operator attestation: it cites the test nodes that run the real conformance script against the real on-disk ledger and manifest, at a696aa699e6724ee0b5cff22c13ba32aef629f16. Organ 23 needs no OPERATOR-ATTESTED row: its evidence is re-derivable by anyone with the repo.",
+      "C11": "PASS - last_verified_sha=a696aa699e6724ee0b5cff22c13ba32aef629f16",
+      "C12": "PASS - a696aa699e6724ee0b5cff22c13ba32aef629f16 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip."
     }
   },
   {
@@ -2469,13 +2469,13 @@
         "proof_level": "live"
       },
       {
-        "description": "Phase 4 absolute live run on tip 77d62129ebb5c999bcf9c6a1801a246028f1698a: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 77d62129ebb5c999bcf9c6a1801a246028f1698a exit=0; artifact=release/phase4/live-evidence-77d62129ebb5.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+        "description": "Phase 4 absolute live run on tip a696aa699e6724ee0b5cff22c13ba32aef629f16: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a696aa699e6724ee0b5cff22c13ba32aef629f16 exit=0; artifact=release/phase4/live-evidence-a696aa699e67.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
+        "commit_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+    "last_verified_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SkillLifecycleAuthority class defined in production_entrypoints ['aios/domain/learning/skill_contracts.py', 'aios/domain/learning/repository.py', 'aios/application/learning/skill_lifecycle.py', 'aios/application/learning/service.py', 'aios/application/memory/institutional_skills.py'] (Decision A / enforce_owner_attestation)",
@@ -3138,8 +3138,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 77d62129ebb5c999bcf9c6a1801a246028f1698a: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 77d62129ebb5c999bcf9c6a1801a246028f1698a exit=0; artifact=release/phase4/live-evidence-77d62129ebb5.json; ProvenanceWriter + MistakeMemoryAdapter + reopened ProvenanceStore => ProvenanceWriter signed a live lesson (record + promote) on real SQLite; its newest record verified through a reopened store; a writer with no key appended UNSIGNED; the lesson edited in SQLite was refused at recall",
-        "commit_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+        "description": "Phase 4 absolute live run on tip a696aa699e6724ee0b5cff22c13ba32aef629f16: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a696aa699e6724ee0b5cff22c13ba32aef629f16 exit=0; artifact=release/phase4/live-evidence-a696aa699e67.json; ProvenanceWriter + MistakeMemoryAdapter + reopened ProvenanceStore => ProvenanceWriter signed a live lesson (record + promote) on real SQLite; its newest record verified through a reopened store; a writer with no key appended UNSIGNED; the lesson edited in SQLite was refused at recall",
+        "commit_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
         "proof_level": "live"
       }
     ],
@@ -3154,11 +3154,11 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_phase3c_recall_gate.py', 'tests/test_phase3d_readmit.py', 'tests/test_learning_properties.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 known_blockers empty; refusal-path tests run in this organ's own suites",
-      "C10": "PASS \u2014 live evidence present at commit 77d62129ebb5c999bcf9c6a1801a246028f1698a (release/phase4/live-evidence-77d62129ebb5.json, organ 56 probe on real SQLite)",
-      "C11": "PASS - last_verified_sha=77d62129ebb5c999bcf9c6a1801a246028f1698a",
-      "C12": "PASS - 77d62129ebb5c999bcf9c6a1801a246028f1698a must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+      "C10": "PASS \u2014 live evidence present at commit a696aa699e6724ee0b5cff22c13ba32aef629f16 (release/phase4/live-evidence-a696aa699e67.json, organ 56 probe on real SQLite)",
+      "C11": "PASS - last_verified_sha=a696aa699e6724ee0b5cff22c13ba32aef629f16",
+      "C12": "PASS - a696aa699e6724ee0b5cff22c13ba32aef629f16 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
-    "last_verified_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+    "last_verified_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
     "requires_live_evidence": true,
     "requires_frontend_error_states": false
   },
@@ -3187,8 +3187,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 77d62129ebb5c999bcf9c6a1801a246028f1698a: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 77d62129ebb5c999bcf9c6a1801a246028f1698a exit=0; artifact=release/phase4/live-evidence-77d62129ebb5.json; Cerebellum + InstitutionalSkillAdapter => Cerebellum on real SQLite: an unactivated candidate compiled nothing; after the operator's activation the owner's request fired the reflex, another principal's turn and quoted text did not; it survived a restart; retired, it stayed retired for a new instance (skill suspended)",
-        "commit_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+        "description": "Phase 4 absolute live run on tip a696aa699e6724ee0b5cff22c13ba32aef629f16: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a696aa699e6724ee0b5cff22c13ba32aef629f16 exit=0; artifact=release/phase4/live-evidence-a696aa699e67.json; Cerebellum + InstitutionalSkillAdapter => Cerebellum on real SQLite: an unactivated candidate compiled nothing; after the operator's activation the owner's request fired the reflex, another principal's turn and quoted text did not; it survived a restart; retired, it stayed retired for a new instance (skill suspended)",
+        "commit_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
         "proof_level": "live"
       }
     ],
@@ -3203,11 +3203,11 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_phase2_reflex_gate.py', 'tests/test_retired_reflex_returns_only_by_reactivation.py', 'tests/test_phase4c2_skills_per_principal.py', 'tests/test_phase5c_composition_cap.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 known_blockers empty; refusal-path tests run in this organ's own suites",
-      "C10": "PASS \u2014 live evidence present at commit 77d62129ebb5c999bcf9c6a1801a246028f1698a (release/phase4/live-evidence-77d62129ebb5.json, organ 57 probe on real SQLite)",
-      "C11": "PASS - last_verified_sha=77d62129ebb5c999bcf9c6a1801a246028f1698a",
-      "C12": "PASS - 77d62129ebb5c999bcf9c6a1801a246028f1698a must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+      "C10": "PASS \u2014 live evidence present at commit a696aa699e6724ee0b5cff22c13ba32aef629f16 (release/phase4/live-evidence-a696aa699e67.json, organ 57 probe on real SQLite)",
+      "C11": "PASS - last_verified_sha=a696aa699e6724ee0b5cff22c13ba32aef629f16",
+      "C12": "PASS - a696aa699e6724ee0b5cff22c13ba32aef629f16 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
-    "last_verified_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+    "last_verified_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
     "requires_live_evidence": true,
     "requires_frontend_error_states": false
   },
@@ -3236,8 +3236,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 77d62129ebb5c999bcf9c6a1801a246028f1698a: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 77d62129ebb5c999bcf9c6a1801a246028f1698a exit=0; artifact=release/phase4/live-evidence-77d62129ebb5.json; RecallGate + recall_envelope => RecallGate on real SQLite admitted the signed lesson for its owner only; another principal and an anonymous recall got nothing; recalled text reached the prompt inside the data envelope; a command carried from memory was tainted (1 line)",
-        "commit_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+        "description": "Phase 4 absolute live run on tip a696aa699e6724ee0b5cff22c13ba32aef629f16: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a696aa699e6724ee0b5cff22c13ba32aef629f16 exit=0; artifact=release/phase4/live-evidence-a696aa699e67.json; RecallGate + recall_envelope => RecallGate on real SQLite admitted the signed lesson for its owner only; another principal and an anonymous recall got nothing; recalled text reached the prompt inside the data envelope; a command carried from memory was tainted (1 line)",
+        "commit_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
         "proof_level": "live"
       }
     ],
@@ -3252,11 +3252,11 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_phase3c2_fact_gate.py', 'tests/test_recall_blocks_match_live_path.py', 'tests/test_phase4c2_skills_per_principal.py', 'tests/test_learning_properties.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 known_blockers empty; refusal-path tests run in this organ's own suites",
-      "C10": "PASS \u2014 live evidence present at commit 77d62129ebb5c999bcf9c6a1801a246028f1698a (release/phase4/live-evidence-77d62129ebb5.json, organ 58 probe on real SQLite)",
-      "C11": "PASS - last_verified_sha=77d62129ebb5c999bcf9c6a1801a246028f1698a",
-      "C12": "PASS - 77d62129ebb5c999bcf9c6a1801a246028f1698a must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+      "C10": "PASS \u2014 live evidence present at commit a696aa699e6724ee0b5cff22c13ba32aef629f16 (release/phase4/live-evidence-a696aa699e67.json, organ 58 probe on real SQLite)",
+      "C11": "PASS - last_verified_sha=a696aa699e6724ee0b5cff22c13ba32aef629f16",
+      "C12": "PASS - a696aa699e6724ee0b5cff22c13ba32aef629f16 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
-    "last_verified_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+    "last_verified_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
     "requires_live_evidence": true,
     "requires_frontend_error_states": false
   },
@@ -3278,8 +3278,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 77d62129ebb5c999bcf9c6a1801a246028f1698a: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 77d62129ebb5c999bcf9c6a1801a246028f1698a exit=0; artifact=release/phase4/live-evidence-77d62129ebb5.json; LearningFreezeAuthority + EmergencyStopController => LearningFreezeAuthority over a real SQLite latch: a lesson landed before the stop; engaged, a fresh read froze learning and the next lesson write was refused (EmergencyStopError); 1 row on disk",
-        "commit_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+        "description": "Phase 4 absolute live run on tip a696aa699e6724ee0b5cff22c13ba32aef629f16: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip a696aa699e6724ee0b5cff22c13ba32aef629f16 exit=0; artifact=release/phase4/live-evidence-a696aa699e67.json; LearningFreezeAuthority + EmergencyStopController => LearningFreezeAuthority over a real SQLite latch: a lesson landed before the stop; engaged, a fresh read froze learning and the next lesson write was refused (EmergencyStopError); 1 row on disk",
+        "commit_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
         "proof_level": "live"
       }
     ],
@@ -3294,11 +3294,11 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_learning_freeze.py', 'tests/test_phase3a_provenance.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 known_blockers empty; refusal-path tests run in this organ's own suites",
-      "C10": "PASS \u2014 live evidence present at commit 77d62129ebb5c999bcf9c6a1801a246028f1698a (release/phase4/live-evidence-77d62129ebb5.json, organ 59 probe on real SQLite)",
-      "C11": "PASS - last_verified_sha=77d62129ebb5c999bcf9c6a1801a246028f1698a",
-      "C12": "PASS - 77d62129ebb5c999bcf9c6a1801a246028f1698a must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
+      "C10": "PASS \u2014 live evidence present at commit a696aa699e6724ee0b5cff22c13ba32aef629f16 (release/phase4/live-evidence-a696aa699e67.json, organ 59 probe on real SQLite)",
+      "C11": "PASS - last_verified_sha=a696aa699e6724ee0b5cff22c13ba32aef629f16",
+      "C12": "PASS - a696aa699e6724ee0b5cff22c13ba32aef629f16 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
-    "last_verified_sha": "77d62129ebb5c999bcf9c6a1801a246028f1698a",
+    "last_verified_sha": "a696aa699e6724ee0b5cff22c13ba32aef629f16",
     "requires_live_evidence": true,
     "requires_frontend_error_states": false
   }
