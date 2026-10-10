@@ -101,6 +101,19 @@ CREATE TABLE IF NOT EXISTS semantic_memory (
 
 -- == L4: Mistake pool ========================================================
 -- Structured post-mortems for cross-session learning (Blueprint Section 07).
+-- Plan Phase 6d (T13): outcomes of turns that recalled a VERIFIED lesson,
+-- since its last re-admission -- the window the negative-transfer quarantine
+-- decides from. Bookkeeping beside the lesson, not covered by its signed
+-- digest (like a fact's confidence); the quarantine itself is a withdrawal
+-- recorded in learning_provenance, which the recall gate refuses.
+CREATE TABLE IF NOT EXISTS lesson_outcomes (
+    mistake_id   INTEGER PRIMARY KEY,
+    principal_id TEXT,
+    successes    INTEGER NOT NULL DEFAULT 0,
+    failures     INTEGER NOT NULL DEFAULT 0,
+    since        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS mistake_pool (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp           DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -228,6 +241,10 @@ CREATE TABLE IF NOT EXISTS learning_events (
 );
 CREATE INDEX IF NOT EXISTS idx_learning_events_faculty
     ON learning_events(faculty, id);
+-- Plan Phase 6e: every turn asks for the newest withdrawal (a cached
+-- self-model is stale after one), so the question is indexed.
+CREATE INDEX IF NOT EXISTS idx_learning_events_transition
+    ON learning_events(transition, id);
 
 -- == Swarm decomposition patterns =============================================
 -- Cached subtask plans keyed by goal-pattern. A plan is promoted to 'verified'

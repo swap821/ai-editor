@@ -25,6 +25,7 @@ import threading
 from collections import OrderedDict
 from typing import Any, Optional
 
+from aios.memory.learning_journal import last_withdrawal_id
 from aios.memory.self_model import render as render_self_model, synthesize_self_model
 from aios.runtime.cortex_bus import BusEvent
 
@@ -58,6 +59,10 @@ class SelfModelHandler:
         self._mistakes = mistakes
         self._memory_authority = memory_authority
         self._cache: dict[str, Optional[str]] = {}
+        #: The newest learning withdrawal each cached self-model was built
+        #: after (plan Phase 6e): a revocation or a quarantine since then
+        #: makes it stale.
+        self._marks: dict[str, Optional[int]] = {}
         self._turns: "OrderedDict[str, str]" = OrderedDict()
         self._lock = threading.Lock()
 
@@ -95,6 +100,7 @@ class SelfModelHandler:
         principal = self._principal_of(event)
         if principal is None:
             return
+        mark = last_withdrawal_id()
         try:
             if self._memory_authority is not None:
                 text = self._memory_authority.self_model(principal=principal) or None
@@ -109,6 +115,7 @@ class SelfModelHandler:
             return
         with self._lock:
             self._cache[principal] = text
+            self._marks[principal] = mark
         logger.debug("self_model_handler_refreshed")
 
     def recall(self, principal: Optional[str]) -> Optional[str]:
@@ -117,7 +124,27 @@ class SelfModelHandler:
         if not principal:
             return None
         with self._lock:
-            return self._cache.get(principal)
+            if principal not in self._cache:
+                return None
+            text, mark = self._cache[principal], self._marks.get(principal)
+        current = last_withdrawal_id()
+        if current is not None and mark is not None and current == mark:
+            return text
+        # Plan Phase 6e (threat T6): a lesson was revoked or quarantined after
+        # this summary was built from lessons, or the journal cannot say. The
+        # stale summary is never served: it is rebuilt now through the gated
+        # authority, or withheld.
+        if self._memory_authority is None:
+            return None
+        try:
+            fresh = self._memory_authority.self_model(principal=principal) or None
+        except Exception:  # noqa: BLE001 - advisory; withheld rather than stale
+            logger.warning("self_model_handler_rebuild_failed", exc_info=True)
+            return None
+        with self._lock:
+            self._cache[principal] = fresh
+            self._marks[principal] = current
+        return fresh
 
 
 __all__ = ["SelfModelHandler"]

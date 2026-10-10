@@ -399,6 +399,12 @@ class MemoryAuthority:
     def lesson_get(self, mistake_id: int) -> Any:
         return self._adapter_operation("lessons", "get", mistake_id)
 
+    def record_lesson_outcome(self, *args: Any, **kwargs: Any) -> list[int]:
+        """Plan Phase 6d: a recalled lesson's outcome, into the quarantine."""
+        return list(
+            self._adapter_operation("lessons", "record_recall_outcome", *args, **kwargs)
+        )
+
     def lessons_by_status(self, status: str) -> list[Any]:
         return list(self._adapter_operation("lessons", "rows_by_status", status))
 
@@ -441,8 +447,23 @@ class MemoryAuthority:
         return self._adapter_operation("consolidation", "run")
 
     def compact_memory(self, *, dry_run: bool = True) -> dict[str, Any]:
-        """Run the audited forgetting sweep through the authority adapter."""
-        return dict(self._adapter_operation("compaction", "compact", dry_run=dry_run))
+        """Run the audited forgetting sweep through the authority adapter.
+
+        Plan Phase 6f: the sweep also forgets stale PENDING lessons, through the
+        lesson store (their one writer), and says how many.
+        """
+        result = dict(self._adapter_operation("compaction", "compact", dry_run=dry_run))
+        from aios import config
+
+        forgotten = self._adapter_operation(
+            "lessons",
+            "forget_stale_pending",
+            config.MEMORY_COMPACT_PENDING_LESSON_DAYS,
+            dry_run=dry_run,
+        )
+        result["lessons_pending_removed"] = len(forgotten)
+        result["lessons_pending_ids"] = list(forgotten)
+        return result
 
     def touch_working_session(self, session_id: str) -> None:
         self._adapter_operation("compaction", "touch_working_session", session_id)

@@ -7,6 +7,7 @@ instrument into evidence. Each of those is pinned here.
 
 from __future__ import annotations
 
+import ast
 import json
 
 import pytest
@@ -125,14 +126,29 @@ def test_coverage_counts_only_killed_mutations_on_a_condition(tmp_path) -> None:
 
 def test_the_committed_catalogue_applies_to_this_tree() -> None:
     """Every entry's anchor is in its file exactly once, ids are unique, every
-    entry names a test, and every named guard exists."""
+    entry names a test, and every named guard exists.
+
+    And every mutant is a PROGRAM. An indented anchor that a later change
+    re-indents still matches once -- as a substring starting mid-line -- and
+    deleting it leaves code that does not parse: pytest exits 2, which is not a
+    kill, so the probe reports a guard as untested when the catalogue is what
+    broke (found 2026-10-05: 3a's stop check, re-indented by Phase 6e)."""
     data = json.loads(probe.CATALOGUE.read_text(encoding="utf-8"))
     ids = [e["id"] for e in data["entries"]]
     assert len(ids) == len(set(ids))
     for entry in probe.load():
         text = (probe.REPO_ROOT / entry.file).read_bytes().decode("utf-8")
-        assert text.replace("\r\n", "\n").count(entry.old) == 1, entry.id
+        text = text.replace("\r\n", "\n")
+        assert text.count(entry.old) == 1, entry.id
         assert entry.tests, entry.id
+        at = text.find(entry.old)
+        if entry.old[:1] in " \t":
+            assert at == 0 or text[at - 1] == "\n", f"{entry.id}: anchor is mid-line"
+        if entry.file.endswith(".py"):
+            try:
+                ast.parse(text.replace(entry.old, entry.new))
+            except SyntaxError as exc:
+                pytest.fail(f"{entry.id}: the mutant does not parse ({exc.msg})")
     report = probe.coverage(probe.load(), [], probe.load_guards())
     assert report["missing_guards"] == []
     assert all(r["reason"] for r in data["retired"])

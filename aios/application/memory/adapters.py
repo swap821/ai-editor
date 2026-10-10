@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import inspect
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 
+from aios.application.learning import negative_transfer
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
     fact_digest,
+    lesson_content_key,
     lesson_digest,
+    semantic_content_key,
     semantic_digest,
 )
 from aios.domain.memory import MemoryHit, MemoryRecallContext
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.learning_journal import record as journal
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.compaction import MemoryCompactor
 from aios.memory.development import DevelopmentTracker
@@ -113,6 +118,7 @@ class LegacySemanticMemoryAdapter:
                 mem_id,
                 semantic_digest(row),
                 transition,
+                content_key=semantic_content_key(row),
                 principal=principal,
             )
             return
@@ -814,6 +820,7 @@ class MistakeMemoryAdapter:
                 mistake_id,
                 lesson_digest(row),
                 transition,
+                content_key=lesson_content_key(row),
                 session_id=row["task_id"],
                 principal=principal,
             )
@@ -909,6 +916,102 @@ class MistakeMemoryAdapter:
 
     def get(self, mistake_id: int) -> Any:
         return self.store.get(mistake_id)
+
+    def forget_stale_pending(
+        self, older_than_days: float, *, dry_run: bool
+    ) -> list[int]:
+        """Plan Phase 6f (GC): forget pending lessons idle for *older_than_days*.
+
+        Idle means no provenance record since the cutoff -- a recurrence or a
+        promotion appends one, while the row's timestamp is only its creation.
+        Returns the ids (removed unless *dry_run*), and journals a removal.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        idle = [
+            mistake_id
+            for mistake_id in self.store.stale_pending(older_than_days)
+            if not self._active_since(mistake_id, cutoff)
+        ]
+        if dry_run or not idle:
+            return idle
+        removed = list(self.store.forget_pending(idle))
+        journal(
+            "L2",
+            "forgotten",
+            detail={"ids": removed, "older_than_days": older_than_days},
+            db_path=self.store.db_path,
+        )
+        return removed
+
+    def _active_since(self, mistake_id: int, cutoff: datetime) -> bool:
+        """Has this lesson been recorded (recurred, promoted) since *cutoff*?"""
+        if self.provenance is None:
+            return False
+        try:
+            last = self.provenance.store.last_recorded_at(
+                "mistake_pool", str(mistake_id)
+            )
+        except Exception:  # noqa: BLE001 - unreadable: keep it (forgetting is final)
+            return True
+        if last is None:
+            return False
+        return datetime.fromisoformat(last) >= cutoff
+
+    def record_recall_outcome(
+        self,
+        mistake_ids: Any,
+        *,
+        success: bool,
+        principal: Optional[str],
+        baseline: Callable[[str], Optional[float]],
+    ) -> list[int]:
+        """Plan Phase 6d (T13): the negative-transfer quarantine for lessons.
+
+        A verified, signed lesson can still make the turns that recall it
+        worse. Each verifier-judged outcome of a turn that recalled it is
+        counted; *baseline* gives the verified success rate of similar tasks
+        (the planner's own evidence), and the named rule decides. Quarantine is
+        a WITHDRAWAL in the lesson's provenance -- recorded unsigned -- so the
+        recall gate refuses it until the operator re-admits it. Returns the
+        ids quarantined.
+        """
+        quarantined: list[int] = []
+        for item in self.store.record_recall_outcome(
+            mistake_ids, success=success, principal_id=principal
+        ):
+            row = item["row"]
+            mistake_id = int(row["id"])
+            successes, failures = item["successes"], item["failures"]
+            verdict = negative_transfer.assess(
+                successes, successes + failures, baseline(str(row["lesson_text"]))
+            )
+            detail = {"principal": principal, **verdict.as_detail()}
+            if verdict.action == "quarantine":
+                record = (
+                    self.provenance.withdraw(
+                        "mistake_pool",
+                        mistake_id,
+                        lesson_digest(row),
+                        "quarantined",
+                        principal=principal,
+                    )
+                    if self.provenance is not None
+                    else None
+                )
+                # Enforced only if the withdrawal was recorded AND recall is
+                # gated on provenance; otherwise the next outcome tries again.
+                enforced = record is not None and self.gate is not None
+                journal(
+                    "L2",
+                    "quarantined",
+                    subject_id=mistake_id,
+                    detail={**detail, "enforced": enforced},
+                )
+                if enforced:
+                    quarantined.append(mistake_id)
+            elif verdict.action == "review" and not success:
+                journal("L2", "review_flagged", subject_id=mistake_id, detail=detail)
+        return quarantined
 
     def rows_by_status(self, status: str) -> list[Any]:
         init_memory_db(self.store.db_path)
