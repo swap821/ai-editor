@@ -36,7 +36,7 @@ callers.
   the one derivation. It compares content, takes a `root`, and reports
   unreadable git as `<unresolvable: …>`, which callers treat as drift and never
   as fresh. `_entrypoint_drift` now calls it.
-- **Measured on master `5245217e`:** 109 attestation and live-evidence checks
+- **Measured on master `5469e34a`:** 117 attestation and live-evidence checks
   across the ledger. One answer changed: organ 55 (yellow), where the log walk
   also flagged a reverted edit and both versions still report drift. No green
   organ moves either way.
@@ -68,7 +68,7 @@ callers.
     left untouched.
   - The attestation sha, and rows citing no commit-bound proof, are still
     re-pointed on byte-identical content, as before.
-- **Measured on master `5245217e`:** 48 organs in lineage, 5 spine organs
+- **Measured on master `5469e34a`:** 52 organs in lineage, 5 spine organs
   untouched, 0 re-pointable. One is unprovable: organ 44 (yellow), whose sha
   `e3b0b00365e6` has no ancestor with identical entrypoints. That is real
   staleness, already there, and unchanged by this fix.
