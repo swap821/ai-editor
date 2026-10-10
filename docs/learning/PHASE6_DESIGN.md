@@ -495,3 +495,33 @@ transition on top of it, could bring it back.
 - **Only pending lessons are collected.** Semantic memory and episodic rows
   have the compactor's existing rules. Skills and reflexes are retired through
   the lifecycle, never deleted.
+
+## Phase 6 evidence: the stack-wide mutation probe (2026-10-11)
+
+The whole catalogue, after 6d, 6e and 6f, in one ledger run
+(`scripts/learning_mutation_probe.py --ledger`).
+Report: `docs/learning/mutation/phase6_stack_probe.json`.
+
+- **649 mutations: 628 killed, 21 INERT, 0 survivors.** Every INERT entry is
+  an equivalent mutation, each with its reason written in the probe's `INERT`
+  map.
+- **Coverage: 248/249 decision points** in 86 guard functions are attacked by
+  a killed mutation.
+  - The one left is `aios/api/turn_pipeline.py:565` (`_recall_memory`):
+    `if unverified`, dead since Phase 0b made `unverified` always empty.
+  - Both of its mutations are therefore INERT. Phase 7 reported the same
+    branch (192/193).
+  - Removing it is a change to organ 31's file, left for that file's next
+    change.
+- **Where it ran:** `71a43f5f`, #447's branch tip; tree identity `465e8f94`.
+  - Master's `aios/` and `tools/` are byte-identical to that commit (#447
+    squashed as `97bb8080`).
+  - Since then, #449 has added only gate scripts and their tests. More tests
+    can only kill more.
+- **How long it took:** the memory reaper stopped it three times. The ledger
+  resumed it each time; the mutated file a kill left behind was restored, and
+  that mutation's result voided and re-run.
+- **A catalogue bug found on the way:** an anchor that 6e re-indented matched
+  mid-line and produced an unparseable mutant (exit 2, which is not a kill).
+  It was fixed, and `test_the_committed_catalogue_applies_to_this_tree` now
+  refuses a mid-line anchor and a mutant that does not parse.

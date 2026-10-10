@@ -731,3 +731,13 @@ organs.*
   Production's taint check already caught that form.
 - **Still unbuilt:** the behavioural missions RT-04, RT-14 and RT-15. The
   local-model arm is not yet run.
+
+## Mutation probe after Phase 6, 2026-10-11
+
+- 649 mutations: 628 killed, 21 INERT (each with a written reason), 0
+  survivors.
+- 248/249 guard decision points are attacked; the one left is the branch dead
+  since Phase 0b.
+- Master's `aios/` is byte-identical to the probed tree.
+- Report: `docs/learning/mutation/phase6_stack_probe.json`; detail in
+  `docs/learning/PHASE6_DESIGN.md`.
