@@ -8083,61 +8083,6 @@
    "note": "generated (6e): _cascade line 177 condition forced False: row is not None"
   },
   {
-   "id": "6f:engage never freezes",
-   "file": "aios/api/routes/governance.py",
-   "old": "    _record_learning_freeze(principal, frozen=True)\n",
-   "new": "",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "plan Phase 6f"
-  },
-  {
-   "id": "6f:clear never thaws",
-   "file": "aios/api/routes/governance.py",
-   "old": "    _record_learning_freeze(principal, frozen=False)\n",
-   "new": "",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "plan Phase 6f"
-  },
-  {
-   "id": "6f:frozen and thawed swapped",
-   "file": "aios/api/routes/governance.py",
-   "old": "                    CanonicalEventType.LEARNING_FROZEN\n                    if frozen\n",
-   "new": "                    CanonicalEventType.LEARNING_FROZEN\n                    if not frozen\n",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "plan Phase 6f"
-  },
-  {
-   "id": "6f:frozen names nothing",
-   "file": "aios/api/routes/governance.py",
-   "old": "\"boundaries\": dict(FROZEN_BOUNDARIES) if frozen else {},",
-   "new": "\"boundaries\": {},",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "plan Phase 6f"
-  },
-  {
-   "id": "6f:learning event blocks the latch",
-   "file": "aios/api/routes/governance.py",
-   "old": "            \"Failed to record the learning freeze\", exc_info=exc\n        )\n",
-   "new": "            \"Failed to record the learning freeze\", exc_info=exc\n        )\n        raise\n",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "plan Phase 6f"
-  },
-  {
    "id": "6f:a family left out",
    "file": "aios/memory/learning_freeze.py",
    "old": "    \"skills\": \"legacy skill attempts and reuse\",\n",
@@ -8336,50 +8281,6 @@
    "note": "plan Phase 6f"
   },
   {
-   "id": "gen:governance:_record_learning_freeze:157:always",
-   "file": "aios/api/routes/governance.py",
-   "old": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if bus is None:\n",
-   "new": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if (True):\n",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "generated (6f): _record_learning_freeze line 157 condition forced True: bus is None"
-  },
-  {
-   "id": "gen:governance:_record_learning_freeze:157:never",
-   "file": "aios/api/routes/governance.py",
-   "old": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if bus is None:\n",
-   "new": "        from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE\n\n        bus = get_cortex_observation_bus()\n        if (False):\n",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "generated (6f): _record_learning_freeze line 157 condition forced False: bus is None"
-  },
-  {
-   "id": "gen:governance:_record_learning_freeze:167:always",
-   "file": "aios/api/routes/governance.py",
-   "old": "                status=\"frozen\" if frozen else \"thawed\",\n",
-   "new": "                status=\"frozen\" if (True) else \"thawed\",\n",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "generated (6f): _record_learning_freeze line 167 condition forced True: frozen"
-  },
-  {
-   "id": "gen:governance:_record_learning_freeze:167:never",
-   "file": "aios/api/routes/governance.py",
-   "old": "                status=\"frozen\" if frozen else \"thawed\",\n",
-   "new": "                status=\"frozen\" if (False) else \"thawed\",\n",
-   "tests": [
-    "tests/test_phase6f_freeze_thaw_gc.py"
-   ],
-   "also": [],
-   "note": "generated (6f): _record_learning_freeze line 167 condition forced False: frozen"
-  },
-  {
    "id": "gen:provenance:last_recorded_at:460:always",
    "file": "aios/memory/provenance.py",
    "old": "        return None if row is None else str(row[0])\n",
@@ -8400,6 +8301,61 @@
    ],
    "also": [],
    "note": "generated (6f): ProvenanceStore.last_recorded_at line 460 condition forced False: row is None"
+  },
+  {
+   "id": "6f:engage carries no freeze",
+   "file": "aios/api/routes/governance.py",
+   "old": "                    \"learning\": _learning_freeze_payload(frozen=True),\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f (freeze on the stop's own events)"
+  },
+  {
+   "id": "6f:clear carries no thaw",
+   "file": "aios/api/routes/governance.py",
+   "old": "                    \"learning\": _learning_freeze_payload(frozen=False),\n",
+   "new": "",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f (freeze on the stop's own events)"
+  },
+  {
+   "id": "6f:engage reads as thawed",
+   "file": "aios/api/routes/governance.py",
+   "old": "                    \"learning\": _learning_freeze_payload(frozen=True),\n",
+   "new": "                    \"learning\": _learning_freeze_payload(frozen=False),\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f (freeze on the stop's own events)"
+  },
+  {
+   "id": "6f:frozen names nothing",
+   "file": "aios/api/routes/governance.py",
+   "old": "            \"boundaries\": dict(FROZEN_BOUNDARIES) if frozen else {},\n",
+   "new": "            \"boundaries\": {},\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f (freeze on the stop's own events)"
+  },
+  {
+   "id": "6f:describing the freeze can fail the stop",
+   "file": "aios/api/routes/governance.py",
+   "old": "        return {\"frozen\": frozen, \"unavailable\": True}\n",
+   "new": "        raise\n",
+   "tests": [
+    "tests/test_phase6f_freeze_thaw_gc.py"
+   ],
+   "also": [],
+   "note": "plan Phase 6f (freeze on the stop's own events)"
   }
  ],
  "retired": [
@@ -8856,7 +8812,7 @@
    "aios/memory/learning_freeze.py::assert_learning_permitted",
    "aios/memory/learning_freeze.py::learning_permitted",
    "aios/application/memory/write_budget.py::LearningWriteBudget.spend",
-   "aios/api/routes/governance.py::_record_learning_freeze",
+   "aios/api/routes/governance.py::_learning_freeze_payload",
    "aios/memory/mistake.py::MistakeMemory.stale_pending",
    "aios/memory/mistake.py::MistakeMemory.forget_pending",
    "aios/application/memory/adapters.py::MistakeMemoryAdapter.forget_stale_pending",

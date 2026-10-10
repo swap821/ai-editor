@@ -3,11 +3,13 @@
 Freeze/thaw on the bus. The emergency stop already froze learning (the latch
 in ``aios/memory/learning_freeze.py``); nothing SAID so. These hold:
 
-* engaging the stop puts ``learning.frozen`` on the bus, after the stop's own
-  event, naming every frozen family; clearing it puts ``learning.thawed``;
+* the stop's own engagement event carries ``learning``: frozen, the control,
+  and every frozen family; its clear carries the thaw. Same point on the
+  timeline, and no new event type -- one the organism could not perceive is
+  what ``scripts/check_organism_seam.py`` refuses (its budget only goes down);
 * the families it names are the families the code actually guards -- a new
   guarded write family that the event does not name fails here;
-* a bus that refuses the learning event never blocks the latch.
+* describing the freeze can never cost the stop its own record.
 
 GC. A pending lesson is recalled only into its own task and promoted only by
 that task's success; one idle for ``MEMORY_COMPACT_PENDING_LESSON_DAYS`` never
@@ -39,7 +41,7 @@ OLD_ISO = "2020-01-01T00:00:00+00:00"
 
 
 # --------------------------------------------------------------------------- #
-# Freeze / thaw on the bus
+# Freeze / thaw on the bus, on the stop's own events
 # --------------------------------------------------------------------------- #
 @pytest.fixture
 def bus(tmp_path, monkeypatch):
@@ -59,92 +61,73 @@ def _events(bus) -> list[tuple[str, dict]]:
     return [(e.event_type, e.payload.get("payload", {})) for e in bus.fetch_since(0)]
 
 
-def test_engaging_the_stop_puts_learning_frozen_on_the_bus(bus) -> None:
+def test_the_stops_engagement_says_learning_froze_and_what(bus) -> None:
     from aios.api.routes import governance
     from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE
 
     governance._record_emergency_stop_engaged(_operator(), "drill")
 
-    events = _events(bus)
-    assert [kind for kind, _ in events] == [
-        "governance.emergency_stop.engaged",
-        "learning.frozen",
-    ]
-    payload = events[1][1]
-    assert payload["boundaries"] == dict(FROZEN_BOUNDARIES)
-    assert payload["control"] == LEARNING_FREEZE.control == "emergency_stop"
-    assert payload["operator_id"] == "operator:6f"
-    assert bus.fetch_since(0)[1].payload["status"] == "frozen"
+    [(kind, payload)] = _events(bus)
+    assert kind == "governance.emergency_stop.engaged"
+    assert payload["reason"] == "drill" and payload["operator_id"] == "operator:6f"
+    assert payload["learning"] == {
+        "frozen": True,
+        "control": LEARNING_FREEZE.control,
+        "boundaries": dict(FROZEN_BOUNDARIES),
+    }
+    assert LEARNING_FREEZE.control == "emergency_stop"
 
 
-def test_clearing_the_stop_puts_learning_thawed_on_the_bus(bus) -> None:
+def test_the_stops_clear_says_learning_thawed(bus) -> None:
     from aios.api.routes import governance
+    from aios.memory.learning_freeze import LEARNING_FREEZE
 
     governance._record_emergency_stop_cleared(_operator())
 
-    events = _events(bus)
-    assert [kind for kind, _ in events] == [
-        "governance.emergency_stop.cleared",
-        "learning.thawed",
-    ]
-    assert events[1][1]["boundaries"] == {}
-    assert events[1][1]["operator_id"] == "operator:6f"
-    assert bus.fetch_since(0)[1].payload["status"] == "thawed"
+    [(kind, payload)] = _events(bus)
+    assert kind == "governance.emergency_stop.cleared"
+    assert payload["operator_id"] == "operator:6f"
+    assert payload["learning"] == {
+        "frozen": False,
+        "control": LEARNING_FREEZE.control,
+        "boundaries": {},
+    }
 
 
-def test_a_bus_that_refuses_the_learning_event_never_blocks_the_latch(
-    tmp_path, monkeypatch, caplog
+def test_describing_the_freeze_never_costs_the_stop_its_record(
+    bus, monkeypatch, caplog
 ) -> None:
+    """If the freeze cannot be described, the stop's event still lands --
+    saying so, never silently."""
     from aios.api.routes import governance
-    from aios.runtime.cortex_bus import CortexBus
 
-    real = CortexBus(db_path=tmp_path / "cortex.db")
+    class _Broken:
+        @property
+        def control(self):
+            raise RuntimeError("freeze unreadable")
 
-    class _Picky:
-        def append(self, event):
-            if event.event_type.startswith("learning."):
-                raise RuntimeError("bus refused")
-            return real.append(event)
-
-    monkeypatch.setattr(governance, "get_cortex_observation_bus", lambda: _Picky())
+    monkeypatch.setattr(learning_freeze, "LEARNING_FREEZE", _Broken())
     governance._record_emergency_stop_engaged(_operator(), "drill")
     governance._record_emergency_stop_cleared(_operator())
 
-    assert [e.event_type for e in real.fetch_since(0)] == [
+    events = _events(bus)
+    assert [kind for kind, _ in events] == [
         "governance.emergency_stop.engaged",
         "governance.emergency_stop.cleared",
     ]
-    assert "Failed to record the learning freeze" in caplog.text
+    assert events[0][1]["learning"] == {"frozen": True, "unavailable": True}
+    assert events[1][1]["learning"] == {"frozen": False, "unavailable": True}
+    assert "Failed to describe the learning freeze" in caplog.text
 
 
-def test_no_bus_means_no_learning_event_and_no_error(monkeypatch, caplog) -> None:
-    from aios.api.routes import governance
+def test_the_freeze_has_no_event_type_of_its_own() -> None:
+    """The freeze rides on the stop's events. A type of its own would be one
+    the organism cannot perceive (tests/test_organism_seam.py guards that in
+    general; this pins the two names the first design of 6f added)."""
+    from aios.core.events import CanonicalEventType
 
-    monkeypatch.setattr(governance, "get_cortex_observation_bus", lambda: None)
-    governance._record_learning_freeze(_operator(), frozen=True)
-    assert "Failed to record the learning freeze" not in caplog.text
-
-
-@pytest.mark.parametrize("name", ["LEARNING_FROZEN", "LEARNING_THAWED"])
-def test_the_new_event_types_survive_append_and_read(tmp_path, name) -> None:
-    """The silent-emission tripwire: a best-effort producer that the bus
-    refuses records nothing and never says why, so append one for real."""
-    from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
-    from aios.runtime.cortex_bus import CortexBus
-
-    real = CortexBus(db_path=tmp_path / "cortex.db")
-    kind = getattr(CanonicalEventType, name).value
-    real.append(
-        CanonicalEvent(
-            event_type=kind,
-            phase=EventPhase.REFLEX.value,
-            status="frozen",
-            trust="verified",
-            source="test",
-            session_id="s",
-        )
-    )
-    assert [e.event_type for e in real.fetch_since(0)] == [kind]
+    values = {e.value for e in CanonicalEventType}
+    assert not values & {"learning.frozen", "learning.thawed"}
 
 
 def _guarded_families() -> dict[str, set[str]]:

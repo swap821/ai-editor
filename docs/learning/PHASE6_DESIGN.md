@@ -433,19 +433,25 @@ transition on top of it, could bring it back.
 - The stop already froze learning (Phase 0b's latch, `learning_freeze.py`).
   Nothing *said* so, so an observer of learning had to know that the stop and
   the freeze are one.
-- Now engaging the stop puts `learning.frozen` on the bus, right after
-  `governance.emergency_stop.engaged`. Clearing it puts `learning.thawed`
-  after `…cleared`.
-- The frozen event names every frozen family (`FROZEN_BOUNDARIES`): the first
-  segment of each `assert_learning_permitted("<family>.<op>")` in `aios/`, plus
-  the reflex checks in `cerebellum.py`.
+- Now the stop's own events say so. `governance.emergency_stop.engaged`
+  carries `learning: {frozen: true, control, boundaries}`, and `…cleared`
+  carries `learning: {frozen: false, …}`. That is the same point on the
+  timeline, and there is no new event type.
+- **Why not `learning.frozen` / `learning.thawed` events?** That was the first
+  build, and `scripts/check_organism_seam.py` refused it.
+  - Every backend event type must be one the frontend organism can perceive,
+    or sit in a budget that only goes down (7 unheard).
+  - New types would have needed a frontend change (Codex's) or a raised
+    budget (the one move that empties the guard).
+  - The organism already feels the engagement and the clear.
+- The frozen families (`FROZEN_BOUNDARIES`) are the first segment of each
+  `assert_learning_permitted("<family>.<op>")` in `aios/`, plus the reflex
+  checks in `cerebellum.py`.
 - **A test derives that set from the code** by AST scan, and requires
-  equality. So a new guarded write the event does not name fails the build:
-  the event cannot drift into describing a freeze that no longer matches the
-  latch.
-- Best-effort, like the stop's own events. A bus that refuses the learning
-  event is logged and never blocks the latch. The stop's own event is still
-  recorded.
+  equality. So a new guarded write the payload does not name fails the build:
+  it cannot drift into describing a freeze that no longer matches the latch.
+- Describing the freeze can never cost the stop its record. If it cannot be
+  described, the payload says `unavailable` and the event still lands.
 
 ### GC: pending lessons that will never be used
 
@@ -475,7 +481,7 @@ transition on top of it, could bring it back.
 
 ### Evidence
 
-- `tests/test_phase6f_freeze_thaw_gc.py`: 19 tests.
+- `tests/test_phase6f_freeze_thaw_gc.py`: 17 tests.
 - Mutations: 23 hand-written entries, each killed when written, plus
   generated always/never entries for the new guards' decision points
   (`T5 T10 stop and bounds`). Two equivalent mutants turned up, both

@@ -99,7 +99,7 @@ and the test that proves the control. Test IDs `RT-*` are missions in
 | T2 | **Tool-output → lesson poisoning.** Reflection turns attacker-authored output into a lesson; a later identical success verifies it. | X1 | **Yes** (A2) | Provenance + `source_kind`; envelope; lessons carry no authority (3, 4) | RT-03 (S), RT-04 (B: attacker tool output reflected into a lesson by a real model -- NOT shown real: the step stays in the unrecalled fix field), RT-19 (B: does a real model act on the recalled lesson?) |
 | T3 | **Reflex hijack by pasted text.** A playbook's goal text inside forwarded content triggers replay with auto-approved commands, before any model. | X2 | **Yes** (A4, B3) | Match on authored directive only (5a); applicability (5b); abstain on ambiguity (5a) | RT-05 (S), RT-21 (S: a reflex that runs unattended -- GREEN-only in 5a, read-only since 5b) |
 | T4 | **Harness-grant laundering.** A skill learned under harness grants (or no human at all) compiles into a reflex that auto-approves in live turns. | X4 | **Yes** (playbooks 9, 10, 14) | Per-step approval provenance; harness grants never cross into live (0b, 5) | RT-06 (S) |
-| T5 | **Learning during an emergency stop.** Memory writes, promotion and compilation continue while authority is revoked. | X4 X6 | **Yes** (F7) | Stop boundaries on every learning write (0b, 6); the institutional skill, trajectory and reuse-outcome stores refuse too, withdrawals excepted (2.2); legacy reuse credit (`skills.record_reuse`) refuses too -- Phase 0b had missed it (2.4b); the freeze and the thaw are put on the bus, naming every frozen family, pinned to the code's own guards (6f) | RT-07 (S) |
+| T5 | **Learning during an emergency stop.** Memory writes, promotion and compilation continue while authority is revoked. | X4 X6 | **Yes** (F7) | Stop boundaries on every learning write (0b, 6); the institutional skill, trajectory and reuse-outcome stores refuse too, withdrawals excepted (2.2); legacy reuse credit (`skills.record_reuse`) refuses too -- Phase 0b had missed it (2.4b); the stop's own engaged/cleared events carry the freeze and the thaw, naming every frozen family, pinned to the code's own guards (6f) | RT-07 (S) |
 | T6 | **Revoked memory resurfaces.** A superseded lesson or decompiled reflex is still recalled or replayed. | X6 | Partly | Retrieval-time guard; cascade over derivations (4, 6); a machine-retired reflex returns only by operator re-activation (6c); the operator's revocation of a lesson, memory or fact is signed, refused at recall, never extended by a machine transition, tombstoned by content per principal, cascaded, and allowed during a stop (6e) | RT-08 (S: human revocation), RT-20 (S: machine retirement), RT-25 (S: a revoked lesson learned again must stay out) |
 | T7 | **Stale reflex.** A reflex replays after the code it was verified against changed. | X6 | **Yes** | Content-hash freshness (5b): the first match on stale code refuses the reflex and withdraws it (skill suspended, row retired); only the operator's re-activation brings it back (decision 2026-10-04) | RT-09 (S) |
 | T8 | **Cross-principal recall.** One principal's memory governs another's turns. | X3 | Lessons, memory, facts and the self-model: **closed (4c-1)**. Skills and reflexes: **closed (4c-2)** | Principal scoping (4c): every learned row records its principal as row identity and under its signature; recall admits a row only for the principal its SIGNED provenance names; unattributed rows are withheld from everyone (operator decision 2026-10-04). A skill's identity includes its principal, and recall, reuse credit and reflex replay admit it only for the principal the operator's signed activation names (4c-2) | RT-10 (S: a verified, signed lesson of principal A must reach A's prompt and never B's), RT-23 (S: A's activated skill must serve A's turn, recalled or as a reflex, and never B's) |
@@ -627,9 +627,11 @@ above left open for skills and reflexes.*
 
 ## Phase 6f, 2026-10-05: the freeze on the bus; idle pending lessons forgotten
 
-- **The stop's reach into learning is now an event.**
-  - `learning.frozen` follows `governance.emergency_stop.engaged`, naming
-    every frozen family. `learning.thawed` follows the clear.
+- **The stop's reach into learning is on the record.**
+  - `governance.emergency_stop.engaged` carries `learning` (frozen, the
+    control, every frozen family), and the clear carries the thaw.
+  - No new event type: one the frontend organism cannot perceive is refused by
+    the organism-seam guard.
   - The family list is checked against every guarded write in the code.
 - **GC.** The operator's compaction forgets pending lessons idle for 30 days
   (configurable), judged by last activity, not creation. Verified, superseded

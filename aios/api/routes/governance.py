@@ -131,54 +131,43 @@ def _record_emergency_stop_engaged(principal: Principal, reason: str) -> None:
                 trust="verified",
                 source="aios.api.routes.governance",
                 session_id=getattr(principal, "session_id", "") or "emergency-stop",
-                payload={"reason": reason, "operator_id": principal.principal_id},
+                payload={
+                    "reason": reason,
+                    "operator_id": principal.principal_id,
+                    "learning": _learning_freeze_payload(frozen=True),
+                },
             )
         )
     except Exception as exc:  # noqa: BLE001 - never let an observation block the latch
         logging.getLogger(__name__).warning(
             "Failed to record emergency-stop engagement", exc_info=exc
         )
-    _record_learning_freeze(principal, frozen=True)
 
 
-def _record_learning_freeze(principal: Principal, *, frozen: bool) -> None:
-    """Plan Phase 6f: put the learning loop's freeze (or thaw) on the bus.
+def _learning_freeze_payload(*, frozen: bool) -> dict[str, Any]:
+    """Plan Phase 6f: what the stop does to the learning loop, on the stop's
+    own event.
 
-    The same latch freezes learning (``aios/memory/learning_freeze.py``); this
-    says so as its own event, naming what stopped, so an observer of learning
-    need not know that the stop and the freeze are one. Best-effort, as the
-    stop's own events are.
+    The same latch freezes learning (``aios/memory/learning_freeze.py``).
+    Saying so on the engagement and the clear -- frozen or thawed, and which
+    families -- puts the freeze on the timeline without a new event type: the
+    organism already feels these two, and a vocabulary it cannot perceive is
+    exactly what ``scripts/check_organism_seam.py`` refuses. Never raises: an
+    observation must not cost the stop its own record.
     """
     try:
-        from aios.core.events import CanonicalEvent, CanonicalEventType, EventPhase
         from aios.memory.learning_freeze import FROZEN_BOUNDARIES, LEARNING_FREEZE
 
-        bus = get_cortex_observation_bus()
-        if bus is None:
-            return
-        bus.append(
-            CanonicalEvent(
-                event_type=(
-                    CanonicalEventType.LEARNING_FROZEN
-                    if frozen
-                    else CanonicalEventType.LEARNING_THAWED
-                ).value,
-                phase=EventPhase.REFLEX.value,
-                status="frozen" if frozen else "thawed",
-                trust="verified",
-                source="aios.api.routes.governance",
-                session_id=getattr(principal, "session_id", "") or "emergency-stop",
-                payload={
-                    "control": LEARNING_FREEZE.control,
-                    "boundaries": dict(FROZEN_BOUNDARIES) if frozen else {},
-                    "operator_id": principal.principal_id,
-                },
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 - never let an observation block the latch
+        return {
+            "frozen": frozen,
+            "control": LEARNING_FREEZE.control,
+            "boundaries": dict(FROZEN_BOUNDARIES) if frozen else {},
+        }
+    except Exception as exc:  # noqa: BLE001 - the stop's record matters more
         logging.getLogger(__name__).warning(
-            "Failed to record the learning freeze", exc_info=exc
+            "Failed to describe the learning freeze", exc_info=exc
         )
+        return {"frozen": frozen, "unavailable": True}
 
 
 def _record_emergency_stop_cleared(principal: Principal) -> None:
@@ -214,14 +203,16 @@ def _record_emergency_stop_cleared(principal: Principal) -> None:
                 trust="verified",
                 source="aios.api.routes.governance",
                 session_id=getattr(principal, "session_id", "") or "emergency-stop",
-                payload={"operator_id": principal.principal_id},
+                payload={
+                    "operator_id": principal.principal_id,
+                    "learning": _learning_freeze_payload(frozen=False),
+                },
             )
         )
     except Exception as exc:  # noqa: BLE001 - never let an observation block the latch
         logging.getLogger(__name__).warning(
             "Failed to record emergency-stop clear", exc_info=exc
         )
-    _record_learning_freeze(principal, frozen=False)
 
 
 @router.post("/api/v1/governance/emergency-stop/clear")
