@@ -10,6 +10,7 @@ are promoted to ``verified`` only after a fix proves itself, or marked
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -529,22 +530,24 @@ class MistakeMemory:
         the read and this delete stays. Their provenance records stay, as
         history. Forgetting is the safe direction, so the stop does not refuse it.
         """
-        ids = sorted({int(i) for i in mistake_ids})
-        marks = ",".join("?" * len(ids))
+        # One JSON parameter, constant SQL: no statement is built from data.
+        ids = json.dumps(sorted({int(i) for i in mistake_ids}))
         with get_connection(self.db_path) as conn:
             conn.execute("BEGIN IMMEDIATE")
             removed = [
                 int(r["id"])
                 for r in conn.execute(
-                    f"SELECT id FROM mistake_pool WHERE id IN ({marks}) "  # noqa: S608
+                    "SELECT id FROM mistake_pool "
+                    "WHERE id IN (SELECT value FROM json_each(?)) "
                     "AND verification_status = 'pending' ORDER BY id",
-                    tuple(ids),
+                    (ids,),
                 ).fetchall()
             ]
             conn.execute(
-                f"DELETE FROM mistake_pool WHERE id IN ({marks}) "  # noqa: S608
+                "DELETE FROM mistake_pool "
+                "WHERE id IN (SELECT value FROM json_each(?)) "
                 "AND verification_status = 'pending'",
-                tuple(ids),
+                (ids,),
             )
         return removed
 

@@ -8129,8 +8129,8 @@
   {
    "id": "6f:forget select ignores status",
    "file": "aios/memory/mistake.py",
-   "old": "f\"SELECT id FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                    \"AND verification_status = 'pending' ORDER BY id\",",
-   "new": "f\"SELECT id FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                    \"ORDER BY id\",",
+   "old": "                    \"WHERE id IN (SELECT value FROM json_each(?)) \"\n                    \"AND verification_status = 'pending' ORDER BY id\",\n",
+   "new": "                    \"WHERE id IN (SELECT value FROM json_each(?)) \"\n                    \"ORDER BY id\",\n",
    "tests": [
     "tests/test_phase6f_freeze_thaw_gc.py"
    ],
@@ -8140,8 +8140,8 @@
   {
    "id": "6f:forget delete ignores status",
    "file": "aios/memory/mistake.py",
-   "old": "f\"DELETE FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                \"AND verification_status = 'pending'\",",
-   "new": "f\"DELETE FROM mistake_pool WHERE id IN ({marks}) \"  # noqa: S608\n                \"\",",
+   "old": "                \"WHERE id IN (SELECT value FROM json_each(?)) \"\n                \"AND verification_status = 'pending'\",\n                (ids,),\n            )\n        return removed",
+   "new": "                \"WHERE id IN (SELECT value FROM json_each(?)) \"\n                \"\",\n                (ids,),\n            )\n        return removed",
    "tests": [
     "tests/test_phase6f_freeze_thaw_gc.py"
    ],
