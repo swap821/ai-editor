@@ -112,6 +112,98 @@ def fact_digest(row: Any) -> str:
     return content_digest({name: _field(row, name) for name in FACT_FIELDS})
 
 
+#: The recall-gated channels a withdrawal can reach, and the digest each is
+#: signed over: a withdrawn row is recorded over its own current content.
+WITHDRAWABLE: dict[str, Any] = {
+    "mistake_pool": lesson_digest,
+    "semantic_memory": semantic_digest,
+    "semantic_facts": fact_digest,
+}
+
+
+def _row(db: Any, table: str, row_id: Any) -> Any:
+    import sqlite3
+
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(
+            f"SELECT * FROM {table} WHERE id = ?",  # noqa: S608 - table from WITHDRAWABLE
+            (int(row_id),),
+        ).fetchone()
+
+
+def lesson_twin_ids(db: Any, lesson_id: Any) -> list[int]:
+    """The semantic memories consolidation made of a lesson, by the twin's
+    exact text (scrubbed and normalised as the store keys it), for the
+    lesson's principal. Reaches twins made before derivations were recorded."""
+    import sqlite3
+
+    from aios.memory.consolidation import lesson_twin_text
+    from aios.memory.relevance import content_hash
+    from aios.security.secret_scanner import scan_and_redact
+
+    row = _row(db, "mistake_pool", lesson_id)
+    if row is None:
+        return []
+    key = content_hash(scan_and_redact(lesson_twin_text(row)).scrubbed)
+    with sqlite3.connect(db) as conn:
+        found = conn.execute(
+            "SELECT id FROM semantic_memory WHERE content_hash = ? "
+            "AND memory_type = 'lesson' AND principal_id IS ? ORDER BY id",
+            (key, row["principal_id"]),
+        ).fetchall()
+    return [int(r[0]) for r in found]
+
+
+def cascade_withdrawal(store: Any, db: Any, roots: list[tuple[str, str]]) -> list[str]:
+    """Withdraw every row derived from *roots*, all the way down: rows recorded
+    as derived (``learning_derivations``) and, for a lesson, the semantic twin
+    consolidation made of it. ONE cascade for the operator's revocation and
+    the machine's quarantine (plan Phase 6e / 6d; RT-27, RT-28).
+
+    Each child gets an unsigned ``withdrawn`` record over its own current
+    content -- recall refuses an unsigned newest record -- naming its parent.
+    A withdrawal, so the emergency stop allows it.
+    """
+    seen = set(roots)
+    queue = list(roots)
+    withdrawn: list[str] = []
+    while queue:
+        parent = queue.pop(0)
+        children = list(store.children_of(*parent))
+        if parent[0] == "mistake_pool" and str(parent[1]).isdigit():
+            children += [
+                ("semantic_memory", str(twin), "consolidated twin")
+                for twin in lesson_twin_ids(db, parent[1])
+            ]
+        for child_table, child_id, relation in children:
+            child = (child_table, str(child_id))
+            if child in seen:
+                continue
+            seen.add(child)
+            row = (
+                _row(db, child_table, child_id)
+                if child_table in WITHDRAWABLE and str(child_id).isdigit()
+                else None
+            )
+            digest = WITHDRAWABLE[child_table](row) if row is not None else "withdrawn"
+            store.append(
+                Provenance(
+                    table=child_table,
+                    row_id=str(child_id),
+                    content_sha256=digest,
+                    source_kind="live",
+                    transition="withdrawn",
+                    parents=(f"{parent[0]}:{parent[1]}",),
+                    principal=row["principal_id"] if row is not None else None,
+                ),
+                None,
+            )
+            withdrawn.append(f"{child_table}:{child_id} ({relation})")
+            queue.append(child)
+    return withdrawn
+
+
 class ProvenanceWriter:
     """Attaches signed provenance to rows this process writes, as one kind.
 

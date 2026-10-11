@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 from aios.application.learning import negative_transfer
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
+    cascade_withdrawal,
     fact_digest,
     lesson_content_key,
     lesson_digest,
@@ -917,6 +918,38 @@ class MistakeMemoryAdapter:
     def get(self, mistake_id: int) -> Any:
         return self.store.get(mistake_id)
 
+    def admitted(self, mistake_id: int) -> bool:
+        """Would recall admit this lesson now? Ungated, recall admits all."""
+        if self.gate is None:
+            return True
+        row = self.store.get(int(mistake_id))
+        if row is None:
+            return False
+        return bool(
+            self.gate.admits(
+                "mistake_pool",
+                int(mistake_id),
+                lesson_digest(row),
+                principal=row["principal_id"],
+            )
+        )
+
+    def record_derivation(
+        self, *, child: tuple[str, Any], parent: tuple[str, Any], relation: str
+    ) -> None:
+        """Record *child* as derived from *parent*, once."""
+        if self.provenance is None:
+            return
+        store = self.provenance.store
+        known = {(t, i) for t, i, _ in store.children_of(parent[0], str(parent[1]))}
+        if (child[0], str(child[1])) in known:
+            return
+        store.append_derivation(
+            child=(child[0], str(child[1])),
+            parent=(parent[0], str(parent[1])),
+            relation=relation,
+        )
+
     def forget_stale_pending(
         self, older_than_days: float, *, dry_run: bool
     ) -> list[int]:
@@ -1009,6 +1042,13 @@ class MistakeMemoryAdapter:
                 )
                 if enforced:
                     quarantined.append(mistake_id)
+                    # The twin consolidation made of it carries the same
+                    # content: quarantine it too (RT-28).
+                    cascade_withdrawal(
+                        self.provenance.store,
+                        self.store.db_path,
+                        [("mistake_pool", str(mistake_id))],
+                    )
             elif verdict.action == "review" and not success:
                 journal("L2", "review_flagged", subject_id=mistake_id, detail=detail)
         return quarantined
