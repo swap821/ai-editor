@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `4878dd12c1afd877226e6a9195c816eb0a62dd795237788fd18b435faf2bc4d3`
+- **Source ledger sha256:** `7914eede8bf7b4ebf7bd870ee028fcd781b0a60ac646a6dbfe62f9f1049bcf1b`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -845,7 +845,7 @@ re-audits recorded above.
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `97bb80800929` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `59ce79b34e4e` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `451a3664cac2` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `cb19e19ef2c7` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `cb19e19ef2c7` | live |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `1d431850fc5e` | live |
@@ -867,7 +867,7 @@ re-audits recorded above.
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `38412db885ca` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `1d431850fc5e` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `38412db885ca` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `59ce79b34e4e` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `451a3664cac2` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
 | 57 | Reflex Authority | `Cerebellum` | `7954d18d4e8a` | live |
 | 58 | Recall Isolation | `RecallGate` | `57d00ecb1a14` | live |
