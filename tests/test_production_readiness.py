@@ -68,6 +68,9 @@ def test_unmeasured_properties_keep_the_machine_not_ready(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(pr, "GATES", (lambda w: pr.Gate("cage", "x", pr.PASS, "ok"),))
+    # Pinned, not read from the live list: once every gate has a probe that
+    # list is empty, and this property must still be tested.
+    monkeypatch.setattr(pr, "NOT_YET", (("cage", "y", "a property", "H?"),))
     gates = pr.measure(_world(tmp_path))
     assert any(g.status == pr.NOT_MEASURED for g in gates)
     assert not pr.ready(gates)

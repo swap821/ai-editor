@@ -620,6 +620,77 @@ def animal_signing_key(world: World) -> Gate:
     )
 
 
+#: Where judging the pre-registered Phase 8 runs records its verdict: Holm over
+#: {H1-cloud, H1c-cloud, H1-7B} (docs/learning/PAYOFF_PREREGISTRATION.md, D4).
+#: Absent until a judged run exists; the baselines were reported, never judged.
+JUDGED_PAYOFF = Path("docs") / "learning" / "payoff_judged_result.json"
+#: The census asks as a principal that owns nothing. The recall gate refuses
+#: a row "another principal" only after its signature verified, it is not
+#: revoked and it names an owner -- exactly a row its OWNER's turn admits --
+#: so that count is what reaches a live turn, from the gate's own derivation.
+_OWNS_NOTHING = "scoreboard:owns-nothing"
+_ADMITTED_TO_OWNER = "another principal"
+
+
+def animal_usefulness(world: World) -> Gate:
+    """Does what the animal learned reach a live turn, and did it help?"""
+    from tools.learning_payoff import gate_census
+
+    census = gate_census(
+        _OWNS_NOTHING,
+        db=world.data_dir / "aios_memory.db",
+        library_db=world.data_dir / "aios_operational_state.db",
+    )
+    candidates = census["candidates"]
+    reach = {
+        kind: int(census["refused"][kind].get(_ADMITTED_TO_OWNER, 0))
+        for kind in ("lessons", "skills")
+    }
+    if not (reach["lessons"] or reach["skills"]):
+        refused = {
+            k: v
+            for k, v in census["refused"]["lessons"].items()
+            if k != _ADMITTED_TO_OWNER
+        }
+        return Gate(
+            "animal",
+            "usefulness",
+            FAIL,
+            f"nothing learned reaches a live turn: 0 of {candidates['lessons']} "
+            f"lessons and 0 of {candidates['skills']} active skills pass the "
+            f"recall gate for their owner (lessons refused: {refused or 'none'})",
+            owner="operator",
+            next_step="pin the live learning key, then review and re-admit lessons "
+            "(tools/readmit_learning.py --principal)",
+        )
+    reached = (
+        f"{reach['lessons']} of {candidates['lessons']} lessons and "
+        f"{reach['skills']} of {candidates['skills']} active skills reach their "
+        "owner's turns"
+    )
+    judged_path = world.repo / JUDGED_PAYOFF
+    if not judged_path.is_file():
+        return Gate(
+            "animal",
+            "usefulness",
+            NOT_MEASURED,
+            f"{reached}; no judged payoff run yet (the baselines were reported, "
+            "not judged, and showed no measurable benefit)",
+            owner="operator",
+            next_step="the pre-registered Phase 8 run "
+            "(docs/learning/PAYOFF_PREREGISTRATION.md, D4)",
+        )
+    judged = json.loads(judged_path.read_text(encoding="utf-8"))
+    met = judged.get("h1_met") is True
+    return Gate(
+        "animal",
+        "usefulness",
+        PASS if met else FAIL,
+        f"{reached}; judged run: {judged.get('summary') or ('met' if met else 'not met')}",
+        owner="operator",
+    )
+
+
 def animal_guards_scheduled(world: World) -> Gate:
     import yaml
 
@@ -707,12 +778,6 @@ NOT_YET = (
         "H6",
     ),
     ("intelligence", "failover_drill", "cloud down -> local, live", "H6"),
-    (
-        "animal",
-        "usefulness",
-        "a pre-registered payoff run that met its hypothesis",
-        "H8",
-    ),
 )
 
 GATES: tuple[Callable[[World], Gate], ...] = (
@@ -722,6 +787,7 @@ GATES: tuple[Callable[[World], Gate], ...] = (
     cage_master_ci,
     animal_signing_key,
     animal_guards_scheduled,
+    animal_usefulness,
     clerk_admitted_model,
     clerk_live_roles_earnable,
     clerk_real_jobs,

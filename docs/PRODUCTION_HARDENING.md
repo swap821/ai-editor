@@ -42,7 +42,7 @@ Ready means every gate is PASS.
 | Cage | `master_ci` | master's latest CI green |
 | Animal | `signing_key` | the live learning key present and its public key pinned (otherwise everything learned is refused) |
 | Animal | `guards_scheduled` | the red-team reel and mutation probe run on a schedule |
-| Animal | `usefulness` | *not measured yet*: a pre-registered payoff run that met its hypothesis |
+| Animal | `usefulness` | what the animal learned reaches a live turn (a read-only census through the production recall gate: rows admitted to their owner) **and** the pre-registered Phase 8 run met H1 under Holm (`docs/learning/payoff_judged_result.json`) |
 | Clerk | `admitted_model` | a local model the dispatcher would give a job (approved, qualified, healthy, with a role) |
 | Clerk | `live_roles_earnable` | every role production code asks the clerk for is one a qualification test can grant |
 | Clerk | `real_jobs` | the clerk has done real jobs, recorded in its provenance store |

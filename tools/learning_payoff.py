@@ -572,8 +572,16 @@ def live_lessons_slot(mistakes: MistakeMemory) -> Any:
     )
 
 
-def gate_census(principal: Optional[str]) -> dict[str, Any]:
+def gate_census(
+    principal: Optional[str],
+    *,
+    db: Optional[Path] = None,
+    library_db: Optional[Path] = None,
+) -> dict[str, Any]:
     """What the production recall gate would admit for *principal*, READ-ONLY.
+
+    *db* / *library_db* default to the run's own copies beside the harness
+    (``DB`` / ``LIBRARY_DB``); the production scoreboard passes the live ones.
 
     D8's preflight. The databases are opened ``mode=ro`` and the gate reads a
     read-only provenance store, so the census changes nothing, migrates
@@ -590,6 +598,8 @@ def gate_census(principal: Optional[str]) -> dict[str, Any]:
     )
     from aios.memory.provenance import LearningVerifier, ReadOnlyProvenanceStore
 
+    db = db or DB
+    library_db = library_db or LIBRARY_DB
     pinned = LearningVerifier.from_pinned_file()
     census: dict[str, Any] = {
         "principal": principal,
@@ -610,9 +620,9 @@ def gate_census(principal: Optional[str]) -> dict[str, Any]:
         finally:
             conn.close()
 
-    lesson_gate = RecallGate(ReadOnlyProvenanceStore(DB), pinned, context="live")
+    lesson_gate = RecallGate(ReadOnlyProvenanceStore(db), pinned, context="live")
     for row in rows(
-        DB,
+        db,
         "SELECT * FROM mistake_pool "
         "WHERE verification_status IN ('verified', 'pending')",
     ):
@@ -621,8 +631,8 @@ def gate_census(principal: Optional[str]) -> dict[str, Any]:
             "mistake_pool", row["id"], lesson_digest(row), principal=principal
         ):
             census["lessons"] += 1
-    skill_gate = RecallGate(ReadOnlyProvenanceStore(LIBRARY_DB), pinned, context="live")
-    for row in rows(LIBRARY_DB, "SELECT payload_json FROM institutional_skills"):
+    skill_gate = RecallGate(ReadOnlyProvenanceStore(library_db), pinned, context="live")
+    for row in rows(library_db, "SELECT payload_json FROM institutional_skills"):
         record = SkillRecord.model_validate(json.loads(row["payload_json"]))
         if record.state != "active":
             continue
