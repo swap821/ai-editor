@@ -386,6 +386,11 @@ def _env(root: Path, drill: str) -> dict[str, str]:
         # under operator local is still preferred -- so a cut network or a
         # throttling provider only matters here, and only here is measured.
         env["AIOS_RUNTIME_PROFILE"] = CLOUD_PRIMARY_PROFILE
+        # And the constitution, which is the CEILING once the one-law change
+        # lands (operator decision 2026-10-11): the profile may only narrow
+        # what the constitution allows, so the law must allow it too.
+        env["AIOS_ROUTER_CLOUD_TASKS"] = "coding,reasoning"
+        env["AIOS_ROUTER_PREFER_LOCAL"] = "false"
     return env
 
 
