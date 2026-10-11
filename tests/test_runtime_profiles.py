@@ -29,9 +29,23 @@ def isolated_profiles(monkeypatch, tmp_path):
 @pytest.fixture
 def kernel(tmp_path, monkeypatch):
     """Fresh policy kernel with isolated autonomy ledger and profile cache."""
+    from dataclasses import replace
+
+    from aios.policy.constitution import build_constitution
+
+    # The constitution is the ceiling (aios/policy/egress.py). These tests
+    # measure what each PROFILE does, so the law here allows every task;
+    # tests/test_one_law_cloud_egress.py pins the ceiling itself.
+    law = replace(
+        build_constitution(
+            router_cloud_tasks=("reasoning", "coding", "browse", "swarm")
+        ),
+        router_prefer_local=False,
+    )
     k = PolicyKernel(
         rate_limiter=RateLimiter(max_per_session=100),
         autonomy_ledger=None,
+        constitution=law,
     )
     monkeypatch.setattr(k, "_active_profile", None)
     return k
@@ -251,6 +265,12 @@ def test_router_wiring_uses_kernel_policy(monkeypatch, isolated_profiles):
     from aios.policy import kernel as kernel_module
 
     monkeypatch.setenv("AIOS_RUNTIME_PROFILE", "operator")
+    # The fresh kernel builds its constitution from config: open the ceiling.
+    from aios import config
+
+    monkeypatch.setattr(
+        config, "ROUTER_CLOUD_TASKS", ("reasoning", "coding", "browse", "swarm")
+    )
     # Force a fresh kernel by clearing the module-level singleton.
     monkeypatch.setattr(kernel_module, "_KERNEL", None)
 
