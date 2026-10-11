@@ -98,8 +98,12 @@ def test_the_network_cut_allows_only_loopback() -> None:
             client.connect(("93.184.216.34", 443))
         with pytest.raises(socket.gaierror):
             socket.getaddrinfo("bedrock-runtime.ap-south-1.amazonaws.com", 443)
-        assert "93.184.216.34" in cut.blocked
-        assert "bedrock-runtime.ap-south-1.amazonaws.com" in cut.blocked
+        assert set(cut.blocked) == {
+            "93.184.216.34",
+            "bedrock-runtime.ap-south-1.amazonaws.com",
+        }
+        assert sd._is_aws_host("bedrock-runtime.ap-south-1.amazonaws.com")
+        assert not sd._is_aws_host("amazonaws.com.evil.example")
     finally:
         socket.socket.connect = cut._connect  # type: ignore[method-assign]
         socket.socket.connect_ex = cut._connect_ex  # type: ignore[method-assign]

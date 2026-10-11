@@ -130,6 +130,12 @@ def judge(drill: str, obs: Mapping[str, Any]) -> tuple[str, str]:
 # --------------------------------------------------------------------------- #
 
 
+def _is_aws_host(host: str) -> bool:
+    """A blocked lookup of an AWS endpoint -- matched on the host's suffix,
+    never on a substring that any hostname could carry."""
+    return host.lower().rstrip(".").endswith(".amazonaws.com")
+
+
 class _Throttled(Exception):
     pass
 
@@ -338,7 +344,7 @@ def run_child(drill: str, root: Path, out: Path) -> int:
         obs["cloud_attempts"] = (
             len(transport.requests)
             if transport is not None
-            else len([b for b in (cut.blocked if cut else []) if "amazonaws" in b])
+            else len([b for b in (cut.blocked if cut else []) if _is_aws_host(b)])
         )
         if cut is not None:
             obs["blocked"] = sorted(set(cut.blocked))
