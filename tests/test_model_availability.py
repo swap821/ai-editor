@@ -159,3 +159,70 @@ def test_a_mixed_failure_counts_as_the_providers() -> None:
     failure is the provider's: never let a model mark hide an outage."""
     mixed = f"all 3 model candidate(s) failed: bedrock:a -> {DENIED}; bedrock:b -> ThrottlingException"
     assert not ma.is_model_unavailable_error(LLMError(mixed))
+
+
+# --------------------------------------------------------------------------- #
+# A model that rejects temperature stays usable (Kimi K3, 2026-10-11)
+# --------------------------------------------------------------------------- #
+
+
+class _NoTemperatureTransport:
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+
+    def converse(self, **kwargs):
+        self.requests.append(
+            {**kwargs, "inferenceConfig": dict(kwargs["inferenceConfig"])}
+        )
+        if "temperature" in kwargs["inferenceConfig"]:
+            from botocore.exceptions import ClientError
+
+            raise ClientError(
+                {
+                    "Error": {
+                        "Code": "ValidationException",
+                        "Message": "This model doesn't support the temperature field. Remove temperature and try again.",
+                    }
+                },
+                "Converse",
+            )
+        return {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+
+
+def test_a_model_that_rejects_temperature_is_retried_without_it_and_remembered() -> (
+    None
+):
+    from aios.core import bedrock
+
+    bedrock._NO_TEMPERATURE.discard("global.moonshotai.kimi-k3")
+    transport = _NoTemperatureTransport()
+    client = bedrock.BedrockClient(
+        model="global.moonshotai.kimi-k3", region="ap-south-1", client=transport
+    )
+    assert client.chat([{"role": "user", "content": "hi"}])["content"] == "ok"
+    assert (
+        len(transport.requests) == 2
+        and "temperature" not in transport.requests[1]["inferenceConfig"]
+    )
+    client.chat([{"role": "user", "content": "again"}])
+    assert len(transport.requests) == 3, "remembered: no second refusal"
+    bedrock._NO_TEMPERATURE.discard("global.moonshotai.kimi-k3")
+
+
+def test_other_errors_are_not_retried() -> None:
+    from aios.core import bedrock
+
+    class Throttled:
+        calls = 0
+
+        def converse(self, **kwargs):
+            Throttled.calls += 1
+            raise RuntimeError("ThrottlingException")
+
+    client = bedrock.BedrockClient(model="m", region="ap-south-1", client=Throttled())
+    with pytest.raises(LLMError):
+        client.chat([{"role": "user", "content": "hi"}])
+    assert Throttled.calls == 1 and "m" not in bedrock._NO_TEMPERATURE
