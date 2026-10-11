@@ -283,3 +283,43 @@ def test_an_authority_with_ungated_lessons_still_consolidates(
     monkeypatch.setattr(world.lessons, "gate", None)
     assert world.authority.lesson_admitted(lesson) is True
     assert world.authority.consolidate_lesson(lesson) is not None
+
+
+def test_a_missing_lesson_has_no_twin_and_is_not_admitted(world) -> None:
+    """A cascade can reach a lesson the GC already forgot: no twin, no crash."""
+    from aios.application.memory.provenance_policy import lesson_twin_ids
+
+    assert lesson_twin_ids(world.db, 999_999) == []
+    assert world.authority.lesson_admitted(999_999) is False
+    assert world.authority.consolidate_lesson(999_999) is None
+
+
+def test_a_pending_lesson_is_never_consolidated(world) -> None:
+    """Only a verified lesson has a twin -- even one recall would admit."""
+    mistake_id, _ = world.lessons.record_or_increment(
+        "task-pending",
+        "release_build",
+        "unconfirmed",
+        "unconfirmed",
+        "A lesson nothing has confirmed yet.",
+        -0.1,
+        failed_command="make warmup",
+        principal=ALICE,
+    )
+    assert world.authority.lesson_admitted(int(mistake_id)) is True
+    assert world.authority.consolidate_lesson(int(mistake_id)) is None
+
+
+def test_recording_a_derivation_without_provenance_is_a_no_op(tmp_path) -> None:
+    from aios.application.memory.adapters import MistakeMemoryAdapter
+    from aios.memory.db import init_memory_db
+    from aios.memory.mistake import MistakeMemory
+
+    db = tmp_path / "bare.sqlite"
+    init_memory_db(db)
+    bare = MistakeMemoryAdapter(MistakeMemory(db_path=db))
+    bare.record_derivation(
+        child=("semantic_memory", 1),
+        parent=("mistake_pool", 1),
+        relation="consolidated",
+    )
