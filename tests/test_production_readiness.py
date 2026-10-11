@@ -353,6 +353,18 @@ def test_the_signing_key_is_reported_by_presence_never_value(tmp_path) -> None:
     assert pr.animal_signing_key(_world(tmp_path)).status == pr.FAIL
 
 
+def test_a_signing_key_in_the_keystore_counts(tmp_path) -> None:
+    """The launcher reads the OS credential store (H3); so does the scoreboard.
+    Before this, storing the key as the bring-up guide says still read FAIL."""
+    pins = tmp_path / "repo" / ".aios" / "state" / "LEARNING_PUBLIC_KEYS.json"
+    world = _world(tmp_path, stored_keys=frozenset({"AIOS_LEARNING_KEY_LIVE"}))
+    pins.write_text(json.dumps({"keys": {"live": ["ab" * 32]}}), encoding="utf-8")
+    gate = pr.animal_signing_key(world)
+    assert gate.status == pr.PASS and "(keystore)" in gate.evidence
+    other = _world(tmp_path, stored_keys=frozenset({"AIOS_API_TOKEN"}))
+    assert pr.animal_signing_key(other).status == pr.FAIL, "a different stored key"
+
+
 def test_the_guards_must_run_on_a_schedule(tmp_path) -> None:
     world = _world(tmp_path)
     flow = world.repo / ".github" / "workflows" / "learning-guards.yml"
@@ -388,6 +400,125 @@ def test_a_cloud_provider_is_reported_by_name_only(tmp_path) -> None:
     world = _world(tmp_path, env={"AWS_BEARER_TOKEN_BEDROCK": "secret-value"})
     gate = pr.intelligence_cloud_provider(world)
     assert gate.status == pr.PASS and "secret-value" not in gate.evidence
+
+
+def test_a_cloud_key_in_the_keystore_counts(tmp_path) -> None:
+    stored = frozenset({"AWS_BEARER_TOKEN_BEDROCK"})
+    gate = pr.intelligence_cloud_provider(_world(tmp_path, stored_keys=stored))
+    assert gate.status == pr.PASS
+    assert "AWS_BEARER_TOKEN_BEDROCK (keystore)" in gate.evidence
+    other = frozenset({"AIOS_EXECUTOR_TOKEN"})
+    assert (
+        pr.intelligence_cloud_provider(_world(tmp_path, stored_keys=other)).status
+        == pr.FAIL
+    ), "a stored key that is not a cloud provider's"
+
+
+def test_stored_keys_are_names_from_the_store_and_none_off_windows(
+    monkeypatch,
+) -> None:
+    from aios.operations import keystore
+
+    store = keystore.MemoryKeystore(
+        {"AIOS_LEARNING_KEY_LIVE": "seed-value", "AIOS_API_TOKEN": ""}
+    )
+    monkeypatch.setattr(keystore, "default_keystore", lambda: store)
+    assert pr._stored_keys() == frozenset({"AIOS_LEARNING_KEY_LIVE"}), "empty is absent"
+
+    def unavailable():
+        raise keystore.KeystoreUnavailable("not here")
+
+    monkeypatch.setattr(keystore, "default_keystore", unavailable)
+    assert pr._stored_keys() == frozenset()
+
+
+def test_the_real_world_reads_the_store(monkeypatch) -> None:
+    monkeypatch.setattr(pr, "_stored_keys", lambda: frozenset({"AIOS_API_TOKEN"}))
+    assert pr.real_world(measure_v1=False).stored_keys == {"AIOS_API_TOKEN"}
+
+
+# --------------------------------------------------------------------------- #
+# Sovereignty drills (read from the drill report)
+# --------------------------------------------------------------------------- #
+
+_NOW = datetime(2026, 10, 11, tzinfo=timezone.utc)
+
+
+def _drills(world: pr.World, generated_at: str, **verdicts: str) -> None:
+    path = world.data_dir / "drills" / "sovereignty.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": generated_at,
+                "commit": "7cb550e9b40062189188063a7cea1481e5c1e1d7",
+                "drills": {
+                    drill: {"verdict": verdict, "why": f"{drill} said {verdict}"}
+                    for drill, verdict in verdicts.items()
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+_DRILL_GATES = (
+    ("offline", pr.sovereign_offline_drill),
+    ("privacy", pr.sovereign_privacy_drill),
+    ("failover", pr.intelligence_failover_drill),
+)
+
+
+@pytest.mark.parametrize("drill,gate", _DRILL_GATES, ids=[d for d, _ in _DRILL_GATES])
+def test_a_fresh_passing_drill_passes_and_a_failing_one_fails(
+    tmp_path, drill, gate
+) -> None:
+    world = _world(tmp_path, now=_NOW)
+    _drills(world, "2026-10-10T09:00:00+00:00", **{drill: "pass"})
+    result = gate(world)
+    assert result.status == pr.PASS, result
+    assert f"{drill} said pass" in result.evidence and "7cb550e9" in result.evidence
+    _drills(world, "2026-10-10T09:00:00+00:00", **{drill: "fail"})
+    assert gate(world).status == pr.FAIL
+
+
+@pytest.mark.parametrize("drill,gate", _DRILL_GATES, ids=[d for d, _ in _DRILL_GATES])
+def test_a_drill_that_measured_nothing_is_never_a_verdict(
+    tmp_path, drill, gate
+) -> None:
+    world = _world(tmp_path, now=_NOW)
+    assert gate(world).status == pr.NOT_MEASURED, "no report on this machine"
+    for verdict in ("not_reached", "error", "something-new"):
+        _drills(world, "2026-10-10T09:00:00+00:00", **{drill: verdict})
+        assert gate(world).status == pr.NOT_MEASURED, verdict
+    _drills(world, "2026-10-10T09:00:00+00:00", other="pass")
+    assert gate(world).status == pr.NOT_MEASURED, "the run did not include it"
+
+
+def test_an_old_pass_is_history_not_evidence(tmp_path) -> None:
+    world = _world(tmp_path, now=_NOW)
+    _drills(world, "2026-10-04T00:00:00+00:00", offline="pass")
+    assert pr.sovereign_offline_drill(world).status == pr.PASS, "exactly 7 days"
+    _drills(world, "2026-10-03T23:00:00+00:00", offline="pass")
+    gate = pr.sovereign_offline_drill(world)
+    assert gate.status == pr.FAIL and "not current evidence" in gate.evidence
+    _drills(world, "2026-10-10T09:00:00", offline="pass")
+    assert pr.sovereign_offline_drill(world).status == pr.PASS, "naive is UTC"
+
+
+def test_a_corrupt_drill_report_is_an_error(tmp_path, monkeypatch) -> None:
+    world = _world(tmp_path, now=_NOW)
+    path = world.data_dir / "drills" / "sovereignty.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(pr, "GATES", (pr.sovereign_offline_drill,))
+    monkeypatch.setattr(pr, "NOT_YET", ())
+    (gate,) = pr.measure(world)
+    assert (gate.pillar, gate.key, gate.status) == (
+        "sovereign",
+        "offline_drill",
+        pr.ERROR,
+    )
 
 
 def _caller(world: pr.World, rel: str, role: str) -> None:

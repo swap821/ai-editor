@@ -28,9 +28,14 @@ python tools/production_readiness.py          # add --json for machine output
 | PASS | Measured, and the bar is met. |
 | FAIL | Measured, and it is not. The evidence says why. |
 | ERROR | The probe broke, so nothing was measured. It is never read as either verdict. |
-| NOT_MEASURED | No probe exists yet. Named, with the slice that builds it. |
+| NOT_MEASURED | Nothing has measured it yet: no probe exists, or its instrument produced no measurement (a drill never run here, or one that never reached what it tests). Named, with the step that would measure it. |
 
 Ready means every gate is PASS.
+
+The drill gates read `<data>/drills/sovereignty.json`, which
+`python tools/sovereignty_drills.py` writes (Ollama needed, no cloud key: the
+drill controls the cloud transport itself). A drill that never reached what it
+tests is NOT_MEASURED, never PASS.
 
 ## The gates
 
@@ -40,7 +45,7 @@ Ready means every gate is PASS.
 | Cage | `organ_ledger` | every organ green |
 | Cage | `nightly` | the last 3 nightly runs green |
 | Cage | `master_ci` | master's latest CI green |
-| Animal | `signing_key` | the live learning key present and its public key pinned (otherwise everything learned is refused) |
+| Animal | `signing_key` | the live learning key present (env or the OS keystore, by name only) and its public key pinned (otherwise everything learned is refused) |
 | Animal | `guards_scheduled` | the red-team reel and mutation probe run on a schedule |
 | Animal | `usefulness` | *not measured yet*: a pre-registered payoff run that met its hypothesis |
 | Clerk | `admitted_model` | a local model the dispatcher would give a job (approved, qualified, healthy, with a role) |
@@ -52,11 +57,11 @@ Ready means every gate is PASS.
 | Sovereign | `backups` | a restorable backup newer than the staleness limit |
 | Sovereign | `compose_local_model` | the production container can reach the host's local model |
 | Sovereign | `compose_keys` | the production container receives its keys |
-| Sovereign | `offline_drill` | *not measured yet*: a turn served locally with the network cut |
-| Sovereign | `privacy_drill` | *not measured yet*: sensitive context kept from a cloud model, live |
+| Sovereign | `offline_drill` | the last drill run here passed `offline` within 7 days: a turn served by the local model with the network cut |
+| Sovereign | `privacy_drill` | the last drill run here passed `privacy` within 7 days: no credential or local path in what the cloud transport received |
 | Intelligence | `local_model` | the configured local model is served |
-| Intelligence | `cloud_provider` | at least one cloud provider configured for production |
-| Intelligence | `failover_drill` | *not measured yet*: cloud down → local, live |
+| Intelligence | `cloud_provider` | at least one cloud provider's key present for production (env or the OS keystore, by name only) |
+| Intelligence | `failover_drill` | the last drill run here passed `failover` within 7 days: cloud failing → the local model answers |
 
 ## First measurement — 2026-10-11, master `ae778527`
 
@@ -122,8 +127,11 @@ marks steps only the operator can take on his own machine.
 | **H4** | Clerk alive: an operator CLI to approve and qualify a model (his act); a qualification test for `select_skill`, or live callers for the roles qualification can grant (classify, summarise: the README's clerk); qualify `qwen2.5:3b` | `admitted_model`, `live_roles_earnable`, `real_jobs` |
 | **H5** | Backups safe while GAGOS runs (SQLite snapshots), on a daily schedule the operator installs, plus a restore drill | `backups` |
 | **H6** | Live drills: offline, privacy, cloud failover | three `*_drill` gates |
-| **H7** | One gateway: inventory every model call and migrate the two legacy constructors | `one_gateway` |
-| **H8** | Animal: learning-guards on a schedule (operator: CI minutes), reflex payoff measured, the payoff result read by this tool | `guards_scheduled`, `usefulness` |
+| **H7** | One law: the constitution is the ceiling on cloud egress; effective cloud tasks = constitution ∩ runtime profile (operator decision 2026-10-11) | correctness, no gate |
+| **H8** | Best cloud + local intelligence, measured: only callable models ranked, Kimi K3 usable, a 50-task benchmark as the router's prior (`docs/BEST_INTELLIGENCE.md`) | correctness, no gate |
+| **H6b** | This scoreboard reads the drill report and the OS keystore (until then, keys stored as the bring-up guide says still read FAIL) | three `*_drill` gates, `signing_key`, `cloud_provider` |
+| next | One gateway: inventory every model call and migrate the two legacy constructors | `one_gateway` |
+| next | Animal: learning-guards on a schedule (operator: CI minutes), reflex payoff measured, the payoff result read by this tool | `guards_scheduled`, `usefulness` |
 | **H9** | The 8 yellow organs, each against its named blockers | `organ_ledger` |
 
 **What hardening cannot do:** make the learning loop *useful*. Hardening
