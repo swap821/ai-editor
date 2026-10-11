@@ -466,3 +466,69 @@ an ON arm recalls only skills the operator activated before the run.
   2026-09-25 and 2026-10-04), so the ON arm has nothing to recall. What
   re-admitted memory is worth through the gates is not yet measured.
 - **Applies to** every run from this commit on.
+
+### D10 — 2026-10-12 — lessons state a specific fact; practice never touches a judged target
+
+**Applies to** every run after this entry, both cohorts' Phase 8 runs
+included. It was recorded before any of them, and it continues the operator's
+decision behind D9 ("Improve learning, then run", 2026-10-12).
+
+**What was wrong.**
+- The reflection prompt asked for "a generalised rule to avoid this class of
+  error", and the model complied.
+- On the live store, 1 of 23 lesson texts names a code identifier, while 17
+  of 23 root causes do. The specific knowledge was in the row, and the text
+  recall shows threw it away for advice any model already follows ("ensure
+  test cases accurately reflect the expected behaviour", eight rows of it).
+- Practice (`tools/organic_chain_run.py`) took the top N targets of
+  the ranking the frozen judged lists were drawn from. That is how today's
+  lessons came to be about judged targets.
+
+**What changed.**
+- **The reflection prompt asks for the ONE specific, checkable fact that would
+  have prevented the failure.** The fact names the module, function, setting
+  or convention.
+  - The examples come from another codebase, so no repository fact enters
+    through the prompt.
+  - A failure that teaches nothing specific is recorded as "No specific
+    lesson", and **nothing is stored**.
+- **lesson_text states a fact, never a command to run, a URL or an
+  instruction.** Recall still shows type and text only. The security cost of
+  more specific text is measured by re-running the behavioural red-team
+  (RT-04) before the judged runs.
+- **Practice takes `practice_targets`:** the ranking minus every frozen judged
+  list, at an offset. If a frozen list is missing, the run refuses rather than
+  excluding nothing.
+
+**Measured (pilot, isolated store, no judged target touched).**
+- **Paired replay:** the same 12 failures (one practice run, development
+  targets), reflected with the same model (Bedrock Qwen3-Coder-30B) under
+  master's prompt and under this one.
+
+  | | Old prompt | New prompt |
+  |---|---|---|
+  | lessons stored | 12 | 12 |
+  | naming a code identifier | **3 / 12** | **11 / 12** |
+  | "No specific lesson" | 0 | 0 |
+
+  - Old lessons read "When testing functions that parse structured strings,
+    always verify…".
+  - New ones read "`recalled_channels` requires the format
+    `RECALL_CHANNELS: channel_name` and splits on ':'…".
+- **Specific is not correct.** At least one new lesson states a confident
+  falsehood: it calls a test file a module that "applies encryption or
+  hashing". The guard is unchanged: a lesson reaches another task only once
+  it is **verified**, when the identical command later passes. The judged
+  run measures whether that guard is enough.
+- **The pilot found two harness defects in practice, both fixed:**
+  - A cloud model could never reflect. `BedrockClient` has no `complete()`,
+    so every reflection raised, and every stored lesson came from
+    local-ladder runs.
+  - All targets in a run shared one task id, so different failures of the
+    same error type collapsed into the first lesson.
+
+**Stated before any number exists.**
+- Lessons now accumulate only from practice targets, which are disjoint from
+  the judged lists. Any transfer to a judged target is therefore transfer to
+  code the animal has never practised: exactly H1's question.
+- H3's pairing stays broken, as D9 says.
