@@ -30,10 +30,12 @@ def default_service() -> Any:
         get_emergency_stop,
         get_local_workforce_registry,
         get_local_workforce_service,
+        get_ollama_client,
     )
-    from aios.core.llm import OllamaClient
 
-    ollama = OllamaClient()
+    # Providers come from the dependency module, the one place allowed to
+    # construct them (tests/architecture/test_intelligence_boundary.py).
+    ollama = get_ollama_client()
     registry = get_local_workforce_registry(ollama)
     return get_local_workforce_service(registry, ollama, get_emergency_stop())
 
@@ -41,10 +43,9 @@ def default_service() -> Any:
 def default_registry() -> Any:
     """The registry alone: a read never builds the service, whose provenance
     store would be created on this data dir as a side effect."""
-    from aios.core.llm import OllamaClient
-    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+    from aios.api.deps import get_local_workforce_registry, get_ollama_client
 
-    return LocalWorkforceRegistry(OllamaClient())
+    return get_local_workforce_registry(get_ollama_client())
 
 
 def eligible_roles(models: Sequence[Any]) -> dict[str, list[str]]:

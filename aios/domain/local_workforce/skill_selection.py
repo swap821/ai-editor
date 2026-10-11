@@ -133,6 +133,33 @@ def qualification_prompt(situation: Mapping[str, Mapping[str, Any]]) -> str:
     )
 
 
+def qualification_fixture_answer(prompt: str) -> Optional[str]:
+    """The correct answer to either qualification prompt, for a deterministic
+    stand-in model (tests, the R15 runtime proof); None for any other prompt.
+    One place, so every fake answers the cases the suite actually asks."""
+    if qualification_prompt(APPLIES_SITUATION) in prompt:
+        return json.dumps(
+            {
+                "applicable": True,
+                "abstain": False,
+                "required_inputs_present": True,
+                "confidence": 0.9,
+                "reason": "every required input is present",
+            }
+        )
+    if qualification_prompt(EXCLUDED_SITUATION) in prompt:
+        return json.dumps(
+            {
+                "applicable": False,
+                "abstain": True,
+                "required_inputs_present": True,
+                "confidence": 0.95,
+                "reason": "the test file has been deleted",
+            }
+        )
+    return None
+
+
 def check_applies(data: dict[str, Any]) -> tuple[bool, str]:
     answer = read_skill_selection(data)
     if answer is None:
@@ -163,6 +190,7 @@ __all__ = [
     "SkillSelection",
     "check_abstains",
     "check_applies",
+    "qualification_fixture_answer",
     "qualification_prompt",
     "read_skill_selection",
     "skill_selection_prompt",
