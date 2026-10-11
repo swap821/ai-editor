@@ -103,6 +103,7 @@ _GENERIC_WORDS = frozenset(
     specifically still thing things two unless way ways whole yourself
     anywhere assign assigned avoid checking define defined non-empty
     nonempty presence present
+    fixture fixtures mock mocked mocking mocks patch patched patching
     """.split()
 )
 

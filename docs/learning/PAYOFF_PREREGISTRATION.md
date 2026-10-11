@@ -535,3 +535,10 @@ recall ungated, because the gate admits nothing today):
 3. **The placebo (D5) is drawn as before:** as many other stored lessons as
    ON recalled. A target whose ON arm recalls nothing has no placebo, and
    leaves H1c as well as H1.
+
+**Addendum, 2026-10-12, before any run.** A practice pilot on development
+targets (D10) produced lessons about mocks. The task template says "No mocks",
+so "mocks" would have matched every pin task. `mock`, `mocks`, `mocked`,
+`mocking`, `patch`, `patched`, `patching`, `fixture` and `fixtures` join the
+generic testing vocabulary, by the same principle as "pytest". No evaluation
+target was consulted.
