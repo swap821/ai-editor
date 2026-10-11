@@ -466,3 +466,72 @@ an ON arm recalls only skills the operator activated before the run.
   2026-09-25 and 2026-10-04), so the ON arm has nothing to recall. What
   re-admitted memory is worth through the gates is not yet measured.
 - **Applies to** every run from this commit on.
+
+### D9 — 2026-10-12 — lesson recall is task-specific; one lesson takes one slot
+
+**Applies to** every run after this entry, both cohorts' Phase 8 runs
+included. Recorded before any of them, **by operator decision** ("Improve
+learning, then run", 2026-10-12). The alternatives recorded against it were:
+- run the judged runs on today's memory now;
+- the recall fix alone, then run.
+
+**What was wrong.**
+- **Relevance counted any shared word** (`relevance`: set overlap > 0). A
+  long task and a long lesson always share generic words ("test",
+  "function", "expected"). So recall returned one fixed block: D5's
+  calibration found the same five lessons for all 20 tasks. The old rule,
+  replayed on today's store, gives one identical 5-lesson block to 75 of the
+  150 frozen cloud targets.
+- **Copies were separate lessons.** On the live store one rule ("update the
+  test to expect the function's actual behaviour") sat in eight rows, so one
+  rule could fill the whole block.
+
+**What changed (the product's recall, so a live turn and the ON arm
+together).**
+- **`specific_relevance`.** Overlap counts only *specific* tokens: not
+  generic vocabulary, not a bare number, longer than two characters, with
+  edge punctuation dropped (a sentence-final "it." had become a word that
+  matched every task).
+  - The generic vocabulary (`aios/memory/relevance.py`) is English function
+    words, Python keywords and builtins, and general words of writing and
+    testing code. It never names a module, function, file or domain.
+  - Programming-domain words stay specific even where the task template uses
+    them (`network`, `filesystem`, `config`): a lesson about network calls is
+    a fair match for a task that mentions the network.
+- **`distinct_lessons`.** Lessons with the same normalised text take one
+  slot. This is decided **after** the recall gate, so a refused copy can
+  never hide an admitted one.
+- **Unchanged:** what a recalled lesson shows (type and lesson text only,
+  never root cause or fix: RT-04), the gate, principal scoping, the limit,
+  skills recall.
+
+**How the vocabulary was fixed, disclosed in full.**
+1. A first dry run used the **frozen evaluation targets' prompts**. No model
+   was asked and no outcome was seen. It revealed the punctuation defect and
+   generic coding words.
+2. From then on, tuning used only a **development set**: 150 self-corpus
+   targets that are in no frozen list (overlap checked: 0).
+3. The list was then frozen, and the evaluation numbers were computed once,
+   with no change after.
+
+**The effect, measured without a model** (read-only copy of the live store,
+recall ungated, because the gate admits nothing today):
+
+| Targets | Old rule | New rule |
+|---|---|---|
+| Development (150) | template word "exactly" matched 148 | 37 recall anything, 11 distinct sets |
+| Frozen cloud (150) | 20 distinct sets; one block on 75 | **29 recall anything**, 12 distinct sets |
+| Frozen 7B (30) | 9 distinct sets; one block on 11 | **11 recall anything**, 8 distinct sets |
+
+**Stated before any number exists.**
+1. **With today's store, most judged pairs recall nothing.** Their ON and OFF
+   prompts are identical, so they are NOT COMPARABLE, and the judged N shrinks
+   to about 29 cloud targets. That is the true state of transferable memory
+   today. It is why learning is improved (D10, planned) before the judged
+   runs, not after.
+2. **H3's Phase 0 → Phase 8 pairing is broken for lesson *selection*.**
+   Phase 8's ON arm is reported as its own measurement, beside the baselines,
+   never as a delta from them.
+3. **The placebo (D5) is drawn as before:** as many other stored lessons as
+   ON recalled. A target whose ON arm recalls nothing has no placebo, and
+   leaves H1c as well as H1.
