@@ -34,9 +34,13 @@ REQUIRED = (
     "AIOS_VERIFICATION_AUTHORITY_KEY",
     "AIOS_LEARNING_KEY_LIVE",
 )
-#: Cloud brains are optional: each one present is one more provider.
+#: Cloud brains are optional: each one present is one more provider. Bedrock
+#: takes either an API key (bearer) or IAM credentials (SigV4); an account whose
+#: organization denies bedrock:CallWithBearerToken can only use the latter.
 OPTIONAL = (
     "AWS_BEARER_TOKEN_BEDROCK",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
     "AIOS_OPENAI_API_KEY",
     "AIOS_ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
