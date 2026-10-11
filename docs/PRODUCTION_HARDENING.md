@@ -90,6 +90,24 @@ Findings, each from the measurement or from reading the code:
    endurance gate read a weak CI model as a broken backend (fixed in H1).
 9. **51 of 59 organs are green.** Not green: 20, 40, 44, 46, 48, 49, 51, 55.
 
+Found the same day while building H3 to H5, by reading code and reproducing:
+
+10. **The clerk's live job could not have succeeded even with a role.**
+    - Its prompt embedded an example answer that already said
+      `"applicable": true`, and it gave the clerk none of the skill's criteria.
+    - It declared a 3-field output schema while asking for 7 fields. The job
+      runner refuses extra fields, so an obedient model was always refused.
+    - Four roles had qualification tests all along but were never mapped.
+11. **A backup could not be taken while GAGOS runs.**
+    - On Windows it failed outright: `PermissionError` on SQLite's locked
+      sidecar file.
+    - Where it succeeded, the databases were copied raw beside a `-wal`
+      captured at another instant, and each file was read twice (hash, then
+      archive).
+12. **The production compose had never been exercised on Docker Desktop for
+    Windows.** The open questions are listed in `docs/PRODUCTION_BRING_UP.md`
+    (H3), and the drill exists to answer them.
+
 ## The slices
 
 Each is its own PR: tests verified to fail without the change, the full
@@ -102,7 +120,7 @@ marks steps only the operator can take on his own machine.
 | **H2** | This scoreboard and this document | the measurement itself |
 | **H3** | Production bring-up: keys in Windows Credential Manager (operator decision 2026-10-11) → launcher → containers; the container reaches the host's Ollama; AGENTS.md §VII.4 amended for that one store. Operator: start Docker Desktop at login, store the keys, `gagos start --profile production` | `compose_*`, `production_started`, `backend_ready`, `v1_check`, `signing_key`, `cloud_provider` |
 | **H4** | Clerk alive: an operator CLI to approve and qualify a model (his act); a qualification test for `select_skill`, or live callers for the roles qualification can grant (classify, summarise: the README's clerk); qualify `qwen2.5:3b` | `admitted_model`, `live_roles_earnable`, `real_jobs` |
-| **H5** | Backups on a schedule (`python -m aios backup create --if-stale`), plus a restore drill | `backups` |
+| **H5** | Backups safe while GAGOS runs (SQLite snapshots), on a daily schedule the operator installs, plus a restore drill | `backups` |
 | **H6** | Live drills: offline, privacy, cloud failover | three `*_drill` gates |
 | **H7** | One gateway: inventory every model call and migrate the two legacy constructors | `one_gateway` |
 | **H8** | Animal: learning-guards on a schedule (operator: CI minutes), reflex payoff measured, the payoff result read by this tool | `guards_scheduled`, `usefulness` |
