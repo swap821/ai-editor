@@ -168,3 +168,17 @@ def test_the_router_reads_the_merged_rates(monkeypatch) -> None:
 
     metrics = router_wiring._route_metrics(Development(), "auto")
     assert metrics == {("bedrock", "m", "coding"): 0.9, ("bedrock", "x", "coding"): 0.5}
+
+
+def test_the_shipped_rates_exist_and_are_well_formed() -> None:
+    """The prior ships with the code. A fresh checkout (CI) has no file only
+    if it was ignored or dropped -- which happened once: aios/core/data/ is
+    git-ignored by the repo's `data` rule."""
+    from aios.core import benchmark_rates as br
+
+    assert br.RATES_PATH.is_file(), br.RATES_PATH
+    br._load.cache_clear()
+    rates = br.benchmark_rates()
+    assert len(rates) >= 10
+    assert all(0.0 <= rate <= 1.0 for rate in rates.values())
+    assert {task for (_p, _m, task) in rates} >= {"coding", "reasoning", "general"}

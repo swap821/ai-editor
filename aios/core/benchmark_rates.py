@@ -4,13 +4,20 @@ The router ranks models by a heuristic over their names (catalog.py) and then
 calibrates with measured success rates per ``(provider, model, task)``
 (router._calibrated_score). Until 2026-10-11 the only measured source was live
 verified turns, which on this machine were too few to calibrate anything -- so
-"best" meant "best-sounding name". The heuristic put Kimi K2-thinking first for
-reasoning; measured, it was the weakest cloud model of eleven.
+"best" meant "best-sounding name", unchecked.
+
+First measurement (2026-10-11, 50 tasks, release/intelligence/): the heuristic's
+top picks held up -- Qwen3-Coder-480B for coding (25/25), Kimi K2-thinking for
+reasoning (24/25; it is weak at coding, 15/25, and slow), Mistral Large 3 for
+general work (50/50, fastest). What the prior changes is the rest of the order:
+a model measured weak at a task is demoted for it. (An earlier note here said
+K2-thinking was the weakest model for reasoning; that read its OVERALL score.
+On reasoning alone it is near the top.)
 
 This module serves the operator's own benchmark results
 (tools/intelligence_benchmark.py, on HIS account and machine) as a prior:
 
-* ``aios/core/data/benchmark_rates.json`` is produced by
+* ``aios/core/benchmark_rates.json`` is produced by
   ``python tools/intelligence_benchmark.py --emit-rates ...`` and committed;
 * live verified evidence OVERRIDES a benchmark rate for the same
   ``(provider, model, task)`` -- real work outranks a test;
@@ -24,7 +31,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-RATES_PATH = Path(__file__).resolve().parent / "data" / "benchmark_rates.json"
+RATES_PATH = Path(__file__).resolve().parent / "benchmark_rates.json"
 
 
 @lru_cache(maxsize=1)

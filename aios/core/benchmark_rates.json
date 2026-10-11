@@ -1,0 +1,285 @@
+{
+  "source": "tools/intelligence_benchmark.py",
+  "measured_at": [
+    "2026-10-11T13:17:08.863954+00:00"
+  ],
+  "suites": [
+    "basic",
+    "hard"
+  ],
+  "rates": [
+    {
+      "provider": "bedrock",
+      "model": "deepseek.v3.2",
+      "task": "coding",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "deepseek.v3.2",
+      "task": "general",
+      "rate": 0.96,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "deepseek.v3.2",
+      "task": "reasoning",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "global.moonshotai.kimi-k3",
+      "task": "coding",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "global.moonshotai.kimi-k3",
+      "task": "general",
+      "rate": 1.0,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "global.moonshotai.kimi-k3",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "minimax.minimax-m2.5",
+      "task": "coding",
+      "rate": 0.88,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "minimax.minimax-m2.5",
+      "task": "general",
+      "rate": 0.94,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "minimax.minimax-m2.5",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "mistral.devstral-2-123b",
+      "task": "coding",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "mistral.devstral-2-123b",
+      "task": "general",
+      "rate": 0.98,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "mistral.devstral-2-123b",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "mistral.mistral-large-3-675b-instruct",
+      "task": "coding",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "mistral.mistral-large-3-675b-instruct",
+      "task": "general",
+      "rate": 1.0,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "mistral.mistral-large-3-675b-instruct",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "moonshot.kimi-k2-thinking",
+      "task": "coding",
+      "rate": 0.6,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "moonshot.kimi-k2-thinking",
+      "task": "general",
+      "rate": 0.78,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "moonshot.kimi-k2-thinking",
+      "task": "reasoning",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "moonshotai.kimi-k2.5",
+      "task": "coding",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "moonshotai.kimi-k2.5",
+      "task": "general",
+      "rate": 1.0,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "moonshotai.kimi-k2.5",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "openai.gpt-oss-120b-1:0",
+      "task": "coding",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "openai.gpt-oss-120b-1:0",
+      "task": "general",
+      "rate": 0.96,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "openai.gpt-oss-120b-1:0",
+      "task": "reasoning",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-235b-a22b-2507-v1:0",
+      "task": "coding",
+      "rate": 0.96,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-235b-a22b-2507-v1:0",
+      "task": "general",
+      "rate": 0.98,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-235b-a22b-2507-v1:0",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-coder-480b-a35b-v1:0",
+      "task": "coding",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-coder-480b-a35b-v1:0",
+      "task": "general",
+      "rate": 1.0,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-coder-480b-a35b-v1:0",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "zai.glm-5",
+      "task": "coding",
+      "rate": 0.92,
+      "n": 25
+    },
+    {
+      "provider": "bedrock",
+      "model": "zai.glm-5",
+      "task": "general",
+      "rate": 0.96,
+      "n": 50
+    },
+    {
+      "provider": "bedrock",
+      "model": "zai.glm-5",
+      "task": "reasoning",
+      "rate": 1.0,
+      "n": 25
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5-coder:7b",
+      "task": "coding",
+      "rate": 0.68,
+      "n": 25
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5-coder:7b",
+      "task": "general",
+      "rate": 0.74,
+      "n": 50
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5-coder:7b",
+      "task": "reasoning",
+      "rate": 0.8,
+      "n": 25
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
+      "task": "coding",
+      "rate": 0.32,
+      "n": 25
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
+      "task": "general",
+      "rate": 0.36,
+      "n": 50
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
+      "task": "reasoning",
+      "rate": 0.4,
+      "n": 25
+    }
+  ]
+}
