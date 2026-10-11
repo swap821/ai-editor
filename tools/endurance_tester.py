@@ -29,6 +29,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from aios.core.turn_failures import MODEL_FAILURE_CODES
 from aios.probe_common import ALLOWED_CMD_RE, ALLOWED_FILE_RE, BASE
 from aios.probe_session import ProbeSession
 from tools.golden_mission_runner import GoldenMissionEnduranceAuthority
@@ -210,6 +211,16 @@ def run_prompt(prompt: str, session_id: str, model_id: str = "auto") -> dict[str
                 paused = data
                 break
             elif event == "error":
+                # The backend worked and says the MODEL failed this turn: a
+                # measured failure, never a broken harness, so it never counts
+                # toward the consecutive-error abort -- which exists to catch
+                # a broken backend or provider (aios/core/turn_failures.py).
+                if isinstance(data, dict) and data.get("code") in MODEL_FAILURE_CODES:
+                    return {
+                        "outcome": "model_failure",
+                        "error": data,
+                        "evidence": evidence,
+                    }
                 return {"outcome": "error", "error": data, "evidence": evidence}
             elif event == "done":
                 finished = True
