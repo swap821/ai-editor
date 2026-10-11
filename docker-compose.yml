@@ -48,6 +48,7 @@ services:
       - AIOS_OPENAI_BASE_URL
       - AIOS_ANTHROPIC_API_KEY
       - GEMINI_API_KEY
+      - AIOS_LEARNING_PUBLIC_KEYS=/run/gagos/state/LEARNING_PUBLIC_KEYS.json
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -56,7 +57,11 @@ services:
       - ${AIOS_HOST_DATA_DIR:-./data}:/app/data
       - ./.env:/app/.env:ro
       # `.aios` is not in the image; the verifier trusts the committed pins.
-      - ./.aios/state/LEARNING_PUBLIC_KEYS.json:/app/.aios/state/LEARNING_PUBLIC_KEYS.json:ro
+      # The DIRECTORY is mounted, outside /app: mounting the file into
+      # /app/.aios made Docker create /app/.aios as root (breaking the
+      # non-root test run in CI), and a not-yet-pinned file would make Docker
+      # create a directory by that name in the working tree.
+      - ./.aios/state:/run/gagos/state:ro
     networks:
       - aios-net
     depends_on:

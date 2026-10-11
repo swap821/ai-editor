@@ -208,10 +208,16 @@ def test_the_container_is_handed_every_production_key() -> None:
 
 
 def test_the_container_sees_the_pinned_keys_and_the_launchers_data_dir() -> None:
-    volumes = _aios_service()["volumes"]
-    assert any(
-        "LEARNING_PUBLIC_KEYS.json:/app/.aios/state/LEARNING_PUBLIC_KEYS.json:ro" in v
-        for v in volumes
+    service = _aios_service()
+    volumes = service["volumes"]
+    assert "./.aios/state:/run/gagos/state:ro" in volumes
+    assert not any(":/app/.aios" in v for v in volumes), (
+        "a mount into /app/.aios makes Docker create it as root: the non-root "
+        "test run in CI then cannot write /app/.aios/tmp"
+    )
+    env = _env_names(service)
+    assert (
+        env["AIOS_LEARNING_PUBLIC_KEYS"] == "/run/gagos/state/LEARNING_PUBLIC_KEYS.json"
     )
     assert any(
         v.startswith("${AIOS_HOST_DATA_DIR") and v.endswith(":/app/data")
