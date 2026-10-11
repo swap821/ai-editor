@@ -31,19 +31,29 @@ from typing import Any
 
 from aios.domain.local_workforce.contracts import LocalJobProfile
 
-#: Only the job profiles with an unambiguous, name-matched qualification
-#: test_id in the current 16-check suite. Every other `LocalJobProfile`
-#: member (`TRIAGE`, `FORMAT_REPORT`, `PREPARE_BRIEFING`, `SELECT_SKILL`,
-#: `PARAMETERISE_SKILL`, `VALIDATE_STRUCTURE`, `SUMMARISE_DISAGREEMENT`,
-#: `EXPLAIN_ROUTE`, `CHECK_CONTEXT_COMPLETENESS`) has zero corresponding
-#: test coverage today -- admitting a model for one of those can never be
-#: evidence-verified by this function, which is itself an honest finding,
-#: not an oversight to silently paper over.
+#: The job profiles with an unambiguous, name-matched qualification test_id.
+#: A profile with SEVERAL tests is backed only when every one of them passes.
+#:
+#: 2026-10-11: the four Slice-32 tests (structure_validation ...
+#: context_completeness) had been in the suite all along while this map still
+#: said their profiles had "zero test coverage"; they are mapped now. And
+#: SELECT_SKILL -- the only profile production code asks for -- gained its two
+#: tests (aios/domain/local_workforce/skill_selection.py); until then no model
+#: could ever earn it, so that job always escalated.
+#:
+#: Still with no test, so never grantable: TRIAGE, FORMAT_REPORT,
+#: PREPARE_BRIEFING, PARAMETERISE_SKILL.
 TEST_ID_TO_JOB_PROFILE: Mapping[str, LocalJobProfile] = {
     "extraction": LocalJobProfile.EXTRACT,
     "classification": LocalJobProfile.CLASSIFY,
     "summarisation": LocalJobProfile.SUMMARISE,
     "duplicate_grouping": LocalJobProfile.CLUSTER,
+    "structure_validation": LocalJobProfile.VALIDATE_STRUCTURE,
+    "disagreement_summary": LocalJobProfile.SUMMARISE_DISAGREEMENT,
+    "route_explanation": LocalJobProfile.EXPLAIN_ROUTE,
+    "context_completeness": LocalJobProfile.CHECK_CONTEXT_COMPLETENESS,
+    "skill_selection_applies": LocalJobProfile.SELECT_SKILL,
+    "skill_selection_abstains": LocalJobProfile.SELECT_SKILL,
 }
 
 

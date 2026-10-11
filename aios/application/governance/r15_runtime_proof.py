@@ -171,6 +171,13 @@ def _probe_local_workforce_qualification(scratch: Path) -> str:
         def complete(
             self, prompt: str, *, system: str | None = None, json_mode: bool = False
         ) -> str:
+            from aios.domain.local_workforce.skill_selection import (
+                qualification_fixture_answer,
+            )
+
+            answer = qualification_fixture_answer(prompt)
+            if answer is not None:
+                return answer
             if "one field result" in prompt:
                 return '{"result": "ok"}'
             if "reference identifier" in prompt:

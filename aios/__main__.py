@@ -114,6 +114,23 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _cmd_clerk(args: argparse.Namespace) -> int:
+    from aios.operations import clerk_admin
+
+    try:
+        return clerk_admin.run(
+            args.clerk_command,
+            model_id=getattr(args, "model_id", None),
+            roles=getattr(args, "roles", ()) or (),
+        )
+    except clerk_admin.ClerkAdminError as exc:
+        print(f"clerk: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # noqa: BLE001 - service refusals, shown not traced
+        print(f"clerk: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+
+
 def _cmd_backup(args: argparse.Namespace) -> int:
     from aios.operations.doctor import (
         BACKUP_STALE_AFTER_SECONDS,
@@ -380,6 +397,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     executor_probe.add_argument("--json", action="store_true", help="Emit JSON.")
 
+    clerk_parser = subparsers.add_parser(
+        "clerk", help="The local clerk: status, approve, qualify, grant."
+    )
+    clerk_subparsers = clerk_parser.add_subparsers(dest="clerk_command", required=True)
+    clerk_subparsers.add_parser("status", help="Models and the jobs each may take.")
+    clerk_subparsers.add_parser("refresh", help="Register what Ollama has installed.")
+    for verb, text in (
+        ("approve", "Admit a model (your decision; needs your terminal)."),
+        ("qualify", "Run the qualification suite on an approved model."),
+        ("revoke", "Withdraw a model's approval."),
+    ):
+        clerk_subparsers.add_parser(verb, help=text).add_argument("model_id")
+    grant_parser = clerk_subparsers.add_parser(
+        "grant", help="Give a model roles its evidence backs (your decision)."
+    )
+    grant_parser.add_argument("model_id")
+    grant_parser.add_argument("roles", nargs="+")
+
     args = parser.parse_args(argv)
 
     command: str | None = args.command
@@ -389,6 +424,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_doctor(args)
     if command == "backup":
         return _cmd_backup(args)
+    if command == "clerk":
+        return _cmd_clerk(args)
     if command == "audit" and args.audit_command == "verify":
         return _cmd_audit(args)
     if command == "cortex" and args.cortex_command == "rebuild-projections":
