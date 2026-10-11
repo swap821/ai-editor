@@ -113,7 +113,7 @@ class LocalJobRequestRecord(BaseModel):
     skill_version: int | None = None
     job_profile: str
     input_schema_version: str
-    qualification_suite_version: str = "r15-v2"
+    qualification_suite_version: str = "r15-v3"
     model_allowlist: tuple[str, ...] = ()
     requested_model: str
     evidence_references: tuple[str, ...] = ()
@@ -133,7 +133,7 @@ class LocalModelCallRecord(BaseModel):
     provider: str = "ollama"
     exact_model_id: str
     model_digest_version: str | None = None
-    qualification_version: str = "r15-v2"
+    qualification_version: str = "r15-v3"
     admission_record_id: str | None = None
     request_digest: str
     response_digest: str

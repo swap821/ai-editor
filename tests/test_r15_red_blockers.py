@@ -177,7 +177,13 @@ def test_red_5_granite_selection_checks_wrong_health_field():
     mock_local_workforce.run_advisory_job.return_value = LocalJobResult(
         job_id="job-1",
         model_id="granite3.2:2b",
-        structured_output={"applicable": True, "confidence": 0.9, "reason": "ok"},
+        structured_output={
+            "applicable": True,
+            "abstain": False,
+            "required_inputs_present": True,
+            "confidence": 0.9,
+            "reason": "ok",
+        },
         schema_valid=True,
         evidence_references_preserved=True,
         unsupported_claims=(),

@@ -122,12 +122,20 @@ def test_real_qwen_coder_evidence_backs_all_four_mapped_profiles() -> None:
 
     backed = evidence_backed_profiles(evidence)
 
+    # 2026-10-11: the four Slice-32 tests were in this evidence all along; now
+    # mapped, they back their profiles too. SELECT_SKILL's tests (r15-v3) are
+    # not in this r15-v2 evidence, so it is not backed -- correctly.
+    assert LocalJobProfile.SELECT_SKILL not in backed
     assert backed == frozenset(
         {
             LocalJobProfile.EXTRACT,
             LocalJobProfile.CLASSIFY,
             LocalJobProfile.CLUSTER,
             LocalJobProfile.SUMMARISE,
+            LocalJobProfile.VALIDATE_STRUCTURE,
+            LocalJobProfile.SUMMARISE_DISAGREEMENT,
+            LocalJobProfile.EXPLAIN_ROUTE,
+            LocalJobProfile.CHECK_CONTEXT_COMPLETENESS,
         }
     )
 
