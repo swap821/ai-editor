@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 import pytest
@@ -82,6 +83,19 @@ class DeterministicOllama:
             return '{"disagreement_summary": "timeout vs permissions issue"}'
         if "routed to frontier escalation" in prompt:
             return '{"explanation": "the local model failed qualification"}'
+        if "Decide whether a verified skill applies" in prompt:
+            # The two r15-v3 skill-selection cases: one situation where the
+            # skill applies, one where a known exclusion holds.
+            applies = '"test_file": "present"' in prompt
+            return json.dumps(
+                {
+                    "applicable": applies,
+                    "abstain": not applies,
+                    "required_inputs_present": True,
+                    "confidence": 0.9 if applies else 0.95,
+                    "reason": "inputs present" if applies else "file deleted",
+                }
+            )
         if "fix the bug" in prompt:
             return (
                 '{"complete": false, "missing": '
