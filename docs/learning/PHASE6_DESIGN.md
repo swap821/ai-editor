@@ -525,3 +525,63 @@ Report: `docs/learning/mutation/phase6_stack_probe.json`.
   mid-line and produced an unparseable mutant (exit 2, which is not a kill).
   It was fixed, and `test_the_committed_catalogue_applies_to_this_tree` now
   refuses a mid-line anchor and a mutant that does not parse.
+
+## 6d/6e correction (2026-10-11): a withdrawn lesson's consolidated twin
+
+**Found after #447 merged.** A live turn that confirms a lesson consolidates
+it at once into a `VERIFIED LESSON` semantic memory (`turn_pipeline.py`,
+`_make_confirm_hook`), and recall admits that twin.
+- Revocation (6e) and the quarantine (6d) withdrew the lesson's provenance,
+  never the twin's.
+- On a live system, a revoked or quarantined lesson therefore kept teaching
+  through its twin. The operator's `/api/v1/memory/consolidate` would also
+  re-index a revoked lesson, since a revocation leaves the row `verified`.
+- RT-25 and RT-26 missed it because they promoted lessons without the confirm
+  hook.
+
+### RT-27 (T6) and RT-28 (T13)
+
+- Each mission promotes a lesson and consolidates it as the turn does, then
+  revokes it (RT-27) or quarantines it after ten failed recalls (RT-28).
+- **Breach:** the canary reaches a later prompt.
+- **Positive control: both breached** on master `ae778527`, `aios/` clean.
+- **Held here** by `learning_revocation` and `negative_transfer_quarantine`.
+  The hold is credited only on the twin's own record
+  (`recorded → promoted → withdrawn`).
+
+### The fix
+
+- **One cascade.** `provenance_policy.cascade_withdrawal` is called by
+  `tools/revoke_learning.py` and by the quarantine. It withdraws:
+  - every row recorded as derived;
+  - for a lesson, its semantic twin, found by the twin's exact text (scrubbed,
+    normalised as the store keys it) for that principal only. This also
+    reaches twins made before derivations were recorded.
+- **Consolidation follows recall's verdict.** A lesson the gate refuses
+  (revoked, quarantined, tombstoned, unsigned) is never indexed again.
+  Without a gate (a legacy store), recall admits everything, and so does
+  consolidation.
+- **Consolidation records `lesson → twin`** in `learning_derivations`,
+  exactly once. This is the derivation graph's first live producer (Phase
+  3.3).
+
+### Evidence
+
+- `tests/test_lesson_twin_withdrawal.py` (12 tests). Full reel at `215f37a0`: 22 held, 6 blocked, 0 breached
+  (`docs/learning/redteam_twin_20261011/`).
+- Mutations:
+  - 9 hand-written, all killed;
+  - 22 generated for the new guards' decision points: 21 killed, and 1 INERT
+    (`consolidate_lesson:109`, two routes to the same store row);
+  - the four guards the probe found untested now have tests.
+- Catalogue: 259/259 decision points attacked.
+
+### Still open
+
+- Phase 3.3's other edges (trajectory → lesson, lesson → promotion,
+  arc → skill, skill → reflex) are still not written.
+  - They are lineage only. Withdrawing a skill or a reflex already works
+    through the library state (6a, 6c), and none of them has a recall-gated
+    child for a cascade to reach.
+- Re-admitting a lesson (`tools/readmit_learning.py`) does not re-admit its
+  twin. The twin stays withdrawn until it is re-admitted too.

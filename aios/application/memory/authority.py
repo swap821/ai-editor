@@ -430,6 +430,14 @@ class MemoryAuthority:
             )
         )
 
+    def lesson_admitted(self, mistake_id: int) -> bool:
+        """Recall's verdict on a lesson: consolidation follows it (RT-27/28)."""
+        return bool(self._adapter_operation("lessons", "admitted", mistake_id))
+
+    def record_derivation(self, **kwargs: Any) -> None:
+        """A derivation record, through the lessons' provenance writer."""
+        self._adapter_operation("lessons", "record_derivation", **kwargs)
+
     def consolidate_lesson(self, *args: Any, **kwargs: Any) -> Any:
         return self._adapter_operation(
             "consolidation", "consolidate_lesson", *args, **kwargs
