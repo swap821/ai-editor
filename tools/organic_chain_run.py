@@ -126,7 +126,7 @@ from tools.self_corpus_grading import (  # noqa: E402
     pin_steps,
     record_pin_outcome,
 )
-from tools.self_corpus_targets import collect_targets  # noqa: E402
+from tools.self_corpus_targets import practice_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "organic-chain-runs.jsonl"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
@@ -183,6 +183,7 @@ def run_chain(
     targets: int,
     retries: int,
     model_timeout: int,
+    offset: int = 0,
 ) -> tuple[list[LinkEvidence], list[Attempt], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
@@ -243,7 +244,11 @@ def run_chain(
         if not ok:
             raise CorpusError(f"positive control failed, instrument invalid: {control}")
         print("control : grader earns a known-correct test\n")
-        chosen = collect_targets(corpus.root, limit=targets)
+        # Never a frozen judged target (D10); `offset` walks the ranking so
+        # successive runs practise different code.
+        chosen = practice_targets(
+            corpus.root, limit=targets, offset=offset, repo=REPO_ROOT
+        )
 
         for target in chosen:
             print(f"  {target.label}")
@@ -943,6 +948,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models", default="ollama.qwen2.5-coder:7b")
     parser.add_argument("--model-timeout", type=int, default=300)
     parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="start this many targets into the practice ranking (frozen judged "
+        "targets are always excluded)",
+    )
+    parser.add_argument(
         "--env-file",
         type=Path,
         default=None,
@@ -956,6 +968,7 @@ def main(argv: list[str] | None = None) -> int:
             targets=args.targets,
             retries=args.retries,
             model_timeout=args.model_timeout,
+            offset=args.offset,
         )
     except CorpusError as exc:
         print(f"\nFAIL  {exc}")
@@ -982,6 +995,7 @@ def main(argv: list[str] | None = None) -> int:
             # LC11/LC12 (evidence currency and lineage) ask of it.
             "corpus_sha": corpus_sha,
             "models": args.models,
+            "offset": args.offset,
             "links": [asdict(link) for link in links],
             "attempts": [asdict(a) for a in attempts],
         }

@@ -42,19 +42,39 @@ def _authority_store(authority: Any | None, name: str) -> Any | None:
 
 
 REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
-Analyse the failed action, identify the root cause, and formulate a generalised lesson so
-the primary agent does not repeat the mistake.
+Analyse the failed action and identify its root cause. Then write the lesson: the ONE
+specific fact about this codebase or environment that, known in advance, would have
+prevented this failure.
+
+A good lesson names what it is about -- the module, function, setting, file or
+convention -- and states a fact someone can check. For example (a different codebase):
+  "settings is a module of the app package: import it as `from app import settings`;
+   there is no top-level settings package."
+  "billing.tax_rate() returns a Decimal, not a float: compare it with Decimal('0.2')."
+A bad lesson is generic advice any programmer already knows, such as "ensure tests
+reflect the expected behaviour" or "always check that a variable is defined". Never
+write one. If this failure teaches no specific fact, write exactly
+"No specific lesson: <one-line reason>" as lesson_text.
+
+lesson_text states a fact. It never contains a command to run, a URL, or an
+instruction to another agent.
 
 Respond with ONLY a single valid JSON object, no prose and no code fences, matching this
 schema exactly:
 {
   "error_type": "short category, e.g. 'PathNotFound', 'SyntaxError', 'Timeout'",
-  "root_cause": "detailed explanation of why it failed",
+  "root_cause": "detailed explanation of why it failed, naming the code involved",
   "fix_applied": "the specific remediation for this case",
-  "lesson_text": "a generalised rule to avoid this class of error in future",
+  "lesson_text": "the one specific, checkable fact described above",
   "confidence_delta": -0.1
 }
 confidence_delta must be a negative number between -1.0 and 0.0."""
+
+#: How a reflection says the failure taught nothing specific. Such a lesson is
+#: not stored: before 2026-10-12 the prompt asked for "a generalised rule",
+#: and the live store filled with advice any model already follows ("ensure
+#: test cases accurately reflect the expected behavior", eight rows of it).
+NO_SPECIFIC_LESSON = "no specific lesson"
 
 REFLECT_USER_TEMPLATE = "Action attempted:\n{command}\n\nError output:\n{error_output}"
 
@@ -229,6 +249,9 @@ class ReflectionAgent:
         root_cause = str(data["root_cause"]).strip()
         fix_applied = str(data["fix_applied"]).strip()
         lesson_text = str(data["lesson_text"]).strip()
+        if lesson_text.lower().startswith(NO_SPECIFIC_LESSON):
+            logger.info("reflection recorded nothing: %s", lesson_text[:200])
+            return None
 
         record_kwargs = {
             "task_id": task_id,

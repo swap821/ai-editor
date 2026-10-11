@@ -888,6 +888,8 @@ def _make_failure_hook(
         except Exception as exc:  # noqa: BLE001 - reflection must never break the chat
             logger.warning("Reflection agent failed to record lesson", exc_info=exc)
             return None
+        if reflection is None:  # offline, or the failure taught nothing specific
+            return None
         return {
             "error_type": reflection.error_type,
             "lesson_text": reflection.lesson_text,
