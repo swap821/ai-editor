@@ -116,6 +116,10 @@ def test_drills_never_hold_a_real_cloud_key(monkeypatch, tmp_path) -> None:
     assert env["AIOS_RUNTIME_PROFILE"] == sd.CLOUD_PRIMARY_PROFILE, (
         "cloud must be primary to fail over"
     )
+    assert "coding" in env["AIOS_ROUTER_CLOUD_TASKS"], (
+        "the constitution must allow it too"
+    )
+    assert env["AIOS_ROUTER_PREFER_LOCAL"] == "false"
     assert "AIOS_RUNTIME_PROFILE" not in sd._env(tmp_path, "privacy")
 
 
