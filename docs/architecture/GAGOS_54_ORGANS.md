@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `79c961f06917c299b67565f50e68dab91774eb503b931e13529363f6041da28b`
+- **Source ledger sha256:** `b56b40cb16f6a022a1b155ec04aa85e3383840e11f1f03e91159837e86c9809d`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -853,7 +853,7 @@ re-audits recorded above.
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `cb19e19ef2c7` | live |
 | 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `7954d18d4e8a` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `cb19e19ef2c7` | live |
-| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `cb19e19ef2c7` | live |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `38412db885ca` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `59ce79b34e4e` | live |
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `cb19e19ef2c7` | live |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `59ce79b34e4e` | live |
@@ -864,9 +864,9 @@ re-audits recorded above.
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `59ce79b34e4e` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `0d85919fda58` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `2ea0586c90b3` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `38412db885ca` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `1d431850fc5e` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `210e56e61151` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `38412db885ca` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
 | 57 | Reflex Authority | `Cerebellum` | `7954d18d4e8a` | live |

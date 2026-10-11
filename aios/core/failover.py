@@ -42,6 +42,7 @@ from typing import Any, Callable, Iterator, Optional
 
 from aios.application.models.health import ProviderHealthTracker
 from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.core import model_availability
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter
 from aios.core.stream_protocol import StreamFinished
@@ -123,6 +124,18 @@ class FailoverChatClient:
     def _record_failure(self, provider: str) -> None:
         if self._provider_health is not None:
             self._provider_health.record_failure(provider)
+
+    def _record_candidate_failure(
+        self, provider: str, model: str, exc: Exception
+    ) -> None:
+        """A refusal of ONE model ("not available for this account", an
+        invalid or retired id) marks that model unavailable and spares the
+        provider's circuit breaker: it says nothing about the provider. Any
+        other failure is the provider's, as before."""
+        if model_availability.is_model_unavailable_error(exc):
+            model_availability.mark_unavailable(provider, model)
+            return
+        self._record_failure(provider)
 
     @property
     def active_provider(self) -> str:
@@ -226,6 +239,10 @@ class FailoverChatClient:
                 and not self._provider_health.is_call_allowed(provider)
             ):
                 continue
+            # A model this account cannot call is never tried again until its
+            # refusal expires (aios/core/model_availability.py).
+            if model_availability.is_unavailable(provider, m):
+                continue
 
             attempted.add(i)
             if i in cloud_indices:
@@ -255,7 +272,7 @@ class FailoverChatClient:
                 return result
             except LLMError as exc:
                 errors.append((provider, m, exc))
-                self._record_failure(provider)
+                self._record_candidate_failure(provider, m, exc)
                 self._idx = min(i + 1, len(self._candidates) - 1)  # forward-only
 
         # --- 2. All candidates from started onward failed. ---
@@ -342,6 +359,10 @@ class FailoverChatClient:
                 and not self._provider_health.is_call_allowed(provider)
             ):
                 continue
+            # A model this account cannot call is never tried again until its
+            # refusal expires (aios/core/model_availability.py).
+            if model_availability.is_unavailable(provider, m):
+                continue
 
             attempted.add(i)
             if i in cloud_indices:
@@ -402,7 +423,7 @@ class FailoverChatClient:
                 return
             except LLMError as exc:
                 errors.append((provider, m, exc))
-                self._record_failure(provider)
+                self._record_candidate_failure(provider, m, exc)
                 self._idx = min(i + 1, len(self._candidates) - 1)
 
         detail = (
@@ -481,6 +502,10 @@ class FailoverChatClient:
                 and not self._provider_health.is_call_allowed(provider)
             ):
                 continue
+            # A model this account cannot call is never tried again until its
+            # refusal expires (aios/core/model_availability.py).
+            if model_availability.is_unavailable(provider, m):
+                continue
 
             attempted.add(i)
             if i in cloud_indices:
@@ -544,7 +569,7 @@ class FailoverChatClient:
                 return
             except LLMError as exc:
                 errors.append((provider, m, exc))
-                self._record_failure(provider)
+                self._record_candidate_failure(provider, m, exc)
                 self._idx = min(i + 1, len(self._candidates) - 1)
 
         detail = (
