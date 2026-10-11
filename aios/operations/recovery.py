@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import tarfile
 import tempfile
 from dataclasses import dataclass
@@ -93,35 +94,91 @@ def _data_files(data_dir: Path, destination: Path | None = None) -> list[Path]:
     return files
 
 
+_SQLITE_HEADER = b"SQLite format 3\x00"
+#: Files SQLite keeps beside a database. Their committed content is inside the
+#: database's snapshot; archiving them raw, captured at another instant than
+#: the database, would replay a mismatched log onto it at restore.
+_SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
+
+
+def _is_sqlite(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            return handle.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
+    except OSError:
+        return False
+
+
+def _is_sidecar(path: Path) -> bool:
+    for suffix in _SQLITE_SIDECARS:
+        if path.name.endswith(suffix):
+            return _is_sqlite(path.with_name(path.name[: -len(suffix)]))
+    return False
+
+
+def _snapshot_sqlite(source: Path, target: Path) -> None:
+    """A transactionally consistent copy of a live database, through SQLite's
+    online backup API: what a reader would see at one instant, with every
+    committed write -- including those still only in the WAL."""
+    src = sqlite3.connect(str(source), timeout=30.0)
+    try:
+        dst = sqlite3.connect(str(target))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+
+
 def create_backup(
     *,
     data_dir: Path = config.DATA_DIR,
     destination: Path,
 ) -> BackupManifest:
-    """Create a gzipped state archive with a content-hash manifest."""
+    """Create a gzipped state archive with a content-hash manifest.
+
+    Safe while GAGOS runs (2026-10-11): each SQLite database is snapshotted
+    through the online backup API rather than copied as raw bytes beside its
+    WAL, and every file is hashed from the SAME staged bytes that are
+    archived -- before, each file was read twice (hash, then archive), so a
+    write in between made the archive disagree with its own manifest.
+    """
     data_dir = Path(data_dir).resolve()
     destination = Path(destination).resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
-    files = _data_files(data_dir, destination)
-    hashes = {path.relative_to(data_dir).as_posix(): _sha256(path) for path in files}
-    manifest = BackupManifest(
-        schema_version="1",
-        created_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        source=str(data_dir),
-        files=hashes,
-    )
-    with tarfile.open(destination, mode="w:gz") as archive:
+    files = [
+        path for path in _data_files(data_dir, destination) if not _is_sidecar(path)
+    ]
+    with tempfile.TemporaryDirectory(
+        prefix=".backup-staging-", dir=destination.parent
+    ) as tmp:
+        staged: dict[str, Path] = {}
         for path in files:
-            archive.add(
-                path, arcname=path.relative_to(data_dir).as_posix(), recursive=False
-            )
-        payload = json.dumps(
-            manifest.as_dict(), sort_keys=True, separators=(",", ":")
-        ).encode()
-        info = tarfile.TarInfo("manifest.json")
-        info.size = len(payload)
-        info.mtime = int(datetime.now(timezone.utc).timestamp())
-        archive.addfile(info, io.BytesIO(payload))
+            relative = path.relative_to(data_dir).as_posix()
+            target = Path(tmp).joinpath(*PurePosixPath(relative).parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if _is_sqlite(path):
+                _snapshot_sqlite(path, target)
+            else:
+                shutil.copy2(path, target)
+            staged[relative] = target
+        manifest = BackupManifest(
+            schema_version="1",
+            created_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            source=str(data_dir),
+            files={relative: _sha256(target) for relative, target in staged.items()},
+        )
+        with tarfile.open(destination, mode="w:gz") as archive:
+            for relative, target in staged.items():
+                archive.add(target, arcname=relative, recursive=False)
+            payload = json.dumps(
+                manifest.as_dict(), sort_keys=True, separators=(",", ":")
+            ).encode()
+            info = tarfile.TarInfo("manifest.json")
+            info.size = len(payload)
+            info.mtime = int(datetime.now(timezone.utc).timestamp())
+            archive.addfile(info, io.BytesIO(payload))
     return manifest
 
 
