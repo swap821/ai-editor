@@ -121,15 +121,20 @@ WITHDRAWABLE: dict[str, Any] = {
 }
 
 
+#: One constant statement per withdrawable table: no SQL is built from data.
+_ROW_SQL: dict[str, str] = {
+    "mistake_pool": "SELECT * FROM mistake_pool WHERE id = ?",
+    "semantic_memory": "SELECT * FROM semantic_memory WHERE id = ?",
+    "semantic_facts": "SELECT * FROM semantic_facts WHERE id = ?",
+}
+
+
 def _row(db: Any, table: str, row_id: Any) -> Any:
     import sqlite3
 
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
-        return conn.execute(
-            f"SELECT * FROM {table} WHERE id = ?",  # noqa: S608 - table from WITHDRAWABLE
-            (int(row_id),),
-        ).fetchone()
+        return conn.execute(_ROW_SQL[table], (int(row_id),)).fetchone()
 
 
 def lesson_twin_ids(db: Any, lesson_id: Any) -> list[int]:

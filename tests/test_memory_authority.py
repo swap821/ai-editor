@@ -802,6 +802,13 @@ def test_consolidator_bulk_run_routes_status_reads_through_authority(
             self.calls.append(("lesson_get", mistake_id))
             return verified_lesson
 
+        def lesson_admitted(self, mistake_id: int) -> bool:
+            self.calls.append(("lesson_admitted", mistake_id))
+            return True
+
+        def record_derivation(self, **kwargs) -> None:
+            self.calls.append(("record_derivation", kwargs))
+
         def semantic_supersede_text(self, text: str, principal=None) -> int:
             self.calls.append(("semantic_supersede_text", text))
             return 1
@@ -833,7 +840,9 @@ def test_consolidator_bulk_run_routes_status_reads_through_authority(
         "semantic_supersede_text",
         "semantic_supersede_text",
         "lesson_get",
+        "lesson_admitted",
         "semantic_add_verified",
+        "record_derivation",
         "semantic_add_verified",
     ]
 
