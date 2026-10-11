@@ -13,8 +13,10 @@ Each gate is measured, never asserted:
 * ERROR         the probe itself broke, so nothing was measured. Never a PASS,
                 and never a FAIL the system earned: a dead instrument must not
                 fabricate a verdict in either direction;
-* NOT_MEASURED  no probe exists yet. Named, with the slice that builds it, so
-                an unmeasured property is never read as a met one.
+* NOT_MEASURED  nothing has measured it yet: no probe exists, or its instrument
+                has produced no measurement (a drill never run, or one that
+                never reached what it tests). Named, with the step that would
+                measure it, so an unmeasured property is never read as a met one.
 
 Ready means every gate is PASS. The exit code is 0 only then.
 
@@ -23,7 +25,8 @@ newer tree's code against live data must never migrate it. ``v1-check`` runs
 against a throwaway data directory, inheriting THIS environment, because what
 it measures is whether this machine's environment (container runtime, keys)
 supports the production profile. No secret value is ever read into the output:
-key gates report presence, never content.
+key gates report presence, never content -- from this environment, or from the
+OS credential store the production launcher reads (H3).
 """
 
 from __future__ import annotations
@@ -84,6 +87,8 @@ class World:
     http_status: Callable[[str], Optional[int]]
     measure_v1: bool = True
     now: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    #: Names of the keys in the OS credential store -- names only, no values.
+    stored_keys: frozenset[str] = frozenset()
 
 
 # --------------------------------------------------------------------------- #
@@ -92,6 +97,10 @@ class World:
 
 
 def _ro(db: Path) -> sqlite3.Connection:
+    """Read-only: the database and its ``-wal`` are never written (verified
+    byte-identical on live data, 2026-10-11). SQLite still touches the
+    ``-shm`` index -- that is how WAL readers coordinate -- and that is not
+    data. (``immutable=1`` would skip it, but also ignore the WAL: stale reads.)"""
     conn = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
@@ -109,6 +118,16 @@ def _gh_runs(world: World, *args: str) -> Optional[list[dict[str, Any]]]:
     except json.JSONDecodeError:
         return None
     return runs if isinstance(runs, list) else None
+
+
+def _key_source(world: World, name: str) -> Optional[str]:
+    """Where *name* is present for production -- ``"env"`` or ``"keystore"``
+    (the launcher reads both, env first) -- or None."""
+    if world.env.get(name, "").strip():
+        return "env"
+    if name in world.stored_keys:
+        return "keystore"
+    return None
 
 
 def _compose_service(world: World, name: str) -> Optional[dict[str, Any]]:
@@ -589,7 +608,8 @@ def animal_signing_key(world: World) -> Gate:
     from aios.memory.provenance import KEY_ENV
 
     name = KEY_ENV["live"]
-    present = bool(world.env.get(name, "").strip())
+    source = _key_source(world, name)
+    present = source is not None
     pinned_file = world.repo / ".aios" / "state" / "LEARNING_PUBLIC_KEYS.json"
     try:
         pinned = (
@@ -608,7 +628,7 @@ def animal_signing_key(world: World) -> Gate:
             "animal",
             "signing_key",
             PASS,
-            f"{name} present; {len(pinned)} live key(s) pinned",
+            f"{name} present ({source}); {len(pinned)} live key(s) pinned",
         )
     return Gate(
         "animal",
@@ -746,7 +766,11 @@ def intelligence_local_model(world: World) -> Gate:
 
 
 def intelligence_cloud_provider(world: World) -> Gate:
-    present = [name for name in CLOUD_KEY_NAMES if world.env.get(name, "").strip()]
+    present = [
+        f"{name} ({source})"
+        for name in CLOUD_KEY_NAMES
+        if (source := _key_source(world, name))
+    ]
     if present:
         return Gate("intelligence", "cloud_provider", PASS, f"configured: {present}")
     return Gate(
@@ -761,24 +785,94 @@ def intelligence_cloud_provider(world: World) -> Gate:
 
 
 # --------------------------------------------------------------------------- #
+# Sovereignty drills (H6), read from this machine's last drill report
+# --------------------------------------------------------------------------- #
+
+#: A drill result older than this is history, not current evidence.
+DRILL_MAX_AGE = timedelta(days=7)
+_RUN_DRILLS = "python tools/sovereignty_drills.py (needs Ollama; no cloud key)"
+
+
+def _drill_gate(world: World, pillar: str, key: str, drill: str) -> Gate:
+    """One drill's verdict, from ``<data>/drills/sovereignty.json``.
+
+    pass -> PASS while fresh; fail -> FAIL; not_reached or error -> NOT_MEASURED
+    (the drill ran but measured nothing: never a pass, never an earned fail)."""
+    path = world.data_dir / "drills" / "sovereignty.json"
+    if not path.is_file():
+        return Gate(
+            pillar,
+            key,
+            NOT_MEASURED,
+            f"no drill report at {path}",
+            next_step=_RUN_DRILLS,
+        )
+    report = json.loads(path.read_text(encoding="utf-8"))
+    result = (report.get("drills") or {}).get(drill)
+    if not isinstance(result, dict):
+        return Gate(
+            pillar,
+            key,
+            NOT_MEASURED,
+            f"the last drill run did not include {drill!r}",
+            next_step=_RUN_DRILLS,
+        )
+    generated = datetime.fromisoformat(str(report["generated_at"]))
+    if generated.tzinfo is None:
+        generated = generated.replace(tzinfo=timezone.utc)
+    age = world.now - generated
+    when = f"commit {str(report.get('commit') or '?')[:8]}, {age.days} day(s) ago"
+    verdict, why = result.get("verdict"), result.get("why", "")
+    if verdict == "pass":
+        if age > DRILL_MAX_AGE:
+            return Gate(
+                pillar,
+                key,
+                FAIL,
+                f"last passed {age.days} days ago ({when}); older than "
+                f"{DRILL_MAX_AGE.days} days is not current evidence",
+                next_step=_RUN_DRILLS,
+            )
+        return Gate(pillar, key, PASS, f"{why} ({when})")
+    if verdict == "fail":
+        return Gate(
+            pillar,
+            key,
+            FAIL,
+            f"{why} ({when})",
+            next_step="fix what the drill found, then " + _RUN_DRILLS,
+        )
+    return Gate(
+        pillar,
+        key,
+        NOT_MEASURED,
+        f"the drill ran but measured nothing ({verdict}): {why} ({when})",
+        next_step=_RUN_DRILLS,
+    )
+
+
+def sovereign_offline_drill(world: World) -> Gate:
+    """With the network cut, a turn is still answered -- by the local model."""
+    return _drill_gate(world, "sovereign", "offline_drill", "offline")
+
+
+def sovereign_privacy_drill(world: World) -> Gate:
+    """What the privacy filter keeps home never reaches the cloud transport."""
+    return _drill_gate(world, "sovereign", "privacy_drill", "privacy")
+
+
+def intelligence_failover_drill(world: World) -> Gate:
+    """With the cloud failing, the turn falls back to the local model."""
+    return _drill_gate(world, "intelligence", "failover_drill", "failover")
+
+
+# --------------------------------------------------------------------------- #
 # Not yet measured -- named, so absence is never read as a pass.
 # --------------------------------------------------------------------------- #
 
-NOT_YET = (
-    (
-        "sovereign",
-        "offline_drill",
-        "a turn served by the local model with the network cut",
-        "H6",
-    ),
-    (
-        "sovereign",
-        "privacy_drill",
-        "sensitive context kept from a cloud model, live",
-        "H6",
-    ),
-    ("intelligence", "failover_drill", "cloud down -> local, live", "H6"),
-)
+#: Every gate has a probe now (2026-10-12). Kept, so a property named before
+#: its probe exists is still never read as met.
+NOT_YET: tuple[tuple[str, str, str, str], ...] = ()
 
 GATES: tuple[Callable[[World], Gate], ...] = (
     cage_v1_check,
@@ -797,8 +891,11 @@ GATES: tuple[Callable[[World], Gate], ...] = (
     sovereign_backups,
     sovereign_compose_local_model,
     sovereign_compose_keys,
+    sovereign_offline_drill,
+    sovereign_privacy_drill,
     intelligence_local_model,
     intelligence_cloud_provider,
+    intelligence_failover_drill,
 )
 
 
@@ -865,6 +962,23 @@ def _http_status(url: str) -> Optional[int]:
         return None
 
 
+def _stored_keys() -> frozenset[str]:
+    """The names the OS credential store holds. ``keystore.presence`` reads
+    each value and drops it; none reaches this process's output."""
+    from aios.operations.keystore import (
+        KeystoreUnavailable,
+        default_keystore,
+        presence,
+    )
+
+    try:
+        return frozenset(
+            name for name, ok in presence(default_keystore()).items() if ok
+        )
+    except KeystoreUnavailable:
+        return frozenset()
+
+
 def real_world(*, measure_v1: bool) -> World:
     from aios import config
 
@@ -876,6 +990,7 @@ def real_world(*, measure_v1: bool) -> World:
         http_json=_http_json,
         http_status=_http_status,
         measure_v1=measure_v1,
+        stored_keys=_stored_keys(),
     )
 
 
