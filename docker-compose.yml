@@ -30,9 +30,38 @@ services:
       - AIOS_PROFILE=${AIOS_PROFILE:-production}
       - AIOS_EXECUTOR_URL=http://executor:8081
       - AIOS_EXECUTOR_TOKEN=${AIOS_EXECUTOR_TOKEN:-}
+      # The host's Ollama. Inside a container 127.0.0.1 is the container
+      # itself: without this line production had no local model at all
+      # (found 2026-10-11, docs/PRODUCTION_HARDENING.md).
+      - OLLAMA_HOST=${AIOS_CONTAINER_OLLAMA_HOST:-http://host.docker.internal:11434}
+      - AIOS_LLM_MODEL
+      # Keys from the OS credential store, handed over by `gagos start` in
+      # memory (AGENTS.md VII.4, amended 2026-10-11). A bare name passes the
+      # launcher's value through; an unset one stays unset.
+      - AIOS_VERIFICATION_AUTHORITY_KEY
+      - AIOS_LEARNING_KEY_LIVE
+      - AWS_BEARER_TOKEN_BEDROCK
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AIOS_BEDROCK_REGION
+      - AIOS_OPENAI_API_KEY
+      - AIOS_OPENAI_BASE_URL
+      - AIOS_ANTHROPIC_API_KEY
+      - GEMINI_API_KEY
+      - AIOS_LEARNING_PUBLIC_KEYS=/run/gagos/state/LEARNING_PUBLIC_KEYS.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./data:/app/data
+      # The launcher's data directory (AIOS_DATA_DIR on the host), so a
+      # bring-up drill can run on a restored copy, never the only one.
+      - ${AIOS_HOST_DATA_DIR:-./data}:/app/data
       - ./.env:/app/.env:ro
+      # `.aios` is not in the image; the verifier trusts the committed pins.
+      # The DIRECTORY is mounted, outside /app: mounting the file into
+      # /app/.aios made Docker create /app/.aios as root (breaking the
+      # non-root test run in CI), and a not-yet-pinned file would make Docker
+      # create a directory by that name in the working tree.
+      - ./.aios/state:/run/gagos/state:ro
     networks:
       - aios-net
     depends_on:

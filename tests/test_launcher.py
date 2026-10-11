@@ -16,6 +16,14 @@ from aios.application.governance.runtime_proof import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_real_keystore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A test never consults the operator's real OS credential store."""
+    from aios.operations.keystore import MemoryKeystore
+
+    monkeypatch.setattr(launcher, "_keystore", lambda: MemoryKeystore())
+
+
 def _config(tmp_path: Path, profile: str = "production") -> launcher.LauncherConfig:
     repo = tmp_path / "repo"
     repo.mkdir()

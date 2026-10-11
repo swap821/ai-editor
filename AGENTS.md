@@ -158,7 +158,12 @@ End by editing RESUME.md's "next action" so the pivot is in force next session.
    stay in GREEN/propose: read, analyse, draft diffs, write RESUME.md. Do not run
    YELLOW (edits, installs, git writes) or RED (delete, secrets, env, network).
 4. **No secret persistence.** Keys live only in volatile env vars; never on disk,
-   in logs, or in `.aios/`.
+   in logs, or in `.aios/`. **One exception** (operator decision, 2026-10-11):
+   the production profile's keys live in the operator's OS credential store
+   (Windows Credential Manager, encrypted to his login), so a 24/7 production
+   can restart without him. Only the launcher reads them, only to hand them to
+   the production containers in memory; nothing prints one; storing one is his
+   act (`gagos keys`). Never a file, the repo, `.env` or `.aios/`.
 
 ## VIII. CONTROLLED SELF-MODIFICATION
 Any change to core architecture / this file follows:
