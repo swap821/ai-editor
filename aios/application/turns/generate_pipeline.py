@@ -24,6 +24,7 @@ from aios.application.intelligence.gateway import (
 )
 from aios.agents.reflection_agent import ReflectionAgent
 from aios.core.alignment import AlignmentInterpreter
+from aios.core import turn_failures
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.domain.intelligence.representative_context import (
@@ -1849,7 +1850,16 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             yield sse("code", {"code": ev["code"], "language": ev["language"]})
         elif kind == "error":
             _record_incomplete_if_revoked()
-            yield sse("error", {"text": ev["text"]})
+            # The code, when the loop gave one, says WHO failed the turn
+            # (aios/core/turn_failures.py); dropping it here is what made a
+            # weak model read as a broken backend.
+            yield sse(
+                "error",
+                {
+                    "text": ev["text"],
+                    **({"code": ev["code"]} if ev.get("code") else {}),
+                },
+            )
         elif kind == "injection_detected":
             # Without this branch the event is DROPPED here: the dispatcher is a
             # chain of `elif kind ==` arms and an unmatched kind simply falls
@@ -2072,12 +2082,13 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 yield sse(
                     "error",
                     {
+                        "code": turn_failures.MODEL_NO_OUTPUT,
                         "text": (
                             "The model produced no output this turn -- no tool "
                             "call, no answer, no code. Nothing was written and "
                             "nothing was verified. This is a failed turn, not a "
                             "completed one; retry the request."
-                        )
+                        ),
                     },
                 )
             # 4. Persist the answer (L2) and consolidate the turn into L3.

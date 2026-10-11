@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `8d7aaa4c91112ca61e19cb556933a31828126d7511322e5510dd1aa6b55a7fe2`
+- **Source ledger sha256:** `362e440cd872c0108d695b3807572eee8d830cf3982c5c380f0994b83bd11149`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -851,7 +851,7 @@ re-audits recorded above.
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `1d431850fc5e` | live |
 | 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `1d431850fc5e` | live |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `cb19e19ef2c7` | live |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `97bb80800929` | live |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `7954d18d4e8a` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `cb19e19ef2c7` | live |
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `cb19e19ef2c7` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `4cd9f1550cf1` | live |
@@ -869,7 +869,7 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `210e56e61151` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `210e56e61151` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
-| 57 | Reflex Authority | `Cerebellum` | `97bb80800929` | live |
+| 57 | Reflex Authority | `Cerebellum` | `7954d18d4e8a` | live |
 | 58 | Recall Isolation | `RecallGate` | `57d00ecb1a14` | live |
 | 59 | Learning Freeze | `LearningFreezeAuthority` | `97bb80800929` | live |
 
