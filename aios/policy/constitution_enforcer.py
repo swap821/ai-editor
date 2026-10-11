@@ -143,11 +143,12 @@ class ConstitutionEnforcer:
             available=True,
             models=("policy-probe",),
         )
-        policy = router.Policy(
-            cloud_tasks=frozenset(self.constitution.router_cloud_tasks),
-            max_cost=self.constitution.router_max_cost,
-            prefer_local=self.constitution.router_prefer_local,
-        )
+        # The same derivation the router uses (aios/policy/egress.py): the
+        # constitution is the ceiling. This check has no runtime profile to
+        # narrow with, so it applies the ceiling itself -- never more.
+        from aios.policy.egress import effective_router_policy
+
+        policy = effective_router_policy(self.constitution, None)
         if not router.policy_allows(policy, task_key, cloud_probe):
             return EnforcementDecision(
                 allowed=False,
