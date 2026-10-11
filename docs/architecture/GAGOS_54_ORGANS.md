@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `f10bb2b2de4512d755b3eaf1a567d9f3ab04ff3a353e3ee15756400c069a0038`
+- **Source ledger sha256:** `f2cf33d2cc828e44dc5035c005efb5212ffba9319dcc91c281fdfd765461ab73`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -845,7 +845,7 @@ re-audits recorded above.
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
 | 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `0d85919fda58` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `0d85919fda58` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `812a8628fdd2` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `0d85919fda58` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `cb19e19ef2c7` | live |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `1d431850fc5e` | live |
@@ -870,7 +870,7 @@ re-audits recorded above.
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
 | 57 | Reflex Authority | `Cerebellum` | `7954d18d4e8a` | live |
-| 58 | Recall Isolation | `RecallGate` | `57d00ecb1a14` | live |
+| 58 | Recall Isolation | `RecallGate` | `812a8628fdd2` | live |
 | 59 | Learning Freeze | `LearningFreezeAuthority` | `97bb80800929` | live |
 
 ### Yellow (8) — exact residual, from the ledger's own `known_blockers`
