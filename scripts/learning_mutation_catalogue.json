@@ -2134,8 +2134,8 @@
   {
    "id": "d8:R4 the census can write",
    "file": "tools/learning_payoff.py",
-   "old": "    lesson_gate = RecallGate(ReadOnlyProvenanceStore(DB), pinned, context=\"live\")\n",
-   "new": "    lesson_gate = RecallGate(__import__(\"aios.memory.provenance\", fromlist=[\"x\"]).ProvenanceStore(DB), pinned, context=\"live\")\n",
+   "old": "    lesson_gate = RecallGate(ReadOnlyProvenanceStore(db), pinned, context=\"live\")\n",
+   "new": "    lesson_gate = RecallGate(__import__(\"aios.memory.provenance\", fromlist=[\"x\"]).ProvenanceStore(db), pinned, context=\"live\")\n",
    "tests": [
     "tests/test_learning_payoff.py::TestD8TheOnArmRecallsThroughTheProductionGate::test_the_census_changes_nothing"
    ],
