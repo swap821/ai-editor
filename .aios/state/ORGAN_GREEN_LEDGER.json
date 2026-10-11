@@ -1858,13 +1858,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 438dd9518d07e07c167053269b6e99b306d63fe7: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 438dd9518d07e07c167053269b6e99b306d63fe7 exit=0; artifact=release/phase4/live-evidence-438dd9518d07.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
-        "commit_sha": "438dd9518d07e07c167053269b6e99b306d63fe7",
+        "description": "Phase 4 absolute live run on tip 7954d18d4e8a5b69ebc02fbdf14033804fd195aa: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 7954d18d4e8a5b69ebc02fbdf14033804fd195aa exit=0; artifact=release/phase4/live-evidence-7954d18d4e8a.json; UniversalIntelligenceGatewayAuthority.route local model_call => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026",
+        "commit_sha": "7954d18d4e8a5b69ebc02fbdf14033804fd195aa",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "438dd9518d07e07c167053269b6e99b306d63fe7",
+    "last_verified_sha": "7954d18d4e8a5b69ebc02fbdf14033804fd195aa",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 UniversalIntelligenceGatewayAuthority class defined in production_entrypoints ['aios/application/intelligence/gateway.py', 'aios/council/gateway_reasoning.py', 'aios/application/intelligence/authenticated_chat.py'] (Decision A / enforce_owner_attestation)",
@@ -3177,8 +3177,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 438dd9518d07e07c167053269b6e99b306d63fe7: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 438dd9518d07e07c167053269b6e99b306d63fe7 exit=0; artifact=release/phase4/live-evidence-438dd9518d07.json; Cerebellum + InstitutionalSkillAdapter => Cerebellum on real SQLite: an unactivated candidate compiled nothing; after the operator's activation the owner's request fired the reflex, another principal's turn and quoted text did not; it survived a restart; retired, it stayed retired for a new instance (skill suspended)",
-        "commit_sha": "438dd9518d07e07c167053269b6e99b306d63fe7",
+        "description": "Phase 4 absolute live run on tip 7954d18d4e8a5b69ebc02fbdf14033804fd195aa: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 7954d18d4e8a5b69ebc02fbdf14033804fd195aa exit=0; artifact=release/phase4/live-evidence-7954d18d4e8a.json; Cerebellum + InstitutionalSkillAdapter => Cerebellum on real SQLite: an unactivated candidate compiled nothing; after the operator's activation the owner's request fired the reflex, another principal's turn and quoted text did not; it survived a restart; retired, it stayed retired for a new instance (skill suspended)",
+        "commit_sha": "7954d18d4e8a5b69ebc02fbdf14033804fd195aa",
         "proof_level": "live"
       }
     ],
@@ -3197,7 +3197,7 @@
       "C11": "PASS - last_verified_sha=97bb8080092924c62b3ff9b57701b2f83f8590a6",
       "C12": "PASS - 97bb8080092924c62b3ff9b57701b2f83f8590a6 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
-    "last_verified_sha": "438dd9518d07e07c167053269b6e99b306d63fe7",
+    "last_verified_sha": "7954d18d4e8a5b69ebc02fbdf14033804fd195aa",
     "requires_live_evidence": true,
     "requires_frontend_error_states": false
   },
