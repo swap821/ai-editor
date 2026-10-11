@@ -4,8 +4,11 @@ Ensures that when a turn is routed to a cloud provider, sensitive content
 is redacted or dropped before leaving the local machine.
 
 Design:
-  * Pattern-based scanning detects file paths, secrets, credentials, and
-    system-prompt content.
+  * Pattern-based scanning detects file paths, secrets and credentials in
+    every message, the system prompt included. The system prompt itself IS
+    sent -- a cloud agent needs its instructions -- scrubbed of what it may
+    carry. (An unused "generic replacement" constant claimed otherwise until
+    2026-10-11; the sovereignty drill measured what is actually sent.)
   * Redaction rules selectively drop, mask, or truncate — never let the
     full conversation history or sensitive tool results leave the laptop.
   * A per-call audit log (counts, not content) lets operators verify the
@@ -26,10 +29,6 @@ from typing import Any, Final
 
 from aios import config
 
-#: Minimal generic replacement for system prompts (never transmits the real one).
-_GENERIC_SYSTEM_PROMPT: Final[str] = (
-    "You are a helpful coding assistant. Be concise and accurate."
-)
 
 #: Patterns that may contain bearer tokens / AWS signatures / credential strings.
 _CREDENTIAL_PATTERNS: Final[list[re.Pattern[str]]] = [
