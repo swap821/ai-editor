@@ -21,6 +21,16 @@ def _authority_store(authority: Any | None, name: str) -> Any | None:
     return getattr(adapter, "store", None)
 
 
+def lesson_twin_text(row: Any) -> str:
+    """The semantic memory consolidation makes of a verified lesson -- ONE
+    derivation, used to write the twin and to find it again when the lesson
+    is withdrawn (``provenance_policy.lesson_twin_ids``)."""
+    return (
+        f"VERIFIED LESSON\nError type: {row['error_type']}\n"
+        f"Root cause: {row['root_cause']}\nPrevention: {row['lesson_text']}"
+    )
+
+
 class MemoryConsolidator:
     """Promote only verified lessons and human-approved facts into trusted L3."""
 
@@ -101,20 +111,42 @@ class MemoryConsolidator:
         )
         if row is None or row["verification_status"] != "verified":
             return None
+        if not self._lesson_admitted(mistake_id):
+            # A lesson recall refuses -- revoked, quarantined, tombstoned,
+            # unsigned -- is never indexed again as a semantic twin: that
+            # would hand recall back what its gate just refused (RT-27/28).
+            return None
         text = self._lesson_text(row)
-        return self._add_verified(
+        twin = self._add_verified(
             text,
             "lesson",
             count_occurrence=count_occurrence,
             principal=row["principal_id"],
         )
+        self._record_twin(mistake_id, twin)
+        return twin
+
+    def _lesson_admitted(self, mistake_id: int) -> bool:
+        """Recall's verdict on the lesson, through the authority's gate. With
+        no authority (a legacy store) recall is not gated, so neither is this."""
+        if not self._authority_owns("lessons", self.mistakes):
+            return True
+        return bool(self.memory_authority.lesson_admitted(mistake_id))
+
+    def _record_twin(self, mistake_id: int, twin: int) -> None:
+        """lesson -> twin in learning_derivations, so a withdrawal of the
+        lesson reaches the twin by its record (plan Phase 3.3 / 6e)."""
+        if not self._authority_owns("lessons", self.mistakes):
+            return
+        self.memory_authority.record_derivation(
+            child=("semantic_memory", twin),
+            parent=("mistake_pool", mistake_id),
+            relation="consolidated",
+        )
 
     @staticmethod
     def _lesson_text(row: Any) -> str:
-        return (
-            f"VERIFIED LESSON\nError type: {row['error_type']}\n"
-            f"Root cause: {row['root_cause']}\nPrevention: {row['lesson_text']}"
-        )
+        return lesson_twin_text(row)
 
     def promote_fact(
         self,

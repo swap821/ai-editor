@@ -40,6 +40,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from aios import config  # noqa: E402
 from aios.application.memory.provenance_policy import (  # noqa: E402
+    cascade_withdrawal,
     lesson_content_key,
     semantic_content_key,
 )
@@ -149,38 +150,9 @@ def revoke(
 def _cascade(
     db: Path, store: ProvenanceStore, roots: list[tuple[str, str]]
 ) -> list[str]:
-    """Withdraw every row recorded as derived from *roots*, all the way down."""
-    seen = set(roots)
-    queue = list(roots)
-    withdrawn: list[str] = []
-    while queue:
-        parent = queue.pop(0)
-        for child_table, child_id, relation in store.children_of(*parent):
-            child = (child_table, child_id)
-            if child in seen:
-                continue
-            seen.add(child)
-            row = (
-                _row(db, child_table, int(child_id))
-                if child_table in CHANNELS and child_id.isdigit()
-                else None
-            )
-            digest = CHANNELS[child_table][0](row) if row is not None else "withdrawn"
-            store.append(
-                Provenance(
-                    table=child_table,
-                    row_id=child_id,
-                    content_sha256=digest,
-                    source_kind="live",
-                    transition="withdrawn",
-                    parents=(f"{parent[0]}:{parent[1]}",),
-                    principal=row["principal_id"] if row is not None else None,
-                ),
-                None,
-            )
-            withdrawn.append(f"{child_table}:{child_id} ({relation})")
-            queue.append(child)
-    return withdrawn
+    """Withdraw every row derived from *roots*: recorded derivations and a
+    lesson's consolidated twin. The one cascade the quarantine uses too."""
+    return cascade_withdrawal(store, db, roots)
 
 
 def main(argv: list[str] | None = None) -> int:
