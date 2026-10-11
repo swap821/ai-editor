@@ -399,7 +399,24 @@ def _caller(world: pr.World, rel: str, role: str) -> None:
     )
 
 
-def test_a_live_role_no_test_covers_can_never_be_earned(tmp_path) -> None:
+@pytest.fixture
+def only_summarise_is_covered(monkeypatch) -> None:
+    """Pin the qualification coverage, so these tests exercise the gate's logic
+    rather than whichever roles the real clerk can earn today. (They once named
+    SELECT_SKILL as uncovered; H4 covered it, and master went red.)"""
+    from aios.application.local_workforce import qualification_evidence
+    from aios.domain.local_workforce.contracts import LocalJobProfile
+
+    monkeypatch.setattr(
+        qualification_evidence,
+        "TEST_ID_TO_JOB_PROFILE",
+        {"tests/q.py::summarise": LocalJobProfile.SUMMARISE},
+    )
+
+
+def test_a_live_role_no_test_covers_can_never_be_earned(
+    tmp_path, only_summarise_is_covered
+) -> None:
     world = _world(tmp_path)
     assert pr.clerk_live_roles_earnable(world).status == pr.FAIL, "no caller at all"
     _caller(world, "aios/application/x/service.py", "SUMMARISE")
@@ -410,7 +427,9 @@ def test_a_live_role_no_test_covers_can_never_be_earned(tmp_path) -> None:
     assert "aios/application/y/service.py" in gate.evidence
 
 
-def test_runtime_proofs_are_fixtures_not_callers(tmp_path) -> None:
+def test_runtime_proofs_are_fixtures_not_callers(
+    tmp_path, only_summarise_is_covered
+) -> None:
     world = _world(tmp_path)
     _caller(world, "aios/application/x/service.py", "SUMMARISE")
     _caller(world, "aios/application/governance/r15_runtime_proof.py", "SELECT_SKILL")
