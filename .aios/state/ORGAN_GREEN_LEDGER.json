@@ -285,13 +285,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 0010bef8aaecf27c7e16223643db51fa9c3c6948: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0010bef8aaecf27c7e16223643db51fa9c3c6948 exit=0; artifact=release/phase4/live-evidence-0010bef8aaec.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
-        "commit_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+        "description": "Phase 4 absolute live run on tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d exit=0; artifact=release/phase4/live-evidence-0d85919fda58.json; PolicyKernelAuthority.decide unknown-route RED => profile=RuntimeProfile(name='local-first', description='All inference and execution stay on this machine. Cloud routing, swarm burst, and earned autonomy are disabled.', execution_backend='host', earned_autonomy=False, router_cloud_tasks=(), router_prefer_local=True, router_max_cost='high', swarm_cloud_burst=False, offline_mode=False, resource_mode='balanced', plan_stage=True, narrative_self=False, facts_auto_extract=True, pheromone_enabled=False, queen_enabled=False, live_surface=False) unknown_route_class=RED decide.blocked=True reason=unknown route /no/such/route is blocked by policy",
+        "commit_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+    "last_verified_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 PolicyKernelAuthority class defined in production_entrypoints ['aios/policy/kernel.py'] (Decision A / enforce_owner_attestation)",
@@ -1440,13 +1440,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 0010bef8aaecf27c7e16223643db51fa9c3c6948: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0010bef8aaecf27c7e16223643db51fa9c3c6948 exit=0; artifact=release/phase4/live-evidence-0010bef8aaec.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+        "description": "Phase 4 absolute live run on tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d exit=0; artifact=release/phase4/live-evidence-0d85919fda58.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
+        "commit_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+    "last_verified_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalKernelAuthority class defined in production_entrypoints ['aios/application/governance/constitution_authority.py', 'aios/infrastructure/governance/constitution_snapshot_store.py', 'aios/domain/governance/constitution.py'] (Decision A / enforce_owner_attestation)",
@@ -1491,13 +1491,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 451a3664cac2b2458365b22d55445c6f35c4181c: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 451a3664cac2b2458365b22d55445c6f35c4181c exit=0; artifact=release/phase4/live-evidence-451a3664cac2.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "451a3664cac2b2458365b22d55445c6f35c4181c",
+        "description": "Phase 4 absolute live run on tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d exit=0; artifact=release/phase4/live-evidence-0d85919fda58.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
+        "commit_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "451a3664cac2b2458365b22d55445c6f35c4181c",
+    "last_verified_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 EmergencyStopHardWiringAuthority class defined in production_entrypoints ['aios/runtime/intelligence_gateway.py', 'aios/application/learning/service.py', 'aios/application/maintenance/service.py'] (Decision A / enforce_owner_attestation)",
@@ -1543,13 +1543,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 0010bef8aaecf27c7e16223643db51fa9c3c6948: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0010bef8aaecf27c7e16223643db51fa9c3c6948 exit=0; artifact=release/phase4/live-evidence-0010bef8aaec.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=278528",
-        "commit_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+        "description": "Phase 4 absolute live run on tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d exit=0; artifact=release/phase4/live-evidence-0d85919fda58.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=278528",
+        "commit_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+    "last_verified_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 OperatorTasteModelAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
@@ -2554,13 +2554,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 0010bef8aaecf27c7e16223643db51fa9c3c6948: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0010bef8aaecf27c7e16223643db51fa9c3c6948 exit=0; artifact=release/phase4/live-evidence-0010bef8aaec.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
-        "commit_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+        "description": "Phase 4 absolute live run on tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d exit=0; artifact=release/phase4/live-evidence-0d85919fda58.json; ConstitutionalAmendmentAuthority.ratify fail-closed => ConstitutionalAmendmentAuthority.ratify_amendment refused without capability: AmendmentError: ratification capability must be bound to 'constitutional_amendment_ratify', got None",
+        "commit_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "0010bef8aaecf27c7e16223643db51fa9c3c6948",
+    "last_verified_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalAmendmentAuthority class defined in production_entrypoints ['aios/domain/governance/amendments.py', 'aios/domain/governance/constitution.py', 'aios/application/governance/amendment_authority.py'] (Decision A / enforce_owner_attestation)",
@@ -3009,13 +3009,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 451a3664cac2b2458365b22d55445c6f35c4181c: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 451a3664cac2b2458365b22d55445c6f35c4181c exit=0; artifact=release/phase4/live-evidence-451a3664cac2.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
-        "commit_sha": "451a3664cac2b2458365b22d55445c6f35c4181c",
+        "description": "Phase 4 absolute live run on tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 0d85919fda58d2c7b81ccec531a405f2598a1b4d exit=0; artifact=release/phase4/live-evidence-0d85919fda58.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
+        "commit_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "451a3664cac2b2458365b22d55445c6f35c4181c",
+    "last_verified_sha": "0d85919fda58d2c7b81ccec531a405f2598a1b4d",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 BackupDisasterRecoveryAuthority class defined in production_entrypoints ['aios/operations/recovery.py', 'aios/operations/doctor.py', 'aios/__main__.py'] (Decision A / enforce_owner_attestation)",
