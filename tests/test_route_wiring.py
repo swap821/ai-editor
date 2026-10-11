@@ -55,7 +55,20 @@ def _set_cloud_policy(
         router_prefer_local=prefer_local,
         router_max_cost=max_cost,
     )
-    get_policy_kernel()._active_profile = profile
+    kernel = get_policy_kernel()
+    kernel._active_profile = profile
+    # The constitution is the ceiling (aios/policy/egress.py): open it to the
+    # same policy, so the profile alone decides what these tests measure.
+    monkeypatch.setattr(
+        kernel,
+        "constitution",
+        replace(
+            kernel.constitution,
+            router_cloud_tasks=tuple(str(t).lower() for t in cloud_tasks),
+            router_prefer_local=prefer_local,
+            router_max_cost=max_cost,
+        ),
+    )
     monkeypatch.setattr(config, "ROUTER_CLOUD_TASKS", tuple(cloud_tasks))
     monkeypatch.setattr(config, "ROUTER_PREFER_LOCAL", prefer_local)
     monkeypatch.setattr(config, "ROUTER_MAX_COST", max_cost)
