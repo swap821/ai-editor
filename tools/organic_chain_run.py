@@ -279,8 +279,16 @@ def run_chain(
                     # Only a GRADED failure. A transport error is not the
                     # model's mistake and there is nothing to learn from it.
                     if not record.earned and record.outcome in ("rejected", "vacuous"):
+                        # One task per TARGET. With the run id as every
+                        # target's task, a failure of the same error type on a
+                        # different target read as a RECURRENCE of the first
+                        # lesson: its own fact was dropped and the first one's
+                        # count inflated (D10 pilot, 2026-10-12).
                         reflection = _reflect(
-                            reflector, verify_command, _failure_text(record), run_id
+                            reflector,
+                            verify_command,
+                            _failure_text(record),
+                            f"{run_id}:{target.label}",
                         )
                         if reflection is not None:
                             pending.append((reflection, verify_command))
