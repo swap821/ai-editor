@@ -209,7 +209,9 @@ def run_chain(
     # The store is passed EXPLICITLY: ReflectionAgent refuses to guess one,
     # so a lesson can never land somewhere other than where the rest of the
     # chain will look for it.
-    reflector = ReflectionAgent(ladder[0][1], mistakes=mistakes, db_path=DB)
+    reflector = ReflectionAgent(
+        reflection_client(ladder[0][1]), mistakes=mistakes, db_path=DB
+    )
 
     links = {
         name: LinkEvidence(name, faculty)
@@ -842,6 +844,21 @@ def _passed_count(verify_output: str) -> int:
 
     match = _re.search(r"(\d+) passed", verify_output)
     return int(match.group(1)) if match else 0
+
+
+def reflection_client(client):
+    """The ladder's first model, as the completion client ReflectionAgent uses.
+
+    A cloud chat client (Bedrock, Gemini, OpenAI-compatible) has no
+    ``complete()``: every reflection raised AttributeError, so on a cloud
+    ladder L1 never fired and no lesson was ever written (found 2026-10-12).
+    The gateway's chat adapter translates the message shape and adds nothing.
+    """
+    if callable(getattr(client, "complete", None)):
+        return client
+    from aios.application.intelligence.gateway import AdvisoryChatCompletionAdapter
+
+    return AdvisoryChatCompletionAdapter(client)
 
 
 def _reflect(reflector, command: str, error_output: str, run_id: str) -> int | None:

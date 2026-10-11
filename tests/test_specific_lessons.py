@@ -111,3 +111,27 @@ def test_a_missing_frozen_list_refuses_rather_than_excluding_nothing(tmp_path) -
 
     with pytest.raises(OSError):
         frozen_target_labels(tmp_path)
+
+
+def test_a_cloud_chat_client_can_write_a_lesson_in_practice(tmp_path) -> None:
+    """organic_chain_run reflected through ladder[0] directly; a chat-only
+    client has no complete(), so every cloud-ladder reflection raised."""
+    from tools.organic_chain_run import reflection_client
+
+    class ChatOnly:
+        def chat(self, messages, *, tools=None, model=None):
+            return {
+                "role": "assistant",
+                "content": _LLM("`app.settings` is a module.").complete("x"),
+            }
+
+    db = tmp_path / "memory.db"
+    init_memory_db(db)
+    mistakes = MistakeMemory(db)
+    agent = ra.ReflectionAgent(
+        reflection_client(ChatOnly()), mistakes=mistakes, db_path=db
+    )
+    assert agent.reflect("pytest -q", "E  ModuleNotFoundError") is not None
+    assert mistakes.count() == 1
+    local = _LLM("x")
+    assert reflection_client(local) is local, "a completion client is used as is"
