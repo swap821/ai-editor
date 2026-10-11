@@ -180,3 +180,14 @@ def test_every_live_model_job_runs_one_pinned_ollama() -> None:
         assert re.search(r":[0-9.]+@sha256:[0-9a-f]{64}$", pin.group(1)), pin.group(1)
         pins.add(pin.group(1))
     assert len(pins) == 1, f"the workflows pin different Ollama images: {pins}"
+
+
+def test_codeql_validation_uses_the_binary_init_set_up() -> None:
+    """The executor model-pack check searched only the runner tool cache, but
+    the CodeQL action downloads its bundle under $RUNNER_TEMP whenever the
+    cached version differs -- so the check failed on some runners and passed
+    on others with no change to the repo (#452, 2026-10-11)."""
+    text = (WORKFLOW.parent / "codeql.yml").read_text(encoding="utf-8")
+    assert "id: init" in text
+    assert "steps.init.outputs.codeql-path" in text
+    assert '"$RUNNER_TEMP"' in text, "the fallback search must include the temp bundle"
