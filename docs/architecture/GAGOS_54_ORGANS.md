@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `5006a70a2625f43862df2e30cdc50e5d38d949a3c1424cef23e57a790ce9b958`
+- **Source ledger sha256:** `8169de5d4379d3f4212f81dffaeec5ffeabe8fcc83506ba2f30fe7defa6182dd`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -838,7 +838,7 @@ re-audits recorded above.
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `cb19e19ef2c7` | live |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | `cb19e19ef2c7` | live |
 | 17 | Cortex Observation Bus | `CortexBusAuthority` | `cb19e19ef2c7` | live |
-| 18 | Memory Authority (construction) | `MemoryAuthority` | `97bb80800929` | live |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `f1792d943c6c` | live |
 | 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `cb19e19ef2c7` | live |
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `cb19e19ef2c7` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `cb19e19ef2c7` | live |
@@ -868,9 +868,9 @@ re-audits recorded above.
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `1d431850fc5e` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `210e56e61151` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `210e56e61151` | live |
-| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `97bb80800929` | live |
+| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `f1792d943c6c` | live |
 | 57 | Reflex Authority | `Cerebellum` | `97bb80800929` | live |
-| 58 | Recall Isolation | `RecallGate` | `97bb80800929` | live |
+| 58 | Recall Isolation | `RecallGate` | `f1792d943c6c` | live |
 | 59 | Learning Freeze | `LearningFreezeAuthority` | `97bb80800929` | live |
 
 ### Yellow (8) — exact residual, from the ledger's own `known_blockers`
