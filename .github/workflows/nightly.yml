@@ -42,6 +42,14 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # ONE pinned Ollama image (the same pin in ci.yml and nightly.yml; a test
+  # holds them equal). The floating `latest` tag made every live-model job measure
+  # whatever Ollama shipped that morning, so a red run could not say whether
+  # GAGOS or the daemon had changed. 0.40.2 is the version on the operator's
+  # laptop: CI measures the Ollama GAGOS actually runs on. Bump it on purpose.
+  OLLAMA_IMAGE: "ollama/ollama:0.40.2@sha256:b86366bb528bbf7f1424435d165028497a5b69bf6ddb4fa5a87102e2b79f44fb"
+
 jobs:
   learning-loop-prover:
     # The claim this job exists to make re-runnable. It needs BOTH a live Ollama
@@ -64,7 +72,7 @@ jobs:
 
       - name: Start a real Ollama daemon
         run: |
-          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          docker run -d --name ollama -p 11434:11434 "$OLLAMA_IMAGE"
           # Poll rather than sleep: the daemon is ready when it answers, and a
           # fixed sleep either wastes time or races on a slow runner.
           for i in $(seq 1 90); do
@@ -203,7 +211,7 @@ jobs:
 
       - name: Start a real Ollama daemon
         run: |
-          docker run -d --name ollama -p 11434:11434 ollama/ollama:latest
+          docker run -d --name ollama -p 11434:11434 "$OLLAMA_IMAGE"
           for i in $(seq 1 90); do
             if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
               echo "ollama ready after ${i}s"; break
