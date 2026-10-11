@@ -453,24 +453,30 @@ class LearningService:
                 LocalJobProfile,
                 LocalJobRequest,
             )
+            from aios.domain.local_workforce.skill_selection import (
+                OUTPUT_SCHEMA,
+                read_skill_selection,
+                skill_selection_prompt,
+            )
 
+            # The question exactly as qualification asks it, with the skill's
+            # own criteria and no answer in it (skill_selection.py).
             job_req = LocalJobRequest(
                 job_id=f"clerk-job-{uuid4().hex}",
                 job_profile=LocalJobProfile.SELECT_SKILL,
                 input_schema_version="1.0",
                 evidence_references=frozenset({skill.skill_id}),
-                redacted_payload=(
-                    f"Evaluate local skill applicability for skill_id={skill.skill_id} version={skill.version}.\n"
-                    f"Inputs: {current_inputs}\nState: {current_state}\n"
-                    'Respond with strictly formatted JSON: {"applicable": true, "confidence": 0.9, "reason": "ok", "bounded_procedure_id": "proc-1", "required_inputs_present": true, "abstain": false, "escalation_reason": null}'
+                redacted_payload=skill_selection_prompt(
+                    problem_signature=skill.problem_signature,
+                    required_inputs=skill.required_inputs,
+                    known_exclusions=skill.known_exclusions,
+                    escalation_conditions=skill.escalation_conditions,
+                    inputs=current_inputs,
+                    state=current_state,
                 ),
                 token_budget=128,
                 deadline=datetime.now(timezone.utc) + timedelta(seconds=10),
-                required_output_schema={
-                    "applicable": "bool",
-                    "confidence": "float",
-                    "reason": "str",
-                },
+                required_output_schema=dict(OUTPUT_SCHEMA),
             )
 
             clerk_res = self.local_workforce_service.run_advisory_job(job_req)
@@ -488,17 +494,12 @@ class LearningService:
                 return EscalateToFrontierDirective(
                     reason=clerk_res.failure_reason or "Local clerk advisory failed"
                 )
-            parsed = clerk_res.structured_output
-            if (
-                not isinstance(parsed, dict)
-                or not parsed.get("applicable")
-                or parsed.get("abstain")
-                or float(parsed.get("confidence", 0.0)) < 0.8
-            ):
-                reason = str(
-                    parsed.get("escalation_reason")
-                    or parsed.get("reason")
-                    or "advisory evaluation declined local execution"
+            answer = read_skill_selection(clerk_res.structured_output)
+            if answer is None or not answer.admits():
+                reason = (
+                    answer.reason
+                    if answer is not None and answer.reason
+                    else "advisory evaluation declined local execution"
                 )
                 self.skill_lifecycle_authority.apply_reuse_outcome(
                     skill.skill_id,

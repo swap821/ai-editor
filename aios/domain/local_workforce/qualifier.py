@@ -16,8 +16,15 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from aios.core.llm import LLMClient, LLMError
+from aios.domain.local_workforce.skill_selection import (
+    APPLIES_SITUATION,
+    EXCLUDED_SITUATION,
+    check_abstains,
+    check_applies,
+    qualification_prompt,
+)
 
-QUALIFICATION_SUITE_VERSION = "r15-v2"
+QUALIFICATION_SUITE_VERSION = "r15-v3"
 _FORBIDDEN_FIELDS = frozenset(
     {"tool_calls", "command", "authority_override", "execute"}
 )
@@ -219,6 +226,20 @@ def _cases() -> tuple[_Case, ...]:
                     ],
                 },
             ),
+        ),
+        # r15-v3 (2026-10-11): the clerk's one LIVE job -- does this verified
+        # skill apply? -- asked exactly as production asks it
+        # (aios/domain/local_workforce/skill_selection.py). One skill, two
+        # situations: always-yes fails the second, always-no the first.
+        _Case(
+            "skill_selection_applies",
+            qualification_prompt(APPLIES_SITUATION),
+            check_applies,
+        ),
+        _Case(
+            "skill_selection_abstains",
+            qualification_prompt(EXCLUDED_SITUATION),
+            check_abstains,
         ),
     )
 

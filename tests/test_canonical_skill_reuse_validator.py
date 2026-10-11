@@ -120,8 +120,12 @@ def _build_real_service(
                 return_value=LocalJobResult(
                     job_id="test-advisory-job",
                     model_id="granite3.2:2b",
+                    # The answer's full shape (skill_selection.FIELDS): a
+                    # partial answer is no longer read as a yes.
                     structured_output={
                         "applicable": True,
+                        "abstain": False,
+                        "required_inputs_present": True,
                         "confidence": 0.9,
                         "reason": "ok",
                     },
