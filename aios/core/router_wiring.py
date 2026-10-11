@@ -328,11 +328,16 @@ def _route_metrics(development: Any, model_id: Optional[str]) -> dict:
         or config.ROUTER_CALIBRATION_WEIGHT <= 0
     ):
         return {}
+    # The operator's own benchmark is the prior; live verified evidence
+    # overrides it per (provider, model, task) -- aios/core/benchmark_rates.py.
+    from aios.core.benchmark_rates import merged_rates
+
     try:
-        return development.model_task_success_rates()
+        live = development.model_task_success_rates()
     except Exception as exc:  # noqa: BLE001 - calibration metrics must never break a turn
         logger.warning("Route calibration metrics unavailable", exc_info=exc)
-        return {}
+        live = {}
+    return merged_rates(live)
 
 
 def _select_chat_client(

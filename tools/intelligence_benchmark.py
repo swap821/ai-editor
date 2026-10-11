@@ -624,13 +624,72 @@ PRESET_H8 = (
 )
 
 
+#: Benchmark category -> the router's task name (aios/core/model_selector.py).
+ROUTER_TASKS = {"coding": "coding", "reasoning": "reasoning", "all": "general"}
+#: A model is rated for a task only with at least this many ANSWERED tasks.
+MIN_ANSWERED = 10
+
+
+def emit_rates(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    """Combine benchmark reports into router calibration rates.
+
+    Per model and category, over every report: passed / answered. Errored
+    calls are not answers and never count; a model with fewer than
+    MIN_ANSWERED answered tasks in a category is not rated for it."""
+    tallies: dict[tuple[str, str, str], list[int]] = {}
+    for report in reports:
+        for result in report.get("results", []):
+            provider, _, model = str(result["model"]).partition(":")
+            for outcome in result.get("outcomes", []):
+                if outcome.get("passed") is None:
+                    continue
+                for category in (outcome["category"], "all"):
+                    key = (provider, model, ROUTER_TASKS[category])
+                    passed, answered = tallies.get(key, [0, 0])
+                    tallies[key] = [passed + int(bool(outcome["passed"])), answered + 1]
+    rates = [
+        {
+            "provider": provider,
+            "model": model,
+            "task": task,
+            "rate": round(passed / answered, 4),
+            "n": answered,
+        }
+        for (provider, model, task), (passed, answered) in sorted(tallies.items())
+        if answered >= MIN_ANSWERED
+    ]
+    return {
+        "source": "tools/intelligence_benchmark.py",
+        "measured_at": sorted(str(r.get("generated_at", "")) for r in reports)[-1:]
+        or [""],
+        "suites": sorted({str(r.get("suite", "basic")) for r in reports}),
+        "rates": rates,
+    }
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--models", nargs="*", default=[])
     parser.add_argument("--preset", choices=["h8"])
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--suite", choices=sorted(SUITES), default="basic")
+    parser.add_argument(
+        "--emit-rates",
+        type=Path,
+        default=None,
+        help="write router calibration rates from --from reports, then exit",
+    )
+    parser.add_argument("--from", dest="sources", type=Path, nargs="*", default=[])
     args = parser.parse_args(argv)
+    if args.emit_rates:
+        reports = [json.loads(p.read_text(encoding="utf-8")) for p in args.sources]
+        if not reports:
+            parser.error("--emit-rates needs --from REPORT [REPORT ...]")
+        rated = emit_rates(reports)
+        args.emit_rates.parent.mkdir(parents=True, exist_ok=True)
+        args.emit_rates.write_text(json.dumps(rated, indent=2) + "\n", encoding="utf-8")
+        print(f"{len(rated['rates'])} rates -> {args.emit_rates}")
+        return 0
     tasks = SUITES[args.suite]
     specs = list(args.models) + (list(PRESET_H8) if args.preset == "h8" else [])
     if not specs:

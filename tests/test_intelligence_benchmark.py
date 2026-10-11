@@ -84,3 +84,87 @@ def test_a_failing_client_is_an_error() -> None:
 
     outcome = ib.ask(Down(), "m", ib.TASKS[0])
     assert outcome.passed is None and "connection refused" in outcome.error
+
+
+# --------------------------------------------------------------------------- #
+# From reports to router calibration
+# --------------------------------------------------------------------------- #
+
+
+def _report(
+    model: str, passed: list, category: str = "coding", suite: str = "basic"
+) -> dict:
+    return {
+        "generated_at": "2026-10-11T00:00:00+00:00",
+        "suite": suite,
+        "results": [
+            {
+                "model": model,
+                "outcomes": [{"category": category, "passed": p} for p in passed],
+            }
+        ],
+    }
+
+
+def test_rates_combine_reports_and_never_count_errors() -> None:
+    basic = _report("bedrock:m", [True] * 9 + [None] * 3)
+    hard = _report("bedrock:m", [True, False, None], suite="hard")
+    rated = ib.emit_rates([basic, hard])
+    rows = {(r["provider"], r["model"], r["task"]): r for r in rated["rates"]}
+    coding = rows[("bedrock", "m", "coding")]
+    assert coding["n"] == 11, "9 + 2 answered; the 4 errors are not answers"
+    assert coding["rate"] == round(10 / 11, 4)
+    assert rows[("bedrock", "m", "general")]["n"] == 11
+    assert rated["suites"] == ["basic", "hard"]
+
+
+def test_too_few_answers_are_not_rated() -> None:
+    rated = ib.emit_rates([_report("ollama:tiny", [True] * 9)])
+    assert rated["rates"] == []
+
+
+def test_live_evidence_overrides_the_benchmark(tmp_path) -> None:
+    from aios.core import benchmark_rates as br
+
+    path = tmp_path / "rates.json"
+    path.write_text(
+        '{"rates": [{"provider": "bedrock", "model": "m", "task": "coding", "rate": 0.9, "n": 30},'
+        ' {"provider": "bedrock", "model": "n", "task": "coding", "rate": 1.5, "n": 30}]}',
+        encoding="utf-8",
+    )
+    br._load.cache_clear()
+    merged = br.merged_rates({("bedrock", "m", "coding"): 0.4}, path)
+    assert merged[("bedrock", "m", "coding")] == 0.4, "real work outranks a test"
+    assert merged[("bedrock", "n", "coding")] == 1.0, "a rate is clamped to [0, 1]"
+    br._load.cache_clear()
+
+
+def test_a_missing_rates_file_is_no_prior(tmp_path) -> None:
+    from aios.core import benchmark_rates as br
+
+    br._load.cache_clear()
+    assert br.benchmark_rates(tmp_path / "absent.json") == {}
+    br._load.cache_clear()
+
+
+def test_the_router_reads_the_merged_rates(monkeypatch) -> None:
+    from aios.core import benchmark_rates as br
+    from aios.core import router_wiring
+
+    monkeypatch.setattr(
+        router_wiring,
+        "_router_policy",
+        lambda: __import__("aios.core.router", fromlist=["Policy"]).Policy(
+            cloud_tasks=frozenset({"coding"})
+        ),
+    )
+    monkeypatch.setattr(
+        br, "benchmark_rates", lambda path=None: {("bedrock", "m", "coding"): 0.9}
+    )
+
+    class Development:
+        def model_task_success_rates(self):
+            return {("bedrock", "x", "coding"): 0.5}
+
+    metrics = router_wiring._route_metrics(Development(), "auto")
+    assert metrics == {("bedrock", "m", "coding"): 0.9, ("bedrock", "x", "coding"): 0.5}
