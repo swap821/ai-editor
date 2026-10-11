@@ -157,3 +157,26 @@ def test_the_gate_is_wired_into_the_workflow() -> None:
     """A check nobody invokes is a claim -- the fifth time in this repo."""
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "scripts/ci_nightly_endurance_check.py" in text
+
+
+# --------------------------------------------------------------------------- #
+# One pinned Ollama for every live-model job
+# --------------------------------------------------------------------------- #
+def test_every_live_model_job_runs_one_pinned_ollama() -> None:
+    """`ollama/ollama:latest` made each live-model job measure whatever Ollama
+    shipped that morning, so a red night could not say whether GAGOS or the
+    daemon changed. One value, digest-pinned, the same in both workflows."""
+    import re
+
+    pins: set[str] = set()
+    for name in ("ci.yml", "nightly.yml"):
+        text = (WORKFLOW.parent / name).read_text(encoding="utf-8")
+        assert "ollama/ollama:latest" not in text, f"{name} runs an unpinned Ollama"
+        starts = re.findall(r"docker run -d --name ollama .*", text)
+        assert starts, f"{name} no longer starts Ollama; drop it from this test"
+        assert all('"$OLLAMA_IMAGE"' in line for line in starts), starts
+        pin = re.search(r'^\s+OLLAMA_IMAGE:\s*"([^"]+)"', text, re.MULTILINE)
+        assert pin is not None, f"{name} has no OLLAMA_IMAGE pin"
+        assert re.search(r":[0-9.]+@sha256:[0-9a-f]{64}$", pin.group(1)), pin.group(1)
+        pins.add(pin.group(1))
+    assert len(pins) == 1, f"the workflows pin different Ollama images: {pins}"
