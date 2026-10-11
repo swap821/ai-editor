@@ -25,6 +25,13 @@ class FakeLLMClient:
                 return '{"ref_id": "REF-15"}'
             return '{"result": "ok"}'
         if self.mode == "pass":
+            from aios.domain.local_workforce.skill_selection import (
+                qualification_fixture_answer,
+            )
+
+            answer = qualification_fixture_answer(prompt)
+            if answer is not None:
+                return answer
             if "one field result" in prompt:
                 return '{"result": "ok"}'
             if "reference identifier" in prompt:
@@ -111,7 +118,7 @@ def test_qualification_suite_pass():
     assert res.schema_validity == 1.0
     assert res.identifier_preservation == 1.0
     assert res.secret_reproduction == 0
-    assert res.suite_version == "r15-v2"
+    assert res.suite_version == "r15-v3"
     assert res.metrics["tests_run"] == len(res.test_results)
     assert len(res.test_results) >= 12
     assert {item.test_id for item in res.test_results} >= {
