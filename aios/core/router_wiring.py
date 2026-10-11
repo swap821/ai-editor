@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence
 from fastapi import HTTPException
 
 from aios import config
-from aios.core import catalog, router
+from aios.core import catalog, model_availability, router
 from aios.core.catalog import catalog_models
 from aios.core.failover import FailoverChatClient
 from aios.core.model_selector import (
@@ -131,6 +131,10 @@ def _build_providers(
             continue
         cost = router.COST_HIGH if name == router.PROVIDER_BEDROCK else router.COST_LOW
         for mid in catalog_models(cloud, name, default):
+            # A model this account refused is not offered until the refusal
+            # expires (aios/core/model_availability.py).
+            if model_availability.is_unavailable(name, mid):
+                continue
             cap = catalog.cloud_capability(mid) + (
                 catalog.DEFAULT_BONUS if mid == default else 0
             )
