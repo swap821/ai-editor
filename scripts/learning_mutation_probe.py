@@ -65,6 +65,12 @@ _NODE_BATCH = 40
 #: reason. A survivor named here is reported INERT, never silently passed;
 #: the catalogue keeps the entry.
 INERT: dict[str, str] = {
+    "gen:consolidation:consolidate_lesson:109:never": (
+        "routing, not policy: authority.lesson_get is the lessons adapter's "
+        "get, which returns self.store.get -- the very MistakeMemory the "
+        "consolidator holds as self.mistakes (bootstrap passes "
+        "adapters['lessons'].store). Both branches read the same row."
+    ),
     "gen:self_model_handler:SelfModelHandler.recall:117:never": (
         "recall(None) looks up a None key, and none is ever stored: __call__ "
         "returns before caching a turn that names no principal. The answer is "

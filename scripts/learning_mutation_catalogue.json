@@ -7783,11 +7783,12 @@
   },
   {
    "id": "6e:cascade stops at one level",
-   "file": "tools/revoke_learning.py",
+   "file": "aios/application/memory/provenance_policy.py",
    "old": "            queue.append(child)\n",
    "new": "",
    "tests": [
-    "tests/test_phase6e_revocation.py"
+    "tests/test_phase6e_revocation.py",
+    "tests/test_lesson_twin_withdrawal.py"
    ],
    "also": [],
    "note": "plan Phase 6e"
@@ -7971,116 +7972,6 @@
    ],
    "also": [],
    "note": "generated (6e): revoke line 109 condition forced False: unknown"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:156:always",
-   "file": "tools/revoke_learning.py",
-   "old": "    while queue:\n",
-   "new": "    while (True):\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 156 condition forced True: queue"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:156:never",
-   "file": "tools/revoke_learning.py",
-   "old": "    while queue:\n",
-   "new": "    while (False):\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 156 condition forced False: queue"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:160:always",
-   "file": "tools/revoke_learning.py",
-   "old": "            if child in seen:\n",
-   "new": "            if (True):\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 160 condition forced True: child in seen"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:160:never",
-   "file": "tools/revoke_learning.py",
-   "old": "            if child in seen:\n",
-   "new": "            if (False):\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 160 condition forced False: child in seen"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:165:always",
-   "file": "tools/revoke_learning.py",
-   "old": "                if child_table in CHANNELS and child_id.isdigit()\n",
-   "new": "                if (True)\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 165 condition forced True: child_table in CHANNELS and child_id.isdigit()"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:165:never",
-   "file": "tools/revoke_learning.py",
-   "old": "                if child_table in CHANNELS and child_id.isdigit()\n",
-   "new": "                if (False)\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 165 condition forced False: child_table in CHANNELS and child_id.isdigit()"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:168:always",
-   "file": "tools/revoke_learning.py",
-   "old": "            digest = CHANNELS[child_table][0](row) if row is not None else \"withdrawn\"\n",
-   "new": "            digest = CHANNELS[child_table][0](row) if (True) else \"withdrawn\"\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 168 condition forced True: row is not None"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:168:never",
-   "file": "tools/revoke_learning.py",
-   "old": "            digest = CHANNELS[child_table][0](row) if row is not None else \"withdrawn\"\n",
-   "new": "            digest = CHANNELS[child_table][0](row) if (False) else \"withdrawn\"\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 168 condition forced False: row is not None"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:177:always",
-   "file": "tools/revoke_learning.py",
-   "old": "                    principal=row[\"principal_id\"] if row is not None else None,\n",
-   "new": "                    principal=row[\"principal_id\"] if (True) else None,\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 177 condition forced True: row is not None"
-  },
-  {
-   "id": "gen:revoke_learning:_cascade:177:never",
-   "file": "tools/revoke_learning.py",
-   "old": "                    principal=row[\"principal_id\"] if row is not None else None,\n",
-   "new": "                    principal=row[\"principal_id\"] if (False) else None,\n",
-   "tests": [
-    "tests/test_phase6e_revocation.py"
-   ],
-   "also": [],
-   "note": "generated (6e): _cascade line 177 condition forced False: row is not None"
   },
   {
    "id": "6f:a family left out",
@@ -8356,6 +8247,359 @@
    ],
    "also": [],
    "note": "plan Phase 6f (freeze on the stop's own events)"
+  },
+  {
+   "id": "twin:consolidation ignores recall's verdict",
+   "file": "aios/memory/consolidation.py",
+   "old": "        if not self._lesson_admitted(mistake_id):\n",
+   "new": "        if False:\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:twin derivation not recorded",
+   "file": "aios/memory/consolidation.py",
+   "old": "        self._record_twin(mistake_id, twin)\n",
+   "new": "",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:cascade misses the text twin",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "        if parent[0] == \"mistake_pool\" and str(parent[1]).isdigit():\n",
+   "new": "        if False:\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:cascade ignores derivations",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "        children = list(store.children_of(*parent))\n",
+   "new": "        children = []\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:twin lookup ignores principal",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "            \"AND memory_type = 'lesson' AND principal_id IS ? ORDER BY id\",\n            (key, row[\"principal_id\"]),\n",
+   "new": "            \"AND memory_type = 'lesson' ORDER BY id\",\n            (key,),\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:quarantine does not cascade",
+   "file": "aios/application/memory/adapters.py",
+   "old": "                    cascade_withdrawal(\n                        self.provenance.store,",
+   "new": "                    (lambda *a: None)(\n                        self.provenance.store,",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:derivation recorded every time",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        if (child[0], str(child[1])) in known:\n            return\n",
+   "new": "",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:ungated lessons refuse consolidation",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        if self.gate is None:\n            return True\n        row = self.store.get(int(mistake_id))",
+   "new": "        if self.gate is None:\n            return False\n        row = self.store.get(int(mistake_id))",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "twin:admitted ignores the gate",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        return bool(\n            self.gate.admits(\n                \"mistake_pool\",",
+   "new": "        return True or bool(\n            self.gate.admits(\n                \"mistake_pool\",",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "RT-27/RT-28: a withdrawn lesson's consolidated twin"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:171:always",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "    while queue:\n",
+   "new": "    while (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 171 condition forced True: queue"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:171:never",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "    while queue:\n",
+   "new": "    while (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 171 condition forced False: queue"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:181:always",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "            if child in seen:\n",
+   "new": "            if (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 181 condition forced True: child in seen"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:181:never",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "            if child in seen:\n",
+   "new": "            if (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 181 condition forced False: child in seen"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:186:always",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "                if child_table in WITHDRAWABLE and str(child_id).isdigit()\n",
+   "new": "                if (True)\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 186 condition forced True: child_table in WITHDRAWABLE and str(child_id).isdigit()"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:186:never",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "                if child_table in WITHDRAWABLE and str(child_id).isdigit()\n",
+   "new": "                if (False)\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 186 condition forced False: child_table in WITHDRAWABLE and str(child_id).isdigit()"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:189:always",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "            digest = WITHDRAWABLE[child_table](row) if row is not None else \"withdrawn\"\n",
+   "new": "            digest = WITHDRAWABLE[child_table](row) if (True) else \"withdrawn\"\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 189 condition forced True: row is not None"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:189:never",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "            digest = WITHDRAWABLE[child_table](row) if row is not None else \"withdrawn\"\n",
+   "new": "            digest = WITHDRAWABLE[child_table](row) if (False) else \"withdrawn\"\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 189 condition forced False: row is not None"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:198:always",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "                    principal=row[\"principal_id\"] if row is not None else None,\n",
+   "new": "                    principal=row[\"principal_id\"] if (True) else None,\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 198 condition forced True: row is not None"
+  },
+  {
+   "id": "gen:provenance_policy:cascade_withdrawal:198:never",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "                    principal=row[\"principal_id\"] if row is not None else None,\n",
+   "new": "                    principal=row[\"principal_id\"] if (False) else None,\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): cascade_withdrawal line 198 condition forced False: row is not None"
+  },
+  {
+   "id": "gen:provenance_policy:lesson_twin_ids:146:always",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "    if row is None:\n",
+   "new": "    if (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): lesson_twin_ids line 146 condition forced True: row is None"
+  },
+  {
+   "id": "gen:provenance_policy:lesson_twin_ids:146:never",
+   "file": "aios/application/memory/provenance_policy.py",
+   "old": "    if row is None:\n",
+   "new": "    if (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py",
+    "tests/test_phase6e_revocation.py"
+   ],
+   "also": [],
+   "note": "generated (twin): lesson_twin_ids line 146 condition forced False: row is None"
+  },
+  {
+   "id": "gen:consolidation:consolidate_lesson:109:always",
+   "file": "aios/memory/consolidation.py",
+   "old": "            if self._authority_owns(\"lessons\", self.mistakes)\n",
+   "new": "            if (True)\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MemoryConsolidator.consolidate_lesson line 109 condition forced True: self._authority_owns(\"lessons\", self.mistakes)"
+  },
+  {
+   "id": "gen:consolidation:consolidate_lesson:109:never",
+   "file": "aios/memory/consolidation.py",
+   "old": "            if self._authority_owns(\"lessons\", self.mistakes)\n",
+   "new": "            if (False)\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MemoryConsolidator.consolidate_lesson line 109 condition forced False: self._authority_owns(\"lessons\", self.mistakes)"
+  },
+  {
+   "id": "gen:consolidation:consolidate_lesson:112:always",
+   "file": "aios/memory/consolidation.py",
+   "old": "        if row is None or row[\"verification_status\"] != \"verified\":\n",
+   "new": "        if (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MemoryConsolidator.consolidate_lesson line 112 condition forced True: row is None or row[\"verification_status\"] != \"verified\""
+  },
+  {
+   "id": "gen:consolidation:consolidate_lesson:112:never",
+   "file": "aios/memory/consolidation.py",
+   "old": "        if row is None or row[\"verification_status\"] != \"verified\":\n",
+   "new": "        if (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MemoryConsolidator.consolidate_lesson line 112 condition forced False: row is None or row[\"verification_status\"] != \"verified\""
+  },
+  {
+   "id": "gen:consolidation:_lesson_admitted:132:always",
+   "file": "aios/memory/consolidation.py",
+   "old": "        no authority (a legacy store) recall is not gated, so neither is this.\"\"\"\n        if not self._authority_owns(\"lessons\", self.mistakes):\n",
+   "new": "        no authority (a legacy store) recall is not gated, so neither is this.\"\"\"\n        if (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MemoryConsolidator._lesson_admitted line 132 condition forced True: not self._authority_owns(\"lessons\", self.mistakes)"
+  },
+  {
+   "id": "gen:consolidation:_lesson_admitted:132:never",
+   "file": "aios/memory/consolidation.py",
+   "old": "        no authority (a legacy store) recall is not gated, so neither is this.\"\"\"\n        if not self._authority_owns(\"lessons\", self.mistakes):\n",
+   "new": "        no authority (a legacy store) recall is not gated, so neither is this.\"\"\"\n        if (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MemoryConsolidator._lesson_admitted line 132 condition forced False: not self._authority_owns(\"lessons\", self.mistakes)"
+  },
+  {
+   "id": "gen:adapters:admitted:926:always",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        row = self.store.get(int(mistake_id))\n        if row is None:\n",
+   "new": "        row = self.store.get(int(mistake_id))\n        if (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MistakeMemoryAdapter.admitted line 926 condition forced True: row is None"
+  },
+  {
+   "id": "gen:adapters:admitted:926:never",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        row = self.store.get(int(mistake_id))\n        if row is None:\n",
+   "new": "        row = self.store.get(int(mistake_id))\n        if (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MistakeMemoryAdapter.admitted line 926 condition forced False: row is None"
+  },
+  {
+   "id": "gen:adapters:record_derivation:941:always",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        \"\"\"Record *child* as derived from *parent*, once.\"\"\"\n        if self.provenance is None:\n",
+   "new": "        \"\"\"Record *child* as derived from *parent*, once.\"\"\"\n        if (True):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MistakeMemoryAdapter.record_derivation line 941 condition forced True: self.provenance is None"
+  },
+  {
+   "id": "gen:adapters:record_derivation:941:never",
+   "file": "aios/application/memory/adapters.py",
+   "old": "        \"\"\"Record *child* as derived from *parent*, once.\"\"\"\n        if self.provenance is None:\n",
+   "new": "        \"\"\"Record *child* as derived from *parent*, once.\"\"\"\n        if (False):\n",
+   "tests": [
+    "tests/test_lesson_twin_withdrawal.py"
+   ],
+   "also": [],
+   "note": "generated (twin): MistakeMemoryAdapter.record_derivation line 941 condition forced False: self.provenance is None"
   }
  ],
  "retired": [
@@ -8806,7 +9050,12 @@
    "aios/memory/learning_journal.py::last_withdrawal_id",
    "aios/runtime/self_model_handler.py::SelfModelHandler.recall",
    "tools/revoke_learning.py::revoke",
-   "tools/revoke_learning.py::_cascade"
+   "aios/application/memory/provenance_policy.py::cascade_withdrawal",
+   "aios/application/memory/provenance_policy.py::lesson_twin_ids",
+   "aios/memory/consolidation.py::MemoryConsolidator.consolidate_lesson",
+   "aios/memory/consolidation.py::MemoryConsolidator._lesson_admitted",
+   "aios/application/memory/adapters.py::MistakeMemoryAdapter.admitted",
+   "aios/application/memory/adapters.py::MistakeMemoryAdapter.record_derivation"
   ],
   "T5 T10 stop and bounds": [
    "aios/memory/learning_freeze.py::assert_learning_permitted",
