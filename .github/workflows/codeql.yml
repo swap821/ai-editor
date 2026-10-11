@@ -84,6 +84,7 @@ jobs:
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
+      id: init
       uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
@@ -103,8 +104,17 @@ jobs:
       if: matrix.language == 'python'
       shell: bash
       run: |
-        CODEQL_BIN="$(find /opt/hostedtoolcache/CodeQL -type f -path '*/codeql/codeql' | sort -V | tail -1)"
-        test -n "$CODEQL_BIN"
+        # The binary the init step actually set up. It is in the runner's tool
+        # cache only when the cached version matches the action's bundle;
+        # otherwise the action downloads it under $RUNNER_TEMP, and a search
+        # of the tool cache alone found nothing -- so this step failed on some
+        # runners and passed on others, with no change to the repo.
+        CODEQL_BIN="${{ steps.init.outputs.codeql-path }}"
+        if [ -z "$CODEQL_BIN" ] || [ ! -x "$CODEQL_BIN" ]; then
+          CODEQL_BIN="$(find /opt/hostedtoolcache/CodeQL "$RUNNER_TEMP" -type f -path '*/codeql/codeql' 2>/dev/null | sort -V | tail -1)"
+        fi
+        test -n "$CODEQL_BIN" || { echo "::error::no CodeQL binary found"; exit 1; }
+        echo "CodeQL binary: $CODEQL_BIN"
         "$CODEQL_BIN" resolve packs \
           --search-path="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
           --additional-packs="${GITHUB_WORKSPACE}/.github/codeql/extensions" \
