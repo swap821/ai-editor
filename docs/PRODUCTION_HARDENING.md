@@ -46,7 +46,7 @@ Ready means every gate is PASS.
 | Clerk | `admitted_model` | a local model the dispatcher would give a job (approved, qualified, healthy, with a role) |
 | Clerk | `live_roles_earnable` | every role production code asks the clerk for is one a qualification test can grant |
 | Clerk | `real_jobs` | the clerk has done real jobs, recorded in its provenance store |
-| Clerk | `one_gateway` | *not measured yet*: every model call through the one gateway |
+| Clerk | `one_gateway` | every production model call on this machine in the last 7 days passed an Organ 32 gateway entrance, read from the model-call ledger (`docs/ONE_GATEWAY.md`) |
 | Sovereign | `production_started` | the production launcher has run here |
 | Sovereign | `backend_ready` | the backend answers its readiness probe |
 | Sovereign | `backups` | a restorable backup newer than the staleness limit |

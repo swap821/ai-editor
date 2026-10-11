@@ -434,6 +434,90 @@ def clerk_real_jobs(world: World) -> Gate:
     )
 
 
+#: The window of real use the one-gateway gate judges.
+GATEWAY_WINDOW = timedelta(days=7)
+
+
+def clerk_one_gateway(world: World) -> Gate:
+    """Every model call on THIS machine passed a gateway entrance.
+
+    Read from the model-call ledger (``aios/core/model_calls.py``), which each
+    provider adapter writes as a request leaves. A call is judged by the code
+    that made it: production code (``aios/``) must have come through an
+    entrance; a measurement tool's own direct calls (``tools/``, ``tests/``)
+    are reported, not judged -- a production path a tool drives is still
+    judged, by the production frame that called the model.
+    """
+    from aios.core.model_calls import read_ledger
+
+    records = read_ledger(world.data_dir, world.now - GATEWAY_WINDOW)
+    days = GATEWAY_WINDOW.days
+    if not records:
+        return Gate(
+            "clerk",
+            "one_gateway",
+            NOT_MEASURED,
+            f"no model call recorded on this machine in {days} days",
+            next_step="use GAGOS: every model call is recorded as it leaves",
+        )
+    damaged = [r for r in records if "unreadable" in r]
+    if damaged:
+        return Gate(
+            "clerk",
+            "one_gateway",
+            ERROR,
+            f"{len(damaged)} unreadable ledger line(s): calls that cannot be judged",
+        )
+    judged = [
+        r
+        for r in records
+        if not str(r.get("site", "")).startswith(("tools/", "tests/"))
+    ]
+    instruments = len(records) - len(judged)
+    ungated: dict[str, int] = {}
+    entrances: dict[str, int] = {}
+    for record in judged:
+        entrance = record.get("entrance")
+        if entrance:
+            entrances[entrance] = entrances.get(entrance, 0) + 1
+        else:
+            site = str(record.get("site") or "?")
+            ungated[site] = ungated.get(site, 0) + 1
+    tail = (
+        f"; {instruments} more from measurement tools, reported not judged"
+        if instruments
+        else ""
+    )
+    if ungated:
+        worst = sorted(ungated.items(), key=lambda kv: -kv[1])[:5]
+        return Gate(
+            "clerk",
+            "one_gateway",
+            FAIL,
+            f"{sum(ungated.values())} of {len(judged)} model calls in {days} days "
+            f"passed no gateway entrance: "
+            + ", ".join(f"{site} x{n}" for site, n in worst)
+            + tail,
+            next_step="route each site through an Organ 32 entrance",
+        )
+    if not judged:
+        return Gate(
+            "clerk",
+            "one_gateway",
+            NOT_MEASURED,
+            f"only measurement tools called a model here in {days} days{tail}",
+            next_step="use GAGOS: every model call is recorded as it leaves",
+        )
+    shown = ", ".join(f"{k} {v}" for k, v in sorted(entrances.items()))
+    return Gate(
+        "clerk",
+        "one_gateway",
+        PASS,
+        f"{len(judged)} model calls in {days} days, every one through a gateway "
+        f"entrance ({shown}){tail}",
+    )
+
+
 def _requested_clerk_roles(repo: Path) -> dict[str, list[str]]:
     """The roles production code asks the clerk for: every
     ``job_profile=LocalJobProfile.X`` in ``aios/``, outside the contracts
@@ -611,12 +695,6 @@ def intelligence_cloud_provider(world: World) -> Gate:
 
 NOT_YET = (
     (
-        "clerk",
-        "one_gateway",
-        "every model call through the one gateway: construction is gated, calls are not inventoried",
-        "H7",
-    ),
-    (
         "sovereign",
         "offline_drill",
         "a turn served by the local model with the network cut",
@@ -647,6 +725,7 @@ GATES: tuple[Callable[[World], Gate], ...] = (
     clerk_admitted_model,
     clerk_live_roles_earnable,
     clerk_real_jobs,
+    clerk_one_gateway,
     sovereign_production_started,
     sovereign_backend_ready,
     sovereign_backups,
