@@ -1521,13 +1521,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip e21a49d3c0baf67743c4518b61ac653d55936805: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip e21a49d3c0baf67743c4518b61ac653d55936805 exit=0; artifact=release/phase4/live-evidence-e21a49d3c0ba.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+        "description": "Phase 4 absolute live run on tip 59ce79b34e4eb5921834d771a846576f9bb62b14: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 59ce79b34e4eb5921834d771a846576f9bb62b14 exit=0; artifact=release/phase4/live-evidence-59ce79b34e4e.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
+        "commit_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+    "last_verified_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 EmergencyStopHardWiringAuthority class defined in production_entrypoints ['aios/runtime/intelligence_gateway.py', 'aios/application/learning/service.py', 'aios/application/maintenance/service.py'] (Decision A / enforce_owner_attestation)",
@@ -1992,13 +1992,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Live local-clerk runtime against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b (the model CI's local-clerk-live job runs), at commit e21a49d3c0baf67743c4518b61ac653d55936805: 10 passed, 0 skipped, 0 failed (release/organ-33-37/clerk-junit-2026-10-11.xml). For organ 35 the live verdict reaches the real dispatcher: tests/test_local_clerk_integration.py::test_the_dispatcher_honours_the_live_verdict and tests/test_local_clerk_integration.py::test_deterministic_code_still_wins_over_a_live_model both PASSED. command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-2026-10-11.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gathered at this branch's tip because the clerk's qualification suite moved to r15-v3 (skill_selection cases) and its contracts' defaults with it.",
-        "commit_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+        "description": "Live local-clerk runtime against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b (the model CI's local-clerk-live job runs), at master's tip 59ce79b34e4eb5921834d771a846576f9bb62b14 after #456's squash: 10 passed, 0 skipped, 0 failed (release/organ-33-37/clerk-junit-59ce79b34e4e.xml). For organ 35 the live verdict reaches the real dispatcher: tests/test_local_clerk_integration.py::test_the_dispatcher_honours_the_live_verdict and tests/test_local_clerk_integration.py::test_deterministic_code_still_wins_over_a_live_model both PASSED. command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-59ce79b34e4e.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`.",
+        "commit_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+    "last_verified_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalClerkRuntimeAuthority class defined in production_entrypoints ['aios/domain/local_workforce/contracts.py'] (Decision A / enforce_owner_attestation)",
@@ -2010,7 +2010,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/domain/test_local_workforce_qualifier.py in the gate's own run, and tests/test_local_clerk_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 no residual known_blockers. The live suite carries the failure-path direction explicitly: test_deterministic_code_still_wins_over_a_live_model asserts a live model does NOT displace deterministic routing.",
-      "C10": "PASS \u2014 proof_level=live evidence from a real Ollama daemon and a real qwen2.5:0.5b at e21a49d3c0baf67743c4518b61ac653d55936805 (10 passed / 0 skipped, release/organ-33-37/clerk-junit-2026-10-11.xml).",
+      "C10": "PASS \u2014 proof_level=live evidence from a real Ollama daemon and a real qwen2.5:0.5b at 59ce79b34e4eb5921834d771a846576f9bb62b14 (10 passed / 0 skipped, release/organ-33-37/clerk-junit-59ce79b34e4e.xml).",
       "C11": "PASS \u2014 last_verified_sha 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a recorded at the commit whose CI run carries the live evidence.",
       "C12": "PASS \u2014 4cd9f1550cf1fe5d9cbe0cdf67fd8429f3dabf0a is master's tip and an ancestor of HEAD."
     }
@@ -2117,13 +2117,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model CI's local-clerk-live job runs -- at commit e21a49d3c0baf67743c4518b61ac653d55936805, running the r15-v3 suite (now including skill_selection_applies / skill_selection_abstains): tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model and tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence both ran and PASSED (10 passed, 0 skipped, 0 failed; release/organ-33-37/clerk-junit-2026-10-11.xml). command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-2026-10-11.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gathered at this branch's tip because this organ's own entrypoint (qualifier.py) moved.",
-        "commit_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model CI's local-clerk-live job runs -- at master's tip 59ce79b34e4eb5921834d771a846576f9bb62b14 after #456's squash, running the r15-v3 suite: tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model and tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence both ran and PASSED (10 passed, 0 skipped, 0 failed; release/organ-33-37/clerk-junit-59ce79b34e4e.xml). command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-59ce79b34e4e.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`.",
+        "commit_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+    "last_verified_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalModelQualificationAuthority class defined in production_entrypoints ['aios/domain/local_workforce/qualifier.py', 'aios/application/local_workforce/qualification_evidence.py', 'aios/domain/local_workforce/registry.py'] (Decision A / enforce_owner_attestation)",
@@ -2135,7 +2135,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/test_r15_runtime_proof.py in the gate's own run, and tests/test_local_clerk_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 no residual known_blockers. Failure-path coverage is real rather than nominal: the qualification suite is asserted to produce an honest verdict, pass or fail, and the dispatcher escalates away from the local clerk when the live model does not qualify.",
-      "C10": "PASS \u2014 proof_level=live evidence from a real Ollama daemon and a real qwen2.5:0.5b at e21a49d3c0baf67743c4518b61ac653d55936805 (10 passed / 0 skipped, release/organ-33-37/clerk-junit-2026-10-11.xml).",
+      "C10": "PASS \u2014 proof_level=live evidence from a real Ollama daemon and a real qwen2.5:0.5b at 59ce79b34e4eb5921834d771a846576f9bb62b14 (10 passed / 0 skipped, release/organ-33-37/clerk-junit-59ce79b34e4e.xml).",
       "C11": "PASS - last_verified_sha=cdfd7d16d2f64601b9275e0382f44a3981c14e03",
       "C12": "PASS - cdfd7d16d2f64601b9275e0382f44a3981c14e03 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2e5d89807fbb -> cdfd7d16d2f6 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 3 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
@@ -2464,13 +2464,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip e21a49d3c0baf67743c4518b61ac653d55936805: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip e21a49d3c0baf67743c4518b61ac653d55936805 exit=0; artifact=release/phase4/live-evidence-e21a49d3c0ba.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
-        "commit_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+        "description": "Phase 4 absolute live run on tip 59ce79b34e4eb5921834d771a846576f9bb62b14: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 59ce79b34e4eb5921834d771a846576f9bb62b14 exit=0; artifact=release/phase4/live-evidence-59ce79b34e4e.json; SkillLifecycleAuthority.apply_reuse_outcome + reopen SQLite => direct save into 'active' refused; candidate->human_reviewed->active; apply_reuse_outcome success conf=0.55 success_count=1 state=active",
+        "commit_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+    "last_verified_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SkillLifecycleAuthority class defined in production_entrypoints ['aios/domain/learning/skill_contracts.py', 'aios/domain/learning/repository.py', 'aios/application/learning/skill_lifecycle.py', 'aios/application/learning/service.py', 'aios/application/memory/institutional_skills.py'] (Decision A / enforce_owner_attestation)",
@@ -3039,13 +3039,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip e21a49d3c0baf67743c4518b61ac653d55936805: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip e21a49d3c0baf67743c4518b61ac653d55936805 exit=0; artifact=release/phase4/live-evidence-e21a49d3c0ba.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
-        "commit_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+        "description": "Phase 4 absolute live run on tip 59ce79b34e4eb5921834d771a846576f9bb62b14: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 59ce79b34e4eb5921834d771a846576f9bb62b14 exit=0; artifact=release/phase4/live-evidence-59ce79b34e4e.json; create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup => create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None",
+        "commit_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "e21a49d3c0baf67743c4518b61ac653d55936805",
+    "last_verified_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 BackupDisasterRecoveryAuthority class defined in production_entrypoints ['aios/operations/recovery.py', 'aios/operations/doctor.py', 'aios/__main__.py'] (Decision A / enforce_owner_attestation)",
