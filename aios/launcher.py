@@ -23,7 +23,9 @@ from typing import Any
 
 
 VALID_PROFILES = frozenset({"development", "demo", "production", "test"})
-_SECRET_NAMES = ("AIOS_API_TOKEN", "AIOS_EXECUTOR_TOKEN", "AIOS_GRAFANA_ADMIN_PASSWORD")
+#: The pinned learning public keys, mounted read-only into the production
+#: container (``.aios`` is not in the image).
+_LEARNING_PINS = Path(".aios") / "state" / "LEARNING_PUBLIC_KEYS.json"
 
 
 class LauncherError(RuntimeError):
@@ -82,27 +84,41 @@ def _int_env(name: str, default: int) -> int:
     return value
 
 
-def _env_file_values(path: Path) -> dict[str, str]:
-    """Read only simple KEY=value entries, without ever logging their values."""
-    if not path.is_file():
-        return {}
-    values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name, value = line.split("=", maxsplit=1)
-        name = name.strip()
-        value = value.strip().strip("\"'")
-        if name in _SECRET_NAMES:
-            values[name] = value
-    return values
+def _keystore() -> Any:
+    """The OS credential store (AGENTS.md §VII.4, amended 2026-10-11), or None
+    where there is none -- CI, Linux -- and keys can only be volatile env."""
+    from aios.operations.keystore import KeystoreUnavailable, default_keystore
+
+    try:
+        return default_keystore()
+    except KeystoreUnavailable:
+        return None
 
 
 def _secret_value(config: LauncherConfig, name: str) -> str:
-    return os.getenv(name, "") or _env_file_values(config.repo_root / ".env").get(
-        name, ""
-    )
+    """A volatile env var wins; otherwise the OS credential store. Never
+    ``.env``: §VII.4 keeps keys off disk, and the store is the one exception."""
+    value = os.getenv(name, "")
+    if value:
+        return value
+    store = _keystore()
+    return (store.get(name) or "") if store is not None else ""
+
+
+def _learning_key_pinned(config: LauncherConfig) -> bool:
+    """Is the stored learning key's public half pinned? Unpinned, the
+    production verifier refuses every row it signs."""
+    from aios.operations.keystore import learning_public_key
+
+    seed = _secret_value(config, "AIOS_LEARNING_KEY_LIVE")
+    pins = config.repo_root / _LEARNING_PINS
+    if not seed or not pins.is_file():
+        return False
+    try:
+        pinned = json.loads(pins.read_text(encoding="utf-8"))["keys"]["live"]
+        return learning_public_key(seed) in pinned
+    except (ValueError, KeyError, TypeError):
+        return False
 
 
 def _is_placeholder(value: str) -> bool:
@@ -128,18 +144,44 @@ def _production_preflight(config: LauncherConfig) -> None:
             "production start refused: host execution backend is forbidden; "
             "use the private Executor Service"
         )
+    from aios.operations.keystore import REQUIRED
+
     missing = [
-        name for name in _SECRET_NAMES if _is_placeholder(_secret_value(config, name))
+        name for name in REQUIRED if _is_placeholder(_secret_value(config, name))
     ]
     if missing:
         raise LauncherError(
-            "production start refused: configure non-default " + ", ".join(missing)
+            "production start refused: configure non-default "
+            + ", ".join(missing)
+            + " (`gagos keys generate --missing` stores them in the OS credential store)"
+        )
+    if not _learning_key_pinned(config):
+        raise LauncherError(
+            "production start refused: the learning key's public half is not pinned "
+            f"in {_LEARNING_PINS} (`gagos keys pin`); unpinned, everything production "
+            "learns is refused at recall"
         )
 
 
 def _child_environment(config: LauncherConfig) -> dict[str, str]:
     env = os.environ.copy()
+    if config.profile == "production":
+        # The stored keys, handed to Compose in memory only; Compose passes
+        # each to the container that names it. A volatile env var wins.
+        store = _keystore()
+        if store is not None:
+            from aios.operations.keystore import production_environment
+
+            for name, value in production_environment(store).items():
+                env.setdefault(name, value)
     env["AIOS_PROFILE"] = config.profile
+    # Compose mounts the launcher's data directory, wherever AIOS_DATA_DIR put it.
+    env["AIOS_HOST_DATA_DIR"] = str(config.data_dir)
+    if config.profile == "production":
+        # Compose refuses to start the executor without a host job workspace
+        # (`:?` in docker-compose.yml). Default it beside the data, absolute.
+        jobs = config.data_dir / "executor-jobs"
+        env.setdefault("AIOS_EXECUTOR_HOST_WORKSPACE_ROOT", str(jobs))
     env.setdefault("AIOS_API_PORT", str(config.api_port))
     env.setdefault("AIOS_GATEWAY_PORT", str(config.gateway_port))
     return env
@@ -383,6 +425,86 @@ def provenance_clerk_job(config: LauncherConfig, *, job_id: str, as_json: bool) 
     return 0 if trace.request is not None else 1
 
 
+def keys_command(config: LauncherConfig, args: argparse.Namespace) -> int:
+    """``gagos keys``: the production keys in the OS credential store. No
+    subcommand prints a value; storing one is the operator's act."""
+    from aios.operations import keystore as ks
+
+    store = _keystore()
+    if store is None:
+        raise LauncherError(
+            "there is no OS credential store here; production keys can only be "
+            "volatile env vars"
+        )
+    try:
+        if args.keys_command == "status":
+            report = ks.presence(store)
+            for name in ks.NAMES:
+                kind = "required" if name in ks.REQUIRED else "optional"
+                state = "stored " if report[name] else "MISSING"
+                print(f"  {state}  {name} ({kind})")
+            pinned = _learning_key_pinned(config)
+            print(f"  learning key pinned: {'yes' if pinned else 'NO'}")
+            return 0 if pinned and all(report[n] for n in ks.REQUIRED) else 1
+        if args.keys_command == "generate":
+            names = (
+                [n for n in ks.REQUIRED if not store.get(n)]
+                if args.missing
+                else list(args.names)
+            )
+            if not names:
+                print("nothing to generate")
+                return 0
+            for name in names:
+                public = ks.generate(store, name, rotate=args.rotate)
+                print(f"  stored {name} (value not shown)")
+                if public:
+                    print(
+                        f"  learning public key {public}: pin it with `gagos keys pin`"
+                    )
+            return 0
+        if args.keys_command == "pin":
+            seed = store.get("AIOS_LEARNING_KEY_LIVE")
+            if not seed:
+                raise LauncherError(
+                    "no learning key is stored: `gagos keys generate AIOS_LEARNING_KEY_LIVE`"
+                )
+            public = ks.learning_public_key(seed)
+            path = config.repo_root / _LEARNING_PINS
+            data = (
+                json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+            )
+            live = data.setdefault("keys", {}).setdefault("live", [])
+            if public not in live:
+                live.append(public)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((json.dumps(data, indent=2) + "\n").encode("utf-8"))
+            print(
+                f"pinned {public} in {path}: commit it, it is what the verifier trusts"
+            )
+            return 0
+        if args.keys_command == "set":
+            if not sys.stdin.isatty():
+                raise LauncherError(
+                    "`gagos keys set` reads a hidden prompt: run it in your own terminal"
+                )
+            import getpass
+
+            value = getpass.getpass(f"{args.name} (hidden): ").strip()
+            if not value:
+                raise LauncherError("empty value: nothing stored")
+            store.set(args.name, value)
+            print(f"stored {args.name} (value not shown)")
+            return 0
+        if args.keys_command == "delete":
+            gone = store.delete(args.name)
+            print(f"{'deleted' if gone else 'was not stored'}: {args.name}")
+            return 0
+    except ValueError as exc:
+        raise LauncherError(str(exc)) from exc
+    return 2
+
+
 def _delegate_maintenance(command: str, arguments: list[str]) -> int:
     """Keep the Slice 21 maintenance commands under the one product CLI."""
     from aios.__main__ import main as aios_main
@@ -442,6 +564,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     clerk_job_parser.add_argument("job_id")
     clerk_job_parser.add_argument("--json", action="store_true")
+    keys_parser = subparsers.add_parser(
+        "keys", help="Production keys in the OS credential store (never shown)."
+    )
+    keys_subparsers = keys_parser.add_subparsers(dest="keys_command", required=True)
+    keys_subparsers.add_parser("status", help="Which keys are stored, never values.")
+    generate_parser = keys_subparsers.add_parser(
+        "generate", help="Make keys straight into the store."
+    )
+    generate_parser.add_argument("names", nargs="*")
+    generate_parser.add_argument(
+        "--missing", action="store_true", help="every required key not yet stored"
+    )
+    generate_parser.add_argument("--rotate", action="store_true")
+    keys_subparsers.add_parser("pin", help="Pin the stored learning key's public half.")
+    set_parser = keys_subparsers.add_parser(
+        "set", help="Store a key you hold (a cloud key) from a hidden prompt."
+    )
+    set_parser.add_argument("name")
+    delete_parser = keys_subparsers.add_parser("delete", help="Remove a stored key.")
+    delete_parser.add_argument("name")
     for maintenance_command in ("backup", "audit", "cortex", "memory", "executor"):
         maintenance_parser = subparsers.add_parser(
             maintenance_command,
@@ -479,6 +621,8 @@ def main(argv: list[str] | None = None) -> int:
             return organ_check(config, strict=args.strict, as_json=args.json)
         if args.command == "provenance" and args.provenance_command == "clerk-job":
             return provenance_clerk_job(config, job_id=args.job_id, as_json=args.json)
+        if args.command == "keys":
+            return keys_command(config, args)
         if args.command in {"backup", "audit", "cortex", "memory", "executor"}:
             return _delegate_maintenance(args.command, args.arguments)
     except LauncherError as exc:
