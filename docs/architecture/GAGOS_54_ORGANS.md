@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `e9aa37b95e9a325a8764c48af28e969b39616e406c7316d6858db45c1d0bd23a`
+- **Source ledger sha256:** `d3858dd6fe11f7378c9c44cc736e674b0cb1df03cd76a088ef0fdcd3e642bc00`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -870,7 +870,7 @@ re-audits recorded above.
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
 | 57 | Reflex Authority | `Cerebellum` | `7954d18d4e8a` | live |
-| 58 | Recall Isolation | `RecallGate` | `39a8b5ea7dc4` | live |
+| 58 | Recall Isolation | `RecallGate` | `1d1f7d32dc97` | live |
 | 59 | Learning Freeze | `LearningFreezeAuthority` | `97bb80800929` | live |
 
 ### Yellow (8) — exact residual, from the ledger's own `known_blockers`
