@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
+from aios.core import model_calls
 from aios.application.intelligence.context_compiler import (
     CompilationTarget,
     RepresentativeContextCompilerAuthority,
@@ -473,7 +474,8 @@ class UniversalIntelligenceGatewayAuthority:
         )
         _record_context(context, kwargs.get("context_store"))
 
-        raw_output = kwargs["model_call"](context)
+        with model_calls.gateway_scope("route"):
+            raw_output = kwargs["model_call"](context)
         decision = policy.inspect_text(raw_output)
         return IntelligenceGatewayResult(
             context=context,
@@ -520,7 +522,11 @@ class UniversalIntelligenceGatewayAuthority:
             _record_context(context, kwargs.get("context_store"))
 
         def _redacted_chunks() -> Iterator[str]:
-            return _redact_stream(kwargs["model_call"](context), policy)
+            with model_calls.gateway_scope("stream"):
+                raw = kwargs["model_call"](context)
+            return _redact_stream(
+                model_calls.scoped_iter("stream", lambda: raw), policy
+            )
 
         return StreamingIntelligenceGatewayResult(
             context=context, chunks=_redacted_chunks(), receipt=receipt
@@ -567,7 +573,9 @@ class UniversalIntelligenceGatewayAuthority:
             _record_context(context, kwargs.get("context_store"))
 
         def _redacted_events() -> Iterator[dict[str, Any]]:
-            raw_events = kwargs["model_call"](context)
+            raw_events = model_calls.scoped_iter(
+                "stream_structured", lambda: kwargs["model_call"](context)
+            )
             yield from _redact_structured_stream(raw_events, policy)
 
         return StructuredStreamingIntelligenceGatewayResult(
@@ -598,7 +606,9 @@ class UniversalIntelligenceGatewayAuthority:
         policy = kwargs.get("secret_policy") or SecretPolicy()
 
         def _redacted_chunks() -> Iterator[str]:
-            yield from _redact_stream(model_call(), policy)
+            yield from _redact_stream(
+                model_calls.scoped_iter("stream_compatibility", model_call), policy
+            )
 
         return CompatibilityStreamingIntelligenceGatewayResult(
             chunks=_redacted_chunks()
@@ -624,7 +634,9 @@ class UniversalIntelligenceGatewayAuthority:
             kwargs.get("emergency_stop"), boundary="intelligence-gateway-compatibility"
         )
         policy = kwargs.get("secret_policy") or SecretPolicy()
-        decision = policy.inspect_text(model_call())
+        with model_calls.gateway_scope("complete_compatibility"):
+            raw_output = model_call()
+        decision = policy.inspect_text(raw_output)
         return decision.scrubbed
 
 
