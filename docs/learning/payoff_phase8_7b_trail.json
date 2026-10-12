@@ -1,0 +1,1075 @@
+{
+ "ts": "2026-10-12T08:27:58+00:00",
+ "kind": "run",
+ "run_id": "20261012T074959-65c6f335",
+ "outcome": "completed",
+ "corpus_sha": "092fb0f9b8d39d16669b269af4c507757ef1db6a",
+ "harness_sha": "c5989c5fdda3272eb9a08b73c50e79762b1e6691",
+ "preregistration_sha256": "9e532d9c5de8dce69ba7b38b758fab512de18ad29113a4fca02443c23090b963",
+ "hash_basis": "lf-normalised",
+ "target_labels": [
+  "aios/application/executor/service.py::execute_registered_repair_operation",
+  "aios/agents/tool_agent.py::build_auto_verify_command",
+  "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+  "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+  "aios/application/governance/governance_observation.py::normalise_bus_event",
+  "aios/agents/tool_handlers.py::next_step_after_noop",
+  "aios/application/governance/na_cite_validator.py::na_cite_sources",
+  "aios/agents/tool_loop_helpers.py::normalize_command",
+  "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+  "aios/application/agent_bridge.py::looks_secret_bearing",
+  "aios/application/governance/organ_ledger.py::current_commit_sha",
+  "aios/application/governance/organ_ledger.py::load_ledger",
+  "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+  "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+  "aios/application/governance/spine_release.py::key_continuity_findings",
+  "aios/application/governance/spine_release.py::load_attestation",
+  "aios/application/governance/spine_release.py::load_key_history",
+  "aios/application/governance/spine_release.py::load_public_key",
+  "aios/application/governance/text_screening.py::obfuscated_tokens",
+  "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+  "aios/application/intelligence/deliberation.py::blocks_promotion",
+  "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+  "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+  "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+  "aios/application/memory/human_representation.py::classify_human_state",
+  "aios/application/models/passport.py::can_drive_tools",
+  "aios/application/models/passport_authority.py::passport_from_registry_row",
+  "aios/application/read_models/governance_projections.py::project_capability_approval",
+  "aios/application/read_models/governance_projections.py::project_constitution",
+  "aios/application/read_models/governance_projections.py::project_emergency_stop"
+ ],
+ "target_list_frozen": true,
+ "models": "ollama.qwen2.5-coder:7b",
+ "samples": 1,
+ "placebo": false,
+ "novel_only": false,
+ "excluded_targets": null,
+ "skill_store_mode": "library",
+ "library_active_at_start": 0,
+ "summary": {
+  "attempted": 30,
+  "comparable": 19,
+  "not_comparable": [
+   {
+    "target": "aios/agents/tool_handlers.py::next_step_after_noop",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+    "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one"
+   },
+   {
+    "target": "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/agent_bridge.py::looks_secret_bearing",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/governance/organ_ledger.py::load_ledger",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/governance/spine_release.py::load_public_key",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/intelligence/deliberation.py::blocks_promotion",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+    "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one"
+   },
+   {
+    "target": "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   },
+   {
+    "target": "aios/application/memory/human_representation.py::classify_human_state",
+    "reason": "recall returned nothing for this task, so both arms would see identical prompts"
+   }
+  ],
+  "all": {
+   "arms": [
+    "on",
+    "off"
+   ],
+   "pairs": 19,
+   "samples": 1,
+   "on_earned": 1,
+   "off_earned": 2,
+   "payoff": -0.05263157894736842,
+   "on_only": 0,
+   "off_only": 1,
+   "p_value": 1.0
+  },
+  "novel": {
+   "arms": [
+    "on",
+    "off"
+   ],
+   "pairs": 18,
+   "samples": 1,
+   "on_earned": 1,
+   "off_earned": 2,
+   "payoff": -0.05555555555555555,
+   "on_only": 0,
+   "off_only": 1,
+   "p_value": 1.0
+  },
+  "seen": {
+   "arms": [
+    "on",
+    "off"
+   ],
+   "pairs": 1,
+   "samples": 1,
+   "on_earned": 0,
+   "off_earned": 0,
+   "payoff": 0.0,
+   "on_only": 0,
+   "off_only": 0,
+   "p_value": 1.0
+  },
+  "transport_retries": 0
+ },
+ "pairs": [
+  {
+   "target": "aios/application/executor/service.py::execute_registered_repair_operation",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 3,
+    "recalled_skills": 0,
+    "prompt_chars": 4759,
+    "seconds": 50.82812990000093,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.job'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 4004,
+    "seconds": 33.63970909999989,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.executor.job'\nERROR tests/test_pin_aios_application_executor_service_execute_registered_repair_operation.py"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 3 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/agents/tool_agent.py::build_auto_verify_command",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 2333,
+    "seconds": 17.12462339999911,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'config'\nERROR tests/test_pin_aios_agents_tool_agent_build_auto_verify_command.py"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": true,
+    "outcome": "earned",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2019,
+    "seconds": 17.937816200003,
+    "notes": [],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 1 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/adversarial_simulations.py::run_adversarial_simulations",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 1909,
+    "seconds": 24.24828030000208,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.constitutional_amendment_proposal_v1'\nERROR tests/test_pin_aios_application_governance_adversarial_simulation"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 1591,
+    "seconds": 21.75637469999856,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.proposals'\nERROR tests/test_pin_aios_application_governance_adversarial_simulations_run_adversarial_simulatio"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 1 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/agents/tool_handlers.py::next_step_after_blocked_read",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 2,
+    "recalled_skills": 0,
+    "prompt_chars": 4812,
+    "seconds": 34.29537379999965,
+    "notes": [
+     "clean run not green: >       assert next_step_after_blocked_read(\"ls\") == \"\"\nE       AssertionError: assert ' To list a d... not blocked.' == ''\nE         \nE         +  To list a directory, call the r"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 4341,
+    "seconds": 33.7873161000025,
+    "notes": [
+     "clean run not green: >       assert next_step_after_blocked_read(\"ls\") == \"\"\nE       AssertionError: assert ' To list a d... not blocked.' == ''\nE         \nE         +  To list a directory, call the r"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 2 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/governance_observation.py::normalise_bus_event",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 2,
+    "recalled_skills": 0,
+    "prompt_chars": 2662,
+    "seconds": 20.12071709999873,
+    "notes": [
+     "clean run not green: >       assert normalise_bus_event(bus_event) == expected_result\nE       AssertionError: assert {'event': ''} == {'event': 'te...y2': 'value2'}\nE         \nE         Differing item"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2049,
+    "seconds": 23.036897599999065,
+    "notes": [
+     "clean run not green: >       assert normalise_bus_event(bus_event) == expected\nE       AssertionError: assert {'event': ''} == {'event': 'te... 'value', ...}\nE         \nE         Differing items:\nE   "
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 2 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/agents/tool_handlers.py::next_step_after_noop",
+   "first": "off",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/na_cite_validator.py::na_cite_sources",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 2,
+    "recalled_skills": 0,
+    "prompt_chars": 3105,
+    "seconds": 23.416450199998508,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.core.workspace'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2645,
+    "seconds": 23.908452300001954,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.governance.organ_record'\nERROR tests/test_pin_aios_application_governance_na_cite_validator_na_cite_sources.py"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 2 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/agents/tool_loop_helpers.py::normalize_command",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": false,
+    "earned": false,
+    "outcome": "model_error",
+    "recalled_lessons": 5,
+    "recalled_skills": 0,
+    "prompt_chars": 3903,
+    "seconds": 420.0191879999984,
+    "notes": [
+     "Ollama request to http://127.0.0.1:11434 failed: timed out"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2635,
+    "seconds": 48.02985719999924,
+    "notes": [
+     "clean run not green: >       assert normalize_command(input_command) == expected_output\nE       assert \"ssh user@hos...cho password'\" == \"ssh user@hos...cho ********'\"\nE         \nE         - ssh user@"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": false,
+   "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/na_cite_validator.py::validate_shipped_na_cites",
+   "first": "on",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/agent_bridge.py::looks_secret_bearing",
+   "first": "off",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/organ_ledger.py::current_commit_sha",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 2,
+    "recalled_skills": 0,
+    "prompt_chars": 2170,
+    "seconds": 32.60121100000106,
+    "notes": [
+     "clean run not green: >       assert current_commit_sha(root) is None\nE       AssertionError: assert 'abc123def456' is None\nE        +  where 'abc123def456' = current_commit_sha(WindowsPath('/path/to/g"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 1592,
+    "seconds": 34.32356669999717,
+    "notes": [
+     "clean run not green: >       assert result is None\nE       AssertionError: assert 'abc123def456' is None\nFAILED tests/test_pin_aios_application_governance_organ_ledger_current_commit_sha.py::test_curr"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 2 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/organ_ledger.py::load_ledger",
+   "first": "off",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/r15_runtime_proof.py::run_r15_runtime_proofs",
+   "first": "on",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/runtime_proof.py::run_runtime_proofs",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 5,
+    "recalled_skills": 0,
+    "prompt_chars": 6266,
+    "seconds": 42.868764899998496,
+    "notes": [
+     "clean run not green: >       assert isinstance(result, RuntimeProofReport)\nE       NameError: name 'RuntimeProofReport' is not defined\nFAILED tests/test_pin_aios_application_governance_runtime_proof_r"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 4927,
+    "seconds": 38.43412209999951,
+    "notes": [
+     "clean run not green: >       assert isinstance(result, RuntimeProofReport)\nE       NameError: name 'RuntimeProofReport' is not defined\nFAILED tests/test_pin_aios_application_governance_runtime_proof_r"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/spine_release.py::key_continuity_findings",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 5,
+    "recalled_skills": 0,
+    "prompt_chars": 4972,
+    "seconds": 46.135951600001135,
+    "notes": [
+     "clean run not green: >       assert result == expected_result\nE       assert [] == ['SIGNING KEY...ot be green.']\nE         \nE         Right contains one more item: \"SIGNING KEY CHANGED WITHOUT A RECO"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 3790,
+    "seconds": 61.90033240000048,
+    "notes": [
+     "clean run not green: >       with open(root / \".aios/state/spine_key_history.jsonl\", \"w\") as f:\nE       FileNotFoundError: [Errno 2] No such file or directory: '\\\\fake\\\\path\\\\.aios\\\\state\\\\spine_key_h"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/spine_release.py::load_attestation",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 4,
+    "recalled_skills": 0,
+    "prompt_chars": 3793,
+    "seconds": 37.46449829999983,
+    "notes": [
+     "clean run not green: >       assert isinstance(result, SpineAttestation)\nE       assert False\nE        +  where False = isinstance(None, SpineAttestation)\nFAILED tests/test_pin_aios_application_govern"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2912,
+    "seconds": 56.88964399999895,
+    "notes": [
+     "clean run not green: >       with pytest.raises(SpineReleaseError) as exc_info:\nE       NameError: name 'pytest' is not defined\n>       with pytest.raises(SpineReleaseError) as exc_info:\nE       NameE"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 4 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": true,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/spine_release.py::load_key_history",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 1996,
+    "seconds": 35.091707299998234,
+    "notes": [
+     "clean run not green: >       assert load_key_history(root) == [{\"key\": \"value\"}, {\"key2\": \"value2\"}]\nE       AssertionError: assert [] == [{'key': 'val...2': 'value2'}]\nE         \nE         Right cont"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 1755,
+    "seconds": 37.67694730000221,
+    "notes": [
+     "clean run not green: >       (root / KEY_HISTORY_RELPATH).touch()\n>       fd = os.open(self, flags, mode)\nE       FileNotFoundError: [Errno 2] No such file or directory: '\\\\tmp\\\\test\\\\path\\\\to\\\\key_hi"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 1 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/spine_release.py::load_public_key",
+   "first": "off",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/governance/text_screening.py::obfuscated_tokens",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 4,
+    "recalled_skills": 0,
+    "prompt_chars": 6575,
+    "seconds": 22.354132299999037,
+    "notes": [
+     "clean run not green: >       assert result == expected\nE       AssertionError: assert ('bypɑss', 'mоdel') == ('bypɑss', 'S..., 'Łódź', ...)\nE         \nE         At index 1 diff: 'mоdel' != 'Straße'\nE "
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 5676,
+    "seconds": 40.64206130000093,
+    "notes": [
+     "clean run not green: >       assert result == (\"комментарий\",), \"Test case 2 failed\"\nE       AssertionError: Test case 2 failed\nE       assert () == ('комментарий',)\nE         \nE         Right contain"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 4 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/intelligence/context_compiler.py::context_digest_from_record",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 5,
+    "recalled_skills": 0,
+    "prompt_chars": 3188,
+    "seconds": 23.80040530000042,
+    "notes": [
+     "clean run not green: >       assert context_digest_from_record(context) == expected_digest\nE       AssertionError: assert 'be92a53988c0...65b8c6341a46e' == '9da23192c1ad...a4facad0d8c34'\nE         \nE "
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 1948,
+    "seconds": 23.03323090000049,
+    "notes": [
+     "clean run not green: >       assert context_digest_from_record(context) == expected_digest\nE       AssertionError: assert 'be92a53988c0...65b8c6341a46e' == '9da23192c1ad...a4facad0d8c34'\nE         \nE "
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/intelligence/deliberation.py::blocks_promotion",
+   "first": "on",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/intelligence/transport_target.py::hostname_resolves_only_to_loopback",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": true,
+    "outcome": "earned",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 2414,
+    "seconds": 24.12478850000116,
+    "notes": [],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": true,
+    "outcome": "earned",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2076,
+    "seconds": 23.706822000000102,
+    "notes": [],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 1 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/intelligence/transport_target.py::is_loopback_http_url",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 2376,
+    "seconds": 51.130616599999485,
+    "notes": [
+     "clean run not green: >       assert is_loopback_http_url(\"http://127.0.0.1:\") == False\nE       AssertionError: assert True == False\nE        +  where True = is_loopback_http_url('http://127.0.0.1:')\nF"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": false,
+    "earned": false,
+    "outcome": "model_error",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2062,
+    "seconds": 420.010845300003,
+    "notes": [
+     "Ollama request to http://127.0.0.1:11434 failed: timed out"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": false,
+   "reason": "an arm never reached the model; a provider outage is not a model failing and must not be scored as one",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/local_workforce/qualification_evidence.py::evidence_backed_profiles",
+   "first": "off",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/memory/human_representation.py::classify_human_state",
+   "first": "on",
+   "on": null,
+   "off": null,
+   "comparable": false,
+   "reason": "recall returned nothing for this task, so both arms would see identical prompts",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/models/passport.py::can_drive_tools",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 1565,
+    "seconds": 25.505595900001936,
+    "notes": [
+     "clean run not green: >       verified_passport = ModelPassportV1(tool_protocol_status=\"verified\")\nE       pydantic_core._pydantic_core.ValidationError: 7 validation errors for ModelPassportV1\nE       "
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 1262,
+    "seconds": 26.705237500002113,
+    "notes": [
+     "clean run not green: >       verified_passport = ModelPassportV1(tool_protocol_status=\"verified\")\nE       pydantic_core._pydantic_core.ValidationError: 7 validation errors for ModelPassportV1\nE       "
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 1 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/models/passport_authority.py::passport_from_registry_row",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 5,
+    "recalled_skills": 0,
+    "prompt_chars": 5104,
+    "seconds": 53.03109510000286,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.models.local_worker_model'\nERROR tests/test_pin_aios_application_models_passport_authority_passport_from_registry_row.py"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 4015,
+    "seconds": 73.48748949999936,
+    "notes": [
+     "clean run not green: E   ModuleNotFoundError: No module named 'aios.application.models.local_worker_model'\nERROR tests/test_pin_aios_application_models_passport_authority_passport_from_registry_row.py"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 5 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/read_models/governance_projections.py::project_capability_approval",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 2,
+    "recalled_skills": 0,
+    "prompt_chars": 3281,
+    "seconds": 27.557511899998644,
+    "notes": [
+     "clean run not green: E   ImportError: cannot import name 'Capability' from 'aios.application.capabilities' (C:\\ai-editor-selfcorpus\\aios\\application\\capabilities\\__init__.py)\nERROR tests/test_pin_aios"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2735,
+    "seconds": 26.835221499997715,
+    "notes": [
+     "clean run not green: E   ImportError: cannot import name 'Capability' from 'aios.application.capabilities' (C:\\ai-editor-selfcorpus\\aios\\application\\capabilities\\__init__.py)\nERROR tests/test_pin_aios"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 2 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/read_models/governance_projections.py::project_constitution",
+   "first": "on",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 1,
+    "recalled_skills": 0,
+    "prompt_chars": 2484,
+    "seconds": 33.16311599999972,
+    "notes": [
+     "clean run not green: >       assert project_constitution(snapshot) == expected_projection\nE       assert ConstitutionP...eshness=None)) == ConstitutionP...eshness=None))\nE         \nE         Use -v to"
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2181,
+    "seconds": 33.79671589999998,
+    "notes": [
+     "clean run not green: >       snapshot = ConstitutionSnapshotV1(\nE       pydantic_core._pydantic_core.ValidationError: 8 validation errors for ConstitutionSnapshotV1\nE       foundation_laws\nE         V"
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 1 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  },
+  {
+   "target": "aios/application/read_models/governance_projections.py::project_emergency_stop",
+   "first": "off",
+   "on": {
+    "arm": "on",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 2,
+    "recalled_skills": 0,
+    "prompt_chars": 2554,
+    "seconds": 33.93026400000235,
+    "notes": [
+     "clean run not green: >       assert project_emergency_stop(state) == expected_projection\nE       AssertionError: assert EmergencyStopProjection(engaged=MetricEnvelope(value=True, status=<MetricStatus."
+    ],
+    "transport_retries": 0
+   },
+   "off": {
+    "arm": "off",
+    "reached_model": true,
+    "earned": false,
+    "outcome": "rejected",
+    "recalled_lessons": 0,
+    "recalled_skills": 0,
+    "prompt_chars": 2004,
+    "seconds": 29.382751799999824,
+    "notes": [
+     "clean run not green: >       expected_projection = EmergencyStopProjection(\nE       pydantic_core._pydantic_core.ValidationError: 4 validation errors for EmergencyStopProjection\nE       engaged\nE     "
+    ],
+    "transport_retries": 0
+   },
+   "comparable": true,
+   "reason": "ON saw 2 lesson(s) and 0 verified skill(s) the OFF arm did not",
+   "seen": false,
+   "placebo": null,
+   "placebo_comparable": false,
+   "placebo_reason": "",
+   "samples": {}
+  }
+ ]
+}
