@@ -309,15 +309,37 @@ def sovereign_backups(world: World) -> Gate:
             next_step="`python -m aios backup create --if-stale` on a schedule + a restore drill (H5)",
         )
     days = age / 86400
-    ok = age <= BACKUP_STALE_AFTER_SECONDS
+    fresh = age <= BACKUP_STALE_AFTER_SECONDS
+    scheduler = _backup_scheduler(world)
+    # A fresh archive nothing schedules is a backup that goes stale on its own
+    # within a week; the gate used to pass it while saying so.
+    ok = fresh and scheduler is not None
     return Gate(
         "sovereign",
         "backups",
         PASS if ok else FAIL,
         f"newest backup is {days:.1f} days old (stale after "
-        f"{BACKUP_STALE_AFTER_SECONDS / 86400:.0f}); nothing schedules them",
-        next_step="" if ok else "scheduled backups + a restore drill (H5)",
+        f"{BACKUP_STALE_AFTER_SECONDS / 86400:.0f}); "
+        + (f"scheduled by {scheduler}" if scheduler else "nothing schedules them"),
+        next_step=""
+        if ok
+        else "tools\\install_backup_schedule.ps1 (or a crontab line) + a restore drill (H5)",
     )
+
+
+#: The task tools/install_backup_schedule.ps1 registers.
+BACKUP_TASK_NAME = "GAGOS daily backup"
+
+
+def _backup_scheduler(world: World) -> Optional[str]:
+    """What schedules the daily backup on this machine, or None if nothing does."""
+    code, _ = world.run(["schtasks", "/Query", "/TN", BACKUP_TASK_NAME], world.env)
+    if code == 0:
+        return f"Windows Task Scheduler ('{BACKUP_TASK_NAME}')"
+    code, out = world.run(["crontab", "-l"], world.env)
+    if code == 0 and "aios backup create" in out:
+        return "crontab"
+    return None
 
 
 def sovereign_compose_local_model(world: World) -> Gate:
