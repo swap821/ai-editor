@@ -219,3 +219,39 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+#: The payoff's judged target lists (docs/learning/PAYOFF_PREREGISTRATION.md).
+#: Practice NEVER takes a target from them: practising one would turn
+#: never-practised work into practised work and void the frozen design.
+#: They were drawn from this same ranking, so without this a practice run
+#: of the top N lands on them (D10).
+FROZEN_TARGET_LISTS = (
+    "payoff_targets_cloud_baseline.txt",
+    "payoff_targets_calibration.txt",
+    "payoff_targets_phase0.txt",
+)
+
+
+def frozen_target_labels(repo: Path) -> set[str]:
+    """Every label in the frozen judged lists. A list that is missing raises:
+    an exclusion that silently excludes nothing is the failure it exists for."""
+    labels: set[str] = set()
+    for name in FROZEN_TARGET_LISTS:
+        text = (repo / "docs" / "learning" / name).read_text(encoding="utf-8")
+        labels |= {
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+    return labels
+
+
+def practice_targets(
+    root: Path, *, limit: int, offset: int = 0, repo: Path | None = None
+) -> list[Target]:
+    """``limit`` targets for PRACTICE, starting at ``offset`` in the ranking,
+    never one from a frozen judged list (read from *repo*, default *root*)."""
+    frozen = frozen_target_labels(repo or root)
+    pool = [t for t in collect_targets(root) if t.label not in frozen]
+    return pool[offset : offset + limit]

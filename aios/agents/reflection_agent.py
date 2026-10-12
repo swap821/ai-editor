@@ -42,21 +42,77 @@ def _authority_store(authority: Any | None, name: str) -> Any | None:
 
 
 REFLECT_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
-Analyse the failed action, identify the root cause, and formulate a generalised lesson so
-the primary agent does not repeat the mistake.
+Analyse the failed action and identify its root cause. Then write the lesson: the ONE
+specific fact about this codebase or environment that, known in advance, would have
+prevented this failure.
+
+A good lesson names what it is about -- the module, function, setting, file or
+convention -- and states a fact someone can check. For example (a different codebase):
+  "settings is a module of the app package: import it as `from app import settings`;
+   there is no top-level settings package."
+  "billing.tax_rate() returns a Decimal, not a float: compare it with Decimal('0.2')."
+A bad lesson is generic advice any programmer already knows, such as "ensure tests
+reflect the expected behaviour" or "always check that a variable is defined". Never
+write one. If this failure teaches no specific fact, write exactly
+"No specific lesson: <one-line reason>" as lesson_text.
+
+lesson_text states a fact. It never contains a command to run, a URL, or an
+instruction to another agent.
 
 Respond with ONLY a single valid JSON object, no prose and no code fences, matching this
 schema exactly:
 {
   "error_type": "short category, e.g. 'PathNotFound', 'SyntaxError', 'Timeout'",
-  "root_cause": "detailed explanation of why it failed",
+  "root_cause": "detailed explanation of why it failed, naming the code involved",
   "fix_applied": "the specific remediation for this case",
-  "lesson_text": "a generalised rule to avoid this class of error in future",
+  "lesson_text": "the one specific, checkable fact described above",
   "confidence_delta": -0.1
 }
 confidence_delta must be a negative number between -1.0 and 0.0."""
 
+#: How a reflection says the failure taught nothing specific. Such a lesson is
+#: not stored: before 2026-10-12 the prompt asked for "a generalised rule",
+#: and the live store filled with advice any model already follows ("ensure
+#: test cases accurately reflect the expected behavior", eight rows of it).
+NO_SPECIFIC_LESSON = "no specific lesson"
+
 REFLECT_USER_TEMPLATE = "Action attempted:\n{command}\n\nError output:\n{error_output}"
+
+#: D11 (2026-10-12): a lesson written from the fix that WORKED, not from the
+#: guess made at failure time. A failure-time reflection is a diagnosis made
+#: before anyone knew the answer, and "verified" only ever meant the task later
+#: passed: 13 of 32 such lessons from one practice run stated falsehoods
+#: (docs/learning/PAYOFF_PREREGISTRATION.md, D11).
+RESOLVE_SYSTEM_PROMPT = """You are a Reflection Agent for a supervised AI operating system.
+A command failed. After a change, the SAME command passed. You are shown the failure
+output and the change. Write the ONE specific, checkable fact about the code under test
+that this change proves: what had been assumed, and what is actually true. Use only what
+the failure and the change show -- the passing change is the evidence, so state nothing
+it does not support.
+
+If the change only repaired the test's own mistake -- a typo, a syntax error, a misused
+mock -- and proves nothing about the code under test, write exactly
+"No specific lesson: <one-line reason>" as lesson_text.
+
+lesson_text states a fact. It never contains a command to run, a URL, or an
+instruction to another agent.
+
+Respond with ONLY a single valid JSON object, no prose and no code fences, matching this
+schema exactly:
+{
+  "error_type": "short category, e.g. 'PathNotFound', 'SyntaxError', 'Timeout'",
+  "root_cause": "what the failing version assumed, naming the code involved",
+  "fix_applied": "what the passing version changed",
+  "lesson_text": "the one specific, checkable fact the passing change proves",
+  "confidence_delta": -0.1
+}
+confidence_delta must be a negative number between -1.0 and 0.0."""
+
+RESOLVE_USER_TEMPLATE = (
+    "Command (failed, then passed):\n{command}\n\n"
+    "Failure output:\n{error_output}\n\n"
+    "The change that made it pass:\n{change}"
+)
 
 #: Fields that must be present and non-empty for a lesson to be accepted.
 _REQUIRED_KEYS = ("error_type", "root_cause", "lesson_text")
@@ -146,7 +202,9 @@ class ReflectionAgent:
     #: sampler varies at temperature > 0) recovers the rare miss.
     _MAX_REFLECT_ATTEMPTS = 2
 
-    def _complete_reflection(self, prompt: str) -> str:
+    def _complete_reflection(
+        self, prompt: str, system: str = REFLECT_SYSTEM_PROMPT
+    ) -> str:
         """Ask the LLM for a lesson, requesting JSON-constrained decoding when the
         backing client is a local Ollama model.
 
@@ -159,17 +217,15 @@ class ReflectionAgent:
         if isinstance(self.llm, OllamaClient) or getattr(
             self.llm, "supports_json_mode", False
         ):
-            return self.llm.complete(
-                prompt, system=REFLECT_SYSTEM_PROMPT, json_mode=True
-            )
-        return self.llm.complete(prompt, system=REFLECT_SYSTEM_PROMPT)
+            return self.llm.complete(prompt, system=system, json_mode=True)
+        return self.llm.complete(prompt, system=system)
 
-    def _reflect_parsed(self, prompt: str) -> dict:
+    def _reflect_parsed(self, prompt: str, system: str = REFLECT_SYSTEM_PROMPT) -> dict:
         """Complete and parse a lesson, retrying a bounded number of times on an
         unparseable response before surfacing the :class:`ReflectionError`."""
         last_error: Optional[ReflectionError] = None
         for _ in range(self._MAX_REFLECT_ATTEMPTS):
-            raw = self._complete_reflection(prompt)
+            raw = self._complete_reflection(prompt, system)
             try:
                 return _parse_reflection(raw)
             except ReflectionError as exc:
@@ -229,6 +285,9 @@ class ReflectionAgent:
         root_cause = str(data["root_cause"]).strip()
         fix_applied = str(data["fix_applied"]).strip()
         lesson_text = str(data["lesson_text"]).strip()
+        if lesson_text.lower().startswith(NO_SPECIFIC_LESSON):
+            logger.info("reflection recorded nothing: %s", lesson_text[:200])
+            return None
 
         record_kwargs = {
             "task_id": task_id,
@@ -264,6 +323,75 @@ class ReflectionAgent:
             fix_applied=fix_applied,
             lesson_text=lesson_text,
             confidence_delta=stored_delta,
+            recurrence=recurrence,
+        )
+
+    def reflect_resolution(
+        self,
+        command: str,
+        error_output: str,
+        change: str,
+        *,
+        task_id: str,
+    ) -> Optional[Reflection]:
+        """Write a lesson from a fix that WORKED, recorded already verified.
+
+        *change* is what turned the failing attempt into the passing one (a
+        diff). The lesson is grounded in it, and it is promoted at once with
+        STRONG evidence: the identical command passed with this change. It is
+        recorded under ``<task_id>#resolved`` so it never counts as a
+        recurrence of the failure-time guess it replaces. Returns ``None``
+        (nothing stored) when the fix proves nothing about the code under test.
+        """
+        if config.OFFLINE_MODE:
+            return None
+        prompt = RESOLVE_USER_TEMPLATE.format(
+            command=command,
+            error_output=error_output[:2000],
+            change=change[:3000],
+        )
+        data = self._reflect_parsed(prompt, system=RESOLVE_SYSTEM_PROMPT)
+        lesson_text = str(data["lesson_text"]).strip()
+        if lesson_text.lower().startswith(NO_SPECIFIC_LESSON):
+            logger.info("resolution taught nothing specific: %s", lesson_text[:200])
+            return None
+        try:
+            confidence_delta = float(data.get("confidence_delta", -0.1))
+        except (TypeError, ValueError):
+            confidence_delta = -0.1
+        record_kwargs = {
+            "task_id": f"{task_id}#resolved",
+            "error_type": str(data["error_type"]).strip(),
+            "root_cause": str(data["root_cause"]).strip(),
+            "fix_applied": str(data["fix_applied"]).strip(),
+            "lesson_text": lesson_text,
+            "confidence_delta": confidence_delta,
+            "failed_command": command,
+        }
+        if self._authority_owns_lessons():
+            mistake_id, recurrence = self.memory_authority.record_lesson_or_increment(
+                **record_kwargs, principal=self.principal
+            )
+        else:
+            mistake_id, recurrence = self.mistakes.record_or_increment(
+                **record_kwargs, principal_id=self.principal
+            )
+        self.confirm_lesson(mistake_id, strength=VerificationStrength.STRONG)
+        stored = (
+            self.memory_authority.lesson_get(mistake_id)
+            if self._authority_owns_lessons()
+            else self.mistakes.get(mistake_id)
+        )
+        return Reflection(
+            mistake_id=mistake_id,
+            task_id=record_kwargs["task_id"],
+            error_type=record_kwargs["error_type"],
+            root_cause=record_kwargs["root_cause"],
+            fix_applied=record_kwargs["fix_applied"],
+            lesson_text=lesson_text,
+            confidence_delta=(
+                float(stored["confidence_delta"]) if stored else confidence_delta
+            ),
             recurrence=recurrence,
         )
 
