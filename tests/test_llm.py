@@ -240,3 +240,36 @@ def test_model_discovery_and_availability_fail_soft(monkeypatch) -> None:
     )
     assert client.list_models() == {"available": False, "models": []}
     assert client.is_available() is False
+
+
+@pytest.mark.parametrize("think", [False, True])
+def test_think_is_sent_on_every_endpoint_when_set(monkeypatch, think) -> None:
+    """A thinking model at its default reasons silently before every answer:
+    51-64 s per clerical job that took 1.2-4.6 s with think=false (2026-10-12)."""
+    payloads: list[dict] = []
+
+    def urlopen(request, timeout):
+        payloads.append(_payload(request))
+        if request.full_url.endswith("/api/chat"):
+            return FakeResponse(b'{"message":{"role":"assistant","content":"ok"}}')
+        if _payload(request).get("stream"):
+            return FakeResponse(lines=[b'{"response":"ok","done":true}'])
+        return FakeResponse(b'{"response":"ok"}')
+
+    monkeypatch.setattr("aios.core.llm.urllib.request.urlopen", urlopen)
+    client = OllamaClient("qwen3.5:9b", host="http://ollama", think=think)
+    client.complete("x", json_mode=True)
+    client.chat([{"role": "user", "content": "x"}])
+    list(client.stream_complete("x"))
+    assert [p["think"] for p in payloads] == [think, think, think]
+
+
+def test_the_clerk_asks_its_models_not_to_think() -> None:
+    from aios.application.local_workforce.service import LocalWorkforceService
+
+    service = LocalWorkforceService.__new__(LocalWorkforceService)
+    service.ollama = OllamaClient("base", host="http://ollama")
+    client = service._default_model_client("qwen3.5:9b")
+    assert isinstance(client, OllamaClient)
+    assert client.model == "qwen3.5:9b"
+    assert client.think is False
