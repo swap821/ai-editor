@@ -720,7 +720,10 @@ lessons were false.
 - **One pass over the 156.** No target is re-practised to raise the yield.
 - **Teacher pilot, run first.** Two candidates each practise the first 20
   targets of the ranking (offsets 0–19):
-  - `moonshotai.kimi-k3`;
+  - `global.moonshotai.kimi-k3` (the plain id `moonshotai.kimi-k3` is refused on demand in
+    ap-south-1; the global inference profile is the id the 2026-10-11 benchmark used;
+    practice sends only practice-target code, never operator data, so cross-region routing
+    is acceptable here);
   - `qwen.qwen3-coder-480b-a35b-v1:0`.
 
   The rule for choosing between them:
