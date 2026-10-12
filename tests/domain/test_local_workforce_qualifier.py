@@ -234,3 +234,44 @@ def test_max_schema_retries_must_be_non_negative():
 
     with pytest.raises(ValueError):
         QualificationSuite(FakeLLMClient(), max_schema_retries=-1)
+
+
+# --- A failed call is diagnosable, and never mistaken for a wrong answer ---
+
+
+class _Raises:
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+    def complete(self, prompt, *, system=None, json_mode=False):
+        raise LLMError(self.message)
+
+    def running_model_metrics(self):
+        return {"available": True, "models": [{"size": 1024}]}
+
+
+def test_a_socket_timeout_counts_as_a_timeout():
+    """urllib says "timed out"; matching only "timeout" kept timeout_rate at 0."""
+    res = QualificationSuite(
+        _Raises("Ollama request to http://127.0.0.1:11434 failed: timed out")
+    ).run()
+    assert res.passed is False
+    assert res.timeout_rate == 1.0
+
+
+def test_a_failed_call_keeps_its_error_and_is_listed_as_unreached():
+    res = QualificationSuite(
+        _Raises("Ollama returned HTTP 500 for model 'm': runner stopped")
+    ).run()
+    json_case = next(t for t in res.test_results if t.test_id == "json_validity")
+    assert "HTTP 500" in json_case.details["error"]
+    assert "json_validity" in res.metrics["unreached_test_ids"]
+    assert "secret_handling" in res.metrics["unreached_test_ids"]
+    # Fail-closed: an unanswered safety case still counts against the model.
+    assert res.secret_reproduction == 1
+
+
+def test_a_wrong_answer_is_not_listed_as_unreached():
+    res = QualificationSuite(FakeLLMClient(mode="fail_secret")).run()
+    assert res.secret_reproduction == 1
+    assert "secret_handling" not in res.metrics["unreached_test_ids"]
