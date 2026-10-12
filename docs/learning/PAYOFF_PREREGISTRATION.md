@@ -686,3 +686,129 @@ checked against the code:
    true facts help on never-practised work, and a small or null effect is
    the expected honest result.
 3. Only lessons the operator re-admits after reading them reach a turn.
+
+### D12 — 2026-10-12 — a strong teacher writes the lessons; the local student is chosen by a rule; a second judged family
+
+**Applies to** the practice runs and the judged runs after this entry. Recorded
+after the Phase 8 verdict (`PAYOFF_PHASE8_RESULT.md`: H1 not met, no harm,
+hardening kept utility), and before any D12 practice or judged run. The
+operator decided, on 2026-10-12, three things:
+- a strong cloud model is "the teacher that writes the lessons";
+- the pairing is a cloud teacher with the best local student;
+- budget is not a constraint.
+
+**Phase 8's verdict stands.** D12 is a new experiment with its own family. It
+is not a re-run of Phase 8 under different conditions.
+
+**Why.** Phase 8 located the bottleneck in the memory, not the model:
+- only 11 lessons were admitted;
+- 65 of 150 cloud targets recalled nothing;
+- ON earned exactly what PLACEBO earned (64 vs 64).
+
+Under D11 the student still wrote its own lessons, and 4 of 19 grounded
+lessons were false.
+
+**Practice.**
+- **Ladder:** the student `qwen.qwen3-coder-30b-a3b-v1:0` attempts first, then
+  the teacher. Each gets `--retries 2`.
+- **The teacher writes every lesson** (`--teacher`, #479): the failure-time
+  reflection, and D11's grounded lesson from the passing fix.
+- **Targets:** every target in the `practice_targets` ranking, **156**. Every
+  frozen list is excluded (D10).
+  - They are partitioned by `--offset` across parallel workers.
+  - Each worker has its own store, corpus worktree and trail.
+- **One pass over the 156.** No target is re-practised to raise the yield.
+- **Teacher pilot, run first.** Two candidates each practise the first 20
+  targets of the ranking (offsets 0–19):
+  - `moonshotai.kimi-k3`;
+  - `qwen.qwen3-coder-480b-a35b-v1:0`.
+
+  The rule for choosing between them:
+  1. Every grounded lesson is checked against the code, as D11's were: true
+     and specific, partly true, false, about the test or its mocks, or a
+     scanner artefact.
+  2. The teacher with more true-and-specific lessons teaches the remaining 136.
+  3. On a tie, the one with fewer false lessons teaches them.
+  4. Still tied: Qwen3-Coder-480B.
+  5. Both pilots' lessons remain candidates.
+- **The critic** (`--critic`, #483), added by the operator's direction the
+  same day ("multiple cloud models with the local one"): the pilot's other
+  model, shown the module source, the passing change and the lesson. A lesson
+  it does not call true is not proposed.
+  - **The pilot runs without a critic,** so the teachers are compared on their
+    own lessons.
+  - **The critic is checked before it is trusted.** It is then run on every
+    pilot lesson, and its verdicts are compared with the fact-check. It is used
+    in practice only if it agrees with the fact-check on at least 80% of the
+    pilot lessons. Otherwise practice runs without it, and that is reported.
+  - **Rejected lessons are not lost.** They are logged with their text, and
+    the fact-check covers them too, so false rejections are counted.
+- **Two practice streams, one pass each over the 156:**
+  - **Cloud:** the cloud student, partitioned across 3 parallel workers.
+  - **Local:** the local student chosen by the rule below, on 1 worker (one
+    local model fits in memory). Its lessons come from the local model's own
+    mistakes, the ones the local judged member is about.
+  - The same teacher and critic serve both streams. The streams may run at the
+    same time: the cloud models run on AWS, and the laptop only grades.
+- **Order:**
+  1. Local student chosen by the rule.
+  2. Teacher pilot.
+  3. Critic check.
+  4. Both practice streams.
+  5. Fact-check, then re-admission.
+  6. The judged runs.
+
+**Admission (unchanged).**
+- Every grounded lesson is checked against the code at the practice corpus
+  commit.
+- Only lessons the operator reads and re-admits reach a turn.
+- The count and truth rates are published whatever they are.
+
+**The local student, chosen first (the local practice stream needs it), by a rule.**
+- **Candidates:** the installed models the clerk has qualified, called as the
+  product calls them:
+  - `qwen2.5-coder:7b`;
+  - `qwen3.5:9b`, with `think: false` (#481);
+  - `granite4.2:8b`.
+- **The rule:** each candidate runs the 20 calibration targets
+  (`payoff_targets_calibration.txt`, never judged), OFF arm only, K = 1. The
+  candidate that earns the most is the student.
+- **Why this rule:** Phase 8 found `qwen2.5-coder:7b` at the floor, earning 1
+  to 2 of 18. A student that cannot earn without memory leaves memory nothing
+  to lift.
+- **Tie-breaks:** the smaller model, then the faster one.
+
+**The judged runs, once, after admission.** Both use a copy of the operator's
+live store, made after his re-admission.
+
+- **Cloud:**
+  - **Design:** Phase 8's cloud design, unchanged: the same model and the same
+    150 frozen targets (`payoff_targets_cloud_baseline.txt`), `--novel-only`,
+    calibration excluded, K = 3, OFF / ON / PLACEBO.
+  - **Members:** H1-cloud-D12 (NOVEL: ON vs OFF) and H1c-cloud-D12 (NOVEL: ON
+    vs PLACEBO).
+- **Local:**
+  - **Design:** the chosen student, on the same 150 frozen targets, K = 3, OFF
+    / ON / PLACEBO, 420 s timeout. It is expected to run overnight.
+  - **Members:** H1-local-D12 and H1c-local-D12.
+  - **Why this design:** Phase 0's 30-target, K = 1 design could only have seen
+    a very large effect.
+- **The family:** {H1-cloud-D12, H1c-cloud-D12, H1-local-D12, H1c-local-D12},
+  Holm at family-wise α = 0.05.
+  - A member is met only if its direction is positive and its Holm-adjusted p
+    is below 0.05 (D4).
+  - H2 (harm) stays per cohort and uncorrected.
+- **Recording:** `tools/judge_payoff_family.py` gains the D12 family. Its
+  verdict is written to a D12 result file beside Phase 8's, and the usefulness
+  gate reads the newer one.
+
+**Stated before any number exists.**
+1. **Lesson count:** the teacher should write truer lessons than the student
+   did. One pass over 156 targets will likely yield tens of grounded lessons,
+   not hundreds; the pool is the limit.
+2. **Cloud:** the effect may still be small. The student is a capable model,
+   and most cloud targets were all-or-nothing in Phase 8.
+3. **Local:** the student has more headroom. That is the member most likely
+   to show a benefit, if there is one.
+4. **Null results:** a null result on all four members is a possible honest
+   outcome, and would be reported as such.
