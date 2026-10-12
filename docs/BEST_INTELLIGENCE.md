@@ -84,8 +84,12 @@ Evidence: `release/intelligence/`.
 ## For the best on this machine (operator)
 
 1. Allow cloud for reasoning and coding (with H7, the constitution is the
-   ceiling). Put this in `.env`:
-   `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`
+   ceiling). This is a guardrail, so set it in your **own environment**, not
+   in `.env`, which guardrails ignore by design
+   (`tests/test_guardrails_ignore_dotenv.py`). An earlier version of this page
+   said `.env`, which was wrong (corrected 2026-10-12). In PowerShell:
+   `[Environment]::SetEnvironmentVariable("AIOS_ROUTER_CLOUD_TASKS", "reasoning,coding", "User")`,
+   then open a new terminal.
 2. Consider `AIOS_LLM_MODEL=qwen2.5-coder:7b` for local and offline work:
    twice the measured quality, at four times the latency.
 3. Keep one working Bedrock key in the key file. Line 26's organization

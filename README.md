@@ -855,7 +855,20 @@ Open the local URL printed by Vite.
 
 The runtime configuration source is `aios/config.py`.
 
-Common settings include:
+**Guardrails are never read from `.env`.** `AIOS_SCOPE_ROOTS`,
+`AIOS_ROUTER_CLOUD_TASKS`, `AIOS_EARNED_AUTONOMY*` and `AIOS_MAX_RED_ACTIONS`
+are frozen-core values (`aios/security/limits.py`), resolved from the real
+process environment before `.env` is loaded, because `.env` is a file an agent
+can write (`tests/test_guardrails_ignore_dotenv.py`). Set them in your own
+environment, for example in PowerShell, persistently for your user:
+
+```powershell
+[Environment]::SetEnvironmentVariable("AIOS_ROUTER_CLOUD_TASKS", "reasoning,coding", "User")
+```
+
+then open a new terminal. In `.env` they do nothing.
+
+Common settings include (the first and third blocks are guardrails, see above):
 
 ```env
 # Explicit project scope
