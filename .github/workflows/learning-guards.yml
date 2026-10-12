@@ -4,13 +4,12 @@ name: Learning guards
 # learning mutation probe and the structural red-team reel, run off the
 # laptop, so their verdicts are artifacts anyone can fetch.
 #
-# DISPATCH-ONLY ON PURPOSE. The probe is ~650 mutations, each a pytest run:
-# hours of runner time across the matrix. How often that is worth spending is
-# the operator's call (CI minutes), not this file's. To schedule it, add for
-# example
-#     schedule:
-#       - cron: "41 4 * * 0"   # weekly, Sunday 04:41 UTC (not on the hour)
-# beside `workflow_dispatch` below.
+# SCHEDULED, operator decision 2026-10-12 ("CI minutes are your call"):
+#  * the reel WEEKLY (Sunday 04:41 UTC): structural missions, <= 90 minutes;
+#  * the probe MONTHLY (the 1st, 05:17 UTC): ~650 mutations, each a pytest run,
+#    six shards of up to 5 hours. Weekly would cost several thousand runner
+#    minutes a month; monthly keeps it to roughly a weekly reel's order.
+# Both still run on demand (workflow_dispatch). Off the hour, as GitHub asks.
 #
 # WHAT IT GATES ON: the instruments' verdicts, never a model's.
 #  * reel -- every runnable STRUCTURAL mission must hold
@@ -23,6 +22,9 @@ name: Learning guards
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 0"   # weekly: the reel
+    - cron: "17 5 1 * *"   # monthly: the reel and the probe
 
 concurrency:
   group: learning-guards-${{ github.ref }}
@@ -73,6 +75,8 @@ jobs:
           if-no-files-found: warn
 
   probe:
+    # Monthly or on demand only: the weekly schedule runs the reel alone.
+    if: github.event_name != 'schedule' || github.event.schedule == '17 5 1 * *'
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:

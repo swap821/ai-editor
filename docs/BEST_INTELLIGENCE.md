@@ -84,9 +84,21 @@ Evidence: `release/intelligence/`.
 ## For the best on this machine (operator)
 
 1. Allow cloud for reasoning and coding (with H7, the constitution is the
-   ceiling). Put this in `.env`:
-   `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding`
+   ceiling). This is a guardrail, so set it in your **own environment**, not
+   in `.env`, which guardrails ignore by design
+   (`tests/test_guardrails_ignore_dotenv.py`). An earlier version of this page
+   said `.env`, which was wrong (corrected 2026-10-12). In PowerShell:
+   `[Environment]::SetEnvironmentVariable("AIOS_ROUTER_CLOUD_TASKS", "reasoning,coding", "User")`,
+   then open a new terminal.
 2. Consider `AIOS_LLM_MODEL=qwen2.5-coder:7b` for local and offline work:
    twice the measured quality, at four times the latency.
 3. Keep one working Bedrock key in the key file. Line 26's organization
    denies API keys.
+4. Set `AIOS_BEDROCK_MODEL` (in `.env`; it is not a guardrail). The shipped
+   default, `amazon.nova-lite-v1:0`, cannot be called on demand in
+   `ap-south-1`: Bedrock answers "on-demand throughput isn't supported" and
+   wants an inference-profile ID. The router gives that default a cold-start
+   bonus and swarm burst calls it directly, so every first cloud call failed.
+   `AIOS_BEDROCK_MODEL=mistral.mistral-large-3-675b-instruct` (50/50, fastest
+   of the top tier) answered with the stored production key on 2026-10-12;
+   `qwen.qwen3-coder-480b-a35b-v1:0` answered too.
