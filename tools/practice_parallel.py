@@ -46,6 +46,21 @@ def partition(start: int, count: int, workers: int) -> list[tuple[int, int]]:
     return slices
 
 
+def inside_repo(out: Path, corpus_prefix: str) -> str | None:
+    """The first of --out / the corpus location that lies inside this repo, or None.
+
+    Found 2026-10-12: the D12 pilots wrote their stores under the harness's
+    own worktree, and organic_chain_run's containment check -- correctly --
+    failed the run for "a concurrent writer" that was the run itself.
+    """
+    root = REPO_ROOT.resolve()
+    for candidate in (out, Path(corpus_prefix).parent):
+        resolved = Path(candidate).resolve()
+        if resolved == root or root in resolved.parents:
+            return str(candidate)
+    return None
+
+
 def worker_command(
     *,
     index: int,
@@ -132,6 +147,15 @@ def main(argv: list[str] | None = None) -> int:
         print("the local stream's student must be a local model (ollama.<tag>)")
         return 2
     prefix = args.corpus_prefix or f"C:/d12{args.stream}"
+    inside = inside_repo(args.out, prefix)
+    if inside:
+        print(
+            f"refused: {inside} is inside this repository ({REPO_ROOT}). A training "
+            "run's containment check treats ANY change under the live tree as a "
+            "concurrent writer and fails the run -- including the workers' own "
+            "stores. Put --out and --corpus-prefix outside it."
+        )
+        return 2
     slices = partition(args.start, args.count, args.workers)
     commands = [
         worker_command(

@@ -110,3 +110,27 @@ def test_the_local_stream_refuses_more_than_one_worker(tmp_path) -> None:
         )
         == 2
     )
+
+
+def test_outputs_inside_the_repo_are_refused(tmp_path) -> None:
+    """A store under the harness's own tree fails the containment check
+    as a 'concurrent writer' -- the D12 pilots did exactly that (2026-10-12)."""
+    inside = pp.REPO_ROOT / "pilot-x"
+    assert pp.inside_repo(inside, "C:/d12cloud") == str(inside)
+    outside = pp.REPO_ROOT.parent / "d12-outputs-elsewhere"
+    assert pp.inside_repo(outside / "out", str(pp.REPO_ROOT / "corpus")) is not None
+    assert pp.inside_repo(outside / "out", str(outside / "corpus")) is None
+    argv = [
+        "--stream",
+        "cloud",
+        "--student",
+        "s",
+        "--teacher",
+        "t",
+        "--count",
+        "2",
+        "--out",
+        str(inside),
+        "--dry-run",
+    ]
+    assert pp.main(argv) == 2
