@@ -26,7 +26,8 @@ from aios.memory.compaction import MemoryCompactor
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
-from aios.memory.mistake import MistakeMemory
+from aios.memory.mistake import MistakeMemory, distinct_lessons
+from aios.memory.relevance import content_hash
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -776,20 +777,34 @@ class MistakeMemoryAdapter:
         self.gate = gate
 
     def _admitted(
-        self, items: list[Any], limit: int, principal: Optional[str]
+        self,
+        items: list[Any],
+        limit: int,
+        principal: Optional[str],
+        *,
+        distinct: bool = False,
     ) -> list[Any]:
+        """The first *limit* of *items* the gate admits. With *distinct*, a
+        lesson whose text was already admitted takes no further slot -- decided
+        AFTER the gate, so a refused copy never hides an admitted one."""
         if self.gate is None:
-            return list(items)[:limit]
+            items = list(items)
+            return distinct_lessons(items, limit) if distinct else items[:limit]
         kept: list[Any] = []
+        seen: set[str] = set()
         for item in items:
             mistake_id = int(
                 item["mistake_id"] if "mistake_id" in item.keys() else item["id"]
             )
+            text_key = content_hash(str(item["lesson_text"])) if distinct else ""
+            if distinct and text_key in seen:
+                continue
             row = self.store.get(mistake_id)
             if row is not None and self.gate.admits(
                 "mistake_pool", mistake_id, lesson_digest(row), principal=principal
             ):
                 kept.append(item)
+                seen.add(text_key)
             if len(kept) >= limit:
                 break
         return kept
@@ -874,14 +889,17 @@ class MistakeMemoryAdapter:
                 ),
                 limit,
                 principal,
+                distinct=True,
             )
         ]
-        remaining = max(limit - len(pending), 0)
-        verified = self.relevant_verified(query, remaining, principal=principal)
+        verified = self.relevant_verified(query, limit, principal=principal)
         pending_ids = {lesson["mistake_id"] for lesson in pending}
-        return pending + [
-            lesson for lesson in verified if lesson["mistake_id"] not in pending_ids
-        ]
+        # One lesson, one slot: a verified lesson whose text a pending one of
+        # this task already carries adds nothing.
+        return distinct_lessons(
+            pending + [v for v in verified if v["mistake_id"] not in pending_ids],
+            limit,
+        )
 
     def recurring(
         self, limit: int = 3, *, principal: Optional[str]
@@ -1101,6 +1119,7 @@ class MistakeMemoryAdapter:
             ),
             limit,
             principal,
+            distinct=True,
         )
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:

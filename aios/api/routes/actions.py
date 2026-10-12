@@ -265,6 +265,9 @@ def reflect(
         reflection = agent.reflect(req.command, req.error_output, task_id=req.task_id)
     except ReflectionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if reflection is None:
+        # Offline, or the failure taught nothing specific: nothing was stored.
+        return {"recorded": False}
     return asdict(reflection)
 
 
