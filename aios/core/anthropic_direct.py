@@ -35,6 +35,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.core import model_calls
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
@@ -195,6 +196,7 @@ class AnthropicDirectClient:
             headers=self._headers(),
             method="POST",
         )
+        model_calls.observe("anthropic", str(payload.get("model", "")), "chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 return json.loads(response.read().decode("utf-8"))
@@ -358,6 +360,7 @@ class AnthropicDirectClient:
             headers=self._headers(),
             method="POST",
         )
+        model_calls.observe("anthropic", str(payload.get("model", "")), "stream_chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 for raw_line in response:

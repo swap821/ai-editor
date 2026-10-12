@@ -30,6 +30,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.core import model_calls
 from aios.core.llm import LLMError
 from aios.core.stream_protocol import StreamFinished
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
@@ -356,6 +357,7 @@ class BedrockClient:
         """One Converse request. A model that rejects ``temperature`` is
         retried once without it and remembered, so it stays usable."""
         model = kwargs.get("modelId", "")
+        model_calls.observe("bedrock", model, getattr(call, "__name__", "converse"))
         config_block = kwargs.get("inferenceConfig") or {}
         if model in _NO_TEMPERATURE:
             config_block.pop("temperature", None)

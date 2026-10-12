@@ -72,6 +72,8 @@ def maas_base_url(project: str, location: str) -> str:
 class VertexMaaSClient(OpenAICompatClient):
     """:class:`~aios.agents.tool_agent.ChatClient` backed by a Vertex MaaS model."""
 
+    CALL_PROVIDER = "vertex_maas"
+
     def __init__(
         self,
         *,

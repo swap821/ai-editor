@@ -15,6 +15,7 @@ import urllib.request
 from typing import Iterator, Optional, Protocol, runtime_checkable, Any
 
 from aios import config
+from aios.core import model_calls
 
 
 class LLMError(RuntimeError):
@@ -80,6 +81,7 @@ class OllamaClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        model_calls.observe("ollama", self.model, "complete")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 body = json.loads(response.read().decode("utf-8"))
@@ -150,6 +152,7 @@ class OllamaClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        model_calls.observe("ollama", model or self.model, "chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 body = json.loads(response.read().decode("utf-8"))
@@ -201,6 +204,7 @@ class OllamaClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        model_calls.observe("ollama", model or self.model, "stream_complete")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 for raw_line in response:

@@ -27,7 +27,7 @@ from typing import Any, Optional
 from aios import config
 from aios.core.llm import LLMClient, OllamaClient
 from aios.core.verification_strength import VerificationStrength
-from aios.memory.mistake import MistakeMemory
+from aios.memory.mistake import MistakeMemory, distinct_lessons
 
 logger = logging.getLogger(__name__)
 
@@ -460,11 +460,11 @@ class ReflectionAgent:
             {**lesson, "verification_status": "pending", "relevance": 1.0}
             for lesson in self.recall_pending(task_id, limit)
         ]
-        remaining = max(limit - len(pending), 0)
         verified = self.mistakes.relevant_verified(
-            task_text, remaining, principal_id=self.principal
+            task_text, limit * 4, principal_id=self.principal
         )
         pending_ids = {lesson["mistake_id"] for lesson in pending}
-        return pending + [
-            lesson for lesson in verified if lesson["mistake_id"] not in pending_ids
-        ]
+        return distinct_lessons(
+            pending + [v for v in verified if v["mistake_id"] not in pending_ids],
+            limit,
+        )
