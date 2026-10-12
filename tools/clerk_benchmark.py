@@ -44,7 +44,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-JOBS = REPO_ROOT / "docs" / "clerk" / "clerk_benchmark_v1.json"
+JOBS = REPO_ROOT / "docs" / "clerk" / "clerk_benchmark_v1_1.json"
 _NULLS = (None, "null", "none", "")
 
 
@@ -103,8 +103,10 @@ def grade(job: dict, output: dict | None) -> tuple[bool, list[str]]:
             failed.append(f"{spec['field']}: not a list of groups: {got!r}")
         else:
             got_groups = {frozenset(_name(i) for i in g) for g in got if len(g) >= 2}
-            want = {frozenset(_name(i) for i in g) for g in spec["value"]}
-            if got_groups != want:
+            # The key, plus any other grouping the job documents as defensible.
+            acceptable = [spec["value"], *spec.get("also_accept", [])]
+            wants = [{frozenset(_name(i) for i in g) for g in a} for a in acceptable]
+            if got_groups not in wants:
                 failed.append(f"{spec['field']}: expected {spec['value']}, got {got!r}")
     if "facts" in expect:
         spec = expect["facts"]
@@ -163,6 +165,68 @@ def make_client(spec: str, *, timeout_s: int) -> Any:
 # ------------------------------------------------------------------ running
 
 
+def cloud_altered_jobs(jobs: list[dict]) -> set[str]:
+    """Jobs whose payload the cloud never sees as written.
+
+    The Bedrock client runs every message through `PrivacyFilter` before it
+    leaves the machine; it rewrites `aios/core/router.py` to
+    `aios[PATH REDACTED]`. A cloud model then correctly reports a file path
+    as missing that the key says is present (found 2026-10-12: every cloud
+    model "failed" context-01/02 for this reason). Such a job measures the
+    filter, not the model, so it is scored separately for cloud models.
+    """
+    from aios.core.privacy_filter import PrivacyFilter
+
+    pf = PrivacyFilter()
+    altered = set()
+    for job in jobs:
+        safe, _audit = pf.filter([{"role": "user", "content": job["payload"]}])
+        if safe[0]["content"] != job["payload"]:
+            altered.add(job["id"])
+    return altered
+
+
+def summarise_rows(spec: str, rows: list[dict], altered: set[str]) -> dict:
+    """Score a model's rows; for a cloud model, also on the jobs it saw unaltered."""
+    hidden = altered if not spec.startswith("ollama.") else set()
+    seen = [r for r in rows if r["job"] not in hidden]
+    by_profile: dict[str, list[bool]] = defaultdict(list)
+    for r in rows:
+        by_profile[r["profile"]].append(r["correct"])
+    return {
+        "correct": sum(r["correct"] for r in rows),
+        "jobs": len(rows),
+        "correct_seen_unaltered": sum(r["correct"] for r in seen),
+        "jobs_seen_unaltered": len(seen),
+        "altered_for_this_model": sorted(hidden),
+        "schema_valid": sum(r["schema_valid"] for r in rows),
+        "median_seconds": statistics.median(r["seconds"] for r in rows),
+        "by_profile": {p: sum(v) for p, v in sorted(by_profile.items())},
+        "statuses": dict(Counter(r["status"] for r in rows)),
+        "rows": rows,
+    }
+
+
+def print_table(results: dict[str, dict], profiles: list[str]) -> None:
+    print(
+        f"{'model':<40} {'raw':>7} {'unaltered':>9} {'valid':>6} {'median':>7}  "
+        + " ".join(p[:8] for p in profiles)
+    )
+    for spec, r in sorted(
+        results.items(),
+        key=lambda kv: (
+            -kv[1]["correct_seen_unaltered"] / max(1, kv[1]["jobs_seen_unaltered"]),
+            kv[1]["median_seconds"],
+        ),
+    ):
+        print(
+            f"{spec:<40} {r['correct']:>3}/{r['jobs']:<3} "
+            f"{r['correct_seen_unaltered']:>4}/{r['jobs_seen_unaltered']:<4} "
+            f"{r['schema_valid']:>6} {r['median_seconds']:>6.1f}s  "
+            + " ".join(f"{r['by_profile'].get(p, 0):>8}" for p in profiles)
+        )
+
+
 def run_model(spec: str, jobs: list[dict], *, timeout_s: int) -> dict:
     from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
     from aios.domain.local_workforce.runtime import StructuredClericalRuntime
@@ -203,53 +267,55 @@ def run_model(spec: str, jobs: list[dict], *, timeout_s: int) -> dict:
             f"  {spec:<40} {'OK ' if correct else 'BAD'} {result.latency:6.1f}s  {job['id']}"
             + ("" if correct else f"  -- {failed[0][:80]}")
         )
-    by_profile: dict[str, list[bool]] = defaultdict(list)
-    for r in rows:
-        by_profile[r["profile"]].append(r["correct"])
-    return {
-        "correct": sum(r["correct"] for r in rows),
-        "jobs": len(rows),
-        "schema_valid": sum(r["schema_valid"] for r in rows),
-        "median_seconds": statistics.median(r["seconds"] for r in rows),
-        "by_profile": {p: sum(v) for p, v in sorted(by_profile.items())},
-        "statuses": dict(Counter(r["status"] for r in rows)),
-        "rows": rows,
-    }
+    return summarise_rows(spec, rows, cloud_altered_jobs(jobs))
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--models", required=True, help="comma-separated: ollama.<tag> or a Bedrock id"
+        "--models", default="", help="comma-separated: ollama.<tag> or a Bedrock id"
     )
     parser.add_argument("--jobs", type=Path, default=JOBS)
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument(
+        "--report",
+        type=Path,
+        nargs="*",
+        default=None,
+        help="combine earlier result files into one table (re-scored from their rows)",
+    )
     args = parser.parse_args(argv)
 
     jobs, jobs_sha = load_jobs(args.jobs)
+    profiles = sorted({j["profile"] for j in jobs})
+    altered = cloud_altered_jobs(jobs)
+    if args.report is not None:
+        results = {}
+        for path in args.report:
+            record = json.loads(path.read_text(encoding="utf-8"))
+            if record.get("jobs_sha256_lf") != jobs_sha:
+                print(f"{path}: graded on different jobs; not combined")
+                continue
+            for spec, r in record["results"].items():
+                results[spec] = summarise_rows(spec, r["rows"], altered)
+        print_table(results, profiles)
+        print(f"\ncloud models never see these jobs unaltered: {sorted(altered)}")
+        return 0
+
     specs = [m.strip() for m in args.models.split(",") if m.strip()]
+    if not specs:
+        parser.error("--models is required unless --report is given")
     results = {}
     for spec in specs:
         print(f"\n== {spec}")
         results[spec] = run_model(spec, jobs, timeout_s=args.timeout)
     print()
-    profiles = sorted({j["profile"] for j in jobs})
-    print(
-        f"{'model':<40} {'score':>7} {'valid':>6} {'median':>7}  "
-        + " ".join(p[:8] for p in profiles)
-    )
-    for spec, r in sorted(
-        results.items(), key=lambda kv: (-kv[1]["correct"], kv[1]["median_seconds"])
-    ):
-        print(
-            f"{spec:<40} {r['correct']:>3}/{r['jobs']:<3} {r['schema_valid']:>6} {r['median_seconds']:>6.1f}s  "
-            + " ".join(f"{r['by_profile'].get(p, 0):>8}" for p in profiles)
-        )
+    print_table(results, profiles)
     if args.out:
         record = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "benchmark": "clerk-benchmark-v1",
+            "benchmark": json.loads(args.jobs.read_text(encoding="utf-8"))["version"],
             "jobs_sha256_lf": jobs_sha,
             "results": results,
         }

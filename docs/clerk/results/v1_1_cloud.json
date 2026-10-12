@@ -1,0 +1,2399 @@
+{
+ "ts": "2026-10-12T10:43:15+00:00",
+ "benchmark": "clerk-benchmark-v1",
+ "jobs_sha256_lf": "8c2ba930f36b90887874d7c3d7cfced918c651e2ef0c38dad3238635c2114577",
+ "results": {
+  "moonshotai.kimi-k3": {
+   "correct": 0,
+   "jobs": 54,
+   "schema_valid": 0,
+   "median_seconds": 0.23,
+   "by_profile": {
+    "check_context_completeness": 0,
+    "classify": 0,
+    "cluster": 0,
+    "explain_route": 0,
+    "extract": 0,
+    "select_skill": 0,
+    "summarise": 0,
+    "summarise_disagreement": 0,
+    "validate_structure": 0
+   },
+   "statuses": {
+    "timeout": 54
+   },
+   "rows": [
+    {
+     "job": "classify-01",
+     "profile": "classify",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.82,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "classify-02",
+     "profile": "classify",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.25,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "classify-03",
+     "profile": "classify",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.29,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "classify-04",
+     "profile": "classify",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "classify-05",
+     "profile": "classify",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "classify-06",
+     "profile": "classify",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "extract-01",
+     "profile": "extract",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "extract-02",
+     "profile": "extract",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.19,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "extract-03",
+     "profile": "extract",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "extract-04",
+     "profile": "extract",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.2,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "extract-05",
+     "profile": "extract",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "extract-06",
+     "profile": "extract",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "summarise-01",
+     "profile": "summarise",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "summarise-02",
+     "profile": "summarise",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "summarise-03",
+     "profile": "summarise",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.22,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "summarise-04",
+     "profile": "summarise",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.18,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "summarise-05",
+     "profile": "summarise",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "summarise-06",
+     "profile": "summarise",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "cluster-01",
+     "profile": "cluster",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "cluster-02",
+     "profile": "cluster",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.21,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "cluster-03",
+     "profile": "cluster",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "cluster-04",
+     "profile": "cluster",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.18,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "cluster-05",
+     "profile": "cluster",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "cluster-06",
+     "profile": "cluster",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "validate-01",
+     "profile": "validate_structure",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "validate-02",
+     "profile": "validate_structure",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.19,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "validate-03",
+     "profile": "validate_structure",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "validate-04",
+     "profile": "validate_structure",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "validate-05",
+     "profile": "validate_structure",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "validate-06",
+     "profile": "validate_structure",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "context-01",
+     "profile": "check_context_completeness",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.18,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "context-02",
+     "profile": "check_context_completeness",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.18,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "context-03",
+     "profile": "check_context_completeness",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.18,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "context-04",
+     "profile": "check_context_completeness",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.22,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "context-05",
+     "profile": "check_context_completeness",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "context-06",
+     "profile": "check_context_completeness",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "skill-01",
+     "profile": "select_skill",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "skill-02",
+     "profile": "select_skill",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "skill-03",
+     "profile": "select_skill",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "skill-04",
+     "profile": "select_skill",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "skill-05",
+     "profile": "select_skill",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "skill-06",
+     "profile": "select_skill",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "disagree-01",
+     "profile": "summarise_disagreement",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "disagree-02",
+     "profile": "summarise_disagreement",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.21,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "disagree-03",
+     "profile": "summarise_disagreement",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "disagree-04",
+     "profile": "summarise_disagreement",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "disagree-05",
+     "profile": "summarise_disagreement",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "disagree-06",
+     "profile": "summarise_disagreement",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.17,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "route-01",
+     "profile": "explain_route",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.18,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "route-02",
+     "profile": "explain_route",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "route-03",
+     "profile": "explain_route",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.22,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "route-04",
+     "profile": "explain_route",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "route-05",
+     "profile": "explain_route",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.24,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    },
+    {
+     "job": "route-06",
+     "profile": "explain_route",
+     "status": "timeout",
+     "schema_valid": false,
+     "correct": false,
+     "failed_checks": [
+      "no valid output"
+     ],
+     "seconds": 0.23,
+     "output": null,
+     "failure_reason": "Bedrock Converse failed for 'moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: Invocation of model ID moonshotai.kimi-k3 with on-demand throughput isn’t"
+    }
+   ]
+  },
+  "qwen.qwen3-coder-480b-a35b-v1:0": {
+   "correct": 47,
+   "jobs": 54,
+   "schema_valid": 54,
+   "median_seconds": 0.45,
+   "by_profile": {
+    "check_context_completeness": 1,
+    "classify": 6,
+    "cluster": 6,
+    "explain_route": 6,
+    "extract": 6,
+    "select_skill": 6,
+    "summarise": 4,
+    "summarise_disagreement": 6,
+    "validate_structure": 6
+   },
+   "statuses": {
+    "completed": 54
+   },
+   "rows": [
+    {
+     "job": "classify-01",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.96,
+     "output": {
+      "label": "bug"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-02",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.38,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-03",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.49,
+     "output": {
+      "label": "incident"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-04",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.28,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-05",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.74,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-06",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.45,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-01",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.54,
+     "output": {
+      "approver": "Priya Natarajan",
+      "version": "4.2.1",
+      "approved_on": "2026-10-09",
+      "deployed_on": "2026-10-11"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-02",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.7,
+     "output": {
+      "archive_name": "gagos-20261012T043107Z.tar.gz",
+      "size_mb": 2.4,
+      "entries": 75,
+      "previous_age_days": 6.1
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-03",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.54,
+     "output": {
+      "input_tokens": 1284330,
+      "output_tokens": 211904,
+      "models": 3,
+      "september_usd": 4.37
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-04",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.54,
+     "output": {
+      "incident_id": "INC-2207",
+      "mitigated_at": "14:41",
+      "resolved_at": "15:20",
+      "component": "router"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-05",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.41,
+     "output": {
+      "name": "Aisha Khan",
+      "extension": "4417"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-06",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.37,
+     "output": {
+      "merged": true,
+      "reviewer": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-01",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.76,
+     "output": {
+      "summary": "The nightly endurance job failed for three consecutive days due to the consecutive-error gate tripping on the qwen2.5:0.5b model. The proposed solution is to switch to using the qwen2.5:1.5b model instead."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-02",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.74,
+     "output": {
+      "summary": "The decision is that clerk jobs will send think=false to every local model, owned by Swapnil with a deadline of 2026-10-20. A per-job thinking flag was discussed but rejected."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-03",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.17,
+     "output": {
+      "summary": "INC-2209: Between 10:02 and 10:19 UTC, the backup task failed to write an archive due to a full data disk (0 bytes free), but after removing an old 9 GB log file, the 10:30 run succeeded with no data loss."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-04",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.01,
+     "output": {
+      "summary": "Four cloud models achieved perfect scores of 50/50, including Mistral Large 3, Qwen3-Coder-480B, and two Kimi variants. Local models performed significantly worse, with the default local model scoring only 18/50 and qwen2.5-coder:7b achieving 37/50 but with substantially higher latency."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-05",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['fresh', 'stale', 'age', 'old']"
+     ],
+     "seconds": 0.94,
+     "output": {
+      "summary": "The backup readiness gate was updated from a fixed string check to dynamically verify both recent archives and active scheduling through Windows Task Scheduler or crontab, preventing false positives from one-time archives that wouldn't continue running."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-06",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['85']"
+     ],
+     "seconds": 0.61,
+     "output": {
+      "summary": "Run 20261012T043600 attempted 150 targets, all of which were comparable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-01",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.5,
+     "output": {
+      "groups": [
+       [
+        "REC-1",
+        "REC-3"
+       ],
+       [
+        "REC-2",
+        "REC-4"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-02",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.49,
+     "output": {
+      "groups": [
+       [
+        "REC-11",
+        "REC-13"
+       ],
+       [
+        "REC-12",
+        "REC-14"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-03",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.31,
+     "output": {
+      "groups": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-04",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.29,
+     "output": {
+      "groups": [
+       [
+        "REC-31",
+        "REC-32",
+        "REC-33"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-05",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.32,
+     "output": {
+      "groups": [
+       [
+        "REC-41",
+        "REC-43"
+       ],
+       [
+        "REC-42",
+        "REC-44"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-06",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.31,
+     "output": {
+      "groups": [
+       [
+        "REC-51",
+        "REC-53"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-01",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.4,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-02",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.27,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-03",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.4,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-04",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.45,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-05",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.25,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-06",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.34,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "status",
+       "created_at"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-01",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['reproduction_steps'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 0.33,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-02",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "complete: expected True, got False",
+      "missing: expected [], got ['file_path']"
+     ],
+     "seconds": 0.31,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-03",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.34,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-04",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'error_message', 'reproduction_steps']"
+     ],
+     "seconds": 0.42,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-05",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 0.45,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-06",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['error_message'], got ['error_message', 'reproduction_steps']"
+     ],
+     "seconds": 0.75,
+     "output": {
+      "complete": false,
+      "missing": [
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-01",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.66,
+     "output": {
+      "skill": "backup_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-02",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.44,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-03",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.29,
+     "output": {
+      "skill": "restore_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-04",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.25,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-05",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.42,
+     "output": {
+      "skill": "rotate_logs"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-06",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.35,
+     "output": {
+      "skill": "lint_code"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-01",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.5,
+     "output": {
+      "disagreement_summary": "Analysis A attributes the timeouts to the 420-second model limit, while Analysis B claims they are caused by pytest grading exceeding 120 seconds."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-02",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.88,
+     "output": {
+      "disagreement_summary": "Analysis A recommends keeping qwen2.5-coder:7b as the clerk because it passed every test on the first attempt, while Analysis B suggests switching to granite4.2:8b due to its specialized capabilities in extraction and classification tasks."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-03",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.62,
+     "output": {
+      "disagreement_summary": "Analysis A concludes that the memory store is the bottleneck because only 11 lessons were admitted, while Analysis B argues that the model itself is the bottleneck since a 30B model cannot effectively utilize the lessons."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-04",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.72,
+     "output": {
+      "disagreement_summary": "Analysis A recommends merging #484 with a squash and re-gathering organ 37 afterwards, while Analysis B suggests merging #484 with a merge commit to maintain reachability of the cited commit."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-05",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.67,
+     "output": {
+      "disagreement_summary": "Analysis A recommends Kimi K3 for teaching due to its status as the newest model, while Analysis B suggests Qwen3-Coder-480B because it excels in coding speed."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-06",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.43,
+     "output": {
+      "disagreement_summary": "Analysis A recommends running the Docker drill tonight, while Analysis B suggests waiting until both judged runs finish due to Docker's potential 8 GB RAM usage."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-01",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.42,
+     "output": {
+      "explanation": "The job was routed to frontier_escalation because no local model is qualified for the summarise profile."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-02",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.62,
+     "output": {
+      "explanation": "The job was routed deterministically because a rule already maps this ticket type exactly, so no model was needed."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-03",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.51,
+     "output": {
+      "explanation": "The job was routed to local_clerk because it is approved, healthy and qualified for extract, using the granite4.2:8b model."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-04",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.48,
+     "output": {
+      "explanation": "The job was routed to human_clarification because two skills matched the task equally well, requiring human intervention to determine the best fit."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-05",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.33,
+     "output": {
+      "explanation": "The job was routed to frontier_escalation because the local model's last 3 summaries failed validation."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-06",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.66,
+     "output": {
+      "explanation": "The job was routed to local_clerk because deterministic code cannot judge meaning, and the qwen2.5-coder:7b model is qualified for cluster operations."
+     },
+     "failure_reason": null
+    }
+   ]
+  },
+  "mistral.mistral-large-3-675b-instruct": {
+   "correct": 46,
+   "jobs": 54,
+   "schema_valid": 54,
+   "median_seconds": 0.42,
+   "by_profile": {
+    "check_context_completeness": 1,
+    "classify": 6,
+    "cluster": 5,
+    "explain_route": 6,
+    "extract": 6,
+    "select_skill": 5,
+    "summarise": 5,
+    "summarise_disagreement": 6,
+    "validate_structure": 6
+   },
+   "statuses": {
+    "completed": 54
+   },
+   "rows": [
+    {
+     "job": "classify-01",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.87,
+     "output": {
+      "label": "bug"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-02",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.34,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-03",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.49,
+     "output": {
+      "label": "incident"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-04",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.31,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-05",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.39,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-06",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.31,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-01",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.42,
+     "output": {
+      "approver": "Priya Natarajan",
+      "version": "4.2.1",
+      "approved_on": "2026-10-09",
+      "deployed_on": "2026-10-11"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-02",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.41,
+     "output": {
+      "archive_name": "gagos-20261012T043107Z.tar.gz",
+      "size_mb": 2.4,
+      "entries": 75,
+      "previous_age_days": 6.1
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-03",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.39,
+     "output": {
+      "input_tokens": 1284330,
+      "output_tokens": 211904,
+      "models": 3,
+      "september_usd": 4.37
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-04",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.48,
+     "output": {
+      "incident_id": "INC-2207",
+      "mitigated_at": "14:41",
+      "resolved_at": "15:20",
+      "component": "router"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-05",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.43,
+     "output": {
+      "name": "Aisha Khan",
+      "extension": "4417"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-06",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.3,
+     "output": {
+      "merged": true,
+      "reviewer": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-01",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.43,
+     "output": {
+      "summary": "The nightly endurance job failed on three consecutive days due to the consecutive-error gate tripping on the qwen2.5:0.5b model. The proposed solution is to switch to the qwen2.5:1.5b model."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-02",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.64,
+     "output": {
+      "summary": "On 2026-10-12, Swapnil was assigned to implement the decision that clerk jobs will send 'think=false' to every local model by 2026-10-20; a per-job thinking flag was discussed but rejected."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-03",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.52,
+     "output": {
+      "summary": "INC-2209: Backup task failed between 10:02 and 10:19 UTC due to a full data disk, but succeeded after removing a 9 GB log file, with no data loss."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-04",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.52,
+     "output": {
+      "summary": "Four cloud models achieved a perfect score of 50/50, while the default local model scored 18/50 and qwen2.5-coder:7b scored 37/50 with significantly higher latency."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-05",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.52,
+     "output": {
+      "summary": "The backup readiness gate now dynamically checks Windows Task Scheduler or crontab for an existing schedule and verifies the freshness of the newest archive, replacing a static message that incorrectly indicated no backups were scheduled."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-06",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['85']"
+     ],
+     "seconds": 0.52,
+     "output": {
+      "summary": "Run 20261012T043600 attempted 150 targets, all of which were comparable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-01",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.41,
+     "output": {
+      "groups": [
+       [
+        "REC-1",
+        "REC-3"
+       ],
+       [
+        "REC-2",
+        "REC-4"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-02",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.39,
+     "output": {
+      "groups": [
+       [
+        "REC-11",
+        "REC-13"
+       ],
+       [
+        "REC-12",
+        "REC-14"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-03",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [], got [['REC-21: Chat returns 503 after 09:00', 'REC-23: Clerk qualification rejects qwen3.5']]"
+     ],
+     "seconds": 0.71,
+     "output": {
+      "groups": [
+       [
+        "REC-21: Chat returns 503 after 09:00",
+        "REC-23: Clerk qualification rejects qwen3.5"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-04",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.76,
+     "output": {
+      "groups": [
+       [
+        "REC-31",
+        "REC-32",
+        "REC-33"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-05",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.47,
+     "output": {
+      "groups": [
+       [
+        "REC-41",
+        "REC-43"
+       ],
+       [
+        "REC-42",
+        "REC-44"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-06",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.34,
+     "output": {
+      "groups": [
+       [
+        "REC-51",
+        "REC-53"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-01",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.33,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-02",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.26,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-03",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.43,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-04",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.32,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-05",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.31,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-06",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.43,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "status",
+       "created_at"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-01",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['reproduction_steps'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 0.33,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-02",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "complete: expected True, got False",
+      "missing: expected [], got ['file_path']"
+     ],
+     "seconds": 0.5,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-03",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.57,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-04",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 0.3,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-05",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 0.38,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-06",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['error_message'], got ['error_message', 'reproduction_steps']"
+     ],
+     "seconds": 0.54,
+     "output": {
+      "complete": false,
+      "missing": [
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-01",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.3,
+     "output": {
+      "skill": "backup_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-02",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.32,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-03",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.33,
+     "output": {
+      "skill": "restore_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-04",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.42,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-05",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "skill: expected 'rotate_logs', got 'restart_backend'"
+     ],
+     "seconds": 0.43,
+     "output": {
+      "skill": "restart_backend"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-06",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.46,
+     "output": {
+      "skill": "lint_code"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-01",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.52,
+     "output": {
+      "disagreement_summary": "Analysis A attributes the timeouts to the 420-second model limit, while Analysis B argues they are caused by pytest grading exceeding the 120-second threshold."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-02",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.31,
+     "output": {
+      "disagreement_summary": "Analysis A advocates keeping qwen2.5-coder:7b as the clerk due to its flawless initial test performance, while Analysis B recommends switching to granite4.2:8b for its specialized design in extraction and classification tasks."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-03",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.47,
+     "output": {
+      "disagreement_summary": "Analysis A argues that the memory store is the bottleneck, as only 11 lessons were admitted, while Analysis B contends that the model itself is the bottleneck, stating that a 30B model cannot effectively utilize lessons."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-04",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.64,
+     "output": {
+      "disagreement_summary": "Analysis A advocates merging pull request #484 with a squash commit and re-gathering organ 37 afterward, while Analysis B recommends merging #484 with a merge commit to preserve the reachability of the cited commit."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-05",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.45,
+     "output": {
+      "disagreement_summary": "Analysis A argues that Kimi K3 should teach because it is the newest model, while Analysis B contends that Qwen3-Coder-480B should teach due to its superior speed in coding tasks."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-06",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.39,
+     "output": {
+      "disagreement_summary": "Analysis A recommends running the Docker drill tonight, while Analysis B advises waiting until both judged runs complete due to Docker's high RAM usage (8 GB)."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-01",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.37,
+     "output": {
+      "explanation": "The job was routed to frontier_escalation because no local model is qualified for the summarise profile."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-02",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.4,
+     "output": {
+      "explanation": "The ticket was routed deterministically because a rule already maps this ticket type exactly, so no model was needed."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-03",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.36,
+     "output": {
+      "explanation": "The granite4.2:8b model routed this job to local_clerk because it is approved, healthy, and qualified for extraction."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-04",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.34,
+     "output": {
+      "explanation": "The routing decision was sent to human_clarification because two skills matched the task equally well."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-05",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.42,
+     "output": {
+      "explanation": "The job was routed to frontier_escalation because the local model's last 3 summaries failed validation."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-06",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 0.7,
+     "output": {
+      "explanation": "The model 'qwen2.5-coder:7b' was routed to 'local_clerk' because deterministic code cannot assess meaning, and this model is qualified for the cluster task."
+     },
+     "failure_reason": null
+    }
+   ]
+  }
+ }
+}

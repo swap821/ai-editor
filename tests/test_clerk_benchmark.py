@@ -65,7 +65,9 @@ def test_every_job_has_a_gradable_answer_key(jobs) -> None:
             {"groups": [["REC-3", "REC-1"], ["REC-4", "REC-2"], ["REC-5"]]},
             True,
         ),
-        ("cluster-02", {"groups": [["REC-11", "REC-12", "REC-13", "REC-14"]]}, False),
+        # v1.1: one disk-full group is a defensible reading; grouping by wording is not.
+        ("cluster-02", {"groups": [["REC-11", "REC-12", "REC-13", "REC-14"]]}, True),
+        ("cluster-02", {"groups": [["REC-11", "REC-12"], ["REC-13", "REC-14"]]}, False),
         ("cluster-03", {"groups": []}, True),
         ("validate-04", {"valid": False, "missing_fields": ["owner"]}, True),
         (
@@ -130,3 +132,42 @@ def test_a_cloud_reply_is_reduced_to_its_json_object() -> None:
 def test_local_models_are_called_as_the_clerk_calls_them() -> None:
     client = cb.make_client("ollama.granite4.2:8b", timeout_s=5)
     assert client.model == "granite4.2:8b" and client.think is False
+
+
+def test_v1_1_records_why_it_changed_and_keeps_v1() -> None:
+    import json
+
+    v1_1 = json.loads(cb.JOBS.read_text(encoding="utf-8"))
+    assert v1_1["version"] == "clerk-benchmark-v1.1" and len(v1_1["changelog"]) >= 5
+    v1 = json.loads(
+        (cb.JOBS.parent / "clerk_benchmark_v1.json").read_text(encoding="utf-8")
+    )
+    assert v1["version"] == "clerk-benchmark-v1" and len(v1["jobs"]) == 54
+
+
+def test_jobs_the_privacy_filter_rewrites_are_scored_apart_for_cloud(jobs) -> None:
+    """context-01/02 name a repo path; the cloud sees `aios[PATH REDACTED]`."""
+    altered = cb.cloud_altered_jobs(list(jobs.values()))
+    assert {"context-01", "context-02"} <= altered
+    rows = [
+        {
+            "job": "context-01",
+            "profile": "check_context_completeness",
+            "correct": False,
+            "schema_valid": True,
+            "seconds": 1.0,
+            "status": "completed",
+        },
+        {
+            "job": "classify-01",
+            "profile": "classify",
+            "correct": True,
+            "schema_valid": True,
+            "seconds": 1.0,
+            "status": "completed",
+        },
+    ]
+    cloud = cb.summarise_rows("qwen.some-cloud-model", rows, altered)
+    local = cb.summarise_rows("ollama.some-local-model", rows, altered)
+    assert (cloud["correct_seen_unaltered"], cloud["jobs_seen_unaltered"]) == (1, 1)
+    assert (local["correct_seen_unaltered"], local["jobs_seen_unaltered"]) == (1, 2)
