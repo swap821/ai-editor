@@ -3166,8 +3166,8 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 39a8b5ea7dc4396284fb7b13fc4252fad3d9867e: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 39a8b5ea7dc4396284fb7b13fc4252fad3d9867e exit=0; artifact=release/phase4/live-evidence-39a8b5ea7dc4.json; RecallGate + recall_envelope => RecallGate on real SQLite admitted the signed lesson for its owner only; another principal and an anonymous recall got nothing; recalled text reached the prompt inside the data envelope; a command carried from memory was tainted (1 line)",
-        "commit_sha": "39a8b5ea7dc4396284fb7b13fc4252fad3d9867e",
+        "description": "Phase 4 absolute live run on tip 1d1f7d32dc970089ca6185f80f3b3f56a4631548: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 1d1f7d32dc970089ca6185f80f3b3f56a4631548 exit=0; artifact=release/phase4/live-evidence-1d1f7d32dc97.json; RecallGate + recall_envelope => RecallGate on real SQLite admitted the signed lesson for its owner only; another principal and an anonymous recall got nothing; recalled text reached the prompt inside the data envelope; a command carried from memory was tainted (1 line)",
+        "commit_sha": "1d1f7d32dc970089ca6185f80f3b3f56a4631548",
         "proof_level": "live"
       }
     ],
@@ -3186,7 +3186,7 @@
       "C11": "PASS - last_verified_sha=97bb8080092924c62b3ff9b57701b2f83f8590a6",
       "C12": "PASS - 97bb8080092924c62b3ff9b57701b2f83f8590a6 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
-    "last_verified_sha": "39a8b5ea7dc4396284fb7b13fc4252fad3d9867e",
+    "last_verified_sha": "1d1f7d32dc970089ca6185f80f3b3f56a4631548",
     "requires_live_evidence": true,
     "requires_frontend_error_states": false
   },
