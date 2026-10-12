@@ -106,6 +106,20 @@ def _env_scope_roots(name: str, default: tuple[Path, ...]) -> tuple[Path, ...]:
 DATA_DIR: Final[Path] = _env_path("AIOS_DATA_DIR", PROJECT_ROOT / "data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# The project maintenance repairs are staged from, verified in and promoted
+# into. Default: this checkout -- but its own DATA_DIR (where staging lives)
+# is inside it, so staging it is refused (staged.py); point this at a clean
+# git worktree of the project. Setting it enrols that path for promotion: the
+# operator's act, by configuration.
+MAINTENANCE_PROJECT_ROOT: Final[Path] = _env_path(
+    "AIOS_MAINTENANCE_PROJECT_ROOT", PROJECT_ROOT
+)
+# The post-promotion smoke runs the tests that exercise a repaired file (88
+# test files import aios/api/main.py); one deadline bounds all of its steps.
+MAINTENANCE_SMOKE_TIMEOUT_S: Final[float] = _env_float(
+    "AIOS_MAINTENANCE_SMOKE_TIMEOUT_S", 1800.0
+)
+
 MEMORY_DB_PATH: Final[Path] = DATA_DIR / "aios_memory.db"
 OPERATIONAL_STATE_DB_PATH: Final[Path] = DATA_DIR / "aios_operational_state.db"
 APPROVAL_DB_PATH: Final[Path] = DATA_DIR / "aios_approvals.db"

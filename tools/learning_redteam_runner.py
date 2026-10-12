@@ -3679,6 +3679,9 @@ def child_environment(root: Path) -> dict[str, str]:
             "AIOS_DATA_DIR": str(root / "data"),
             "AIOS_SCOPE_ROOTS": str(root / "training_ground"),
             "AIOS_ROLLBACK_DIR": str(root / "rollback"),
+            # Where maintenance repairs are PROMOTED: a write target, so a
+            # child must never inherit the real checkout as its default.
+            "AIOS_MAINTENANCE_PROJECT_ROOT": str(root / "maintenance_project"),
             "AIOS_CRAG": "0",
             "HF_HUB_OFFLINE": "1",
             "TRANSFORMERS_OFFLINE": "1",

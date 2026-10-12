@@ -54,7 +54,9 @@ class StartScanRequest(BaseModel):
     )
     target_id: str = Field(min_length=1, max_length=512)
     scanner_version: str = Field(default="1", min_length=1, max_length=64)
-    max_files: int = Field(default=100, ge=1, le=1000)
+    # le=10_000, not 1_000: a project-rooted scanner reads the whole project to
+    # judge one file, and GAGOS alone has 1,076 Python files (2026-10-12).
+    max_files: int = Field(default=100, ge=1, le=10_000)
     max_total_bytes: int = Field(default=10_000_000, ge=1, le=100_000_000)
     max_file_bytes: int = Field(default=1_000_000, ge=1, le=10_000_000)
     deadline_seconds: int = Field(default=30, ge=1, le=300)
@@ -91,6 +93,11 @@ def _get_mission_or_404(service: MaintenanceConvergenceService, mission_id: str)
         raise HTTPException(
             status_code=404, detail=f"Mission {mission_id!r} not found"
         ) from exc
+
+
+def _project_rooted(scanner_fn: Any) -> bool:
+    """A scanner that must read the whole project to judge one target."""
+    return bool(getattr(scanner_fn, "project_rooted", False))
 
 
 def _validate_target_bounded(target_id: str, allowed_root: Path) -> Path:
@@ -162,7 +169,12 @@ def start_bounded_scan(
     enrolled_roots = getattr(service.workspace_manager, "enrolled_roots", ())
     primary_root = enrolled_roots[0] if enrolled_roots else config.PROJECT_ROOT
     target_path = _validate_target_bounded(payload.target_id, primary_root)
-    allowed_root = target_path if target_path.is_dir() else target_path.parent
+    if _project_rooted(scanner_fn):
+        # Reads the whole project, reports on the target (the scan context
+        # carries target_id): see vulture_dead_import_scanner.
+        allowed_root = Path(primary_root).resolve()
+    else:
+        allowed_root = target_path if target_path.is_dir() else target_path.parent
 
     contract = BoundedScanContract(
         allowed_root=str(allowed_root),
@@ -350,17 +362,31 @@ async def run_approved_repair(
 
     workspace_root = record.contract.workspace_root or str(config.PROJECT_ROOT)
     target_path = (Path(workspace_root) / finding.target_id).resolve()
-    allowed_root = target_path if target_path.is_dir() else target_path.parent
-
-    rescan_contract = BoundedScanContract(
-        allowed_root=str(allowed_root),
-        max_files=100,
-        max_total_bytes=10_000_000,
-        max_file_bytes=1_000_000,
-        deadline=30,
-        max_findings=100,
-        git_history_allowed=False,
-    )
+    if _project_rooted(scanner_fn):
+        # The rescan judges the repaired target against the whole project, so
+        # its bounds are the project's (measured 2026-10-12: GAGOS 1,076 Python
+        # files, index + repair of main.py ~13 s each under load). The rescan's
+        # deadline is also the executor job's timeout.
+        rescan_contract = BoundedScanContract(
+            allowed_root=str(Path(workspace_root).resolve()),
+            max_files=10_000,
+            max_total_bytes=100_000_000,
+            max_file_bytes=5_000_000,
+            deadline=300,
+            max_findings=100,
+            git_history_allowed=False,
+        )
+    else:
+        allowed_root = target_path if target_path.is_dir() else target_path.parent
+        rescan_contract = BoundedScanContract(
+            allowed_root=str(allowed_root),
+            max_files=100,
+            max_total_bytes=10_000_000,
+            max_file_bytes=1_000_000,
+            deadline=30,
+            max_findings=100,
+            git_history_allowed=False,
+        )
 
     try:
         result = service.run_approved_repair(
