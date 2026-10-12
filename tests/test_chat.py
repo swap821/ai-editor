@@ -276,3 +276,28 @@ def test_chat_without_transcript_emits_error(
     assert "event: error" in response.text
     # no model call when there's nothing to say.
     assert ollama.calls == []
+
+
+@pytest.mark.parametrize(
+    "transcript",
+    [
+        "What is the capital of France?",
+        "explain this error",
+        "list my open tasks",
+        "show me the plan",
+    ],
+)
+def test_a_read_only_question_is_answered_not_a_500(
+    chat_setup: tuple[TestClient, CapturingChatOllama], transcript: str
+) -> None:
+    """These classify as ADVISORY. The chat route registered a stream only for
+    conversation mode, so they raised -- a 500 for the most ordinary questions
+    (found by tools/model_call_inventory.py, 2026-10-12)."""
+    client, ollama = chat_setup
+    response = client.post(
+        "/api/v1/chat", json={"transcript": transcript, "sessionId": "voice-adv"}
+    )
+    assert response.status_code == 200
+    assert '"mode": "advisory"' in response.text
+    assert "event: text_chunk" in response.text and "event: done" in response.text
+    assert ollama.calls, "the model was asked"

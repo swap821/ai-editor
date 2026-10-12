@@ -453,6 +453,90 @@ def clerk_real_jobs(world: World) -> Gate:
     )
 
 
+#: The window of real use the one-gateway gate judges.
+GATEWAY_WINDOW = timedelta(days=7)
+
+
+def clerk_one_gateway(world: World) -> Gate:
+    """Every model call on THIS machine passed a gateway entrance.
+
+    Read from the model-call ledger (``aios/core/model_calls.py``), which each
+    provider adapter writes as a request leaves. A call is judged by the code
+    that made it: production code (``aios/``) must have come through an
+    entrance; a measurement tool's own direct calls (``tools/``, ``tests/``)
+    are reported, not judged -- a production path a tool drives is still
+    judged, by the production frame that called the model.
+    """
+    from aios.core.model_calls import read_ledger
+
+    records = read_ledger(world.data_dir, world.now - GATEWAY_WINDOW)
+    days = GATEWAY_WINDOW.days
+    if not records:
+        return Gate(
+            "clerk",
+            "one_gateway",
+            NOT_MEASURED,
+            f"no model call recorded on this machine in {days} days",
+            next_step="use GAGOS: every model call is recorded as it leaves",
+        )
+    damaged = [r for r in records if "unreadable" in r]
+    if damaged:
+        return Gate(
+            "clerk",
+            "one_gateway",
+            ERROR,
+            f"{len(damaged)} unreadable ledger line(s): calls that cannot be judged",
+        )
+    judged = [
+        r
+        for r in records
+        if not str(r.get("site", "")).startswith(("tools/", "tests/"))
+    ]
+    instruments = len(records) - len(judged)
+    ungated: dict[str, int] = {}
+    entrances: dict[str, int] = {}
+    for record in judged:
+        entrance = record.get("entrance")
+        if entrance:
+            entrances[entrance] = entrances.get(entrance, 0) + 1
+        else:
+            site = str(record.get("site") or "?")
+            ungated[site] = ungated.get(site, 0) + 1
+    tail = (
+        f"; {instruments} more from measurement tools, reported not judged"
+        if instruments
+        else ""
+    )
+    if ungated:
+        worst = sorted(ungated.items(), key=lambda kv: -kv[1])[:5]
+        return Gate(
+            "clerk",
+            "one_gateway",
+            FAIL,
+            f"{sum(ungated.values())} of {len(judged)} model calls in {days} days "
+            f"passed no gateway entrance: "
+            + ", ".join(f"{site} x{n}" for site, n in worst)
+            + tail,
+            next_step="route each site through an Organ 32 entrance",
+        )
+    if not judged:
+        return Gate(
+            "clerk",
+            "one_gateway",
+            NOT_MEASURED,
+            f"only measurement tools called a model here in {days} days{tail}",
+            next_step="use GAGOS: every model call is recorded as it leaves",
+        )
+    shown = ", ".join(f"{k} {v}" for k, v in sorted(entrances.items()))
+    return Gate(
+        "clerk",
+        "one_gateway",
+        PASS,
+        f"{len(judged)} model calls in {days} days, every one through a gateway "
+        f"entrance ({shown}){tail}",
+    )
+
+
 def _requested_clerk_roles(repo: Path) -> dict[str, list[str]]:
     """The roles production code asks the clerk for: every
     ``job_profile=LocalJobProfile.X`` in ``aios/``, outside the contracts
@@ -553,6 +637,77 @@ def animal_signing_key(world: World) -> Gate:
         f"missing {missing}: everything learned is unsigned and refused at recall",
         owner="operator",
         next_step="generate the key once and store it in the keystore (H3/H8)",
+    )
+
+
+#: Where judging the pre-registered Phase 8 runs records its verdict: Holm over
+#: {H1-cloud, H1c-cloud, H1-7B} (docs/learning/PAYOFF_PREREGISTRATION.md, D4).
+#: Absent until a judged run exists; the baselines were reported, never judged.
+JUDGED_PAYOFF = Path("docs") / "learning" / "payoff_judged_result.json"
+#: The census asks as a principal that owns nothing. The recall gate refuses
+#: a row "another principal" only after its signature verified, it is not
+#: revoked and it names an owner -- exactly a row its OWNER's turn admits --
+#: so that count is what reaches a live turn, from the gate's own derivation.
+_OWNS_NOTHING = "scoreboard:owns-nothing"
+_ADMITTED_TO_OWNER = "another principal"
+
+
+def animal_usefulness(world: World) -> Gate:
+    """Does what the animal learned reach a live turn, and did it help?"""
+    from tools.learning_payoff import gate_census
+
+    census = gate_census(
+        _OWNS_NOTHING,
+        db=world.data_dir / "aios_memory.db",
+        library_db=world.data_dir / "aios_operational_state.db",
+    )
+    candidates = census["candidates"]
+    reach = {
+        kind: int(census["refused"][kind].get(_ADMITTED_TO_OWNER, 0))
+        for kind in ("lessons", "skills")
+    }
+    if not (reach["lessons"] or reach["skills"]):
+        refused = {
+            k: v
+            for k, v in census["refused"]["lessons"].items()
+            if k != _ADMITTED_TO_OWNER
+        }
+        return Gate(
+            "animal",
+            "usefulness",
+            FAIL,
+            f"nothing learned reaches a live turn: 0 of {candidates['lessons']} "
+            f"lessons and 0 of {candidates['skills']} active skills pass the "
+            f"recall gate for their owner (lessons refused: {refused or 'none'})",
+            owner="operator",
+            next_step="pin the live learning key, then review and re-admit lessons "
+            "(tools/readmit_learning.py --principal)",
+        )
+    reached = (
+        f"{reach['lessons']} of {candidates['lessons']} lessons and "
+        f"{reach['skills']} of {candidates['skills']} active skills reach their "
+        "owner's turns"
+    )
+    judged_path = world.repo / JUDGED_PAYOFF
+    if not judged_path.is_file():
+        return Gate(
+            "animal",
+            "usefulness",
+            NOT_MEASURED,
+            f"{reached}; no judged payoff run yet (the baselines were reported, "
+            "not judged, and showed no measurable benefit)",
+            owner="operator",
+            next_step="the pre-registered Phase 8 run "
+            "(docs/learning/PAYOFF_PREREGISTRATION.md, D4)",
+        )
+    judged = json.loads(judged_path.read_text(encoding="utf-8"))
+    met = judged.get("h1_met") is True
+    return Gate(
+        "animal",
+        "usefulness",
+        PASS if met else FAIL,
+        f"{reached}; judged run: {judged.get('summary') or ('met' if met else 'not met')}",
+        owner="operator",
     )
 
 
@@ -715,20 +870,9 @@ def intelligence_failover_drill(world: World) -> Gate:
 # Not yet measured -- named, so absence is never read as a pass.
 # --------------------------------------------------------------------------- #
 
-NOT_YET = (
-    (
-        "clerk",
-        "one_gateway",
-        "every model call through the one gateway: construction is gated, calls are not inventoried",
-        "H7",
-    ),
-    (
-        "animal",
-        "usefulness",
-        "a pre-registered payoff run that met its hypothesis",
-        "H8",
-    ),
-)
+#: Every gate has a probe now (2026-10-12). Kept, so a property named before
+#: its probe exists is still never read as met.
+NOT_YET: tuple[tuple[str, str, str, str], ...] = ()
 
 GATES: tuple[Callable[[World], Gate], ...] = (
     cage_v1_check,
@@ -737,9 +881,11 @@ GATES: tuple[Callable[[World], Gate], ...] = (
     cage_master_ci,
     animal_signing_key,
     animal_guards_scheduled,
+    animal_usefulness,
     clerk_admitted_model,
     clerk_live_roles_earnable,
     clerk_real_jobs,
+    clerk_one_gateway,
     sovereign_production_started,
     sovereign_backend_ready,
     sovereign_backups,

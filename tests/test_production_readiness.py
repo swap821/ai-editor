@@ -68,6 +68,9 @@ def test_unmeasured_properties_keep_the_machine_not_ready(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setattr(pr, "GATES", (lambda w: pr.Gate("cage", "x", pr.PASS, "ok"),))
+    # Pinned, not read from the live list: once every gate has a probe that
+    # list is empty, and this property must still be tested.
+    monkeypatch.setattr(pr, "NOT_YET", (("cage", "y", "a property", "H?"),))
     gates = pr.measure(_world(tmp_path))
     assert any(g.status == pr.NOT_MEASURED for g in gates)
     assert not pr.ready(gates)
@@ -565,3 +568,74 @@ def test_runtime_proofs_are_fixtures_not_callers(
     _caller(world, "aios/application/x/service.py", "SUMMARISE")
     _caller(world, "aios/application/governance/r15_runtime_proof.py", "SELECT_SKILL")
     assert pr.clerk_live_roles_earnable(world).status == pr.PASS
+
+
+# --------------------------------------------------------------------------- #
+# One gateway (read from the model-call ledger)
+# --------------------------------------------------------------------------- #
+
+
+def _calls(world: pr.World, *records: tuple[str, object], when=None) -> None:
+    """Write ledger lines: (site, entrance) pairs, at *when* (default: now)."""
+    stamp = when or world.now
+    path = world.data_dir / "model_calls" / f"{stamp.date().isoformat()}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        for site, entrance in records:
+            handle.write(
+                json.dumps(
+                    {
+                        "ts": stamp.isoformat(),
+                        "provider": "ollama",
+                        "model": "m",
+                        "method": "chat",
+                        "entrance": entrance,
+                        "site": site,
+                    }
+                )
+                + "\n"
+            )
+
+
+def test_one_gateway_passes_only_when_every_production_call_was_gated(
+    tmp_path,
+) -> None:
+    world = _world(tmp_path)
+    assert pr.clerk_one_gateway(world).status == pr.NOT_MEASURED, "no ledger"
+    _calls(world, ("aios/core/alignment.py:understand", "route"))
+    _calls(world, ("aios/api/main.py:_stream_chat_chunks", "stream_compatibility"))
+    gate = pr.clerk_one_gateway(world)
+    assert gate.status == pr.PASS, gate
+    assert "2 model calls" in gate.evidence and "route 1" in gate.evidence
+    _calls(world, ("aios/core/planner.py:plan", None))
+    gate = pr.clerk_one_gateway(world)
+    assert gate.status == pr.FAIL
+    assert "1 of 3" in gate.evidence and "aios/core/planner.py:plan x1" in gate.evidence
+
+
+def test_a_measurement_tool_is_reported_not_judged(tmp_path) -> None:
+    world = _world(tmp_path)
+    _calls(world, ("tools/intelligence_benchmark.py:ask", None))
+    gate = pr.clerk_one_gateway(world)
+    assert gate.status == pr.NOT_MEASURED, "only a tool called a model"
+    _calls(world, ("aios/core/alignment.py:understand", "route"))
+    gate = pr.clerk_one_gateway(world)
+    assert gate.status == pr.PASS
+    assert "1 more from measurement tools" in gate.evidence
+
+
+def test_one_gateway_reads_only_the_window_and_a_damaged_ledger_is_an_error(
+    tmp_path,
+) -> None:
+    from datetime import timedelta
+
+    world = _world(tmp_path)
+    _calls(
+        world, ("aios/core/planner.py:plan", None), when=world.now - timedelta(days=9)
+    )
+    assert pr.clerk_one_gateway(world).status == pr.NOT_MEASURED, "outside 7 days"
+    _calls(world, ("aios/core/alignment.py:understand", "route"))
+    path = world.data_dir / "model_calls" / f"{world.now.date().isoformat()}.jsonl"
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("{torn line\n")
+    assert pr.clerk_one_gateway(world).status == pr.ERROR

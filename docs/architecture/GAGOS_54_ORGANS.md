@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `f10bb2b2de4512d755b3eaf1a567d9f3ab04ff3a353e3ee15756400c069a0038`
+- **Source ledger sha256:** `75455f6f05cccb388de01e051e129f5903ba8797443d87b9d3eba2478e359c78`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -844,14 +844,14 @@ re-audits recorded above.
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `cb19e19ef2c7` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `0d85919fda58` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `0d85919fda58` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `7e147a4b89c9` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `7e147a4b89c9` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `0d85919fda58` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `cb19e19ef2c7` | live |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `1d431850fc5e` | live |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `1d431850fc5e` | live |
-| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `cb19e19ef2c7` | live |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `7954d18d4e8a` | live |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `7e147a4b89c9` | live |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `7e147a4b89c9` | live |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `7e147a4b89c9` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `cb19e19ef2c7` | live |
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `f1f0aeea78ee` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `59ce79b34e4e` | live |
@@ -860,13 +860,13 @@ re-audits recorded above.
 | 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `52b429825cf8` | live |
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `cb19e19ef2c7` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `cb19e19ef2c7` | live |
-| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `1d431850fc5e` | live |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `7e147a4b89c9` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `59ce79b34e4e` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `0d85919fda58` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `f1f0aeea78ee` | live |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | `1d431850fc5e` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `f1f0aeea78ee` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `7e147a4b89c9` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `7e147a4b89c9` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `7e147a4b89c9` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
 | 57 | Reflex Authority | `Cerebellum` | `7954d18d4e8a` | live |
