@@ -28,7 +28,12 @@ Measured by `python tools/production_readiness.py`
 
 ## The drill (operator)
 
-Run these in your own terminal, from a clean checkout of `master`.
+Run these in your own PowerShell terminal, from a clean checkout of `master`.
+
+`gagos` below is `python -m aios.launcher`: the same command. The short name
+exists only once the package is installed (`pip install -e .` in that
+checkout). Without it, PowerShell answers "The term 'gagos' is not recognized"
+(found 2026-10-12), so the module form is what is written here.
 
 1. **Docker Desktop.**
    - Settings → General → *Start Docker Desktop when you sign in*.
@@ -38,27 +43,27 @@ Run these in your own terminal, from a clean checkout of `master`.
    python -m aios backup create
    ```
 3. **A copy to drill on.** Restore that archive into a separate directory:
-   ```
-   set AIOS_DATA_DIR=C:\gagos-drill\data
+   ```powershell
+   $env:AIOS_DATA_DIR = "C:\gagos-drill\data"
    python -m aios backup restore --input <the archive from step 2>
    ```
 4. **Keys.** This is your act; the values are never shown.
-   ```
-   gagos keys generate --missing
-   gagos keys pin
-   gagos keys set AWS_BEARER_TOKEN_BEDROCK      (optional, one per cloud key)
-   gagos keys status
+   ```powershell
+   python -m aios.launcher keys generate --missing
+   python -m aios.launcher keys pin
+   python -m aios.launcher keys set AWS_BEARER_TOKEN_BEDROCK   # optional, one per cloud key
+   python -m aios.launcher keys status
    ```
    Commit `.aios/state/LEARNING_PUBLIC_KEYS.json`: the verifier trusts what is
    pinned there.
 5. **Start production on the copy:**
-   ```
-   set AIOS_DATA_DIR=C:\gagos-drill\data
-   gagos start --profile production
+   ```powershell
+   $env:AIOS_DATA_DIR = "C:\gagos-drill\data"
+   python -m aios.launcher start --profile production
    ```
 6. **Measure:**
-   ```
-   set AIOS_DATA_DIR=C:\gagos-drill\data
+   ```powershell
+   $env:AIOS_DATA_DIR = "C:\gagos-drill\data"
    python tools/production_readiness.py
    ```
 
