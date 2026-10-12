@@ -241,3 +241,78 @@ def test_a_critic_that_is_the_teacher_refuses_the_run(tmp_path, monkeypatch) -> 
             teacher="teacher",
             critic="teacher",
         )
+
+
+# --- D12: a throttled teacher is retried, not graded --------------------------
+
+
+def test_a_throttled_reflection_is_retried_then_succeeds() -> None:
+    calls, waits = [], []
+
+    def call():
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("ThrottlingException: Too many requests")
+        return "lesson"
+
+    assert ocr.retry_transient(call, waits=(1, 2, 3), sleep=waits.append) == "lesson"
+    assert waits == [1, 2] and len(calls) == 3
+
+
+def test_a_non_transient_error_is_raised_at_once() -> None:
+    waits = []
+    with pytest.raises(ValueError):
+        ocr.retry_transient(
+            lambda: (_ for _ in ()).throw(ValueError("bad")),
+            waits=(1,),
+            sleep=waits.append,
+        )
+    assert waits == []
+
+
+def test_throttling_that_never_ends_still_fails_after_the_waits() -> None:
+    waits = []
+
+    def call():
+        raise RuntimeError("ThrottlingException")
+
+    with pytest.raises(RuntimeError):
+        ocr.retry_transient(call, waits=(1, 2), sleep=waits.append)
+    assert waits == [1, 2]
+
+
+def test_a_throttled_attempt_is_rerun_not_graded(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    outcomes = iter(
+        [
+            SimpleNamespace(
+                outcome="model_error", notes=["ThrottlingException: Too many requests"]
+            ),
+            SimpleNamespace(outcome="rejected", notes=["assert 4 == 5"]),
+        ]
+    )
+    monkeypatch.setattr(ocr, "_attempt_one", lambda *a, **k: next(outcomes))
+    waits = []
+    record = ocr.attempt_with_retry(
+        "corpus", "client", "target", waits=(7,), sleep=waits.append
+    )
+    assert record.outcome == "rejected" and waits == [7]
+
+
+def test_a_real_model_error_is_not_retried(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        ocr,
+        "_attempt_one",
+        lambda *a, **k: SimpleNamespace(
+            outcome="model_error", notes=["401 Unauthorized"]
+        ),
+    )
+    waits = []
+    assert (
+        ocr.attempt_with_retry("c", "c", "t", waits=(7,), sleep=waits.append).outcome
+        == "model_error"
+    )
+    assert waits == []
