@@ -211,7 +211,38 @@ def test_backups_count_only_restorable_archives(tmp_path) -> None:
         "an ad hoc copy is not a backup"
     )
     (backups / "gagos-20261011.tar.gz").write_bytes(b"x")
-    assert pr.sovereign_backups(world).status == pr.PASS
+    scheduled = _world(tmp_path, run=lambda argv, env: (0, ""))
+    assert pr.sovereign_backups(scheduled).status == pr.PASS
+
+
+def test_backups_fail_when_nothing_schedules_them(tmp_path) -> None:
+    """A fresh archive alone passed while the gate said "nothing schedules them"."""
+    backups = tmp_path / "data" / "backups"
+    backups.mkdir(parents=True)
+    (backups / "gagos-20261012.tar.gz").write_bytes(b"x")
+
+    unscheduled = pr.sovereign_backups(_world(tmp_path))
+    assert unscheduled.status == pr.FAIL
+    assert "nothing schedules them" in unscheduled.evidence
+
+    def task_scheduler(argv, env):
+        return (0, "") if argv[0] == "schtasks" else (1, "")
+
+    windows = pr.sovereign_backups(_world(tmp_path, run=task_scheduler))
+    assert windows.status == pr.PASS
+    assert pr.BACKUP_TASK_NAME in windows.evidence
+
+    def cron(argv, env):
+        if argv[0] == "crontab":
+            return 0, "0 3 * * * python -m aios backup create --if-stale\n"
+        return 1, ""
+
+    assert pr.sovereign_backups(_world(tmp_path, run=cron)).status == pr.PASS
+
+    def unrelated_cron(argv, env):
+        return (0, "0 3 * * * echo hi\n") if argv[0] == "crontab" else (1, "")
+
+    assert pr.sovereign_backups(_world(tmp_path, run=unrelated_cron)).status == pr.FAIL
 
 
 @pytest.mark.parametrize(
