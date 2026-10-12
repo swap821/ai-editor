@@ -1,0 +1,107 @@
+{
+  "judged": "Phase 8 family, docs/learning/PAYOFF_PREREGISTRATION.md D4/D5",
+  "result_doc": "docs/learning/PAYOFF_PHASE8_RESULT.md",
+  "runs": {
+    "cloud": {
+      "run_id": "20261012T043600-0863795b",
+      "corpus_sha": "c5989c5fdda3272eb9a08b73c50e79762b1e6691",
+      "harness_sha": "c5989c5fdda3272eb9a08b73c50e79762b1e6691",
+      "models": "qwen.qwen3-coder-30b-a3b-v1:0",
+      "samples": 3,
+      "placebo": true
+    },
+    "7B": {
+      "run_id": "20261012T074959-65c6f335",
+      "corpus_sha": "092fb0f9b8d39d16669b269af4c507757ef1db6a",
+      "harness_sha": "c5989c5fdda3272eb9a08b73c50e79762b1e6691",
+      "models": "ollama.qwen2.5-coder:7b",
+      "samples": 1,
+      "placebo": false
+    }
+  },
+  "family_alpha": 0.05,
+  "family": {
+    "H1-cloud": {
+      "arms": [
+        "on",
+        "off"
+      ],
+      "pairs": 83,
+      "samples": 3,
+      "on_earned": 64,
+      "off_earned": 56,
+      "on_only": 17,
+      "off_only": 11,
+      "direction": "positive",
+      "raw_p": 0.4339343160390854,
+      "holm_p": 1.0,
+      "met": false
+    },
+    "H1c-cloud": {
+      "arms": [
+        "on",
+        "placebo"
+      ],
+      "pairs": 83,
+      "samples": 3,
+      "on_earned": 64,
+      "off_earned": 64,
+      "on_only": 12,
+      "off_only": 10,
+      "direction": "positive",
+      "raw_p": 1.0,
+      "holm_p": 1.0,
+      "met": false
+    },
+    "H1-7B": {
+      "arms": [
+        "on",
+        "off"
+      ],
+      "pairs": 18,
+      "samples": 1,
+      "on_earned": 1,
+      "off_earned": 2,
+      "on_only": 0,
+      "off_only": 1,
+      "direction": "negative or zero",
+      "raw_p": 1.0,
+      "holm_p": 1.0,
+      "met": false
+    }
+  },
+  "h2_harm": {
+    "cloud": {
+      "pairs": 85,
+      "on_only": 17,
+      "off_only": 11,
+      "p_value": 0.4339343160390854,
+      "violated": false
+    },
+    "7B": {
+      "pairs": 19,
+      "on_only": 0,
+      "off_only": 1,
+      "p_value": 1.0,
+      "violated": false
+    }
+  },
+  "h3_hardening_preserves_utility": {
+    "cloud": {
+      "targets_reached_in_both": 85,
+      "phase8_better": 12,
+      "baseline_better": 10,
+      "p_value": 1.0,
+      "violated": false
+    },
+    "7B": {
+      "targets_reached_in_both": 19,
+      "phase8_better": 0,
+      "baseline_better": 2,
+      "p_value": 0.5,
+      "violated": false
+    }
+  },
+  "h1_met": false,
+  "summary": "Phase 8 family not met: H1-cloud 17 vs 11 (Holm p=1.00), H1c-cloud 12 vs 10 (Holm p=1.00), H1-7B 0 vs 1 (Holm p=1.00); harm (H2) not seen; hardening kept utility (H3) yes"
+}
