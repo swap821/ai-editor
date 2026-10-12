@@ -287,7 +287,7 @@ def run_chain(
                 tier_attempts: list[Attempt] = []
                 feedback = ""
                 for n in range(1, retries + 2):
-                    record = _attempt_one(
+                    record = attempt_with_retry(
                         corpus, client, target, attempt=n, extra=feedback, model=spec
                     )
                     attempts.append(record)
@@ -1078,8 +1078,10 @@ def ground_on_success(
     if not change.strip():
         return None, "no change between the failing and passing test"
     try:
-        grounded = reflector.reflect_resolution(
-            command, failure, change, task_id=task_id
+        grounded = retry_transient(
+            lambda: reflector.reflect_resolution(
+                command, failure, change, task_id=task_id
+            )
         )
     except Exception as exc:  # noqa: BLE001 - a learning step must not be fatal
         return None, f"resolution reflection unavailable: {type(exc).__name__}"
@@ -1093,10 +1095,67 @@ def ground_on_success(
     return grounded.mistake_id, f"grounded lesson replaces {guesses}"
 
 
+def _is_transient(text: str) -> bool:
+    """A provider refusal before any reply exists (throttling, not ready, ...).
+
+    The same markers the judged harness retries on (learning_payoff), so the
+    two never disagree about what "transient" means.
+    """
+    from tools.learning_payoff import TRANSIENT_PROVIDER_ERRORS
+
+    return any(marker in text for marker in TRANSIENT_PROVIDER_ERRORS)
+
+
+def retry_transient(call, *, waits=None, sleep=None):
+    """Run *call*; on a transient provider refusal, wait and run it again.
+
+    D12's first cloud practice (2026-10-12) lost 182 of the teacher's 244
+    attempts and 236 of its 331 reflections to ThrottlingException: the
+    teacher was refused, not wrong, and the run recorded it as having
+    nothing to teach. No reply exists when this retries, so a retry cannot be
+    chosen by outcome. Anything else is raised at once.
+    """
+    import time
+
+    from tools.learning_payoff import TRANSPORT_RETRY_WAITS
+
+    for wait in (*(TRANSPORT_RETRY_WAITS if waits is None else waits), None):
+        try:
+            return call()
+        except Exception as exc:
+            if wait is None or not _is_transient(str(exc)):
+                raise
+            (sleep or time.sleep)(wait)
+    raise AssertionError("unreachable")
+
+
+def attempt_with_retry(*args, waits=None, sleep=None, **kwargs):
+    """`_attempt_one`, re-run while it fails only with a transient refusal.
+
+    A throttled attempt never reached the model: grading it as a failed try
+    would count the provider's refusal against the model.
+    """
+    import time
+
+    from tools.learning_payoff import TRANSPORT_RETRY_WAITS
+
+    for wait in (*(TRANSPORT_RETRY_WAITS if waits is None else waits), None):
+        record = _attempt_one(*args, **kwargs)
+        refused = record.outcome == "model_error" and _is_transient(
+            " ".join(record.notes)
+        )
+        if not refused or wait is None:
+            return record
+        (sleep or time.sleep)(wait)
+    raise AssertionError("unreachable")
+
+
 def _reflect(reflector, command: str, error_output: str, run_id: str) -> int | None:
     """Record a lesson, returning its id. Never breaks the run."""
     try:
-        reflection = reflector.reflect(command, error_output, task_id=run_id)
+        reflection = retry_transient(
+            lambda: reflector.reflect(command, error_output, task_id=run_id)
+        )
     except Exception as exc:  # noqa: BLE001 - a learning step must not be fatal
         print(f"            L1 reflection unavailable: {type(exc).__name__}")
         return None
