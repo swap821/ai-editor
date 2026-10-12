@@ -542,3 +542,13 @@ so "mocks" would have matched every pin task. `mock`, `mocks`, `mocked`,
 `mocking`, `patch`, `patched`, `patching`, `fixture` and `fixtures` join the
 generic testing vocabulary, by the same principle as "pytest". No evaluation
 target was consulted.
+
+**Addendum 2, 2026-10-12, before any run.** The full practice run (D10)
+produced 32 verified lessons. A dry run on the **development** targets (the
+practice pool, none judged) showed template words driving recall: `symbol`
+and `constant` recalled one lesson for 153 of 154 targets, and `python`,
+`literal` and `raises` did the same for others. They are generic programming
+words, like `variable` and `value`, so `constant(s)`, `symbol(s)`,
+`literal(s)`, `python` and `raise(s/d)` join the generic vocabulary. After
+this, recall on the development set is driven by domain words (`digest`,
+`status`, `provenance`). No evaluation target was used to choose these.

@@ -104,6 +104,8 @@ _GENERIC_WORDS = frozenset(
     anywhere assign assigned avoid checking define defined non-empty
     nonempty presence present
     fixture fixtures mock mocked mocking mocks patch patched patching
+    constant constants literal literals python raise raised raises symbol
+    symbols
     """.split()
 )
 
