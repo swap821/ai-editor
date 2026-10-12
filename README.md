@@ -515,8 +515,10 @@ must originate from canonical backend state or be clearly labelled as ambient pr
 
 GAGOS contains substantial implementations of its major organs, but the repository is still converging toward one complete and independently proven V1 runtime.
 
-**Status below last verified on `9381121` (2026-09-01).** Where a line names a
-check, the check is the claim — re-run it rather than trusting the line.
+**Status below last reviewed on `6b64b9ca` (2026-10-12).** A row whose check was
+not re-run that day keeps the commit it was last measured on. Where a line names a
+check, the check is the claim — re-run it rather than trusting the line. The
+dated, verified state is `HONEST_STATE.md` ("State on 2026-10-12").
 
 ### Substantially implemented
 
@@ -555,7 +557,9 @@ resists attacks nobody has written yet.
 
 ### Still being completed or proven
 
-- One universal gateway for every model call
+- One universal gateway for every model call — measured, not enforced: the
+  inventory observed 14 of 27 model-call sites (`docs/ONE_GATEWAY.md`), and an
+  ungated call is recorded rather than refused; organ 32 is yellow for this
 - Complete human-representation context for every provider — the agentic
   `/api/generate` path compiles its own representative context and carries
   neither operator preferences nor the project passport
@@ -563,14 +567,17 @@ resists attacks nobody has written yet.
 - Repeated live local-clerk evidence — the nightly runs the prover against a
   real Ollama daemon; the corpus is young
 - Crash-safe mission resumption
-- Skill confidence and demotion evidence — `create_file`/`edit_file` steps
-  cannot compile into a playbook (`aios/core/cerebellum.py:41`), so the
-  workflow class the system most often performs can neither earn nor lose a
-  skill
-- Endurance evidence — the nightly workflow that runs `tools/endurance_tester.py`
-  was merged on 2026-09-01 and **has not yet fired once**, so no endurance run
-  has been recorded by CI. It is also wired at `--duration-minutes 10`, not the
-  tool's 30-minute default
+- Skill confidence and demotion evidence — write steps compile as checks and
+  replay only with a human approval of the exact bytes
+  (`aios/core/replay_writes.py`), but no skill is active on the operator's
+  machine (0 of 80), so no learned reflex serves a live turn yet
+- Learning usefulness — the pre-registered Phase 8 judged run found no
+  measurable benefit from memory (H1 not met; no harm;
+  `docs/learning/PAYOFF_PHASE8_RESULT.md`); D12 is the next registered test
+- Endurance evidence — the nightly fires, but its endurance job failed on each
+  night 2026-10-07 to 2026-10-11: the tester aborts on 5 consecutive errors, so
+  no usable endurance evidence has been recorded. It is also wired at
+  `--duration-minutes 10`, not the tool's 30-minute default
 - Fully truthful operator walkthrough — read models no longer invent motion
   while the backend is unreachable; the guided walkthrough does not exist
 - Clean-machine packaging — backup and restore exist

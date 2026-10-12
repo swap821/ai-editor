@@ -1764,7 +1764,7 @@
   {
     "organ_id": 32,
     "name": "Universal Intelligence Gateway",
-    "status": "green",
+    "status": "yellow",
     "authority_owner": "UniversalIntelligenceGatewayAuthority",
     "production_entrypoints": [
       "aios/application/intelligence/gateway.py",
@@ -1803,7 +1803,10 @@
         "proof_level": "live"
       }
     ],
-    "known_blockers": [],
+    "known_blockers": [
+      "UNIVERSALITY UNMEASURED (2026-10-12): the one-gateway inventory (PR #467, tools/model_call_inventory.py, docs/ONE_GATEWAY.md 'What it did not reach') observed 14 of 27 model-call sites. The 13 never reached include 3 in this organ's own entrypoint aios/runtime/intelligence_gateway.py (worker reasoning, off by default), the clerk runtime (local_workforce/service._execute_advisory_job, runtime.execute_job), council execution, maintenance repair, self-analysis proposals, model_router.complete and router_wiring.picker. 'Universal' is shown for the routes driven, not for these.",
+      "UNIVERSALITY NOT ENFORCED (2026-10-12): the gateway records an adapter call made outside every entrance but does not refuse it (docs/ONE_GATEWAY.md 'It does not refuse an ungated call'). A future call site that skips the gateway is measured after the fact, not prevented. Refusing (fail closed in the adapters) is the operator's decision once real use shows zero ungated calls."
+    ],
     "last_verified_sha": "a6beaad5182fd8f754168121fbe978bee7fc635b",
     "requires_live_evidence": false,
     "condition_verdicts": {
@@ -1815,7 +1818,7 @@
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_intelligence_gateway.py', 'tests/test_council_gateway_reasoning.py', 'tests/test_authenticated_chat_route.py', 'tests/test_authenticated_chat_representation.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/architecture/test_intelligence_boundary.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "PASS \u2014 known_blockers empty (residuals live in condition_verdicts / Phase 6 shortfall)",
+      "C9": "FAIL \u2014 known_blockers name two evidence-backed residuals of this organ's own claim (universality unmeasured on 13 of 27 model-call sites, 3 in its own entrypoint; and measured-not-enforced). Demoted 2026-10-12 by the operator's request ('Plz fix honestly'), not by a regression.",
       "C10": "PASS \u2014 live evidence present at commit 5d482164707c6c6e62f3da6a37cff79f252f9260",
       "C11": "PASS - last_verified_sha=18df70e904c9111b4dec2b382dd0116b3f6f6d95",
       "C12": "PASS - 18df70e904c9111b4dec2b382dd0116b3f6f6d95 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2ed071ddee94 -> 18df70e904c9 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 11 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
