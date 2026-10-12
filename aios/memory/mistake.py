@@ -24,7 +24,7 @@ from aios.core.verification_strength import (
     meets_learning_floor,
 )
 from aios.memory.db import get_connection, init_memory_db
-from aios.memory.relevance import relevance
+from aios.memory.relevance import content_hash, specific_relevance
 from aios.security.secret_scanner import scan_and_redact
 from aios.memory.construction_ledger import record_construction
 
@@ -45,6 +45,27 @@ _RECURRENCE_MATCH = (
     "AND principal_id IS ? "
     "ORDER BY timestamp DESC LIMIT 1"
 )
+
+
+def distinct_lessons(items: Any, limit: int) -> list[Any]:
+    """The first *limit* lessons with distinct text, in order.
+
+    The same lesson is often learned on several tasks -- one rule appeared as
+    eight rows on the live store (2026-10-12) -- and each copy took a recall
+    slot, so one rule could fill the whole block. Text is compared after
+    whitespace and case normalisation.
+    """
+    seen: set[str] = set()
+    kept: list[Any] = []
+    for item in items:
+        key = content_hash(str(item["lesson_text"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(item)
+        if len(kept) >= limit:
+            break
+    return kept
 
 
 class MistakeMemory:
@@ -154,8 +175,13 @@ class MistakeMemory:
     ) -> list[dict]:
         """Return verified lessons relevant to *query*, regardless of session.
 
-        The score is deterministic lexical overlap. A lesson must already be
-        verified before it can influence a different future task.
+        The score is deterministic lexical overlap on SPECIFIC terms only
+        (``specific_relevance``): a lesson is relevant only if it shares a name,
+        identifier or domain word with the task, never on generic vocabulary
+        alone. A lesson must already be verified before it can influence a
+        different future task. Duplicates are NOT collapsed here: recall does
+        that after its gate (``distinct_lessons``), so a refused copy can never
+        hide an admitted one.
         """
         if not query or not query.strip() or limit <= 0:
             return []
@@ -172,7 +198,7 @@ class MistakeMemory:
                 str(row[key])
                 for key in ("error_type", "root_cause", "fix_applied", "lesson_text")
             )
-            score = relevance(query, document)
+            score = specific_relevance(query, document)
             if score <= 0:
                 continue
             ranked.append(

@@ -234,7 +234,11 @@ class TestRevokedContentStaysRevoked:
         _revoke(world, "mistake_pool", [first])
         _readmit(world, "mistake_pool", [first])
         again = _lesson(world, task="task-b")
-        assert set(_recalled(world)) == {first, again}
+        # Both rows pass the gate again. They carry the same text, so recall
+        # shows that lesson once (distinct_lessons, 2026-10-12): one lesson,
+        # one slot.
+        assert world.lessons.admitted(first) and world.lessons.admitted(again)
+        assert len(_recalled(world)) == 1
 
     def test_an_unreadable_tombstone_check_withdraws(self, world, monkeypatch) -> None:
         def unreadable(*_a, **_k):

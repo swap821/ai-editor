@@ -466,3 +466,223 @@ an ON arm recalls only skills the operator activated before the run.
   2026-09-25 and 2026-10-04), so the ON arm has nothing to recall. What
   re-admitted memory is worth through the gates is not yet measured.
 - **Applies to** every run from this commit on.
+
+### D9 — 2026-10-12 — lesson recall is task-specific; one lesson takes one slot
+
+**Applies to** every run after this entry, both cohorts' Phase 8 runs
+included. Recorded before any of them, **by operator decision** ("Improve
+learning, then run", 2026-10-12). The alternatives recorded against it were:
+- run the judged runs on today's memory now;
+- the recall fix alone, then run.
+
+**What was wrong.**
+- **Relevance counted any shared word** (`relevance`: set overlap > 0). A
+  long task and a long lesson always share generic words ("test",
+  "function", "expected"). So recall returned one fixed block: D5's
+  calibration found the same five lessons for all 20 tasks. The old rule,
+  replayed on today's store, gives one identical 5-lesson block to 75 of the
+  150 frozen cloud targets.
+- **Copies were separate lessons.** On the live store one rule ("update the
+  test to expect the function's actual behaviour") sat in eight rows, so one
+  rule could fill the whole block.
+
+**What changed (the product's recall, so a live turn and the ON arm
+together).**
+- **`specific_relevance`.** Overlap counts only *specific* tokens: not
+  generic vocabulary, not a bare number, longer than two characters, with
+  edge punctuation dropped (a sentence-final "it." had become a word that
+  matched every task).
+  - The generic vocabulary (`aios/memory/relevance.py`) is English function
+    words, Python keywords and builtins, and general words of writing and
+    testing code. It never names a module, function, file or domain.
+  - Programming-domain words stay specific even where the task template uses
+    them (`network`, `filesystem`, `config`): a lesson about network calls is
+    a fair match for a task that mentions the network.
+- **`distinct_lessons`.** Lessons with the same normalised text take one
+  slot. This is decided **after** the recall gate, so a refused copy can
+  never hide an admitted one.
+- **Unchanged:** what a recalled lesson shows (type and lesson text only,
+  never root cause or fix: RT-04), the gate, principal scoping, the limit,
+  skills recall.
+
+**How the vocabulary was fixed, disclosed in full.**
+1. A first dry run used the **frozen evaluation targets' prompts**. No model
+   was asked and no outcome was seen. It revealed the punctuation defect and
+   generic coding words.
+2. From then on, tuning used only a **development set**: 150 self-corpus
+   targets that are in no frozen list (overlap checked: 0).
+3. The list was then frozen, and the evaluation numbers were computed once,
+   with no change after.
+
+**The effect, measured without a model** (read-only copy of the live store,
+recall ungated, because the gate admits nothing today):
+
+| Targets | Old rule | New rule |
+|---|---|---|
+| Development (150) | template word "exactly" matched 148 | 37 recall anything, 11 distinct sets |
+| Frozen cloud (150) | 20 distinct sets; one block on 75 | **29 recall anything**, 12 distinct sets |
+| Frozen 7B (30) | 9 distinct sets; one block on 11 | **11 recall anything**, 8 distinct sets |
+
+**Stated before any number exists.**
+1. **With today's store, most judged pairs recall nothing.** Their ON and OFF
+   prompts are identical, so they are NOT COMPARABLE, and the judged N shrinks
+   to about 29 cloud targets. That is the true state of transferable memory
+   today. It is why learning is improved (D10, planned) before the judged
+   runs, not after.
+2. **H3's Phase 0 → Phase 8 pairing is broken for lesson *selection*.**
+   Phase 8's ON arm is reported as its own measurement, beside the baselines,
+   never as a delta from them.
+3. **The placebo (D5) is drawn as before:** as many other stored lessons as
+   ON recalled. A target whose ON arm recalls nothing has no placebo, and
+   leaves H1c as well as H1.
+
+**Addendum, 2026-10-12, before any run.** A practice pilot on development
+targets (D10) produced lessons about mocks. The task template says "No mocks",
+so "mocks" would have matched every pin task. `mock`, `mocks`, `mocked`,
+`mocking`, `patch`, `patched`, `patching`, `fixture` and `fixtures` join the
+generic testing vocabulary, by the same principle as "pytest". No evaluation
+target was consulted.
+
+**Addendum 2, 2026-10-12, before any run.** The full practice run (D10)
+produced 32 verified lessons. A dry run on the **development** targets (the
+practice pool, none judged) showed template words driving recall: `symbol`
+and `constant` recalled one lesson for 153 of 154 targets, and `python`,
+`literal` and `raises` did the same for others. They are generic programming
+words, like `variable` and `value`, so `constant(s)`, `symbol(s)`,
+`literal(s)`, `python` and `raise(s/d)` join the generic vocabulary. After
+this, recall on the development set is driven by domain words (`digest`,
+`status`, `provenance`). No evaluation target was used to choose these.
+
+### D10 — 2026-10-12 — lessons state a specific fact; practice never touches a judged target
+
+**Applies to** every run after this entry, both cohorts' Phase 8 runs
+included. It was recorded before any of them, and it continues the operator's
+decision behind D9 ("Improve learning, then run", 2026-10-12).
+
+**What was wrong.**
+- The reflection prompt asked for "a generalised rule to avoid this class of
+  error", and the model complied.
+- On the live store, 1 of 23 lesson texts names a code identifier, while 17
+  of 23 root causes do. The specific knowledge was in the row, and the text
+  recall shows threw it away for advice any model already follows ("ensure
+  test cases accurately reflect the expected behaviour", eight rows of it).
+- Practice (`tools/organic_chain_run.py`) took the top N targets of
+  the ranking the frozen judged lists were drawn from. That is how today's
+  lessons came to be about judged targets.
+
+**What changed.**
+- **The reflection prompt asks for the ONE specific, checkable fact that would
+  have prevented the failure.** The fact names the module, function, setting
+  or convention.
+  - The examples come from another codebase, so no repository fact enters
+    through the prompt.
+  - A failure that teaches nothing specific is recorded as "No specific
+    lesson", and **nothing is stored**.
+- **lesson_text states a fact, never a command to run, a URL or an
+  instruction.** Recall still shows type and text only. The security cost of
+  more specific text is measured by re-running the behavioural red-team
+  (RT-04) before the judged runs.
+- **Practice takes `practice_targets`:** the ranking minus every frozen judged
+  list, at an offset. If a frozen list is missing, the run refuses rather than
+  excluding nothing.
+
+**Measured (pilot, isolated store, no judged target touched).**
+- **Paired replay:** the same 12 failures (one practice run, development
+  targets), reflected with the same model (Bedrock Qwen3-Coder-30B) under
+  master's prompt and under this one.
+
+  | | Old prompt | New prompt |
+  |---|---|---|
+  | lessons stored | 12 | 12 |
+  | naming a code identifier | **3 / 12** | **11 / 12** |
+  | "No specific lesson" | 0 | 0 |
+
+  - Old lessons read "When testing functions that parse structured strings,
+    always verify…".
+  - New ones read "`recalled_channels` requires the format
+    `RECALL_CHANNELS: channel_name` and splits on ':'…".
+- **Specific is not correct.** At least one new lesson states a confident
+  falsehood: it calls a test file a module that "applies encryption or
+  hashing". The guard is unchanged: a lesson reaches another task only once
+  it is **verified**, when the identical command later passes. The judged
+  run measures whether that guard is enough.
+- **The pilot found two harness defects in practice, both fixed:**
+  - A cloud model could never reflect. `BedrockClient` has no `complete()`,
+    so every reflection raised, and every stored lesson came from
+    local-ladder runs.
+  - All targets in a run shared one task id, so different failures of the
+    same error type collapsed into the first lesson.
+
+**Stated before any number exists.**
+- Lessons now accumulate only from practice targets, which are disjoint from
+  the judged lists. Any transfer to a judged target is therefore transfer to
+  code the animal has never practised: exactly H1's question.
+- H3's pairing stays broken, as D9 says.
+
+### D11 — 2026-10-12 — a lesson is written from the fix that worked; a guess is never promoted
+
+**Applies to** every run after this entry, both cohorts' Phase 8 runs
+included. Recorded before any of them, by operator decision ("Ground lessons
+in the fix", 2026-10-12). The alternative recorded against it: admit the
+true lessons from the first practice run and run the judged runs at once.
+
+**What was wrong.** "Verified" meant the identical command later passed. The
+lesson itself was a diagnosis written at the moment of failure, before anyone
+knew the answer, and nothing ever tested it. The first full practice run
+(D10, 151 development targets, Bedrock Qwen3-Coder-30B) produced 32 verified
+lessons. Each was checked against the code:
+
+- **true: 5**; partly true: 3;
+- **false: 13**. For example, it said `approved_organ_ids` raises, when it
+  returns an empty set. It said `collect_meta_loop_evidence` takes
+  `context=`, when it takes `reflections=`, …;
+- about the test's own mocks or generic Python: 9;
+- secret-scanner artefacts: 2.
+
+**What changed.**
+- **`ReflectionAgent.reflect_resolution`.** The reflector sees the failure
+  AND the change that made the same command pass, and states the fact the
+  passing change proves.
+  - The lesson is recorded under `<task>#resolved` and promoted at once with
+    STRONG evidence.
+  - "No specific lesson" stores nothing.
+- **Practice (`ground_on_success`).** When a target passes after failing:
+  - the failing test is diffed against the passing one;
+  - a grounded lesson supersedes the failure-time guesses;
+  - with no grounded fact, the guesses stay pending. Pending lessons are
+    recalled only within their own practice task. **A guess is never
+    promoted.**
+- **Scope: practice only.** A live turn's confirm hook still promotes the
+  failure-time lesson. Grounding it needs the edits between failure and
+  success, and is follow-up work.
+
+**Measured: the second full practice run** (the same 151 development targets,
+same model, run in batches after a memory stop). 19 grounded lessons were
+checked against the code:
+
+| | Run 1 (guesses) | Run 2 (grounded) |
+|---|---|---|
+| false | 13 / 32 (41%) | **4 / 19 (21%)** |
+| true and useful | 5 / 32 (16%) | **6 / 19 (32%)** |
+| true but empty | — | 2 / 19 |
+| about the test or mocks | 9 / 32 (28%) | 6 / 19 (32%) |
+| secret-scanner artefact | 2 / 32 | 1 / 19 |
+
+- One guess and its grounded replacement show the effect. Run 1's guess said
+  `approved_organ_ids` raises; run 2's grounded lesson says it returns an
+  empty frozenset, which is true.
+- **What it did not fix:** the reflector never once wrote "No specific
+  lesson" (0 of 18 resolutions). Fixes that only repaired the test's own
+  mocks still became lessons.
+- **The secret scanner** (frozen, `aios/security/*`) redacted a function
+  name, a module path in task ids, and expected hash values in generated
+  tests. It is the source of every artefact lesson. Recorded for the
+  operator; not changed.
+
+**Stated before any number exists.**
+1. Across both runs, **11 true lessons and 3 partly true ones** are
+   candidates for the operator's review. Each is about one function.
+2. This is thin memory: a judged run measures whether a handful of narrow,
+   true facts help on never-practised work, and a small or null effect is
+   the expected honest result.
+3. Only lessons the operator re-admits after reading them reach a turn.
