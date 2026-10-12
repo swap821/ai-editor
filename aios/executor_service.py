@@ -21,6 +21,12 @@ from aios import config
 from aios.domain.executor import ExecutorJob, ExecutorRepairReceipt, ExecutorResult
 from aios.infrastructure.executor.docker_runner import DockerJobRunner
 from aios.infrastructure.executor import workspace as workspace_policy
+from aios.maintenance.repair_operations import (
+    REGISTERED_REPAIR_OPERATIONS,
+    REMOVE_DEAD_IMPORTS_V1,
+    RepairRefused,
+    remove_dead_imports,
+)
 from aios.operations.tracing import bind_trace_context, new_trace_context
 
 
@@ -82,7 +88,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
         )
 
     op_id = job.argv[1]
-    if op_id != "REMOVE_MAINTENANCE_MARKER_V1":
+    if op_id not in REGISTERED_REPAIR_OPERATIONS:
         return ExecutorResult(
             job_id=job.job_id,
             status="failed",
@@ -211,16 +217,33 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
 
     content = original_bytes.decode("utf-8", errors="replace")
     new_content = content
-    markers = [
-        "# DEFECT_MARKER: fix_required\n",
-        "# DEFECT_MARKER: fix_required",
-        "TODO_MAINTENANCE_DEFECT\n",
-        "TODO_MAINTENANCE_DEFECT",
-        "# AIOS_MAINTENANCE_REQUIRED: fix_required\n",
-        "# AIOS_MAINTENANCE_REQUIRED: fix_required",
-    ]
-    for m in markers:
-        new_content = new_content.replace(m, "")
+    if op_id == REMOVE_DEAD_IMPORTS_V1:
+        # The staged workspace is a full copy of the project, so the rule
+        # judges "dead" against every importer -- the vulture's own judgement.
+        try:
+            new_content = remove_dead_imports(
+                content, path=target_path, project_root=workspace_root
+            ).content
+        except RepairRefused as exc:
+            return ExecutorResult(
+                job_id=job.job_id,
+                status="failed",
+                isolation_verified=False,
+                started_at=started,
+                ended_at=utc_now(),
+                reason=f"repair refused: {exc}",
+            )
+    else:
+        markers = [
+            "# DEFECT_MARKER: fix_required\n",
+            "# DEFECT_MARKER: fix_required",
+            "TODO_MAINTENANCE_DEFECT\n",
+            "TODO_MAINTENANCE_DEFECT",
+            "# AIOS_MAINTENANCE_REQUIRED: fix_required\n",
+            "# AIOS_MAINTENANCE_REQUIRED: fix_required",
+        ]
+        for m in markers:
+            new_content = new_content.replace(m, "")
 
     changed = new_content != content
     if not changed:
@@ -230,7 +253,11 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
             isolation_verified=False,
             started_at=started,
             ended_at=utc_now(),
-            reason="target file contained no allowed maintenance marker",
+            reason=(
+                "target file had no dead import the repair could remove"
+                if op_id == REMOVE_DEAD_IMPORTS_V1
+                else "target file contained no allowed maintenance marker"
+            ),
         )
 
     after_bytes = new_content.encode("utf-8")

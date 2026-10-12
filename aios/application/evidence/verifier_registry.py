@@ -101,7 +101,11 @@ class VerifierRegistry:
             "allowed_root": spec.allowed_root,
         }
         try:
-            findings = tuple(self._bounded.run_bounded_scan(contract, scanner))
+            findings = tuple(
+                self._bounded.run_bounded_scan(
+                    contract, scanner, target_id=spec.target_id
+                )
+            )
         except ScanExecutionError as exc:
             message = str(exc)
             status: Literal["incomplete", "failed"] = (
