@@ -731,6 +731,32 @@ lessons were false.
   3. On a tie, the one with fewer false lessons teaches them.
   4. Still tied: Qwen3-Coder-480B.
   5. Both pilots' lessons remain candidates.
+- **The critic** (`--critic`, #483), added by the operator's direction the
+  same day ("multiple cloud models with the local one"): the pilot's other
+  model, shown the module source, the passing change and the lesson. A lesson
+  it does not call true is not proposed.
+  - **The pilot runs without a critic,** so the teachers are compared on their
+    own lessons.
+  - **The critic is checked before it is trusted.** It is then run on every
+    pilot lesson, and its verdicts are compared with the fact-check. It is used
+    in practice only if it agrees with the fact-check on at least 80% of the
+    pilot lessons. Otherwise practice runs without it, and that is reported.
+  - **Rejected lessons are not lost.** They are logged with their text, and
+    the fact-check covers them too, so false rejections are counted.
+- **Two practice streams, one pass each over the 156:**
+  - **Cloud:** the cloud student, partitioned across 3 parallel workers.
+  - **Local:** the local student chosen by the rule below, on 1 worker (one
+    local model fits in memory). Its lessons come from the local model's own
+    mistakes, the ones the local judged member is about.
+  - The same teacher and critic serve both streams. The streams may run at the
+    same time: the cloud models run on AWS, and the laptop only grades.
+- **Order:**
+  1. Local student chosen by the rule.
+  2. Teacher pilot.
+  3. Critic check.
+  4. Both practice streams.
+  5. Fact-check, then re-admission.
+  6. The judged runs.
 
 **Admission (unchanged).**
 - Every grounded lesson is checked against the code at the practice corpus
@@ -738,7 +764,7 @@ lessons were false.
 - Only lessons the operator reads and re-admits reach a turn.
 - The count and truth rates are published whatever they are.
 
-**The local student, chosen before its judged run, by a rule.**
+**The local student, chosen first (the local practice stream needs it), by a rule.**
 - **Candidates:** the installed models the clerk has qualified, called as the
   product calls them:
   - `qwen2.5-coder:7b`;
