@@ -135,3 +135,131 @@ def test_a_cloud_chat_client_can_write_a_lesson_in_practice(tmp_path) -> None:
     assert mistakes.count() == 1
     local = _LLM("x")
     assert reflection_client(local) is local, "a completion client is used as is"
+
+
+# --------------------------------------------------------------------------- #
+# D11: lessons are written from the fix that worked, never promoted guesses
+# --------------------------------------------------------------------------- #
+
+
+def test_a_resolution_lesson_is_stored_verified_and_grounded_in_the_change(
+    tmp_path,
+) -> None:
+    agent, mistakes = _agent(
+        tmp_path, "`collect_meta_loop_evidence` takes `reflections=`, not `context=`."
+    )
+    agent.llm.prompts = []
+    original = agent.llm.complete
+
+    def capture(prompt, *, system=None, json_mode=False):
+        agent.llm.prompts.append((prompt, system))
+        return original(prompt, system=system, json_mode=json_mode)
+
+    agent.llm.complete = capture
+    guess = agent.reflect("pytest t.py", "TypeError: unexpected keyword 'context'")
+    grounded = agent.reflect_resolution(
+        "pytest t.py",
+        "TypeError: unexpected keyword 'context'",
+        "-    collect_meta_loop_evidence(context={})\n+    collect_meta_loop_evidence(reflections=[])\n",
+        task_id="t",
+    )
+    assert grounded is not None and grounded.mistake_id != guess.mistake_id
+    assert grounded.task_id == "t#resolved", "never a recurrence of the guess"
+    assert mistakes.get(grounded.mistake_id)["verification_status"] == "verified"
+    prompt, system = agent.llm.prompts[-1]
+    assert "reflections=[]" in prompt and system == ra.RESOLVE_SYSTEM_PROMPT
+
+
+def test_a_fix_that_proves_nothing_stores_nothing(tmp_path) -> None:
+    agent, mistakes = _agent(tmp_path, "No specific lesson: fixed a typo in the test")
+    assert (
+        agent.reflect_resolution("pytest t.py", "SyntaxError", "-x\n+y\n", task_id="t")
+        is None
+    )
+    assert mistakes.count() == 0
+
+
+class _Grounded:
+    def __init__(self, mistake_id):
+        self.mistake_id = mistake_id
+
+
+class _Resolver:
+    def __init__(self, result):
+        self.result = result
+        self.changes = []
+
+    def reflect_resolution(self, command, error_output, change, *, task_id):
+        self.changes.append(change)
+        return self.result
+
+
+def _two_guesses(tmp_path):
+    db = tmp_path / "m.db"
+    init_memory_db(db)
+    mistakes = MistakeMemory(db)
+    guesses = [
+        mistakes.record("t", "TypeError", "r", "f", f"guess {i}", -0.1) for i in (1, 2)
+    ]
+    return mistakes, guesses
+
+
+def test_grounding_supersedes_the_guesses_and_never_promotes_them(tmp_path) -> None:
+    from tools.organic_chain_run import ground_on_success
+
+    mistakes, guesses = _two_guesses(tmp_path)
+    fact = mistakes.record("t#resolved", "TypeError", "r", "f", "the fact", -0.1)
+    mistakes.promote(fact)
+    resolver = _Resolver(_Grounded(fact))
+    new_id, what = ground_on_success(
+        resolver,
+        mistakes,
+        guesses=guesses,
+        command="pytest t.py",
+        failure="E",
+        failed_code="x = 1\n",
+        passing_code="x = 2\n",
+        task_id="t",
+    )
+    assert new_id == fact and "-x = 1" in resolver.changes[0]
+    statuses = {g: mistakes.get(g)["verification_status"] for g in guesses}
+    assert statuses == {g: "superseded" for g in guesses}, what
+
+
+def test_without_a_grounded_fact_the_guesses_stay_pending(tmp_path) -> None:
+    from tools.organic_chain_run import ground_on_success
+
+    mistakes, guesses = _two_guesses(tmp_path)
+    new_id, what = ground_on_success(
+        _Resolver(None),
+        mistakes,
+        guesses=guesses,
+        command="pytest t.py",
+        failure="E",
+        failed_code="x = 1\n",
+        passing_code="x = 2\n",
+        task_id="t",
+    )
+    assert new_id is None and "pending" in what
+    assert {mistakes.get(g)["verification_status"] for g in guesses} == {"pending"}
+
+
+def test_no_change_asks_nothing(tmp_path) -> None:
+    from tools.organic_chain_run import ground_on_success
+
+    mistakes, guesses = _two_guesses(tmp_path)
+    resolver = _Resolver(None)
+    assert (
+        ground_on_success(
+            resolver,
+            mistakes,
+            guesses=guesses,
+            command="c",
+            failure="E",
+            failed_code="same\n",
+            passing_code="same\n",
+            task_id="t",
+        )[0]
+        is None
+    )
+    assert resolver.changes == []
