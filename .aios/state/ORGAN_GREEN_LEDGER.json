@@ -2026,7 +2026,7 @@
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "59ce79b34e4eb5921834d771a846576f9bb62b14",
+    "last_verified_sha": "51fabf17fab199d010d4bcfce05d2b6c7df24fcc",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LocalModelQualificationAuthority class defined in production_entrypoints ['aios/domain/local_workforce/qualifier.py', 'aios/application/local_workforce/qualification_evidence.py', 'aios/domain/local_workforce/registry.py'] (Decision A / enforce_owner_attestation)",

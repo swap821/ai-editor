@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `f0885da0e410d8e3bfe2a7927bfd64321d8b541f31910548c36ad5712e59a0ef`
+- **Source ledger sha256:** `af9862ebfabb8263e1d3bf71c0d2faf878d1ce58b8fa2c3f58a77c711b66df3e`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -855,7 +855,7 @@ re-audits recorded above.
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `f1f0aeea78ee` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `59ce79b34e4e` | live |
 | 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `08978eeefd37` | live |
-| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `59ce79b34e4e` | live |
+| 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `51fabf17fab1` | live |
 | 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `08978eeefd37` | live |
 | 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `cb19e19ef2c7` | live |
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `cb19e19ef2c7` | live |
