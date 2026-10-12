@@ -183,6 +183,7 @@ def run_chain(
     retries: int,
     model_timeout: int,
     offset: int = 0,
+    teacher: str | None = None,
 ) -> tuple[list[LinkEvidence], list[Attempt], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
@@ -205,11 +206,15 @@ def run_chain(
     if not ladder:
         raise CorpusError("no model in the ladder is usable")
 
+    teacher_spec, teacher_client = choose_teacher(
+        ladder, teacher, timeout_s=model_timeout
+    )
+
     # The store is passed EXPLICITLY: ReflectionAgent refuses to guess one,
     # so a lesson can never land somewhere other than where the rest of the
     # chain will look for it.
     reflector = ReflectionAgent(
-        reflection_client(ladder[0][1]), mistakes=mistakes, db_path=DB
+        reflection_client(teacher_client), mistakes=mistakes, db_path=DB
     )
 
     links = {
@@ -231,6 +236,8 @@ def run_chain(
 
     print(f"run id  : {run_id}")
     print("ladder  : " + " -> ".join(spec for spec, _ in ladder))
+    print(f"teacher : {teacher_spec} (writes every lesson)")
+    print(f"store   : {DB}")
 
     with self_corpus(REPO_ROOT, WORKTREE) as corpus:
         print(f"corpus  : {corpus.root} @ {corpus.sha[:12]}\n")
@@ -867,6 +874,25 @@ def _passed_count(verify_output: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+def choose_teacher(ladder, teacher, *, timeout_s: int, resolve=None):
+    """D12: the model that writes every lesson, as ``(spec, client)``.
+
+    The failure-time reflection and the D11 grounded lesson are both written
+    by the teacher while the ladder's models attempt. Unset, the ladder's
+    first model writes them, as before. A teacher in the ladder is reused; one
+    outside it is resolved, and if it cannot be the CorpusError refuses the
+    run -- lessons written by a stand-in would be attributed to a model that
+    never wrote them.
+    """
+    if not teacher:
+        return ladder[0]
+    for spec, client in ladder:
+        if spec == teacher:
+            return spec, client
+    client, _served = (resolve or resolve_client)(teacher, timeout_s=timeout_s)
+    return teacher, client
+
+
 def reflection_client(client):
     """The ladder's first model, as the completion client ReflectionAgent uses.
 
@@ -1045,7 +1071,40 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="provider credentials, read before any aios import (see _load_env_file)",
     )
+    parser.add_argument(
+        "--teacher",
+        default=None,
+        help="D12: the model that writes every lesson (default: the ladder's first "
+        "model). Put it last in --models too, so its passing fix grounds the lesson",
+    )
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=None,
+        help="the practice memory store (default: data/aios_memory.db). One per "
+        "parallel worker: lessons are imported from it, never written live",
+    )
+    parser.add_argument(
+        "--corpus-dir",
+        type=Path,
+        default=None,
+        help="where the corpus worktree is made (default: ../ai-editor-selfcorpus). "
+        "One per parallel worker",
+    )
+    parser.add_argument(
+        "--trail",
+        type=Path,
+        default=None,
+        help="the run trail (default: .aios/audit/organic-chain-runs.jsonl)",
+    )
     args = parser.parse_args(argv)
+
+    # Module paths, overridden before anything reads them, so N workers never
+    # share a corpus worktree, a store or a trail.
+    global DB, WORKTREE, TRAIL
+    DB = args.db.resolve() if args.db else DB
+    WORKTREE = args.corpus_dir.resolve() if args.corpus_dir else WORKTREE
+    TRAIL = args.trail.resolve() if args.trail else TRAIL
 
     try:
         links, attempts, run_id, corpus_sha = run_chain(
@@ -1054,6 +1113,7 @@ def main(argv: list[str] | None = None) -> int:
             retries=args.retries,
             model_timeout=args.model_timeout,
             offset=args.offset,
+            teacher=args.teacher,
         )
     except CorpusError as exc:
         print(f"\nFAIL  {exc}")
@@ -1080,12 +1140,14 @@ def main(argv: list[str] | None = None) -> int:
             # LC11/LC12 (evidence currency and lineage) ask of it.
             "corpus_sha": corpus_sha,
             "models": args.models,
+            "teacher": args.teacher or args.models.split(",")[0].strip(),
+            "store": str(DB),
             "offset": args.offset,
             "links": [asdict(link) for link in links],
             "attempts": [asdict(a) for a in attempts],
         }
     )
-    print(f"\ntrail: {TRAIL.relative_to(REPO_ROOT).as_posix()}")
+    print(f"\ntrail: {TRAIL.as_posix()}")
     return 0
 
 
